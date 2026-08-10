@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+*.log
+npm-debug.log*
+
+.env*.local
+
+.DS_Store
+Thumbs.db
+
+# Scope
+Scope/
