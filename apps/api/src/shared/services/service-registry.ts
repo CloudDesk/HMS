@@ -34,6 +34,6 @@ export const createServiceRegistry = (): ServiceRegistry => {
     permissions: new PermissionService(permissionRepository),
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository),
-    serviceCatalogue: new ServiceCatalogueService(serviceRepository),
+    serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
   };
 };

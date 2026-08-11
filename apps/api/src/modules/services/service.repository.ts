@@ -1,6 +1,59 @@
 
-import { ServiceModel, type IService } from './service.model.js';
+import { ServiceModel } from './service.model.js';
 import type { Service, ServiceListQuery, CreateServiceDTO, UpdateServiceDTO } from './service.types.js';
+
+type ServiceRecord = {
+  _id: unknown;
+  code: string;
+  name: string;
+  category?: string | null;
+  description?: string | null;
+  departmentId: unknown;
+  standardPrice: number;
+  durationMinutes: number;
+  status: Service['status'];
+  createdBy?: unknown;
+  updatedBy?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ServiceFilter = {
+  deletedAt: null;
+  status?: Service['status'];
+  departmentId?: string;
+  $or?: Array<{ name: RegExp } | { code: RegExp }>;
+};
+
+const toService = (service: ServiceRecord): Service => ({
+  id: String(service._id),
+  code: service.code,
+  name: service.name,
+  category: service.category ?? null,
+  description: service.description ?? null,
+  department_id: String(service.departmentId),
+  standard_price: service.standardPrice,
+  duration_minutes: service.durationMinutes,
+  status: service.status,
+  created_by: service.createdBy ? String(service.createdBy) : null,
+  updated_by: service.updatedBy ? String(service.updatedBy) : null,
+  created_at: service.createdAt,
+  updated_at: service.updatedAt,
+});
+
+const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
+  Object.fromEntries(
+    Object.entries({
+      code: data.code,
+      name: data.name,
+      category: data.category,
+      description: data.description,
+      departmentId: data.department_id,
+      standardPrice: data.standard_price,
+      durationMinutes: data.duration_minutes,
+      status: 'status' in data ? data.status : undefined,
+    }).filter(([, value]) => value !== undefined),
+  );
 
 export class ServiceRepository {
   async list(query: ServiceListQuery) {
@@ -8,7 +61,7 @@ export class ServiceRepository {
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
-    const filter: any = { deletedAt: null };
+    const filter: ServiceFilter = { deletedAt: null };
     if (query.status) {
       filter.status = query.status;
     }
@@ -20,12 +73,20 @@ export class ServiceRepository {
       filter.$or = [{ name: searchRegex }, { code: searchRegex }];
     }
 
-    const sortColumn = query.sortBy ?? 'createdAt';
+    const sortColumnByApiField = {
+      code: 'code',
+      created_at: 'createdAt',
+      name: 'name',
+      standard_price: 'standardPrice',
+      status: 'status',
+      updated_at: 'updatedAt',
+    } as const;
+    const sortColumn = sortColumnByApiField[query.sortBy ?? 'created_at'];
     const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
 
     const [data, count] = await Promise.all([
       ServiceModel.find(filter)
-        .sort({ [(query.sortBy as string) === 'duration_minutes' ? 'durationMinutes' : query.sortBy === 'standard_price' ? 'standardPrice' : (query.sortBy as string) === 'department_id' ? 'departmentId' : (query.sortBy as string)]: sortOrder })
+        .sort({ [sortColumn]: sortOrder })
         .skip(offset)
         .limit(limit)
         .lean(),
@@ -33,13 +94,7 @@ export class ServiceRepository {
     ]);
 
     return {
-      data: data.map((d) => ({
-        ...d,
-        id: d._id.toString(),
-        department_id: d.departmentId.toString(),
-        standard_price: d.standardPrice,
-        duration_minutes: d.durationMinutes,
-      })) as unknown as Service[],
+      data: data.map((service) => toService(service)),
       meta: {
         total: count,
         page,
@@ -51,82 +106,34 @@ export class ServiceRepository {
 
   async getById(id: string): Promise<Service | undefined> {
     const service = await ServiceModel.findById(id).lean();
-    return service
-      ? ({
-          ...service,
-          id: service._id.toString(),
-          department_id: service.departmentId.toString(),
-          standard_price: service.standardPrice,
-          duration_minutes: service.durationMinutes,
-        } as unknown as Service)
-      : undefined;
+    return service ? toService(service) : undefined;
   }
 
   async getByCode(code: string): Promise<Service | undefined> {
     const service = await ServiceModel.findOne({ code: new RegExp(`^${code}$`, 'i') }).lean();
-    return service
-      ? ({
-          ...service,
-          id: service._id.toString(),
-          department_id: service.departmentId.toString(),
-          standard_price: service.standardPrice,
-          duration_minutes: service.durationMinutes,
-        } as unknown as Service)
-      : undefined;
+    return service ? toService(service) : undefined;
   }
 
   async create(data: CreateServiceDTO, createdBy: string): Promise<Service> {
     const service = await ServiceModel.create({
-      code: (data as any).code,
-      name: (data as any).name,
-      departmentId: (data as any).department_id,
-      standardPrice: (data as any).standard_price,
-      durationMinutes: (data as any).duration_minutes,
-      category: (data as any).category,
-      description: (data as any).description,
-      status: (data as any).status,
-      createdBy: createdBy,
+      ...toPersistence(data),
+      status: data.status ?? 'ACTIVE',
+      createdBy,
       updatedBy: createdBy,
-    } as any);
-    return {
-      ...service.toJSON(),
-      id: service._id.toString(),
-      department_id: service.departmentId.toString(),
-      standard_price: service.standardPrice,
-      duration_minutes: service.durationMinutes,
-    } as unknown as Service;
+    });
+    return toService(service.toObject());
   }
 
   async update(id: string, data: UpdateServiceDTO, updatedBy: string): Promise<Service> {
-    const updatePayload: Record<string, any> = { ...data, updatedBy };
-    if (data.department_id) {
-      updatePayload.departmentId = data.department_id;
-      delete updatePayload.department_id;
-    }
-    if (data.standard_price !== undefined) {
-      updatePayload.standardPrice = data.standard_price;
-      delete updatePayload.standard_price;
-    }
-    if (data.duration_minutes !== undefined) {
-      updatePayload.durationMinutes = data.duration_minutes;
-      delete updatePayload.duration_minutes;
-    }
-
     const service = await ServiceModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
-      { $set: updatePayload as any },
+      { $set: { ...toPersistence(data), updatedBy } },
       { new: true, lean: true }
     );
     if (!service) {
       throw new Error('Service not found');
     }
-    return {
-      ...service,
-      id: service._id.toString(),
-      department_id: service.departmentId.toString(),
-      standard_price: service.standardPrice,
-      duration_minutes: service.durationMinutes,
-    } as unknown as Service;
+    return toService(service);
   }
 
   async delete(id: string): Promise<void> {

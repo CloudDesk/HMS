@@ -160,8 +160,6 @@ export const sidebarModules: SidebarModule[] = [
   },
 ];
 
-export const mockBranches = ['Main Branch', 'Downtown Clinic', 'North Wing'];
-
 export const mockNotifications = [
   {
     id: 'nt-1',

@@ -1,9 +1,13 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import type { DepartmentRepository } from '../departments/department.repository.js';
 import type { ServiceRepository } from './service.repository.js';
 import type { ServiceListQuery, CreateServiceDTO, UpdateServiceDTO } from './service.types.js';
 
 export class ServiceCatalogueService {
-  constructor(private readonly repository: ServiceRepository) {}
+  constructor(
+    private readonly repository: ServiceRepository,
+    private readonly departmentRepository: DepartmentRepository,
+  ) {}
 
   async list(query: ServiceListQuery) {
     return this.repository.list(query);
@@ -23,6 +27,8 @@ export class ServiceCatalogueService {
       throw new AppError(`Service with code ${data.code} already exists`, 409, 'CONFLICT');
     }
 
+    await this.requireDepartment(data.department_id);
+
     return this.repository.create(data, userId);
   }
 
@@ -36,11 +42,22 @@ export class ServiceCatalogueService {
       }
     }
 
+    if (data.department_id) {
+      await this.requireDepartment(data.department_id);
+    }
+
     return this.repository.update(id, data, userId);
   }
 
   async delete(id: string) {
     const service = await this.getById(id);
     await this.repository.delete(service.id);
+  }
+
+  private async requireDepartment(id: string) {
+    const department = await this.departmentRepository.getById(id);
+    if (!department) {
+      throw new AppError('Department not found', 400, 'INVALID_DEPARTMENT');
+    }
   }
 }

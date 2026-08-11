@@ -22,6 +22,7 @@ type ModalMode = 'create' | 'edit' | 'view';
 type ServiceFormState = {
   code: string;
   name: string;
+  branch_id: string;
   department_id: string;
   category: string;
   description: string;
@@ -33,12 +34,26 @@ type ServiceFormState = {
 const emptyForm: ServiceFormState = {
   code: '',
   name: '',
+  branch_id: '',
   department_id: '',
   category: '',
   description: '',
   standard_price: '',
   duration_minutes: '',
   status: 'ACTIVE',
+};
+
+type LookupPage<T> = {
+  data: T[];
+  meta: { totalPages: number };
+};
+
+const loadAllLookupPages = async <T,>(loadPage: (page: number) => Promise<LookupPage<T>>) => {
+  const firstPage = await loadPage(1);
+  const remainingPages = await Promise.all(
+    Array.from({ length: firstPage.meta.totalPages - 1 }, (_, index) => loadPage(index + 2)),
+  );
+  return [firstPage, ...remainingPages].flatMap((response) => response.data);
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -188,12 +203,12 @@ export function ServiceCataloguePage() {
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lookupsLoading, setLookupsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<ApiServiceStatus | ''>('');
 
   // Pagination & Sorting
@@ -214,6 +229,8 @@ export function ServiceCataloguePage() {
 
   // UI Status
   const [loadError, setLoadError] = useState('');
+  const [lookupError, setLookupError] = useState('');
+  const [forbidden, setForbidden] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -224,23 +241,33 @@ export function ServiceCataloguePage() {
   };
 
   // ── Derived: filter departments by selected branch ─────────────────────────
-  const filteredDeptOptions = useMemo(
-    () => (branchFilter ? departments.filter((d) => d.branch_id === branchFilter) : departments),
-    [departments, branchFilter],
+  const formDepartmentOptions = useMemo(
+    () => (form.branch_id ? departments.filter((department) => department.branch_id === form.branch_id) : departments),
+    [departments, form.branch_id],
   );
 
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   const loadLookups = useCallback(async () => {
+    setLookupsLoading(true);
+    setLookupError('');
     try {
-      const [branchRes, deptRes] = await Promise.all([
-        branchesApi.list({ limit: 100, status: 'ACTIVE' }),
-        departmentsApi.list({ limit: 200, status: 'ACTIVE' }),
+      const [availableBranches, availableDepartments] = await Promise.all([
+        loadAllLookupPages((page) =>
+          branchesApi.list({ limit: 100, page, sortBy: 'name', sortOrder: 'asc' }),
+        ),
+        loadAllLookupPages((page) =>
+          departmentsApi.list({ limit: 100, page, sortBy: 'name', sortOrder: 'asc' }),
+        ),
       ]);
-      setBranches(branchRes.data);
-      setDepartments(deptRes.data);
-    } catch (e) {
-      console.error('Failed to load lookups', e);
+      setBranches(availableBranches);
+      setDepartments(availableDepartments);
+    } catch (error) {
+      setBranches([]);
+      setDepartments([]);
+      setLookupError(getErrorMessage(error));
+    } finally {
+      setLookupsLoading(false);
     }
   }, []);
 
@@ -248,7 +275,6 @@ export function ServiceCataloguePage() {
     setLoading(true);
     setLoadError('');
     try {
-      // resolve department_id from branchFilter if no dept selected
       const deptId = deptFilter || undefined;
 
       const res = await servicesApi.list({
@@ -262,10 +288,16 @@ export function ServiceCataloguePage() {
       });
       setServices(res.data);
       setMeta(res.meta);
+      setForbidden(false);
+
+      if (currentPage > res.meta.totalPages) {
+        setCurrentPage(res.meta.totalPages);
+      }
     } catch (error) {
       setServices([]);
       setMeta({ limit: pageSize, page: currentPage, total: 0, totalPages: 1 });
       setLoadError(getErrorMessage(error));
+      if (error instanceof ApiError && error.status === 403) setForbidden(true);
     } finally {
       setLoading(false);
     }
@@ -299,7 +331,6 @@ export function ServiceCataloguePage() {
   const resetFilters = () => {
     setSearch('');
     setDeptFilter('');
-    setBranchFilter('');
     setStatusFilter('');
     setCurrentPage(1);
   };
@@ -310,9 +341,11 @@ export function ServiceCataloguePage() {
     setActiveSvc(svc);
     setFormError('');
     if (svc) {
+      const department = departments.find((item) => item.id === svc.department_id);
       setForm({
         code: svc.code,
         name: svc.name,
+        branch_id: department?.branch_id ?? '',
         department_id: svc.department_id,
         category: svc.category ?? '',
         description: svc.description ?? '',
@@ -363,6 +396,7 @@ export function ServiceCataloguePage() {
         showToast('Service created successfully.');
       } else if (activeSvc) {
         await servicesApi.update(activeSvc.id, {
+          code: form.code.trim(),
           name: form.name.trim(),
           department_id: form.department_id,
           standard_price: price,
@@ -388,7 +422,11 @@ export function ServiceCataloguePage() {
       await servicesApi.delete(deleteTarget.id);
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
-      await loadServices();
+      if (services.length === 1 && currentPage > 1) {
+        setCurrentPage((page) => page - 1);
+      } else {
+        await loadServices();
+      }
     } catch (error) {
       showToast(getErrorMessage(error));
     } finally {
@@ -486,12 +524,17 @@ export function ServiceCataloguePage() {
                   <i className="ph ph-magnifying-glass" aria-hidden="true" />
                   <input
                     onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-                    placeholder="Search by code, name, description..."
+                    placeholder="Search by code or name..."
                     type="search"
                     value={search}
                   />
                 </div>
-                <button className="um-add-btn" onClick={() => openModal('create')} type="button">
+                <button
+                  className="um-add-btn"
+                  disabled={forbidden || lookupsLoading || departments.length === 0}
+                  onClick={() => openModal('create')}
+                  type="button"
+                >
                   <i className="ph ph-plus" aria-hidden="true" /> Add Service
                 </button>
               </div>
@@ -501,24 +544,12 @@ export function ServiceCataloguePage() {
 
                 <select
                   className="um-filter"
-                  id="svc-branch-filter"
-                  onChange={(e) => { setBranchFilter(e.target.value); setDeptFilter(''); setCurrentPage(1); }}
-                  value={branchFilter}
-                >
-                  <option value="">All Branches</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-
-                <select
-                  className="um-filter"
                   id="svc-dept-filter"
                   onChange={(e) => { setDeptFilter(e.target.value); setCurrentPage(1); }}
                   value={deptFilter}
                 >
                   <option value="">All Departments</option>
-                  {filteredDeptOptions.map((d) => (
+                  {departments.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
@@ -539,6 +570,10 @@ export function ServiceCataloguePage() {
                 </button>
               </div>
             </div>
+
+            {lookupError ? (
+              <div className="auth-alert auth-alert--error" role="alert">{lookupError}</div>
+            ) : null}
 
             {/* Table */}
             <div className="table-responsive">
@@ -621,6 +656,7 @@ export function ServiceCataloguePage() {
                             <button
                               aria-label={`Edit ${svc.name}`}
                               className="action-icon-btn"
+                              disabled={forbidden}
                               onClick={() => openModal('edit', svc)}
                               title="Edit"
                               type="button"
@@ -630,6 +666,7 @@ export function ServiceCataloguePage() {
                             <button
                               aria-label={`Delete ${svc.name}`}
                               className="action-icon-btn danger"
+                              disabled={forbidden}
                               onClick={() => setDeleteTarget(svc)}
                               title="Delete"
                               type="button"
@@ -719,7 +756,12 @@ export function ServiceCataloguePage() {
                 <h3>Quick Actions</h3>
               </div>
               <div className="um-quick-list">
-                <button className="um-quick-btn" onClick={() => openModal('create')} type="button">
+                <button
+                  className="um-quick-btn"
+                  disabled={forbidden || lookupsLoading || departments.length === 0}
+                  onClick={() => openModal('create')}
+                  type="button"
+                >
                   <i className="ph ph-plus-circle" aria-hidden="true" />
                   <div>
                     <strong>Add Service</strong>
@@ -784,7 +826,7 @@ export function ServiceCataloguePage() {
               <label className="form-field">
                 <span>Service Code *</span>
                 <input
-                  disabled={submitting || modalMode === 'edit'}
+                  disabled={submitting}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
                   required
                   value={form.code}
@@ -817,12 +859,11 @@ export function ServiceCataloguePage() {
                 <select
                   disabled={submitting}
                   onChange={(e) => {
-                    setBranchFilter(e.target.value);
-                    setForm({ ...form, department_id: '' });
+                    setForm({ ...form, branch_id: e.target.value, department_id: '' });
                   }}
-                  value={branchFilter}
+                  value={form.branch_id}
                 >
-                  <option value="">All Branches</option>
+                  <option value="">Select Branch</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
@@ -837,24 +878,22 @@ export function ServiceCataloguePage() {
                   value={form.department_id}
                 >
                   <option value="">Select Department</option>
-                  {filteredDeptOptions.map((d) => (
+                  {formDepartmentOptions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
               </label>
-              {modalMode === 'edit' && (
-                <label className="form-field">
-                  <span>Status</span>
-                  <select
-                    disabled={submitting}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as ApiServiceStatus })}
-                    value={form.status}
-                  >
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                  </select>
-                </label>
-              )}
+              <label className="form-field">
+                <span>Status</span>
+                <select
+                  disabled={submitting || modalMode === 'edit'}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as ApiServiceStatus })}
+                  value={form.status}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </label>
             </div>
 
             <div className="form-section-title">Pricing & Duration</div>

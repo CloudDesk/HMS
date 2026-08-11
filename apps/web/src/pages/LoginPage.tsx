@@ -10,6 +10,7 @@ export function LoginPage() {
   const location = useAppLocation();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -90,17 +91,32 @@ export function LoginPage() {
             />
           </label>
 
-          <label className="form-field">
-            <span>Password</span>
-            <input
-              autoComplete="current-password"
-              name="password"
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter password"
-              type="password"
-              value={password}
-            />
-          </label>
+          <div className="form-field">
+            <label htmlFor="login-password">Password</label>
+            <div className="password-input">
+              <input
+                autoComplete="current-password"
+                id="login-password"
+                name="password"
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter password"
+                type={isPasswordVisible ? 'text' : 'password'}
+                value={password}
+              />
+              <button
+                aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+                aria-pressed={isPasswordVisible}
+                className="password-input__toggle"
+                onClick={() => setIsPasswordVisible((current) => !current)}
+                type="button"
+              >
+                <i
+                  aria-hidden="true"
+                  className={`ph ${isPasswordVisible ? 'ph-eye-slash' : 'ph-eye'}`}
+                />
+              </button>
+            </div>
+          </div>
 
           <button className="primary-action" disabled={isSubmitting} type="submit">
             {isSubmitting ? 'Signing in...' : 'Sign in'}

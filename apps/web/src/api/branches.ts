@@ -36,16 +36,25 @@ export type BranchListParams = Partial<{
   status: ApiBranchStatus;
   page: number;
   limit: number;
-  sortBy: 'name' | 'code' | 'created_at';
+  sortBy: 'name' | 'code' | 'status' | 'created_at' | 'updated_at';
   sortOrder: 'asc' | 'desc';
 }>;
 
 export type SaveBranchPayload = {
   code: string;
   name: string;
+  short_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
   city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  postal_code?: string | null;
   status?: ApiBranchStatus;
 };
+
+export type UpdateBranchPayload = Partial<Omit<SaveBranchPayload, 'status'>>;
 
 const toQueryString = (params: BranchListParams) => {
   const searchParams = new URLSearchParams();
@@ -66,25 +75,25 @@ export const branchesApi = {
   },
 
   getById(id: string) {
-    return apiClient.request<{ data: BranchResponse }>(`/branches/${encodeURIComponent(id)}`);
+    return apiClient.request<BranchResponse>(`/branches/${encodeURIComponent(id)}`);
   },
 
   create(payload: SaveBranchPayload) {
-    return apiClient.request<{ data: BranchResponse }>('/branches', {
+    return apiClient.request<BranchResponse>('/branches', {
       body: payload,
       method: 'POST',
     });
   },
 
-  update(id: string, payload: Partial<SaveBranchPayload>) {
-    return apiClient.request<{ data: BranchResponse }>(`/branches/${encodeURIComponent(id)}`, {
+  update(id: string, payload: UpdateBranchPayload) {
+    return apiClient.request<BranchResponse>(`/branches/${encodeURIComponent(id)}`, {
       body: payload,
       method: 'PATCH',
     });
   },
 
   delete(id: string) {
-    return apiClient.request<{ ok: true }>(`/branches/${encodeURIComponent(id)}`, {
+    return apiClient.request<{ success: true }>(`/branches/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },
