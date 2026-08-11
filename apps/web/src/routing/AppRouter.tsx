@@ -6,6 +6,9 @@ import { DashboardShell } from '../pages/DashboardShell';
 import { LoginPage } from '../pages/LoginPage';
 import { RolesPermissionsPage } from '../pages/RolesPermissionsPage';
 import { UserManagementPage } from '../pages/UserManagementPage';
+import { DepartmentManagementPage } from '../pages/DepartmentManagementPage';
+import { BranchManagementPage } from '../pages/BranchManagementPage';
+import { ServiceCataloguePage } from '../pages/ServiceCataloguePage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { sidebarModules } from '../data/ui-foundation';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -82,6 +85,18 @@ export function AppRouter() {
     title = 'Roles & Permissions';
     breadcrumbs = ['Home', 'Administration', 'Roles & Permissions'];
     content = <RolesPermissionsPage />;
+  } else if (pathname === '/administration/departments') {
+    title = 'Department Management';
+    breadcrumbs = ['Home', 'Administration', 'Department Management'];
+    content = <DepartmentManagementPage />;
+  } else if (pathname === '/administration/branches') {
+    title = 'Branch Management';
+    breadcrumbs = ['Home', 'Administration', 'Branch Management'];
+    content = <BranchManagementPage />;
+  } else if (pathname === '/administration/services') {
+    title = 'Service Catalogue';
+    breadcrumbs = ['Home', 'Administration', 'Service Catalogue'];
+    content = <ServiceCataloguePage />;
   } 
   // 2. All other sidebar routes automatically get a ComingSoonPage stub
   else if (matchedModule && matchedLink) {

@@ -433,7 +433,7 @@ export class PermissionService {
 
     if (groupId) {
       const group = await this.repository.findGroupById(groupId);
-      if (!group || group.status !== 'active' || group.category_id !== categoryId) {
+      if (!group || group.status !== 'active' || group.categoryId !== categoryId) {
         throw new AppError('Permission group is invalid', 400, 'INVALID_PERMISSION_GROUP');
       }
     } else {

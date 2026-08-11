@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { DashboardLayout } from '../components/layout/DashboardLayout';
+
 import { Card } from '../components/ui/Card';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { DataTable, type DataTableColumn } from '../components/ui/DataTable';

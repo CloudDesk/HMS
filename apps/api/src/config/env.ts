@@ -23,9 +23,15 @@ const parseCorsOrigins = (value: string | undefined) =>
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+const parseDnsServers = (value: string | undefined) =>
+  (value ?? '')
+    .split(',')
+    .map((server) => server.trim())
+    .filter(Boolean);
+
 const parseDatabaseUrl = (value: string | undefined) => {
   if (!value) {
-    throw new Error('DATABASE_URL is required');
+    throw new Error('MONGODB_DATABASE_URL is required');
   }
 
   return value;
@@ -44,7 +50,8 @@ export const env = {
     origins: parseCorsOrigins(process.env.CORS_ORIGIN),
   },
   database: {
-    url: parseDatabaseUrl(process.env.DATABASE_URL),
+    url: parseDatabaseUrl(process.env.MONGODB_DATABASE_URL),
+    dnsServers: parseDnsServers(process.env.MONGODB_DNS_SERVERS),
     poolSize: parseInteger(process.env.DATABASE_POOL_SIZE, 10),
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),
   },

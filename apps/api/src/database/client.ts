@@ -1,18 +1,38 @@
-import postgres from 'postgres';
+import { setServers } from 'node:dns';
+import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 
-const shouldRequireSsl =
-  env.database.url.includes('sslmode=require') ||
-  env.database.url.includes('supabase.com') ||
-  env.app.environment === 'prod';
+let isConnected = false;
 
-export const sql = postgres(env.database.url, {
-  max: env.database.poolSize,
-  connect_timeout: env.database.connectTimeoutSeconds,
-  ssl: shouldRequireSsl ? 'require' : undefined,
-  onnotice: () => undefined,
-});
+export const connectDatabase = async () => {
+  if (isConnected) {
+    return;
+  }
+
+  try {
+    if (env.database.dnsServers.length > 0) {
+      setServers(env.database.dnsServers);
+    }
+
+    const db = await mongoose.connect(env.database.url, {
+      maxPoolSize: env.database.poolSize,
+      serverSelectionTimeoutMS: env.database.connectTimeoutSeconds * 1000,
+    });
+
+    isConnected = mongoose.connection.readyState === 1;
+    console.log('MongoDB connected successfully');
+  } catch (error) {
+    console.error('Failed to connect to MongoDB', error);
+    process.exit(1);
+  }
+};
 
 export const closeDatabase = async () => {
-  await sql.end({ timeout: 5 });
+  if (!isConnected) {
+    return;
+  }
+
+  await mongoose.connection.close();
+  isConnected = false;
+  console.log('MongoDB connection closed');
 };

@@ -3,6 +3,9 @@ import type { AuthService } from '../../modules/auth/auth.service.js';
 import type { PermissionService } from '../../modules/permissions/permission.service.js';
 import type { RoleService } from '../../modules/roles/role.service.js';
 import type { UserService } from '../../modules/users/user.service.js';
+import type { BranchService } from '../../modules/branches/branch.service.js';
+import type { DepartmentService } from '../../modules/departments/department.service.js';
+import type { ServiceCatalogueService } from '../../modules/services/service.service.js';
 
 export type ServiceRegistry = {
   database: {
@@ -12,4 +15,7 @@ export type ServiceRegistry = {
   users: UserService;
   roles: RoleService;
   permissions: PermissionService;
+  branches: BranchService;
+  departments: DepartmentService;
+  serviceCatalogue: ServiceCatalogueService;
 };

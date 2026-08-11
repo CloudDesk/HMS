@@ -20,11 +20,10 @@ export const databaseHealthResponseSchema = {
   properties: {
     data: {
       type: 'object',
-      required: ['status', 'database', 'user'],
+      required: ['status', 'database'],
       properties: {
         status: { type: 'string' },
         database: { type: 'string' },
-        user: { type: 'string' },
       },
     },
   },

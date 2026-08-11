@@ -8,7 +8,7 @@ import {
   type UserListResponse,
   type UserResponse,
 } from '../api/users';
-import { DashboardLayout } from '../components/layout/DashboardLayout';
+
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';

@@ -1,4 +1,4 @@
-import { DashboardLayout } from '../components/layout/DashboardLayout';
+
 
 type ComingSoonPageProps = {
   title: string;

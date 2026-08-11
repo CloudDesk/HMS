@@ -1,21 +1,16 @@
-import { sql } from './client.js';
+import mongoose from 'mongoose';
 
 export type DatabaseHealth = {
-  connected: true;
+  connected: boolean;
   database: string;
-  user: string;
 };
 
 export const checkDatabaseHealth = async (): Promise<DatabaseHealth> => {
-  const [row] = await sql<[{ database: string; user: string }]>`
-    select
-      current_database() as database,
-      current_user as user
-  `;
+  const isConnected = mongoose.connection.readyState === 1;
+  const dbName = mongoose.connection.db ? mongoose.connection.db.databaseName : 'unknown';
 
   return {
-    connected: true,
-    database: row.database,
-    user: row.user,
+    connected: isConnected,
+    database: dbName,
   };
 };

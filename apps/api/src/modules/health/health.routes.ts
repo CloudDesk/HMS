@@ -35,9 +35,8 @@ export const registerHealthRoutes = async (app: FastifyInstance, services: Servi
       const database = await services.database.healthCheck();
 
       return ok({
-        status: 'ok',
+        status: database.connected ? 'ok' : 'error',
         database: database.database,
-        user: database.user,
       });
     },
   );
