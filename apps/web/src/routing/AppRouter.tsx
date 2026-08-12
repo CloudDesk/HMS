@@ -4,7 +4,24 @@ import { useAuth } from '../auth/useAuth';
 import { AuthSupportPage } from '../pages/AuthSupportPage';
 import { ComingSoonPage } from '../pages/ComingSoonPage';
 import { DashboardShell } from '../pages/DashboardShell';
+import { AppointmentBookingPage } from '../pages/AppointmentBookingPage';
+import { AppointmentCalendarPage } from '../pages/AppointmentCalendarPage';
+import { AppointmentDashboardPage } from '../pages/AppointmentDashboardPage';
+import { AppointmentQueuePage } from '../pages/AppointmentQueuePage';
+import { DoctorDashboardPage } from '../pages/DoctorDashboardPage';
+import { DoctorDirectoryPage } from '../pages/DoctorDirectoryPage';
+import { DoctorPerformancePage } from '../pages/DoctorPerformancePage';
+import { DoctorSchedulePage } from '../pages/DoctorSchedulePage';
 import { LoginPage } from '../pages/LoginPage';
+import { OpdDashboardPage } from '../pages/OpdDashboardPage';
+import { OpdQueuePage } from '../pages/OpdQueuePage';
+import { OpdVisitPage } from '../pages/OpdVisitPage';
+import { PatientDocumentsPage } from '../pages/PatientDocumentsPage';
+import { PatientEmrTimelinePage } from '../pages/PatientEmrTimelinePage';
+import { PatientHistoryPage } from '../pages/PatientHistoryPage';
+import { PatientProfilePage } from '../pages/PatientProfilePage';
+import { PatientRegistrationPage } from '../pages/PatientRegistrationPage';
+import { PatientSearchPage } from '../pages/PatientSearchPage';
 import { RolesPermissionsPage } from '../pages/RolesPermissionsPage';
 import { UserManagementPage } from '../pages/UserManagementPage';
 import { DepartmentManagementPage } from '../pages/DepartmentManagementPage';
@@ -97,6 +114,78 @@ export function AppRouter() {
     title = 'Administration Dashboard';
     breadcrumbs = ['Home', 'Administration', 'Dashboard'];
     content = <AdministrationDashboardPage />;
+  } else if (pathname === '/patients/search') {
+    title = 'Patient Search';
+    breadcrumbs = ['Home', 'Patients', title];
+    content = <PatientSearchPage />;
+  } else if (pathname === '/patients/register') {
+    title = 'Register Patient';
+    breadcrumbs = ['Home', 'Patients', 'Register Patient'];
+    content = <PatientRegistrationPage />;
+  } else if (pathname === '/patients/profile') {
+    title = 'Patient Profile';
+    breadcrumbs = ['Home', 'Patients', 'Patient Profile'];
+    content = <PatientProfilePage />;
+  } else if (pathname === '/patients/history') {
+    title = 'Patient History';
+    breadcrumbs = ['Home', 'Patients', 'Patient History'];
+    content = <PatientHistoryPage />;
+  } else if (pathname === '/patients/documents') {
+    title = 'Patient Documents';
+    breadcrumbs = ['Home', 'Patients', 'Documents'];
+    content = <PatientDocumentsPage />;
+  } else if (pathname === '/patients/emr') {
+    title = 'EMR Timeline';
+    breadcrumbs = ['Home', 'Patients', 'EMR Timeline'];
+    content = <PatientEmrTimelinePage />;
+  } else if (pathname === '/patients/consents') {
+    title = 'Consent Management';
+    breadcrumbs = ['Home', 'Patients', 'Consent Management'];
+    content = <PatientDocumentsPage mode="consents" />;
+  } else if (pathname === '/doctors') {
+    title = 'Doctor Dashboard';
+    breadcrumbs = ['Home', 'Doctors', 'Dashboard'];
+    content = <DoctorDashboardPage />;
+  } else if (pathname === '/doctors/directory') {
+    title = 'Doctor Directory';
+    breadcrumbs = ['Home', 'Doctors', 'Doctor Directory'];
+    content = <DoctorDirectoryPage />;
+  } else if (pathname === '/doctors/schedule') {
+    title = 'Doctor Schedule';
+    breadcrumbs = ['Home', 'Doctors', 'Schedule'];
+    content = <DoctorSchedulePage />;
+  } else if (pathname === '/doctors/performance') {
+    title = 'Doctor Performance';
+    breadcrumbs = ['Home', 'Doctors', 'Performance'];
+    content = <DoctorPerformancePage />;
+  } else if (pathname === '/appointments') {
+    title = 'Appointment Dashboard';
+    breadcrumbs = ['Home', 'Appointments', 'Appointment Dashboard'];
+    content = <AppointmentDashboardPage />;
+  } else if (pathname === '/appointments/book') {
+    title = 'Book Appointment';
+    breadcrumbs = ['Home', 'Appointments', 'Book Appointment'];
+    content = <AppointmentBookingPage />;
+  } else if (pathname === '/appointments/calendar') {
+    title = 'Calendar View';
+    breadcrumbs = ['Home', 'Appointments', 'Calendar View'];
+    content = <AppointmentCalendarPage />;
+  } else if (pathname === '/appointments/queue') {
+    title = 'Queue Management';
+    breadcrumbs = ['Home', 'Appointments', 'Queue Management'];
+    content = <AppointmentQueuePage />;
+  } else if (pathname === '/opd') {
+    title = 'OPD Dashboard';
+    breadcrumbs = ['Home', 'OPD', 'Dashboard'];
+    content = <OpdDashboardPage />;
+  } else if (pathname === '/opd/queue') {
+    title = 'OPD Waiting Queue';
+    breadcrumbs = ['Home', 'OPD', 'Waiting Queue'];
+    content = <OpdQueuePage />;
+  } else if (pathname === '/opd/visit') {
+    title = 'OPD Visit Workspace';
+    breadcrumbs = ['Home', 'OPD', 'Visit Workspace'];
+    content = <OpdVisitPage />;
   } else if (pathname === '/administration/users') {
     title = 'User Management';
     breadcrumbs = ['Home', 'Administration', 'User Management'];

@@ -21,12 +21,20 @@ export const buildApp = async () => {
   await app.register(cors, {
     origin: env.cors.origins.includes('*') ? true : env.cors.origins,
     credentials: true,
+    exposedHeaders: ['content-disposition'],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
+  // await app.register(multipart, {
+  //   limits: {
+  //     fileSize: 2 * 1024 * 1024,
+  //     files: 1,
+  //   },
+  // });
+
   await app.register(multipart, {
     limits: {
-      fileSize: 2 * 1024 * 1024,
+      fileSize: env.upload.patientDocumentMaxFileSizeBytes,
       files: 1,
     },
   });

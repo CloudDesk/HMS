@@ -17,10 +17,9 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-users',
     links: [
       { href: '/patients/search', label: 'Search Patients' },
-      { href: '/patients/profile', label: 'Patient Profile' },
-      { href: '/patients/documents', label: 'Documents' },
-      { href: '/patients/emr', label: 'EMR Timeline' },
-      { href: '/patients/consents', label: 'Consent Management' },
+      { href: '/patients/register', label: 'Patient Registration' },
+      // Patient profile, history, documents, EMR, and consents are record-scoped views.
+      // They remain routable from patient search/profile actions with ?id=..., not as standalone sidebar entries.
     ],
   },
   {
@@ -31,7 +30,6 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/doctors', label: 'Dashboard' },
       { href: '/doctors/directory', label: 'Doctor Directory' },
       { href: '/doctors/schedule', label: 'Doctor Schedule' },
-      { href: '/doctors/availability', label: 'Availability' },
       { href: '/doctors/performance', label: 'Performance' },
     ],
   },
@@ -43,7 +41,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/appointments', label: 'Appointment Dashboard' },
       { href: '/appointments/book', label: 'Book Appointment' },
       { href: '/appointments/calendar', label: 'Calendar View' },
-      { href: '/appointments/availability', label: 'Doctor Availability' },
+      // { href: '/appointments/availability', label: 'Doctor Availability' },
       { href: '/appointments/queue', label: 'Queue Management' },
     ],
   },
@@ -53,7 +51,8 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-first-aid',
     links: [
       { href: '/opd', label: 'Dashboard' },
-      { href: '/opd/consultation', label: 'Consultation' },
+      { href: '/opd/queue', label: 'Waiting Queue' },
+      // OPD visit and consultation workspaces require a visit id and are opened from the queue.
     ],
   },
   {

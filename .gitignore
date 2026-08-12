@@ -19,3 +19,5 @@ Scope/
 
 # Project documentation
 docs/
+# Temporary local patient document storage
+apps/api/storage/

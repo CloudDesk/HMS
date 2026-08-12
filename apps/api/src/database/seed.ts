@@ -13,11 +13,35 @@ const administrationPermissions = {
   Services: ['View', 'Create', 'Edit', 'Delete', 'Export'],
 } as const;
 
-const permissionCode = (screen: string, action: string) =>
-  `ADMINISTRATION_${screen}_${action}`.replaceAll(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
+const patientPermissions = {
+  'Patient Records': ['View', 'Create', 'Edit'],
+  'Patient Documents': ['View', 'Create', 'Delete'],
+} as const;
+
+const doctorPermissions = {
+  'Doctor Directory': ['View', 'Create', 'Edit'],
+  'Doctor Availability': ['View', 'Edit'],
+} as const;
+
+const appointmentPermissions = {
+  'Appointment Records': ['View', 'Edit'],
+  'Appointment Booking': ['View', 'Create', 'Edit'],
+} as const;
+
+const opdPermissions = {
+  'OPD Visits': ['View', 'Create', 'Edit'],
+  'OPD Vitals': ['View', 'Create'],
+  'OPD Consultation': ['View', 'Edit'],
+} as const;
+
+const permissionCode = (moduleName: string, screen: string, action: string) =>
+  `${moduleName}_${screen}_${action}`
+    .replaceAll(/([a-z])([A-Z])/g, '$1_$2')
+    .replaceAll(/\s+/g, '_')
+    .toUpperCase();
 
 export const seedDatabase = async () => {
-  const category = await PermissionCategoryModel.findOneAndUpdate(
+  const systemCategory = await PermissionCategoryModel.findOneAndUpdate(
     { code: 'SYSTEM' },
     {
       $setOnInsert: {
@@ -28,8 +52,8 @@ export const seedDatabase = async () => {
     { upsert: true, returnDocument: 'after' },
   );
 
-  const group = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: category._id, code: 'ADMINISTRATION' },
+  const administrationGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: systemCategory._id, code: 'ADMINISTRATION' },
     {
       $setOnInsert: {
         name: 'Administration',
@@ -43,7 +67,7 @@ export const seedDatabase = async () => {
   for (const [screen, actions] of Object.entries(administrationPermissions)) {
     for (const action of actions) {
       const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode(screen, action) },
+        { code: permissionCode('Administration', screen, action) },
         {
           $set: {
             name: `${screen} ${action}`,
@@ -52,8 +76,155 @@ export const seedDatabase = async () => {
             action,
             type: 'system',
             status: 'active',
-            categoryId: category._id,
-            groupId: group._id,
+            categoryId: systemCategory._id,
+            groupId: administrationGroup._id,
+            deletedAt: null,
+          },
+        },
+        { upsert: true, new: true },
+      );
+
+      permissionIds.push(permission._id);
+    }
+  }
+
+  const clinicalCategory = await PermissionCategoryModel.findOneAndUpdate(
+    { code: 'CLINICAL' },
+    {
+      $setOnInsert: {
+        name: 'Clinical Operations',
+        description: 'Patient, OPD, and clinical workflow permissions',
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  const patientsGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: clinicalCategory._id, code: 'PATIENTS' },
+    {
+      $setOnInsert: {
+        name: 'Patients',
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  for (const [screen, actions] of Object.entries(patientPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('Patients', screen, action) },
+        {
+          $set: {
+            name: `${screen} ${action}`,
+            module: 'Patients',
+            screen,
+            action,
+            type: 'system',
+            status: 'active',
+            categoryId: clinicalCategory._id,
+            groupId: patientsGroup._id,
+            deletedAt: null,
+          },
+        },
+        { upsert: true, new: true },
+      );
+
+      permissionIds.push(permission._id);
+    }
+  }
+
+  const doctorsGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: clinicalCategory._id, code: 'DOCTORS' },
+    {
+      $setOnInsert: {
+        name: 'Doctors',
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  for (const [screen, actions] of Object.entries(doctorPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('Doctors', screen, action) },
+        {
+          $set: {
+            name: `${screen} ${action}`,
+            module: 'Doctors',
+            screen,
+            action,
+            type: 'system',
+            status: 'active',
+            categoryId: clinicalCategory._id,
+            groupId: doctorsGroup._id,
+            deletedAt: null,
+          },
+        },
+        { upsert: true, new: true },
+      );
+
+      permissionIds.push(permission._id);
+    }
+  }
+
+  const appointmentsGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: clinicalCategory._id, code: 'APPOINTMENTS' },
+    {
+      $setOnInsert: {
+        name: 'Appointments',
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  for (const [screen, actions] of Object.entries(appointmentPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('Appointments', screen, action) },
+        {
+          $set: {
+            name: `${screen} ${action}`,
+            module: 'Appointments',
+            screen,
+            action,
+            type: 'system',
+            status: 'active',
+            categoryId: clinicalCategory._id,
+            groupId: appointmentsGroup._id,
+            deletedAt: null,
+          },
+        },
+        { upsert: true, new: true },
+      );
+
+      permissionIds.push(permission._id);
+    }
+  }
+
+  const opdGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: clinicalCategory._id, code: 'OPD' },
+    {
+      $setOnInsert: {
+        name: 'OPD',
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  for (const [screen, actions] of Object.entries(opdPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('OPD', screen, action) },
+        {
+          $set: {
+            name: `${screen} ${action}`,
+            module: 'OPD',
+            screen,
+            action,
+            type: 'system',
+            status: 'active',
+            categoryId: clinicalCategory._id,
+            groupId: opdGroup._id,
             deletedAt: null,
           },
         },
