@@ -34,7 +34,7 @@ export type ServiceListParams = Partial<{
   department_id: string;
   page: number;
   limit: number;
-  sortBy: 'name' | 'code' | 'status' | 'created_at' | 'standard_price';
+  sortBy: 'name' | 'code' | 'status' | 'created_at' | 'updated_at' | 'standard_price';
   sortOrder: 'asc' | 'desc';
 }>;
 
@@ -49,7 +49,7 @@ export type CreateServicePayload = {
   status?: ApiServiceStatus;
 };
 
-export type UpdateServicePayload = Partial<Omit<CreateServicePayload, 'code'>>;
+export type UpdateServicePayload = Partial<Omit<CreateServicePayload, 'status'>>;
 
 const toQueryString = (params: ServiceListParams): string => {
   const searchParams = new URLSearchParams();
@@ -68,25 +68,25 @@ export const servicesApi = {
   },
 
   getById(id: string) {
-    return apiClient.request<{ data: ServiceResponse }>(`/services/${encodeURIComponent(id)}`);
+    return apiClient.request<ServiceResponse>(`/services/${encodeURIComponent(id)}`);
   },
 
   create(payload: CreateServicePayload) {
-    return apiClient.request<{ data: ServiceResponse }>('/services', {
+    return apiClient.request<ServiceResponse>('/services', {
       body: payload,
       method: 'POST',
     });
   },
 
   update(id: string, payload: UpdateServicePayload) {
-    return apiClient.request<{ data: ServiceResponse }>(`/services/${encodeURIComponent(id)}`, {
+    return apiClient.request<ServiceResponse>(`/services/${encodeURIComponent(id)}`, {
       body: payload,
       method: 'PATCH',
     });
   },
 
   delete(id: string) {
-    return apiClient.request<{ ok: true }>(`/services/${encodeURIComponent(id)}`, {
+    return apiClient.request<{ success: true }>(`/services/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },

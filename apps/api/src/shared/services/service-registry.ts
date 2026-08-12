@@ -38,6 +38,6 @@ export const createServiceRegistry = (): ServiceRegistry => {
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository),
     patients: new PatientService(patientRepository),
-    serviceCatalogue: new ServiceCatalogueService(serviceRepository),
+    serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
   };
 };

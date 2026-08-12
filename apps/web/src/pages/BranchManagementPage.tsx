@@ -6,6 +6,7 @@ import {
   type BranchListResponse,
   type BranchResponse,
   type SaveBranchPayload,
+  type UpdateBranchPayload,
 } from '../api/branches';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
@@ -18,14 +19,28 @@ type ModalMode = 'create' | 'edit';
 type BranchFormState = {
   code: string;
   name: string;
+  shortName: string;
+  email: string;
+  phone: string;
+  address: string;
   city: string;
+  state: string;
+  country: string;
+  postalCode: string;
   status: ApiBranchStatus;
 };
 
 const emptyForm: BranchFormState = {
   code: '',
   name: '',
+  shortName: '',
+  email: '',
+  phone: '',
+  address: '',
   city: '',
+  state: '',
+  country: '',
+  postalCode: '',
   status: 'ACTIVE',
 };
 
@@ -83,6 +98,7 @@ export function BranchManagementPage() {
 
   // Status
   const [loadError, setLoadError] = useState('');
+  const [forbidden, setForbidden] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -108,10 +124,16 @@ export function BranchManagementPage() {
 
       setBranches(res.data);
       setMeta(res.meta);
+      setForbidden(false);
+
+      if (currentPage > res.meta.totalPages) {
+        setCurrentPage(res.meta.totalPages);
+      }
     } catch (error) {
       setBranches([]);
       setMeta({ limit: pageSize, page: currentPage, total: 0, totalPages: 1 });
       setLoadError(getErrorMessage(error));
+      if (error instanceof ApiError && error.status === 403) setForbidden(true);
     } finally {
       setLoading(false);
     }
@@ -147,7 +169,14 @@ export function BranchManagementPage() {
       setForm({
         code: branch.code,
         name: branch.name,
+        shortName: branch.short_name || '',
+        email: branch.email || '',
+        phone: branch.phone || '',
+        address: branch.address || '',
         city: branch.city || '',
+        state: branch.state || '',
+        country: branch.country || '',
+        postalCode: branch.postal_code || '',
         status: branch.status,
       });
     } else {
@@ -172,15 +201,21 @@ export function BranchManagementPage() {
     setFormError('');
 
     try {
-      const payload: SaveBranchPayload = {
+      const payload: UpdateBranchPayload = {
+        address: form.address.trim() || null,
         code: form.code.trim(),
+        country: form.country.trim() || null,
+        email: form.email.trim() || null,
         name: form.name.trim(),
+        phone: form.phone.trim() || null,
+        postal_code: form.postalCode.trim() || null,
+        short_name: form.shortName.trim() || null,
         city: form.city.trim() || null,
-        status: form.status,
+        state: form.state.trim() || null,
       };
 
       if (modalMode === 'create') {
-        await branchesApi.create(payload);
+        await branchesApi.create({ ...payload, status: form.status } as SaveBranchPayload);
         showToast('Branch created successfully.');
       } else if (activeBranch) {
         await branchesApi.update(activeBranch.id, payload);
@@ -203,7 +238,11 @@ export function BranchManagementPage() {
       await branchesApi.delete(deleteTarget.id);
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
-      await loadBranches();
+      if (branches.length === 1 && currentPage > 1) {
+        setCurrentPage((page) => page - 1);
+      } else {
+        await loadBranches();
+      }
     } catch (error) {
       showToast(getErrorMessage(error));
     } finally {
@@ -234,7 +273,7 @@ export function BranchManagementPage() {
                     value={search}
                   />
                 </div>
-                <button className="um-add-btn" onClick={() => openModal('create')} type="button">
+                <button className="um-add-btn" disabled={forbidden} onClick={() => openModal('create')} type="button">
                   <i className="ph ph-plus" aria-hidden="true" /> Add Branch
                 </button>
               </div>
@@ -320,6 +359,7 @@ export function BranchManagementPage() {
                             <button
                               aria-label={`Edit ${branch.name}`}
                               className="action-btn edit-btn"
+                              disabled={forbidden}
                               onClick={() => openModal('edit', branch)}
                               title="Edit"
                               type="button"
@@ -329,6 +369,7 @@ export function BranchManagementPage() {
                             <button
                               aria-label={`Delete ${branch.name}`}
                               className="action-btn delete-btn"
+                              disabled={forbidden}
                               onClick={() => setDeleteTarget(branch)}
                               title="Delete"
                               type="button"
@@ -414,7 +455,40 @@ export function BranchManagementPage() {
                 />
               </div>
 
-              <div className="form-group full-width">
+              <div className="form-group">
+                <label htmlFor="branch-short-name">Short Name</label>
+                <input
+                  id="branch-short-name"
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, shortName: e.target.value })}
+                  type="text"
+                  value={form.shortName}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="branch-email">Email</label>
+                <input
+                  id="branch-email"
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  type="email"
+                  value={form.email}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="branch-phone">Phone</label>
+                <input
+                  id="branch-phone"
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  type="tel"
+                  value={form.phone}
+                />
+              </div>
+
+              <div className="form-group">
                 <label htmlFor="branch-city">City</label>
                 <input
                   id="branch-city"
@@ -425,21 +499,63 @@ export function BranchManagementPage() {
                 />
               </div>
 
-              {modalMode === 'edit' && (
-                <div className="form-group full-width">
-                  <label htmlFor="branch-status">Status <span className="required" aria-hidden="true">*</span></label>
-                  <select
-                    id="branch-status"
-                    disabled={submitting}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as ApiBranchStatus })}
-                    required
-                    value={form.status}
-                  >
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                  </select>
-                </div>
-              )}
+              <div className="form-group">
+                <label htmlFor="branch-state">State</label>
+                <input
+                  id="branch-state"
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, state: e.target.value })}
+                  type="text"
+                  value={form.state}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="branch-postal-code">Postal Code</label>
+                <input
+                  id="branch-postal-code"
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
+                  type="text"
+                  value={form.postalCode}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="branch-country">Country</label>
+                <input
+                  id="branch-country"
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, country: e.target.value })}
+                  type="text"
+                  value={form.country}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="branch-status">Status <span className="required" aria-hidden="true">*</span></label>
+                <select
+                  id="branch-status"
+                  disabled={submitting || modalMode === 'edit'}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as ApiBranchStatus })}
+                  required
+                  value={form.status}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </div>
+
+              <div className="form-group full-width">
+                <label htmlFor="branch-address">Address</label>
+                <input
+                  id="branch-address"
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  type="text"
+                  value={form.address}
+                />
+              </div>
             </div>
 
             <div className="modal-actions">
