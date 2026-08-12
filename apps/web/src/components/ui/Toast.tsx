@@ -1,10 +1,10 @@
 type ToastProps = {
   message: string;
-  tone: 'success' | 'error';
+  tone?: 'success' | 'error';
   visible: boolean;
 };
 
-export function Toast({ message, tone, visible }: ToastProps) {
+export function Toast({ message, tone = 'success', visible }: ToastProps) {
   return (
     <div
       aria-live={tone === 'error' ? 'assertive' : 'polite'}

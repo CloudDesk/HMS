@@ -1,5 +1,6 @@
 import { Types, type SortOrder } from 'mongoose';
 import { OpdVisitModel, type OpdVisitFields } from './opd-visit.model.js';
+import { AuditLogModel } from '../auth/auth.model.js';
 import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
 
 type OpdVisitLean = OpdVisitFields & { _id: Types.ObjectId };
@@ -178,6 +179,35 @@ export class OpdVisitRepository {
     ).lean<OpdVisitLean>();
 
     return visit ? toVisit(visit) : undefined;
+  }
+
+  async auditStatusTransition(visit: OpdVisit, previousStatus: OpdVisit['status'], actorUserId: string) {
+    await AuditLogModel.create({
+      actorUserId,
+      eventType: 'opd.visit.status.updated',
+      metadataJson: {
+        fromStatus: previousStatus,
+        patientId: visit.patient_id,
+        toStatus: visit.status,
+        visitId: visit.id,
+        visitNumber: visit.visit_number,
+      },
+    });
+  }
+
+  async auditCreated(visit: OpdVisit, actorUserId: string) {
+    await AuditLogModel.create({
+      actorUserId,
+      eventType: 'opd.visit.created',
+      metadataJson: {
+        appointmentId: visit.appointment_id,
+        branchId: visit.branch_id,
+        doctorId: visit.doctor_id,
+        patientId: visit.patient_id,
+        visitId: visit.id,
+        visitNumber: visit.visit_number,
+      },
+    });
   }
 
   async nextVisitSequence() {

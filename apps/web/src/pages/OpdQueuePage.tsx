@@ -407,7 +407,7 @@ export function OpdQueuePage() {
                             </button>
                             <button
                               className="doc-action"
-                              disabled={updating === visit.id || visit.status === 'IN_CONSULTATION'}
+                              disabled={updating === visit.id || visit.status !== 'READY_FOR_CONSULTATION'}
                               onClick={() => updateVisitStatus(visit, 'IN_CONSULTATION', 'Patient called for doctor consultation.')}
                               title="Call patient"
                               type="button"
@@ -416,12 +416,12 @@ export function OpdQueuePage() {
                             </button>
                             <button
                               className="doc-action"
-                              disabled={updating === visit.id || visit.status === 'READY_FOR_CONSULTATION'}
-                              onClick={() => updateVisitStatus(visit, 'READY_FOR_CONSULTATION', 'Patient ready for doctor consultation.')}
-                              title="Mark ready"
+                              disabled={updating === visit.id || visit.status !== 'CHECKED_IN'}
+                              onClick={() => updateVisitStatus(visit, 'WAITING_FOR_VITALS', 'Patient sent for vitals assessment.')}
+                              title="Send to vitals"
                               type="button"
                             >
-                              <i className="ph ph-check-circle" aria-hidden="true" />
+                              <i className="ph ph-activity" aria-hidden="true" />
                             </button>
                           </div>
                         </td>

@@ -22,16 +22,26 @@ const toObjectId = (value: string | null | undefined) => (value ? new Types.Obje
 
 const toDisplayName = (firstName: string, lastName: string) => `Dr. ${firstName.trim()} ${lastName.trim()}`;
 
-const toAvailability = (availability: DoctorAvailabilityFields): DoctorAvailability => ({
-  id: availability._id.toString(),
-  day_of_week: availability.dayOfWeek,
-  is_available: availability.isAvailable,
-  start_time: availability.startTime,
-  end_time: availability.endTime,
-  break_start_time: availability.breakStartTime ?? null,
-  break_end_time: availability.breakEndTime ?? null,
-  slot_duration_minutes: availability.slotDurationMinutes,
-});
+const toAvailability = (availability: DoctorAvailabilityFields): DoctorAvailability => {
+  const workingBlocks = [...(availability.workingBlocks ?? [])].sort((left, right) =>
+    left.startTime.localeCompare(right.startTime),
+  );
+  const startTime = availability.startTime ?? workingBlocks[0]?.startTime ?? '00:00';
+  const endTime = availability.endTime ?? workingBlocks.at(-1)?.endTime ?? '00:00';
+  const inferredBreakStart = workingBlocks.length > 1 ? workingBlocks[0]?.endTime : null;
+  const inferredBreakEnd = workingBlocks.length > 1 ? workingBlocks[1]?.startTime : null;
+
+  return {
+    id: availability._id.toString(),
+    day_of_week: availability.dayOfWeek,
+    is_available: availability.isAvailable && startTime < endTime,
+    start_time: startTime,
+    end_time: endTime,
+    break_start_time: availability.breakStartTime ?? inferredBreakStart ?? null,
+    break_end_time: availability.breakEndTime ?? inferredBreakEnd ?? null,
+    slot_duration_minutes: availability.slotDurationMinutes,
+  };
+};
 
 const toDoctor = (doctor: DoctorLean): Doctor => ({
   id: doctor._id.toString(),

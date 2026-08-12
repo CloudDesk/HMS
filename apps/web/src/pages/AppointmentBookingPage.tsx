@@ -33,6 +33,7 @@ const dayNames: ApiDoctorAvailabilityDay[] = [
 
 const visitTypeOptions = Object.keys(appointmentVisitTypeLabels) as ApiAppointmentVisitType[];
 const priorityOptions = Object.keys(appointmentPriorityLabels) as ApiAppointmentPriority[];
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const toMinutes = (time: string) => {
   const [hours = 0, minutes = 0] = time.split(':').map(Number);
@@ -57,9 +58,15 @@ const dateDayName = (dateValue: string) => {
 
 const buildSlots = (doctor: DoctorResponse | null, dateValue: string, bookedTimes: Set<string>): SlotOption[] => {
   if (!doctor || !dateValue) return [];
-  const availability = doctor.availability.find((item) => item.day_of_week === dateDayName(dateValue));
+  const availability = doctor.availability?.find((item) => item.day_of_week === dateDayName(dateValue));
 
-  if (!availability || !availability.is_available) {
+  if (
+    !availability ||
+    !availability.is_available ||
+    !timePattern.test(availability.start_time) ||
+    !timePattern.test(availability.end_time) ||
+    availability.slot_duration_minutes <= 0
+  ) {
     return [];
   }
 
@@ -258,7 +265,7 @@ export function AppointmentBookingPage() {
         doctor_id: selectedDoctor.id,
         appointment_date: appointmentDate,
         start_time: selectedSlot,
-        duration_minutes: selectedDoctor.availability.find((item) => item.day_of_week === dateDayName(appointmentDate))
+        duration_minutes: selectedDoctor.availability?.find((item) => item.day_of_week === dateDayName(appointmentDate))
           ?.slot_duration_minutes ?? 30,
         visit_type: visitType,
         priority,

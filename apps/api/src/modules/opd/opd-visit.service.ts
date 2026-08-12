@@ -7,9 +7,19 @@ import type { PatientRepository } from '../patients/patient.repository.js';
 import type { Patient } from '../patients/patient.types.js';
 import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
+import type { OpdConsultationRepository } from './opd-consultation.repository.js';
 
-const terminalVisitStatuses = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 const terminalAppointmentStatuses = ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'];
+
+const allowedVisitStatusTransitions: Record<OpdVisit['status'], OpdVisit['status'][]> = {
+  CHECKED_IN: ['WAITING_FOR_VITALS', 'CANCELLED', 'NO_SHOW'],
+  WAITING_FOR_VITALS: ['READY_FOR_CONSULTATION', 'CANCELLED', 'NO_SHOW'],
+  READY_FOR_CONSULTATION: ['IN_CONSULTATION', 'CANCELLED', 'NO_SHOW'],
+  IN_CONSULTATION: ['COMPLETED', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: [],
+  NO_SHOW: [],
+};
 
 const isObjectId = (value: string | null | undefined) => Boolean(value && Types.ObjectId.isValid(value));
 
@@ -55,6 +65,7 @@ export class OpdVisitService {
     private readonly appointmentRepository: AppointmentRepository,
     private readonly patientRepository: PatientRepository,
     private readonly doctorRepository: DoctorRepository,
+    private readonly consultationRepository: OpdConsultationRepository,
   ) {}
 
   async list(query: OpdVisitListQuery) {
@@ -87,13 +98,24 @@ export class OpdVisitService {
       throw new AppError('OPD visit status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
     }
 
-    if (data.status === 'COMPLETED' && !data.notes?.trim()) {
-      throw new AppError('Completion note is required before completing the OPD visit', 400, 'VALIDATION_ERROR');
+    if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(data.status) && !data.notes?.trim()) {
+      throw new AppError('A reason is required for this OPD visit status', 400, 'STATUS_REASON_REQUIRED');
+    }
+
+    if (data.status === 'COMPLETED') {
+      const consultation = await this.consultationRepository.getByVisit(existing.id);
+      if (consultation?.status !== 'COMPLETED') {
+        throw new AppError('Complete the clinical consultation before closing the OPD visit', 400, 'CONSULTATION_NOT_COMPLETED');
+      }
     }
 
     const visit = await this.repository.updateStatus(id, data, userId);
     if (!visit) {
       throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+    }
+
+    if (existing.status !== visit.status) {
+      await this.repository.auditStatusTransition(visit, existing.status, userId);
     }
 
     await this.patientRepository.addTimelineEvent(
@@ -106,12 +128,16 @@ export class OpdVisitService {
       userId,
     );
 
-    if (data.status === 'COMPLETED' && visit.appointment_id) {
-      await this.appointmentRepository.updateStatus(visit.appointment_id, { status: 'COMPLETED', notes: data.notes }, userId);
-    }
-
-    if (data.status === 'NO_SHOW' && visit.appointment_id) {
-      await this.appointmentRepository.updateStatus(visit.appointment_id, { status: 'NO_SHOW', notes: data.notes }, userId);
+    if ((data.status === 'COMPLETED' || data.status === 'NO_SHOW') && visit.appointment_id) {
+      const previousAppointment = await this.appointmentRepository.getById(visit.appointment_id);
+      const updatedAppointment = await this.appointmentRepository.updateStatus(
+        visit.appointment_id,
+        { status: data.status, notes: data.notes },
+        userId,
+      );
+      if (previousAppointment && updatedAppointment && previousAppointment.status !== updatedAppointment.status) {
+        await this.appointmentRepository.auditStatusTransition(updatedAppointment, previousAppointment.status, userId);
+      }
     }
 
     return visit;
@@ -160,8 +186,16 @@ export class OpdVisitService {
       userId,
     );
 
-    await this.appointmentRepository.updateStatus(appointment.id, { status: 'CHECKED_IN', notes: data.notes }, userId);
+    const checkedInAppointment = await this.appointmentRepository.updateStatus(
+      appointment.id,
+      { status: 'CHECKED_IN', notes: data.notes },
+      userId,
+    );
+    if (checkedInAppointment && appointment.status !== checkedInAppointment.status) {
+      await this.appointmentRepository.auditStatusTransition(checkedInAppointment, appointment.status, userId);
+    }
     await this.addVisitCreatedTimeline(visit, userId);
+    await this.repository.auditCreated(visit, userId);
     return visit;
   }
 
@@ -202,6 +236,7 @@ export class OpdVisitService {
     );
 
     await this.addVisitCreatedTimeline(visit, userId);
+    await this.repository.auditCreated(visit, userId);
     return visit;
   }
 
@@ -298,10 +333,6 @@ export class OpdVisitService {
       return true;
     }
 
-    if (terminalVisitStatuses.includes(current)) {
-      return false;
-    }
-
-    return true;
+    return allowedVisitStatusTransitions[current].includes(next);
   }
 }

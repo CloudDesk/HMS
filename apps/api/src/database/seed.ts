@@ -32,6 +32,10 @@ const opdPermissions = {
   'OPD Visits': ['View', 'Create', 'Edit'],
   'OPD Vitals': ['View', 'Create'],
   'OPD Consultation': ['View', 'Edit'],
+  'OPD Prescription': ['View', 'Edit'],
+  'OPD Clinical Orders': ['View', 'Edit'],
+  'OPD Follow-up': ['View', 'Edit'],
+  'OPD Referral': ['View', 'Edit'],
 } as const;
 
 const permissionCode = (moduleName: string, screen: string, action: string) =>
@@ -246,8 +250,8 @@ export const seedDatabase = async () => {
           action,
           type: 'system',
           status: 'active',
-          categoryId: category._id,
-          groupId: group._id,
+          categoryId: systemCategory._id,
+          groupId: administrationGroup._id,
           deletedAt: null,
         },
       },

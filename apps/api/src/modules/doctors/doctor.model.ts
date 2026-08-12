@@ -5,8 +5,12 @@ export type DoctorAvailabilityFields = {
   _id: Types.ObjectId;
   dayOfWeek: DoctorAvailabilityDay;
   isAvailable: boolean;
-  startTime: string;
-  endTime: string;
+  startTime?: string;
+  endTime?: string;
+  workingBlocks?: Array<{
+    startTime: string;
+    endTime: string;
+  }>;
   breakStartTime?: string | null;
   breakEndTime?: string | null;
   slotDurationMinutes: number;
@@ -46,8 +50,20 @@ const doctorAvailabilitySchema = new Schema<DoctorAvailabilityFields>(
       required: true,
     },
     isAvailable: { type: Boolean, default: true, required: true },
-    startTime: { type: String, required: true },
-    endTime: { type: String, required: true },
+    startTime: { type: String },
+    endTime: { type: String },
+    workingBlocks: {
+      type: [
+        new Schema(
+          {
+            startTime: { type: String, required: true },
+            endTime: { type: String, required: true },
+          },
+          { _id: true },
+        ),
+      ],
+      default: undefined,
+    },
     breakStartTime: { type: String, default: null },
     breakEndTime: { type: String, default: null },
     slotDurationMinutes: { type: Number, required: true },

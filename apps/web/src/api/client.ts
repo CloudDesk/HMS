@@ -209,4 +209,9 @@ export const apiClient = {
       }
     }
   },
+
+  async requestBlob(path: string, options: ApiRequestOptions = {}) {
+    const response = await this.download(path, options);
+    return response.blob;
+  },
 };

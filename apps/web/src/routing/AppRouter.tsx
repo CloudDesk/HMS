@@ -16,6 +16,7 @@ import { LoginPage } from '../pages/LoginPage';
 import { OpdDashboardPage } from '../pages/OpdDashboardPage';
 import { OpdQueuePage } from '../pages/OpdQueuePage';
 import { OpdVisitPage } from '../pages/OpdVisitPage';
+import { PatientConsentPage } from '../pages/PatientConsentPage';
 import { PatientDocumentsPage } from '../pages/PatientDocumentsPage';
 import { PatientEmrTimelinePage } from '../pages/PatientEmrTimelinePage';
 import { PatientHistoryPage } from '../pages/PatientHistoryPage';
@@ -138,10 +139,10 @@ export function AppRouter() {
     title = 'EMR Timeline';
     breadcrumbs = ['Home', 'Patients', 'EMR Timeline'];
     content = <PatientEmrTimelinePage />;
-  } else if (pathname === '/patients/consents') {
+  } else if (pathname === '/patients/consents' || pathname === '/patients/consent') {
     title = 'Consent Management';
     breadcrumbs = ['Home', 'Patients', 'Consent Management'];
-    content = <PatientDocumentsPage mode="consents" />;
+    content = <PatientConsentPage />;
   } else if (pathname === '/doctors') {
     title = 'Doctor Dashboard';
     breadcrumbs = ['Home', 'Doctors', 'Dashboard'];
@@ -174,17 +175,21 @@ export function AppRouter() {
     title = 'Queue Management';
     breadcrumbs = ['Home', 'Appointments', 'Queue Management'];
     content = <AppointmentQueuePage />;
-  } else if (pathname === '/opd') {
+  } else if (pathname === '/opd' || pathname === '/opd/') {
     title = 'OPD Dashboard';
     breadcrumbs = ['Home', 'OPD', 'Dashboard'];
     content = <OpdDashboardPage />;
+  } else if (pathname === '/opd/consultation') {
+    title = 'Consultation Workspace';
+    breadcrumbs = ['Home', 'OPD', 'Consultation'];
+    content = <OpdVisitPage />;
   } else if (pathname === '/opd/queue') {
     title = 'OPD Waiting Queue';
     breadcrumbs = ['Home', 'OPD', 'Waiting Queue'];
     content = <OpdQueuePage />;
   } else if (pathname === '/opd/visit') {
-    title = 'OPD Visit Workspace';
-    breadcrumbs = ['Home', 'OPD', 'Visit Workspace'];
+    title = 'Consultation Workspace';
+    breadcrumbs = ['Home', 'OPD', 'Consultation Workspace'];
     content = <OpdVisitPage />;
   } else if (pathname === '/administration/users') {
     title = 'User Management';

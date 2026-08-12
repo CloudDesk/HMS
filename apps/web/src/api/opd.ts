@@ -177,6 +177,189 @@ export type SaveOpdConsultationPayload = {
   doctor_notes?: string | null;
 };
 
+export type ApiOpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED';
+
+export type OpdPrescriptionItemResponse = {
+  id: string;
+  medicine_name: string;
+  strength: string | null;
+  dosage: string;
+  route: string;
+  frequency: string;
+  duration: string;
+  quantity: number | null;
+  instructions: string | null;
+};
+
+export type OpdPrescriptionResponse = {
+  id: string;
+  visit_id: string;
+  consultation_id: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  doctor_id: string;
+  doctor_name: string;
+  status: ApiOpdPrescriptionStatus;
+  items: OpdPrescriptionItemResponse[];
+  follow_up_date: string | null;
+  doctor_instructions: string | null;
+  patient_instructions: string | null;
+  submitted_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SaveOpdPrescriptionItemPayload = Omit<OpdPrescriptionItemResponse, 'id'>;
+
+export type SaveOpdPrescriptionPayload = {
+  items: SaveOpdPrescriptionItemPayload[];
+  follow_up_date?: string | null;
+  doctor_instructions?: string | null;
+  patient_instructions?: string | null;
+};
+
+export type ApiClinicalOrderType = 'LABORATORY' | 'IMAGING';
+export type ApiClinicalOrderStatus = 'DRAFT' | 'SUBMITTED';
+export type ApiClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
+
+export type OpdClinicalOrderItemResponse = {
+  id: string;
+  investigation_name: string;
+  category: string;
+};
+
+export type OpdClinicalOrderResponse = {
+  id: string;
+  visit_id: string;
+  consultation_id: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  doctor_id: string;
+  doctor_name: string;
+  order_type: ApiClinicalOrderType;
+  status: ApiClinicalOrderStatus;
+  priority: ApiClinicalOrderPriority;
+  destination: string | null;
+  specimen_type: string | null;
+  items: OpdClinicalOrderItemResponse[];
+  clinical_notes: string | null;
+  instructions: string | null;
+  submitted_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SaveOpdClinicalOrderPayload = {
+  priority: ApiClinicalOrderPriority;
+  destination?: string | null;
+  specimen_type?: string | null;
+  items: Array<{ investigation_name: string; category: string }>;
+  clinical_notes?: string | null;
+  instructions?: string | null;
+};
+
+export type ApiOpdFollowUpStatus = 'DRAFT' | 'SCHEDULED';
+export type ApiOpdFollowUpType =
+  | 'CLINICAL_REVIEW'
+  | 'MEDICATION_REVIEW'
+  | 'LAB_REVIEW'
+  | 'IMAGING_REVIEW'
+  | 'REFERRAL_REVIEW';
+export type ApiOpdFollowUpReminderType = 'SMS' | 'EMAIL' | 'NONE';
+
+export type OpdFollowUpResponse = {
+  id: string;
+  visit_id: string;
+  consultation_id: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  originating_doctor_id: string;
+  originating_doctor_name: string;
+  assigned_doctor_id: string | null;
+  assigned_doctor_name: string | null;
+  appointment_id: string | null;
+  appointment_number: string | null;
+  follow_up_type: ApiOpdFollowUpType | null;
+  next_visit_date: string | null;
+  start_time: string | null;
+  duration_minutes: number | null;
+  reason: string | null;
+  reminder_type: ApiOpdFollowUpReminderType;
+  notes: string | null;
+  status: ApiOpdFollowUpStatus;
+  scheduled_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SaveOpdFollowUpPayload = {
+  follow_up_type?: ApiOpdFollowUpType | null;
+  next_visit_date?: string | null;
+  start_time?: string | null;
+  duration_minutes?: number | null;
+  assigned_doctor_id?: string | null;
+  reason?: string | null;
+  reminder_type?: ApiOpdFollowUpReminderType;
+  notes?: string | null;
+};
+
+export type ApiOpdReferralStatus = 'DRAFT' | 'SUBMITTED';
+export type ApiOpdReferralType = 'INTERNAL' | 'EXTERNAL' | 'EMERGENCY';
+export type ApiOpdReferralPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+
+export type OpdReferralResponse = {
+  id: string;
+  visit_id: string;
+  consultation_id: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  referring_doctor_id: string;
+  referring_doctor_name: string;
+  referral_type: ApiOpdReferralType | null;
+  specialty: string | null;
+  priority: ApiOpdReferralPriority;
+  facility: string | null;
+  referred_doctor_id: string | null;
+  referred_doctor_name: string | null;
+  reason: string | null;
+  clinical_summary: string | null;
+  appointment_id: string | null;
+  appointment_number: string | null;
+  appointment_date: string | null;
+  appointment_start_time: string | null;
+  appointment_duration_minutes: number | null;
+  status: ApiOpdReferralStatus;
+  submitted_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SaveOpdReferralPayload = {
+  referral_type?: ApiOpdReferralType | null;
+  specialty?: string | null;
+  priority?: ApiOpdReferralPriority;
+  facility?: string | null;
+  referred_doctor_id?: string | null;
+  referred_doctor_name?: string | null;
+  reason?: string | null;
+  clinical_summary?: string | null;
+  appointment_date?: string | null;
+  appointment_start_time?: string | null;
+  appointment_duration_minutes?: number | null;
+};
+
 const toQueryString = (params: Record<string, unknown>) => {
   const searchParams = new URLSearchParams();
 
@@ -251,5 +434,89 @@ export const opdApi = {
         method: 'POST',
       },
     );
+  },
+
+  getPrescription(visitId: string) {
+    return apiClient.request<OpdPrescriptionResponse | null>(
+      `/opd/visits/${encodeURIComponent(visitId)}/prescription`,
+    );
+  },
+
+  savePrescriptionDraft(visitId: string, payload: SaveOpdPrescriptionPayload) {
+    return apiClient.request<OpdPrescriptionResponse>(
+      `/opd/visits/${encodeURIComponent(visitId)}/prescription`,
+      { body: payload, method: 'PUT' },
+    );
+  },
+
+  submitPrescription(visitId: string, payload: SaveOpdPrescriptionPayload) {
+    return apiClient.request<OpdPrescriptionResponse>(
+      `/opd/visits/${encodeURIComponent(visitId)}/prescription/submit`,
+      { body: payload, method: 'POST' },
+    );
+  },
+
+  getClinicalOrder(visitId: string, orderType: ApiClinicalOrderType) {
+    return apiClient.request<OpdClinicalOrderResponse | null>(
+      `/opd/visits/${encodeURIComponent(visitId)}/clinical-orders/${orderType}`,
+    );
+  },
+
+  saveClinicalOrderDraft(
+    visitId: string,
+    orderType: ApiClinicalOrderType,
+    payload: SaveOpdClinicalOrderPayload,
+  ) {
+    return apiClient.request<OpdClinicalOrderResponse>(
+      `/opd/visits/${encodeURIComponent(visitId)}/clinical-orders/${orderType}`,
+      { body: payload, method: 'PUT' },
+    );
+  },
+
+  submitClinicalOrder(
+    visitId: string,
+    orderType: ApiClinicalOrderType,
+    payload: SaveOpdClinicalOrderPayload,
+  ) {
+    return apiClient.request<OpdClinicalOrderResponse>(
+      `/opd/visits/${encodeURIComponent(visitId)}/clinical-orders/${orderType}/submit`,
+      { body: payload, method: 'POST' },
+    );
+  },
+
+  getFollowUp(visitId: string) {
+    return apiClient.request<OpdFollowUpResponse | null>(`/opd/visits/${encodeURIComponent(visitId)}/follow-up`);
+  },
+
+  saveFollowUpDraft(visitId: string, payload: SaveOpdFollowUpPayload) {
+    return apiClient.request<OpdFollowUpResponse>(`/opd/visits/${encodeURIComponent(visitId)}/follow-up`, {
+      body: payload,
+      method: 'PUT',
+    });
+  },
+
+  scheduleFollowUp(visitId: string, payload: SaveOpdFollowUpPayload) {
+    return apiClient.request<OpdFollowUpResponse>(
+      `/opd/visits/${encodeURIComponent(visitId)}/follow-up/schedule`,
+      { body: payload, method: 'POST' },
+    );
+  },
+
+  getReferral(visitId: string) {
+    return apiClient.request<OpdReferralResponse | null>(`/opd/visits/${encodeURIComponent(visitId)}/referral`);
+  },
+
+  saveReferralDraft(visitId: string, payload: SaveOpdReferralPayload) {
+    return apiClient.request<OpdReferralResponse>(`/opd/visits/${encodeURIComponent(visitId)}/referral`, {
+      body: payload,
+      method: 'PUT',
+    });
+  },
+
+  submitReferral(visitId: string, payload: SaveOpdReferralPayload) {
+    return apiClient.request<OpdReferralResponse>(`/opd/visits/${encodeURIComponent(visitId)}/referral/submit`, {
+      body: payload,
+      method: 'POST',
+    });
   },
 };
