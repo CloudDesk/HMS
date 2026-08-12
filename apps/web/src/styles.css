@@ -1944,6 +1944,226 @@ p {
   gap: 1rem;
 }
 
+.patient-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.patient-form .form-section-title {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.patient-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
+  gap: 1rem;
+}
+
+.patient-summary-card,
+.patient-history-card,
+.patient-emr-card,
+.patient-summary-strip,
+.patient-empty-panel {
+  padding: 1.25rem;
+}
+
+.patient-summary-card {
+  grid-column: 1 / -1;
+}
+
+.patient-summary-header,
+.patient-summary-strip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.patient-summary-header h2,
+.patient-summary-strip h2 {
+  margin: 0.2rem 0 0.25rem;
+  color: #0f172a;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.patient-summary-header p,
+.patient-summary-strip p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.patient-summary-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.patient-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.patient-detail-grid > div {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.85rem;
+}
+
+.patient-detail-grid span {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.patient-detail-grid strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.patient-timeline-list,
+.patient-emr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.patient-timeline-item {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+.patient-timeline-item strong,
+.patient-emr-event strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.patient-timeline-item p,
+.patient-emr-event p {
+  margin: 0.25rem 0;
+  color: #475569;
+  font-size: 0.84rem;
+}
+
+.patient-timeline-item span,
+.patient-emr-event-header span {
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+.patient-document-mini-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.patient-document-mini-list > div {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.65rem;
+}
+
+.patient-document-mini-list i {
+  color: #2563eb;
+}
+
+.patient-document-mini-list span {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-document-mini-list strong {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.patient-empty-panel {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  max-width: 520px;
+  margin: 3rem auto;
+  text-align: center;
+}
+
+.patient-empty-panel i {
+  color: #2563eb;
+  font-size: 2.3rem;
+}
+
+.patient-empty-panel h3,
+.patient-empty-panel p {
+  margin: 0;
+}
+
+.patient-empty-inline {
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #64748b;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.patient-emr-event {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.patient-emr-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.patient-emr-event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .um-chart-card,
 .um-quick-card {
   padding: 1.25rem;
@@ -3126,6 +3346,23 @@ p {
   .um-filter,
   .um-clear-btn {
     width: 100%;
+  }
+
+  .patient-profile-grid,
+  .patient-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .patient-summary-header,
+  .patient-summary-strip,
+  .patient-emr-event-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .patient-summary-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .rp-page {

@@ -17,6 +17,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-users',
     links: [
       { href: '/patients/search', label: 'Search Patients' },
+      { href: '/patients/register', label: 'Patient Registration' },
       { href: '/patients/profile', label: 'Patient Profile' },
       { href: '/patients/documents', label: 'Documents' },
       { href: '/patients/emr', label: 'EMR Timeline' },

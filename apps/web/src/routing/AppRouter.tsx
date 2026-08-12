@@ -4,6 +4,10 @@ import { AuthSupportPage } from '../pages/AuthSupportPage';
 import { ComingSoonPage } from '../pages/ComingSoonPage';
 import { DashboardShell } from '../pages/DashboardShell';
 import { LoginPage } from '../pages/LoginPage';
+import { PatientDocumentsPage } from '../pages/PatientDocumentsPage';
+import { PatientEmrTimelinePage } from '../pages/PatientEmrTimelinePage';
+import { PatientProfilePage } from '../pages/PatientProfilePage';
+import { PatientSearchPage } from '../pages/PatientSearchPage';
 import { RolesPermissionsPage } from '../pages/RolesPermissionsPage';
 import { UserManagementPage } from '../pages/UserManagementPage';
 import { DepartmentManagementPage } from '../pages/DepartmentManagementPage';
@@ -77,6 +81,26 @@ export function AppRouter() {
     title = 'Dashboard';
     breadcrumbs = ['Home', 'Dashboard'];
     content = <DashboardShell />;
+  } else if (pathname === '/patients/search' || pathname === '/patients/register') {
+    title = pathname === '/patients/register' ? 'Patient Registration' : 'Patient Search';
+    breadcrumbs = ['Home', 'Patients', title];
+    content = <PatientSearchPage />;
+  } else if (pathname === '/patients/profile') {
+    title = 'Patient Profile';
+    breadcrumbs = ['Home', 'Patients', 'Patient Profile'];
+    content = <PatientProfilePage />;
+  } else if (pathname === '/patients/documents') {
+    title = 'Patient Documents';
+    breadcrumbs = ['Home', 'Patients', 'Documents'];
+    content = <PatientDocumentsPage />;
+  } else if (pathname === '/patients/emr') {
+    title = 'EMR Timeline';
+    breadcrumbs = ['Home', 'Patients', 'EMR Timeline'];
+    content = <PatientEmrTimelinePage />;
+  } else if (pathname === '/patients/consents') {
+    title = 'Consent Management';
+    breadcrumbs = ['Home', 'Patients', 'Consent Management'];
+    content = <PatientDocumentsPage mode="consents" />;
   } else if (pathname === '/administration/users') {
     title = 'User Management';
     breadcrumbs = ['Home', 'Administration', 'User Management'];

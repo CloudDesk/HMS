@@ -11,6 +11,8 @@ import { BranchRepository } from '../../modules/branches/branch.repository.js';
 import { BranchService } from '../../modules/branches/branch.service.js';
 import { DepartmentRepository } from '../../modules/departments/department.repository.js';
 import { DepartmentService } from '../../modules/departments/department.service.js';
+import { PatientRepository } from '../../modules/patients/patient.repository.js';
+import { PatientService } from '../../modules/patients/patient.service.js';
 import { ServiceRepository } from '../../modules/services/service.repository.js';
 import { ServiceCatalogueService } from '../../modules/services/service.service.js';
 import type { ServiceRegistry } from '../types/service-registry.js';
@@ -22,6 +24,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const permissionRepository = new PermissionRepository();
   const branchRepository = new BranchRepository();
   const departmentRepository = new DepartmentRepository();
+  const patientRepository = new PatientRepository();
   const serviceRepository = new ServiceRepository();
 
   return {
@@ -34,6 +37,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     permissions: new PermissionService(permissionRepository),
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository),
+    patients: new PatientService(patientRepository),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository),
   };
 };

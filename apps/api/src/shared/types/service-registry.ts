@@ -5,6 +5,7 @@ import type { RoleService } from '../../modules/roles/role.service.js';
 import type { UserService } from '../../modules/users/user.service.js';
 import type { BranchService } from '../../modules/branches/branch.service.js';
 import type { DepartmentService } from '../../modules/departments/department.service.js';
+import type { PatientService } from '../../modules/patients/patient.service.js';
 import type { ServiceCatalogueService } from '../../modules/services/service.service.js';
 
 export type ServiceRegistry = {
@@ -17,5 +18,6 @@ export type ServiceRegistry = {
   permissions: PermissionService;
   branches: BranchService;
   departments: DepartmentService;
+  patients: PatientService;
   serviceCatalogue: ServiceCatalogueService;
 };
