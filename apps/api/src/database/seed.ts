@@ -4,12 +4,13 @@ import { UserModel } from '../modules/users/user.model.js';
 import { hashPassword } from '../shared/security/hash.js';
 
 const administrationPermissions = {
-  Users: ['View', 'Create', 'Edit', 'ChangePassword', 'ResetPassword', 'Delete'],
+  Dashboard: ['View'],
+  Users: ['View', 'Create', 'Edit', 'ChangePassword', 'ResetPassword', 'Delete', 'Export'],
   Roles: ['View', 'Create', 'Edit', 'Assign', 'Delete'],
   Permissions: ['View', 'Create', 'Edit', 'Assign', 'Delete'],
-  Branches: ['View', 'Create', 'Edit', 'Delete'],
-  Departments: ['View', 'Create', 'Edit', 'Delete'],
-  Services: ['View', 'Create', 'Edit', 'Delete'],
+  Branches: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+  Departments: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+  Services: ['View', 'Create', 'Edit', 'Delete', 'Export'],
 } as const;
 
 const permissionCode = (screen: string, action: string) =>
@@ -24,7 +25,7 @@ export const seedDatabase = async () => {
         description: 'System level configurations',
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: 'after' },
   );
 
   const group = await PermissionGroupModel.findOneAndUpdate(
@@ -34,7 +35,7 @@ export const seedDatabase = async () => {
         name: 'Administration',
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: 'after' },
   );
 
   const permissionIds = [];
@@ -56,11 +57,33 @@ export const seedDatabase = async () => {
             deletedAt: null,
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: 'after' },
       );
 
       permissionIds.push(permission._id);
     }
+  }
+
+  for (const action of ['View', 'Edit', 'Export'] as const) {
+    const permission = await PermissionModel.findOneAndUpdate(
+      { code: `settings.${action.toLowerCase()}` },
+      {
+        $set: {
+          name: `Settings ${action}`,
+          module: 'Administration',
+          screen: 'Settings',
+          action,
+          type: 'system',
+          status: 'active',
+          categoryId: category._id,
+          groupId: group._id,
+          deletedAt: null,
+        },
+      },
+      { upsert: true, returnDocument: 'after' },
+    );
+
+    permissionIds.push(permission._id);
   }
 
   const systemRoles = [
@@ -75,22 +98,45 @@ export const seedDatabase = async () => {
       description: 'System administration without destructive capabilities',
     },
   ];
+  const systemPermissionIds = await PermissionModel.distinct('_id', {
+    type: 'system',
+    status: 'active',
+    deletedAt: null,
+  });
+  const administratorDefaultPermissionIds = await PermissionModel.distinct('_id', {
+    module: 'Administration',
+    action: { $ne: 'Delete' },
+    status: 'active',
+    deletedAt: null,
+  });
 
   const roles = [];
 
   for (const roleSeed of systemRoles) {
     const role = await RoleModel.findOneAndUpdate(
       { code: roleSeed.code },
-      {
-        $set: {
-          ...roleSeed,
-          type: 'system',
-          status: 'active',
-          permissionIds,
-          deletedAt: null,
-        },
-      },
-      { upsert: true, new: true },
+      roleSeed.code === 'SUPER_ADMIN'
+        ? {
+            $set: {
+              ...roleSeed,
+              type: 'system',
+              status: 'active',
+              deletedAt: null,
+              permissionIds: systemPermissionIds,
+            },
+          }
+        : {
+            $set: {
+              ...roleSeed,
+              type: 'system',
+              status: 'active',
+              deletedAt: null,
+            },
+            $setOnInsert: {
+              permissionIds: administratorDefaultPermissionIds,
+            },
+          },
+      { upsert: true, returnDocument: 'after' },
     );
 
     roles.push(role);

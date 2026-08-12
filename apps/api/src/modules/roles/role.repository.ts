@@ -1,10 +1,9 @@
 
-import { RoleModel, type IRole } from './role.model.js';
+import { RoleModel } from './role.model.js';
 import { UserModel } from '../users/user.model.js';
-import { AppError } from '../../shared/errors/app-error.js';
+import { AuditLogModel } from '../auth/auth.model.js';
 import type {
   RequestMetadata,
-  RoleAssignedUser,
   RoleListQuery,
   RoleRecord,
   RoleStatus,
@@ -168,7 +167,7 @@ export class RoleRepository {
     const role = await RoleModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: updatePayload as any },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     
     if (!role) return null;
@@ -180,7 +179,7 @@ export class RoleRepository {
     const role = await RoleModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { status, updatedBy: actorUserId } },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     
     if (!role) return null;
@@ -192,7 +191,7 @@ export class RoleRepository {
     const role = await RoleModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     
     if (!role) return null;
@@ -213,7 +212,7 @@ export class RoleRepository {
   async assignUser(roleId: string, userId: string, actorUserId: string) {
     await UserModel.updateOne(
       { _id: userId },
-      { $addToSet: { roleIds: roleId } }
+      { $addToSet: { roleIds: roleId }, $set: { updatedBy: actorUserId } }
     );
   }
 
@@ -239,6 +238,33 @@ export class RoleRepository {
       assignedAt: user.updatedAt, // Approximate since we don't have junction table
       assignedBy: user.updatedBy?.toString() ?? null,
     }));
+  }
+
+  async listAuditLogs(roleId: string, page: number, limit: number) {
+    const filter = { 'metadataJson.roleId': roleId };
+    const [records, total] = await Promise.all([
+      AuditLogModel.find(filter)
+        .select('_id actorUserId eventType createdAt')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      AuditLogModel.countDocuments(filter),
+    ]);
+    const actorIds = [...new Set(records.map((record) => record.actorUserId).filter((id): id is string => Boolean(id)))];
+    const actors = actorIds.length
+      ? await UserModel.find({ _id: { $in: actorIds } }).select('_id fullName').lean()
+      : [];
+    const actorNames = new Map(actors.map((actor) => [String(actor._id), actor.fullName]));
+    return {
+      items: records.map((record) => ({
+        id: String(record._id),
+        actorName: record.actorUserId ? actorNames.get(record.actorUserId) ?? 'System' : 'System',
+        eventType: record.eventType,
+        createdAt: record.createdAt,
+      })),
+      meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    };
   }
 
   async hasAnyActiveRole(userId: string, roleCodes: string[]) {

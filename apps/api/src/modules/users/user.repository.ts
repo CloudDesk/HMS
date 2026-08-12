@@ -1,8 +1,8 @@
 
-import { UserModel, type IUser } from './user.model.js';
+import { UserModel } from './user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
-import { AppError } from '../../shared/errors/app-error.js';
+import { RoleModel } from '../roles/role.model.js';
 import type {
   AssignmentInput,
   RequestMetadata,
@@ -35,6 +35,7 @@ const mapUser = (user: any): UserRecord => ({
   createdBy: user.createdBy?.toString() ?? null,
   updatedBy: user.updatedBy?.toString() ?? null,
   deletedBy: user.deletedBy?.toString() ?? null,
+  roleIds: (user.roleIds ?? []).map((id: unknown) => String(id)),
 });
 
 export class UserRepository {
@@ -97,6 +98,9 @@ export class UserRepository {
     if (query.departmentId) {
       filter.departmentIds = query.departmentId;
     }
+    if (query.roleId) {
+      filter.roleIds = query.roleId;
+    }
     if (query.search) {
       const searchRegex = new RegExp(query.search, 'i');
       filter.$or = [
@@ -143,6 +147,7 @@ export class UserRepository {
     status: UserStatus;
     passwordHash: string;
     actorUserId: string;
+    roleIds: string[];
   }) {
     const user = await UserModel.create({
       employeeCode: input.employeeCode,
@@ -157,6 +162,7 @@ export class UserRepository {
       address: input.address,
       status: input.status,
       passwordHash: input.passwordHash,
+      roleIds: input.roleIds,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
     } as any);
@@ -178,11 +184,12 @@ export class UserRepository {
       profilePhotoUrl?: string | null;
       address?: string | null;
       actorUserId: string;
+      roleIds?: string[];
     },
   ) {
     const updatePayload: any = { updatedBy: input.actorUserId };
     for (const [key, value] of Object.entries(input)) {
-      if (value !== undefined && key !== 'actorUserId') {
+      if (value !== undefined && key !== 'actorUserId' && key !== 'branches' && key !== 'departments') {
         updatePayload[key] = value;
       }
     }
@@ -190,7 +197,7 @@ export class UserRepository {
     const user = await UserModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: updatePayload },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     
     return user ? mapUser(user) : null;
@@ -212,7 +219,7 @@ export class UserRepository {
     const user = await UserModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: updatePayload },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     
     return user ? mapUser(user) : null;
@@ -230,7 +237,7 @@ export class UserRepository {
           updatedBy: actorUserId,
         }
       },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     
     return user ? mapUser(user) : null;
@@ -246,7 +253,7 @@ export class UserRepository {
           updatedBy: actorUserId,
         }
       },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     
     return user ? mapUser(user) : null;
@@ -256,6 +263,7 @@ export class UserRepository {
     userId: string,
     branches: AssignmentInput[],
     departments: AssignmentInput[],
+    roleIds: string[],
   ) {
     await UserModel.updateOne(
       { _id: userId },
@@ -263,6 +271,7 @@ export class UserRepository {
         $set: {
           branchIds: branches.map(b => b.id),
           departmentIds: departments.map(d => d.id),
+          roleIds,
         }
       }
     );
@@ -273,17 +282,20 @@ export class UserRepository {
       return {
         branchesByUserId: new Map<string, UserAssignment[]>(),
         departmentsByUserId: new Map<string, UserAssignment[]>(),
+        rolesByUserId: new Map(),
       };
     }
 
     const users = await UserModel.find({ _id: { $in: userIds } })
-      .select('branchIds departmentIds')
+      .select('branchIds departmentIds roleIds')
       .populate('branchIds', 'name')
       .populate('departmentIds', 'name')
+      .populate('roleIds', 'code name status')
       .lean();
 
     const branchesByUserId = new Map<string, UserAssignment[]>();
     const departmentsByUserId = new Map<string, UserAssignment[]>();
+    const rolesByUserId = new Map<string, Array<{ id: string; code: string; name: string; status: 'active' | 'inactive' }>>();
 
     for (const user of users) {
       const userIdStr = user._id.toString();
@@ -301,9 +313,54 @@ export class UserRepository {
         isPrimary: i === 0,
       }));
       departmentsByUserId.set(userIdStr, userDepts);
+
+      const userRoles = (user.roleIds as unknown as Array<{ _id: unknown; code: string; name: string; status: 'active' | 'inactive' }> || []).map((role) => ({
+        id: String(role._id),
+        code: role.code,
+        name: role.name,
+        status: role.status,
+      }));
+      rolesByUserId.set(userIdStr, userRoles);
     }
 
-    return { branchesByUserId, departmentsByUserId };
+    return { branchesByUserId, departmentsByUserId, rolesByUserId };
+  }
+
+  async validateReferences(branchIds: string[], departmentIds: string[], roleIds: string[]) {
+    const [branches, departments, roles] = await Promise.all([
+      BranchModel.countDocuments({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null }),
+      DepartmentModel.countDocuments({ _id: { $in: departmentIds }, status: 'ACTIVE', deletedAt: null }),
+      RoleModel.countDocuments({ _id: { $in: roleIds }, status: 'active', deletedAt: null }),
+    ]);
+    return { branches, departments, roles };
+  }
+
+  async isSuperAdmin(userId: string) {
+    const superAdminRole = await RoleModel.findOne({ code: 'SUPER_ADMIN', deletedAt: null }).select('_id').lean();
+    if (!superAdminRole) return false;
+    return Boolean(await UserModel.exists({ _id: userId, roleIds: superAdminRole._id, deletedAt: null }));
+  }
+
+  async isSuperAdminRole(roleId: string) {
+    return Boolean(await RoleModel.exists({ _id: roleId, code: 'SUPER_ADMIN', deletedAt: null }));
+  }
+
+  async countActiveSuperAdmins() {
+    const superAdminRole = await RoleModel.findOne({ code: 'SUPER_ADMIN', status: 'active', deletedAt: null }).select('_id').lean();
+    if (!superAdminRole) return 0;
+    return UserModel.countDocuments({ roleIds: superAdminRole._id, status: 'active', deletedAt: null });
+  }
+
+  async summary() {
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const [total, active, inactive, locked, addedThisMonth] = await Promise.all([
+      UserModel.countDocuments({ deletedAt: null }),
+      UserModel.countDocuments({ deletedAt: null, status: 'active' }),
+      UserModel.countDocuments({ deletedAt: null, status: 'inactive' }),
+      UserModel.countDocuments({ deletedAt: null, status: 'locked' }),
+      UserModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
+    ]);
+    return { total, active, inactive, locked, addedThisMonth };
   }
 
   async revokeRefreshTokens(userId: string) {

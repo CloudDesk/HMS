@@ -1,4 +1,5 @@
 import { LoadingState } from '../components/LoadingState';
+import { canAccessRoute, isPermissionControlledRoute } from '../auth/access-control';
 import { useAuth } from '../auth/useAuth';
 import { AuthSupportPage } from '../pages/AuthSupportPage';
 import { ComingSoonPage } from '../pages/ComingSoonPage';
@@ -9,6 +10,8 @@ import { UserManagementPage } from '../pages/UserManagementPage';
 import { DepartmentManagementPage } from '../pages/DepartmentManagementPage';
 import { BranchManagementPage } from '../pages/BranchManagementPage';
 import { ServiceCataloguePage } from '../pages/ServiceCataloguePage';
+import { SystemSettingsPage } from '../pages/SystemSettingsPage';
+import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { sidebarModules } from '../data/ui-foundation';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -29,8 +32,21 @@ function NotFoundPage() {
   );
 }
 
+function AccessDeniedPage() {
+  return (
+    <div className="admin-dashboard-state admin-dashboard-state--error" role="alert">
+      <i className="ph ph-shield-warning" aria-hidden="true" />
+      <strong>Access denied</strong>
+      <span>You do not have permission to open this page.</span>
+      <button className="btn-secondary" onClick={() => navigate('/dashboard')} type="button">
+        Go to dashboard
+      </button>
+    </div>
+  );
+}
+
 export function AppRouter() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const { pathname } = useAppLocation();
 
   if (status === 'loading' && pathname !== '/login') {
@@ -77,6 +93,10 @@ export function AppRouter() {
     title = 'Dashboard';
     breadcrumbs = ['Home', 'Dashboard'];
     content = <DashboardShell />;
+  } else if (pathname === '/administration') {
+    title = 'Administration Dashboard';
+    breadcrumbs = ['Home', 'Administration', 'Dashboard'];
+    content = <AdministrationDashboardPage />;
   } else if (pathname === '/administration/users') {
     title = 'User Management';
     breadcrumbs = ['Home', 'Administration', 'User Management'];
@@ -97,6 +117,10 @@ export function AppRouter() {
     title = 'Service Catalogue';
     breadcrumbs = ['Home', 'Administration', 'Service Catalogue'];
     content = <ServiceCataloguePage />;
+  } else if (pathname === '/administration/settings') {
+    title = 'System Settings';
+    breadcrumbs = ['Home', 'Administration', 'System Settings'];
+    content = <SystemSettingsPage />;
   } 
   // 2. All other sidebar routes automatically get a ComingSoonPage stub
   else if (matchedModule && matchedLink) {
@@ -111,6 +135,13 @@ export function AppRouter() {
         activeModule={matchedModule.key}
       />
     );
+  }
+
+  const routeNeedsPermission = isPermissionControlledRoute(pathname) || Boolean(matchedLink);
+  if (routeNeedsPermission && !canAccessRoute(pathname, user?.permissions ?? [], user?.roles ?? [])) {
+    title = 'Access Denied';
+    breadcrumbs = ['Home', 'Access Denied'];
+    content = <AccessDeniedPage />;
   }
 
   return (

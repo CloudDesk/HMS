@@ -66,6 +66,19 @@ export type SaveRolePayload = {
   color?: string | null;
 };
 
+export type RoleAuditLogItem = {
+  id: string;
+  eventType: string;
+  actorName: string;
+  createdAt: string;
+  ipAddress: string | null;
+};
+
+export type RoleAuditLogList = {
+  items: RoleAuditLogItem[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+};
+
 const toQueryString = (params: RoleListParams) => {
   const searchParams = new URLSearchParams();
 
@@ -105,6 +118,10 @@ export const rolesApi = {
 
   getById(id: string) {
     return apiClient.request<RoleResponse>(`/roles/${encodeURIComponent(id)}`);
+  },
+
+  auditLogs(id: string, page = 1) {
+    return apiClient.request<RoleAuditLogList>(`/roles/${encodeURIComponent(id)}/audit-logs?page=${page}&limit=20`);
   },
 
   create(payload: SaveRolePayload) {

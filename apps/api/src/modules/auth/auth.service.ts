@@ -54,15 +54,6 @@ const toAuthUser = (user: AuthUserRecord): AuthenticatedUser => ({
   status: user.status,
 });
 
-const publicUser = (user: AuthUserRecord) => ({
-  id: user.id,
-  username: user.username,
-  email: user.email,
-  fullName: user.fullName,
-  status: user.status,
-  lastLoginAt: user.lastLoginAt,
-});
-
 const isLocked = (user: AuthUserRecord) =>
   user.status === 'locked' && (!user.lockedUntil || user.lockedUntil.getTime() > Date.now());
 
@@ -130,7 +121,7 @@ export class AuthService {
     });
 
     return {
-      user: publicUser(freshUser),
+      user: await this.publicUser(freshUser),
       tokens,
     };
   }
@@ -165,7 +156,7 @@ export class AuthService {
     });
 
     return {
-      user: publicUser(user),
+      user: await this.publicUser(user),
       tokens,
     };
   }
@@ -207,7 +198,7 @@ export class AuthService {
       throw new AppError('User not found', 404, 'USER_NOT_FOUND');
     }
 
-    return publicUser(user);
+    return this.publicUser(user);
   }
 
   async changePassword(input: ChangePasswordInput, metadata: RequestMetadata) {
@@ -299,6 +290,20 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn: env.auth.accessTokenTtlSeconds,
       refreshExpiresIn: env.auth.refreshTokenTtlSeconds,
+    };
+  }
+
+  private async publicUser(user: AuthUserRecord) {
+    const access = await this.repository.getUserAccessContext(user.id);
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      fullName: user.fullName,
+      status: user.status,
+      lastLoginAt: user.lastLoginAt,
+      ...access,
     };
   }
 

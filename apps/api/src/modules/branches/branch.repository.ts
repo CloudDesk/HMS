@@ -1,6 +1,8 @@
-import type { SortOrder } from 'mongoose';
 import { BranchModel } from './branch.model.js';
-import type { Branch, BranchListQuery, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
+import { DepartmentModel } from '../departments/department.model.js';
+import { UserModel } from '../users/user.model.js';
+import { AuditLogModel } from '../auth/auth.model.js';
+import type { Branch, BranchListQuery, BranchRequestMetadata, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
 
 type BranchRecord = {
   _id: unknown;
@@ -103,12 +105,12 @@ export class BranchRepository {
   }
 
   async getById(id: string): Promise<Branch | undefined> {
-    const branch = await BranchModel.findById(id).lean();
+    const branch = await BranchModel.findOne({ _id: id, deletedAt: null }).lean();
     return branch ? toBranch(branch) : undefined;
   }
 
   async getByCode(code: string): Promise<Branch | undefined> {
-    const branch = await BranchModel.findOne({ code: new RegExp(`^${code}$`, 'i') }).lean();
+    const branch = await BranchModel.findOne({ code: new RegExp(`^${code}$`, 'i'), deletedAt: null }).lean();
     return branch ? toBranch(branch) : undefined;
   }
 
@@ -126,7 +128,7 @@ export class BranchRepository {
     const branch = await BranchModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { ...toPersistence(data), updatedBy } as any },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     if (!branch) {
       throw new Error('Branch not found');
@@ -134,7 +136,40 @@ export class BranchRepository {
     return toBranch(branch);
   }
 
-  async delete(id: string): Promise<void> {
-    await BranchModel.findByIdAndDelete(id);
+  async summary() {
+    const [total, active, inactive, assignedUsers, cities] = await Promise.all([
+      BranchModel.countDocuments({ deletedAt: null }),
+      BranchModel.countDocuments({ deletedAt: null, status: 'ACTIVE' }),
+      BranchModel.countDocuments({ deletedAt: null, status: 'INACTIVE' }),
+      UserModel.countDocuments({ branchIds: { $ne: [] }, deletedAt: null }),
+      BranchModel.distinct('city', { deletedAt: null, city: { $nin: [null, ''] } }).then((values) => values.length),
+    ]);
+    return { total, active, inactive, assignedUsers, cities };
+  }
+
+  async dependencies(id: string) {
+    const [departments, users] = await Promise.all([
+      DepartmentModel.countDocuments({ branchId: id, deletedAt: null }),
+      UserModel.countDocuments({ branchIds: id, deletedAt: null }),
+    ]);
+    return { departments, users };
+  }
+
+  async softDelete(id: string, actorUserId: string) {
+    return BranchModel.findOneAndUpdate(
+      { _id: id, deletedAt: null },
+      { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
+      { returnDocument: 'after', lean: true },
+    );
+  }
+
+  async audit(eventType: string, actorUserId: string, metadata: BranchRequestMetadata, details: Record<string, unknown>) {
+    await AuditLogModel.create({
+      eventType,
+      actorUserId,
+      ipAddress: metadata.ipAddress,
+      userAgent: metadata.userAgent,
+      metadataJson: details,
+    });
   }
 }

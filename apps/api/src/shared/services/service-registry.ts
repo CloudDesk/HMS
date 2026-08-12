@@ -13,6 +13,11 @@ import { DepartmentRepository } from '../../modules/departments/department.repos
 import { DepartmentService } from '../../modules/departments/department.service.js';
 import { ServiceRepository } from '../../modules/services/service.repository.js';
 import { ServiceCatalogueService } from '../../modules/services/service.service.js';
+import { SettingsLogoStorage } from '../../modules/settings/settings.logo-storage.js';
+import { SettingsRepository } from '../../modules/settings/settings.repository.js';
+import { SettingsService } from '../../modules/settings/settings.service.js';
+import { AdministrationDashboardRepository } from '../../modules/administration-dashboard/administration-dashboard.repository.js';
+import { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
 import type { ServiceRegistry } from '../types/service-registry.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
@@ -23,17 +28,21 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const branchRepository = new BranchRepository();
   const departmentRepository = new DepartmentRepository();
   const serviceRepository = new ServiceRepository();
+  const settingsRepository = new SettingsRepository();
+  const administrationDashboardRepository = new AdministrationDashboardRepository();
 
   return {
     database: {
       healthCheck: checkDatabaseHealth,
     },
+    administrationDashboard: new AdministrationDashboardService(administrationDashboardRepository),
     auth: new AuthService(authRepository),
     users: new UserService(userRepository),
     roles: new RoleService(roleRepository),
     permissions: new PermissionService(permissionRepository),
     branches: new BranchService(branchRepository),
-    departments: new DepartmentService(departmentRepository),
+    departments: new DepartmentService(departmentRepository, branchRepository),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
+    settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
   };
 };

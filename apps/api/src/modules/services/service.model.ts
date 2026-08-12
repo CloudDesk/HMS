@@ -51,5 +51,6 @@ const serviceSchema = new Schema<IService>(
 
 serviceSchema.index({ name: 1 });
 serviceSchema.index({ departmentId: 1 });
+serviceSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
 
 export const ServiceModel = mongoose.model<IService>('Service', serviceSchema);

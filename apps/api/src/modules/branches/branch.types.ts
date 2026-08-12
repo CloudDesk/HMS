@@ -42,4 +42,9 @@ export type CreateBranchDTO = {
   status?: BranchStatus;
 };
 
-export type UpdateBranchDTO = Partial<Omit<CreateBranchDTO, 'status'>>;
+export type UpdateBranchDTO = Partial<CreateBranchDTO>;
+
+export type BranchRequestMetadata = {
+  ipAddress?: string;
+  userAgent?: string;
+};

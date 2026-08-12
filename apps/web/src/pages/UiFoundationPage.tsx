@@ -253,7 +253,7 @@ export function UiFoundationPage() {
         open={confirmOpen}
         title="Confirm Action"
       />
-      <Toast message="Static UI foundation loaded with mock data." visible={toastVisible} />
+      <Toast message="Static UI foundation loaded with mock data." tone="success" visible={toastVisible} />
     </>
   );
 }

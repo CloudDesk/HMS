@@ -49,7 +49,15 @@ export type CreateServicePayload = {
   status?: ApiServiceStatus;
 };
 
-export type UpdateServicePayload = Partial<Omit<CreateServicePayload, 'status'>>;
+export type UpdateServicePayload = Partial<CreateServicePayload>;
+
+export type ServiceSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  addedThisMonth: number;
+  departmentsCovered: number;
+};
 
 const toQueryString = (params: ServiceListParams): string => {
   const searchParams = new URLSearchParams();
@@ -71,6 +79,14 @@ export const servicesApi = {
     return apiClient.request<ServiceResponse>(`/services/${encodeURIComponent(id)}`);
   },
 
+  summary() {
+    return apiClient.request<ServiceSummary>('/services/summary');
+  },
+
+  export(params: ServiceListParams = {}) {
+    return apiClient.requestBlob(`/services/export${toQueryString(params)}`);
+  },
+
   create(payload: CreateServicePayload) {
     return apiClient.request<ServiceResponse>('/services', {
       body: payload,
@@ -81,6 +97,13 @@ export const servicesApi = {
   update(id: string, payload: UpdateServicePayload) {
     return apiClient.request<ServiceResponse>(`/services/${encodeURIComponent(id)}`, {
       body: payload,
+      method: 'PATCH',
+    });
+  },
+
+  updateStatus(id: string, status: ApiServiceStatus) {
+    return apiClient.request<ServiceResponse>(`/services/${encodeURIComponent(id)}/status`, {
+      body: { status },
       method: 'PATCH',
     });
   },

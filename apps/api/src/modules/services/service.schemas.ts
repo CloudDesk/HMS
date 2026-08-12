@@ -51,5 +51,13 @@ export const updateServiceBodySchema = {
     duration_minutes: { type: 'integer', minimum: 1 },
     category: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
   },
+} as const;
+
+export const updateServiceStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } },
 } as const;

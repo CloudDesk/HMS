@@ -1,4 +1,5 @@
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import Fastify from 'fastify';
 import { env } from './config/env.js';
 import { loggerConfig } from './config/logger.js';
@@ -20,7 +21,14 @@ export const buildApp = async () => {
   await app.register(cors, {
     origin: env.cors.origins.includes('*') ? true : env.cors.origins,
     credentials: true,
-    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+
+  await app.register(multipart, {
+    limits: {
+      fileSize: 2 * 1024 * 1024,
+      files: 1,
+    },
   });
 
   await registerModules(app, services);

@@ -1,6 +1,9 @@
 
-import { DepartmentModel, type IDepartment } from './department.model.js';
-import type { Department, DepartmentListQuery, CreateDepartmentDTO, UpdateDepartmentDTO } from './department.types.js';
+import { DepartmentModel } from './department.model.js';
+import { ServiceModel } from '../services/service.model.js';
+import { UserModel } from '../users/user.model.js';
+import { AuditLogModel } from '../auth/auth.model.js';
+import type { Department, DepartmentListQuery, DepartmentRequestMetadata, CreateDepartmentDTO, UpdateDepartmentDTO } from './department.types.js';
 
 export class DepartmentRepository {
   async list(query: DepartmentListQuery) {
@@ -48,7 +51,7 @@ export class DepartmentRepository {
   }
 
   async getById(id: string): Promise<Department | undefined> {
-    const department = await DepartmentModel.findById(id).lean();
+    const department = await DepartmentModel.findOne({ _id: id, deletedAt: null }).lean();
     return department
       ? ({
           ...department,
@@ -59,7 +62,7 @@ export class DepartmentRepository {
   }
 
   async getByCode(code: string): Promise<Department | undefined> {
-    const department = await DepartmentModel.findOne({ code: new RegExp(`^${code}$`, 'i') }).lean();
+    const department = await DepartmentModel.findOne({ code: new RegExp(`^${code}$`, 'i'), deletedAt: null }).lean();
     return department
       ? ({
           ...department,
@@ -94,7 +97,7 @@ export class DepartmentRepository {
     const department = await DepartmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: updatePayload },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     if (!department) {
       throw new Error('Department not found');
@@ -106,7 +109,41 @@ export class DepartmentRepository {
     } as unknown as Department;
   }
 
-  async delete(id: string): Promise<void> {
-    await DepartmentModel.findByIdAndDelete(id);
+  async summary() {
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const [total, active, inactive, addedThisMonth, branchesCovered] = await Promise.all([
+      DepartmentModel.countDocuments({ deletedAt: null }),
+      DepartmentModel.countDocuments({ deletedAt: null, status: 'ACTIVE' }),
+      DepartmentModel.countDocuments({ deletedAt: null, status: 'INACTIVE' }),
+      DepartmentModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
+      DepartmentModel.distinct('branchId', { deletedAt: null }).then((ids) => ids.length),
+    ]);
+    return { total, active, inactive, addedThisMonth, branchesCovered };
+  }
+
+  async dependencies(id: string) {
+    const [services, users] = await Promise.all([
+      ServiceModel.countDocuments({ departmentId: id, deletedAt: null }),
+      UserModel.countDocuments({ departmentIds: id, deletedAt: null }),
+    ]);
+    return { services, users };
+  }
+
+  async softDelete(id: string, actorUserId: string) {
+    return DepartmentModel.findOneAndUpdate(
+      { _id: id, deletedAt: null },
+      { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
+      { returnDocument: 'after', lean: true },
+    );
+  }
+
+  async audit(eventType: string, actorUserId: string, metadata: DepartmentRequestMetadata, details: Record<string, unknown>) {
+    await AuditLogModel.create({
+      eventType,
+      actorUserId,
+      ipAddress: metadata.ipAddress,
+      userAgent: metadata.userAgent,
+      metadataJson: details,
+    });
   }
 }

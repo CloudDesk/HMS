@@ -1,15 +1,13 @@
 
-import { PermissionModel, PermissionCategoryModel, PermissionGroupModel, type IPermission } from './permission.model.js';
+import { PermissionModel, PermissionCategoryModel, PermissionGroupModel } from './permission.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
-import { AppError } from '../../shared/errors/app-error.js';
 import type {
   PermissionListQuery,
   PermissionRecord,
   PermissionStatus,
   PermissionType,
   RequestMetadata,
-  RolePermissionSummary,
 } from './permission.types.js';
 
 const mapPermission = (permission: any, roleCount: number): PermissionRecord => ({
@@ -277,7 +275,7 @@ export class PermissionRepository {
     const permission = await (PermissionModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: updatePayload as any },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     ) as any).populate('categoryId').populate('groupId');
     
     if (!permission) return null;
@@ -289,7 +287,7 @@ export class PermissionRepository {
     const permission = await PermissionModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     ).populate('categoryId').populate('groupId');
     
     if (!permission) return null;
@@ -338,6 +336,19 @@ export class PermissionRepository {
     }));
   }
 
+  async getAllActivePermissions() {
+    const permissions = await PermissionModel.find({ status: 'active', deletedAt: null })
+      .populate('categoryId')
+      .populate('groupId')
+      .sort({ module: 1, screen: 1, action: 1 })
+      .lean();
+
+    return Promise.all(permissions.map(async (permission) => {
+      const roleCount = await RoleModel.countDocuments({ permissionIds: permission._id, deletedAt: null });
+      return mapPermission(permission, roleCount);
+    }));
+  }
+
   async getRolesByPermission(permissionId: string) {
     const roles = await RoleModel.find({ permissionIds: permissionId, deletedAt: null })
       .sort({ name: 1 })
@@ -379,7 +390,7 @@ export class PermissionRepository {
       _id: { $in: user.roleIds },
       status: 'active',
       deletedAt: null,
-      permissionIds: permission._id,
+      $or: [{ code: 'SUPER_ADMIN' }, { permissionIds: permission._id }],
     }).lean();
 
     return !!role;
@@ -410,6 +421,10 @@ export class PermissionRepository {
       status: 'active',
       deletedAt: null,
     }).lean();
+
+    if (activeRoles.some((role) => role.code === 'SUPER_ADMIN')) {
+      return true;
+    }
 
     const allUserPermissionIds = new Set<string>();
     for (const r of activeRoles) {

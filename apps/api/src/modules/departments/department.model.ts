@@ -45,5 +45,6 @@ const departmentSchema = new Schema<IDepartment>(
 
 departmentSchema.index({ name: 1 });
 departmentSchema.index({ branchId: 1 });
+departmentSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
 
 export const DepartmentModel = mongoose.model<IDepartment>('Department', departmentSchema);

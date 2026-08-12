@@ -37,4 +37,9 @@ export type CreateServiceDTO = {
   status?: ServiceStatus;
 };
 
-export type UpdateServiceDTO = Partial<Omit<CreateServiceDTO, 'status'>>;
+export type UpdateServiceDTO = Partial<CreateServiceDTO>;
+
+export type ServiceRequestMetadata = {
+  ipAddress?: string;
+  userAgent?: string;
+};

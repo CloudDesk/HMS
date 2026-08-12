@@ -22,6 +22,7 @@ type ListUsersQuery = Partial<{
   status: UserStatus;
   branchId: string;
   departmentId: string;
+  roleId: string;
   page: number;
   limit: number;
   sortBy: UserListQuery['sortBy'];
@@ -43,6 +44,7 @@ type CreateUserBody = {
   password: string;
   branches: AssignmentInput[];
   departments: AssignmentInput[];
+  roleIds: string[];
 };
 
 type UpdateUserBody = Partial<Omit<CreateUserBody, 'password' | 'status'>>;
@@ -76,6 +78,25 @@ export const registerUserRoutes = async (app: FastifyInstance, services: Service
       },
     },
     async (request) => ok(await services.users.list(request.query)),
+  );
+
+  app.get(
+    '/api/users/summary',
+    { preHandler: requirePermission(services, 'Administration', 'Users', 'View') },
+    async () => ok(await services.users.summary()),
+  );
+
+  app.get<{ Querystring: ListUsersQuery }>(
+    '/api/users/export',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Users', 'Export'),
+      schema: { querystring: listUsersQuerySchema },
+    },
+    async (request, reply) => {
+      const stream = await services.users.export(request.query, request.user!.id, metadataFromRequest(request));
+      return reply.header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', 'attachment; filename="hms-users.csv"').send(stream);
+    },
   );
 
   app.get<{ Params: UserIdParams }>(

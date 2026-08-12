@@ -18,4 +18,13 @@ export default tseslint.config(
       },
     },
   },
+  {
+    files: [
+      'apps/api/src/modules/**/*.model.ts',
+      'apps/api/src/modules/**/*.repository.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 );

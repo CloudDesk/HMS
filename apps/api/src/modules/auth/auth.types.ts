@@ -1,5 +1,24 @@
 export type AuthUserStatus = 'active' | 'inactive' | 'locked';
 
+export type AuthAccessContext = {
+  branches: Array<{
+    id: string;
+    code: string;
+    name: string;
+  }>;
+  permissions: Array<{
+    code: string;
+    module: string;
+    screen: string;
+    action: string;
+  }>;
+  roles: Array<{
+    id: string;
+    code: string;
+    name: string;
+  }>;
+};
+
 export type AuthUserRecord = {
   id: string;
   employeeCode: string | null;

@@ -9,6 +9,7 @@ import {
   listRolesQuerySchema,
   roleIdParamsSchema,
   roleUserParamsSchema,
+  roleAuditQuerySchema,
   updateRoleBodySchema,
   updateRoleStatusBodySchema,
 } from './role.schemas.js';
@@ -77,6 +78,15 @@ export const registerRoleRoutes = async (app: FastifyInstance, services: Service
       },
     },
     async (request) => ok(await services.roles.getById(request.params.id)),
+  );
+
+  app.get<{ Params: RoleIdParams; Querystring: { page?: number; limit?: number } }>(
+    '/api/roles/:id/audit-logs',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Roles', 'View'),
+      schema: { params: roleIdParamsSchema, querystring: roleAuditQuerySchema },
+    },
+    async (request) => ok(await services.roles.listAuditLogs(request.params.id, request.query)),
   );
 
   app.post<{ Body: CreateRoleBody }>(

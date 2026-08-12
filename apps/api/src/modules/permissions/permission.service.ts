@@ -252,10 +252,13 @@ export class PermissionService {
   }
 
   async getPermissionsByRole(roleId: string) {
-    await this.requireRole(roleId);
+    const role = await this.requireRole(roleId);
+    const permissions = role.code === 'SUPER_ADMIN'
+      ? await this.repository.getAllActivePermissions()
+      : await this.repository.getPermissionsByRole(roleId);
 
     return {
-      items: (await this.repository.getPermissionsByRole(roleId)).map((permission) =>
+      items: permissions.map((permission) =>
         this.toResponse(permission),
       ),
     };
@@ -268,6 +271,15 @@ export class PermissionService {
     metadata: RequestMetadata,
   ) {
     const role = await this.requireRole(roleId);
+
+    if (role.code === 'SUPER_ADMIN') {
+      throw new AppError(
+        'Super Administrator always has every active permission',
+        409,
+        'SUPER_ADMIN_PERMISSIONS_IMMUTABLE',
+      );
+    }
+
     const uniquePermissionIds = [...new Set(input.permissionIds.map((id) => normalizeText(id)))];
 
     if (uniquePermissionIds.some((id) => id.length === 0)) {

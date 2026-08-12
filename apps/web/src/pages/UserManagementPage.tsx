@@ -7,25 +7,31 @@ import {
   type UserAssignment,
   type UserListResponse,
   type UserResponse,
+  type UserSummary,
 } from '../api/users';
+import { branchesApi, type BranchResponse } from '../api/branches';
+import { departmentsApi, type DepartmentResponse } from '../api/departments';
+import { rolesApi, type RoleResponse } from '../api/roles';
 
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { downloadBlob } from '../utils/download';
+import { useAppLocation } from '../routing/navigation';
 
 type UserStatus = 'Active' | 'Inactive' | 'Locked';
-type SortColumn = 'id' | 'fullName' | 'role' | 'department' | 'status';
+type SortColumn = 'fullName' | 'role' | 'department' | 'status';
 type SortDirection = 'asc' | 'desc';
-type ModalMode = 'create' | 'edit' | 'view' | 'change-password' | 'reset-password' | 'import' | 'bulk-update';
+type ModalMode = 'create' | 'edit' | 'view' | 'assign-role' | 'change-password' | 'reset-password';
 
 type UiUser = {
-  id: string;
   apiId: string;
   fullName: string;
   username: string;
   email: string;
   phone: string;
   role: string;
+  roleId: string;
   department: string;
   departmentId: string;
   branch: string;
@@ -45,11 +51,11 @@ type UserFormState = {
   phone: string;
   jobTitle: string;
   employeeType: string;
+  roleId: string;
   branchId: string;
-  branchName: string;
   departmentId: string;
-  departmentName: string;
   password: string;
+  confirmPassword: string;
   status: UserStatus;
 };
 
@@ -78,19 +84,6 @@ const roleToneClass: Record<string, string> = {
   Unassigned: 'role-gray',
 };
 
-const jobTitleOptions = [
-  'Doctor',
-  'Nurse',
-  'Receptionist',
-  'Lab Technician',
-  'Pharmacist',
-  'Radiographer',
-  'Billing Officer',
-  'Accountant',
-  'Administrator',
-  'Super Admin',
-];
-
 const statuses: UserStatus[] = ['Active', 'Inactive', 'Locked'];
 
 const apiStatusByUiStatus = {
@@ -109,7 +102,6 @@ const apiSortByColumn: Partial<
   Record<SortColumn, 'fullName' | 'username' | 'email' | 'employeeCode' | 'status' | 'createdAt' | 'lastLoginAt'>
 > = {
   fullName: 'fullName',
-  id: 'employeeCode',
   status: 'status',
 };
 
@@ -158,16 +150,16 @@ const isAddedThisMonth = (value: string) => {
 const mapUser = (user: UserResponse): UiUser => {
   const branch = getPrimaryAssignment(user.branches);
   const department = getPrimaryAssignment(user.departments);
-  const role = user.jobTitle?.trim() || user.employeeType?.trim() || 'Unassigned';
+  const role = user.roles[0]?.name || 'Unassigned';
 
   return {
-    id: user.employeeCode ?? user.id,
     apiId: user.id,
     fullName: user.fullName,
     username: user.username,
     email: user.email ?? '',
     phone: user.phone ?? '',
     role,
+    roleId: user.roles[0]?.id ?? '',
     department: department?.name || department?.id || 'Unassigned',
     departmentId: department?.id ?? '',
     branch: branch?.name || branch?.id || 'Unassigned',
@@ -188,11 +180,11 @@ const emptyUserForm: UserFormState = {
   phone: '',
   jobTitle: 'Doctor',
   employeeType: '',
+  roleId: '',
   branchId: '',
-  branchName: '',
   departmentId: '',
-  departmentName: '',
   password: '',
+  confirmPassword: '',
   status: 'Active',
 };
 
@@ -209,11 +201,11 @@ const getUserForm = (user: UiUser | null): UserFormState => {
     phone: user.phone,
     jobTitle: user.source.jobTitle ?? user.role,
     employeeType: user.source.employeeType ?? '',
+    roleId: user.roleId,
     branchId: user.branchId,
-    branchName: user.branch === 'Unassigned' ? '' : user.branch,
     departmentId: user.departmentId,
-    departmentName: user.department === 'Unassigned' ? '' : user.department,
     password: '',
+    confirmPassword: '',
     status: user.status,
   };
 };
@@ -329,7 +321,12 @@ function UsersByRole({ users }: { users: UiUser[] }) {
 }
 
 export function UserManagementPage() {
+  const { search: locationSearch } = useAppLocation();
   const [users, setUsers] = useState<UiUser[]>([]);
+  const [roleOptions, setRoleOptions] = useState<RoleResponse[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<DepartmentResponse[]>([]);
+  const [branchOptions, setBranchOptions] = useState<BranchResponse[]>([]);
+  const [summary, setSummary] = useState<UserSummary>({ total: 0, active: 0, inactive: 0, locked: 0, addedThisMonth: 0 });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [query, setQuery] = useState('');
@@ -347,6 +344,7 @@ export function UserManagementPage() {
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>({ currentPassword: '', newPassword: '' });
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState('');
   const [forbidden, setForbidden] = useState(false);
   const [meta, setMeta] = useState<UserListResponse['meta']>({
@@ -357,10 +355,12 @@ export function UserManagementPage() {
   });
   const [deleteTarget, setDeleteTarget] = useState<UiUser | null>(null);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -373,7 +373,7 @@ export function UserManagementPage() {
     const apiSortBy = sortColumn ? apiSortByColumn[sortColumn] : undefined;
 
     try {
-      const response = await usersApi.list({
+      const [response, totals] = await Promise.all([usersApi.list({
         branchId: branchFilter || undefined,
         departmentId: departmentFilter || undefined,
         limit: pageSize,
@@ -382,10 +382,12 @@ export function UserManagementPage() {
         sortBy: apiSortBy,
         sortOrder: apiSortBy ? sortDirection : undefined,
         status: statusFilter ? apiStatusByUiStatus[statusFilter as UserStatus] : undefined,
-      });
+        roleId: roleFilter || undefined,
+      }), usersApi.summary()]);
 
       setUsers(response.items.map(mapUser));
       setMeta(response.meta);
+      setSummary(totals);
       setSelectedIds(new Set());
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
@@ -398,39 +400,32 @@ export function UserManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [branchFilter, currentPage, departmentFilter, pageSize, query, sortColumn, sortDirection, statusFilter]);
+  }, [branchFilter, currentPage, departmentFilter, pageSize, query, roleFilter, sortColumn, sortDirection, statusFilter]);
 
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
 
-  const departments = useMemo(() => {
-    const options = new Map<string, string>();
-    users.forEach((user) => {
-      if (user.departmentId) {
-        options.set(user.departmentId, user.department);
-      }
-    });
-    return [...options.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [users]);
+  useEffect(() => {
+    void Promise.all([
+      rolesApi.listAll(),
+      branchesApi.list({ limit: 100, status: 'ACTIVE', sortBy: 'name', sortOrder: 'asc' }),
+      departmentsApi.list({ limit: 100, status: 'ACTIVE', sortBy: 'name', sortOrder: 'asc' }),
+    ]).then(([roles, branches, departments]) => {
+      setRoleOptions(roles.items.filter((role) => role.status === 'active'));
+      setBranchOptions(branches.data);
+      setDepartmentOptions(departments.data);
+    }).catch((error: unknown) => setLoadError(getErrorMessage(error)));
+  }, []);
 
-  const branches = useMemo(() => {
-    const options = new Map<string, string>();
-    users.forEach((user) => {
-      if (user.branchId) {
-        options.set(user.branchId, user.branch);
-      }
-    });
-    return [...options.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [users]);
-
-  const roleOptions = useMemo(() => {
-    const options = new Set([...jobTitleOptions, ...users.map((user) => user.role)]);
-    return [...options].filter(Boolean).sort();
-  }, [users]);
+  useEffect(() => {
+    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
+      openModal('create');
+    }
+  }, [locationSearch]);
 
   const filteredUsers = useMemo(() => {
-    const rows = roleFilter ? users.filter((user) => user.role === roleFilter) : users;
+    const rows = users;
 
     if (!sortColumn || apiSortByColumn[sortColumn]) {
       return rows;
@@ -444,7 +439,7 @@ export function UserManagementPage() {
       if (left > right) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [roleFilter, sortColumn, sortDirection, users]);
+  }, [sortColumn, sortDirection, users]);
 
   const totalPages = Math.max(meta.totalPages, 1);
   const safePage = Math.min(currentPage, totalPages);
@@ -500,6 +495,7 @@ export function UserManagementPage() {
     setModalMode(mode);
     setActiveUser(user);
     setFormError('');
+    setFieldErrors({});
     setUserForm(getUserForm(user));
     setPasswordForm({ currentPassword: '', newPassword: '' });
   };
@@ -512,6 +508,7 @@ export function UserManagementPage() {
     setModalMode(null);
     setActiveUser(null);
     setFormError('');
+    setFieldErrors({});
   };
 
   const updateForm = (field: keyof UserFormState, value: string) => {
@@ -531,8 +528,8 @@ export function UserManagementPage() {
   ];
 
   const buildSavePayload = (includePassword: boolean): SaveUserPayload & { password?: string } => ({
-    branches: assignmentFromForm(userForm.branchId, userForm.branchName),
-    departments: assignmentFromForm(userForm.departmentId, userForm.departmentName),
+    branches: assignmentFromForm(userForm.branchId, branchOptions.find((branch) => branch.id === userForm.branchId)?.name ?? ''),
+    departments: assignmentFromForm(userForm.departmentId, departmentOptions.find((department) => department.id === userForm.departmentId)?.name ?? ''),
     email: userForm.email.trim() || null,
     employeeCode: userForm.employeeCode.trim(),
     employeeType: userForm.employeeType.trim() || null,
@@ -541,18 +538,24 @@ export function UserManagementPage() {
     password: includePassword ? userForm.password : undefined,
     phone: userForm.phone.trim() || null,
     profilePhotoUrl: null,
+    roleIds: [userForm.roleId],
     status: apiStatusByUiStatus[userForm.status],
     username: userForm.username.trim(),
   });
 
   const validateUserForm = (includePassword: boolean) => {
-    if (!userForm.employeeCode.trim()) return 'Employee code is required.';
-    if (!userForm.username.trim()) return 'Username is required.';
-    if (!userForm.fullName.trim()) return 'Full name is required.';
-    if (!userForm.branchId.trim()) return 'Branch assignment is required.';
-    if (!userForm.departmentId.trim()) return 'Department assignment is required.';
-    if (includePassword && !userForm.password) return 'Password is required.';
-    return '';
+    const errors: Record<string, string> = {};
+    if (!userForm.employeeCode.trim()) errors.employeeCode = 'Employee code is required.';
+    if (!userForm.username.trim()) errors.username = 'Username is required.';
+    if (!userForm.fullName.trim()) errors.fullName = 'Full name is required.';
+    if (!userForm.email.trim()) errors.email = 'Email is required.';
+    if (!userForm.roleId) errors.roleId = 'Role assignment is required.';
+    if (!userForm.branchId) errors.branchId = 'Branch assignment is required.';
+    if (!userForm.departmentId) errors.departmentId = 'Department assignment is required.';
+    if (includePassword && !userForm.password) errors.password = 'Password is required.';
+    if (includePassword && userForm.password !== userForm.confirmPassword) errors.confirmPassword = 'Passwords must match.';
+    setFieldErrors(errors);
+    return Object.values(errors)[0] ?? '';
   };
 
   const handleSaveUser = async (event: FormEvent) => {
@@ -585,6 +588,10 @@ export function UserManagementPage() {
       closeModal();
       await loadUsers();
     } catch (error) {
+      if (error instanceof ApiError) {
+        const field = error.code === 'DUPLICATE_USERNAME' ? 'username' : error.code === 'DUPLICATE_EMAIL' ? 'email' : error.code === 'DUPLICATE_EMPLOYEE_CODE' ? 'employeeCode' : null;
+        if (field) setFieldErrors({ [field]: error.message });
+      }
       setFormError(getErrorMessage(error));
     } finally {
       setSubmitting(false);
@@ -599,7 +606,7 @@ export function UserManagementPage() {
       showToast(`${user.fullName} marked ${status}.`);
       await loadUsers();
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -620,7 +627,7 @@ export function UserManagementPage() {
       showToast(`Selected users marked ${status}.`);
       await loadUsers();
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -678,7 +685,7 @@ export function UserManagementPage() {
       setDeleteTarget(null);
       await loadUsers();
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -695,35 +702,49 @@ export function UserManagementPage() {
       showToast('Selected users deleted successfully.');
       await loadUsers();
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const kpis = {
-    total: meta.total,
-    active: users.filter((user) => user.status === 'Active').length,
-    inactive: users.filter((user) => user.status === 'Inactive').length,
-    locked: users.filter((user) => user.status === 'Locked').length,
-    addedThisMonth: users.filter((user) => user.addedThisMonth).length,
+  const exportUsers = async () => {
+    setSubmitting(true);
+    try {
+      const blob = await usersApi.export({
+        branchId: branchFilter || undefined,
+        departmentId: departmentFilter || undefined,
+        roleId: roleFilter || undefined,
+        search: query.trim() || undefined,
+        status: statusFilter ? apiStatusByUiStatus[statusFilter as UserStatus] : undefined,
+        sortBy: sortColumn ? apiSortByColumn[sortColumn] : undefined,
+        sortOrder: sortDirection,
+      });
+      downloadBlob(blob, 'hms-users.csv');
+      showToast('All filtered users exported.');
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const kpis = summary;
 
   const showingLabel =
     loadError || filteredUsers.length === 0
       ? 'No users found'
       : `Showing ${(safePage - 1) * pageSize + 1}-${(safePage - 1) * pageSize + filteredUsers.length} of ${
-          roleFilter ? filteredUsers.length : meta.total
+          meta.total
         } users`;
 
   const modalTitle = (() => {
     if (modalMode === 'create') return 'Add New User';
     if (modalMode === 'edit') return activeUser ? `Edit ${activeUser.fullName}` : 'Edit User';
     if (modalMode === 'view') return activeUser ? `${activeUser.fullName} Profile` : 'User Profile';
+    if (modalMode === 'assign-role') return activeUser ? `Assign Role - ${activeUser.fullName}` : 'Assign Role';
     if (modalMode === 'change-password') return activeUser ? `Change Password - ${activeUser.fullName}` : 'Change Password';
     if (modalMode === 'reset-password') return activeUser ? `Reset Password - ${activeUser.fullName}` : 'Reset Password';
-    if (modalMode === 'import') return 'Import Users';
-    if (modalMode === 'bulk-update') return 'Bulk Update';
     return 'User Management';
   })();
 
@@ -799,6 +820,12 @@ export function UserManagementPage() {
                     <i className="ph ph-user-plus" aria-hidden="true" /> Add New User
                   </button>
                 ) : null}
+                <button className="btn-secondary admin-table-action" disabled={!canManage || submitting} onClick={() => void exportUsers()} type="button">
+                  <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
+                </button>
+                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadUsers()} type="button">
+                  <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
+                </button>
               </div>
 
               <div className="um-toolbar-row2">
@@ -813,7 +840,7 @@ export function UserManagementPage() {
                 >
                   <option value="">All Roles</option>
                   {roleOptions.map((role) => (
-                    <option key={role}>{role}</option>
+                    <option key={role.id} value={role.id}>{role.name}</option>
                   ))}
                 </select>
                 <select
@@ -825,9 +852,9 @@ export function UserManagementPage() {
                   value={departmentFilter}
                 >
                   <option value="">All Departments</option>
-                  {departments.map(([id, label]) => (
-                    <option key={id} value={id}>
-                      {label}
+                  {departmentOptions.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
                     </option>
                   ))}
                 </select>
@@ -840,9 +867,9 @@ export function UserManagementPage() {
                   value={branchFilter}
                 >
                   <option value="">All Branches</option>
-                  {branches.map(([id, label]) => (
-                    <option key={id} value={id}>
-                      {label}
+                  {branchOptions.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
                     </option>
                   ))}
                 </select>
@@ -906,13 +933,6 @@ export function UserManagementPage() {
                       />
                     </th>
                     <SortableHeader
-                      column="id"
-                      label="Employee ID"
-                      onSort={handleSort}
-                      sortColumn={sortColumn}
-                      sortDirection={sortDirection}
-                    />
-                    <SortableHeader
                       column="fullName"
                       label="Name"
                       onSort={handleSort}
@@ -950,13 +970,13 @@ export function UserManagementPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={11}>
+                      <td className="um-state-cell" colSpan={10}>
                         <span className="loading-spinner" /> Loading users...
                       </td>
                     </tr>
                   ) : loadError ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={11}>
+                      <td className="um-state-cell" colSpan={10}>
                         <i className="ph ph-warning" aria-hidden="true" />
                         {loadError}
                       </td>
@@ -972,9 +992,6 @@ export function UserManagementPage() {
                             onChange={(event) => toggleUserSelection(user.apiId, event.target.checked)}
                             type="checkbox"
                           />
-                        </td>
-                        <td>
-                          <span className="emp-id">{user.id}</span>
                         </td>
                         <td>
                           <div className="user-cell">
@@ -1009,14 +1026,22 @@ export function UserManagementPage() {
                             </button>
                             {canManage ? (
                               <>
-                                <button
-                                  className="action-icon-btn"
-                                  onClick={() => openModal('edit', user)}
+                                 <button
+                                   className="action-icon-btn"
+                                   onClick={() => openModal('edit', user)}
                                   title="Edit"
                                   type="button"
                                 >
-                                  <i className="ph ph-pencil" aria-hidden="true" />
-                                </button>
+                                   <i className="ph ph-pencil" aria-hidden="true" />
+                                 </button>
+                                 <button
+                                   className="action-icon-btn"
+                                   onClick={() => openModal('assign-role', user)}
+                                   title="Assign Role"
+                                   type="button"
+                                 >
+                                   <i className="ph ph-shield-check" aria-hidden="true" />
+                                 </button>
                                 <button
                                   className="action-icon-btn success"
                                   disabled={submitting}
@@ -1072,7 +1097,7 @@ export function UserManagementPage() {
                     ))
                   ) : (
                     <tr>
-                      <td className="um-state-cell" colSpan={11}>
+                      <td className="um-state-cell" colSpan={10}>
                         <i className="ph ph-users" aria-hidden="true" />
                         No users found matching your filters.
                       </td>
@@ -1144,58 +1169,13 @@ export function UserManagementPage() {
               {loading ? <div className="um-panel-loading">Loading roles...</div> : <UsersByRole users={users} />}
             </div>
 
-            <div className="card um-quick-card">
-              <div className="card-header">
-                <h3>Quick Actions</h3>
-              </div>
-              <div className="um-quick-list">
-                <button className="um-quick-btn" disabled={!canManage} onClick={() => openModal('import')} type="button">
-                  <i className="ph ph-upload-simple" aria-hidden="true" />
-                  <div>
-                    <strong>Import Users</strong>
-                    <span>Upload CSV file</span>
-                  </div>
-                </button>
-                <button className="um-quick-btn" onClick={() => showToast('Current users view is ready to export.')} type="button">
-                  <i className="ph ph-download-simple" aria-hidden="true" />
-                  <div>
-                    <strong>Export Users</strong>
-                    <span>Download as CSV</span>
-                  </div>
-                </button>
-                <button
-                  className="um-quick-btn"
-                  disabled={!canManage || selectedCount === 0}
-                  onClick={() => showToast('Choose a user row to reset a password.')}
-                  type="button"
-                >
-                  <i className="ph ph-key" aria-hidden="true" />
-                  <div>
-                    <strong>Reset Password</strong>
-                    <span>Bulk password reset</span>
-                  </div>
-                </button>
-                <button
-                  className="um-quick-btn"
-                  disabled={!canManage}
-                  onClick={() => openModal('bulk-update')}
-                  type="button"
-                >
-                  <i className="ph ph-pencil-line" aria-hidden="true" />
-                  <div>
-                    <strong>Bulk Update</strong>
-                    <span>Update selected users</span>
-                  </div>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
       <Modal
         footer={
-          modalMode === 'view' || modalMode === 'import' || modalMode === 'bulk-update' ? (
+          modalMode === 'view' ? (
             <button className="btn-secondary" onClick={closeModal} type="button">
               Close
             </button>
@@ -1205,13 +1185,14 @@ export function UserManagementPage() {
                 Cancel
               </button>
               <button className="btn-primary" disabled={submitting} form="user-management-modal-form" type="submit">
-                {submitting ? 'Saving...' : modalMode === 'reset-password' ? 'Reset Password' : modalMode === 'change-password' ? 'Change Password' : 'Save User'}
+                {submitting ? 'Saving...' : modalMode === 'reset-password' ? 'Reset Password' : modalMode === 'change-password' ? 'Change Password' : modalMode === 'assign-role' ? 'Assign Role' : 'Save User'}
               </button>
             </>
           )
         }
         onClose={closeModal}
         open={Boolean(modalMode)}
+        icon="ph-user-plus"
         title={modalTitle}
       >
         {formError ? (
@@ -1220,65 +1201,98 @@ export function UserManagementPage() {
           </div>
         ) : null}
 
-        {modalMode === 'create' || modalMode === 'edit' ? (
+        {modalMode === 'create' || modalMode === 'edit' || modalMode === 'assign-role' ? (
           <form id="user-management-modal-form" onSubmit={(event) => void handleSaveUser(event)}>
-            <div className="form-section-title">User Profile</div>
+            {modalMode !== 'assign-role' ? <>
+            <div className="form-section-title">Personal Information</div>
             <div className="form-grid-3">
               <label className="form-field">
-                <span>Employee ID</span>
-                <input onChange={(event) => updateForm('employeeCode', event.target.value)} value={userForm.employeeCode} />
+                <span>Employee ID <span className="required">*</span></span>
+                <input aria-invalid={Boolean(fieldErrors.employeeCode)} onChange={(event) => updateForm('employeeCode', event.target.value)} required value={userForm.employeeCode} />
+                {fieldErrors.employeeCode ? <small className="field-error">{fieldErrors.employeeCode}</small> : null}
               </label>
               <label className="form-field">
-                <span>Full Name</span>
-                <input onChange={(event) => updateForm('fullName', event.target.value)} value={userForm.fullName} />
+                <span>Full Name <span className="required">*</span></span>
+                <input aria-invalid={Boolean(fieldErrors.fullName)} onChange={(event) => updateForm('fullName', event.target.value)} required value={userForm.fullName} />
+                {fieldErrors.fullName ? <small className="field-error">{fieldErrors.fullName}</small> : null}
               </label>
               <label className="form-field">
-                <span>Username</span>
-                <input onChange={(event) => updateForm('username', event.target.value)} value={userForm.username} />
+                <span>Username <span className="required">*</span></span>
+                <input aria-invalid={Boolean(fieldErrors.username)} onChange={(event) => updateForm('username', event.target.value)} required value={userForm.username} />
+                {fieldErrors.username ? <small className="field-error">{fieldErrors.username}</small> : null}
               </label>
               <label className="form-field">
-                <span>Email</span>
-                <input onChange={(event) => updateForm('email', event.target.value)} type="email" value={userForm.email} />
+                <span>Email <span className="required">*</span></span>
+                <input aria-invalid={Boolean(fieldErrors.email)} onChange={(event) => updateForm('email', event.target.value)} required type="email" value={userForm.email} />
+                {fieldErrors.email ? <small className="field-error">{fieldErrors.email}</small> : null}
               </label>
               <label className="form-field">
                 <span>Phone</span>
                 <input onChange={(event) => updateForm('phone', event.target.value)} value={userForm.phone} />
               </label>
               <label className="form-field">
-                <span>Role</span>
-                <select onChange={(event) => updateForm('jobTitle', event.target.value)} value={userForm.jobTitle}>
-                  {roleOptions.map((role) => (
-                    <option key={role}>{role}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="form-field">
-                <span>Branch ID</span>
-                <input onChange={(event) => updateForm('branchId', event.target.value)} value={userForm.branchId} />
-              </label>
-              <label className="form-field">
-                <span>Branch</span>
-                <input onChange={(event) => updateForm('branchName', event.target.value)} value={userForm.branchName} />
-              </label>
-              <label className="form-field">
-                <span>Department ID</span>
-                <input onChange={(event) => updateForm('departmentId', event.target.value)} value={userForm.departmentId} />
-              </label>
-              <label className="form-field">
-                <span>Department</span>
-                <input onChange={(event) => updateForm('departmentName', event.target.value)} value={userForm.departmentName} />
-              </label>
-              <label className="form-field">
                 <span>Employee Type</span>
                 <input onChange={(event) => updateForm('employeeType', event.target.value)} value={userForm.employeeType} />
               </label>
-              {modalMode === 'create' ? (
-                <label className="form-field">
-                  <span>Password</span>
-                  <input onChange={(event) => updateForm('password', event.target.value)} type="password" value={userForm.password} />
-                </label>
-              ) : null}
             </div>
+            <div className="form-section-title">Role &amp; Assignment</div>
+            <div className="form-grid-3">
+              <label className="form-field">
+                <span>Branch <span className="required">*</span></span>
+                <select aria-invalid={Boolean(fieldErrors.branchId)} onChange={(event) => updateForm('branchId', event.target.value)} required value={userForm.branchId}>
+                  <option value="">Select branch</option>
+                  {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+                {fieldErrors.branchId ? <small className="field-error">{fieldErrors.branchId}</small> : null}
+              </label>
+              <label className="form-field">
+                <span>Department <span className="required">*</span></span>
+                <select aria-invalid={Boolean(fieldErrors.departmentId)} onChange={(event) => updateForm('departmentId', event.target.value)} required value={userForm.departmentId}>
+                  <option value="">Select department</option>
+                  {departmentOptions.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+                </select>
+                {fieldErrors.departmentId ? <small className="field-error">{fieldErrors.departmentId}</small> : null}
+              </label>
+              <label className="form-field">
+                <span>Role <span className="required">*</span></span>
+                <select aria-invalid={Boolean(fieldErrors.roleId)} onChange={(event) => updateForm('roleId', event.target.value)} required value={userForm.roleId}>
+                  <option value="">Select role</option>
+                  {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                </select>
+                {fieldErrors.roleId ? <small className="field-error">{fieldErrors.roleId}</small> : null}
+              </label>
+              <label className="form-field">
+                <span>Status <span className="required">*</span></span>
+                <select onChange={(event) => updateForm('status', event.target.value)} required value={userForm.status}>
+                  {statuses.map((status) => <option key={status}>{status}</option>)}
+                </select>
+              </label>
+              {modalMode === 'create' ? <>
+                <label className="form-field">
+                  <span>Password <span className="required">*</span></span>
+                  <input aria-invalid={Boolean(fieldErrors.password)} onChange={(event) => updateForm('password', event.target.value)} required type="password" value={userForm.password} />
+                  {fieldErrors.password ? <small className="field-error">{fieldErrors.password}</small> : null}
+                </label>
+                <label className="form-field">
+                  <span>Confirm Password <span className="required">*</span></span>
+                  <input aria-invalid={Boolean(fieldErrors.confirmPassword)} onChange={(event) => updateForm('confirmPassword', event.target.value)} required type="password" value={userForm.confirmPassword} />
+                  {fieldErrors.confirmPassword ? <small className="field-error">{fieldErrors.confirmPassword}</small> : null}
+                </label>
+              </> : null}
+            </div>
+            </> : <>
+              <div className="form-section-title">Role Assignment</div>
+              <div className="form-grid-3">
+              <label className="form-field">
+                <span>Role <span className="required">*</span></span>
+                <select aria-invalid={Boolean(fieldErrors.roleId)} onChange={(event) => updateForm('roleId', event.target.value)} required value={userForm.roleId}>
+                  <option value="">Select role</option>
+                  {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                </select>
+                {fieldErrors.roleId ? <small className="field-error">{fieldErrors.roleId}</small> : null}
+              </label>
+              </div>
+            </>}
           </form>
         ) : null}
 
@@ -1288,18 +1302,20 @@ export function UserManagementPage() {
             <div className="form-grid-3">
               {modalMode === 'change-password' ? (
                 <label className="form-field">
-                  <span>Current Password</span>
+                  <span>Current Password <span className="required">*</span></span>
                   <input
                     onChange={(event) => updatePasswordForm('currentPassword', event.target.value)}
+                    required
                     type="password"
                     value={passwordForm.currentPassword}
                   />
                 </label>
               ) : null}
               <label className="form-field">
-                <span>New Password</span>
+                <span>New Password <span className="required">*</span></span>
                 <input
                   onChange={(event) => updatePasswordForm('newPassword', event.target.value)}
+                  required
                   type="password"
                   value={passwordForm.newPassword}
                 />
@@ -1340,9 +1356,6 @@ export function UserManagementPage() {
           </>
         ) : null}
 
-        {modalMode === 'import' || modalMode === 'bulk-update' ? (
-          <p className="dialog-message">This action requires a dedicated backend workflow and is not part of the User API integration phase.</p>
-        ) : null}
       </Modal>
 
       <ConfirmDialog
@@ -1353,7 +1366,7 @@ export function UserManagementPage() {
         open={Boolean(deleteTarget)}
         title="Delete User"
       />
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

@@ -66,4 +66,10 @@ const userSchema = new Schema<IUser>(
   },
 );
 
+userSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
+userSchema.index({ branchIds: 1, deletedAt: 1 });
+userSchema.index({ departmentIds: 1, deletedAt: 1 });
+userSchema.index({ roleIds: 1, deletedAt: 1 });
+userSchema.index({ employeeCode: 1 }, { unique: true, sparse: true });
+
 export const UserModel = mongoose.model<IUser>('User', userSchema);

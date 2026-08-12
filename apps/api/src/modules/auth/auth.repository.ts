@@ -1,8 +1,11 @@
 import { UserModel } from '../users/user.model.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { PermissionModel } from '../permissions/permission.model.js';
+import { RoleModel } from '../roles/role.model.js';
 import { RefreshTokenModel } from './refresh-token.model.js';
 import { PasswordResetTokenModel, AuditLogModel } from './auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
-import type { AuthUserRecord, AuthUserStatus, PasswordResetTokenRecord, RefreshTokenRecord, RequestMetadata } from './auth.types.js';
+import type { AuthAccessContext, AuthUserRecord, AuthUserStatus, PasswordResetTokenRecord, RefreshTokenRecord, RequestMetadata } from './auth.types.js';
 
 const mapUser = (user: any): AuthUserRecord => ({
   id: user._id.toString(),
@@ -21,6 +24,57 @@ const mapUser = (user: any): AuthUserRecord => ({
 });
 
 export class AuthRepository {
+  async getUserAccessContext(userId: string): Promise<AuthAccessContext> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('roleIds branchIds')
+      .lean();
+
+    if (!user) {
+      return { branches: [], permissions: [], roles: [] };
+    }
+
+    const [roles, branches] = await Promise.all([
+      RoleModel.find({ _id: { $in: user.roleIds ?? [] }, status: 'active', deletedAt: null })
+        .select('_id code name permissionIds')
+        .sort({ name: 1 })
+        .lean(),
+      BranchModel.find({ _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null })
+        .select('_id code name')
+        .sort({ name: 1 })
+        .lean(),
+    ]);
+
+    const isSuperAdmin = roles.some((role) => role.code === 'SUPER_ADMIN');
+    const permissionIds = [...new Set(roles.flatMap((role) => role.permissionIds ?? []).map(String))];
+    const permissions = await PermissionModel.find({
+      ...(isSuperAdmin ? {} : { _id: { $in: permissionIds } }),
+      status: 'active',
+      deletedAt: null,
+    })
+      .select('code module screen action')
+      .sort({ module: 1, screen: 1, action: 1 })
+      .lean();
+
+    return {
+      branches: branches.map((branch) => ({
+        id: String(branch._id),
+        code: branch.code,
+        name: branch.name,
+      })),
+      permissions: permissions.map((permission) => ({
+        code: permission.code,
+        module: permission.module,
+        screen: permission.screen,
+        action: permission.action,
+      })),
+      roles: roles.map((role) => ({
+        id: String(role._id),
+        code: role.code,
+        name: role.name,
+      })),
+    };
+  }
+
   async findUserById(id: string) {
     const user = await UserModel.findOne({ _id: id, deletedAt: null }).lean();
     return user ? mapUser(user) : null;

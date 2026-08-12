@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { sidebarModules } from '../../data/ui-foundation';
+import { getAccessibleSidebarModules } from '../../auth/access-control';
+import { useAuth } from '../../auth/useAuth';
 import { NavLink } from './NavLink';
 import { SidebarNavGroup } from './SidebarNavGroup';
 
@@ -18,9 +18,8 @@ export function Sidebar({
   mobileOpen = false,
   onToggleCollapsed,
 }: SidebarProps) {
-  useEffect(() => {
-    console.log('Sidebar mounted');
-  }, []);
+  const { user } = useAuth();
+  const accessibleModules = getAccessibleSidebarModules(user?.permissions ?? [], user?.roles ?? []);
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
@@ -41,7 +40,7 @@ export function Sidebar({
           <span>Dashboard</span>
         </NavLink>
 
-        {sidebarModules.map((module) => (
+        {accessibleModules.map((module) => (
           <SidebarNavGroup
             activeHref={activeHref}
             activeKey={activeKey}

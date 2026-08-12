@@ -8,14 +8,18 @@ import { registerUserRoutes } from './users/user.routes.js';
 import { registerBranchRoutes } from './branches/branch.routes.js';
 import { registerDepartmentRoutes } from './departments/department.routes.js';
 import { registerServiceRoutes } from './services/service.routes.js';
+import { registerSettingsRoutes } from './settings/settings.routes.js';
+import { registerAdministrationDashboardRoutes } from './administration-dashboard/administration-dashboard.routes.js';
 
 export const registerModules = async (app: FastifyInstance, services: ServiceRegistry) => {
   await registerHealthRoutes(app, services);
   await registerAuthRoutes(app, services);
+  await registerAdministrationDashboardRoutes(app, services);
   await registerUserRoutes(app, services);
   await registerRoleRoutes(app, services);
   await registerPermissionRoutes(app, services);
   await registerBranchRoutes(app, services);
   await registerDepartmentRoutes(app, services);
   await registerServiceRoutes(app, services);
+  await registerSettingsRoutes(app, services);
 };

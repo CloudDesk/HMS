@@ -45,5 +45,13 @@ export const updateDepartmentBodySchema = {
     name: { type: 'string', minLength: 1 },
     branch_id: { type: 'string', minLength: 1 },
     description: { type: ['string', 'null'] },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
   },
+} as const;
+
+export const updateDepartmentStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } },
 } as const;

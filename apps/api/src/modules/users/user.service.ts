@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { hashPassword, verifyPassword } from '../../shared/security/hash.js';
 import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
+import { createCsvStream } from '../../shared/http/csv.js';
 import { UserRepository } from './user.repository.js';
 import type {
   AssignmentInput,
@@ -27,6 +28,7 @@ type CreateUserInput = {
   password: string;
   branches: AssignmentInput[];
   departments: AssignmentInput[];
+  roleIds: string[];
 };
 
 type UpdateUserInput = Partial<Omit<CreateUserInput, 'password' | 'status'>> & {
@@ -87,6 +89,7 @@ export class UserService {
       status: query.status,
       branchId: normalizeOptionalText(query.branchId) ?? undefined,
       departmentId: normalizeOptionalText(query.departmentId) ?? undefined,
+      roleId: normalizeOptionalText(query.roleId) ?? undefined,
       page: Math.max(1, Number(query.page ?? 1)),
       limit: Math.min(100, Math.max(1, Number(query.limit ?? 20))),
       sortBy: query.sortBy ?? 'createdAt',
@@ -111,6 +114,10 @@ export class UserService {
     return (await this.attachAssignments([user]))[0]!;
   }
 
+  summary() {
+    return this.repository.summary();
+  }
+
   async create(input: CreateUserInput, actorUserId: string, metadata: RequestMetadata) {
     const normalized = this.normalizeCreateInput(input);
     assertPasswordPolicy(normalized.password);
@@ -119,14 +126,16 @@ export class UserService {
       email: normalized.email,
       employeeCode: normalized.employeeCode,
     });
+    await this.validateReferences(normalized.branches, normalized.departments, normalized.roleIds);
 
     const user = await this.repository.create({
       ...normalized,
       status: normalized.status ?? 'active',
       passwordHash: await hashPassword(normalized.password),
       actorUserId,
+      roleIds: normalized.roleIds,
     });
-    await this.repository.replaceAssignments(user.id, normalized.branches, normalized.departments);
+    await this.repository.replaceAssignments(user.id, normalized.branches, normalized.departments, normalized.roleIds);
     await this.audit('user.created', actorUserId, user.id, metadata);
 
     return this.getById(user.id);
@@ -145,6 +154,21 @@ export class UserService {
       });
     }
 
+    if (normalized.branches || normalized.departments || normalized.roleIds) {
+      const current = await this.getById(id);
+      if (normalized.roleIds && current.roles.some((role) => role.code === 'SUPER_ADMIN')) {
+        const keepsSuperAdmin = await Promise.all(normalized.roleIds.map((roleId) => this.repository.isSuperAdminRole(roleId)));
+        if (!keepsSuperAdmin.some(Boolean) && await this.repository.countActiveSuperAdmins() <= 1) {
+          throw new AppError('The last active Super Admin role assignment cannot be removed', 409, 'LAST_SUPER_ADMIN_REQUIRED');
+        }
+      }
+      await this.validateReferences(
+        normalized.branches ?? current.branches,
+        normalized.departments ?? current.departments,
+        normalized.roleIds ?? current.roleIds,
+      );
+    }
+
     const user = await this.repository.update(id, {
       ...normalized,
       actorUserId,
@@ -154,12 +178,13 @@ export class UserService {
       throw new AppError('User not found', 404, 'USER_NOT_FOUND');
     }
 
-    if (normalized.branches || normalized.departments) {
+    if (normalized.branches || normalized.departments || normalized.roleIds) {
       const current = await this.getById(id);
       await this.repository.replaceAssignments(
         id,
         normalized.branches ?? current.branches.map((branch) => ({ ...branch })),
         normalized.departments ?? current.departments.map((department) => ({ ...department })),
+        normalized.roleIds ?? current.roleIds,
       );
     }
 
@@ -173,6 +198,12 @@ export class UserService {
 
   async updateStatus(id: string, input: StatusInput, actorUserId: string, metadata: RequestMetadata) {
     const existingUser = await this.requireUser(id);
+    if (id === actorUserId && input.status !== 'active') {
+      throw new AppError('You cannot deactivate or lock your own account', 409, 'SELF_STATUS_CHANGE_FORBIDDEN');
+    }
+    if (input.status !== 'active' && await this.repository.isSuperAdmin(id) && await this.repository.countActiveSuperAdmins() <= 1) {
+      throw new AppError('The last active Super Admin cannot be deactivated or locked', 409, 'LAST_SUPER_ADMIN_REQUIRED');
+    }
     const lockedUntil =
       input.status === 'locked'
         ? input.lockedUntil
@@ -242,6 +273,12 @@ export class UserService {
   }
 
   async delete(id: string, actorUserId: string, metadata: RequestMetadata) {
+    if (id === actorUserId) {
+      throw new AppError('You cannot delete your own account', 409, 'SELF_DELETE_FORBIDDEN');
+    }
+    if (await this.repository.isSuperAdmin(id) && await this.repository.countActiveSuperAdmins() <= 1) {
+      throw new AppError('The last active Super Admin cannot be deleted', 409, 'LAST_SUPER_ADMIN_REQUIRED');
+    }
     await this.requireUser(id);
     const deleted = await this.repository.softDelete(id, actorUserId);
 
@@ -253,6 +290,50 @@ export class UserService {
     await this.audit('user.deleted', actorUserId, id, metadata);
 
     return { ok: true };
+  }
+
+  async export(query: Partial<UserListQuery>, actorUserId: string, metadata: RequestMetadata) {
+    const normalizedQuery: UserListQuery = {
+      search: normalizeOptionalText(query.search) ?? undefined,
+      status: query.status,
+      branchId: normalizeOptionalText(query.branchId) ?? undefined,
+      departmentId: normalizeOptionalText(query.departmentId) ?? undefined,
+      roleId: normalizeOptionalText(query.roleId) ?? undefined,
+      page: 1,
+      limit: 100,
+      sortBy: query.sortBy ?? 'fullName',
+      sortOrder: query.sortOrder ?? 'asc',
+    };
+    await this.audit('user.exported', actorUserId, undefined, metadata, { filters: normalizedQuery });
+    const loadPage = (page: number) => this.list({ ...normalizedQuery, page, limit: 100 });
+    async function* rows() {
+      let page = 1;
+      while (true) {
+        const result = await loadPage(page);
+        for (const user of result.items) {
+          const primaryDepartment = user.departments.find((item) => item.isPrimary) ?? user.departments[0];
+          const primaryBranch = user.branches.find((item) => item.isPrimary) ?? user.branches[0];
+          yield [
+            user.employeeCode,
+            user.fullName,
+            user.username,
+            user.email,
+            user.phone,
+            user.roles.map((role) => role.name).join('; '),
+            primaryDepartment?.name,
+            primaryBranch?.name,
+            user.status,
+            user.lastLoginAt,
+          ];
+        }
+        if (page >= result.meta.totalPages) break;
+        page += 1;
+      }
+    }
+    return createCsvStream(
+      ['Employee ID', 'Full Name', 'Username', 'Email', 'Phone', 'Role', 'Department', 'Branch', 'Status', 'Last Login'],
+      rows(),
+    );
   }
 
   private async setPassword(
@@ -310,8 +391,10 @@ export class UserService {
       createdBy: user.createdBy,
       updatedBy: user.updatedBy,
       deletedBy: user.deletedBy,
+      roleIds: user.roleIds,
       branches: assignments.branchesByUserId.get(user.id) ?? [],
       departments: assignments.departmentsByUserId.get(user.id) ?? [],
+      roles: assignments.rolesByUserId.get(user.id) ?? [],
       audit: {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -339,6 +422,7 @@ export class UserService {
       password: input.password,
       branches: this.normalizeAssignments(input.branches, 'branch'),
       departments: this.normalizeAssignments(input.departments, 'department'),
+      roleIds: this.normalizeRoleIds(input.roleIds),
     };
 
     this.validateProfile(normalized);
@@ -361,6 +445,7 @@ export class UserService {
       departments: input.departments
         ? this.normalizeAssignments(input.departments, 'department')
         : undefined,
+      roleIds: input.roleIds ? this.normalizeRoleIds(input.roleIds) : undefined,
     };
 
     this.validateProfile(normalized);
@@ -391,6 +476,36 @@ export class UserService {
     }
 
     return normalized;
+  }
+
+  private normalizeRoleIds(roleIds: string[]) {
+    const normalized = roleIds.map(normalizeText).filter(Boolean);
+    if (normalized.length === 0) {
+      throw new AppError('At least one role assignment is required', 400, 'ROLE_ASSIGNMENT_REQUIRED');
+    }
+    if (new Set(normalized).size !== normalized.length) {
+      throw new AppError('Duplicate role assignment', 400, 'DUPLICATE_ROLE_ASSIGNMENT');
+    }
+    return normalized;
+  }
+
+  private async validateReferences(
+    branches: AssignmentInput[],
+    departments: AssignmentInput[],
+    roleIds: string[],
+  ) {
+    const branchIds = branches.map((item) => item.id);
+    const departmentIds = departments.map((item) => item.id);
+    const result = await this.repository.validateReferences(branchIds, departmentIds, roleIds);
+    if (result.branches !== branchIds.length) {
+      throw new AppError('One or more branch assignments are invalid or inactive', 400, 'INVALID_BRANCH_ASSIGNMENT');
+    }
+    if (result.departments !== departmentIds.length) {
+      throw new AppError('One or more department assignments are invalid or inactive', 400, 'INVALID_DEPARTMENT_ASSIGNMENT');
+    }
+    if (result.roles !== roleIds.length) {
+      throw new AppError('One or more role assignments are invalid or inactive', 400, 'INVALID_ROLE_ASSIGNMENT');
+    }
   }
 
   private validateProfile(input: Partial<CreateUserInput>) {
@@ -447,7 +562,7 @@ export class UserService {
   private async audit(
     eventType: string,
     actorUserId: string,
-    subjectUserId: string,
+    subjectUserId: string | undefined,
     metadata: RequestMetadata,
     eventMetadata?: Record<string, unknown>,
   ) {

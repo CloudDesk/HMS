@@ -8,6 +8,13 @@ export type UserAssignment = {
   isPrimary: boolean;
 };
 
+export type UserRoleAssignment = {
+  id: string;
+  code: string;
+  name: string;
+  status: 'active' | 'inactive';
+};
+
 export type UserResponse = {
   id: string;
   employeeCode: string | null;
@@ -30,8 +37,10 @@ export type UserResponse = {
   createdBy: string | null;
   updatedBy: string | null;
   deletedBy: string | null;
+  roleIds: string[];
   branches: UserAssignment[];
   departments: UserAssignment[];
+  roles: UserRoleAssignment[];
   audit: {
     createdAt: string;
     updatedAt: string;
@@ -57,6 +66,7 @@ export type UserListParams = Partial<{
   status: ApiUserStatus;
   branchId: string;
   departmentId: string;
+  roleId: string;
   page: number;
   limit: number;
   sortBy: 'fullName' | 'username' | 'email' | 'employeeCode' | 'status' | 'createdAt' | 'lastLoginAt';
@@ -78,6 +88,15 @@ export type SaveUserPayload = {
   password?: string;
   branches: UserAssignment[];
   departments: UserAssignment[];
+  roleIds: string[];
+};
+
+export type UserSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  locked: number;
+  addedThisMonth: number;
 };
 
 const toQueryString = (params: UserListParams) => {
@@ -102,6 +121,14 @@ export const usersApi = {
     return apiClient.request<UserResponse>(`/users/${encodeURIComponent(id)}`);
   },
 
+  summary() {
+    return apiClient.request<UserSummary>('/users/summary');
+  },
+
+  export(params: UserListParams) {
+    return apiClient.requestBlob(`/users/export${toQueryString(params)}`);
+  },
+
   create(payload: SaveUserPayload & { password: string }) {
     return apiClient.request<UserResponse>('/users', {
       body: payload,
@@ -122,6 +149,7 @@ export const usersApi = {
       jobTitle: payload.jobTitle,
       phone: payload.phone,
       profilePhotoUrl: payload.profilePhotoUrl,
+      roleIds: payload.roleIds,
       username: payload.username,
     };
 

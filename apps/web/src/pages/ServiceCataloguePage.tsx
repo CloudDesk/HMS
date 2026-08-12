@@ -8,10 +8,13 @@ import {
   type CreateServicePayload,
   type ServiceListResponse,
   type ServiceResponse,
+  type ServiceSummary,
 } from '../api/services';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { downloadBlob } from '../utils/download';
+import { useAppLocation } from '../routing/navigation';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -64,7 +67,7 @@ const getErrorMessage = (error: unknown): string => {
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
     if (error.status === 403) return 'You do not have permission to manage services.';
     if (error.status === 404) return 'Service not found.';
-    if (error.status === 409) return 'A service with this code already exists.';
+    if (error.status === 409) return error.message;
     if (error.status >= 500) return 'The service is unavailable. Please try again shortly.';
     return error.message;
   }
@@ -80,12 +83,6 @@ const formatDate = (value: string | null): string => {
 
 const formatPrice = (value: number): string =>
   new Intl.NumberFormat('en', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
-
-const isThisMonth = (value: string): boolean => {
-  const d = new Date(value);
-  const now = new Date();
-  return !Number.isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-};
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -114,10 +111,8 @@ function SortableHeader({
   );
 }
 
-function ServiceStatusChart({ services }: { services: ServiceResponse[] }) {
-  const activeCount = services.filter((s) => s.status === 'ACTIVE').length;
-  const inactiveCount = services.filter((s) => s.status === 'INACTIVE').length;
-  const total = Math.max(services.length, 1);
+function ServiceStatusChart({ activeCount, inactiveCount }: { activeCount: number; inactiveCount: number }) {
+  const total = Math.max(activeCount + inactiveCount, 1);
   const activeDeg = (activeCount / total) * 360;
   const inactiveDeg = activeDeg + (inactiveCount / total) * 360;
 
@@ -198,8 +193,10 @@ function ServicesByDepartment({
 // ─── Main Page Component ────────────────────────────────────────────────────────
 
 export function ServiceCataloguePage() {
+  const { search: locationSearch } = useAppLocation();
   // Data
   const [services, setServices] = useState<ServiceResponse[]>([]);
+  const [summary, setSummary] = useState<ServiceSummary>({ total: 0, active: 0, inactive: 0, addedThisMonth: 0, departmentsCovered: 0 });
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -232,10 +229,12 @@ export function ServiceCataloguePage() {
   const [lookupError, setLookupError] = useState('');
   const [forbidden, setForbidden] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(msg);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -277,7 +276,7 @@ export function ServiceCataloguePage() {
     try {
       const deptId = deptFilter || undefined;
 
-      const res = await servicesApi.list({
+      const [res, totals] = await Promise.all([servicesApi.list({
         search: search.trim() || undefined,
         status: statusFilter || undefined,
         department_id: deptId,
@@ -285,9 +284,10 @@ export function ServiceCataloguePage() {
         limit: pageSize,
         sortBy: sortColumn ?? undefined,
         sortOrder: sortColumn ? sortDirection : undefined,
-      });
+      }), servicesApi.summary()]);
       setServices(res.data);
       setMeta(res.meta);
+      setSummary(totals);
       setForbidden(false);
 
       if (currentPage > res.meta.totalPages) {
@@ -307,14 +307,6 @@ export function ServiceCataloguePage() {
   useEffect(() => { void loadServices(); }, [loadServices]);
 
   // ── KPI values ─────────────────────────────────────────────────────────────
-  const kpis = useMemo(() => {
-    const active = services.filter((s) => s.status === 'ACTIVE').length;
-    const inactive = services.filter((s) => s.status === 'INACTIVE').length;
-    const deptIds = new Set(services.map((s) => s.department_id));
-    const addedThisMonth = services.filter((s) => isThisMonth(s.created_at)).length;
-    return { active, inactive, deptsCovered: deptIds.size, addedThisMonth };
-  }, [services]);
-
   // ── Sort / filter ──────────────────────────────────────────────────────────
   const handleSort = (column: SortColumn) => {
     setSortColumn((cur) => {
@@ -365,6 +357,10 @@ export function ServiceCataloguePage() {
     setFormError('');
   };
 
+  useEffect(() => {
+    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openModal('create');
+  }, [locationSearch]);
+
   // ── CRUD ───────────────────────────────────────────────────────────────────
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -403,6 +399,7 @@ export function ServiceCataloguePage() {
           duration_minutes: duration,
           category: form.category.trim() || null,
           description: form.description.trim() || null,
+          status: form.status,
         });
         showToast('Service updated successfully.');
       }
@@ -428,7 +425,40 @@ export function ServiceCataloguePage() {
         await loadServices();
       }
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const updateStatus = async (service: ServiceResponse) => {
+    setSubmitting(true);
+    try {
+      const next = service.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      await servicesApi.updateStatus(service.id, next);
+      showToast(`${service.name} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
+      await loadServices();
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const exportServices = async () => {
+    setSubmitting(true);
+    try {
+      const blob = await servicesApi.export({
+        department_id: deptFilter || undefined,
+        search: search.trim() || undefined,
+        sortBy: sortColumn || undefined,
+        sortOrder: sortDirection,
+        status: statusFilter || undefined,
+      });
+      downloadBlob(blob, 'hms-services.csv');
+      showToast('All filtered services exported.');
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -472,7 +502,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Total Services</span>
-              <span className="kpi-value">{loading ? '—' : meta.total}</span>
+              <span className="kpi-value">{loading ? '—' : summary.total}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -481,7 +511,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Active</span>
-              <span className="kpi-value">{loading ? '—' : kpis.active}</span>
+              <span className="kpi-value">{loading ? '—' : summary.active}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -490,7 +520,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Inactive</span>
-              <span className="kpi-value">{loading ? '—' : kpis.inactive}</span>
+              <span className="kpi-value">{loading ? '—' : summary.inactive}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -499,7 +529,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Departments Covered</span>
-              <span className="kpi-value">{loading ? '—' : kpis.deptsCovered}</span>
+              <span className="kpi-value">{loading ? '—' : summary.departmentsCovered}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -508,7 +538,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Added This Month</span>
-              <span className="kpi-value">{loading ? '—' : kpis.addedThisMonth}</span>
+              <span className="kpi-value">{loading ? '—' : summary.addedThisMonth}</span>
             </div>
           </div>
         </div>
@@ -531,11 +561,17 @@ export function ServiceCataloguePage() {
                 </div>
                 <button
                   className="um-add-btn"
-                  disabled={forbidden || lookupsLoading || departments.length === 0}
+                  disabled={forbidden || lookupsLoading}
                   onClick={() => openModal('create')}
                   type="button"
                 >
                   <i className="ph ph-plus" aria-hidden="true" /> Add Service
+                </button>
+                <button className="btn-secondary admin-table-action" disabled={forbidden || submitting} onClick={() => void exportServices()} type="button">
+                  <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
+                </button>
+                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadServices()} type="button">
+                  <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
                 </button>
               </div>
 
@@ -673,6 +709,7 @@ export function ServiceCataloguePage() {
                             >
                               <i className="ph ph-trash" aria-hidden="true" />
                             </button>
+                            <button aria-label={`${svc.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${svc.name}`} className="action-icon-btn" disabled={forbidden || submitting} onClick={() => void updateStatus(svc)} title={svc.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${svc.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
                           </div>
                         </td>
                       </tr>
@@ -736,7 +773,7 @@ export function ServiceCataloguePage() {
               {loading ? (
                 <div className="um-panel-loading">Loading chart...</div>
               ) : (
-                <ServiceStatusChart services={services} />
+                <ServiceStatusChart activeCount={summary.active} inactiveCount={summary.inactive} />
               )}
             </div>
 
@@ -751,48 +788,6 @@ export function ServiceCataloguePage() {
               )}
             </div>
 
-            <div className="card um-quick-card">
-              <div className="card-header">
-                <h3>Quick Actions</h3>
-              </div>
-              <div className="um-quick-list">
-                <button
-                  className="um-quick-btn"
-                  disabled={forbidden || lookupsLoading || departments.length === 0}
-                  onClick={() => openModal('create')}
-                  type="button"
-                >
-                  <i className="ph ph-plus-circle" aria-hidden="true" />
-                  <div>
-                    <strong>Add Service</strong>
-                    <span>Create a new service</span>
-                  </div>
-                </button>
-                <button
-                  className="um-quick-btn"
-                  onClick={() => showToast('Current service view is ready to export.')}
-                  type="button"
-                >
-                  <i className="ph ph-download-simple" aria-hidden="true" />
-                  <div>
-                    <strong>Export Services</strong>
-                    <span>Download as CSV</span>
-                  </div>
-                </button>
-                <button
-                  className="um-quick-btn"
-                  disabled={loading}
-                  onClick={() => void loadServices()}
-                  type="button"
-                >
-                  <i className="ph ph-arrows-clockwise" aria-hidden="true" />
-                  <div>
-                    <strong>Refresh Data</strong>
-                    <span>Reload service list</span>
-                  </div>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -805,7 +800,7 @@ export function ServiceCataloguePage() {
           ) : (
             <>
               <button className="btn-secondary" disabled={submitting} onClick={closeModal} type="button">Cancel</button>
-              <button className="btn-primary" disabled={submitting} form="svc-management-form" type="submit">
+              <button className="btn-primary" disabled={submitting || departments.length === 0} form="svc-management-form" type="submit">
                 {submitting ? 'Saving...' : 'Save Service'}
               </button>
             </>
@@ -813,6 +808,7 @@ export function ServiceCataloguePage() {
         }
         onClose={closeModal}
         open={Boolean(modalMode)}
+        icon="ph-first-aid-kit"
         title={modalTitle}
       >
         {formError ? (
@@ -821,10 +817,16 @@ export function ServiceCataloguePage() {
 
         {(modalMode === 'create' || modalMode === 'edit') && (
           <form id="svc-management-form" onSubmit={(e) => void handleSave(e)}>
+            {departments.length === 0 ? (
+              <div className="admin-dependency-notice" role="alert">
+                <i className="ph ph-info" aria-hidden="true" />
+                <span>Create an active branch and department before saving a service.</span>
+              </div>
+            ) : null}
             <div className="form-section-title">Basic Information</div>
             <div className="form-grid-3">
               <label className="form-field">
-                <span>Service Code *</span>
+                <span>Service Code <span className="required">*</span></span>
                 <input
                   disabled={submitting}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
@@ -833,7 +835,7 @@ export function ServiceCataloguePage() {
                 />
               </label>
               <label className="form-field">
-                <span>Service Name *</span>
+                <span>Service Name <span className="required">*</span></span>
                 <input
                   disabled={submitting}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -870,7 +872,7 @@ export function ServiceCataloguePage() {
                 </select>
               </label>
               <label className="form-field">
-                <span>Department *</span>
+                <span>Department <span className="required">*</span></span>
                 <select
                   disabled={submitting}
                   onChange={(e) => setForm({ ...form, department_id: e.target.value })}
@@ -886,7 +888,7 @@ export function ServiceCataloguePage() {
               <label className="form-field">
                 <span>Status</span>
                 <select
-                  disabled={submitting || modalMode === 'edit'}
+                  disabled={submitting}
                   onChange={(e) => setForm({ ...form, status: e.target.value as ApiServiceStatus })}
                   value={form.status}
                 >
@@ -899,7 +901,7 @@ export function ServiceCataloguePage() {
             <div className="form-section-title">Pricing & Duration</div>
             <div className="form-grid-3">
               <label className="form-field">
-                <span>Standard Price *</span>
+                <span>Standard Price <span className="required">*</span></span>
                 <input
                   disabled={submitting}
                   min="0"
@@ -912,7 +914,7 @@ export function ServiceCataloguePage() {
                 />
               </label>
               <label className="form-field">
-                <span>Duration (minutes) *</span>
+                <span>Duration (minutes) <span className="required">*</span></span>
                 <input
                   disabled={submitting}
                   min="1"
@@ -977,7 +979,7 @@ export function ServiceCataloguePage() {
         title="Delete Service"
       />
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

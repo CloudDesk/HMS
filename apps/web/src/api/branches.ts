@@ -54,7 +54,15 @@ export type SaveBranchPayload = {
   status?: ApiBranchStatus;
 };
 
-export type UpdateBranchPayload = Partial<Omit<SaveBranchPayload, 'status'>>;
+export type UpdateBranchPayload = Partial<SaveBranchPayload>;
+
+export type BranchSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  assignedUsers: number;
+  cities: number;
+};
 
 const toQueryString = (params: BranchListParams) => {
   const searchParams = new URLSearchParams();
@@ -78,6 +86,14 @@ export const branchesApi = {
     return apiClient.request<BranchResponse>(`/branches/${encodeURIComponent(id)}`);
   },
 
+  summary() {
+    return apiClient.request<BranchSummary>('/branches/summary');
+  },
+
+  export(params: BranchListParams = {}) {
+    return apiClient.requestBlob(`/branches/export${toQueryString(params)}`);
+  },
+
   create(payload: SaveBranchPayload) {
     return apiClient.request<BranchResponse>('/branches', {
       body: payload,
@@ -88,6 +104,13 @@ export const branchesApi = {
   update(id: string, payload: UpdateBranchPayload) {
     return apiClient.request<BranchResponse>(`/branches/${encodeURIComponent(id)}`, {
       body: payload,
+      method: 'PATCH',
+    });
+  },
+
+  updateStatus(id: string, status: ApiBranchStatus) {
+    return apiClient.request<BranchResponse>(`/branches/${encodeURIComponent(id)}/status`, {
+      body: { status },
       method: 'PATCH',
     });
   },

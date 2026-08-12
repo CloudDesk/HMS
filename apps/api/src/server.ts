@@ -4,9 +4,13 @@ import { connectDatabase, closeDatabase } from './database/client.js';
 import { seedDatabase } from './database/seed.js';
 
 const { app, services } = await buildApp();
+let dashboardRefreshTimer: NodeJS.Timeout | undefined;
 
 const closeGracefully = async (signal: NodeJS.Signals) => {
   app.log.info({ signal }, 'Shutting down API');
+  if (dashboardRefreshTimer) {
+    clearInterval(dashboardRefreshTimer);
+  }
   await Promise.all([app.close(), closeDatabase()]);
   process.exit(0);
 };
@@ -17,6 +21,13 @@ process.on('SIGTERM', closeGracefully);
 try {
   await connectDatabase();
   await seedDatabase();
+  await services.administrationDashboard.refresh();
+  dashboardRefreshTimer = setInterval(() => {
+    services.administrationDashboard.refresh().catch((error: unknown) => {
+      app.log.error({ error }, 'Administration dashboard snapshot refresh failed');
+    });
+  }, 60_000);
+  dashboardRefreshTimer.unref();
   const database = await services.database.healthCheck();
   app.log.info(
     {

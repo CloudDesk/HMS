@@ -86,6 +86,20 @@ const fetchEnvelope = async <T>(path: string, options: ApiRequestOptions) => {
   return ((payload as ApiEnvelope<T> | null)?.data ?? payload) as T;
 };
 
+const fetchBlob = async (path: string, options: ApiRequestOptions) => {
+  const response = await fetch(getUrl(path), {
+    ...options,
+    body: undefined,
+    headers: createHeaders(options),
+  });
+
+  if (!response.ok) {
+    throw toApiError(response, await readJson(response));
+  }
+
+  return response.blob();
+};
+
 const refreshAccessToken = async () => {
   if (!refreshHandler) {
     return null;
@@ -142,6 +156,35 @@ export const apiClient = {
           unauthorizedHandler?.();
         }
 
+        throw retryError;
+      }
+    }
+  },
+
+  async requestBlob(path: string, options: ApiRequestOptions = {}) {
+    if (options.auth !== false && tokenStorage.isAccessTokenExpired()) {
+      await refreshAccessToken();
+    }
+
+    try {
+      return await fetchBlob(path, options);
+    } catch (error) {
+      if (!shouldTryRefresh(error, options)) {
+        throw error;
+      }
+
+      const refreshedToken = await refreshAccessToken();
+      if (!refreshedToken) {
+        unauthorizedHandler?.();
+        throw error;
+      }
+
+      try {
+        return await fetchBlob(path, { ...options, retryOnUnauthorized: false });
+      } catch (retryError) {
+        if (retryError instanceof ApiError && retryError.status === 401) {
+          unauthorizedHandler?.();
+        }
         throw retryError;
       }
     }

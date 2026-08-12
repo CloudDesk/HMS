@@ -29,6 +29,7 @@ export type UserRecord = {
   createdBy: string | null;
   updatedBy: string | null;
   deletedBy: string | null;
+  roleIds: string[];
 };
 
 export type UserAssignment = {
@@ -37,9 +38,17 @@ export type UserAssignment = {
   isPrimary: boolean;
 };
 
+export type UserRoleAssignment = {
+  id: string;
+  code: string;
+  name: string;
+  status: 'active' | 'inactive';
+};
+
 export type UserResponse = Omit<UserRecord, 'failedLoginAttempts'> & {
   branches: UserAssignment[];
   departments: UserAssignment[];
+  roles: UserRoleAssignment[];
   audit: {
     createdAt: Date;
     updatedAt: Date;
@@ -55,6 +64,7 @@ export type UserListQuery = {
   status?: UserStatus;
   branchId?: string;
   departmentId?: string;
+  roleId?: string;
   page: number;
   limit: number;
   sortBy: 'fullName' | 'username' | 'email' | 'employeeCode' | 'status' | 'createdAt' | 'lastLoginAt';

@@ -56,5 +56,13 @@ export const updateBranchBodySchema = {
     state: { type: ['string', 'null'] },
     country: { type: ['string', 'null'] },
     postal_code: { type: ['string', 'null'] },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
   },
+} as const;
+
+export const updateBranchStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } },
 } as const;

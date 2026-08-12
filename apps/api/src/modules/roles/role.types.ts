@@ -53,3 +53,10 @@ export type RequestMetadata = {
   ipAddress?: string;
   userAgent?: string;
 };
+
+export type RoleAuditLogItem = {
+  id: string;
+  actorName: string;
+  eventType: string;
+  createdAt: Date;
+};

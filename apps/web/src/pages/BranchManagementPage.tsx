@@ -5,16 +5,19 @@ import {
   type ApiBranchStatus,
   type BranchListResponse,
   type BranchResponse,
+  type BranchSummary,
   type SaveBranchPayload,
   type UpdateBranchPayload,
 } from '../api/branches';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { downloadBlob } from '../utils/download';
+import { useAppLocation } from '../routing/navigation';
 
 type SortColumn = 'code' | 'name' | 'created_at';
 type SortDirection = 'asc' | 'desc';
-type ModalMode = 'create' | 'edit';
+type ModalMode = 'create' | 'edit' | 'view';
 
 type BranchFormState = {
   code: string;
@@ -50,7 +53,7 @@ const getErrorMessage = (error: unknown) => {
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
     if (error.status === 403) return 'You do not have permission to manage branches.';
     if (error.status === 404) return 'Branch not found.';
-    if (error.status === 409) return 'A branch with this code already exists.';
+    if (error.status === 409) return error.message;
     if (error.status >= 500) return 'The service is unavailable. Please try again shortly.';
     return error.message;
   }
@@ -69,7 +72,9 @@ const formatDateTime = (value: string | null) => {
 };
 
 export function BranchManagementPage() {
+  const { search: locationSearch } = useAppLocation();
   const [branches, setBranches] = useState<BranchResponse[]>([]);
+  const [summary, setSummary] = useState<BranchSummary>({ total: 0, active: 0, inactive: 0, assignedUsers: 0, cities: 0 });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -100,10 +105,12 @@ export function BranchManagementPage() {
   const [loadError, setLoadError] = useState('');
   const [forbidden, setForbidden] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -113,17 +120,18 @@ export function BranchManagementPage() {
     setLoadError('');
 
     try {
-      const res = await branchesApi.list({
+      const [res, totals] = await Promise.all([branchesApi.list({
         search: search.trim() || undefined,
         status: (statusFilter as ApiBranchStatus) || undefined,
         page: currentPage,
         limit: pageSize,
         sortBy: sortColumn || undefined,
         sortOrder: sortColumn ? sortDirection : undefined,
-      });
+      }), branchesApi.summary()]);
 
       setBranches(res.data);
       setMeta(res.meta);
+      setSummary(totals);
       setForbidden(false);
 
       if (currentPage > res.meta.totalPages) {
@@ -191,6 +199,10 @@ export function BranchManagementPage() {
     setFormError('');
   };
 
+  useEffect(() => {
+    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openModal('create');
+  }, [locationSearch]);
+
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
 
@@ -212,6 +224,7 @@ export function BranchManagementPage() {
         short_name: form.shortName.trim() || null,
         city: form.city.trim() || null,
         state: form.state.trim() || null,
+        status: form.status,
       };
 
       if (modalMode === 'create') {
@@ -244,7 +257,39 @@ export function BranchManagementPage() {
         await loadBranches();
       }
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const updateStatus = async (branch: BranchResponse) => {
+    setSubmitting(true);
+    try {
+      const next = branch.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      await branchesApi.updateStatus(branch.id, next);
+      showToast(`${branch.name} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
+      await loadBranches();
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const exportBranches = async () => {
+    setSubmitting(true);
+    try {
+      const blob = await branchesApi.export({
+        search: search.trim() || undefined,
+        status: statusFilter || undefined,
+        sortBy: sortColumn || undefined,
+        sortOrder: sortDirection,
+      });
+      downloadBlob(blob, 'hms-branches.csv');
+      showToast('All filtered branches exported.');
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -259,6 +304,15 @@ export function BranchManagementPage() {
 
   return (
     <>
+      <div className="um-kpi-row">
+        {[
+          ['ph-buildings', 'blue', 'Total Branches', summary.total],
+          ['ph-check-circle', 'green', 'Active Branches', summary.active],
+          ['ph-pause-circle', 'orange', 'Inactive Branches', summary.inactive],
+          ['ph-users', 'purple', 'Assigned Users', summary.assignedUsers],
+          ['ph-map-pin', 'red', 'Cities Covered', summary.cities],
+        ].map(([icon, tone, label, value]) => <div className="kpi-card" key={String(label)}><div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} /></div><div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{loading ? '-' : value}</span></div></div>)}
+      </div>
       <div className="um-grid">
         <div className="um-body">
           <div className="um-table-section card">
@@ -276,34 +330,32 @@ export function BranchManagementPage() {
                 <button className="um-add-btn" disabled={forbidden} onClick={() => openModal('create')} type="button">
                   <i className="ph ph-plus" aria-hidden="true" /> Add Branch
                 </button>
+                <button className="btn-secondary admin-table-action" disabled={forbidden || submitting} onClick={() => void exportBranches()} type="button"><i className="ph ph-download-simple" /> Export CSV</button>
+                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadBranches()} type="button"><i className="ph ph-arrows-clockwise" /> Refresh</button>
               </div>
 
               <div className="um-toolbar-row2">
-                <div className="um-filters">
-                  <div className="um-filter-group">
-                    <label htmlFor="status-filter">Status</label>
-                    <select
-                      id="status-filter"
-                      value={statusFilter}
-                      onChange={(e) => { setStatusFilter(e.target.value as ApiBranchStatus); setCurrentPage(1); }}
-                    >
-                      <option value="">All Statuses</option>
-                      <option value="ACTIVE">Active</option>
-                      <option value="INACTIVE">Inactive</option>
-                    </select>
-                  </div>
-                  
-                  {(search || statusFilter) && (
-                    <button className="um-clear-btn" onClick={resetFilters} type="button">
-                      Clear filters
-                    </button>
-                  )}
-                </div>
+                <span className="filter-label">Filter by:</span>
+                <select
+                  className="um-filter"
+                  id="status-filter"
+                  value={statusFilter}
+                  onChange={(e) => { setStatusFilter(e.target.value as ApiBranchStatus); setCurrentPage(1); }}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+                {(search || statusFilter) && (
+                  <button className="um-clear-btn" onClick={resetFilters} type="button">
+                    <i className="ph ph-x" aria-hidden="true" /> Clear Filters
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="table-responsive">
-              <table className="um-table">
+              <table className="data-table branch-data-table">
                 <thead>
                   <tr>
                     <th className="sortable" onClick={() => handleSort('code')}>
@@ -323,13 +375,14 @@ export function BranchManagementPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-500">
-                        Loading branches...
+                      <td className="um-state-cell" colSpan={6}>
+                        <span className="loading-spinner" /> Loading branches...
                       </td>
                     </tr>
                   ) : loadError ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-red-500">
+                      <td className="um-state-cell" colSpan={6}>
+                        <i className="ph ph-warning" aria-hidden="true" />
                         {loadError}
                         <div>
                           <button className="secondary-action mt-4" onClick={loadBranches}>Retry</button>
@@ -338,8 +391,8 @@ export function BranchManagementPage() {
                     </tr>
                   ) : branches.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-500">
-                        No branches found.
+                      <td className="um-state-cell" colSpan={6}>
+                        <i className="ph ph-buildings" aria-hidden="true" /> No branches found matching your filters.
                       </td>
                     </tr>
                   ) : (
@@ -355,10 +408,11 @@ export function BranchManagementPage() {
                         </td>
                         <td>{formatDateTime(branch.created_at)}</td>
                         <td className="actions-cell">
-                          <div className="action-buttons">
+                          <div className="action-icons">
+                            <button aria-label={`View ${branch.name}`} className="action-icon-btn" onClick={() => openModal('view', branch)} title="View" type="button"><i className="ph ph-eye" /></button>
                             <button
                               aria-label={`Edit ${branch.name}`}
-                              className="action-btn edit-btn"
+                              className="action-icon-btn"
                               disabled={forbidden}
                               onClick={() => openModal('edit', branch)}
                               title="Edit"
@@ -366,9 +420,10 @@ export function BranchManagementPage() {
                             >
                               <i className="ph ph-pencil-simple" aria-hidden="true" />
                             </button>
+                            <button aria-label={`${branch.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${branch.name}`} className="action-icon-btn success" disabled={forbidden || submitting} onClick={() => void updateStatus(branch)} title={branch.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${branch.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
                             <button
                               aria-label={`Delete ${branch.name}`}
-                              className="action-btn delete-btn"
+                              className="action-icon-btn danger"
                               disabled={forbidden}
                               onClick={() => setDeleteTarget(branch)}
                               title="Delete"
@@ -386,43 +441,80 @@ export function BranchManagementPage() {
             </div>
 
             <div className="um-pagination">
-              <div className="pagination-info">
+              <div className="um-showing">
                 Showing {branches.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
                 {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} branches
               </div>
-              <div className="pagination-controls">
+              <div className="um-page-controls">
                 <button
-                  className="page-btn"
+                  className="pg-btn"
                   disabled={meta.page <= 1 || loading}
                   onClick={() => setCurrentPage((p) => p - 1)}
                   type="button"
                 >
-                  <i className="ph ph-caret-left" aria-hidden="true" /> Previous
+                  <i className="ph ph-caret-left" aria-hidden="true" />
                 </button>
-                <div className="page-numbers">
-                  <span className="page-current">Page {meta.page} of {meta.totalPages || 1}</span>
-                </div>
+                <button className="pg-btn active" type="button">{meta.page}</button>
                 <button
-                  className="page-btn"
+                  className="pg-btn"
                   disabled={meta.page >= meta.totalPages || loading}
                   onClick={() => setCurrentPage((p) => p + 1)}
                   type="button"
                 >
-                  Next <i className="ph ph-caret-right" aria-hidden="true" />
+                  <i className="ph ph-caret-right" aria-hidden="true" />
                 </button>
               </div>
             </div>
           </div>
+          <aside className="um-right-panel" aria-label="Branch analytics">
+            <div className="card um-chart-card">
+              <div className="card-header"><h3>Branches by Status</h3></div>
+              {loading ? <div className="um-panel-loading">Loading status...</div> : (
+                <div className="admin-metric-list">
+                  <div className="admin-metric"><div><span>Active</span><strong>{summary.active}</strong></div><span className="admin-metric__track"><span style={{ width: `${summary.total ? (summary.active / summary.total) * 100 : 0}%` }} /></span></div>
+                  <div className="admin-metric"><div><span>Inactive</span><strong>{summary.inactive}</strong></div><span className="admin-metric__track"><span style={{ width: `${summary.total ? (summary.inactive / summary.total) * 100 : 0}%` }} /></span></div>
+                </div>
+              )}
+            </div>
+            <div className="card um-chart-card">
+              <div className="card-header"><h3>Coverage Analytics</h3></div>
+              <div className="branch-analytics-list">
+                <div><span><i className="ph ph-users" /> Assigned Users</span><strong>{loading ? '-' : summary.assignedUsers}</strong></div>
+                <div><span><i className="ph ph-map-pin" /> Cities Covered</span><strong>{loading ? '-' : summary.cities}</strong></div>
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
 
       {modalMode && (
         <Modal
+          footer={modalMode === 'view' ? (
+            <button className="btn-secondary" onClick={closeModal} type="button">Close</button>
+          ) : (
+            <>
+              <button className="btn-secondary" disabled={submitting} onClick={closeModal} type="button">Cancel</button>
+              <button className="btn-primary" disabled={submitting} form="branch-management-form" type="submit">
+                {submitting ? 'Saving...' : 'Save Branch'}
+              </button>
+            </>
+          )}
+          icon="ph-buildings"
           open={!!modalMode}
           onClose={closeModal}
-          title={modalMode === 'create' ? 'Add New Branch' : 'Edit Branch'}
+          title={modalMode === 'create' ? 'Add New Branch' : modalMode === 'view' ? 'Branch Details' : 'Edit Branch'}
         >
-          <form className="modal-form" onSubmit={handleSave}>
+          {modalMode === 'view' && activeBranch ? (
+            <div className="form-grid-3">
+              {[
+                ['Branch Code', activeBranch.code], ['Branch Name', activeBranch.name], ['Short Name', activeBranch.short_name || '-'],
+                ['Email', activeBranch.email || '-'], ['Phone', activeBranch.phone || '-'], ['City', activeBranch.city || '-'],
+                ['Country', activeBranch.country || '-'], ['Status', activeBranch.status === 'ACTIVE' ? 'Active' : 'Inactive'],
+              ].map(([label, value]) => <label className="form-field" key={label}><span>{label}</span><input readOnly value={value} /></label>)}
+              <label className="form-field full-width"><span>Address</span><input readOnly value={activeBranch.address || '-'} /></label>
+            </div>
+          ) : (
+          <form className="modal-form" id="branch-management-form" onSubmit={handleSave}>
             {formError && (
               <div className="form-error-banner" role="alert">
                 <i className="ph ph-warning-circle" aria-hidden="true" />
@@ -430,6 +522,7 @@ export function BranchManagementPage() {
               </div>
             )}
 
+            <div className="form-section-title">Branch Information</div>
             <div className="form-grid">
               <div className="form-group">
                 <label htmlFor="branch-code">Branch Code <span className="required" aria-hidden="true">*</span></label>
@@ -536,7 +629,7 @@ export function BranchManagementPage() {
                 <label htmlFor="branch-status">Status <span className="required" aria-hidden="true">*</span></label>
                 <select
                   id="branch-status"
-                  disabled={submitting || modalMode === 'edit'}
+                  disabled={submitting}
                   onChange={(e) => setForm({ ...form, status: e.target.value as ApiBranchStatus })}
                   required
                   value={form.status}
@@ -558,24 +651,8 @@ export function BranchManagementPage() {
               </div>
             </div>
 
-            <div className="modal-actions">
-              <button
-                className="secondary-action"
-                disabled={submitting}
-                onClick={closeModal}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="primary-action"
-                disabled={submitting}
-                type="submit"
-              >
-                {submitting ? 'Saving...' : 'Save Branch'}
-              </button>
-            </div>
           </form>
+          )}
         </Modal>
       )}
 
@@ -592,7 +669,7 @@ export function BranchManagementPage() {
         />
       )}
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

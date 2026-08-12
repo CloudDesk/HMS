@@ -1,6 +1,7 @@
 
 import { ServiceModel } from './service.model.js';
-import type { Service, ServiceListQuery, CreateServiceDTO, UpdateServiceDTO } from './service.types.js';
+import { AuditLogModel } from '../auth/auth.model.js';
+import type { Service, ServiceListQuery, ServiceRequestMetadata, CreateServiceDTO, UpdateServiceDTO } from './service.types.js';
 
 type ServiceRecord = {
   _id: unknown;
@@ -105,12 +106,12 @@ export class ServiceRepository {
   }
 
   async getById(id: string): Promise<Service | undefined> {
-    const service = await ServiceModel.findById(id).lean();
+    const service = await ServiceModel.findOne({ _id: id, deletedAt: null }).lean();
     return service ? toService(service) : undefined;
   }
 
   async getByCode(code: string): Promise<Service | undefined> {
-    const service = await ServiceModel.findOne({ code: new RegExp(`^${code}$`, 'i') }).lean();
+    const service = await ServiceModel.findOne({ code: new RegExp(`^${code}$`, 'i'), deletedAt: null }).lean();
     return service ? toService(service) : undefined;
   }
 
@@ -128,7 +129,7 @@ export class ServiceRepository {
     const service = await ServiceModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { ...toPersistence(data), updatedBy } },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     );
     if (!service) {
       throw new Error('Service not found');
@@ -136,7 +137,33 @@ export class ServiceRepository {
     return toService(service);
   }
 
-  async delete(id: string): Promise<void> {
-    await ServiceModel.findByIdAndDelete(id);
+  async summary() {
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const [total, active, inactive, addedThisMonth, departmentsCovered] = await Promise.all([
+      ServiceModel.countDocuments({ deletedAt: null }),
+      ServiceModel.countDocuments({ deletedAt: null, status: 'ACTIVE' }),
+      ServiceModel.countDocuments({ deletedAt: null, status: 'INACTIVE' }),
+      ServiceModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
+      ServiceModel.distinct('departmentId', { deletedAt: null }).then((ids) => ids.length),
+    ]);
+    return { total, active, inactive, addedThisMonth, departmentsCovered };
+  }
+
+  async softDelete(id: string, actorUserId: string) {
+    return ServiceModel.findOneAndUpdate(
+      { _id: id, deletedAt: null },
+      { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
+      { returnDocument: 'after', lean: true },
+    );
+  }
+
+  async audit(eventType: string, actorUserId: string, metadata: ServiceRequestMetadata, details: Record<string, unknown>) {
+    await AuditLogModel.create({
+      eventType,
+      actorUserId,
+      ipAddress: metadata.ipAddress,
+      userAgent: metadata.userAgent,
+      metadataJson: details,
+    });
   }
 }

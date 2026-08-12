@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { NavLink } from './NavLink';
 import { BranchSelector } from './BranchSelector';
 import { NotificationsMenu } from './NotificationsMenu';
@@ -11,10 +10,6 @@ type TopHeaderProps = {
 };
 
 export function TopHeader({ title, breadcrumbs = ['Home', title], onOpenMobileSidebar }: TopHeaderProps) {
-  useEffect(() => {
-    console.log('TopHeader mounted');
-  }, []);
-
   return (
     <header className="top-header">
       <div className="header-left">
@@ -44,10 +39,6 @@ export function TopHeader({ title, breadcrumbs = ['Home', title], onOpenMobileSi
 
       <div className="header-right">
         <BranchSelector />
-        <div className="header-dropdown header-date">
-          <i className="ph ph-calendar-blank" aria-hidden="true" />
-          <span>Today</span>
-        </div>
         <NotificationsMenu />
         <UserMenu />
       </div>

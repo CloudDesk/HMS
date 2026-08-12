@@ -31,7 +31,7 @@ const parseDnsServers = (value: string | undefined) =>
 
 const parseDatabaseUrl = (value: string | undefined) => {
   if (!value) {
-    throw new Error('MONGODB_DATABASE_URL is required');
+    throw new Error('MONGODB_URI is required');
   }
 
   return value;
@@ -50,10 +50,14 @@ export const env = {
     origins: parseCorsOrigins(process.env.CORS_ORIGIN),
   },
   database: {
-    url: parseDatabaseUrl(process.env.MONGODB_DATABASE_URL),
+    url: parseDatabaseUrl(process.env.MONGODB_URI),
     dnsServers: parseDnsServers(process.env.MONGODB_DNS_SERVERS),
     poolSize: parseInteger(process.env.DATABASE_POOL_SIZE, 10),
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),
+  },
+  azureStorage: {
+    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING ?? '',
+    containerName: process.env.AZURE_STORAGE_CONTAINER_NAME ?? 'hms-assets',
   },
   auth: {
     accessTokenSecret:

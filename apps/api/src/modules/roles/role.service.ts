@@ -85,6 +85,15 @@ export class RoleService {
     return this.toResponse(role, users);
   }
 
+  async listAuditLogs(id: string, query: { page?: number; limit?: number }) {
+    await this.requireRole(id);
+    return this.repository.listAuditLogs(
+      id,
+      Math.max(1, Number(query.page ?? 1)),
+      Math.min(100, Math.max(1, Number(query.limit ?? 20))),
+    );
+  }
+
   async create(input: CreateRoleInput, actorUserId: string, metadata: RequestMetadata) {
     const normalized = this.normalizeCreateInput(input);
 

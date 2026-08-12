@@ -6,11 +6,14 @@ import {
   type ApiDepartmentStatus,
   type DepartmentListResponse,
   type DepartmentResponse,
+  type DepartmentSummary,
   type SaveDepartmentPayload,
 } from '../api/departments';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { downloadBlob } from '../utils/download';
+import { useAppLocation } from '../routing/navigation';
 
 type SortColumn = 'code' | 'name' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -38,7 +41,7 @@ const getErrorMessage = (error: unknown) => {
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
     if (error.status === 403) return 'You do not have permission to manage departments.';
     if (error.status === 404) return 'Department not found.';
-    if (error.status === 409) return 'A department with this code already exists.';
+    if (error.status === 409) return error.message;
     if (error.status >= 500) return 'The service is unavailable. Please try again shortly.';
     return error.message;
   }
@@ -54,16 +57,6 @@ const formatDateTime = (value: string | null) => {
     month: 'short',
     year: 'numeric',
   }).format(date);
-};
-
-const isAddedThisMonth = (value: string) => {
-  const date = new Date(value);
-  const now = new Date();
-  return (
-    !Number.isNaN(date.getTime()) &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear()
-  );
 };
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -94,13 +87,13 @@ function SortableHeader({
 }
 
 function DeptStatusChart({
-  departments,
+  activeCount,
+  inactiveCount,
 }: {
-  departments: DepartmentResponse[];
+  activeCount: number;
+  inactiveCount: number;
 }) {
-  const activeCount = departments.filter((d) => d.status === 'ACTIVE').length;
-  const inactiveCount = departments.filter((d) => d.status === 'INACTIVE').length;
-  const total = Math.max(departments.length, 1);
+  const total = Math.max(activeCount + inactiveCount, 1);
   const activeDeg = (activeCount / total) * 360;
   const inactiveDeg = activeDeg + (inactiveCount / total) * 360;
 
@@ -184,7 +177,9 @@ function DeptsByBranch({
 // ─── Main Page Component ───────────────────────────────────────────────────────
 
 export function DepartmentManagementPage() {
+  const { search: locationSearch } = useAppLocation();
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+  const [summary, setSummary] = useState<DepartmentSummary>({ total: 0, active: 0, inactive: 0, addedThisMonth: 0, branchesCovered: 0 });
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -216,10 +211,12 @@ export function DepartmentManagementPage() {
   // Status
   const [loadError, setLoadError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -238,7 +235,7 @@ export function DepartmentManagementPage() {
     setLoadError('');
 
     try {
-      const res = await departmentsApi.list({
+      const [res, totals] = await Promise.all([departmentsApi.list({
         search: search.trim() || undefined,
         branch_id: branchFilter || undefined,
         status: (statusFilter as ApiDepartmentStatus) || undefined,
@@ -246,10 +243,11 @@ export function DepartmentManagementPage() {
         limit: pageSize,
         sortBy: sortColumn || undefined,
         sortOrder: sortColumn ? sortDirection : undefined,
-      });
+      }), departmentsApi.summary()]);
 
       setDepartments(res.data);
       setMeta(res.meta);
+      setSummary(totals);
     } catch (error) {
       setDepartments([]);
       setMeta({ limit: pageSize, page: currentPage, total: 0, totalPages: 1 });
@@ -268,14 +266,6 @@ export function DepartmentManagementPage() {
   }, [loadDepartments]);
 
   // ── Derived KPI values ─────────────────────────────────────────────────────
-  const kpis = useMemo(() => {
-    const active = departments.filter((d) => d.status === 'ACTIVE').length;
-    const inactive = departments.filter((d) => d.status === 'INACTIVE').length;
-    const branchIds = new Set(departments.map((d) => d.branch_id));
-    const addedThisMonth = departments.filter((d) => isAddedThisMonth(d.created_at)).length;
-    return { active, inactive, branchesCovered: branchIds.size, addedThisMonth };
-  }, [departments]);
-
   // ── Sort / filter helpers ──────────────────────────────────────────────────
   const handleSort = (column: SortColumn) => {
     setSortColumn((current) => {
@@ -320,6 +310,10 @@ export function DepartmentManagementPage() {
     setActiveDept(null);
     setFormError('');
   };
+
+  useEffect(() => {
+    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openModal('create');
+  }, [locationSearch]);
 
   // ── CRUD handlers ──────────────────────────────────────────────────────────
   const handleSave = async (event: FormEvent) => {
@@ -366,7 +360,40 @@ export function DepartmentManagementPage() {
       setDeleteTarget(null);
       await loadDepartments();
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const updateStatus = async (department: DepartmentResponse) => {
+    setSubmitting(true);
+    try {
+      const next = department.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      await departmentsApi.updateStatus(department.id, next);
+      showToast(`${department.name} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
+      await loadDepartments();
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const exportDepartments = async () => {
+    setSubmitting(true);
+    try {
+      const blob = await departmentsApi.export({
+        branch_id: branchFilter || undefined,
+        search: search.trim() || undefined,
+        sortBy: sortColumn || undefined,
+        sortOrder: sortDirection,
+        status: statusFilter || undefined,
+      });
+      downloadBlob(blob, 'hms-departments.csv');
+      showToast('All filtered departments exported.');
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -403,7 +430,7 @@ export function DepartmentManagementPage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Total Departments</span>
-              <span className="kpi-value">{loading ? '-' : meta.total}</span>
+              <span className="kpi-value">{loading ? '-' : summary.total}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -412,7 +439,7 @@ export function DepartmentManagementPage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Active</span>
-              <span className="kpi-value">{loading ? '-' : kpis.active}</span>
+              <span className="kpi-value">{loading ? '-' : summary.active}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -421,7 +448,7 @@ export function DepartmentManagementPage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Inactive</span>
-              <span className="kpi-value">{loading ? '-' : kpis.inactive}</span>
+              <span className="kpi-value">{loading ? '-' : summary.inactive}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -430,7 +457,7 @@ export function DepartmentManagementPage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Branches Covered</span>
-              <span className="kpi-value">{loading ? '-' : kpis.branchesCovered}</span>
+              <span className="kpi-value">{loading ? '-' : summary.branchesCovered}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -439,7 +466,7 @@ export function DepartmentManagementPage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Added This Month</span>
-              <span className="kpi-value">{loading ? '-' : kpis.addedThisMonth}</span>
+              <span className="kpi-value">{loading ? '-' : summary.addedThisMonth}</span>
             </div>
           </div>
         </div>
@@ -466,6 +493,12 @@ export function DepartmentManagementPage() {
                   type="button"
                 >
                   <i className="ph ph-plus" aria-hidden="true" /> Add Department
+                </button>
+                <button className="btn-secondary admin-table-action" disabled={submitting} onClick={() => void exportDepartments()} type="button">
+                  <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
+                </button>
+                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadDepartments()} type="button">
+                  <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
                 </button>
               </div>
 
@@ -603,6 +636,7 @@ export function DepartmentManagementPage() {
                             >
                               <i className="ph ph-pencil" aria-hidden="true" />
                             </button>
+                            <button className="action-icon-btn" disabled={submitting} onClick={() => void updateStatus(dept)} title={dept.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${dept.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
                             <button
                               className="action-icon-btn danger"
                               onClick={() => setDeleteTarget(dept)}
@@ -675,7 +709,7 @@ export function DepartmentManagementPage() {
               {loading ? (
                 <div className="um-panel-loading">Loading chart...</div>
               ) : (
-                <DeptStatusChart departments={departments} />
+                <DeptStatusChart activeCount={summary.active} inactiveCount={summary.inactive} />
               )}
             </div>
 
@@ -691,48 +725,6 @@ export function DepartmentManagementPage() {
               )}
             </div>
 
-            {/* Quick Actions */}
-            <div className="card um-quick-card">
-              <div className="card-header">
-                <h3>Quick Actions</h3>
-              </div>
-              <div className="um-quick-list">
-                <button
-                  className="um-quick-btn"
-                  onClick={() => openModal('create')}
-                  type="button"
-                >
-                  <i className="ph ph-plus-circle" aria-hidden="true" />
-                  <div>
-                    <strong>Add Department</strong>
-                    <span>Create a new department</span>
-                  </div>
-                </button>
-                <button
-                  className="um-quick-btn"
-                  onClick={() => showToast('Current department view is ready to export.')}
-                  type="button"
-                >
-                  <i className="ph ph-download-simple" aria-hidden="true" />
-                  <div>
-                    <strong>Export Departments</strong>
-                    <span>Download as CSV</span>
-                  </div>
-                </button>
-                <button
-                  className="um-quick-btn"
-                  disabled={loading}
-                  onClick={() => void loadDepartments()}
-                  type="button"
-                >
-                  <i className="ph ph-arrows-clockwise" aria-hidden="true" />
-                  <div>
-                    <strong>Refresh Data</strong>
-                    <span>Reload department list</span>
-                  </div>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -762,6 +754,7 @@ export function DepartmentManagementPage() {
         }
         onClose={closeModal}
         open={Boolean(modalMode)}
+        icon="ph-buildings"
         title={modalTitle}
       >
         {formError ? (
@@ -775,7 +768,7 @@ export function DepartmentManagementPage() {
             <div className="form-section-title">Basic Information</div>
             <div className="form-grid-3">
               <label className="form-field">
-                <span>Department Code *</span>
+                <span>Department Code <span className="required">*</span></span>
                 <input
                   disabled={submitting}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
@@ -784,7 +777,7 @@ export function DepartmentManagementPage() {
                 />
               </label>
               <label className="form-field">
-                <span>Department Name *</span>
+                <span>Department Name <span className="required">*</span></span>
                 <input
                   disabled={submitting}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -797,7 +790,7 @@ export function DepartmentManagementPage() {
             <div className="form-section-title">Organisation</div>
             <div className="form-grid-3">
               <label className="form-field">
-                <span>Branch *</span>
+                <span>Branch <span className="required">*</span></span>
                 <select
                   disabled={submitting}
                   onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
@@ -889,7 +882,7 @@ export function DepartmentManagementPage() {
         title="Delete Department"
       />
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

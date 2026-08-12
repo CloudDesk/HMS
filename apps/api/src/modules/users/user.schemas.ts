@@ -25,6 +25,7 @@ export const listUsersQuerySchema = {
     status: { type: 'string', enum: ['active', 'inactive', 'locked'] },
     branchId: { type: 'string' },
     departmentId: { type: 'string' },
+    roleId: { type: 'string' },
     page: { type: 'integer', minimum: 1 },
     limit: { type: 'integer', minimum: 1, maximum: 100 },
     sortBy: {
@@ -37,7 +38,7 @@ export const listUsersQuerySchema = {
 
 export const createUserBodySchema = {
   type: 'object',
-  required: ['employeeCode', 'username', 'fullName', 'password', 'branches', 'departments'],
+  required: ['employeeCode', 'username', 'email', 'fullName', 'password', 'branches', 'departments', 'roleIds'],
   additionalProperties: false,
   properties: {
     employeeCode: { type: 'string', minLength: 1 },
@@ -54,6 +55,7 @@ export const createUserBodySchema = {
     password: { type: 'string', minLength: 1 },
     branches: { type: 'array', minItems: 1, items: assignmentSchema },
     departments: { type: 'array', minItems: 1, items: assignmentSchema },
+    roleIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
   },
 } as const;
 
@@ -74,6 +76,7 @@ export const updateUserBodySchema = {
     address: { type: ['string', 'null'] },
     branches: { type: 'array', minItems: 1, items: assignmentSchema },
     departments: { type: 'array', minItems: 1, items: assignmentSchema },
+    roleIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
   },
 } as const;
 

@@ -47,4 +47,8 @@ const auditLogSchema = new Schema<IAuditLog>(
   },
 );
 
+auditLogSchema.index({ createdAt: -1 });
+auditLogSchema.index({ eventType: 1, createdAt: -1 });
+auditLogSchema.index({ 'metadataJson.roleId': 1, createdAt: -1 });
+
 export const AuditLogModel = mongoose.model<IAuditLog>('AuditLog', auditLogSchema);

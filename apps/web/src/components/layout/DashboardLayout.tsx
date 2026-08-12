@@ -1,4 +1,4 @@
-import { useState, useEffect, type PropsWithChildren } from 'react';
+import { useState, type PropsWithChildren } from 'react';
 import { useAppLocation } from '../../routing/navigation';
 import { sidebarModules } from '../../data/ui-foundation';
 import { MobileSidebarBackdrop } from './MobileSidebarBackdrop';
@@ -51,10 +51,6 @@ export function DashboardLayout({ title = 'HMS', breadcrumbs = ['Home', 'Dashboa
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeKey, activeHref } = useActiveSidebarState();
-
-  useEffect(() => {
-    console.log('DashboardLayout mounted');
-  }, []);
 
   const toggleCollapsed = () => setCollapsed((current) => !current);
 

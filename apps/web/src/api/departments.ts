@@ -31,7 +31,7 @@ export type DepartmentListParams = Partial<{
   branch_id: string;
   page: number;
   limit: number;
-  sortBy: 'name' | 'code' | 'created_at';
+  sortBy: 'name' | 'code' | 'status' | 'created_at' | 'updated_at';
   sortOrder: 'asc' | 'desc';
 }>;
 
@@ -41,6 +41,14 @@ export type SaveDepartmentPayload = {
   branch_id: string;
   description?: string | null;
   status?: ApiDepartmentStatus;
+};
+
+export type DepartmentSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  addedThisMonth: number;
+  branchesCovered: number;
 };
 
 const toQueryString = (params: DepartmentListParams) => {
@@ -62,19 +70,34 @@ export const departmentsApi = {
   },
 
   getById(id: string) {
-    return apiClient.request<{ data: DepartmentResponse }>(`/departments/${encodeURIComponent(id)}`);
+    return apiClient.request<DepartmentResponse>(`/departments/${encodeURIComponent(id)}`);
+  },
+
+  summary() {
+    return apiClient.request<DepartmentSummary>('/departments/summary');
+  },
+
+  export(params: DepartmentListParams = {}) {
+    return apiClient.requestBlob(`/departments/export${toQueryString(params)}`);
   },
 
   create(payload: SaveDepartmentPayload) {
-    return apiClient.request<{ data: DepartmentResponse }>('/departments', {
+    return apiClient.request<DepartmentResponse>('/departments', {
       body: payload,
       method: 'POST',
     });
   },
 
   update(id: string, payload: Partial<SaveDepartmentPayload>) {
-    return apiClient.request<{ data: DepartmentResponse }>(`/departments/${encodeURIComponent(id)}`, {
+    return apiClient.request<DepartmentResponse>(`/departments/${encodeURIComponent(id)}`, {
       body: payload,
+      method: 'PATCH',
+    });
+  },
+
+  updateStatus(id: string, status: ApiDepartmentStatus) {
+    return apiClient.request<DepartmentResponse>(`/departments/${encodeURIComponent(id)}/status`, {
+      body: { status },
       method: 'PATCH',
     });
   },

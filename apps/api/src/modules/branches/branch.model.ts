@@ -56,5 +56,6 @@ const branchSchema = new Schema<IBranch>(
 );
 
 branchSchema.index({ name: 1 });
+branchSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
 
 export const BranchModel = mongoose.model<IBranch>('Branch', branchSchema);

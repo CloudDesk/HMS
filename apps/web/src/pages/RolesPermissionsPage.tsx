@@ -10,16 +10,20 @@ import {
   type ApiRoleStatus,
   type ApiRoleType,
   type RoleListResponse,
+  type RoleAuditLogItem,
   type RoleResponse,
 } from '../api/roles';
 import { usersApi, type UserResponse } from '../api/users';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { useAppLocation } from '../routing/navigation';
 
-type ModalMode = 'create' | 'clone' | 'assign-user' | 'remove-user' | 'delete' | 'audit';
+type ModalMode = 'create' | 'edit' | 'clone' | 'status' | 'assign-user' | 'remove-user' | 'delete' | 'audit';
 
 type RoleFormState = {
   name: string;
+  description: string;
+  color: string;
   type: ApiRoleType;
   status: ApiRoleStatus;
 };
@@ -39,8 +43,20 @@ type PermissionRow = {
   permissions: Record<string, PermissionResponse>;
 };
 
+const fetchRolePermissionDetails = async (roleId: string) => {
+  const [role, rolePermissions] = await Promise.all([
+    rolesApi.getById(roleId),
+    permissionsApi.getByRole(roleId),
+  ]);
+
+  return {
+    permissionIds: new Set(rolePermissions.items.map((permission) => permission.id)),
+    role,
+  };
+};
+
 const rolePageSize = 5;
-const emptyRoleForm: RoleFormState = { name: '', status: 'active', type: 'custom' };
+const emptyRoleForm: RoleFormState = { color: '#2563eb', description: '', name: '', status: 'active', type: 'custom' };
 const emptyRoleMeta: RoleListResponse['meta'] = { limit: rolePageSize, page: 1, total: 0, totalPages: 1 };
 const emptyRoleStats: RoleStats = { active: 0, custom: 0, system: 0, total: 0 };
 
@@ -162,6 +178,7 @@ function PermissionSummary({
 }
 
 export function RolesPermissionsPage() {
+  const { search: locationSearch } = useAppLocation();
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [roleMeta, setRoleMeta] = useState<RoleListResponse['meta']>(emptyRoleMeta);
   const [roleStats, setRoleStats] = useState<RoleStats>(emptyRoleStats);
@@ -187,11 +204,15 @@ export function RolesPermissionsPage() {
   const [userOptions, setUserOptions] = useState<UserResponse[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [formError, setFormError] = useState('');
+  const [auditItems, setAuditItems] = useState<RoleAuditLogItem[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -295,16 +316,12 @@ export function RolesPermissionsPage() {
       setPermissionError('');
 
       try {
-        const [role, rolePermissions] = await Promise.all([
-          rolesApi.getById(selectedRoleId),
-          permissionsApi.getByRole(selectedRoleId),
-        ]);
+        const details = await fetchRolePermissionDetails(selectedRoleId);
 
         if (mounted) {
-          const permissionIds = new Set(rolePermissions.items.map((permission) => permission.id));
-          setSelectedRole(role);
-          setAssignedPermissionIds(permissionIds);
-          setDraftPermissionIds(new Set(permissionIds));
+          setSelectedRole(details.role);
+          setAssignedPermissionIds(details.permissionIds);
+          setDraftPermissionIds(new Set(details.permissionIds));
         }
       } catch (error) {
         if (mounted) {
@@ -405,9 +422,30 @@ export function RolesPermissionsPage() {
       setDraftPermissionIds(new Set(savedIds));
       showToast('Role permissions saved successfully.');
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const refreshRolesAndPermissions = async () => {
+    setRoleLoading(true);
+
+    try {
+      await Promise.all([loadPermissions(), loadRoleStats(), loadRoles()]);
+
+      if (selectedRoleId) {
+        const details = await fetchRolePermissionDetails(selectedRoleId);
+        setSelectedRole(details.role);
+        setAssignedPermissionIds(details.permissionIds);
+        setDraftPermissionIds(new Set(details.permissionIds));
+      }
+
+      showToast('Roles and permissions refreshed.');
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    } finally {
+      setRoleLoading(false);
     }
   };
 
@@ -418,15 +456,44 @@ export function RolesPermissionsPage() {
     setSelectedUserId('');
   };
 
-  const openRoleModal = (mode: Extract<ModalMode, 'create' | 'clone'>) => {
+  const openRoleModal = (mode: Extract<ModalMode, 'create' | 'edit' | 'clone'>) => {
     setModalMode(mode);
     setFormError('');
     setRoleForm({
-      name: mode === 'clone' && selectedRole ? `${selectedRole.name} Copy` : '',
-      status: 'active',
-      type: 'custom',
+      color: selectedRole?.color ?? '#2563eb',
+      description: mode === 'create' ? '' : (selectedRole?.description ?? ''),
+      name: mode === 'clone' && selectedRole ? `${selectedRole.name} Copy` : mode === 'edit' ? (selectedRole?.name ?? '') : '',
+      status: mode === 'create' ? 'active' : (selectedRole?.status ?? 'active'),
+      type: mode === 'edit' ? (selectedRole?.type ?? 'custom') : 'custom',
     });
   };
+
+  const openAuditModal = async () => {
+    if (!selectedRole) return;
+    setModalMode('audit');
+    setAuditLoading(true);
+    setFormError('');
+    try {
+      const result = await rolesApi.auditLogs(selectedRole.id);
+      setAuditItems(result.items);
+    } catch (error) {
+      setAuditItems([]);
+      setFormError(getErrorMessage(error));
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const openStatusModal = () => {
+    if (!selectedRole) return;
+    setRoleForm({ color: selectedRole.color ?? '#2563eb', description: selectedRole.description ?? '', name: selectedRole.name, status: selectedRole.status === 'active' ? 'inactive' : 'active', type: selectedRole.type });
+    setFormError('');
+    setModalMode('status');
+  };
+
+  useEffect(() => {
+    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openRoleModal('create');
+  }, [locationSearch]);
 
   const openUserModal = async (mode: Extract<ModalMode, 'assign-user' | 'remove-user'>) => {
     if (!selectedRole) return;
@@ -462,7 +529,7 @@ export function RolesPermissionsPage() {
     if (!modalMode || modalMode === 'audit') return;
     setFormError('');
 
-    if ((modalMode === 'create' || modalMode === 'clone') && !roleForm.name.trim()) {
+    if ((modalMode === 'create' || modalMode === 'clone' || modalMode === 'edit') && !roleForm.name.trim()) {
       setFormError('Role name is required.');
       return;
     }
@@ -486,8 +553,8 @@ export function RolesPermissionsPage() {
 
         const created = await rolesApi.create({
           code,
-          color: modalMode === 'clone' ? selectedRole?.color : null,
-          description: modalMode === 'clone' ? selectedRole?.description : null,
+          color: roleForm.color,
+          description: roleForm.description.trim() || null,
           name: roleForm.name.trim(),
           status: roleForm.status,
           type: 'custom',
@@ -499,6 +566,18 @@ export function RolesPermissionsPage() {
 
         setSelectedRoleId(created.id);
         showToast(modalMode === 'clone' ? 'Role cloned successfully.' : 'Role created successfully.');
+      } else if (modalMode === 'edit' && selectedRole) {
+        const role = await rolesApi.update(selectedRole.id, {
+          color: roleForm.color,
+          description: roleForm.description.trim() || null,
+          name: roleForm.name.trim(),
+        });
+        setSelectedRole(role);
+        showToast('Role updated successfully.');
+      } else if (modalMode === 'status' && selectedRole) {
+        const role = await rolesApi.updateStatus(selectedRole.id, roleForm.status);
+        setSelectedRole(role);
+        showToast(`Role ${role.status === 'active' ? 'activated' : 'deactivated'}.`);
       } else if (modalMode === 'assign-user' && selectedRole) {
         const role = await rolesApi.assignUser(selectedRole.id, selectedUserId);
         setSelectedRole(role);
@@ -540,21 +619,15 @@ export function RolesPermissionsPage() {
     showToast('Permission matrix exported.');
   };
 
-  const exportRoles = async () => {
-    try {
-      const response = await rolesApi.listAll();
-      downloadJson('hms-roles.json', response.items);
-      showToast('Roles exported.');
-    } catch (error) {
-      showToast(getErrorMessage(error));
-    }
-  };
-
   const modalTitle =
     modalMode === 'create'
       ? 'Create Role'
+      : modalMode === 'edit'
+        ? 'Edit Role'
       : modalMode === 'clone'
         ? 'Clone Role'
+        : modalMode === 'status'
+          ? 'Change Role Status'
         : modalMode === 'assign-user'
           ? 'Assign User'
           : modalMode === 'remove-user'
@@ -642,6 +715,8 @@ export function RolesPermissionsPage() {
               </div>
               {selectedRole ? <div className="rp-mid-actions">
                 <span className={`rp-save-state${dirty ? ' dirty' : ''}`}>{dirty ? 'Unsaved changes' : 'All changes saved'}</span>
+                <button className="rp-btn-ghost" disabled={submitting} onClick={exportPermissionMatrix} type="button"><i className="ph ph-download-simple" aria-hidden="true" /> Export</button>
+                <button className="rp-btn-ghost" disabled={rolesLoading || permissionsLoading || roleLoading} onClick={() => void refreshRolesAndPermissions()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh</button>
                 <button className="rp-btn-ghost" disabled={!canEditPermissions} onClick={() => setAllPermissions(true)} type="button"><i className="ph ph-check-square" aria-hidden="true" /> Select All</button>
                 <button className="rp-btn-ghost" disabled={!canEditPermissions} onClick={() => setAllPermissions(false)} type="button"><i className="ph ph-square" aria-hidden="true" /> Clear All</button>
                 <button className={`rp-save-btn${dirty ? ' has-changes' : ''}`} disabled={!canEditPermissions || !dirty} onClick={() => void savePermissions()} type="button"><i className="ph ph-floppy-disk" aria-hidden="true" /> {submitting ? 'Saving...' : 'Save'}</button>
@@ -656,7 +731,11 @@ export function RolesPermissionsPage() {
                       <td><div className="module-cell"><i className={`ph ${row.icon} module-icon`} aria-hidden="true" /><span>{row.module} / {row.screen}</span></div></td>
                       {permissionActions.map((action) => {
                         const permission = row.permissions[action];
-                        return <td key={action}><input aria-label={`${row.module} ${row.screen} ${action}`} checked={permission ? draftPermissionIds.has(permission.id) : false} className="perm-check" disabled={!permission || permission.status !== 'active' || !canEditPermissions} onChange={(event) => permission && updatePermission(permission, event.target.checked)} type="checkbox" /></td>;
+                        if (!permission || permission.status !== 'active') {
+                          return <td aria-label={`${row.module} ${row.screen} ${action} not available`} className="permission-unavailable" key={action} />;
+                        }
+
+                        return <td key={action}><input aria-label={`${row.module} ${row.screen} ${action}`} checked={draftPermissionIds.has(permission.id)} className="perm-check" disabled={!canEditPermissions} onChange={(event) => updatePermission(permission, event.target.checked)} type="checkbox" /></td>;
                       })}
                     </tr>)}</tbody>
                   </table>
@@ -678,6 +757,8 @@ export function RolesPermissionsPage() {
                   <div className="role-stat-item role-stat-wide"><div className="role-stat-label">Total Permissions</div><div className="role-stat-value">{draftPermissionIds.size} / {permissions.length}</div></div>
                 </div>
                 <div className="rp-user-actions">
+                  <button className="rp-btn-ghost" disabled={forbidden || selectedRole.type === 'system'} onClick={() => openRoleModal('edit')} type="button">Edit Role</button>
+                  <button className="rp-btn-ghost" disabled={forbidden || selectedRole.type === 'system'} onClick={openStatusModal} type="button">{selectedRole.status === 'active' ? 'Deactivate' : 'Activate'}</button>
                   <button className="rp-btn-ghost" disabled={forbidden || selectedRole.status !== 'active'} onClick={() => void openUserModal('assign-user')} type="button">Assign User</button>
                   <button className="rp-btn-ghost" disabled={forbidden || !(selectedRole.users?.length)} onClick={() => void openUserModal('remove-user')} type="button">Remove User</button>
                 </div>
@@ -693,9 +774,7 @@ export function RolesPermissionsPage() {
               <div className="rp-panel-header"><h3>Quick Actions</h3></div>
               <div className="rp-qa-list">
                 <button className="rp-qa-btn" disabled={!selectedRole || forbidden} onClick={() => openRoleModal('clone')} type="button"><i className="ph ph-copy" aria-hidden="true" /><span>Clone Role</span></button>
-                <button className="rp-qa-btn" disabled={!selectedRole} onClick={exportPermissionMatrix} type="button"><i className="ph ph-download-simple" aria-hidden="true" /><span>Export Matrix</span></button>
-                <button className="rp-qa-btn" onClick={() => void exportRoles()} type="button"><i className="ph ph-file-code" aria-hidden="true" /><span>Export Roles JSON</span></button>
-                <button className="rp-qa-btn" onClick={() => setModalMode('audit')} type="button"><i className="ph ph-clock-counter-clockwise" aria-hidden="true" /><span>Audit History</span></button>
+                <button className="rp-qa-btn" disabled={!selectedRole} onClick={() => void openAuditModal()} type="button"><i className="ph ph-clock-counter-clockwise" aria-hidden="true" /><span>Audit History</span></button>
                 <button className="rp-qa-btn danger" disabled={!selectedRole || selectedRole.type === 'system' || forbidden} onClick={() => setModalMode('delete')} type="button"><i className="ph ph-trash" aria-hidden="true" /><span>Delete Role</span></button>
               </div>
             </div>
@@ -710,20 +789,27 @@ export function RolesPermissionsPage() {
         </> : undefined}
         onClose={closeModal}
         open={Boolean(modalMode)}
+        icon="ph-shield-check"
         title={modalTitle}
       >
         {formError ? <div className="auth-alert auth-alert--error" role="alert">{formError}</div> : null}
-        {modalMode === 'create' || modalMode === 'clone' ? <>
-          <div className="form-field"><label htmlFor="role-name">Role Name</label><input id="role-name" onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} value={roleForm.name} /></div>
-          <div className="form-field modal-field-gap"><label htmlFor="role-type">Role Type</label><select disabled id="role-type" value={roleForm.type}><option value="custom">Custom</option><option value="system">System</option></select></div>
-          <div className="form-field modal-field-gap"><label htmlFor="role-status">Status</label><select id="role-status" onChange={(event) => setRoleForm((current) => ({ ...current, status: event.target.value as ApiRoleStatus }))} value={roleForm.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+        {modalMode === 'create' || modalMode === 'clone' || modalMode === 'edit' ? <>
+          <div className="form-section-title">Role Information</div>
+          <div className="form-grid-3">
+            <div className="form-field"><label htmlFor="role-name">Role Name <span className="required">*</span></label><input id="role-name" onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} required value={roleForm.name} /></div>
+            <div className="form-field"><label htmlFor="role-color">Display Color</label><input id="role-color" onChange={(event) => setRoleForm((current) => ({ ...current, color: event.target.value }))} type="color" value={roleForm.color} /></div>
+            <div className="form-field"><label htmlFor="role-type">Role Type</label><select disabled id="role-type" value={roleForm.type}><option value="custom">Custom</option><option value="system">System</option></select></div>
+            <div className="form-field"><label htmlFor="role-status">Status</label><select id="role-status" onChange={(event) => setRoleForm((current) => ({ ...current, status: event.target.value as ApiRoleStatus }))} value={roleForm.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+            <div className="form-field full-width"><label htmlFor="role-description">Description</label><textarea id="role-description" onChange={(event) => setRoleForm((current) => ({ ...current, description: event.target.value }))} value={roleForm.description} /></div>
+          </div>
         </> : null}
+        {modalMode === 'status' ? <p>Change <strong>{selectedRole?.name}</strong> to <strong>{roleStatusLabel(roleForm.status)}</strong>? Inactive roles no longer grant access.</p> : null}
         {modalMode === 'assign-user' ? <div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" onChange={(event) => setSelectedUserId(event.target.value)} value={selectedUserId}><option value="">{submitting ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select></div> : null}
         {modalMode === 'remove-user' ? <div className="form-field"><label htmlFor="remove-role-user">User</label><select id="remove-role-user" onChange={(event) => setSelectedUserId(event.target.value)} value={selectedUserId}><option value="">Select user</option>{(selectedRole?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select></div> : null}
         {modalMode === 'delete' ? <p>Delete {selectedRole?.name}? The backend will enforce status and assignment restrictions.</p> : null}
-        {modalMode === 'audit' ? <p>Audit history is not available because the backend does not currently expose an audit-history query endpoint.</p> : null}
+        {modalMode === 'audit' ? auditLoading ? <div className="rp-detail-empty">Loading audit history...</div> : auditItems.length ? <div className="role-audit-list">{auditItems.map((item) => <article key={item.id}><div><strong>{item.actorName}</strong><span>{item.eventType}</span></div><time dateTime={item.createdAt}>{new Intl.DateTimeFormat('en-KE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.createdAt))}</time></article>)}</div> : <div className="rp-detail-empty">No audit activity found for this role.</div> : null}
       </Modal>
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

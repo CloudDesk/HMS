@@ -31,4 +31,9 @@ export type CreateDepartmentDTO = {
   status?: DepartmentStatus;
 };
 
-export type UpdateDepartmentDTO = Partial<Omit<CreateDepartmentDTO, 'status'>>;
+export type UpdateDepartmentDTO = Partial<CreateDepartmentDTO>;
+
+export type DepartmentRequestMetadata = {
+  ipAddress?: string;
+  userAgent?: string;
+};
