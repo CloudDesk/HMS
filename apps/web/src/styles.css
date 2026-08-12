@@ -3747,6 +3747,19 @@ p {
   font-size: 12px;
 }
 
+.password-policy-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.password-policy-note strong {
+  color: #334155;
+}
+
 .form-field [aria-invalid='true'],
 .form-group [aria-invalid='true'] {
   border-color: #dc2626;

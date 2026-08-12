@@ -12,6 +12,8 @@ import {
 import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { rolesApi, type RoleResponse } from '../api/roles';
+import { authApi } from '../auth/auth-api';
+import type { AuthPasswordPolicy } from '../auth/auth-types';
 
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
@@ -64,6 +66,8 @@ type PasswordFormState = {
   newPassword: string;
 };
 
+type PasswordFieldKey = 'create' | 'confirm' | 'current' | 'new';
+
 const statusClass = {
   Active: 'status-active',
   Inactive: 'status-inactive',
@@ -97,6 +101,36 @@ const uiStatusByApiStatus = {
   inactive: 'Inactive',
   locked: 'Locked',
 } satisfies Record<ApiUserStatus, UserStatus>;
+
+const getPasswordPolicyErrors = (password: string, policy: AuthPasswordPolicy) => {
+  const errors: string[] = [];
+
+  if (password.length < policy.minLength) errors.push(`Use at least ${policy.minLength} characters`);
+  if (policy.requireUppercase && !/[A-Z]/.test(password)) errors.push('include an uppercase letter');
+  if (policy.requireLowercase && !/[a-z]/.test(password)) errors.push('include a lowercase letter');
+  if (policy.requireNumber && !/[0-9]/.test(password)) errors.push('include a number');
+  if (policy.requireSymbol && !/[^A-Za-z0-9]/.test(password)) errors.push('include a symbol');
+
+  return errors;
+};
+
+const getPasswordPolicyText = (policy: AuthPasswordPolicy) => {
+  const requirements = [`at least ${policy.minLength} characters`];
+
+  if (policy.requireUppercase) requirements.push('one uppercase letter');
+  if (policy.requireLowercase) requirements.push('one lowercase letter');
+  if (policy.requireNumber) requirements.push('one number');
+  if (policy.requireSymbol) requirements.push('one symbol');
+
+  return `${requirements.join(', ')}.${policy.requireSymbol ? '' : ' Symbols are optional.'}`;
+};
+
+const getPasswordPolicyApiMessage = (error: ApiError) => {
+  if (error.code !== 'PASSWORD_POLICY_FAILED' || !Array.isArray(error.details)) return null;
+
+  const messages = error.details.filter((detail): detail is string => typeof detail === 'string');
+  return messages.length > 0 ? `${messages.join('. ')}.` : null;
+};
 
 const apiSortByColumn: Partial<
   Record<SortColumn, 'fullName' | 'username' | 'email' | 'employeeCode' | 'status' | 'createdAt' | 'lastLoginAt'>
@@ -212,6 +246,9 @@ const getUserForm = (user: UiUser | null): UserFormState => {
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
+    const passwordPolicyMessage = getPasswordPolicyApiMessage(error);
+    if (passwordPolicyMessage) return passwordPolicyMessage;
+
     if (error.status === 401) {
       return 'Your session has expired. Please sign in again.';
     }
@@ -233,6 +270,54 @@ const getErrorMessage = (error: unknown) => {
 
   return 'Unable to complete the user request.';
 };
+
+function PasswordInput({
+  autoComplete,
+  invalid = false,
+  onChange,
+  onToggle,
+  value,
+  visible,
+}: {
+  autoComplete: 'current-password' | 'new-password';
+  invalid?: boolean;
+  onChange: (value: string) => void;
+  onToggle: () => void;
+  value: string;
+  visible: boolean;
+}) {
+  return (
+    <div className="password-input">
+      <input
+        aria-invalid={invalid}
+        autoComplete={autoComplete}
+        onChange={(event) => onChange(event.target.value)}
+        required
+        type={visible ? 'text' : 'password'}
+        value={value}
+      />
+      <button
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        className="password-input__toggle"
+        onClick={onToggle}
+        title={visible ? 'Hide password' : 'Show password'}
+        type="button"
+      >
+        <i className={`ph ${visible ? 'ph-eye-slash' : 'ph-eye'}`} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function PasswordPolicyNote({ policy }: { policy: AuthPasswordPolicy | null }) {
+  if (!policy) return null;
+
+  return (
+    <p className="password-policy-note" role="note">
+      <strong>Password policy:</strong> {getPasswordPolicyText(policy)}
+    </p>
+  );
+}
 
 function SortableHeader({
   column,
@@ -343,6 +428,8 @@ export function UserManagementPage() {
   const [activeUser, setActiveUser] = useState<UiUser | null>(null);
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>({ currentPassword: '', newPassword: '' });
+  const [passwordPolicy, setPasswordPolicy] = useState<AuthPasswordPolicy | null>(null);
+  const [visiblePasswordFields, setVisiblePasswordFields] = useState<Set<PasswordFieldKey>>(() => new Set());
   const [formError, setFormError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState('');
@@ -411,10 +498,12 @@ export function UserManagementPage() {
       rolesApi.listAll(),
       branchesApi.list({ limit: 100, status: 'ACTIVE', sortBy: 'name', sortOrder: 'asc' }),
       departmentsApi.list({ limit: 100, status: 'ACTIVE', sortBy: 'name', sortOrder: 'asc' }),
-    ]).then(([roles, branches, departments]) => {
+      authApi.passwordPolicy(),
+    ]).then(([roles, branches, departments, policy]) => {
       setRoleOptions(roles.items.filter((role) => role.status === 'active'));
       setBranchOptions(branches.data);
       setDepartmentOptions(departments.data);
+      setPasswordPolicy(policy);
     }).catch((error: unknown) => setLoadError(getErrorMessage(error)));
   }, []);
 
@@ -498,6 +587,7 @@ export function UserManagementPage() {
     setFieldErrors({});
     setUserForm(getUserForm(user));
     setPasswordForm({ currentPassword: '', newPassword: '' });
+    setVisiblePasswordFields(new Set());
   };
 
   const closeModal = () => {
@@ -509,14 +599,38 @@ export function UserManagementPage() {
     setActiveUser(null);
     setFormError('');
     setFieldErrors({});
+    setVisiblePasswordFields(new Set());
+  };
+
+  const togglePasswordVisibility = (field: PasswordFieldKey) => {
+    setVisiblePasswordFields((current) => {
+      const next = new Set(current);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      return next;
+    });
   };
 
   const updateForm = (field: keyof UserFormState, value: string) => {
     setUserForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    if (field === 'password' || field === 'confirmPassword') setFormError('');
   };
 
   const updatePasswordForm = (field: keyof PasswordFormState, value: string) => {
     setPasswordForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setFormError('');
   };
 
   const assignmentFromForm = (id: string, name: string): UserAssignment[] => [
@@ -553,6 +667,10 @@ export function UserManagementPage() {
     if (!userForm.branchId) errors.branchId = 'Branch assignment is required.';
     if (!userForm.departmentId) errors.departmentId = 'Department assignment is required.';
     if (includePassword && !userForm.password) errors.password = 'Password is required.';
+    if (includePassword && userForm.password && passwordPolicy) {
+      const passwordErrors = getPasswordPolicyErrors(userForm.password, passwordPolicy);
+      if (passwordErrors.length > 0) errors.password = `${passwordErrors.join(', ')}.`;
+    }
     if (includePassword && userForm.password !== userForm.confirmPassword) errors.confirmPassword = 'Passwords must match.';
     setFieldErrors(errors);
     return Object.values(errors)[0] ?? '';
@@ -591,6 +709,8 @@ export function UserManagementPage() {
       if (error instanceof ApiError) {
         const field = error.code === 'DUPLICATE_USERNAME' ? 'username' : error.code === 'DUPLICATE_EMAIL' ? 'email' : error.code === 'DUPLICATE_EMPLOYEE_CODE' ? 'employeeCode' : null;
         if (field) setFieldErrors({ [field]: error.message });
+        const passwordPolicyMessage = getPasswordPolicyApiMessage(error);
+        if (passwordPolicyMessage) setFieldErrors({ password: passwordPolicyMessage });
       }
       setFormError(getErrorMessage(error));
     } finally {
@@ -643,11 +763,23 @@ export function UserManagementPage() {
 
     if (!passwordForm.newPassword) {
       setFormError('New password is required.');
+      setFieldErrors({ newPassword: 'New password is required.' });
       return;
+    }
+
+    if (passwordPolicy) {
+      const passwordErrors = getPasswordPolicyErrors(passwordForm.newPassword, passwordPolicy);
+      if (passwordErrors.length > 0) {
+        const message = `${passwordErrors.join(', ')}.`;
+        setFieldErrors({ newPassword: message });
+        setFormError(message);
+        return;
+      }
     }
 
     if (modalMode === 'change-password' && !passwordForm.currentPassword) {
       setFormError('Current password is required.');
+      setFieldErrors({ currentPassword: 'Current password is required.' });
       return;
     }
 
@@ -666,6 +798,10 @@ export function UserManagementPage() {
       closeModal();
       await loadUsers();
     } catch (error) {
+      if (error instanceof ApiError) {
+        const passwordPolicyMessage = getPasswordPolicyApiMessage(error);
+        if (passwordPolicyMessage) setFieldErrors({ newPassword: passwordPolicyMessage });
+      }
       setFormError(getErrorMessage(error));
     } finally {
       setSubmitting(false);
@@ -1270,14 +1406,29 @@ export function UserManagementPage() {
               {modalMode === 'create' ? <>
                 <label className="form-field">
                   <span>Password <span className="required">*</span></span>
-                  <input aria-invalid={Boolean(fieldErrors.password)} onChange={(event) => updateForm('password', event.target.value)} required type="password" value={userForm.password} />
+                  <PasswordInput
+                    autoComplete="new-password"
+                    invalid={Boolean(fieldErrors.password)}
+                    onChange={(value) => updateForm('password', value)}
+                    onToggle={() => togglePasswordVisibility('create')}
+                    value={userForm.password}
+                    visible={visiblePasswordFields.has('create')}
+                  />
                   {fieldErrors.password ? <small className="field-error">{fieldErrors.password}</small> : null}
                 </label>
                 <label className="form-field">
                   <span>Confirm Password <span className="required">*</span></span>
-                  <input aria-invalid={Boolean(fieldErrors.confirmPassword)} onChange={(event) => updateForm('confirmPassword', event.target.value)} required type="password" value={userForm.confirmPassword} />
+                  <PasswordInput
+                    autoComplete="new-password"
+                    invalid={Boolean(fieldErrors.confirmPassword)}
+                    onChange={(value) => updateForm('confirmPassword', value)}
+                    onToggle={() => togglePasswordVisibility('confirm')}
+                    value={userForm.confirmPassword}
+                    visible={visiblePasswordFields.has('confirm')}
+                  />
                   {fieldErrors.confirmPassword ? <small className="field-error">{fieldErrors.confirmPassword}</small> : null}
                 </label>
+                <PasswordPolicyNote policy={passwordPolicy} />
               </> : null}
             </div>
             </> : <>
@@ -1303,23 +1454,30 @@ export function UserManagementPage() {
               {modalMode === 'change-password' ? (
                 <label className="form-field">
                   <span>Current Password <span className="required">*</span></span>
-                  <input
-                    onChange={(event) => updatePasswordForm('currentPassword', event.target.value)}
-                    required
-                    type="password"
+                  <PasswordInput
+                    autoComplete="current-password"
+                    invalid={Boolean(fieldErrors.currentPassword)}
+                    onChange={(value) => updatePasswordForm('currentPassword', value)}
+                    onToggle={() => togglePasswordVisibility('current')}
                     value={passwordForm.currentPassword}
+                    visible={visiblePasswordFields.has('current')}
                   />
+                  {fieldErrors.currentPassword ? <small className="field-error">{fieldErrors.currentPassword}</small> : null}
                 </label>
               ) : null}
               <label className="form-field">
                 <span>New Password <span className="required">*</span></span>
-                <input
-                  onChange={(event) => updatePasswordForm('newPassword', event.target.value)}
-                  required
-                  type="password"
+                <PasswordInput
+                  autoComplete="new-password"
+                  invalid={Boolean(fieldErrors.newPassword)}
+                  onChange={(value) => updatePasswordForm('newPassword', value)}
+                  onToggle={() => togglePasswordVisibility('new')}
                   value={passwordForm.newPassword}
+                  visible={visiblePasswordFields.has('new')}
                 />
+                {fieldErrors.newPassword ? <small className="field-error">{fieldErrors.newPassword}</small> : null}
               </label>
+              <PasswordPolicyNote policy={passwordPolicy} />
             </div>
           </form>
         ) : null}

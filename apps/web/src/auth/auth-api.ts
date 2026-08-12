@@ -1,5 +1,5 @@
 import { apiClient } from '../api/client';
-import type { AuthSession, AuthUser } from './auth-types';
+import type { AuthPasswordPolicy, AuthSession, AuthUser } from './auth-types';
 
 export const authApi = {
   login(identifier: string, password: string) {
@@ -29,5 +29,9 @@ export const authApi = {
 
   me() {
     return apiClient.request<AuthUser>('/auth/me');
+  },
+
+  passwordPolicy() {
+    return apiClient.request<AuthPasswordPolicy>('/auth/password-policy');
   },
 };

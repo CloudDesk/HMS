@@ -90,6 +90,14 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
     async (request) => ok(await services.auth.getCurrentUser(request.user!.id)),
   );
 
+  app.get(
+    '/api/auth/password-policy',
+    {
+      preHandler: authenticate(services),
+    },
+    async () => ok(services.auth.getPasswordPolicy()),
+  );
+
   app.post<{ Body: ChangePasswordBody }>(
     '/api/auth/change-password',
     {

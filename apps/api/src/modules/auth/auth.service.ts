@@ -60,6 +60,16 @@ const isLocked = (user: AuthUserRecord) =>
 export class AuthService {
   constructor(private readonly repository: AuthRepository) {}
 
+  getPasswordPolicy() {
+    return {
+      minLength: env.auth.passwordPolicy.minLength,
+      requireUppercase: env.auth.passwordPolicy.requireUppercase,
+      requireLowercase: env.auth.passwordPolicy.requireLowercase,
+      requireNumber: env.auth.passwordPolicy.requireNumber,
+      requireSymbol: env.auth.passwordPolicy.requireSymbol,
+    };
+  }
+
   async login(input: LoginInput, metadata: RequestMetadata) {
     const user = await this.repository.findUserByIdentifier(input.identifier);
 

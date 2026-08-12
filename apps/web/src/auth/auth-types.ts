@@ -43,3 +43,11 @@ export type AuthSession = {
   user: AuthUser;
   tokens: AuthTokens;
 };
+
+export type AuthPasswordPolicy = {
+  minLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumber: boolean;
+  requireSymbol: boolean;
+};
