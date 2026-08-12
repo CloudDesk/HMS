@@ -258,14 +258,24 @@ export function PatientProfilePage() {
           <section className="card patient-history-card">
             <div className="card-header">
               <h3>Patient History</h3>
-              <button
-                className="secondary-action"
-                disabled={!patient}
-                onClick={() => navigate(`/patients/emr?id=${encodeURIComponent(patientId)}`)}
-                type="button"
-              >
-                View EMR Timeline
-              </button>
+              <div className="patient-card-actions">
+                <button
+                  className="secondary-action"
+                  disabled={!patient}
+                  onClick={() => navigate(`/patients/history?id=${encodeURIComponent(patientId)}`)}
+                  type="button"
+                >
+                  View History
+                </button>
+                <button
+                  className="secondary-action"
+                  disabled={!patient}
+                  onClick={() => navigate(`/patients/emr?id=${encodeURIComponent(patientId)}`)}
+                  type="button"
+                >
+                  EMR Timeline
+                </button>
+              </div>
             </div>
             {loading ? (
               <div className="um-state-cell">Loading history...</div>

@@ -1,94 +1,18 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   patientsApi,
   type ApiPatientGender,
   type ApiPatientStatus,
   type PatientListResponse,
   type PatientResponse,
-  type SavePatientPayload,
 } from '../api/patients';
-import { Modal } from '../components/ui/Modal';
-import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDate, getPatientErrorMessage, patientFullName, patientInitials } from './patient-utils';
-
-type PatientFormState = {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  dateOfBirth: string;
-  gender: ApiPatientGender;
-  phone: string;
-  email: string;
-  bloodGroup: string;
-  addressLine1: string;
-  addressLine2: string;
-  city: string;
-  state: string;
-  country: string;
-  postalCode: string;
-  emergencyName: string;
-  emergencyRelationship: string;
-  emergencyPhone: string;
-  notes: string;
-};
 
 type SortColumn = 'patient_number' | 'first_name' | 'last_name' | 'created_at';
 type SortDirection = 'asc' | 'desc';
 
-const emptyPatientForm: PatientFormState = {
-  firstName: '',
-  middleName: '',
-  lastName: '',
-  dateOfBirth: '',
-  gender: 'UNKNOWN',
-  phone: '',
-  email: '',
-  bloodGroup: '',
-  addressLine1: '',
-  addressLine2: '',
-  city: '',
-  state: '',
-  country: '',
-  postalCode: '',
-  emergencyName: '',
-  emergencyRelationship: '',
-  emergencyPhone: '',
-  notes: '',
-};
-
-const nullable = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-};
-
-const toPatientPayload = (form: PatientFormState): SavePatientPayload => ({
-  first_name: form.firstName.trim(),
-  middle_name: nullable(form.middleName),
-  last_name: form.lastName.trim(),
-  date_of_birth: form.dateOfBirth,
-  gender: form.gender,
-  phone: nullable(form.phone),
-  email: nullable(form.email),
-  blood_group: nullable(form.bloodGroup),
-  address: {
-    line1: nullable(form.addressLine1),
-    line2: nullable(form.addressLine2),
-    city: nullable(form.city),
-    state: nullable(form.state),
-    country: nullable(form.country),
-    postal_code: nullable(form.postalCode),
-  },
-  emergency_contact: {
-    name: nullable(form.emergencyName),
-    relationship: nullable(form.emergencyRelationship),
-    phone: nullable(form.emergencyPhone),
-  },
-  notes: nullable(form.notes),
-});
-
 const buildSearchUrl = (
-  basePath: string,
   search: string,
   status: ApiPatientStatus | '',
   gender: ApiPatientGender | '',
@@ -106,7 +30,7 @@ const buildSearchUrl = (
     params.set('sortOrder', sortDirection);
   }
   const query = params.toString();
-  return `${basePath}${query ? `?${query}` : ''}`;
+  return `/patients/search${query ? `?${query}` : ''}`;
 };
 
 export function PatientSearchPage() {
@@ -114,7 +38,6 @@ export function PatientSearchPage() {
   const initialParams = new URLSearchParams(location.search);
   const [patients, setPatients] = useState<PatientResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState(initialParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState<ApiPatientStatus | ''>(
     (initialParams.get('status') as ApiPatientStatus | null) ?? '',
@@ -135,18 +58,7 @@ export function PatientSearchPage() {
     total: 0,
     totalPages: 1,
   });
-  const [registrationOpen, setRegistrationOpen] = useState(false);
-  const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
-  const [formError, setFormError] = useState('');
   const [loadError, setLoadError] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 2800);
-  };
 
   const loadPatients = useCallback(async () => {
     setLoading(true);
@@ -174,22 +86,15 @@ export function PatientSearchPage() {
   }, [currentPage, genderFilter, search, sortColumn, sortDirection, statusFilter]);
 
   useEffect(() => {
-    const basePath = location.pathname === '/patients/register' ? '/patients/register' : '/patients/search';
-    const nextUrl = buildSearchUrl(basePath, search, statusFilter, genderFilter, currentPage, sortColumn, sortDirection);
+    const nextUrl = buildSearchUrl(search, statusFilter, genderFilter, currentPage, sortColumn, sortDirection);
     if (window.location.pathname + window.location.search !== nextUrl) {
       navigate(nextUrl, { replace: true });
     }
-  }, [currentPage, genderFilter, location.pathname, search, sortColumn, sortDirection, statusFilter]);
+  }, [currentPage, genderFilter, search, sortColumn, sortDirection, statusFilter]);
 
   useEffect(() => {
     void loadPatients();
   }, [loadPatients]);
-
-  useEffect(() => {
-    if (location.pathname === '/patients/register') {
-      setRegistrationOpen(true);
-    }
-  }, [location.pathname]);
 
   const handleSort = (column: SortColumn) => {
     setSortColumn((current) => {
@@ -210,50 +115,6 @@ export function PatientSearchPage() {
     setSortColumn(null);
     setSortDirection('desc');
     setCurrentPage(1);
-  };
-
-  const openRegistration = () => {
-    setForm(emptyPatientForm);
-    setFormError('');
-    setRegistrationOpen(true);
-  };
-
-  const closeRegistration = () => {
-    if (submitting) return;
-    setRegistrationOpen(false);
-    setFormError('');
-  };
-
-  const handleRegister = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!form.firstName.trim()) {
-      setFormError('First name is required.');
-      return;
-    }
-    if (!form.lastName.trim()) {
-      setFormError('Last name is required.');
-      return;
-    }
-    if (!form.dateOfBirth) {
-      setFormError('Date of birth is required.');
-      return;
-    }
-
-    setSubmitting(true);
-    setFormError('');
-
-    try {
-      const patient = await patientsApi.create(toPatientPayload(form));
-      showToast(`Patient ${patient.patient_number} registered successfully.`);
-      closeRegistration();
-      await loadPatients();
-      navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`);
-    } catch (error) {
-      setFormError(getPatientErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const renderSortIcon = (column: SortColumn) => {
@@ -284,7 +145,7 @@ export function PatientSearchPage() {
                     value={search}
                   />
                 </div>
-                <button className="um-add-btn" onClick={openRegistration} type="button">
+                <button className="um-add-btn" onClick={() => navigate('/patients/register')} type="button">
                   <i className="ph ph-user-plus" aria-hidden="true" /> Register Patient
                 </button>
               </div>
@@ -410,6 +271,14 @@ export function PatientSearchPage() {
                             >
                               <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
                             </button>
+                            <button
+                              className="action-icon-btn"
+                              onClick={() => navigate(`/patients/history?id=${encodeURIComponent(patient.id)}`)}
+                              title="Open patient history"
+                              type="button"
+                            >
+                              <i className="ph ph-activity" aria-hidden="true" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -450,197 +319,6 @@ export function PatientSearchPage() {
         </div>
       </div>
 
-      <Modal open={registrationOpen} onClose={closeRegistration} title="Register Patient">
-        <form className="modal-form patient-form" onSubmit={handleRegister}>
-          {formError && (
-            <div className="form-error-banner" role="alert">
-              <i className="ph ph-warning-circle" aria-hidden="true" />
-              <span>{formError}</span>
-            </div>
-          )}
-
-          <div className="form-section-title">Identity</div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="patient-first-name">First name *</label>
-              <input
-                disabled={submitting}
-                id="patient-first-name"
-                onChange={(event) => setForm({ ...form, firstName: event.target.value })}
-                required
-                type="text"
-                value={form.firstName}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-middle-name">Middle name</label>
-              <input
-                disabled={submitting}
-                id="patient-middle-name"
-                onChange={(event) => setForm({ ...form, middleName: event.target.value })}
-                type="text"
-                value={form.middleName}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-last-name">Last name *</label>
-              <input
-                disabled={submitting}
-                id="patient-last-name"
-                onChange={(event) => setForm({ ...form, lastName: event.target.value })}
-                required
-                type="text"
-                value={form.lastName}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-dob">Date of birth *</label>
-              <input
-                disabled={submitting}
-                id="patient-dob"
-                onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })}
-                required
-                type="date"
-                value={form.dateOfBirth}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-gender">Gender *</label>
-              <select
-                disabled={submitting}
-                id="patient-gender"
-                onChange={(event) => setForm({ ...form, gender: event.target.value as ApiPatientGender })}
-                required
-                value={form.gender}
-              >
-                <option value="UNKNOWN">Unknown</option>
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-blood-group">Blood group</label>
-              <input
-                disabled={submitting}
-                id="patient-blood-group"
-                onChange={(event) => setForm({ ...form, bloodGroup: event.target.value })}
-                type="text"
-                value={form.bloodGroup}
-              />
-            </div>
-          </div>
-
-          <div className="form-section-title">Contact</div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="patient-phone">Phone</label>
-              <input
-                disabled={submitting}
-                id="patient-phone"
-                onChange={(event) => setForm({ ...form, phone: event.target.value })}
-                type="tel"
-                value={form.phone}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-email">Email</label>
-              <input
-                disabled={submitting}
-                id="patient-email"
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-                type="email"
-                value={form.email}
-              />
-            </div>
-            <div className="form-group full-width">
-              <label htmlFor="patient-address-line1">Address line 1</label>
-              <input
-                disabled={submitting}
-                id="patient-address-line1"
-                onChange={(event) => setForm({ ...form, addressLine1: event.target.value })}
-                type="text"
-                value={form.addressLine1}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-city">City</label>
-              <input
-                disabled={submitting}
-                id="patient-city"
-                onChange={(event) => setForm({ ...form, city: event.target.value })}
-                type="text"
-                value={form.city}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="patient-country">Country</label>
-              <input
-                disabled={submitting}
-                id="patient-country"
-                onChange={(event) => setForm({ ...form, country: event.target.value })}
-                type="text"
-                value={form.country}
-              />
-            </div>
-          </div>
-
-          <div className="form-section-title">Emergency Contact</div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="emergency-name">Name</label>
-              <input
-                disabled={submitting}
-                id="emergency-name"
-                onChange={(event) => setForm({ ...form, emergencyName: event.target.value })}
-                type="text"
-                value={form.emergencyName}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="emergency-relationship">Relationship</label>
-              <input
-                disabled={submitting}
-                id="emergency-relationship"
-                onChange={(event) => setForm({ ...form, emergencyRelationship: event.target.value })}
-                type="text"
-                value={form.emergencyRelationship}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="emergency-phone">Phone</label>
-              <input
-                disabled={submitting}
-                id="emergency-phone"
-                onChange={(event) => setForm({ ...form, emergencyPhone: event.target.value })}
-                type="tel"
-                value={form.emergencyPhone}
-              />
-            </div>
-            <div className="form-group full-width">
-              <label htmlFor="patient-notes">Registration notes</label>
-              <textarea
-                disabled={submitting}
-                id="patient-notes"
-                onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                rows={3}
-                value={form.notes}
-              />
-            </div>
-          </div>
-
-          <div className="modal-actions">
-            <button className="secondary-action" disabled={submitting} onClick={closeRegistration} type="button">
-              Cancel
-            </button>
-            <button className="primary-action" disabled={submitting} type="submit">
-              {submitting ? 'Registering...' : 'Register Patient'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Toast message={toastMessage} visible={toastVisible} />
     </>
   );
 }

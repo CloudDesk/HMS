@@ -1,6 +1,16 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import { env } from '../../config/env.js';
+import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
 import type { PatientRepository } from './patient.repository.js';
-import type { CreatePatientDTO, CreatePatientDocumentDTO, PatientListQuery, UpdatePatientDTO } from './patient.types.js';
+import type {
+  CreatePatientDTO,
+  CreatePatientDocumentDTO,
+  PatientDocument,
+  PatientListQuery,
+  PatientTimelineListQuery,
+  UpdatePatientDTO,
+  UploadPatientDocumentDTO,
+} from './patient.types.js';
 
 const isValidDate = (value: string) => {
   const date = new Date(value);
@@ -13,7 +23,10 @@ const createPatientNumber = (sequence: number) => {
 };
 
 export class PatientService {
-  constructor(private readonly repository: PatientRepository) {}
+  constructor(
+    private readonly repository: PatientRepository,
+    private readonly documentStorage: PatientDocumentStorageService,
+  ) {}
 
   async list(query: PatientListQuery) {
     return this.repository.list(query);
@@ -82,20 +95,21 @@ export class PatientService {
 
   async getHistory(id: string) {
     const patient = await this.getById(id);
-    const timeline = await this.repository.listTimeline(id);
+    const timeline = await this.repository.listTimeline(id, { page: 1, limit: 10 });
     const documents = await this.repository.listDocuments(id);
 
     return {
       patient,
-      timeline,
+      timeline: timeline.data,
       documents,
       visits: [],
     };
   }
 
-  async getTimeline(id: string) {
+  async getTimeline(id: string, query: PatientTimelineListQuery) {
     await this.getById(id);
-    return this.repository.listTimeline(id);
+    this.validateTimelineQuery(query);
+    return this.repository.listTimeline(id, query);
   }
 
   async listDocuments(id: string, documentType?: string) {
@@ -121,8 +135,50 @@ export class PatientService {
     return document;
   }
 
+  async uploadDocument(id: string, data: UploadPatientDocumentDTO, userId: string) {
+    await this.getById(id);
+    this.validateDocumentUpload(data);
+
+    const { storageKey } = await this.documentStorage.uploadPatientDocument({
+      patientId: id,
+      fileName: data.file_name,
+      mimeType: data.mime_type,
+      data: data.data,
+    });
+
+    const document = await this.createDocument(
+      id,
+      {
+        document_type: data.document_type,
+        title: data.title,
+        file_name: data.file_name,
+        mime_type: data.mime_type,
+        file_size_bytes: data.file_size_bytes,
+        storage_key: storageKey,
+        description: data.description,
+      },
+      userId,
+    );
+
+    return document;
+  }
+
+  async downloadDocument(patientId: string, documentId: string) {
+    await this.getById(patientId);
+    const document = await this.getActiveDocument(patientId, documentId);
+    const storedFile = await this.documentStorage.download(document.storage_key);
+
+    return {
+      document,
+      data: storedFile.data,
+      contentType: storedFile.contentType ?? document.mime_type,
+    };
+  }
+
   async deleteDocument(patientId: string, documentId: string, userId: string) {
     await this.getById(patientId);
+    const activeDocument = await this.getActiveDocument(patientId, documentId);
+    await this.documentStorage.deleteIfExists(activeDocument.storage_key);
     const document = await this.repository.deleteDocument(patientId, documentId, userId);
     if (!document) {
       throw new AppError('Patient document not found', 404, 'NOT_FOUND');
@@ -139,6 +195,43 @@ export class PatientService {
     );
 
     return document;
+  }
+
+  private async getActiveDocument(patientId: string, documentId: string): Promise<PatientDocument> {
+    const document = await this.repository.getDocument(patientId, documentId);
+    if (!document) {
+      throw new AppError('Patient document not found', 404, 'NOT_FOUND');
+    }
+
+    return document;
+  }
+
+  private validateDocumentUpload(data: UploadPatientDocumentDTO) {
+    if (data.file_size_bytes <= 0 || data.data.byteLength <= 0) {
+      throw new AppError('Document file is required', 400, 'VALIDATION_ERROR');
+    }
+
+    if (data.file_size_bytes > env.upload.patientDocumentMaxFileSizeBytes) {
+      throw new AppError('Document file exceeds the allowed size', 400, 'FILE_TOO_LARGE');
+    }
+
+    if (!env.upload.patientDocumentAllowedMimeTypes.includes(data.mime_type)) {
+      throw new AppError('Document file type is not allowed', 400, 'INVALID_FILE_TYPE');
+    }
+  }
+
+  private validateTimelineQuery(query: PatientTimelineListQuery) {
+    if (query.from && !isValidDate(query.from)) {
+      throw new AppError('Timeline from date is invalid', 400, 'VALIDATION_ERROR');
+    }
+
+    if (query.to && !isValidDate(query.to)) {
+      throw new AppError('Timeline to date is invalid', 400, 'VALIDATION_ERROR');
+    }
+
+    if (query.from && query.to && new Date(query.from) > new Date(query.to)) {
+      throw new AppError('Timeline from date must be before to date', 400, 'VALIDATION_ERROR');
+    }
   }
 }
 

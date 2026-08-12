@@ -4,7 +4,6 @@ import {
   type ApiPatientDocumentType,
   type PatientDocumentResponse,
   type PatientResponse,
-  type SavePatientDocumentPayload,
 } from '../api/patients';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
@@ -20,20 +19,14 @@ import {
 type DocumentFormState = {
   documentType: ApiPatientDocumentType;
   title: string;
-  fileName: string;
-  mimeType: string;
-  fileSizeBytes: string;
-  storageKey: string;
+  file: File | null;
   description: string;
 };
 
 const emptyDocumentForm = (documentType: ApiPatientDocumentType): DocumentFormState => ({
   documentType,
   title: '',
-  fileName: '',
-  mimeType: '',
-  fileSizeBytes: '',
-  storageKey: '',
+  file: null,
   description: '',
 });
 
@@ -42,15 +35,28 @@ const nullable = (value: string) => {
   return trimmed ? trimmed : null;
 };
 
-const toPayload = (form: DocumentFormState): SavePatientDocumentPayload => ({
-  document_type: form.documentType,
-  title: form.title.trim(),
-  file_name: form.fileName.trim(),
-  mime_type: form.mimeType.trim(),
-  file_size_bytes: Number(form.fileSizeBytes),
-  storage_key: form.storageKey.trim(),
-  description: nullable(form.description),
-});
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) {
+    return `${bytes.toLocaleString()} bytes`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const triggerBrowserDownload = (blob: Blob, fileName: string) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+};
 
 type PatientDocumentsPageProps = {
   mode?: 'documents' | 'consents';
@@ -85,6 +91,7 @@ export function PatientDocumentsPage({ mode = 'documents' }: PatientDocumentsPag
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<PatientDocumentResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -138,13 +145,13 @@ export function PatientDocumentsPage({ mode = 'documents' }: PatientDocumentsPag
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!form.title.trim() || !form.fileName.trim() || !form.mimeType.trim() || !form.storageKey.trim()) {
-      setFormError('Title, file name, MIME type, and storage key are required.');
+    if (!form.title.trim()) {
+      setFormError('Title is required.');
       return;
     }
 
-    if (!Number.isInteger(Number(form.fileSizeBytes)) || Number(form.fileSizeBytes) <= 0) {
-      setFormError('File size must be a positive number of bytes.');
+    if (!form.file) {
+      setFormError('Select a document file to upload.');
       return;
     }
 
@@ -152,14 +159,32 @@ export function PatientDocumentsPage({ mode = 'documents' }: PatientDocumentsPag
     setFormError('');
 
     try {
-      await patientsApi.createDocument(patientId, toPayload(form));
-      showToast(consentMode ? 'Consent linked successfully.' : 'Document linked successfully.');
+      await patientsApi.uploadDocument(patientId, {
+        document_type: form.documentType,
+        title: form.title.trim(),
+        file: form.file,
+        description: nullable(form.description),
+      });
+      showToast(consentMode ? 'Consent uploaded successfully.' : 'Document uploaded successfully.');
       closeModal();
       await loadDocuments();
     } catch (error) {
       setFormError(getPatientErrorMessage(error));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDownload = async (document: PatientDocumentResponse) => {
+    setDownloadingId(document.id);
+
+    try {
+      const response = await patientsApi.downloadDocument(patientId, document.id);
+      triggerBrowserDownload(response.blob, response.fileName ?? document.file_name);
+    } catch (error) {
+      showToast(getPatientErrorMessage(error));
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -252,11 +277,23 @@ export function PatientDocumentsPage({ mode = 'documents' }: PatientDocumentsPag
                       {!consentMode && <td>{document.document_type}</td>}
                       <td>{document.file_name}</td>
                       <td>{document.mime_type}</td>
-                      <td>{document.file_size_bytes.toLocaleString()} bytes</td>
+                      <td>{formatFileSize(document.file_size_bytes)}</td>
                       <td>{formatDateTime(document.created_at)}</td>
                       <td className="align-right">
                         <button
+                          className="action-icon-btn"
+                          disabled={downloadingId === document.id}
+                          onClick={() => {
+                            void handleDownload(document);
+                          }}
+                          title="Download document"
+                          type="button"
+                        >
+                          <i className="ph ph-download-simple" aria-hidden="true" />
+                        </button>
+                        <button
                           className="action-icon-btn danger"
+                          disabled={downloadingId === document.id}
                           onClick={() => setDeleteTarget(document)}
                           title="Remove document"
                           type="button"
@@ -311,51 +348,20 @@ export function PatientDocumentsPage({ mode = 'documents' }: PatientDocumentsPag
                 value={form.title}
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="document-file-name">File name *</label>
-              <input
-                disabled={submitting}
-                id="document-file-name"
-                onChange={(event) => setForm({ ...form, fileName: event.target.value })}
-                required
-                type="text"
-                value={form.fileName}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="document-mime">MIME type *</label>
-              <input
-                disabled={submitting}
-                id="document-mime"
-                onChange={(event) => setForm({ ...form, mimeType: event.target.value })}
-                placeholder="application/pdf"
-                required
-                type="text"
-                value={form.mimeType}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="document-size">File size bytes *</label>
-              <input
-                disabled={submitting}
-                id="document-size"
-                min="1"
-                onChange={(event) => setForm({ ...form, fileSizeBytes: event.target.value })}
-                required
-                type="number"
-                value={form.fileSizeBytes}
-              />
-            </div>
             <div className="form-group full-width">
-              <label htmlFor="document-storage-key">Storage key *</label>
+              <label htmlFor="document-file">File *</label>
+              <label className="patient-upload-zone" htmlFor="document-file">
+                <i className="ph ph-cloud-arrow-up" aria-hidden="true" />
+                <span>{form.file ? form.file.name : 'Choose a PDF, image, or text document'}</span>
+                {form.file && <small>{formatFileSize(form.file.size)}</small>}
+              </label>
               <input
+                className="sr-only"
                 disabled={submitting}
-                id="document-storage-key"
-                onChange={(event) => setForm({ ...form, storageKey: event.target.value })}
-                placeholder="patients/{patientId}/documents/file.pdf"
+                id="document-file"
+                onChange={(event) => setForm({ ...form, file: event.target.files?.[0] ?? null })}
                 required
-                type="text"
-                value={form.storageKey}
+                type="file"
               />
             </div>
             <div className="form-group full-width">

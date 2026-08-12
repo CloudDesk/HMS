@@ -63,6 +63,21 @@ export const listPatientDocumentsQuerySchema = {
   },
 } as const;
 
+export const listPatientTimelineQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    event_type: {
+      type: 'string',
+      enum: ['REGISTRATION', 'PROFILE_UPDATED', 'DOCUMENT_ADDED', 'DOCUMENT_DELETED', 'CONSENT_ADDED'],
+    },
+    from: { type: 'string', minLength: 1 },
+    to: { type: 'string', minLength: 1 },
+    page: { type: 'integer', minimum: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: 100 },
+  },
+} as const;
+
 export const createPatientBodySchema = {
   type: 'object',
   required: ['first_name', 'last_name', 'date_of_birth', 'gender'],

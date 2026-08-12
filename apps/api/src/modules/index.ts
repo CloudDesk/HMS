@@ -8,6 +8,11 @@ import { registerRoleRoutes } from './roles/role.routes.js';
 import { registerUserRoutes } from './users/user.routes.js';
 import { registerBranchRoutes } from './branches/branch.routes.js';
 import { registerDepartmentRoutes } from './departments/department.routes.js';
+import { registerDoctorRoutes } from './doctors/doctor.routes.js';
+import { registerOpdConsultationRoutes } from './opd/opd-consultation.routes.js';
+import { registerOpdVitalsRoutes } from './opd/opd-vitals.routes.js';
+import { registerOpdVisitRoutes } from './opd/opd-visit.routes.js';
+import { registerAppointmentRoutes } from './appointments/appointment.routes.js';
 import { registerServiceRoutes } from './services/service.routes.js';
 
 export const registerModules = async (app: FastifyInstance, services: ServiceRegistry) => {
@@ -20,4 +25,9 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerDepartmentRoutes(app, services);
   await registerServiceRoutes(app, services);
   await registerPatientRoutes(app, services);
+  await registerDoctorRoutes(app, services);
+  await registerAppointmentRoutes(app, services);
+  await registerOpdVisitRoutes(app, services);
+  await registerOpdVitalsRoutes(app, services);
+  await registerOpdConsultationRoutes(app, services);
 };

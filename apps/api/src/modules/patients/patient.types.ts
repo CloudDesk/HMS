@@ -97,12 +97,28 @@ export type CreatePatientDocumentDTO = {
   description?: string | null;
 };
 
+export type UploadPatientDocumentDTO = Omit<CreatePatientDocumentDTO, 'storage_key'> & {
+  data: Buffer;
+};
+
 export type PatientTimelineEventType =
   | 'REGISTRATION'
   | 'PROFILE_UPDATED'
   | 'DOCUMENT_ADDED'
   | 'DOCUMENT_DELETED'
-  | 'CONSENT_ADDED';
+  | 'CONSENT_ADDED'
+  | 'OPD_VISIT_CREATED'
+  | 'OPD_VISIT_STATUS_UPDATED'
+  | 'VITALS_RECORDED'
+  | 'OPD_CONSULTATION_COMPLETED';
+
+export type PatientTimelineListQuery = {
+  event_type?: PatientTimelineEventType;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+};
 
 export type PatientTimelineEvent = {
   id: string;

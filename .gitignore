@@ -16,3 +16,6 @@ Thumbs.db
 
 # Scope
 Scope/
+
+# Temporary local patient document storage
+apps/api/storage/

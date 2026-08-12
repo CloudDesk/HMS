@@ -138,7 +138,17 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     eventType: {
       type: String,
-      enum: ['REGISTRATION', 'PROFILE_UPDATED', 'DOCUMENT_ADDED', 'DOCUMENT_DELETED', 'CONSENT_ADDED'],
+      enum: [
+        'REGISTRATION',
+        'PROFILE_UPDATED',
+        'DOCUMENT_ADDED',
+        'DOCUMENT_DELETED',
+        'CONSENT_ADDED',
+        'OPD_VISIT_CREATED',
+        'OPD_VISIT_STATUS_UPDATED',
+        'VITALS_RECORDED',
+        'OPD_CONSULTATION_COMPLETED',
+      ],
       required: true,
     },
     title: { type: String, required: true },

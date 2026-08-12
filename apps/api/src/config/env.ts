@@ -29,6 +29,15 @@ const parseDnsServers = (value: string | undefined) =>
     .map((server) => server.trim())
     .filter(Boolean);
 
+const parseCsv = (value: string | undefined, fallback: string[]) => {
+  const values = (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return values.length > 0 ? values : fallback;
+};
+
 const parseDatabaseUrl = (value: string | undefined) => {
   if (!value) {
     throw new Error('MONGODB_DATABASE_URL is required');
@@ -54,6 +63,24 @@ export const env = {
     dnsServers: parseDnsServers(process.env.MONGODB_DNS_SERVERS),
     poolSize: parseInteger(process.env.DATABASE_POOL_SIZE, 10),
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),
+  },
+  storage: {
+    provider: process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER ?? 'local',
+    localPatientDocumentsPath: process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? './storage/patient-documents',
+    gcpPatientDocumentsBucket: process.env.GCP_PATIENT_DOCUMENTS_BUCKET ?? '',
+  },
+  upload: {
+    patientDocumentMaxFileSizeBytes: parseInteger(
+      process.env.PATIENT_DOCUMENT_MAX_FILE_SIZE_BYTES,
+      10 * 1024 * 1024,
+    ),
+    patientDocumentAllowedMimeTypes: parseCsv(process.env.PATIENT_DOCUMENT_ALLOWED_MIME_TYPES, [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'text/plain',
+    ]),
   },
   auth: {
     accessTokenSecret:

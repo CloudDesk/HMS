@@ -103,15 +103,51 @@ export type SavePatientDocumentPayload = {
   description?: string | null;
 };
 
+export type UploadPatientDocumentPayload = {
+  document_type: ApiPatientDocumentType;
+  title: string;
+  file: File;
+  description?: string | null;
+};
+
 export type PatientTimelineEventResponse = {
   id: string;
   patient_id: string;
-  event_type: 'REGISTRATION' | 'PROFILE_UPDATED' | 'DOCUMENT_ADDED' | 'DOCUMENT_DELETED' | 'CONSENT_ADDED';
+  event_type:
+    | 'REGISTRATION'
+    | 'PROFILE_UPDATED'
+    | 'DOCUMENT_ADDED'
+    | 'DOCUMENT_DELETED'
+  | 'CONSENT_ADDED'
+  | 'OPD_VISIT_CREATED'
+  | 'OPD_VISIT_STATUS_UPDATED'
+  | 'VITALS_RECORDED'
+  | 'OPD_CONSULTATION_COMPLETED';
   title: string;
   description: string | null;
   occurred_at: string;
   created_by: string | null;
   created_at: string;
+};
+
+export type PatientTimelineEventType = PatientTimelineEventResponse['event_type'];
+
+export type PatientTimelineListParams = Partial<{
+  event_type: PatientTimelineEventType;
+  from: string;
+  to: string;
+  page: number;
+  limit: number;
+}>;
+
+export type PatientTimelineListResponse = {
+  data: PatientTimelineEventResponse[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 export type PatientHistoryResponse = {
@@ -161,8 +197,10 @@ export const patientsApi = {
     return apiClient.request<PatientHistoryResponse>(`/patients/${encodeURIComponent(id)}/history`);
   },
 
-  timeline(id: string) {
-    return apiClient.request<PatientTimelineEventResponse[]>(`/patients/${encodeURIComponent(id)}/timeline`);
+  timeline(id: string, params: PatientTimelineListParams = {}) {
+    return apiClient.request<PatientTimelineListResponse>(
+      `/patients/${encodeURIComponent(id)}/timeline${toQueryString(params)}`,
+    );
   },
 
   documents(id: string, documentType?: ApiPatientDocumentType) {
@@ -176,6 +214,28 @@ export const patientsApi = {
       body: payload,
       method: 'POST',
     });
+  },
+
+  uploadDocument(id: string, payload: UploadPatientDocumentPayload) {
+    const formData = new FormData();
+    formData.set('document_type', payload.document_type);
+    formData.set('title', payload.title);
+    formData.set('file', payload.file);
+
+    if (payload.description) {
+      formData.set('description', payload.description);
+    }
+
+    return apiClient.request<PatientDocumentResponse>(`/patients/${encodeURIComponent(id)}/documents/upload`, {
+      body: formData,
+      method: 'POST',
+    });
+  },
+
+  downloadDocument(patientId: string, documentId: string) {
+    return apiClient.download(
+      `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/download`,
+    );
   },
 
   deleteDocument(patientId: string, documentId: string) {

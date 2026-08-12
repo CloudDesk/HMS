@@ -13,6 +13,7 @@ import type {
   Patient,
   PatientDocument,
   PatientListQuery,
+  PatientTimelineListQuery,
   PatientTimelineEvent,
   UpdatePatientDTO,
 } from './patient.types.js';
@@ -258,11 +259,43 @@ export class PatientRepository {
     return toTimelineEvent(created.toObject<PatientTimelineEventLean>());
   }
 
-  async listTimeline(patientId: string) {
-    const events = await PatientTimelineEventModel.find({ patientId })
-      .sort({ occurredAt: -1 })
-      .lean<PatientTimelineEventLean[]>();
-    return events.map(toTimelineEvent);
+  async listTimeline(patientId: string, query: PatientTimelineListQuery = {}) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const offset = (page - 1) * limit;
+    const filter: Record<string, unknown> = {
+      patientId: new Types.ObjectId(patientId),
+    };
+
+    if (query.event_type) {
+      filter.eventType = query.event_type;
+    }
+
+    if (query.from || query.to) {
+      filter.occurredAt = {
+        ...(query.from ? { $gte: new Date(query.from) } : {}),
+        ...(query.to ? { $lte: new Date(query.to) } : {}),
+      };
+    }
+
+    const [events, count] = await Promise.all([
+      PatientTimelineEventModel.find(filter)
+        .sort({ occurredAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .lean<PatientTimelineEventLean[]>(),
+      PatientTimelineEventModel.countDocuments(filter),
+    ]);
+
+    return {
+      data: events.map(toTimelineEvent),
+      meta: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit) || 1,
+      },
+    };
   }
 
   async listDocuments(patientId: string, documentType?: string) {
@@ -276,6 +309,16 @@ export class PatientRepository {
 
     const documents = await PatientDocumentModel.find(filter).sort({ createdAt: -1 }).lean<PatientDocumentLean[]>();
     return documents.map(toPatientDocument);
+  }
+
+  async getDocument(patientId: string, documentId: string) {
+    const document = await PatientDocumentModel.findOne({
+      _id: documentId,
+      patientId: new Types.ObjectId(patientId),
+      status: 'ACTIVE',
+    }).lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : undefined;
   }
 
   async createDocument(patientId: string, data: CreatePatientDocumentDTO, userId: string) {

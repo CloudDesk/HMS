@@ -1,4 +1,5 @@
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import Fastify from 'fastify';
 import { env } from './config/env.js';
 import { loggerConfig } from './config/logger.js';
@@ -20,7 +21,15 @@ export const buildApp = async () => {
   await app.register(cors, {
     origin: env.cors.origins.includes('*') ? true : env.cors.origins,
     credentials: true,
+    exposedHeaders: ['content-disposition'],
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+
+  await app.register(multipart, {
+    limits: {
+      fileSize: env.upload.patientDocumentMaxFileSizeBytes,
+      files: 1,
+    },
   });
 
   await registerModules(app, services);
