@@ -534,12 +534,24 @@ export function OpdVisitPage() {
 
   const completeConsultation = async () => {
     if (!visit) return;
+    const errors: Record<string, string> = {};
     if (!consultationForm.chief_complaint.trim()) {
-      setConsultationFieldErrors({ chief_complaint: 'Chief Complaint is required before completing consultation.' });
+      errors.chief_complaint = 'Chief Complaint is required before completing consultation.';
+    }
+    if (!consultationForm.assessment.trim()) {
+      errors.assessment = 'Assessment / Impression is required before completing consultation.';
+    }
+    if (!consultationForm.treatment_plan.trim()) {
+      errors.treatment_plan = 'Treatment plan is required before completing consultation.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setConsultationFieldErrors(errors);
       setActiveTab('Consultation');
-      showToast('Chief Complaint is required before completing consultation.');
+      showToast(Object.values(errors)[0] || 'Required consultation fields missing.');
       return;
     }
+
     setConsultationFieldErrors({});
     setUpdating('consultation-complete');
     try {
@@ -555,9 +567,72 @@ export function OpdVisitPage() {
         treatment_plan: consultationForm.treatment_plan.trim() || null,
       };
       const response = await opdApi.completeConsultation(visit.id, payload);
+
+      // Save & Submit Prescriptions if items present
+      if (prescriptionForm.items.length > 0) {
+        await opdApi
+          .submitPrescription(visit.id, {
+            items: prescriptionForm.items.map((i) => ({
+              medicine_name: i.medicine_name,
+              strength: i.strength || null,
+              dosage: i.dosage,
+              route: i.route || 'ORAL',
+              frequency: i.frequency,
+              duration: i.duration,
+              quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+              instructions: i.instructions || null,
+            })),
+            follow_up_date: prescriptionForm.follow_up_date || null,
+            doctor_instructions: prescriptionForm.doctor_instructions || null,
+            patient_instructions: prescriptionForm.patient_instructions || null,
+          })
+          .catch(() => null);
+      }
+
+      // Save & Submit Lab Clinical Orders if selected
+      const labSelectEl = document.getElementById('lab-test-name') as HTMLSelectElement | null;
+      const selectedLabName = labSelectEl?.value;
+      if (selectedLabName) {
+        const labPriorityEl = document.getElementById('lab-priority') as HTMLSelectElement | null;
+        const matchedLabService = labTestServices.find((s) => s.name === selectedLabName);
+        await opdApi
+          .submitClinicalOrder(visit.id, 'LABORATORY', {
+            priority: (labPriorityEl?.value as any) || 'ROUTINE',
+            items: [
+              {
+                service_id: matchedLabService?.id || '',
+                investigation_name: selectedLabName,
+                category: matchedLabService?.category || 'General Lab',
+              },
+            ],
+          })
+          .catch(() => null);
+      }
+
+      // Save & Submit Imaging Clinical Orders if selected
+      const imagingSelectEl = document.getElementById('imaging-test-name') as HTMLSelectElement | null;
+      const selectedImagingName = imagingSelectEl?.value;
+      if (selectedImagingName) {
+        const imagingPriorityEl = document.getElementById('imaging-priority') as HTMLSelectElement | null;
+        const matchedImagingService = imagingServices.find((s) => s.name === selectedImagingName);
+        await opdApi
+          .submitClinicalOrder(visit.id, 'IMAGING', {
+            priority: (imagingPriorityEl?.value as any) || 'ROUTINE',
+            items: [
+              {
+                service_id: matchedImagingService?.id || '',
+                investigation_name: selectedImagingName,
+                category: matchedImagingService?.category || 'Radiology',
+              },
+            ],
+          })
+          .catch(() => null);
+      }
+
       await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED' }).catch(() => null);
       setConsultation(response);
       await loadVisit();
+      await loadClinicalData();
       showToast('Consultation completed successfully.');
     } catch (error) {
       showToast(getOpdErrorMessage(error));
@@ -870,23 +945,41 @@ export function OpdVisitPage() {
                           value={consultationForm.physical_examination}
                         />
                       </label>
-                      <label className="doc-field" htmlFor="assessment">
-                        <span>Assessment / Impression</span>
+                      <label className={`doc-field${consultationFieldErrors.assessment ? ' has-error' : ''}`} htmlFor="assessment">
+                        <span>Assessment / Impression <span className="required-asterisk">*</span></span>
                         <textarea
                           id="assessment"
-                          onChange={(e) => setConsultationForm((c) => ({ ...c, assessment: e.target.value }))}
+                          onChange={(e) => {
+                            setConsultationForm((c) => ({ ...c, assessment: e.target.value }));
+                            setConsultationFieldErrors((prev) => ({ ...prev, assessment: '' }));
+                          }}
                           rows={3}
                           value={consultationForm.assessment}
                         />
+                        {consultationFieldErrors.assessment ? (
+                          <span className="field-error-msg">
+                            <i className="ph ph-warning-circle" aria-hidden="true" />
+                            {consultationFieldErrors.assessment}
+                          </span>
+                        ) : null}
                       </label>
-                      <label className="doc-field full" htmlFor="treatment-plan">
-                        <span>Treatment Plan &amp; Advice</span>
+                      <label className={`doc-field full${consultationFieldErrors.treatment_plan ? ' has-error' : ''}`} htmlFor="treatment-plan">
+                        <span>Treatment Plan &amp; Advice <span className="required-asterisk">*</span></span>
                         <textarea
                           id="treatment-plan"
-                          onChange={(e) => setConsultationForm((c) => ({ ...c, treatment_plan: e.target.value }))}
+                          onChange={(e) => {
+                            setConsultationForm((c) => ({ ...c, treatment_plan: e.target.value }));
+                            setConsultationFieldErrors((prev) => ({ ...prev, treatment_plan: '' }));
+                          }}
                           rows={3}
                           value={consultationForm.treatment_plan}
                         />
+                        {consultationFieldErrors.treatment_plan ? (
+                          <span className="field-error-msg">
+                            <i className="ph ph-warning-circle" aria-hidden="true" />
+                            {consultationFieldErrors.treatment_plan}
+                          </span>
+                        ) : null}
                       </label>
                     </div>
                   </section>
