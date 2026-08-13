@@ -14,6 +14,7 @@ export type DoctorWorkingBlockResponse = {
   id: string;
   start_time: string;
   end_time: string;
+  max_patients_per_slot?: number;
 };
 
 export type DoctorAvailabilityResponse = {
@@ -22,6 +23,7 @@ export type DoctorAvailabilityResponse = {
   is_available: boolean;
   working_blocks: DoctorWorkingBlockResponse[];
   slot_duration_minutes: number;
+  max_patients_per_slot?: number;
 };
 
 export type DoctorResponse = {
@@ -86,8 +88,9 @@ export type SaveDoctorAvailabilityPayload = {
   availability: Array<{
     day_of_week: ApiDoctorAvailabilityDay;
     is_available: boolean;
-    working_blocks: Array<{ start_time: string; end_time: string }>;
+    working_blocks: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }>;
     slot_duration_minutes: number;
+    max_patients_per_slot?: number;
   }>;
 };
 
@@ -157,7 +160,8 @@ export type DoctorAvailableSlotsResponse = {
   is_available: boolean;
   unavailable_reason: string | null;
   slot_duration_minutes: number | null;
-  slots: Array<{ start_time: string; end_time: string }>;
+  max_patients_per_slot?: number | null;
+  slots: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }>;
 };
 
 type Paginated<T> = {

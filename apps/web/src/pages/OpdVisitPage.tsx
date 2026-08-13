@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { appointmentsApi } from '../api/appointments';
+import { doctorsApi, type ApiDoctorAvailabilityDay, type DoctorResponse } from '../api/doctors';
+import { medicinesApi } from '../api/medicines';
 import {
   opdApi,
   type OpdConsultationResponse,
@@ -6,8 +9,9 @@ import {
   type OpdVisitResponse,
   type SaveOpdConsultationPayload,
 } from '../api/opd';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { patientsApi, type PatientDocumentResponse } from '../api/patients';
+import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
+import { servicesApi, type ServiceResponse } from '../api/services';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
@@ -72,8 +76,6 @@ const WORKSPACE_TABS = [
   { id: '5', label: '5 Imaging Orders', name: 'Imaging Orders' },
   { id: '6', label: '6 Referral', name: 'Referral' },
   { id: '7', label: '7 Follow-up', name: 'Follow-up' },
-  { id: '8', label: '8 Notes', name: 'Notes' },
-  { id: '9', label: '9 Documents', name: 'Documents' },
 ] as const;
 
 const emptyVitalsForm: VitalsFormState = {
@@ -117,8 +119,8 @@ const consultationFormFromRecord = (consultation: OpdConsultationResponse | null
   treatment_plan: consultation?.treatment_plan ?? emptyConsultationForm.treatment_plan,
 });
 
-const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse): PrescriptionFormState => ({
-  items: prescription.items.map((item) => ({
+const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null | undefined): PrescriptionFormState => ({
+  items: (prescription?.items ?? []).map((item) => ({
     local_id: item.id,
     medicine_name: item.medicine_name,
     strength: item.strength ?? '',
@@ -129,9 +131,9 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse): Pres
     quantity: item.quantity?.toString() ?? '',
     instructions: item.instructions ?? '',
   })),
-  follow_up_date: prescription.follow_up_date?.slice(0, 10) ?? '',
-  doctor_instructions: prescription.doctor_instructions ?? '',
-  patient_instructions: prescription.patient_instructions ?? '',
+  follow_up_date: prescription?.follow_up_date?.slice(0, 10) ?? '',
+  doctor_instructions: prescription?.doctor_instructions ?? '',
+  patient_instructions: prescription?.patient_instructions ?? '',
 });
 
 export function OpdVisitPage() {
@@ -180,6 +182,123 @@ export function OpdVisitPage() {
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+
+  // Referral Tab (Tab 6) State
+  const [referralSpecialty, setReferralSpecialty] = useState('');
+  const [referralDoctorId, setReferralDoctorId] = useState('');
+  const [referralDate, setReferralDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [referralTimeSlot, setReferralTimeSlot] = useState('');
+  const [referralReason, setReferralReason] = useState('');
+  const [referralSlots, setReferralSlots] = useState<
+    Array<{ startTime: string; endTime: string; remainingSlots: number; isAvailable: boolean }>
+  >([]);
+  const [referralSlotLoading, setReferralSlotLoading] = useState(false);
+  const [referralBooking, setReferralBooking] = useState(false);
+
+  // Derive unique specialties from Doctor Directory records
+  const uniqueSpecialties = useMemo(() => {
+    return Array.from(new Set(doctors.map((d) => d.specialization).filter(Boolean))).sort();
+  }, [doctors]);
+
+  // Derive filtered doctors for selected referral specialty
+  const filteredReferralDoctors = useMemo(() => {
+    if (!referralSpecialty) return doctors;
+    return doctors.filter((d) => d.specialization === referralSpecialty);
+  }, [doctors, referralSpecialty]);
+
+  // Load available slots for selected referral doctor and date
+  const loadReferralSlots = useCallback(async () => {
+    if (!referralDoctorId || !referralDate) {
+      setReferralSlots([]);
+      return;
+    }
+    setReferralSlotLoading(true);
+    try {
+      const [availableSlotsRes, existingApptsRes] = await Promise.all([
+        doctorsApi.availableSlots(referralDoctorId, referralDate),
+        appointmentsApi
+          .list({ doctor_id: referralDoctorId, date_from: referralDate, date_to: referralDate, limit: 100 })
+          .catch(() => ({ data: [] })),
+      ]);
+
+      const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
+      const dayNames: ApiDoctorAvailabilityDay[] = [
+        'SUNDAY',
+        'MONDAY',
+        'TUESDAY',
+        'WEDNESDAY',
+        'THURSDAY',
+        'FRIDAY',
+        'SATURDAY',
+      ];
+      const dateParts = referralDate.split('-');
+      const dateObj =
+        dateParts.length === 3
+          ? new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]))
+          : new Date(referralDate);
+      const dayOfWeek = dayNames[dateObj.getDay()];
+      const dayAvail = selectedDoc?.availability.find((a) => a.day_of_week === dayOfWeek);
+      const configuredMax = dayAvail?.max_patients_per_slot ?? availableSlotsRes.max_patients_per_slot ?? 2;
+
+      const bookedCountMap: Record<string, number> = {};
+      existingApptsRes.data.forEach((appt) => {
+        if (appt.status !== 'CANCELLED') {
+          bookedCountMap[appt.start_time] = (bookedCountMap[appt.start_time] || 0) + 1;
+        }
+      });
+
+      const options = availableSlotsRes.slots.map((slot) => {
+        const maxCapacity = slot.max_patients_per_slot ?? configuredMax;
+        const bookedCount = bookedCountMap[slot.start_time] || 0;
+        const remainingSlots = Math.max(0, maxCapacity - bookedCount);
+        return {
+          startTime: slot.start_time,
+          endTime: slot.end_time,
+          remainingSlots,
+          isAvailable: remainingSlots > 0,
+        };
+      });
+
+      setReferralSlots(options);
+    } catch {
+      setReferralSlots([]);
+    } finally {
+      setReferralSlotLoading(false);
+    }
+  }, [doctors, referralDate, referralDoctorId]);
+
+  useEffect(() => {
+    void loadReferralSlots();
+  }, [loadReferralSlots]);
+
+  const handleBookReferralAppointment = async () => {
+    if (!visit || !referralDoctorId || !referralDate || !referralTimeSlot) {
+      showToast('Please select a doctor, date, and available time slot.');
+      return;
+    }
+    const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
+    setReferralBooking(true);
+    try {
+      await appointmentsApi.create({
+        patient_id: visit.patient_id,
+        doctor_id: referralDoctorId,
+        appointment_date: referralDate,
+        start_time: referralTimeSlot,
+        duration_minutes: 30,
+        visit_type: 'FOLLOW_UP',
+        priority: 'ROUTINE',
+        reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty || selectedDoc?.specialization}`,
+        notes: `Referred from OPD Visit #${visit.visit_number}`,
+      });
+      showToast(`Referral appointment booked successfully with ${selectedDoc?.display_name ?? 'Doctor'} on ${referralDate} at ${referralTimeSlot}!`);
+      setReferralTimeSlot('');
+      await loadReferralSlots();
+    } catch (err) {
+      showToast(getOpdErrorMessage(err));
+    } finally {
+      setReferralBooking(false);
+    }
+  };
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -269,24 +388,80 @@ export function OpdVisitPage() {
     void loadVisit();
   }, [loadVisit]);
 
+  // Master Medicines & Service Catalogue States
+  const [masterMedicines, setMasterMedicines] = useState<
+    Array<{
+      id: string;
+      name: string;
+      generic_name: string | null;
+      strength: string | null;
+      dosage_form: string | null;
+      unit: string | null;
+      available_quantity: number;
+    }>
+  >([]);
+  const [services, setServices] = useState<ServiceResponse[]>([]);
+
+  const labTestServices = useMemo(
+    () => services.filter((s) => s.service_type === 'LAB_TEST'),
+    [services],
+  );
+
+  const imagingServices = useMemo(
+    () => services.filter((s) => s.service_type === 'IMAGING_SERVICE'),
+    [services],
+  );
+
+  const selectedMasterMed = useMemo(
+    () => masterMedicines.find((m) => m.name === medicationForm.medicine_name) ?? null,
+    [masterMedicines, medicationForm.medicine_name],
+  );
+
   // Load patient clinical sub-resources
   const loadClinicalData = useCallback(async () => {
     if (!activeVisitId) return;
 
     try {
-      const [vitalsRes, consultRes, prescriptionRes, docRes] = await Promise.allSettled([
+      const [vitalsRes, consultRes, prescriptionRes, docRes, medRes, invRes, servRes] = await Promise.allSettled([
         opdApi.getLatestVitals(activeVisitId),
         opdApi.getConsultation(activeVisitId),
         opdApi.getPrescription(activeVisitId),
         doctorsApi.list({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
+        medicinesApi.list({ status: 'ACTIVE', limit: 100 }),
+        pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 } as any).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
+        servicesApi.list({ status: 'ACTIVE', limit: 100 }),
       ]);
+
+      if (servRes.status === 'fulfilled' && servRes.value?.data) {
+        setServices(servRes.value.data);
+      }
+
+      if (medRes.status === 'fulfilled' && medRes.value?.data) {
+        const invMap: Record<string, number> = {};
+        if (invRes.status === 'fulfilled' && invRes.value?.data) {
+          invRes.value.data.forEach((item) => {
+            invMap[item.medicine_id] = item.available_quantity;
+          });
+        }
+
+        const combined = medRes.value.data.map((m) => ({
+          id: m.id,
+          name: m.name,
+          generic_name: m.generic_name,
+          strength: m.strength,
+          dosage_form: m.dosage_form,
+          unit: m.unit,
+          available_quantity: invMap[m.id] ?? 120,
+        }));
+        setMasterMedicines(combined);
+      }
 
       if (vitalsRes.status === 'fulfilled' && vitalsRes.value) {
         setVitalsForm({
-          blood_pressure_systolic: vitalsRes.value.blood_pressure_systolic.toString(),
-          blood_pressure_diastolic: vitalsRes.value.blood_pressure_diastolic.toString(),
-          weight_kg: vitalsRes.value.weight_kg.toString(),
-          height_cm: vitalsRes.value.height_cm.toString(),
+          blood_pressure_systolic: vitalsRes.value.blood_pressure_systolic?.toString() ?? '',
+          blood_pressure_diastolic: vitalsRes.value.blood_pressure_diastolic?.toString() ?? '',
+          weight_kg: vitalsRes.value.weight_kg?.toString() ?? '',
+          height_cm: vitalsRes.value.height_cm?.toString() ?? '',
           temperature_c: vitalsRes.value.temperature_c?.toString() ?? '',
           pulse_bpm: vitalsRes.value.pulse_bpm?.toString() ?? '',
           respiratory_rate_per_min: vitalsRes.value.respiratory_rate_per_min?.toString() ?? '',
@@ -355,8 +530,17 @@ export function OpdVisitPage() {
     }
   };
 
+  const [consultationFieldErrors, setConsultationFieldErrors] = useState<Record<string, string>>({});
+
   const completeConsultation = async () => {
     if (!visit) return;
+    if (!consultationForm.chief_complaint.trim()) {
+      setConsultationFieldErrors({ chief_complaint: 'Chief Complaint is required before completing consultation.' });
+      setActiveTab('Consultation');
+      showToast('Chief Complaint is required before completing consultation.');
+      return;
+    }
+    setConsultationFieldErrors({});
     setUpdating('consultation-complete');
     try {
       const payload: SaveOpdConsultationPayload = {
@@ -371,6 +555,7 @@ export function OpdVisitPage() {
         treatment_plan: consultationForm.treatment_plan.trim() || null,
       };
       const response = await opdApi.completeConsultation(visit.id, payload);
+      await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED' }).catch(() => null);
       setConsultation(response);
       await loadVisit();
       showToast('Consultation completed successfully.');
@@ -474,8 +659,10 @@ export function OpdVisitPage() {
       {/* Top Header Bar */}
       <section className="opd-page-header">
         <div className="opd-page-title">
-          <h2>Consultation Workspace</h2>
-          <p>Complete the outpatient encounter, diagnosis, orders and documents</p>
+          <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
+            <i className="ph ph-arrow-left" aria-hidden="true" />
+            Back to Queue
+          </button>
         </div>
         <div className="opd-page-actions">
           {recentVisits.length > 1 ? (
@@ -497,10 +684,6 @@ export function OpdVisitPage() {
               </select>
             </label>
           ) : null}
-          <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
-            <i className="ph ph-arrow-left" aria-hidden="true" />
-            Back to Queue
-          </button>
           <button className="doc-btn" disabled={loading} onClick={loadVisit} type="button">
             <i className="ph ph-arrow-clockwise" aria-hidden="true" />
             Refresh
@@ -571,15 +754,6 @@ export function OpdVisitPage() {
                 <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
                 Patient Timeline
               </button>
-              <button
-                className="doc-btn primary"
-                disabled={updating === 'consultation-complete'}
-                onClick={completeConsultation}
-                type="button"
-              >
-                <i className="ph ph-check-circle" aria-hidden="true" />
-                Complete Consultation
-              </button>
             </div>
           </section>
 
@@ -622,14 +796,23 @@ export function OpdVisitPage() {
                       </div>
                     </div>
                     <div className="doc-form-grid two">
-                      <label className="doc-field" htmlFor="chief-complaint">
+                      <label className={`doc-field${consultationFieldErrors.chief_complaint ? ' has-error' : ''}`} htmlFor="chief-complaint">
                         <span>Chief Complaint <span className="required-asterisk">*</span></span>
                         <textarea
                           id="chief-complaint"
-                          onChange={(e) => setConsultationForm((c) => ({ ...c, chief_complaint: e.target.value }))}
+                          onChange={(e) => {
+                            setConsultationForm((c) => ({ ...c, chief_complaint: e.target.value }));
+                            setConsultationFieldErrors((prev) => ({ ...prev, chief_complaint: '' }));
+                          }}
                           rows={3}
                           value={consultationForm.chief_complaint}
                         />
+                        {consultationFieldErrors.chief_complaint ? (
+                          <span className="field-error-msg">
+                            <i className="ph ph-warning-circle" aria-hidden="true" />
+                            {consultationFieldErrors.chief_complaint}
+                          </span>
+                        ) : null}
                       </label>
                       <label className="doc-field" htmlFor="history-present-illness">
                         <span>History of Present Illness</span>
@@ -722,6 +905,16 @@ export function OpdVisitPage() {
                         Next: Diagnosis
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
+                      <button
+                        className="doc-btn success"
+                        disabled={updating === 'consultation-complete'}
+                        onClick={completeConsultation}
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        type="button"
+                      >
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        Complete Consultation
+                      </button>
                     </div>
                   </div>
                 </article>
@@ -738,14 +931,23 @@ export function OpdVisitPage() {
                       </div>
                     </div>
                     <div className="doc-form-grid two">
-                      <label className="doc-field full" htmlFor="primary-dx">
+                      <label className={`doc-field full${consultationFieldErrors.primaryDiagnosis ? ' has-error' : ''}`} htmlFor="primary-dx">
                         <span>Primary Diagnosis (ICD-10) <span className="required-asterisk">*</span></span>
                         <input
                           id="primary-dx"
-                          onChange={(e) => setPrimaryDiagnosis(e.target.value)}
+                          onChange={(e) => {
+                            setPrimaryDiagnosis(e.target.value);
+                            setConsultationFieldErrors((prev) => ({ ...prev, primaryDiagnosis: '' }));
+                          }}
                           placeholder="e.g. Essential (primary) hypertension [I10]"
                           value={primaryDiagnosis}
                         />
+                        {consultationFieldErrors.primaryDiagnosis ? (
+                          <span className="field-error-msg">
+                            <i className="ph ph-warning-circle" aria-hidden="true" />
+                            {consultationFieldErrors.primaryDiagnosis}
+                          </span>
+                        ) : null}
                       </label>
                       <label className="doc-field full" htmlFor="secondary-dx">
                         <span>Secondary Diagnoses</span>
@@ -772,6 +974,16 @@ export function OpdVisitPage() {
                         Next: Prescription
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
+                      <button
+                        className="doc-btn success"
+                        disabled={updating === 'consultation-complete'}
+                        onClick={completeConsultation}
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        type="button"
+                      >
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        Complete Consultation
+                      </button>
                     </div>
                   </div>
                 </article>
@@ -790,12 +1002,32 @@ export function OpdVisitPage() {
                     <div className="opd-medication-builder">
                       <label className="doc-field medicine" htmlFor="medicine-name">
                         <span>Medicine Name <span className="required-asterisk">*</span></span>
-                        <input
+                        <select
                           id="medicine-name"
-                          onChange={(e) => setMedicationForm((m) => ({ ...m, medicine_name: e.target.value }))}
-                          placeholder="e.g. Amlodipine"
+                          onChange={(e) => {
+                            const selectedMedName = e.target.value;
+                            const matchedOpt = masterMedicines.find((m) => m.name === selectedMedName);
+                            setMedicationForm((m) => ({
+                              ...m,
+                              medicine_name: selectedMedName,
+                              strength: matchedOpt?.strength || m.strength,
+                            }));
+                          }}
                           value={medicationForm.medicine_name}
-                        />
+                        >
+                          <option value="">Select Medicine from Master Data</option>
+                          {masterMedicines.map((med) => (
+                            <option key={med.id} value={med.name}>
+                              {med.name} {med.strength ? `(${med.strength})` : ''} — Stock: {med.available_quantity} {med.unit || 'units'}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedMasterMed ? (
+                          <span className={`stock-level-chip ${selectedMasterMed.available_quantity > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                            <i className={`ph ${selectedMasterMed.available_quantity > 0 ? 'ph-check-circle' : 'ph-warning-circle'}`} aria-hidden="true" />
+                            Available Stock: {selectedMasterMed.available_quantity} {selectedMasterMed.unit || 'units'}
+                          </span>
+                        ) : null}
                       </label>
                       <label className="doc-field" htmlFor="medicine-strength">
                         <span>Strength</span>
@@ -876,12 +1108,9 @@ export function OpdVisitPage() {
                               </td>
                             </tr>
                           ) : (
-                            prescriptionForm.items.map((item) => (
-                              <tr key={item.local_id}>
-                                <td>
-                                  <strong>{item.medicine_name}</strong>
-                                  <small>{item.strength || 'Strength not recorded'}</small>
-                                </td>
+                            prescriptionForm.items.map((item, index) => (
+                              <tr key={item.local_id || index}>
+                                <td><strong>{item.medicine_name}</strong>{item.strength ? ` (${item.strength})` : ''}</td>
                                 <td>{item.dosage}</td>
                                 <td>{item.frequency}</td>
                                 <td>{item.duration}</td>
@@ -892,12 +1121,13 @@ export function OpdVisitPage() {
                                     onClick={() =>
                                       setPrescriptionForm((prev) => ({
                                         ...prev,
-                                        items: prev.items.filter((i) => i.local_id !== item.local_id),
+                                        items: prev.items.filter((_, i) => i !== index),
                                       }))
                                     }
+                                    title="Remove medication"
                                     type="button"
                                   >
-                                    <i className="ph ph-trash" aria-hidden="true" />
+                                    <i className="ph ph-trash" />
                                   </button>
                                 </td>
                               </tr>
@@ -914,12 +1144,22 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" type="button">
+                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Lab Orders')} type="button">
                         Next: Lab Orders
                         <i className="ph ph-arrow-right" aria-hidden="true" />
+                      </button>
+                      <button
+                        className="doc-btn success"
+                        disabled={updating === 'consultation-complete'}
+                        onClick={completeConsultation}
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        type="button"
+                      >
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        Complete Consultation
                       </button>
                     </div>
                   </div>
@@ -939,7 +1179,14 @@ export function OpdVisitPage() {
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="lab-test-name">
                         <span>Test / Investigation Name <span className="required-asterisk">*</span></span>
-                        <input id="lab-test-name" placeholder="e.g. Full Blood Count (FBC)" />
+                        <select id="lab-test-name">
+                          <option value="">Select Lab Test from Service Catalogue</option>
+                          {labTestServices.map((service) => (
+                            <option key={service.id} value={service.name}>
+                              {service.name} ({service.code}) — ₹{service.standard_price}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="doc-field" htmlFor="lab-priority">
                         <span>Priority</span>
@@ -958,12 +1205,22 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" type="button">
+                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Imaging Orders')} type="button">
                         Next: Imaging Orders
                         <i className="ph ph-arrow-right" aria-hidden="true" />
+                      </button>
+                      <button
+                        className="doc-btn success"
+                        disabled={updating === 'consultation-complete'}
+                        onClick={completeConsultation}
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        type="button"
+                      >
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        Complete Consultation
                       </button>
                     </div>
                   </div>
@@ -983,7 +1240,14 @@ export function OpdVisitPage() {
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="imaging-test-name">
                         <span>Scan / Modality <span className="required-asterisk">*</span></span>
-                        <input id="imaging-test-name" placeholder="e.g. Chest X-Ray PA View" />
+                        <select id="imaging-test-name">
+                          <option value="">Select Imaging Scan from Service Catalogue</option>
+                          {imagingServices.map((service) => (
+                            <option key={service.id} value={service.name}>
+                              {service.name} ({service.code}) — ₹{service.standard_price}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="doc-field" htmlFor="imaging-priority">
                         <span>Priority</span>
@@ -1001,12 +1265,22 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" type="button">
+                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Referral')} type="button">
                         Next: Referral
                         <i className="ph ph-arrow-right" aria-hidden="true" />
+                      </button>
+                      <button
+                        className="doc-btn success"
+                        disabled={updating === 'consultation-complete'}
+                        onClick={completeConsultation}
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        type="button"
+                      >
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        Complete Consultation
                       </button>
                     </div>
                   </div>
@@ -1019,21 +1293,135 @@ export function OpdVisitPage() {
                   <section className="opd-form-section">
                     <div className="opd-form-section-head">
                       <div>
-                        <h3>Specialist Referral</h3>
-                        <p>Internal or external clinical referral details</p>
+                        <h3>Specialist Referral &amp; Direct Appointment Booking</h3>
+                        <p>Select specialty, doctor, date and book referral appointment</p>
                       </div>
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="ref-specialty">
                         <span>Specialty <span className="required-asterisk">*</span></span>
-                        <input id="ref-specialty" placeholder="e.g. Cardiology" />
+                        <select
+                          id="ref-specialty"
+                          onChange={(e) => {
+                            setReferralSpecialty(e.target.value);
+                            setReferralDoctorId('');
+                            setReferralTimeSlot('');
+                            setReferralSlots([]);
+                          }}
+                          value={referralSpecialty}
+                        >
+                          <option value="">Select Specialty</option>
+                          {uniqueSpecialties.map((spec) => (
+                            <option key={spec} value={spec}>
+                              {spec}
+                            </option>
+                          ))}
+                        </select>
                       </label>
+
+                      <label className="doc-field" htmlFor="ref-doctor">
+                        <span>Referred Doctor <span className="required-asterisk">*</span></span>
+                        <select
+                          disabled={!referralSpecialty}
+                          id="ref-doctor"
+                          onChange={(e) => {
+                            setReferralDoctorId(e.target.value);
+                            setReferralTimeSlot('');
+                          }}
+                          value={referralDoctorId}
+                        >
+                          <option value="">
+                            {referralSpecialty ? 'Select Doctor' : 'Select a Specialty first'}
+                          </option>
+                          {filteredReferralDoctors.map((doc) => (
+                            <option key={doc.id} value={doc.id}>
+                              {doc.display_name} — {doc.specialization} ({doc.consultation_room || 'OPD Room'})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="doc-field" htmlFor="ref-date">
+                        <span>Appointment Date <span className="required-asterisk">*</span></span>
+                        <input
+                          id="ref-date"
+                          min={new Date().toISOString().slice(0, 10)}
+                          onChange={(e) => {
+                            setReferralDate(e.target.value);
+                            setReferralTimeSlot('');
+                          }}
+                          type="date"
+                          value={referralDate}
+                        />
+                      </label>
+
                       <label className="doc-field" htmlFor="ref-reason">
                         <span>Reason for Referral</span>
-                        <input id="ref-reason" placeholder="Specialist assessment" />
+                        <input
+                          id="ref-reason"
+                          onChange={(e) => setReferralReason(e.target.value)}
+                          placeholder="e.g. Specialist assessment & second opinion"
+                          value={referralReason}
+                        />
                       </label>
                     </div>
                   </section>
+
+                  {/* Doctor Availability & Time Slots Section */}
+                  {referralDoctorId ? (
+                    <section className="opd-form-section" style={{ marginTop: '1.25rem' }}>
+                      <div className="opd-form-section-head">
+                        <div>
+                          <h3>Doctor Availability &amp; Open Slots</h3>
+                          <p>
+                            Select an available slot to book appointment for {referralDate}
+                          </p>
+                        </div>
+                      </div>
+
+                      {referralSlotLoading ? (
+                        <div className="um-state-cell">Loading available doctor time slots...</div>
+                      ) : referralSlots.length === 0 ? (
+                        <div className="form-error-banner" style={{ background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626' }}>
+                          <i className="ph ph-warning-circle" aria-hidden="true" />
+                          <span>Doctor is not available for appointments on {referralDate}. Please pick another date.</span>
+                        </div>
+                      ) : (
+                        <div className="referral-slots-grid">
+                          {referralSlots.map((slot) => {
+                            const isSelected = referralTimeSlot === slot.startTime;
+                            return (
+                              <button
+                                className={`referral-slot-btn${isSelected ? ' selected' : ''}${!slot.isAvailable ? ' disabled' : ''}`}
+                                disabled={!slot.isAvailable}
+                                key={slot.startTime}
+                                onClick={() => setReferralTimeSlot(slot.startTime)}
+                                type="button"
+                              >
+                                <span className="slot-time">{slot.startTime}</span>
+                                <span className={`slot-capacity-badge ${slot.remainingSlots > 2 ? 'available' : slot.remainingSlots > 0 ? 'warning' : 'full'}`}>
+                                  {slot.isAvailable ? `${slot.remainingSlots} slots left` : 'Fully booked'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="referral-booking-action-bar" style={{ marginTop: '1.25rem' }}>
+                        <button
+                          className="doc-btn primary"
+                          disabled={!referralTimeSlot || referralBooking}
+                          onClick={() => void handleBookReferralAppointment()}
+                          style={{ minWidth: '220px' }}
+                          type="button"
+                        >
+                          <i className="ph ph-calendar-plus" aria-hidden="true" />
+                          {referralBooking ? 'Booking Appointment...' : 'Book Referral Appointment'}
+                        </button>
+                      </div>
+                    </section>
+                  ) : null}
 
                   <div className="opd-sticky-actions">
                     <span className="opd-autosave saved">
@@ -1041,12 +1429,22 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" type="button">
+                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Follow-up')} type="button">
                         Next: Follow-up
                         <i className="ph ph-arrow-right" aria-hidden="true" />
+                      </button>
+                      <button
+                        className="doc-btn success"
+                        disabled={updating === 'consultation-complete'}
+                        onClick={completeConsultation}
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        type="button"
+                      >
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        Complete Consultation
                       </button>
                     </div>
                   </div>
@@ -1088,12 +1486,22 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" type="button">
+                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Notes')} type="button">
                         Next: Notes
                         <i className="ph ph-arrow-right" aria-hidden="true" />
+                      </button>
+                      <button
+                        className="doc-btn success"
+                        disabled={updating === 'consultation-complete'}
+                        onClick={completeConsultation}
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        type="button"
+                      >
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        Complete Consultation
                       </button>
                     </div>
                   </div>
@@ -1256,19 +1664,10 @@ export function OpdVisitPage() {
             <aside className="opd-summary-panel">
               {/* Patient Summary / Vitals Card */}
               <div className="doc-card opd-summary-card">
-                <div className="doc-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="doc-card-header">
                   <div>
-                    <h3 style={{ margin: 0 }}>Patient Summary</h3>
+                    <h3>Patient Summary</h3>
                   </div>
-                  <button
-                    className="doc-btn primary"
-                    onClick={() => setVitalsModalOpen(true)}
-                    style={{ padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
-                    type="button"
-                  >
-                    <i className="ph ph-heartbeat" aria-hidden="true" />
-                    + Record Vitals
-                  </button>
                 </div>
                 <div className="opd-summary-list">
                   <div className="opd-summary-row">

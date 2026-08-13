@@ -63,6 +63,80 @@ export function OpdQueuePage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
 
+  const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
+  const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
+  const [vitalsForm, setVitalsForm] = useState({
+    blood_pressure_systolic: '120',
+    blood_pressure_diastolic: '80',
+    weight_kg: '70',
+    height_cm: '170',
+    temperature_c: '36.8',
+    pulse_bpm: '72',
+    respiratory_rate_per_min: '16',
+    oxygen_saturation_percent: '98',
+    notes: '',
+  });
+  const [vitalsSubmitting, setVitalsSubmitting] = useState(false);
+  const [vitalsError, setVitalsError] = useState('');
+  const [vitalsFieldErrors, setVitalsFieldErrors] = useState<Record<string, string>>({});
+
+  const openVitalsModal = (visit: OpdVisitResponse) => {
+    setVitalsVisit(visit);
+    setVitalsError('');
+    setVitalsFieldErrors({});
+    setVitalsModalOpen(true);
+  };
+
+  const saveVitals = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vitalsVisit) return;
+
+    const errors: Record<string, string> = {};
+    if (!vitalsForm.blood_pressure_systolic.trim()) {
+      errors.blood_pressure_systolic = 'Systolic BP is required.';
+    }
+    if (!vitalsForm.blood_pressure_diastolic.trim()) {
+      errors.blood_pressure_diastolic = 'Diastolic BP is required.';
+    }
+    if (!vitalsForm.weight_kg.trim()) {
+      errors.weight_kg = 'Weight is required.';
+    }
+    if (!vitalsForm.height_cm.trim()) {
+      errors.height_cm = 'Height is required.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setVitalsFieldErrors(errors);
+      return;
+    }
+
+    setVitalsFieldErrors({});
+    setVitalsSubmitting(true);
+    setVitalsError('');
+    try {
+      await opdApi.createVitals(vitalsVisit.id, {
+        blood_pressure_systolic: Number(vitalsForm.blood_pressure_systolic) || 120,
+        blood_pressure_diastolic: Number(vitalsForm.blood_pressure_diastolic) || 80,
+        weight_kg: Number(vitalsForm.weight_kg) || 70,
+        height_cm: Number(vitalsForm.height_cm) || 170,
+        temperature_c: vitalsForm.temperature_c ? Number(vitalsForm.temperature_c) : null,
+        pulse_bpm: vitalsForm.pulse_bpm ? Number(vitalsForm.pulse_bpm) : null,
+        respiratory_rate_per_min: vitalsForm.respiratory_rate_per_min ? Number(vitalsForm.respiratory_rate_per_min) : null,
+        oxygen_saturation_percent: vitalsForm.oxygen_saturation_percent ? Number(vitalsForm.oxygen_saturation_percent) : null,
+        notes: vitalsForm.notes.trim() || null,
+      });
+      await opdApi.updateVisitStatus(vitalsVisit.id, { status: 'READY_FOR_CONSULTATION' }).catch(() => null);
+      setVitalsModalOpen(false);
+      setVitalsVisit(null);
+      await loadQueue();
+      showToast(`Vitals recorded for ${vitalsVisit.patient_name}`);
+    } catch (err) {
+      setVitalsError(getOpdErrorMessage(err));
+    } finally {
+      setVitalsSubmitting(false);
+    }
+  };
+
   const sortedVisits = useMemo(() => [...visits].sort(visitSort), [visits]);
   const activeVisits = sortedVisits.filter(isActiveVisit);
   const currentVisit = sortedVisits.find((visit) => visit.status === 'IN_CONSULTATION') ?? null;
@@ -222,8 +296,8 @@ export function OpdQueuePage() {
       <div className="opd-page">
         <section className="opd-page-header">
           <div className="opd-page-title">
-            <h2>OPD Waiting Queue</h2>
-            <p>Coordinate check-in, active visits and consultation readiness</p>
+            {/* <h2>OPD Waiting Queue</h2>
+            <p>Coordinate check-in, active visits and consultation readiness</p> */}
           </div>
           <div className="opd-page-actions">
             <button className="doc-btn" onClick={loadQueue} type="button">
@@ -407,6 +481,15 @@ export function OpdQueuePage() {
                               <i className="ph ph-arrow-square-out" aria-hidden="true" />
                             </button>
                             <button
+                              className="doc-action primary"
+                              disabled={updating === visit.id}
+                              onClick={() => openVitalsModal(visit)}
+                              title="Record Vitals"
+                              type="button"
+                            >
+                              <i className="ph ph-heartbeat" aria-hidden="true" />
+                            </button>
+                            <button
                               className="doc-action"
                               disabled={updating === visit.id || visit.status !== 'READY_FOR_CONSULTATION'}
                               onClick={() => updateVisitStatus(visit, 'IN_CONSULTATION', 'Patient called for doctor consultation.')}
@@ -553,6 +636,151 @@ export function OpdQueuePage() {
             <button className="primary-action" disabled={updating === 'walk-in'} type="submit">
               {updating === 'walk-in' ? 'Checking in...' : 'Check in'}
             </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Record Patient Vitals Modal */}
+      <Modal
+        footer={
+          <>
+            <button className="secondary-action" onClick={() => setVitalsModalOpen(false)} type="button">
+              Cancel
+            </button>
+            <button className="primary-action" disabled={vitalsSubmitting} onClick={(e) => void saveVitals(e)} type="button">
+              {vitalsSubmitting ? 'Saving...' : 'Save Vitals'}
+            </button>
+          </>
+        }
+        icon="ph-heartbeat"
+        onClose={() => setVitalsModalOpen(false)}
+        open={vitalsModalOpen}
+        title={`Record Vitals - ${vitalsVisit?.patient_name ?? ''}`}
+      >
+        <form onSubmit={saveVitals}>
+          {vitalsError ? <div className="form-error-banner">{vitalsError}</div> : null}
+          <div className="walk-in-form-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+            <div className={`form-group${vitalsFieldErrors.blood_pressure_systolic ? ' has-error' : ''}`}>
+              <label htmlFor="sys-bp">
+                Systolic BP (mmHg) <span className="required-asterisk">*</span>
+              </label>
+              <input
+                id="sys-bp"
+                onChange={(e) => {
+                  setVitalsForm({ ...vitalsForm, blood_pressure_systolic: e.target.value });
+                  setVitalsFieldErrors((prev) => ({ ...prev, blood_pressure_systolic: '' }));
+                }}
+                required
+                type="number"
+                value={vitalsForm.blood_pressure_systolic}
+              />
+              {vitalsFieldErrors.blood_pressure_systolic ? (
+                <span className="field-error-msg">
+                  <i className="ph ph-warning-circle" aria-hidden="true" />
+                  {vitalsFieldErrors.blood_pressure_systolic}
+                </span>
+              ) : null}
+            </div>
+            <div className={`form-group${vitalsFieldErrors.blood_pressure_diastolic ? ' has-error' : ''}`}>
+              <label htmlFor="dia-bp">
+                Diastolic BP (mmHg) <span className="required-asterisk">*</span>
+              </label>
+              <input
+                id="dia-bp"
+                onChange={(e) => {
+                  setVitalsForm({ ...vitalsForm, blood_pressure_diastolic: e.target.value });
+                  setVitalsFieldErrors((prev) => ({ ...prev, blood_pressure_diastolic: '' }));
+                }}
+                required
+                type="number"
+                value={vitalsForm.blood_pressure_diastolic}
+              />
+              {vitalsFieldErrors.blood_pressure_diastolic ? (
+                <span className="field-error-msg">
+                  <i className="ph ph-warning-circle" aria-hidden="true" />
+                  {vitalsFieldErrors.blood_pressure_diastolic}
+                </span>
+              ) : null}
+            </div>
+            <div className="form-group">
+              <label htmlFor="pulse">Pulse Rate (bpm)</label>
+              <input
+                id="pulse"
+                onChange={(e) => setVitalsForm({ ...vitalsForm, pulse_bpm: e.target.value })}
+                type="number"
+                value={vitalsForm.pulse_bpm}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="temp">Temperature (°C)</label>
+              <input
+                id="temp"
+                onChange={(e) => setVitalsForm({ ...vitalsForm, temperature_c: e.target.value })}
+                step="0.1"
+                type="number"
+                value={vitalsForm.temperature_c}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="spo2">SpO₂ (%)</label>
+              <input
+                id="spo2"
+                onChange={(e) => setVitalsForm({ ...vitalsForm, oxygen_saturation_percent: e.target.value })}
+                type="number"
+                value={vitalsForm.oxygen_saturation_percent}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="resp">Resp. Rate (min)</label>
+              <input
+                id="resp"
+                onChange={(e) => setVitalsForm({ ...vitalsForm, respiratory_rate_per_min: e.target.value })}
+                type="number"
+                value={vitalsForm.respiratory_rate_per_min}
+              />
+            </div>
+            <div className={`form-group${vitalsFieldErrors.weight_kg ? ' has-error' : ''}`}>
+              <label htmlFor="weight">
+                Weight (kg) <span className="required-asterisk">*</span>
+              </label>
+              <input
+                id="weight"
+                onChange={(e) => {
+                  setVitalsForm({ ...vitalsForm, weight_kg: e.target.value });
+                  setVitalsFieldErrors((prev) => ({ ...prev, weight_kg: '' }));
+                }}
+                required
+                type="number"
+                value={vitalsForm.weight_kg}
+              />
+              {vitalsFieldErrors.weight_kg ? (
+                <span className="field-error-msg">
+                  <i className="ph ph-warning-circle" aria-hidden="true" />
+                  {vitalsFieldErrors.weight_kg}
+                </span>
+              ) : null}
+            </div>
+            <div className={`form-group${vitalsFieldErrors.height_cm ? ' has-error' : ''}`}>
+              <label htmlFor="height">
+                Height (cm) <span className="required-asterisk">*</span>
+              </label>
+              <input
+                id="height"
+                onChange={(e) => {
+                  setVitalsForm({ ...vitalsForm, height_cm: e.target.value });
+                  setVitalsFieldErrors((prev) => ({ ...prev, height_cm: '' }));
+                }}
+                required
+                type="number"
+                value={vitalsForm.height_cm}
+              />
+              {vitalsFieldErrors.height_cm ? (
+                <span className="field-error-msg">
+                  <i className="ph ph-warning-circle" aria-hidden="true" />
+                  {vitalsFieldErrors.height_cm}
+                </span>
+              ) : null}
+            </div>
           </div>
         </form>
       </Modal>
