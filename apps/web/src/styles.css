@@ -8324,4 +8324,44 @@ p {
   flex: 1;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Required Asterisk Red Color & Inline Field Error Message Styles
+   ───────────────────────────────────────────────────────────── */
+
+.required-asterisk,
+label .required-asterisk,
+.doc-field label .required-asterisk,
+.form-group label .required-asterisk {
+  color: #dc2626 !important;
+  font-weight: 800 !important;
+  margin-left: 0.2rem !important;
+  display: inline-block;
+}
+
+.field-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
+  line-height: 1.2;
+}
+
+.doc-field.has-error input,
+.doc-field.has-error select,
+.doc-field.has-error textarea,
+.form-group.has-error input,
+.form-group.has-error select,
+.form-group.has-error textarea,
+input.has-error,
+select.has-error,
+textarea.has-error {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+  box-shadow: 0 0 0 1px #ef4444 !important;
+}
+
+
 

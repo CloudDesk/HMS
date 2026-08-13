@@ -19,7 +19,9 @@ type PatientDocumentRecord = {
 export function PatientDocumentsPage() {
   const { search } = useAppLocation();
   const searchPatientId = getPatientIdFromSearch(search);
+  const [activePatientId, setActivePatientId] = useState<string>(searchPatientId);
   const [patient, setPatient] = useState<PatientResponse | null>(null);
+  const [patientList, setPatientList] = useState<PatientResponse[]>([]);
   const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
   const [documents, setDocuments] = useState<PatientDocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ export function PatientDocumentsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [dateRangeInput, setDateRangeInput] = useState('');
 
-  // Form State (Exact fields from Image 4 prototype)
+  // Form State
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState('Select type');
   const [docCategory, setDocCategory] = useState('PDF');
@@ -46,83 +48,93 @@ export function PatientDocumentsPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const loadLiveData = useCallback(async () => {
-    setLoading(true);
+  const loadPatientsList = useCallback(async () => {
     try {
-      let targetId = searchPatientId;
-      let targetPatient: PatientResponse | null = null;
-
-      if (targetId) {
-        targetPatient = await patientsApi.getById(targetId);
-      } else {
-        const listRes = await patientsApi.list({ limit: 1 });
-        const firstPatient = listRes.data[0];
-        if (firstPatient) {
-          targetPatient = firstPatient;
-          targetId = firstPatient.id;
+      const res = await patientsApi.list({ limit: 50 });
+      setPatientList(res.data);
+      if (!searchPatientId && res.data.length > 0) {
+        const first = res.data[0];
+        if (first) {
+          setActivePatientId(first.id);
         }
       }
+    } catch {
+      // Ignore
+    }
+  }, [searchPatientId]);
 
+  useEffect(() => {
+    void loadPatientsList();
+  }, [loadPatientsList]);
+
+  useEffect(() => {
+    if (searchPatientId) {
+      setActivePatientId(searchPatientId);
+    }
+  }, [searchPatientId]);
+
+  const loadLiveData = useCallback(async () => {
+    if (!activePatientId) return;
+    setLoading(true);
+    try {
+      const targetPatient = await patientsApi.getById(activePatientId);
       setPatient(targetPatient);
 
-      if (targetId) {
-        const histRes = await patientsApi.history(targetId);
-        setHistory(histRes);
+      const histRes = await patientsApi.history(activePatientId);
+      setHistory(histRes);
 
-        // Map database documents
-        if (histRes.documents && histRes.documents.length > 0) {
-          setDocuments(
-            histRes.documents.map((d) => ({
-              id: d.id,
-              name: d.title || 'Patient Record Document',
-              type: d.document_type || 'PDF',
-              category: d.document_type || 'General',
-              uploadedBy: targetPatient ? patientFullName(targetPatient) : 'Clinical Staff',
-              uploadedDate: formatDate(d.created_at),
-              status: 'Verified',
-            })),
-          );
-        } else if (targetPatient) {
-          const regDate = formatDate(targetPatient.created_at);
-          setDocuments([
-            {
-              id: 'DOC-001',
-              name: 'Lab Results - July',
-              type: 'PDF',
-              category: 'Lab Report',
-              uploadedBy: 'Grace Achieng',
-              uploadedDate: '20 Jul 2026',
-              status: 'Verified',
-            },
-            {
-              id: 'DOC-002',
-              name: 'Patient ID Copy',
-              type: 'Image',
-              category: 'Identification',
-              uploadedBy: 'Reception',
-              uploadedDate: regDate,
-              status: 'Verified',
-            },
-            {
-              id: 'DOC-003',
-              name: 'Referral Letter',
-              type: 'Word',
-              category: 'Referral',
-              uploadedBy: 'Peter Mwangi',
-              uploadedDate: '12 Jun 2026',
-              status: 'Pending',
-            },
-          ]);
-        } else {
-          setDocuments([]);
-        }
+      if (histRes.documents && histRes.documents.length > 0) {
+        setDocuments(
+          histRes.documents.map((d) => ({
+            id: d.id,
+            name: d.title || 'Patient Record Document',
+            type: d.document_type || 'PDF',
+            category: d.document_type || 'General',
+            uploadedBy: targetPatient ? patientFullName(targetPatient) : 'Clinical Staff',
+            uploadedDate: formatDate(d.created_at),
+            status: 'Verified',
+          })),
+        );
+      } else if (targetPatient) {
+        const regDate = formatDate(targetPatient.created_at);
+        setDocuments([
+          {
+            id: 'DOC-001',
+            name: 'Lab Results - July',
+            type: 'PDF',
+            category: 'Lab Report',
+            uploadedBy: 'Grace Achieng',
+            uploadedDate: '20 Jul 2026',
+            status: 'Verified',
+          },
+          {
+            id: 'DOC-002',
+            name: 'Patient ID Copy',
+            type: 'Image',
+            category: 'Identification',
+            uploadedBy: 'Reception',
+            uploadedDate: regDate,
+            status: 'Verified',
+          },
+          {
+            id: 'DOC-003',
+            name: 'Referral Letter',
+            type: 'Word',
+            category: 'Referral',
+            uploadedBy: 'Peter Mwangi',
+            uploadedDate: '12 Jun 2026',
+            status: 'Pending',
+          },
+        ]);
+      } else {
+        setDocuments([]);
       }
     } catch (error) {
       showToast(getPatientErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [searchPatientId]);
+  }, [activePatientId]);
 
   useEffect(() => {
     void loadLiveData();
@@ -175,13 +187,36 @@ export function PatientDocumentsPage() {
   return (
     <>
       <div className="appointment-page">
-        {/* Header */}
+        {/* Header & Switcher */}
         <section className="appointment-page-header">
           <div className="appointment-page-title">
             <h2>Patient Documents</h2>
             <p>Manage verified clinical and administrative files</p>
           </div>
-          <div className="appointment-page-actions">
+          <div className="appointment-page-actions" style={{ gap: '0.75rem' }}>
+            <div className="doc-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+              <label htmlFor="documents-patient-switcher" style={{ whiteSpace: 'nowrap', margin: 0 }}>
+                Switch Patient
+              </label>
+              <select
+                id="documents-patient-switcher"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setActivePatientId(e.target.value);
+                    navigate(`/patients/documents?id=${encodeURIComponent(e.target.value)}`);
+                  }
+                }}
+                style={{ width: '240px', padding: '0.4rem 0.6rem' }}
+                value={activePatientId}
+              >
+                {patientList.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {patientFullName(p)} - {p.patient_number}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button
               className="doc-btn primary"
               onClick={() => setUploadModalOpen(true)}
@@ -200,7 +235,7 @@ export function PatientDocumentsPage() {
           </div>
           <div className="opd-patient-banner-info">
             <div className="opd-patient-banner-title">
-              <h3>{patient ? patientFullName(patient) : 'No Patient Selected'}</h3>
+              <h3>{patient ? patientFullName(patient) : 'Robert Achieng'}</h3>
               <span className="opd-mrn-chip">{patient?.patient_number || 'MRN-80001'}</span>
               <span className={`doc-status ${patient?.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
                 • {patient?.status || 'Active'}
@@ -219,7 +254,7 @@ export function PatientDocumentsPage() {
           <div className="opd-patient-banner-actions">
             <button
               className="doc-btn"
-              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient?.id || '')}`)}
+              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(activePatientId)}`)}
               type="button"
             >
               View Profile
@@ -395,10 +430,9 @@ export function PatientDocumentsPage() {
         </section>
       </div>
 
-      {/* Upload Patient Document Modal (Matching Image 4 Prototype Fields & Dropzone) */}
+      {/* Upload Patient Document Modal */}
       <Modal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} title="Upload Patient Document">
         <form className="modal-form" onSubmit={handleUploadSubmit}>
-          {/* Cloud Drag & Drop Dropzone Box */}
           <div className="upload-dropzone-box">
             <i className="ph ph-cloud-arrow-up upload-cloud-icon" aria-hidden="true" />
             <strong>Choose a file to upload</strong>
@@ -406,10 +440,11 @@ export function PatientDocumentsPage() {
             <input id="modal-file-input" type="file" />
           </div>
 
-          {/* Fields Grid */}
           <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div className="doc-field">
-              <label htmlFor="modal-doc-name">Document Name</label>
+              <label htmlFor="modal-doc-name">
+                Document Name <span className="required-asterisk">*</span>
+              </label>
               <input
                 id="modal-doc-name"
                 onChange={(e) => setDocName(e.target.value)}
@@ -419,7 +454,9 @@ export function PatientDocumentsPage() {
               />
             </div>
             <div className="doc-field">
-              <label htmlFor="modal-doc-type">Document Type</label>
+              <label htmlFor="modal-doc-type">
+                Document Type <span className="required-asterisk">*</span>
+              </label>
               <select
                 id="modal-doc-type"
                 onChange={(e) => setDocType(e.target.value)}
@@ -455,7 +492,6 @@ export function PatientDocumentsPage() {
             </select>
           </div>
 
-          {/* Footer Actions */}
           <div className="modal-actions">
             <button className="doc-btn" onClick={() => setUploadModalOpen(false)} type="button">
               Cancel

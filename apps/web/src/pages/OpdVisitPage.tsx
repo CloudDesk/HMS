@@ -889,7 +889,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field full" htmlFor="primary-dx">
-                        <span>Primary Diagnosis (ICD-10) *</span>
+                        <span>Primary Diagnosis (ICD-10) <span className="required-asterisk">*</span></span>
                         <input
                           id="primary-dx"
                           onChange={(e) => setPrimaryDiagnosis(e.target.value)}
@@ -939,7 +939,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="opd-medication-builder">
                       <label className="doc-field medicine" htmlFor="medicine-name">
-                        <span>Medicine Name *</span>
+                        <span>Medicine Name <span className="required-asterisk">*</span></span>
                         <input
                           id="medicine-name"
                           onChange={(e) => setMedicationForm((m) => ({ ...m, medicine_name: e.target.value }))}
@@ -1088,7 +1088,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="lab-test-name">
-                        <span>Test / Investigation Name *</span>
+                        <span>Test / Investigation Name <span className="required-asterisk">*</span></span>
                         <input id="lab-test-name" placeholder="e.g. Full Blood Count (FBC)" />
                       </label>
                       <label className="doc-field" htmlFor="lab-priority">
@@ -1132,7 +1132,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="imaging-test-name">
-                        <span>Scan / Modality *</span>
+                        <span>Scan / Modality <span className="required-asterisk">*</span></span>
                         <input id="imaging-test-name" placeholder="e.g. Chest X-Ray PA View" />
                       </label>
                       <label className="doc-field" htmlFor="imaging-priority">
@@ -1175,7 +1175,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="ref-specialty">
-                        <span>Specialty *</span>
+                        <span>Specialty <span className="required-asterisk">*</span></span>
                         <input id="ref-specialty" placeholder="e.g. Cardiology" />
                       </label>
                       <label className="doc-field" htmlFor="ref-reason">
