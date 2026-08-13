@@ -1,0 +1,143 @@
+import mongoose, { Schema, Types } from 'mongoose';
+import type { BillingInvoiceStatus, BillingPaymentMethod, BillingServiceType } from './billing.types.js';
+
+export type BillingInvoiceFields = {
+  invoiceNumber: string;
+  patientId: Types.ObjectId;
+  visitId: Types.ObjectId;
+  appointmentId?: Types.ObjectId | null;
+  branchId: Types.ObjectId;
+  invoiceDate: Date;
+  status: BillingInvoiceStatus;
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  balanceAmount: number;
+  createdBy?: Types.ObjectId;
+  updatedBy?: Types.ObjectId;
+  deletedBy?: Types.ObjectId;
+  deletedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type BillingInvoiceItemFields = {
+  invoiceId: Types.ObjectId;
+  serviceId: Types.ObjectId;
+  serviceName: string;
+  serviceType: BillingServiceType;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  createdBy?: Types.ObjectId;
+  updatedBy?: Types.ObjectId;
+  deletedBy?: Types.ObjectId;
+  deletedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type BillingPaymentFields = {
+  invoiceId: Types.ObjectId;
+  patientId: Types.ObjectId;
+  branchId: Types.ObjectId;
+  paymentNumber: string;
+  amount: number;
+  paymentMethod: BillingPaymentMethod;
+  paymentDate: Date;
+  referenceNumber?: string | null;
+  createdBy?: Types.ObjectId;
+  updatedBy?: Types.ObjectId;
+  deletedBy?: Types.ObjectId;
+  deletedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const auditFields = {
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  deletedAt: { type: Date, default: null },
+} as const;
+
+const invoiceSchema = new Schema<BillingInvoiceFields>(
+  {
+    invoiceNumber: { type: String, required: true, unique: true, trim: true },
+    patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
+    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
+    appointmentId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    invoiceDate: { type: Date, required: true },
+    status: {
+      type: String,
+      enum: ['DRAFT', 'PENDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'],
+      default: 'DRAFT',
+      required: true,
+    },
+    subtotal: { type: Number, required: true, min: 0 },
+    discountAmount: { type: Number, required: true, min: 0, default: 0 },
+    taxAmount: { type: Number, required: true, min: 0, default: 0 },
+    totalAmount: { type: Number, required: true, min: 0 },
+    paidAmount: { type: Number, required: true, min: 0, default: 0 },
+    balanceAmount: { type: Number, required: true, min: 0 },
+    ...auditFields,
+  },
+  { collection: 'billing_invoices', timestamps: true },
+);
+
+invoiceSchema.index({ patientId: 1, createdAt: -1 });
+invoiceSchema.index({ visitId: 1 });
+invoiceSchema.index({ status: 1, createdAt: -1 });
+invoiceSchema.index({ branchId: 1, invoiceDate: -1, status: 1 });
+
+const invoiceItemSchema = new Schema<BillingInvoiceItemFields>(
+  {
+    invoiceId: { type: Schema.Types.ObjectId, ref: 'BillingInvoice', required: true },
+    serviceId: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
+    serviceName: { type: String, required: true, trim: true },
+    serviceType: {
+      type: String,
+      enum: ['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE', 'PHARMACY'],
+      required: true,
+    },
+    quantity: { type: Number, required: true, min: 1 },
+    unitPrice: { type: Number, required: true, min: 0 },
+    lineTotal: { type: Number, required: true, min: 0 },
+    ...auditFields,
+  },
+  { collection: 'billing_invoice_items', timestamps: true },
+);
+
+invoiceItemSchema.index({ invoiceId: 1, deletedAt: 1 });
+invoiceItemSchema.index({ serviceId: 1, createdAt: -1 });
+
+const paymentSchema = new Schema<BillingPaymentFields>(
+  {
+    invoiceId: { type: Schema.Types.ObjectId, ref: 'BillingInvoice', required: true },
+    patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    paymentNumber: { type: String, required: true, unique: true, trim: true },
+    amount: { type: Number, required: true, min: 0.01 },
+    paymentMethod: {
+      type: String,
+      enum: ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER'],
+      required: true,
+    },
+    paymentDate: { type: Date, required: true },
+    referenceNumber: { type: String, default: null, trim: true },
+    ...auditFields,
+  },
+  { collection: 'billing_payments', timestamps: true },
+);
+
+paymentSchema.index({ invoiceId: 1 });
+paymentSchema.index({ paymentDate: -1 });
+paymentSchema.index({ branchId: 1, paymentDate: -1 });
+
+export const BillingInvoiceModel = mongoose.model<BillingInvoiceFields>('BillingInvoice', invoiceSchema);
+export const BillingInvoiceItemModel = mongoose.model<BillingInvoiceItemFields>('BillingInvoiceItem', invoiceItemSchema);
+export const BillingPaymentModel = mongoose.model<BillingPaymentFields>('BillingPayment', paymentSchema);
+

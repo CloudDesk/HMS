@@ -1,0 +1,112 @@
+steps:
+  - id: set-project
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - config
+      - set
+      - project
+      - ${_PROJECT_ID}
+
+  - id: enable-cloud-run-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - services
+      - enable
+      - run.googleapis.com
+      - --project
+      - ${_PROJECT_ID}
+
+  - id: build-api-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.api
+      - -t
+      - gcr.io/h-m-s-505410/hms-api-sit:$SHORT_SHA
+      - .
+
+  - id: push-api-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - gcr.io/h-m-s-505410/hms-api-sit:$SHORT_SHA
+
+  - id: deploy-api-sit
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image
+      - gcr.io/h-m-s-505410/hms-api-sit:$SHORT_SHA
+      - --project
+      - ${_PROJECT_ID}
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --execution-environment
+      - gen2
+      - --memory
+      - ${_MEMORY}
+      - --cpu
+      - ${_CPU}
+      - --min-instances
+      - ${_MIN_INSTANCES}
+      - --max-instances
+      - ${_MAX_INSTANCES}
+      - --concurrency
+      - ${_CONCURRENCY}
+      - --timeout
+      - ${_TIMEOUT}
+      - --port
+      - "8080"
+      - --set-env-vars
+      - ^|^APP_NAME=${_APP_NAME}|APP_ENV=${_APP_ENV}|NODE_ENV=${_NODE_ENV}|HOST=0.0.0.0|PORT=8080|LOG_LEVEL=${_LOG_LEVEL}|CORS_ORIGIN=${_CORS_ORIGIN}|MONGODB_DATABASE_URL=${_MONGODB_DATABASE_URL}|MONGODB_DNS_SERVERS=${_MONGODB_DNS_SERVERS}|PATIENT_DOCUMENT_STORAGE_PROVIDER=${_PATIENT_DOCUMENT_STORAGE_PROVIDER}|LOCAL_PATIENT_DOCUMENT_STORAGE_PATH=${_LOCAL_PATIENT_DOCUMENT_STORAGE_PATH}|GCP_PATIENT_DOCUMENTS_BUCKET=${_GCP_PATIENT_DOCUMENTS_BUCKET}|JWT_ACCESS_TOKEN_SECRET=${_JWT_ACCESS_TOKEN_SECRET}|JWT_ACCESS_TOKEN_TTL_SECONDS=${_JWT_ACCESS_TOKEN_TTL_SECONDS}|JWT_REFRESH_TOKEN_SECRET=${_JWT_REFRESH_TOKEN_SECRET}|JWT_REFRESH_TOKEN_TTL_SECONDS=${_JWT_REFRESH_TOKEN_TTL_SECONDS}|AUTH_FAILED_LOGIN_LIMIT=${_AUTH_FAILED_LOGIN_LIMIT}|AUTH_LOCKOUT_MINUTES=${_AUTH_LOCKOUT_MINUTES}|AUTH_PASSWORD_MIN_LENGTH=${_AUTH_PASSWORD_MIN_LENGTH}|AUTH_PASSWORD_REQUIRE_LOWERCASE=${_AUTH_PASSWORD_REQUIRE_LOWERCASE}|AUTH_PASSWORD_REQUIRE_NUMBER=${_AUTH_PASSWORD_REQUIRE_NUMBER}|AUTH_PASSWORD_REQUIRE_SYMBOL=${_AUTH_PASSWORD_REQUIRE_SYMBOL}|AUTH_PASSWORD_REQUIRE_UPPERCASE=${_AUTH_PASSWORD_REQUIRE_UPPERCASE}|AUTH_PASSWORD_RESET_TTL_MINUTES=${_AUTH_PASSWORD_RESET_TTL_MINUTES}
+
+images:
+  - gcr.io/h-m-s-505410/hms-api-sit:$SHORT_SHA
+
+substitutions:
+  _PROJECT_ID: h-m-s-505410
+  _REGION: asia-south1
+  _SERVICE_NAME: hms-api-sit
+  _MEMORY: 512Mi
+  _CPU: "1"
+  _MIN_INSTANCES: "0"
+  _MAX_INSTANCES: "3"
+  _CONCURRENCY: "80"
+  _TIMEOUT: 300s
+
+  # SIT temporarily mirrors apps/api/.env.dev until apps/api/.env.sit is ready.
+  # Configure the matching substitution values on the Cloud Build trigger.
+  _APP_NAME: hms-api
+  _APP_ENV: dev
+  _NODE_ENV: production
+  _LOG_LEVEL: info
+  _CORS_ORIGIN: "*"
+  _MONGODB_DATABASE_URL: ""
+  _MONGODB_DNS_SERVERS: ""
+  _PATIENT_DOCUMENT_STORAGE_PROVIDER: local
+  _LOCAL_PATIENT_DOCUMENT_STORAGE_PATH: ./storage/patient-documents
+  _GCP_PATIENT_DOCUMENTS_BUCKET: ""
+  _JWT_ACCESS_TOKEN_SECRET: dev-access-token-secret-change-me
+  _JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
+  _JWT_REFRESH_TOKEN_SECRET: dev-refresh-token-secret-change-me
+  _JWT_REFRESH_TOKEN_TTL_SECONDS: "604800"
+  _AUTH_FAILED_LOGIN_LIMIT: "5"
+  _AUTH_LOCKOUT_MINUTES: "15"
+  _AUTH_PASSWORD_MIN_LENGTH: "8"
+  _AUTH_PASSWORD_REQUIRE_LOWERCASE: "true"
+  _AUTH_PASSWORD_REQUIRE_NUMBER: "true"
+  _AUTH_PASSWORD_REQUIRE_SYMBOL: "false"
+  _AUTH_PASSWORD_REQUIRE_UPPERCASE: "true"
+  _AUTH_PASSWORD_RESET_TTL_MINUTES: "30"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

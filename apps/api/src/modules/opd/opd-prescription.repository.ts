@@ -1,0 +1,119 @@
+import { Types } from 'mongoose';
+import { AppError } from '../../shared/errors/app-error.js';
+import {
+  OpdPrescriptionModel,
+  type OpdPrescriptionFields,
+  type OpdPrescriptionItemFields,
+} from './opd-prescription.model.js';
+import type {
+  OpdPrescription,
+  SaveOpdPrescriptionDTO,
+  SaveOpdPrescriptionItemDTO,
+} from './opd-prescription.types.js';
+import type { OpdConsultation } from './opd-consultation.types.js';
+import type { OpdVisit } from './opd-visit.types.js';
+
+type OpdPrescriptionLean = OpdPrescriptionFields & { _id: Types.ObjectId };
+
+type SaveOpdPrescriptionRecord = SaveOpdPrescriptionDTO & {
+  consultation: OpdConsultation;
+  status: OpdPrescription['status'];
+  submittedAt?: Date | null;
+  visit: OpdVisit;
+};
+
+const objectId = (value: string) => new Types.ObjectId(value);
+
+const nullableString = (value: string | null | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+};
+
+const toItem = (item: OpdPrescriptionItemFields) => ({
+  id: item._id.toString(),
+  medicine_name: item.medicineName,
+  strength: item.strength ?? null,
+  dosage: item.dosage,
+  route: item.route,
+  frequency: item.frequency,
+  duration: item.duration,
+  quantity: item.quantity ?? null,
+  instructions: item.instructions ?? null,
+});
+
+const toPrescription = (record: OpdPrescriptionLean): OpdPrescription => ({
+  id: record._id.toString(),
+  visit_id: record.visitId.toString(),
+  consultation_id: record.consultationId.toString(),
+  patient_id: record.patientId.toString(),
+  patient_number: record.patientNumber,
+  patient_name: record.patientName,
+  doctor_id: record.doctorId.toString(),
+  doctor_name: record.doctorName,
+  status: record.status,
+  items: record.items.map(toItem),
+  follow_up_date: record.followUpDate ?? null,
+  doctor_instructions: record.doctorInstructions ?? null,
+  patient_instructions: record.patientInstructions ?? null,
+  submitted_at: record.submittedAt ?? null,
+  created_by: record.createdBy?.toString() ?? null,
+  updated_by: record.updatedBy?.toString() ?? null,
+  created_at: record.createdAt,
+  updated_at: record.updatedAt,
+});
+
+const toItemFields = (item: SaveOpdPrescriptionItemDTO) => ({
+  medicineName: item.medicine_name.trim(),
+  strength: nullableString(item.strength),
+  dosage: item.dosage.trim(),
+  route: item.route.trim(),
+  frequency: item.frequency.trim(),
+  duration: item.duration.trim(),
+  quantity: item.quantity ?? null,
+  instructions: nullableString(item.instructions),
+});
+
+export class OpdPrescriptionRepository {
+  async getByVisit(visitId: string): Promise<OpdPrescription | null> {
+    const record = await OpdPrescriptionModel.findOne({
+      visitId: objectId(visitId),
+      deletedAt: null,
+    }).lean<OpdPrescriptionLean>();
+
+    return record ? toPrescription(record) : null;
+  }
+
+  async saveForVisit(data: SaveOpdPrescriptionRecord, userId: string): Promise<OpdPrescription> {
+    const record = await OpdPrescriptionModel.findOneAndUpdate(
+      { visitId: objectId(data.visit.id), deletedAt: null },
+      {
+        $set: {
+          consultationId: objectId(data.consultation.id),
+          status: data.status,
+          items: data.items.map(toItemFields),
+          followUpDate: data.follow_up_date ? new Date(data.follow_up_date) : null,
+          doctorInstructions: nullableString(data.doctor_instructions),
+          patientInstructions: nullableString(data.patient_instructions),
+          submittedAt: data.submittedAt ?? null,
+          updatedBy: objectId(userId),
+        },
+        $setOnInsert: {
+          visitId: objectId(data.visit.id),
+          patientId: objectId(data.visit.patient_id),
+          patientNumber: data.visit.patient_number,
+          patientName: data.visit.patient_name,
+          doctorId: objectId(data.visit.doctor_id),
+          doctorName: data.visit.doctor_name,
+          createdBy: objectId(userId),
+        },
+      },
+      { lean: true, returnDocument: 'after', upsert: true },
+    ).lean<OpdPrescriptionLean>();
+
+    if (!record) {
+      throw new AppError('Prescription could not be saved', 500, 'PRESCRIPTION_SAVE_FAILED');
+    }
+
+    return toPrescription(record);
+  }
+}
