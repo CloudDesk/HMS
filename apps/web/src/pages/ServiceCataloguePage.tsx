@@ -5,6 +5,7 @@ import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import {
   servicesApi,
   type ApiServiceStatus,
+  type ApiServiceType,
   type CreateServicePayload,
   type ServiceListResponse,
   type ServiceResponse,
@@ -25,6 +26,7 @@ type ModalMode = 'create' | 'edit' | 'view';
 type ServiceFormState = {
   code: string;
   name: string;
+  service_type: ApiServiceType;
   branch_id: string;
   department_id: string;
   category: string;
@@ -37,6 +39,7 @@ type ServiceFormState = {
 const emptyForm: ServiceFormState = {
   code: '',
   name: '',
+  service_type: 'GENERAL',
   branch_id: '',
   department_id: '',
   category: '',
@@ -44,6 +47,12 @@ const emptyForm: ServiceFormState = {
   standard_price: '',
   duration_minutes: '',
   status: 'ACTIVE',
+};
+
+const serviceTypeLabels: Record<ApiServiceType, string> = {
+  GENERAL: 'General Service',
+  LAB_TEST: 'Lab Test',
+  IMAGING_SERVICE: 'Imaging / Scan',
 };
 
 type LookupPage<T> = {
@@ -196,7 +205,14 @@ export function ServiceCataloguePage() {
   const { search: locationSearch } = useAppLocation();
   // Data
   const [services, setServices] = useState<ServiceResponse[]>([]);
-  const [summary, setSummary] = useState<ServiceSummary>({ total: 0, active: 0, inactive: 0, addedThisMonth: 0, departmentsCovered: 0 });
+  const [summary, setSummary] = useState<ServiceSummary>({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    addedThisMonth: 0,
+    departmentsCovered: 0,
+    byType: { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0 },
+  });
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,6 +223,7 @@ export function ServiceCataloguePage() {
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<ApiServiceStatus | ''>('');
+  const [typeFilter, setTypeFilter] = useState<ApiServiceType | ''>('');
 
   // Pagination & Sorting
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
@@ -280,6 +297,7 @@ export function ServiceCataloguePage() {
         search: search.trim() || undefined,
         status: statusFilter || undefined,
         department_id: deptId,
+        service_type: typeFilter || undefined,
         page: currentPage,
         limit: pageSize,
         sortBy: sortColumn ?? undefined,
@@ -301,7 +319,7 @@ export function ServiceCataloguePage() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, deptFilter, currentPage, pageSize, sortColumn, sortDirection]);
+  }, [search, statusFilter, typeFilter, deptFilter, currentPage, pageSize, sortColumn, sortDirection]);
 
   useEffect(() => { void loadLookups(); }, [loadLookups]);
   useEffect(() => { void loadServices(); }, [loadServices]);
@@ -324,6 +342,7 @@ export function ServiceCataloguePage() {
     setSearch('');
     setDeptFilter('');
     setStatusFilter('');
+    setTypeFilter('');
     setCurrentPage(1);
   };
 
@@ -337,6 +356,7 @@ export function ServiceCataloguePage() {
       setForm({
         code: svc.code,
         name: svc.name,
+        service_type: svc.service_type,
         branch_id: department?.branch_id ?? '',
         department_id: svc.department_id,
         category: svc.category ?? '',
@@ -381,6 +401,7 @@ export function ServiceCataloguePage() {
         const payload: CreateServicePayload = {
           code: form.code.trim(),
           name: form.name.trim(),
+          service_type: form.service_type,
           department_id: form.department_id,
           standard_price: price,
           duration_minutes: duration,
@@ -394,6 +415,7 @@ export function ServiceCataloguePage() {
         await servicesApi.update(activeSvc.id, {
           code: form.code.trim(),
           name: form.name.trim(),
+          service_type: form.service_type,
           department_id: form.department_id,
           standard_price: price,
           duration_minutes: duration,
@@ -454,6 +476,7 @@ export function ServiceCataloguePage() {
         sortBy: sortColumn || undefined,
         sortOrder: sortDirection,
         status: statusFilter || undefined,
+        service_type: typeFilter || undefined,
       });
       downloadBlob(blob, 'hms-services.csv');
       showToast('All filtered services exported.');
@@ -580,6 +603,18 @@ export function ServiceCataloguePage() {
 
                 <select
                   className="um-filter"
+                  id="svc-type-filter"
+                  onChange={(e) => { setTypeFilter(e.target.value as ApiServiceType | ''); setCurrentPage(1); }}
+                  value={typeFilter}
+                >
+                  <option value="">All Service Types</option>
+                  {Object.entries(serviceTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+
+                <select
+                  className="um-filter"
                   id="svc-dept-filter"
                   onChange={(e) => { setDeptFilter(e.target.value); setCurrentPage(1); }}
                   value={deptFilter}
@@ -618,6 +653,7 @@ export function ServiceCataloguePage() {
                   <tr>
                     <SortableHeader column="code" label="Service Code" onSort={handleSort} sortColumn={sortColumn} sortDirection={sortDirection} />
                     <SortableHeader column="name" label="Service Name" onSort={handleSort} sortColumn={sortColumn} sortDirection={sortDirection} />
+                    <th scope="col">Service Type</th>
                     <th scope="col">Department</th>
                     <th scope="col">Branch</th>
                     <SortableHeader column="standard_price" label="Price" onSort={handleSort} sortColumn={sortColumn} sortDirection={sortDirection} />
@@ -630,13 +666,13 @@ export function ServiceCataloguePage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={9}>
+                      <td className="um-state-cell" colSpan={10}>
                         <span className="loading-spinner" /> Loading services...
                       </td>
                     </tr>
                   ) : loadError ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={9}>
+                      <td className="um-state-cell" colSpan={10}>
                         <i className="ph ph-warning" aria-hidden="true" />
                         {loadError}
                         <button
@@ -651,7 +687,7 @@ export function ServiceCataloguePage() {
                     </tr>
                   ) : services.length === 0 ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={9}>
+                      <td className="um-state-cell" colSpan={10}>
                         <i className="ph ph-stethoscope" aria-hidden="true" />
                         No services found matching your filters.
                       </td>
@@ -668,6 +704,7 @@ export function ServiceCataloguePage() {
                             ) : null}
                           </div>
                         </td>
+                        <td><span className="status-badge status-active">{serviceTypeLabels[svc.service_type]}</span></td>
                         <td>{getDeptName(svc.department_id)}</td>
                         <td className="muted-cell">{getBranchForDept(svc.department_id)}</td>
                         <td className="muted-cell">{formatPrice(svc.standard_price)}</td>
@@ -852,6 +889,19 @@ export function ServiceCataloguePage() {
                   value={form.category}
                 />
               </label>
+              <label className="form-field">
+                <span>Service Type <span className="required">*</span></span>
+                <select
+                  disabled={submitting}
+                  onChange={(e) => setForm({ ...form, service_type: e.target.value as ApiServiceType })}
+                  required
+                  value={form.service_type}
+                >
+                  {Object.entries(serviceTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             <div className="form-section-title">Organisation</div>
@@ -949,6 +999,7 @@ export function ServiceCataloguePage() {
             <div className="form-grid-3">
               <label className="form-field"><span>Service Code</span><input readOnly value={activeSvc.code} /></label>
               <label className="form-field"><span>Service Name</span><input readOnly value={activeSvc.name} /></label>
+              <label className="form-field"><span>Service Type</span><input readOnly value={serviceTypeLabels[activeSvc.service_type]} /></label>
               <label className="form-field"><span>Category</span><input readOnly value={activeSvc.category ?? ''} /></label>
               <label className="form-field"><span>Department</span><input readOnly value={getDeptName(activeSvc.department_id)} /></label>
               <label className="form-field"><span>Branch</span><input readOnly value={getBranchForDept(activeSvc.department_id)} /></label>

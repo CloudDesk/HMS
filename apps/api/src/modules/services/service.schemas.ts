@@ -12,12 +12,13 @@ export const listServicesQuerySchema = {
   properties: {
     search: { type: 'string' },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE'] },
     department_id: { type: 'string' },
     page: { type: 'integer', minimum: 1 },
     limit: { type: 'integer', minimum: 1, maximum: 100 },
     sortBy: {
       type: 'string',
-      enum: ['name', 'code', 'status', 'created_at', 'updated_at', 'standard_price'],
+      enum: ['name', 'code', 'service_type', 'status', 'created_at', 'updated_at', 'standard_price'],
     },
     sortOrder: { type: 'string', enum: ['asc', 'desc'] },
   },
@@ -30,6 +31,7 @@ export const createServiceBodySchema = {
   properties: {
     code: { type: 'string', minLength: 1 },
     name: { type: 'string', minLength: 1 },
+    service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE'] },
     department_id: { type: 'string', minLength: 1 },
     standard_price: { type: 'number', minimum: 0 },
     duration_minutes: { type: 'integer', minimum: 1 },
@@ -46,6 +48,7 @@ export const updateServiceBodySchema = {
   properties: {
     code: { type: 'string', minLength: 1 },
     name: { type: 'string', minLength: 1 },
+    service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE'] },
     department_id: { type: 'string', minLength: 1 },
     standard_price: { type: 'number', minimum: 0 },
     duration_minutes: { type: 'integer', minimum: 1 },

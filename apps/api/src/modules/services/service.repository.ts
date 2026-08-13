@@ -1,5 +1,6 @@
 
 import { ServiceModel } from './service.model.js';
+import { Types } from 'mongoose';
 import { AuditLogModel } from '../auth/auth.model.js';
 import type { Service, ServiceListQuery, ServiceRequestMetadata, CreateServiceDTO, UpdateServiceDTO } from './service.types.js';
 
@@ -7,6 +8,7 @@ type ServiceRecord = {
   _id: unknown;
   code: string;
   name: string;
+  serviceType?: Service['service_type'];
   category?: string | null;
   description?: string | null;
   departmentId: unknown;
@@ -23,6 +25,7 @@ type ServiceFilter = {
   deletedAt: null;
   status?: Service['status'];
   departmentId?: string;
+  serviceType?: Service['service_type'];
   $or?: Array<{ name: RegExp } | { code: RegExp }>;
 };
 
@@ -30,6 +33,7 @@ const toService = (service: ServiceRecord): Service => ({
   id: String(service._id),
   code: service.code,
   name: service.name,
+  service_type: service.serviceType ?? 'GENERAL',
   category: service.category ?? null,
   description: service.description ?? null,
   department_id: String(service.departmentId),
@@ -47,6 +51,7 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
     Object.entries({
       code: data.code,
       name: data.name,
+      serviceType: data.service_type,
       category: data.category,
       description: data.description,
       departmentId: data.department_id,
@@ -57,6 +62,22 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
   );
 
 export class ServiceRepository {
+  async getActiveClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
+    return ServiceModel.find({
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).select('_id name serviceType status').lean();
+  }
+
+  async getClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
+    return ServiceModel.find({
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
+      deletedAt: null,
+    }).select('_id name serviceType status').lean();
+  }
   async list(query: ServiceListQuery) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
@@ -69,6 +90,9 @@ export class ServiceRepository {
     if (query.department_id) {
       filter.departmentId = query.department_id;
     }
+    if (query.service_type) {
+      filter.serviceType = query.service_type;
+    }
     if (query.search) {
       const searchRegex = new RegExp(query.search, 'i');
       filter.$or = [{ name: searchRegex }, { code: searchRegex }];
@@ -78,6 +102,7 @@ export class ServiceRepository {
       code: 'code',
       created_at: 'createdAt',
       name: 'name',
+      service_type: 'serviceType',
       standard_price: 'standardPrice',
       status: 'status',
       updated_at: 'updatedAt',
@@ -119,6 +144,7 @@ export class ServiceRepository {
     const service = await ServiceModel.create({
       ...toPersistence(data),
       status: data.status ?? 'ACTIVE',
+      serviceType: data.service_type ?? 'GENERAL',
       createdBy,
       updatedBy: createdBy,
     });
@@ -129,7 +155,7 @@ export class ServiceRepository {
     const service = await ServiceModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { ...toPersistence(data), updatedBy } },
-      { returnDocument: 'after', lean: true }
+      { returnDocument: 'after', lean: true, runValidators: true }
     );
     if (!service) {
       throw new Error('Service not found');
@@ -139,14 +165,24 @@ export class ServiceRepository {
 
   async summary() {
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const [total, active, inactive, addedThisMonth, departmentsCovered] = await Promise.all([
+    const [total, active, inactive, addedThisMonth, departmentsCovered, typeRows] = await Promise.all([
       ServiceModel.countDocuments({ deletedAt: null }),
       ServiceModel.countDocuments({ deletedAt: null, status: 'ACTIVE' }),
       ServiceModel.countDocuments({ deletedAt: null, status: 'INACTIVE' }),
       ServiceModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
       ServiceModel.distinct('departmentId', { deletedAt: null }).then((ids) => ids.length),
+      ServiceModel.aggregate<{ _id: Service['service_type'] | null; count: number }>([
+        { $match: { deletedAt: null } },
+        { $group: { _id: { $ifNull: ['$serviceType', 'GENERAL'] }, count: { $sum: 1 } } },
+      ]),
     ]);
-    return { total, active, inactive, addedThisMonth, departmentsCovered };
+    const byType = { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0 };
+    for (const row of typeRows) {
+      if (row._id && row._id in byType) {
+        byType[row._id] = row.count;
+      }
+    }
+    return { total, active, inactive, addedThisMonth, departmentsCovered, byType };
   }
 
   async softDelete(id: string, actorUserId: string) {

@@ -23,8 +23,9 @@ export const saveClinicalOrderBodySchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['investigation_name', 'category'],
+        required: ['service_id', 'investigation_name', 'category'],
         properties: {
+          service_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
           investigation_name: { type: 'string', minLength: 1, maxLength: 200 },
           category: { type: 'string', minLength: 1, maxLength: 100 },
         },

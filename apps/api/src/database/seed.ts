@@ -1,6 +1,8 @@
 import { PermissionCategoryModel, PermissionGroupModel, PermissionModel } from '../modules/permissions/permission.model.js';
 import { RoleModel } from '../modules/roles/role.model.js';
 import { UserModel } from '../modules/users/user.model.js';
+import { AuditLogModel } from '../modules/auth/auth.model.js';
+import { ServiceModel } from '../modules/services/service.model.js';
 import { hashPassword } from '../shared/security/hash.js';
 
 const administrationPermissions = {
@@ -11,6 +13,7 @@ const administrationPermissions = {
   Branches: ['View', 'Create', 'Edit', 'Delete', 'Export'],
   Departments: ['View', 'Create', 'Edit', 'Delete', 'Export'],
   Services: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+  Medicines: ['View', 'Create', 'Edit', 'Delete', 'Export'],
 } as const;
 
 const patientPermissions = {
@@ -38,6 +41,18 @@ const opdPermissions = {
   'OPD Referral': ['View', 'Edit'],
 } as const;
 
+const pharmacyPermissions = {
+  'Medicine Inventory': ['View', 'RegisterBatch', 'RecordMovement', 'AdjustStock', 'EditBatch', 'ConfigureLowStock'],
+} as const;
+
+const laboratoryPermissions = {
+  Orders: ['View', 'Edit', 'EnterResult', 'VerifyResult'],
+} as const;
+
+const imagingPermissions = {
+  Orders: ['View', 'Edit', 'EnterReport', 'VerifyReport'],
+} as const;
+
 const permissionCode = (moduleName: string, screen: string, action: string) =>
   `${moduleName}_${screen}_${action}`
     .replaceAll(/([a-z])([A-Z])/g, '$1_$2')
@@ -45,6 +60,20 @@ const permissionCode = (moduleName: string, screen: string, action: string) =>
     .toUpperCase();
 
 export const seedDatabase = async () => {
+  const serviceTypeBackfill = await ServiceModel.updateMany(
+    { $or: [{ serviceType: { $exists: false } }, { serviceType: null }] },
+    { $set: { serviceType: 'GENERAL' } },
+  );
+  if (serviceTypeBackfill.modifiedCount > 0) {
+    await AuditLogModel.create({
+      eventType: 'service.type_backfilled',
+      metadataJson: {
+        modifiedCount: serviceTypeBackfill.modifiedCount,
+        serviceType: 'GENERAL',
+      },
+    });
+  }
+
   const systemCategory = await PermissionCategoryModel.findOneAndUpdate(
     { code: 'SYSTEM' },
     {
@@ -239,6 +268,73 @@ export const seedDatabase = async () => {
     }
   }
 
+  const pharmacyGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: clinicalCategory._id, code: 'PHARMACY' },
+    { $setOnInsert: { name: 'Pharmacy' } },
+    { upsert: true, new: true },
+  );
+
+  for (const [screen, actions] of Object.entries(pharmacyPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('Pharmacy', screen, action) },
+        {
+          $set: {
+            name: `${screen} ${action}`,
+            module: 'Pharmacy',
+            screen,
+            action,
+            type: 'system',
+            status: 'active',
+            categoryId: clinicalCategory._id,
+            groupId: pharmacyGroup._id,
+            deletedAt: null,
+          },
+        },
+        { upsert: true, new: true },
+      );
+      permissionIds.push(permission._id);
+    }
+  }
+
+  const laboratoryGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: clinicalCategory._id, code: 'LABORATORY' },
+    { $setOnInsert: { name: 'Laboratory' } },
+    { upsert: true, new: true },
+  );
+  for (const [screen, actions] of Object.entries(laboratoryPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('Laboratory', screen, action) },
+        { $set: {
+          name: `${screen} ${action}`, module: 'Laboratory', screen, action, type: 'system', status: 'active',
+          categoryId: clinicalCategory._id, groupId: laboratoryGroup._id, deletedAt: null,
+        } },
+        { upsert: true, new: true },
+      );
+      permissionIds.push(permission._id);
+    }
+  }
+
+  const imagingGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: clinicalCategory._id, code: 'IMAGING' },
+    { $setOnInsert: { name: 'Imaging' } },
+    { upsert: true, new: true },
+  );
+  for (const [screen, actions] of Object.entries(imagingPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('Imaging', screen, action) },
+        { $set: {
+          name: `${screen} ${action}`, module: 'Imaging', screen, action, type: 'system', status: 'active',
+          categoryId: clinicalCategory._id, groupId: imagingGroup._id, deletedAt: null,
+        } },
+        { upsert: true, new: true },
+      );
+      permissionIds.push(permission._id);
+    }
+  }
+
   for (const action of ['View', 'Edit', 'Export'] as const) {
     const permission = await PermissionModel.findOneAndUpdate(
       { code: `settings.${action.toLowerCase()}` },
@@ -325,6 +421,11 @@ export const seedDatabase = async () => {
 
     roles.push(role);
   }
+
+  await RoleModel.updateOne(
+    { code: 'ADMINISTRATOR' },
+    { $addToSet: { permissionIds: { $each: administratorDefaultPermissionIds } } },
+  );
 
   await RoleModel.findOneAndUpdate(
     { code: 'DOCTOR' },

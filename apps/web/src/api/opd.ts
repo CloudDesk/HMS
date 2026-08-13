@@ -221,11 +221,13 @@ export type SaveOpdPrescriptionPayload = {
 };
 
 export type ApiClinicalOrderType = 'LABORATORY' | 'IMAGING';
-export type ApiClinicalOrderStatus = 'DRAFT' | 'SUBMITTED';
+export type ApiClinicalOrderStatus = 'DRAFT' | 'SUBMITTED' | 'RECEIVED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'RESULT_ENTERED' | 'REPORT_ENTERED' | 'VERIFIED' | 'COMPLETED';
 export type ApiClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
 
 export type OpdClinicalOrderItemResponse = {
   id: string;
+  service_id: string;
+  service_name: string;
   investigation_name: string;
   category: string;
 };
@@ -239,6 +241,7 @@ export type OpdClinicalOrderResponse = {
   patient_name: string;
   doctor_id: string;
   doctor_name: string;
+  branch_id: string;
   order_type: ApiClinicalOrderType;
   status: ApiClinicalOrderStatus;
   priority: ApiClinicalOrderPriority;
@@ -258,7 +261,7 @@ export type SaveOpdClinicalOrderPayload = {
   priority: ApiClinicalOrderPriority;
   destination?: string | null;
   specimen_type?: string | null;
-  items: Array<{ investigation_name: string; category: string }>;
+  items: Array<{ service_id: string; investigation_name: string; category: string }>;
   clinical_notes?: string | null;
   instructions?: string | null;
 };

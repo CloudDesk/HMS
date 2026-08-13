@@ -7,6 +7,8 @@ import type {
 
 export type ClinicalOrderItemFields = {
   _id: Types.ObjectId;
+  serviceId: Types.ObjectId;
+  serviceName: string;
   investigationName: string;
   category: string;
 };
@@ -19,6 +21,7 @@ export type OpdClinicalOrderFields = {
   patientName: string;
   doctorId: Types.ObjectId;
   doctorName: string;
+  branchId: Types.ObjectId;
   orderType: ClinicalOrderType;
   status: ClinicalOrderStatus;
   priority: ClinicalOrderPriority;
@@ -38,6 +41,8 @@ export type OpdClinicalOrderFields = {
 
 const clinicalOrderItemSchema = new Schema<ClinicalOrderItemFields>(
   {
+    serviceId: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
+    serviceName: { type: String, required: true, trim: true },
     investigationName: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
   },
@@ -53,8 +58,17 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
     patientName: { type: String, required: true },
     doctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true },
     doctorName: { type: String, required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     orderType: { type: String, enum: ['LABORATORY', 'IMAGING'], required: true },
-    status: { type: String, enum: ['DRAFT', 'SUBMITTED'], default: 'DRAFT', required: true },
+    status: {
+      type: String,
+      enum: [
+        'DRAFT', 'SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS',
+        'RESULT_ENTERED', 'REPORT_ENTERED', 'VERIFIED', 'COMPLETED',
+      ],
+      default: 'DRAFT',
+      required: true,
+    },
     priority: { type: String, enum: ['ROUTINE', 'URGENT', 'STAT'], default: 'ROUTINE', required: true },
     destination: { type: String, default: null },
     specimenType: { type: String, default: null },
@@ -74,6 +88,7 @@ opdClinicalOrderSchema.index({ visitId: 1, orderType: 1 }, { unique: true });
 opdClinicalOrderSchema.index({ patientId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ doctorId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ orderType: 1, status: 1, priority: 1, submittedAt: -1 });
+opdClinicalOrderSchema.index({ branchId: 1, orderType: 1, status: 1, submittedAt: -1 });
 
 export const OpdClinicalOrderModel = mongoose.model<OpdClinicalOrderFields>(
   'OpdClinicalOrder',

@@ -30,6 +30,14 @@ import { UserManagementPage } from '../pages/UserManagementPage';
 import { DepartmentManagementPage } from '../pages/DepartmentManagementPage';
 import { BranchManagementPage } from '../pages/BranchManagementPage';
 import { ServiceCataloguePage } from '../pages/ServiceCataloguePage';
+import { MedicineMasterPage } from '../pages/MedicineMasterPage';
+import { PharmacyMedicineInventoryPage } from '../pages/PharmacyMedicineInventoryPage';
+import { LaboratoryQueuePage } from '../pages/LaboratoryQueuePage';
+import { LaboratoryWorkspacePage } from '../pages/LaboratoryWorkspacePage';
+import { LaboratoryResultEntryPage } from '../pages/LaboratoryResultEntryPage';
+import { ImagingQueuePage } from '../pages/ImagingQueuePage';
+import { ImagingWorkspacePage } from '../pages/ImagingWorkspacePage';
+import { ImagingReportEntryPage } from '../pages/ImagingReportEntryPage';
 import { SystemSettingsPage } from '../pages/SystemSettingsPage';
 import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
@@ -221,6 +229,30 @@ export function AppRouter() {
     title = 'Service Catalogue';
     breadcrumbs = ['Home', 'Administration', 'Service Catalogue'];
     content = <ServiceCataloguePage />;
+  } else if (pathname === '/administration/medicines') {
+    title = 'Medicine Master';
+    breadcrumbs = ['Home', 'Administration', 'Medicine Master'];
+    content = <MedicineMasterPage />;
+  } else if (pathname === '/pharmacy/inventory') {
+    title = 'Medicine Inventory';
+    breadcrumbs = ['Home', 'Pharmacy', 'Medicine Inventory'];
+    content = <PharmacyMedicineInventoryPage />;
+  } else if (pathname === '/laboratory' || pathname === '/laboratory/queue') {
+    title = pathname === '/laboratory' ? 'Laboratory Dashboard' : 'Laboratory Work Queue';
+    breadcrumbs = ['Home', 'Laboratory', pathname === '/laboratory' ? 'Dashboard' : 'Work Queue'];
+    content = <LaboratoryQueuePage />;
+  } else if (pathname === '/laboratory/workspace') {
+    title = 'Laboratory Workspace'; breadcrumbs = ['Home', 'Laboratory', 'Workspace']; content = <LaboratoryWorkspacePage />;
+  } else if (pathname === '/laboratory/reports' || pathname === '/laboratory/results') {
+    title = 'Laboratory Results'; breadcrumbs = ['Home', 'Laboratory', 'Results']; content = <LaboratoryResultEntryPage />;
+  } else if (pathname === '/imaging' || pathname === '/imaging/queue') {
+    title = pathname === '/imaging' ? 'Imaging Dashboard' : 'Imaging Work Queue';
+    breadcrumbs = ['Home', 'Imaging', pathname === '/imaging' ? 'Dashboard' : 'Work Queue'];
+    content = <ImagingQueuePage />;
+  } else if (pathname === '/imaging/workspace') {
+    title = 'Imaging Workspace'; breadcrumbs = ['Home', 'Imaging', 'Workspace']; content = <ImagingWorkspacePage />;
+  } else if (pathname === '/imaging/reports') {
+    title = 'Imaging Reports'; breadcrumbs = ['Home', 'Imaging', 'Reports']; content = <ImagingReportEntryPage />;
   } else if (pathname === '/administration/settings') {
     title = 'System Settings';
     breadcrumbs = ['Home', 'Administration', 'System Settings'];

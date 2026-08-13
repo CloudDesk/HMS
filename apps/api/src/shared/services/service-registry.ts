@@ -33,6 +33,14 @@ import { PatientRepository } from '../../modules/patients/patient.repository.js'
 import { PatientService } from '../../modules/patients/patient.service.js';
 import { ServiceRepository } from '../../modules/services/service.repository.js';
 import { ServiceCatalogueService } from '../../modules/services/service.service.js';
+import { MedicineRepository } from '../../modules/medicines/medicine.repository.js';
+import { MedicineService } from '../../modules/medicines/medicine.service.js';
+import { PharmacyInventoryRepository } from '../../modules/pharmacy-inventory/pharmacy-inventory.repository.js';
+import { PharmacyInventoryService } from '../../modules/pharmacy-inventory/pharmacy-inventory.service.js';
+import { LaboratoryRepository } from '../../modules/laboratory/laboratory.repository.js';
+import { LaboratoryService } from '../../modules/laboratory/laboratory.service.js';
+import { ImagingRepository } from '../../modules/imaging/imaging.repository.js';
+import { ImagingService } from '../../modules/imaging/imaging.service.js';
 import { SettingsLogoStorage } from '../../modules/settings/settings.logo-storage.js';
 import { SettingsRepository } from '../../modules/settings/settings.repository.js';
 import { SettingsService } from '../../modules/settings/settings.service.js';
@@ -59,6 +67,10 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const opdReferralRepository = new OpdReferralRepository();
   const patientRepository = new PatientRepository();
   const serviceRepository = new ServiceRepository();
+  const medicineRepository = new MedicineRepository();
+  const pharmacyInventoryRepository = new PharmacyInventoryRepository();
+  const laboratoryRepository = new LaboratoryRepository();
+  const imagingRepository = new ImagingRepository();
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
@@ -113,6 +125,7 @@ opdVisits: new OpdVisitService(
       opdVisitRepository,
       opdConsultationRepository,
       patientRepository,
+      serviceRepository,
     ),
     opdPrescriptions: new OpdPrescriptionService(
       opdPrescriptionRepository,
@@ -136,6 +149,10 @@ opdVisits: new OpdVisitService(
       patientRepository,
     ),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
+    medicines: new MedicineService(medicineRepository, pharmacyInventoryRepository),
+    pharmacyInventory: new PharmacyInventoryService(pharmacyInventoryRepository),
+    laboratory: new LaboratoryService(opdClinicalOrderRepository, laboratoryRepository, serviceRepository),
+    imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
   };
 };

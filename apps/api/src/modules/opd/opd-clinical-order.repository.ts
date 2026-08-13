@@ -1,5 +1,9 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { AuditLogModel } from '../auth/auth.model.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { UserModel } from '../users/user.model.js';
 import {
   OpdClinicalOrderModel,
   type ClinicalOrderItemFields,
@@ -7,6 +11,8 @@ import {
 } from './opd-clinical-order.model.js';
 import type {
   ClinicalOrderType,
+  ClinicalOrderListQuery,
+  ClinicalOrderRequestMetadata,
   OpdClinicalOrder,
   SaveClinicalOrderItemDTO,
   SaveOpdClinicalOrderDTO,
@@ -33,11 +39,13 @@ const nullableString = (value: string | null | undefined) => {
 
 const toItem = (item: ClinicalOrderItemFields) => ({
   id: item._id.toString(),
+  service_id: item.serviceId.toString(),
+  service_name: item.serviceName,
   investigation_name: item.investigationName,
   category: item.category,
 });
 
-const toOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder => ({
+export const toClinicalOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder => ({
   id: record._id.toString(),
   visit_id: record.visitId.toString(),
   consultation_id: record.consultationId.toString(),
@@ -46,6 +54,7 @@ const toOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder => ({
   patient_name: record.patientName,
   doctor_id: record.doctorId.toString(),
   doctor_name: record.doctorName,
+  branch_id: record.branchId.toString(),
   order_type: record.orderType,
   status: record.status,
   priority: record.priority,
@@ -62,6 +71,8 @@ const toOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder => ({
 });
 
 const toItemFields = (item: SaveClinicalOrderItemDTO) => ({
+  serviceId: objectId(item.service_id),
+  serviceName: item.investigation_name.trim(),
   investigationName: item.investigation_name.trim(),
   category: item.category.trim(),
 });
@@ -74,7 +85,7 @@ export class OpdClinicalOrderRepository {
       deletedAt: null,
     }).lean<OpdClinicalOrderLean>();
 
-    return record ? toOrder(record) : null;
+    return record ? toClinicalOrder(record) : null;
   }
 
   async saveForVisit(data: SaveClinicalOrderRecord, userId: string): Promise<OpdClinicalOrder> {
@@ -83,6 +94,7 @@ export class OpdClinicalOrderRepository {
       {
         $set: {
           consultationId: objectId(data.consultation.id),
+          branchId: objectId(data.visit.branch_id),
           status: data.status,
           priority: data.priority,
           destination: nullableString(data.destination),
@@ -111,6 +123,116 @@ export class OpdClinicalOrderRepository {
       throw new AppError('Clinical order could not be saved', 500, 'CLINICAL_ORDER_SAVE_FAILED');
     }
 
-    return toOrder(record);
+    return toClinicalOrder(record);
+  }
+
+  async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds')
+      .lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null,
+    }));
+    if (requestedBranchId) {
+      const branchExists = Boolean(await BranchModel.exists({ _id: requestedBranchId, status: 'ACTIVE', deletedAt: null }));
+      if (!branchExists) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      const assigned = (user.branchIds ?? []).some((id) => String(id) === requestedBranchId);
+      if (!isSuperAdmin && !assigned) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+      return [requestedBranchId];
+    }
+    if (isSuperAdmin) return undefined;
+    const activeBranches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null,
+    }).select('_id').lean();
+    return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async listOperational(orderType: ClinicalOrderType, query: ClinicalOrderListQuery, branchIds?: string[]) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const filter: Record<string, unknown> = {
+      orderType,
+      status: query.status ?? { $ne: 'DRAFT' },
+      deletedAt: null,
+    };
+    if (branchIds) filter.branchId = { $in: branchIds.map(objectId) };
+    if (query.priority) filter.priority = query.priority;
+    if (query.patient_id) filter.patientId = objectId(query.patient_id);
+    if (query.doctor_id) filter.doctorId = objectId(query.doctor_id);
+    if (query.date_from || query.date_to) {
+      const submittedAt: { $gte?: Date; $lte?: Date } = {};
+      if (query.date_from) submittedAt.$gte = new Date(`${query.date_from}T00:00:00.000Z`);
+      if (query.date_to) submittedAt.$lte = new Date(`${query.date_to}T23:59:59.999Z`);
+      filter.submittedAt = submittedAt;
+    }
+    if (query.search) {
+      const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const expression = new RegExp(escaped, 'i');
+      filter.$or = [
+        { patientName: expression }, { patientNumber: expression }, { doctorName: expression },
+        { destination: expression }, { 'items.serviceName': expression },
+      ];
+    }
+    const [records, total] = await Promise.all([
+      OpdClinicalOrderModel.find(filter).sort({ submittedAt: 1, _id: 1 })
+        .skip((page - 1) * limit).limit(limit).lean<OpdClinicalOrderLean[]>(),
+      OpdClinicalOrderModel.countDocuments(filter),
+    ]);
+    return {
+      data: records.map(toClinicalOrder),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  async getOperationalById(id: string, orderType: ClinicalOrderType, branchIds?: string[], session?: ClientSession) {
+    const filter: Record<string, unknown> = { _id: objectId(id), orderType, status: { $ne: 'DRAFT' }, deletedAt: null };
+    if (branchIds) filter.branchId = { $in: branchIds.map(objectId) };
+    const find = OpdClinicalOrderModel.findOne(filter).lean<OpdClinicalOrderLean>();
+    if (session) find.session(session);
+    const record = await find;
+    return record ? toClinicalOrder(record) : null;
+  }
+
+  async updateOperationalStatus(
+    id: string,
+    orderType: ClinicalOrderType,
+    expectedStatus: OpdClinicalOrder['status'],
+    status: OpdClinicalOrder['status'],
+    userId: string,
+    session?: ClientSession,
+  ) {
+    const record = await OpdClinicalOrderModel.findOneAndUpdate(
+      { _id: objectId(id), orderType, status: expectedStatus, deletedAt: null },
+      { $set: { status, updatedBy: objectId(userId) } },
+      { returnDocument: 'after', lean: true, runValidators: true, session },
+    ).lean<OpdClinicalOrderLean>();
+    return record ? toClinicalOrder(record) : null;
+  }
+
+  async summaryOperational(orderType: ClinicalOrderType, branchIds?: string[]) {
+    const match: Record<string, unknown> = { orderType, status: { $ne: 'DRAFT' }, deletedAt: null };
+    if (branchIds) match.branchId = { $in: branchIds.map(objectId) };
+    const rows = await OpdClinicalOrderModel.aggregate<{ _id: string; count: number }>([
+      { $match: match }, { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((row) => [row._id, row.count]));
+  }
+
+  async audit(
+    eventType: string,
+    actorUserId: string,
+    metadata: ClinicalOrderRequestMetadata,
+    details: Record<string, unknown>,
+    session?: ClientSession,
+  ) {
+    const entries = await AuditLogModel.create([{
+      eventType,
+      actorUserId,
+      ipAddress: metadata.ipAddress,
+      userAgent: metadata.userAgent,
+      metadataJson: details,
+    }], { session });
+    return entries[0];
   }
 }

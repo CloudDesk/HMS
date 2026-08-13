@@ -1,9 +1,20 @@
 export type ClinicalOrderType = 'LABORATORY' | 'IMAGING';
-export type ClinicalOrderStatus = 'DRAFT' | 'SUBMITTED';
+export type ClinicalOrderStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RECEIVED'
+  | 'SAMPLE_COLLECTED'
+  | 'IN_PROGRESS'
+  | 'RESULT_ENTERED'
+  | 'REPORT_ENTERED'
+  | 'VERIFIED'
+  | 'COMPLETED';
 export type ClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
 
 export type ClinicalOrderItem = {
   id: string;
+  service_id: string;
+  service_name: string;
   investigation_name: string;
   category: string;
 };
@@ -17,6 +28,7 @@ export type OpdClinicalOrder = {
   patient_name: string;
   doctor_id: string;
   doctor_name: string;
+  branch_id: string;
   order_type: ClinicalOrderType;
   status: ClinicalOrderStatus;
   priority: ClinicalOrderPriority;
@@ -32,7 +44,7 @@ export type OpdClinicalOrder = {
   updated_at: Date;
 };
 
-export type SaveClinicalOrderItemDTO = Omit<ClinicalOrderItem, 'id'>;
+export type SaveClinicalOrderItemDTO = Omit<ClinicalOrderItem, 'id' | 'service_name'>;
 
 export type SaveOpdClinicalOrderDTO = {
   priority: ClinicalOrderPriority;
@@ -41,4 +53,22 @@ export type SaveOpdClinicalOrderDTO = {
   items: SaveClinicalOrderItemDTO[];
   clinical_notes?: string | null;
   instructions?: string | null;
+};
+
+export type ClinicalOrderListQuery = {
+  search?: string;
+  status?: ClinicalOrderStatus;
+  priority?: ClinicalOrderPriority;
+  date_from?: string;
+  date_to?: string;
+  patient_id?: string;
+  doctor_id?: string;
+  branch_id?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type ClinicalOrderRequestMetadata = {
+  ipAddress?: string;
+  userAgent?: string;
 };

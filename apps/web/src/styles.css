@@ -28,6 +28,193 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Pharmacy Medicine Inventory */
+.pharmacy-inventory-page {
+  display: grid;
+  gap: 14px;
+}
+
+.inventory-alert-strip,
+.inventory-inline-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+  color: #075985;
+  font-size: 12px;
+}
+
+.inventory-inline-warning {
+  margin-top: 12px;
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.inventory-kpis {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.inventory-toolbar-row {
+  flex-wrap: wrap;
+}
+
+.inventory-branch-filter {
+  min-width: 170px;
+}
+
+.inventory-table td {
+  vertical-align: middle;
+}
+
+.inventory-quantity {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.inventory-unit {
+  display: block;
+  margin-top: 2px;
+}
+
+.inventory-batch-chip,
+.inventory-barcode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.inventory-batch-chip + .inventory-batch-chip {
+  margin-left: 4px;
+}
+
+.inventory-batch-chip.danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.inventory-barcode-chip {
+  border-style: dashed;
+  border-radius: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.inventory-state,
+.inventory-expiry {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.state-available,
+.expiry-valid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.state-low-stock,
+.expiry-expiring-soon {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.state-out-of-stock,
+.expiry-expired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.inventory-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.inventory-detail-summary > div {
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.inventory-detail-summary span,
+.inventory-detail-summary strong {
+  display: block;
+}
+
+.inventory-detail-summary span {
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.inventory-detail-summary strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.inventory-detail-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.inventory-detail-tabs button {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inventory-detail-tabs button.active {
+  border-bottom-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.compact-table th,
+.compact-table td {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+@media (max-width: 1200px) {
+  .inventory-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .inventory-kpis,
+  .inventory-detail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 * {
   box-sizing: border-box;
 }

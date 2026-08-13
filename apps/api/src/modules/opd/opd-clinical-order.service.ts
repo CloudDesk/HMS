@@ -6,6 +6,7 @@ import type { ClinicalOrderType, SaveOpdClinicalOrderDTO } from './opd-clinical-
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
+import type { ServiceRepository } from '../services/service.repository.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
@@ -15,6 +16,7 @@ export class OpdClinicalOrderService {
     private readonly visitRepository: OpdVisitRepository,
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly patientRepository: PatientRepository,
+    private readonly serviceRepository: ServiceRepository,
   ) {}
 
   async getByVisitAndType(visitId: string, orderType: ClinicalOrderType) {
@@ -28,12 +30,13 @@ export class OpdClinicalOrderService {
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
 
-    if (current?.status === 'SUBMITTED') {
+    if (current && current.status !== 'DRAFT') {
       throw new AppError('A submitted clinical order cannot be edited', 400, 'CLINICAL_ORDER_SUBMITTED');
     }
 
     this.validateLaboratoryFields(orderType, data);
-    return this.repository.saveForVisit({ ...data, consultation, orderType, status: 'DRAFT', visit }, userId);
+    const items = await this.normalizeServices(orderType, data);
+    return this.repository.saveForVisit({ ...data, items, consultation, orderType, status: 'DRAFT', visit }, userId);
   }
 
   async submit(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
@@ -42,7 +45,7 @@ export class OpdClinicalOrderService {
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
 
-    if (current?.status === 'SUBMITTED') {
+    if (current && current.status !== 'DRAFT') {
       throw new AppError('Clinical order has already been submitted', 400, 'CLINICAL_ORDER_SUBMITTED');
     }
 
@@ -59,8 +62,9 @@ export class OpdClinicalOrderService {
     }
 
     this.validateLaboratoryFields(orderType, data);
+    const items = await this.normalizeServices(orderType, data);
     const order = await this.repository.saveForVisit(
-      { ...data, consultation, orderType, status: 'SUBMITTED', submittedAt: new Date(), visit },
+      { ...data, items, consultation, orderType, status: 'SUBMITTED', submittedAt: new Date(), visit },
       userId,
     );
 
@@ -113,5 +117,23 @@ export class OpdClinicalOrderService {
     if (orderType === 'LABORATORY' && data.items.length > 0 && !data.specimen_type?.trim()) {
       throw new AppError('Specimen type is required for laboratory orders', 400, 'SPECIMEN_TYPE_REQUIRED');
     }
+  }
+
+  private async normalizeServices(orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO) {
+    const ids = [...new Set(data.items.map((item) => item.service_id))];
+    if (ids.length !== data.items.length) {
+      throw new AppError('A service can only be added once to an order', 400, 'DUPLICATE_SERVICE');
+    }
+    const serviceType = orderType === 'LABORATORY' ? 'LAB_TEST' : 'IMAGING_SERVICE';
+    const services = await this.serviceRepository.getActiveClinicalOrderServices(ids, serviceType);
+    if (services.length !== ids.length) {
+      throw new AppError(
+        `All order items must reference active ${serviceType === 'LAB_TEST' ? 'laboratory' : 'imaging'} services`,
+        400,
+        'INVALID_CLINICAL_ORDER_SERVICE',
+      );
+    }
+    const names = new Map(services.map((service) => [String(service._id), service.name]));
+    return data.items.map((item) => ({ ...item, investigation_name: names.get(item.service_id)! }));
   }
 }

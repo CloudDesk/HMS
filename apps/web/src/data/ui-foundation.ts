@@ -156,6 +156,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/administration/roles-permissions', label: 'Roles & Permissions' },
       { href: '/administration/departments', label: 'Department Management' },
       { href: '/administration/services', label: 'Service Catalogue' },
+      { href: '/administration/medicines', label: 'Medicine Master' },
       { href: '/administration/branches', label: 'Branch Management' },
       { href: '/administration/settings', label: 'System Settings' },
     ],

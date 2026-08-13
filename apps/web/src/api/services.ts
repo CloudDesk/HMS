@@ -1,11 +1,13 @@
 import { apiClient } from './client';
 
 export type ApiServiceStatus = 'ACTIVE' | 'INACTIVE';
+export type ApiServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE';
 
 export type ServiceResponse = {
   id: string;
   code: string;
   name: string;
+  service_type: ApiServiceType;
   category: string | null;
   description: string | null;
   department_id: string;
@@ -32,15 +34,17 @@ export type ServiceListParams = Partial<{
   search: string;
   status: ApiServiceStatus;
   department_id: string;
+  service_type: ApiServiceType;
   page: number;
   limit: number;
-  sortBy: 'name' | 'code' | 'status' | 'created_at' | 'updated_at' | 'standard_price';
+  sortBy: 'name' | 'code' | 'service_type' | 'status' | 'created_at' | 'updated_at' | 'standard_price';
   sortOrder: 'asc' | 'desc';
 }>;
 
 export type CreateServicePayload = {
   code: string;
   name: string;
+  service_type?: ApiServiceType;
   department_id: string;
   standard_price: number;
   duration_minutes: number;
@@ -57,6 +61,7 @@ export type ServiceSummary = {
   inactive: number;
   addedThisMonth: number;
   departmentsCovered: number;
+  byType: Record<ApiServiceType, number>;
 };
 
 const toQueryString = (params: ServiceListParams): string => {

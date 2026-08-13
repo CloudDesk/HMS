@@ -16,6 +16,10 @@ import type { OpdVitalsService } from '../../modules/opd/opd-vitals.service.js';
 import type { OpdVisitService } from '../../modules/opd/opd-visit.service.js';
 import type { PatientService } from '../../modules/patients/patient.service.js';
 import type { ServiceCatalogueService } from '../../modules/services/service.service.js';
+import type { MedicineService } from '../../modules/medicines/medicine.service.js';
+import type { PharmacyInventoryService } from '../../modules/pharmacy-inventory/pharmacy-inventory.service.js';
+import type { LaboratoryService } from '../../modules/laboratory/laboratory.service.js';
+import type { ImagingService } from '../../modules/imaging/imaging.service.js';
 import type { SettingsService } from '../../modules/settings/settings.service.js';
 import type { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
 
@@ -41,5 +45,9 @@ export type ServiceRegistry = {
   opdFollowUps: OpdFollowUpService;
   opdReferrals: OpdReferralService;
   serviceCatalogue: ServiceCatalogueService;
+  medicines: MedicineService;
+  pharmacyInventory: PharmacyInventoryService;
+  laboratory: LaboratoryService;
+  imaging: ImagingService;
   settings: SettingsService;
 };

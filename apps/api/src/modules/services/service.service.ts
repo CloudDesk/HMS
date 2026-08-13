@@ -35,7 +35,11 @@ export class ServiceCatalogueService {
     await this.requireActiveDepartment(data.department_id);
 
     const service = await this.repository.create(data, userId);
-    await this.repository.audit('service.created', userId, metadata, { serviceId: service.id, code: service.code });
+    await this.repository.audit('service.created', userId, metadata, {
+      serviceId: service.id,
+      code: service.code,
+      serviceType: service.service_type,
+    });
     return service;
   }
 
@@ -54,10 +58,20 @@ export class ServiceCatalogueService {
     }
 
     const updated = await this.repository.update(id, data, userId);
-    const eventType = data.status && data.status !== service.status
-      ? data.status === 'ACTIVE' ? 'service.activated' : 'service.deactivated'
-      : 'service.updated';
-    await this.repository.audit(eventType, userId, metadata, { serviceId: id, code: updated.code });
+    const typeChanged = Boolean(data.service_type && data.service_type !== service.service_type);
+    const eventType = typeChanged
+      ? 'service.type_changed'
+      : data.status && data.status !== service.status
+        ? data.status === 'ACTIVE' ? 'service.activated' : 'service.deactivated'
+        : 'service.updated';
+    await this.repository.audit(eventType, userId, metadata, {
+      serviceId: id,
+      code: updated.code,
+      serviceType: updated.service_type,
+      ...(typeChanged
+        ? { previousServiceType: service.service_type, newServiceType: updated.service_type }
+        : {}),
+    });
     return updated;
   }
 
@@ -68,7 +82,11 @@ export class ServiceCatalogueService {
   async delete(id: string, userId: string, metadata: ServiceRequestMetadata) {
     const service = await this.getById(id);
     await this.repository.softDelete(service.id, userId);
-    await this.repository.audit('service.deleted', userId, metadata, { serviceId: id, code: service.code });
+    await this.repository.audit('service.deleted', userId, metadata, {
+      serviceId: id,
+      code: service.code,
+      serviceType: service.service_type,
+    });
   }
 
   async export(query: ServiceListQuery, userId: string, metadata: ServiceRequestMetadata) {
@@ -84,6 +102,7 @@ export class ServiceCatalogueService {
           yield [
             service.code,
             service.name,
+            service.service_type,
             department?.name ?? 'Unavailable',
             service.standard_price.toFixed(2),
             `${service.duration_minutes} min`,
@@ -96,7 +115,7 @@ export class ServiceCatalogueService {
       }
     }
     return createCsvStream(
-      ['Service Code', 'Service Name', 'Department', 'Price', 'Duration', 'Status', 'Created Date'],
+      ['Service Code', 'Service Name', 'Service Type', 'Department', 'Price', 'Duration', 'Status', 'Created Date'],
       rows(),
     );
   }
