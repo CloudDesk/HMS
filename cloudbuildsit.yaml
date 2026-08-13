@@ -18,6 +18,16 @@ steps:
       - --project
       - ${_PROJECT_ID}
 
+  - id: enable-secret-manager-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - services
+      - enable
+      - secretmanager.googleapis.com
+      - --project
+      - ${_PROJECT_ID}
+
   - id: build-api-image
     name: gcr.io/cloud-builders/docker
     args:
@@ -34,6 +44,21 @@ steps:
       - push
       - gcr.io/h-m-s-505410/hms-api-sit:$SHORT_SHA
 
+  - id: fetch-sit-env
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - secrets
+      - versions
+      - access
+      - latest
+      - --secret
+      - ${_SIT_ENV_SECRET}
+      - --project
+      - ${_PROJECT_ID}
+      - --out-file
+      - /workspace/apps/api/.env.sit
+
   - id: prepare-sit-env
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
@@ -44,7 +69,7 @@ steps:
         import json
         from pathlib import Path
 
-        sit_source = Path("apps/api/.env.sit")
+        sit_source = Path("/workspace/apps/api/.env.sit")
         dev_source = Path("apps/api/.env.dev")
         source = sit_source if sit_source.exists() else dev_source
         target = Path("/workspace/apps/api/.env.cloudrun.sit.yaml")
@@ -111,6 +136,7 @@ substitutions:
   _MAX_INSTANCES: "3"
   _CONCURRENCY: "80"
   _TIMEOUT: 300s
+  _SIT_ENV_SECRET: hms-api-sit-env
 
 options:
   logging: CLOUD_LOGGING_ONLY
