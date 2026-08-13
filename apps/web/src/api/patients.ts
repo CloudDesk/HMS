@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export type ApiPatientGender = 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
 export type ApiPatientStatus = 'ACTIVE' | 'INACTIVE' | 'DECEASED';
 export type ApiPatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
+export type ApiPatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
 
 export type PatientAddress = {
   line1?: string | null;
@@ -80,6 +81,7 @@ export type SavePatientPayload = {
 export type PatientDocumentResponse = {
   id: string;
   patient_id: string;
+  visit_id: string | null;
   document_type: ApiPatientDocumentType;
   title: string;
   file_name: string;
@@ -87,28 +89,40 @@ export type PatientDocumentResponse = {
   file_size_bytes: number;
   storage_key: string;
   description: string | null;
+  consent_status: ApiPatientConsentStatus | null;
+  signed_at: string | null;
+  valid_until: string | null;
+  signed_by_name: string | null;
   status: 'ACTIVE' | 'DELETED';
   uploaded_by: string | null;
+  uploaded_by_name: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type SavePatientDocumentPayload = {
-  document_type: ApiPatientDocumentType;
-  title: string;
-  file_name: string;
-  mime_type: string;
-  file_size_bytes: number;
-  storage_key: string;
-  description?: string | null;
-};
-
 export type UploadPatientDocumentPayload = {
+  visit_id?: string;
   document_type: ApiPatientDocumentType;
   title: string;
   file: File;
   description?: string | null;
+  consent_status?: ApiPatientConsentStatus;
+  signed_at?: string;
+  valid_until?: string;
+  signed_by_name?: string;
 };
+
+export type PatientDocumentListResponse = {
+  data: PatientDocumentResponse[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+};
+
+export type PatientDocumentListParams = Partial<{
+  document_type: ApiPatientDocumentType;
+  visit_id: string;
+  page: number;
+  limit: number;
+}>;
 
 export type PatientTimelineEventResponse = {
   id: string;
@@ -203,17 +217,10 @@ export const patientsApi = {
     );
   },
 
-  documents(id: string, documentType?: ApiPatientDocumentType) {
-    return apiClient.request<PatientDocumentResponse[]>(
-      `/patients/${encodeURIComponent(id)}/documents${toQueryString({ document_type: documentType })}`,
+  documents(id: string, params: PatientDocumentListParams = {}) {
+    return apiClient.request<PatientDocumentListResponse>(
+      `/patients/${encodeURIComponent(id)}/documents${toQueryString(params)}`,
     );
-  },
-
-  createDocument(id: string, payload: SavePatientDocumentPayload) {
-    return apiClient.request<PatientDocumentResponse>(`/patients/${encodeURIComponent(id)}/documents`, {
-      body: payload,
-      method: 'POST',
-    });
   },
 
   uploadDocument(id: string, payload: UploadPatientDocumentPayload) {
@@ -221,15 +228,36 @@ export const patientsApi = {
     formData.set('document_type', payload.document_type);
     formData.set('title', payload.title);
     formData.set('file', payload.file);
+    if (payload.visit_id) formData.set('visit_id', payload.visit_id);
 
     if (payload.description) {
       formData.set('description', payload.description);
     }
+    if (payload.consent_status) formData.set('consent_status', payload.consent_status);
+    if (payload.signed_at) formData.set('signed_at', payload.signed_at);
+    if (payload.valid_until) formData.set('valid_until', payload.valid_until);
+    if (payload.signed_by_name) formData.set('signed_by_name', payload.signed_by_name);
 
     return apiClient.request<PatientDocumentResponse>(`/patients/${encodeURIComponent(id)}/documents/upload`, {
       body: formData,
       method: 'POST',
     });
+  },
+
+  replaceDocument(id: string, documentId: string, payload: UploadPatientDocumentPayload) {
+    const formData = new FormData();
+    formData.set('document_type', payload.document_type);
+    formData.set('title', payload.title);
+    formData.set('file', payload.file);
+    if (payload.description) formData.set('description', payload.description);
+    if (payload.consent_status) formData.set('consent_status', payload.consent_status);
+    if (payload.signed_at) formData.set('signed_at', payload.signed_at);
+    if (payload.valid_until) formData.set('valid_until', payload.valid_until);
+    if (payload.signed_by_name) formData.set('signed_by_name', payload.signed_by_name);
+    return apiClient.request<PatientDocumentResponse>(
+      `/patients/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}/upload`,
+      { body: formData, method: 'PUT' },
+    );
   },
 
   downloadDocument(patientId: string, documentId: string) {

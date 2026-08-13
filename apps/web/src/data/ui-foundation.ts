@@ -43,8 +43,6 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/appointments', label: 'Appointment Dashboard' },
       { href: '/appointments/book', label: 'Book Appointment' },
       { href: '/appointments/calendar', label: 'Calendar View' },
-      // { href: '/appointments/availability', label: 'Doctor Availability' },
-      { href: '/appointments/queue', label: 'Queue Management' },
     ],
   },
   {
@@ -54,7 +52,7 @@ export const sidebarModules: SidebarModule[] = [
     links: [
       { href: '/opd', label: 'Dashboard' },
       { href: '/opd/consultation', label: 'Consultation' },
-      { href: '/opd/queue', label: 'Waiting Queue' },
+      { href: '/opd/queue', label: 'Queue Management' },
     ],
   },
   // Emergency and Admissions are deferred modules. Restore these entries when their implementation phase begins.
@@ -161,33 +159,3 @@ export const sidebarModules: SidebarModule[] = [
     ],
   },
 ];
-
-export const mockNotifications = [
-  {
-    id: 'nt-1',
-    title: 'Lab queue threshold reached',
-    description: '12 orders are waiting for sample collection.',
-    time: '8 min ago',
-    tone: 'orange' as const,
-  },
-  {
-    id: 'nt-2',
-    title: 'Emergency bed released',
-    description: 'ICU bed E-04 is marked available.',
-    time: '21 min ago',
-    tone: 'green' as const,
-  },
-  {
-    id: 'nt-3',
-    title: 'Daily billing export ready',
-    description: 'Finance summary is available for review.',
-    time: '1 hr ago',
-    tone: 'blue' as const,
-  },
-];
-
-export const mockUser = {
-  name: 'Dr. Peter Odhiambo',
-  role: 'Administrator',
-  initials: 'PO',
-};

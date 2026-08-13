@@ -64,10 +64,6 @@ export const env = {
     poolSize: parseInteger(process.env.DATABASE_POOL_SIZE, 10),
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),
   },
-  azureStorage: {
-    connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING ?? '',
-    containerName: process.env.AZURE_STORAGE_CONTAINER_NAME ?? 'hms-assets',
-  },
   storage: {
     provider: process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER ?? 'local',
     localPatientDocumentsPath: process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? './storage/patient-documents',
@@ -85,6 +81,11 @@ export const env = {
       'image/png',
       'image/webp',
       'text/plain',
+      'text/csv',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ]),
   },
   auth: {

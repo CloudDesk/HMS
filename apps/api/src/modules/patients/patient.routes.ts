@@ -6,7 +6,6 @@ import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
   createPatientBodySchema,
-  createPatientDocumentBodySchema,
   listPatientDocumentsQuerySchema,
   listPatientTimelineQuerySchema,
   listPatientsQuerySchema,
@@ -16,8 +15,8 @@ import {
 } from './patient.schemas.js';
 import type {
   CreatePatientDTO,
-  CreatePatientDocumentDTO,
   PatientDocumentType,
+  PatientConsentStatus,
   PatientListQuery,
   PatientTimelineListQuery,
   UpdatePatientDTO,
@@ -34,11 +33,16 @@ type PatientDocumentIdParams = {
 
 type PatientDocumentsQuery = {
   document_type?: string;
+  visit_id?: string;
+  page?: number;
+  limit?: number;
 };
 
 const patientDocumentTypes = ['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER'];
+const patientConsentStatuses = ['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED'];
 
 const isPatientDocumentType = (value: string): value is PatientDocumentType => patientDocumentTypes.includes(value);
+const isPatientConsentStatus = (value: string): value is PatientConsentStatus => patientConsentStatuses.includes(value);
 
 const readMultipartField = (fields: MultipartFields, name: string) => {
   const field = fields[name];
@@ -149,22 +153,17 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         querystring: listPatientDocumentsQuerySchema,
       },
     },
-    async (request) => ok(await services.patients.listDocuments(request.params.id, request.query.document_type)),
-  );
-
-  app.post<{ Params: PatientIdParams; Body: CreatePatientDocumentDTO }>(
-    '/api/patients/:id/documents',
-    {
-      preHandler: requirePermission(services, 'Patients', 'Patient Documents', 'Create'),
-      schema: {
-        params: patientIdParamsSchema,
-        body: createPatientDocumentBodySchema,
-      },
-    },
-    async (request, reply) => {
-      const document = await services.patients.createDocument(request.params.id, request.body, request.user!.id);
-      return reply.status(201).send(ok(document));
-    },
+    async (request) =>
+      ok(
+        await services.patients.listDocuments(request.params.id, {
+          document_type: request.query.document_type && isPatientDocumentType(request.query.document_type)
+            ? request.query.document_type
+            : undefined,
+          visit_id: request.query.visit_id,
+          page: request.query.page,
+          limit: request.query.limit,
+        }),
+      ),
   );
 
   app.post<{ Params: PatientIdParams }>(
@@ -187,21 +186,82 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       }
 
       const data = await file.toBuffer();
+      const visitId = readMultipartField(file.fields, 'visit_id');
+      const consentStatusValue = readMultipartField(file.fields, 'consent_status');
+      if (consentStatusValue && !isPatientConsentStatus(consentStatusValue)) {
+        throw new AppError('Consent status is invalid', 400, 'VALIDATION_ERROR');
+      }
+      const consentStatus = consentStatusValue && isPatientConsentStatus(consentStatusValue) ? consentStatusValue : null;
+      if (visitId) {
+        const visit = await services.opdVisits.getById(visitId);
+        if (visit.patient_id !== request.params.id) {
+          throw new AppError('OPD visit does not belong to this patient', 400, 'VISIT_PATIENT_MISMATCH');
+        }
+      }
       const document = await services.patients.uploadDocument(
         request.params.id,
         {
           document_type: documentType,
+          visit_id: visitId,
           title: requireMultipartField(file.fields, 'title', 'Title'),
           file_name: file.filename,
           mime_type: file.mimetype,
           file_size_bytes: data.byteLength,
           description: readMultipartField(file.fields, 'description'),
+          consent_status: consentStatus,
+          signed_at: readMultipartField(file.fields, 'signed_at'),
+          valid_until: readMultipartField(file.fields, 'valid_until'),
+          signed_by_name: readMultipartField(file.fields, 'signed_by_name'),
           data,
         },
         request.user!.id,
       );
 
       return reply.status(201).send(ok(document));
+    },
+  );
+
+  app.put<{ Params: PatientDocumentIdParams }>(
+    '/api/patients/:id/documents/:documentId/upload',
+    {
+      preHandler: requirePermission(services, 'Patients', 'Patient Documents', 'Edit'),
+      schema: { params: patientDocumentIdParamsSchema },
+    },
+    async (request) => {
+      const file = await request.file();
+      if (!file) {
+        throw new AppError('Replacement document file is required', 400, 'VALIDATION_ERROR');
+      }
+      const documentType = requireMultipartField(file.fields, 'document_type', 'Document type');
+      if (!isPatientDocumentType(documentType)) {
+        throw new AppError('Document type is invalid', 400, 'VALIDATION_ERROR');
+      }
+      const data = await file.toBuffer();
+      const consentStatusValue = readMultipartField(file.fields, 'consent_status');
+      if (consentStatusValue && !isPatientConsentStatus(consentStatusValue)) {
+        throw new AppError('Consent status is invalid', 400, 'VALIDATION_ERROR');
+      }
+      const consentStatus = consentStatusValue && isPatientConsentStatus(consentStatusValue) ? consentStatusValue : null;
+      return ok(
+        await services.patients.replaceDocument(
+          request.params.id,
+          request.params.documentId,
+          {
+            document_type: documentType,
+            title: requireMultipartField(file.fields, 'title', 'Title'),
+            file_name: file.filename,
+            mime_type: file.mimetype,
+            file_size_bytes: data.byteLength,
+            description: readMultipartField(file.fields, 'description'),
+            consent_status: consentStatus,
+            signed_at: readMultipartField(file.fields, 'signed_at'),
+            valid_until: readMultipartField(file.fields, 'valid_until'),
+            signed_by_name: readMultipartField(file.fields, 'signed_by_name'),
+            data,
+          },
+          request.user!.id,
+        ),
+      );
     },
   );
 

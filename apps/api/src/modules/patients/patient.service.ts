@@ -1,3 +1,4 @@
+import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { env } from '../../config/env.js';
 import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
@@ -6,6 +7,7 @@ import type {
   CreatePatientDTO,
   CreatePatientDocumentDTO,
   PatientDocument,
+  PatientDocumentListQuery,
   PatientListQuery,
   PatientTimelineListQuery,
   UpdatePatientDTO,
@@ -96,12 +98,12 @@ export class PatientService {
   async getHistory(id: string) {
     const patient = await this.getById(id);
     const timeline = await this.repository.listTimeline(id, { page: 1, limit: 10 });
-    const documents = await this.repository.listDocuments(id);
+    const documents = await this.repository.listDocuments(id, { limit: 100 });
 
     return {
       patient,
       timeline: timeline.data,
-      documents,
+      documents: documents.data,
       visits: [],
     };
   }
@@ -112,9 +114,12 @@ export class PatientService {
     return this.repository.listTimeline(id, query);
   }
 
-  async listDocuments(id: string, documentType?: string) {
+  async listDocuments(id: string, query: PatientDocumentListQuery) {
     await this.getById(id);
-    return this.repository.listDocuments(id, documentType);
+    if (query.visit_id && !Types.ObjectId.isValid(query.visit_id)) {
+      throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
+    }
+    return this.repository.listDocuments(id, query);
   }
 
   async createDocument(id: string, data: CreatePatientDocumentDTO, userId: string) {
@@ -146,21 +151,71 @@ export class PatientService {
       data: data.data,
     });
 
-    const document = await this.createDocument(
-      id,
-      {
-        document_type: data.document_type,
-        title: data.title,
-        file_name: data.file_name,
-        mime_type: data.mime_type,
-        file_size_bytes: data.file_size_bytes,
-        storage_key: storageKey,
-        description: data.description,
-      },
-      userId,
-    );
+    try {
+      return await this.createDocument(
+        id,
+        {
+          visit_id: data.visit_id,
+          document_type: data.document_type,
+          title: data.title,
+          file_name: data.file_name,
+          mime_type: data.mime_type,
+          file_size_bytes: data.file_size_bytes,
+          storage_key: storageKey,
+          description: data.description,
+          consent_status: data.consent_status,
+          signed_at: data.signed_at,
+          valid_until: data.valid_until,
+          signed_by_name: data.signed_by_name,
+        },
+        userId,
+      );
+    } catch (error) {
+      await this.documentStorage.deleteIfExists(storageKey);
+      throw error;
+    }
+  }
 
-    return document;
+  async replaceDocument(patientId: string, documentId: string, data: UploadPatientDocumentDTO, userId: string) {
+    await this.getById(patientId);
+    this.validateDocumentUpload(data);
+    const activeDocument = await this.getActiveDocument(patientId, documentId);
+    const { storageKey } = await this.documentStorage.uploadPatientDocument({
+      patientId,
+      fileName: data.file_name,
+      mimeType: data.mime_type,
+      data: data.data,
+    });
+
+    try {
+      const document = await this.repository.replaceDocument(
+        patientId,
+        documentId,
+        {
+          visit_id: activeDocument.visit_id,
+          document_type: data.document_type,
+          title: data.title,
+          file_name: data.file_name,
+          mime_type: data.mime_type,
+          file_size_bytes: data.file_size_bytes,
+          storage_key: storageKey,
+          description: data.description,
+          consent_status: data.consent_status,
+          signed_at: data.signed_at,
+          valid_until: data.valid_until,
+          signed_by_name: data.signed_by_name,
+        },
+        userId,
+      );
+      if (!document) {
+        throw new AppError('Patient document not found', 404, 'NOT_FOUND');
+      }
+      await this.documentStorage.deleteIfExists(activeDocument.storage_key);
+      return document;
+    } catch (error) {
+      await this.documentStorage.deleteIfExists(storageKey);
+      throw error;
+    }
   }
 
   async downloadDocument(patientId: string, documentId: string) {
@@ -217,6 +272,18 @@ export class PatientService {
 
     if (!env.upload.patientDocumentAllowedMimeTypes.includes(data.mime_type)) {
       throw new AppError('Document file type is not allowed', 400, 'INVALID_FILE_TYPE');
+    }
+
+    if (data.document_type === 'CONSENT') {
+      if (!data.consent_status) {
+        throw new AppError('Consent status is required', 400, 'VALIDATION_ERROR');
+      }
+      if (data.signed_at && !isValidDate(data.signed_at)) {
+        throw new AppError('Consent signed date is invalid', 400, 'VALIDATION_ERROR');
+      }
+      if (data.valid_until && !isValidDate(data.valid_until)) {
+        throw new AppError('Consent validity date is invalid', 400, 'VALIDATION_ERROR');
+      }
     }
   }
 

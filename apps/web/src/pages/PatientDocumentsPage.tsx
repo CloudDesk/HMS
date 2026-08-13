@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { patientsApi, type PatientResponse, type PatientHistoryResponse } from '../api/patients';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  patientsApi,
+  type ApiPatientDocumentType,
+  type PatientDocumentResponse,
+  type PatientResponse,
+} from '../api/patients';
 import { Toast } from '../components/ui/Toast';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDate, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
 import { patientInitials } from './opd-utils';
@@ -14,6 +20,45 @@ type PatientDocumentRecord = {
   uploadedBy: string;
   uploadedDate: string;
   status: 'Verified' | 'Pending' | 'Rejected';
+  fileName: string;
+  createdAt: string;
+};
+
+const toDocumentRecord = (document: PatientDocumentResponse): PatientDocumentRecord => ({
+  id: document.id,
+  name: document.title || document.file_name,
+  type: document.document_type,
+  category: detectCategoryFromFileName(document.file_name),
+  uploadedBy: document.uploaded_by_name ?? 'Unknown user',
+  uploadedDate: formatDate(document.created_at),
+  status: 'Verified',
+  fileName: document.file_name,
+  createdAt: document.created_at,
+});
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const detectCategoryFromFileName = (fileName: string): string => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'pdf') return 'PDF';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'Image';
+  if (['doc', 'docx'].includes(ext)) return 'Word';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'Excel';
+  if (['txt', 'rtf'].includes(ext)) return 'Scanned File';
+  return 'PDF';
+};
+
+const getFileIconClass = (fileName: string): string => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'pdf') return 'ph ph-file-pdf';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'ph ph-file-image';
+  if (['doc', 'docx'].includes(ext)) return 'ph ph-file-doc';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'ph ph-file-xls';
+  return 'ph ph-file-text';
 };
 
 export function PatientDocumentsPage() {
@@ -22,9 +67,9 @@ export function PatientDocumentsPage() {
   const [activePatientId, setActivePatientId] = useState<string>(searchPatientId);
   const [patient, setPatient] = useState<PatientResponse | null>(null);
   const [patientList, setPatientList] = useState<PatientResponse[]>([]);
-  const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
   const [documents, setDocuments] = useState<PatientDocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
@@ -37,10 +82,17 @@ export function PatientDocumentsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [dateRangeInput, setDateRangeInput] = useState('');
 
-  // Form State
+  // Upload Form & Multi-file Staging State
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [docName, setDocName] = useState('');
-  const [docType, setDocType] = useState('Select type');
+  const [docType, setDocType] = useState<ApiPatientDocumentType>('CLINICAL');
   const [docCategory, setDocCategory] = useState('PDF');
+  const [submittingUpload, setSubmittingUpload] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<PatientDocumentRecord | null>(null);
+  const [documentToReplace, setDocumentToReplace] = useState<PatientDocumentRecord | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadedPatientIdRef = useRef<string | null>(null);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -48,120 +100,172 @@ export function PatientDocumentsPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const loadPatientsList = useCallback(async () => {
-    try {
-      const res = await patientsApi.list({ limit: 50 });
-      setPatientList(res.data);
-      if (!searchPatientId && res.data.length > 0) {
-        const first = res.data[0];
-        if (first) {
-          setActivePatientId(first.id);
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }, [searchPatientId]);
-
-  useEffect(() => {
-    void loadPatientsList();
-  }, [loadPatientsList]);
-
-  useEffect(() => {
-    if (searchPatientId) {
-      setActivePatientId(searchPatientId);
-    }
-  }, [searchPatientId]);
-
-  const loadLiveData = useCallback(async () => {
-    if (!activePatientId) return;
+  // Single unified data loader guarded against duplicate mount calls
+  const loadPageData = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
-      const targetPatient = await patientsApi.getById(activePatientId);
+      const listRes = await patientsApi.list({ limit: 50 });
+      setPatientList(listRes.data);
+
+      let targetId = searchPatientId;
+      if (!targetId && listRes.data.length > 0 && listRes.data[0]) {
+        targetId = listRes.data[0].id;
+      }
+
+      if (!targetId) {
+        setLoading(false);
+        return;
+      }
+
+      setActivePatientId(targetId);
+      loadedPatientIdRef.current = targetId;
+
+      const [targetPatient, backendDocs] = await Promise.all([
+        patientsApi.getById(targetId),
+        patientsApi.documents(targetId, { limit: 100 }),
+      ]);
+
       setPatient(targetPatient);
 
-      const histRes = await patientsApi.history(activePatientId);
-      setHistory(histRes);
-
-      if (histRes.documents && histRes.documents.length > 0) {
-        setDocuments(
-          histRes.documents.map((d) => ({
-            id: d.id,
-            name: d.title || 'Patient Record Document',
-            type: d.document_type || 'PDF',
-            category: d.document_type || 'General',
-            uploadedBy: targetPatient ? patientFullName(targetPatient) : 'Clinical Staff',
-            uploadedDate: formatDate(d.created_at),
-            status: 'Verified',
-          })),
-        );
-      } else if (targetPatient) {
-        const regDate = formatDate(targetPatient.created_at);
-        setDocuments([
-          {
-            id: 'DOC-001',
-            name: 'Lab Results - July',
-            type: 'PDF',
-            category: 'Lab Report',
-            uploadedBy: 'Grace Achieng',
-            uploadedDate: '20 Jul 2026',
-            status: 'Verified',
-          },
-          {
-            id: 'DOC-002',
-            name: 'Patient ID Copy',
-            type: 'Image',
-            category: 'Identification',
-            uploadedBy: 'Reception',
-            uploadedDate: regDate,
-            status: 'Verified',
-          },
-          {
-            id: 'DOC-003',
-            name: 'Referral Letter',
-            type: 'Word',
-            category: 'Referral',
-            uploadedBy: 'Peter Mwangi',
-            uploadedDate: '12 Jun 2026',
-            status: 'Pending',
-          },
-        ]);
-      } else {
-        setDocuments([]);
-      }
+      setDocuments(backendDocs.data.map(toDocumentRecord));
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      setDocuments([]);
+      setLoadError(getPatientErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [activePatientId]);
+  }, [searchPatientId]);
 
   useEffect(() => {
-    void loadLiveData();
-  }, [loadLiveData]);
+    void loadPageData();
+  }, [loadPageData]);
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  // File selection & auto category detection
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files);
+    setStagedFiles((prev) => [...prev, ...newFiles]);
+
+    const firstFile = newFiles[0];
+    if (firstFile) {
+      const autoCategory = detectCategoryFromFileName(firstFile.name);
+      setDocCategory(autoCategory);
+      if (!docName.trim()) {
+        const baseName = firstFile.name.substring(0, firstFile.name.lastIndexOf('.')) || firstFile.name;
+        setDocName(baseName);
+      }
+    }
+  };
+
+  const removeStagedFile = (index: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (stagedFiles.length === 0) {
+      showToast('Please select at least one document to upload.');
+      return;
+    }
     if (!docName.trim()) {
       showToast('Please enter a document name.');
       return;
     }
 
-    const created: PatientDocumentRecord = {
-      id: `DOC-00${documents.length + 1}`,
-      name: docName.trim(),
-      type: docType === 'Select type' ? 'General' : docType,
-      category: docCategory,
-      uploadedBy: 'Dr. John Kamau',
-      uploadedDate: formatDate(new Date().toISOString()),
-      status: 'Verified',
-    };
+    setSubmittingUpload(true);
+    try {
+      const uploadedRecords: PatientDocumentRecord[] = [];
 
-    setDocuments([created, ...documents]);
-    setUploadModalOpen(false);
-    setDocName('');
-    setDocType('Select type');
-    showToast('Patient document uploaded successfully.');
+      for (let i = 0; i < stagedFiles.length; i++) {
+        const file = stagedFiles[i];
+        if (!file) continue;
+
+        const title = stagedFiles.length > 1 ? `${docName.trim()} (${i + 1})` : docName.trim();
+        if (!activePatientId) throw new Error('Select a patient before uploading documents.');
+        const apiRes = await patientsApi.uploadDocument(activePatientId, {
+          document_type: docType,
+          title,
+          file,
+        });
+        uploadedRecords.push(toDocumentRecord(apiRes));
+      }
+
+      setDocuments((prev) => [...uploadedRecords, ...prev]);
+      setUploadModalOpen(false);
+      setStagedFiles([]);
+      setDocName('');
+      showToast(`${uploadedRecords.length} document(s) uploaded successfully to patient record.`);
+    } catch (error) {
+      showToast(getPatientErrorMessage(error));
+    } finally {
+      setSubmittingUpload(false);
+    }
+  };
+
+  // View document in new tab
+  const handleViewDocument = async (doc: PatientDocumentRecord) => {
+    if (!activePatientId) return;
+    try {
+      const download = await patientsApi.downloadDocument(activePatientId, doc.id);
+      const url = URL.createObjectURL(download.blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      showToast(getPatientErrorMessage(error));
+    }
+  };
+
+  // Download document file
+  const handleDownloadDocument = async (doc: PatientDocumentRecord) => {
+    if (activePatientId) {
+      try {
+        const downloadRes = await patientsApi.downloadDocument(activePatientId, doc.id);
+        const url = URL.createObjectURL(downloadRes.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadRes.fileName ?? doc.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`Downloaded ${doc.name}`);
+        return;
+      } catch (error) {
+        showToast(getPatientErrorMessage(error));
+      }
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!activePatientId || !documentToDelete) return;
+    try {
+      await patientsApi.deleteDocument(activePatientId, documentToDelete.id);
+      setDocuments((current) => current.filter((document) => document.id !== documentToDelete.id));
+      showToast(`${documentToDelete.name} deleted.`);
+    } catch (error) {
+      showToast(getPatientErrorMessage(error));
+    } finally {
+      setDocumentToDelete(null);
+    }
+  };
+
+  const handleReplaceFile = async (file: File | undefined) => {
+    if (!file || !activePatientId || !documentToReplace) return;
+    try {
+      const replaced = await patientsApi.replaceDocument(activePatientId, documentToReplace.id, {
+        document_type: documentToReplace.type as ApiPatientDocumentType,
+        title: documentToReplace.name,
+        file,
+      });
+      setDocuments((current) => current.map((document) => (document.id === replaced.id ? toDocumentRecord(replaced) : document)));
+      showToast(`${documentToReplace.name} replaced successfully.`);
+    } catch (error) {
+      showToast(getPatientErrorMessage(error));
+    } finally {
+      setDocumentToReplace(null);
+      if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
+    }
   };
 
   const resetFilters = () => {
@@ -181,7 +285,9 @@ export function PatientDocumentsPage() {
     const matchesType = !typeFilter || doc.type === typeFilter;
     const matchesCategory = !categoryFilter || doc.category === categoryFilter;
     const matchesStatus = !statusFilter || doc.status === statusFilter;
-    return matchesSearch && matchesType && matchesCategory && matchesStatus;
+    const matchesUploader = !uploadedByFilter || doc.uploadedBy === uploadedByFilter;
+    const matchesDate = !dateRangeInput || doc.createdAt.slice(0, 10) === dateRangeInput;
+    return matchesSearch && matchesType && matchesCategory && matchesStatus && matchesUploader && matchesDate;
   });
 
   return (
@@ -206,20 +312,46 @@ export function PatientDocumentsPage() {
                     navigate(`/patients/documents?id=${encodeURIComponent(e.target.value)}`);
                   }
                 }}
-                style={{ width: '240px', padding: '0.4rem 0.6rem' }}
+                style={{ width: '220px', maxWidth: '220px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0.4rem 0.6rem' }}
+                title={patient ? `${patientFullName(patient)} - ${patient.patient_number}` : 'Select Patient'}
                 value={activePatientId}
               >
                 {patientList.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option key={p.id} title={`${patientFullName(p)} - ${p.patient_number}`} value={p.id}>
                     {patientFullName(p)} - {p.patient_number}
                   </option>
                 ))}
               </select>
             </div>
 
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <i className="ph ph-magnifying-glass" style={{ position: 'absolute', left: '0.6rem', color: '#64748b', fontSize: '0.9rem', pointerEvents: 'none' }} aria-hidden="true" />
+              <input
+                onChange={(e) => {
+                  const query = e.target.value.toLowerCase();
+                  const matched = patientList.find(
+                    (p) =>
+                      patientFullName(p).toLowerCase().includes(query) ||
+                      p.patient_number.toLowerCase().includes(query)
+                  );
+                  if (matched) {
+                    setActivePatientId(matched.id);
+                    navigate(`/patients/documents?id=${encodeURIComponent(matched.id)}`);
+                  }
+                }}
+                placeholder="Search patient in-page..."
+                style={{ width: '190px', padding: '0.4rem 0.6rem 0.4rem 1.8rem', fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}
+                type="search"
+              />
+            </div>
+
             <button
               className="doc-btn primary"
-              onClick={() => setUploadModalOpen(true)}
+              onClick={() => {
+                setStagedFiles([]);
+                setDocName('');
+                setUploadModalOpen(true);
+              }}
               type="button"
             >
               <i className="ph ph-plus" aria-hidden="true" />
@@ -231,24 +363,24 @@ export function PatientDocumentsPage() {
         {/* Hero Banner */}
         <section className="doc-card opd-patient-banner" style={{ marginBottom: '1.25rem' }}>
           <div className="opd-patient-avatar-box">
-            <span>{patient ? patientInitials(patientFullName(patient)) : 'RA'}</span>
+            <span>{patient ? patientInitials(patientFullName(patient)) : '--'}</span>
           </div>
           <div className="opd-patient-banner-info">
             <div className="opd-patient-banner-title">
-              <h3>{patient ? patientFullName(patient) : 'Robert Achieng'}</h3>
-              <span className="opd-mrn-chip">{patient?.patient_number || 'MRN-80001'}</span>
+              <h3>{patient ? patientFullName(patient) : 'No patient selected'}</h3>
+              <span className="opd-mrn-chip">{patient?.patient_number || 'No MRN'}</span>
               <span className={`doc-status ${patient?.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
                 • {patient?.status || 'Active'}
               </span>
             </div>
             <div className="opd-patient-meta-line">
-              <span>Gender: {patient?.gender || 'Male'}, {patient ? `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} years` : '32 years'}</span>
+              <span>Gender: {patient?.gender || 'Not recorded'}{patient ? `, ${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} years` : ''}</span>
               <span className="divider">•</span>
-              <span>{patient?.phone || '+254 794 310 659'}</span>
+              <span>{patient?.phone || 'Phone not recorded'}</span>
               <span className="divider">•</span>
-              <span>Blood Group: {patient?.blood_group || 'O+'}</span>
+              <span>Blood Group: {patient?.blood_group || 'Not recorded'}</span>
               <span className="divider">•</span>
-              <span>Doctor: Dr. John Kamau</span>
+              <span>Document records: {documents.length}</span>
             </div>
           </div>
           <div className="opd-patient-banner-actions">
@@ -279,29 +411,31 @@ export function PatientDocumentsPage() {
               <label htmlFor="doc-type">Document Type</label>
               <select id="doc-type" onChange={(e) => setTypeFilter(e.target.value)} value={typeFilter}>
                 <option value="">All Types</option>
-                <option value="PDF">PDF</option>
-                <option value="Image">Image</option>
-                <option value="Word">Word</option>
-                <option value="Excel">Excel</option>
+                <option value="CLINICAL">Clinical</option>
+                <option value="IDENTITY">Identity</option>
+                <option value="INSURANCE">Insurance</option>
+                <option value="CONSENT">Consent</option>
+                <option value="OTHER">Other</option>
               </select>
             </div>
             <div className="doc-field">
               <label htmlFor="doc-cat">Category</label>
               <select id="doc-cat" onChange={(e) => setCategoryFilter(e.target.value)} value={categoryFilter}>
                 <option value="">All Categories</option>
-                <option value="Lab Report">Lab Report</option>
-                <option value="Identification">Identification</option>
-                <option value="Referral">Referral</option>
-                <option value="Prescription">Prescription</option>
+                <option value="PDF">PDF</option>
+                <option value="Image">Image</option>
+                <option value="Word">Word</option>
+                <option value="Excel">Excel</option>
+                <option value="Scanned File">Scanned File</option>
               </select>
             </div>
             <div className="doc-field">
               <label htmlFor="doc-uploader">Uploaded By</label>
               <select id="doc-uploader" onChange={(e) => setUploadedByFilter(e.target.value)} value={uploadedByFilter}>
                 <option value="">All Users</option>
-                <option value="Grace Achieng">Grace Achieng</option>
-                <option value="Reception">Reception</option>
-                <option value="Peter Mwangi">Peter Mwangi</option>
+                {[...new Set(documents.map((document) => document.uploadedBy))].map((uploader) => (
+                  <option key={uploader} value={uploader}>{uploader}</option>
+                ))}
               </select>
             </div>
             <div className="doc-field">
@@ -356,6 +490,8 @@ export function PatientDocumentsPage() {
                       Loading patient documents...
                     </td>
                   </tr>
+                ) : loadError ? (
+                  <tr><td className="um-state-cell" colSpan={7}>{loadError}</td></tr>
                 ) : filteredDocs.length === 0 ? (
                   <tr>
                     <td className="um-state-cell" colSpan={7}>
@@ -368,13 +504,7 @@ export function PatientDocumentsPage() {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                           <i
-                            className={
-                              doc.type === 'PDF'
-                                ? 'ph ph-file-pdf'
-                                : doc.type === 'Image'
-                                ? 'ph ph-file-image'
-                                : 'ph ph-file-doc'
-                            }
+                            className={getFileIconClass(doc.name)}
                             style={{ fontSize: '1.25rem', color: '#2563eb' }}
                           />
                           <strong style={{ color: '#0f172a' }}>{doc.name}</strong>
@@ -397,27 +527,38 @@ export function PatientDocumentsPage() {
                         <div className="table-actions">
                           <button
                             className="doc-icon-action"
-                            onClick={() => showToast(`Previewing ${doc.name}`)}
-                            title="View document"
+                            onClick={() => void handleViewDocument(doc)}
+                            title="View document in new window"
                             type="button"
                           >
                             <i className="ph ph-eye" aria-hidden="true" />
                           </button>
                           <button
                             className="doc-icon-action"
-                            onClick={() => showToast(`Downloading ${doc.name}`)}
-                            title="Download document"
+                            onClick={() => void handleDownloadDocument(doc)}
+                            title="Download document file"
                             type="button"
                           >
                             <i className="ph ph-download-simple" aria-hidden="true" />
                           </button>
                           <button
                             className="doc-icon-action"
-                            onClick={() => showToast(`Edit metadata for ${doc.name}`)}
-                            title="Edit metadata"
+                            onClick={() => {
+                              setDocumentToReplace(doc);
+                              replaceFileInputRef.current?.click();
+                            }}
+                            title="Replace document file"
                             type="button"
                           >
-                            <i className="ph ph-pencil-simple" aria-hidden="true" />
+                            <i className="ph ph-arrows-clockwise" aria-hidden="true" />
+                          </button>
+                          <button
+                            className="doc-icon-action"
+                            onClick={() => setDocumentToDelete(doc)}
+                            title="Delete document"
+                            type="button"
+                          >
+                            <i className="ph ph-trash" aria-hidden="true" />
                           </button>
                         </div>
                       </td>
@@ -430,15 +571,48 @@ export function PatientDocumentsPage() {
         </section>
       </div>
 
-      {/* Upload Patient Document Modal */}
+      {/* Upload Patient Document Modal with Lively Multi-file Staging */}
       <Modal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} title="Upload Patient Document">
         <form className="modal-form" onSubmit={handleUploadSubmit}>
-          <div className="upload-dropzone-box">
-            <i className="ph ph-cloud-arrow-up upload-cloud-icon" aria-hidden="true" />
-            <strong>Choose a file to upload</strong>
-            <span>PDF, image, Word, Excel or scanned file</span>
-            <input id="modal-file-input" type="file" />
+          <div className="lively-upload-dropzone">
+            <i className="ph ph-cloud-arrow-up lively-upload-icon" aria-hidden="true" />
+            <strong>Choose files to upload</strong>
+            <span>Drag and drop or click to browse PDF, image, Word, Excel files</span>
+            <input
+              className="lively-file-input"
+              id="modal-file-input"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx"
+              onChange={(e) => handleFileSelect(e.target.files)}
+              type="file"
+            />
           </div>
+
+          {stagedFiles.length > 0 && (
+            <div className="staged-files-list">
+              {stagedFiles.map((file, idx) => (
+                <div className="staged-file-item" key={`${file.name}-${idx}`}>
+                  <div className="staged-file-info">
+                    <i className={`${getFileIconClass(file.name)} staged-file-icon`} aria-hidden="true" />
+                    <div className="staged-file-details">
+                      <span className="staged-file-name" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="staged-file-size">{formatFileSize(file.size)}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="staged-file-remove-btn"
+                    onClick={() => removeStagedFile(idx)}
+                    title="Remove file"
+                    type="button"
+                  >
+                    <i className="ph ph-trash" aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div className="doc-field">
@@ -459,26 +633,20 @@ export function PatientDocumentsPage() {
               </label>
               <select
                 id="modal-doc-type"
-                onChange={(e) => setDocType(e.target.value)}
+                onChange={(e) => setDocType(e.target.value as ApiPatientDocumentType)}
                 value={docType}
               >
-                <option value="Select type">Select type</option>
-                <option value="Prescription">Prescription</option>
-                <option value="Lab Report">Lab Report</option>
-                <option value="Radiology">Radiology</option>
-                <option value="Insurance">Insurance</option>
-                <option value="Referral">Referral</option>
-                <option value="Consent">Consent</option>
-                <option value="Discharge Summary">Discharge Summary</option>
-                <option value="Invoice">Invoice</option>
-                <option value="Identification">Identification</option>
-                <option value="Other">Other</option>
+                <option value="CLINICAL">Clinical</option>
+                <option value="IDENTITY">Identity</option>
+                <option value="INSURANCE">Insurance</option>
+                <option value="CONSENT">Consent</option>
+                <option value="OTHER">Other</option>
               </select>
             </div>
           </div>
 
           <div className="doc-field" style={{ marginBottom: '1.25rem' }}>
-            <label htmlFor="modal-doc-category">Category / File Format</label>
+            <label htmlFor="modal-doc-category">Category / File Format (Auto-detected)</label>
             <select
               id="modal-doc-category"
               onChange={(e) => setDocCategory(e.target.value)}
@@ -496,12 +664,28 @@ export function PatientDocumentsPage() {
             <button className="doc-btn" onClick={() => setUploadModalOpen(false)} type="button">
               Cancel
             </button>
-            <button className="doc-btn primary" type="submit">
-              Upload Document
+            <button className="doc-btn primary" disabled={submittingUpload} type="submit">
+              {submittingUpload ? 'Uploading to Database...' : 'Upload Document'}
             </button>
           </div>
         </form>
       </Modal>
+
+      <input
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx"
+        hidden
+        onChange={(event) => void handleReplaceFile(event.target.files?.[0])}
+        ref={replaceFileInputRef}
+        type="file"
+      />
+      <ConfirmDialog
+        confirmLabel="Delete Document"
+        message={`Delete ${documentToDelete?.name ?? 'this document'}? The stored backend file will also be removed.`}
+        onCancel={() => setDocumentToDelete(null)}
+        onConfirm={() => void handleDeleteDocument()}
+        open={Boolean(documentToDelete)}
+        title="Delete Patient Document"
+      />
 
       <Toast message={toastMessage} visible={toastVisible} />
     </>

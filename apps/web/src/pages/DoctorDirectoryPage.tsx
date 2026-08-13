@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import {
@@ -136,30 +136,6 @@ const toCreatePayload = (form: DoctorFormState): CreateDoctorPayload => ({
     : { create_login_account: false },
 });
 
-const buildDirectoryUrl = (
-  search: string,
-  status: ApiDoctorStatus | '',
-  branchId: string,
-  departmentId: string,
-  page: number,
-  sortColumn: SortColumn | null,
-  sortDirection: SortDirection,
-) => {
-  const params = new URLSearchParams();
-  if (search.trim()) params.set('search', search.trim());
-  if (status) params.set('status', status);
-  if (branchId) params.set('branch_id', branchId);
-  if (departmentId) params.set('department_id', departmentId);
-  if (page > 1) params.set('page', String(page));
-  if (sortColumn) {
-    params.set('sortBy', sortColumn);
-    params.set('sortOrder', sortDirection);
-  }
-
-  const query = params.toString();
-  return `/doctors/directory${query ? `?${query}` : ''}`;
-};
-
 const statusClass = (status: ApiDoctorStatus) => {
   if (status === 'ACTIVE') return 'status-active';
   if (status === 'ON_LEAVE') return 'status-warning';
@@ -178,7 +154,7 @@ export function DoctorDirectoryPage() {
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [userOptions, setUserOptions] = useState<DoctorUserOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lookupLoading, setLookupLoading] = useState(true);
+  const [modalLookupLoading, setModalLookupLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState(initialParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState<ApiDoctorStatus | ''>(
@@ -206,6 +182,8 @@ export function DoctorDirectoryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+
+  const lookupsLoadedRef = useRef(false);
 
   const canProvisionLogin = useMemo(
     () =>
@@ -237,9 +215,10 @@ export function DoctorDirectoryPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const loadLookups = useCallback(async () => {
-    setLookupLoading(true);
-
+  // Fetch modal lookups ON-DEMAND when modal opens
+  const ensureModalLookups = useCallback(async () => {
+    if (lookupsLoadedRef.current) return;
+    setModalLookupLoading(true);
     try {
       const [branchResponse, departmentResponse, userResponse] = await Promise.all([
         branchesApi.list({ status: 'ACTIVE', limit: 100 }),
@@ -249,13 +228,15 @@ export function DoctorDirectoryPage() {
       setBranches(branchResponse.data);
       setDepartments(departmentResponse.data);
       setUserOptions(userResponse);
+      lookupsLoadedRef.current = true;
     } catch (error) {
       showToast(getPatientErrorMessage(error));
     } finally {
-      setLookupLoading(false);
+      setModalLookupLoading(false);
     }
   }, []);
 
+  // Fetch only table doctors data (1 single request on mount/filter)
   const loadDoctors = useCallback(async () => {
     setLoading(true);
     setLoadError('');
@@ -283,40 +264,23 @@ export function DoctorDirectoryPage() {
   }, [branchFilter, currentPage, departmentFilter, search, sortColumn, sortDirection, statusFilter]);
 
   useEffect(() => {
-    void loadLookups();
-  }, [loadLookups]);
-
-  useEffect(() => {
-    const nextUrl = buildDirectoryUrl(
-      search,
-      statusFilter,
-      branchFilter,
-      departmentFilter,
-      currentPage,
-      sortColumn,
-      sortDirection,
-    );
-    if (window.location.pathname + window.location.search !== nextUrl) {
-      navigate(nextUrl, { replace: true });
-    }
-  }, [branchFilter, currentPage, departmentFilter, search, sortColumn, sortDirection, statusFilter]);
-
-  useEffect(() => {
     void loadDoctors();
   }, [loadDoctors]);
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setEditingDoctor(null);
     setForm(emptyForm());
     setFormError('');
     setModalOpen(true);
+    await ensureModalLookups();
   };
 
-  const openEdit = (doctor: DoctorResponse) => {
+  const openEdit = async (doctor: DoctorResponse) => {
     setEditingDoctor(doctor);
     setForm(toForm(doctor));
     setFormError('');
     setModalOpen(true);
+    await ensureModalLookups();
   };
 
   const closeModal = () => {
@@ -451,7 +415,7 @@ export function DoctorDirectoryPage() {
               <i className="ph ph-download-simple" aria-hidden="true" />
               Export CSV
             </button>
-            <button className="doc-btn primary" disabled={lookupLoading} onClick={openCreate} type="button">
+            <button className="doc-btn primary" onClick={() => void openCreate()} type="button">
               <i className="ph ph-plus" aria-hidden="true" />
               Add Doctor
             </button>
@@ -604,7 +568,7 @@ export function DoctorDirectoryPage() {
                       <td>{formatDate(doctor.created_at)}</td>
                       <td>
                         <div className="doc-actions">
-                          <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" type="button">
+                          <button className="doc-action" onClick={() => void openEdit(doctor)} title="Edit doctor" type="button">
                             <i className="ph ph-pencil-simple" aria-hidden="true" />
                           </button>
                           <button
@@ -684,59 +648,133 @@ export function DoctorDirectoryPage() {
             </div>
           )}
 
-          <section className="doctor-onboarding-section">
-            <header>
-              <span><i className="ph ph-stethoscope" aria-hidden="true" /></span>
-              <div><h3>Doctor Information</h3><p>Clinical identity, assignment, contact details, and operational status.</p></div>
-            </header>
-            <div className="form-grid">
-              <div className="form-group"><label htmlFor="doctor-first-name">First name *</label><input disabled={submitting} id="doctor-first-name" onChange={(event) => setForm({ ...form, firstName: event.target.value })} required value={form.firstName} /></div>
-              <div className="form-group"><label htmlFor="doctor-last-name">Last name *</label><input disabled={submitting} id="doctor-last-name" onChange={(event) => setForm({ ...form, lastName: event.target.value })} required value={form.lastName} /></div>
-              <div className="form-group"><label htmlFor="doctor-registration-number">Registration number</label><input disabled={submitting} id="doctor-registration-number" onChange={(event) => setForm({ ...form, registrationNumber: event.target.value })} value={form.registrationNumber} /></div>
-              <div className="form-group"><label htmlFor="doctor-qualification">Qualification</label><input disabled={submitting} id="doctor-qualification" onChange={(event) => setForm({ ...form, qualification: event.target.value })} value={form.qualification} /></div>
-              <div className="form-group"><label htmlFor="doctor-experience">Experience years</label><input disabled={submitting} id="doctor-experience" max="80" min="0" onChange={(event) => setForm({ ...form, experienceYears: event.target.value })} type="number" value={form.experienceYears} /></div>
-              <div className="form-group"><label htmlFor="doctor-specialization">Specialization *</label><input disabled={submitting} id="doctor-specialization" onChange={(event) => setForm({ ...form, specialization: event.target.value })} required value={form.specialization} /></div>
-              <div className="form-group"><label htmlFor="doctor-branch">Branch *</label><select disabled={submitting} id="doctor-branch" onChange={(event) => setForm({ ...form, branchId: event.target.value, departmentId: '' })} required value={form.branchId}><option value="">Select branch</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></div>
-              <div className="form-group"><label htmlFor="doctor-department">Department *</label><select disabled={submitting || !form.branchId} id="doctor-department" onChange={(event) => setForm({ ...form, departmentId: event.target.value })} required value={form.departmentId}><option value="">Select department</option>{departmentsForForm.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>
-              <div className="form-group"><label htmlFor="doctor-room">Consultation room</label><input disabled={submitting} id="doctor-room" onChange={(event) => setForm({ ...form, consultationRoom: event.target.value })} value={form.consultationRoom} /></div>
-              <div className="form-group"><label htmlFor="doctor-phone">Phone</label><input disabled={submitting} id="doctor-phone" onChange={(event) => setForm({ ...form, phone: event.target.value })} type="tel" value={form.phone} /></div>
-              <div className="form-group"><label htmlFor="doctor-email">Clinical email</label><input disabled={submitting} id="doctor-email" onChange={(event) => setForm({ ...form, email: event.target.value })} type="email" value={form.email} /></div>
-              <div className="form-group"><label htmlFor="doctor-status">Status</label><select disabled={submitting} id="doctor-status" onChange={(event) => setForm({ ...form, status: event.target.value as ApiDoctorStatus })} value={form.status}><option value="ACTIVE">Active</option><option value="ON_LEAVE">On leave</option><option value="INACTIVE">Inactive</option></select></div>
-              {editingDoctor && form.status !== editingDoctor.status ? <div className="form-group full-width"><label htmlFor="doctor-status-reason">Status change reason *</label><input disabled={submitting} id="doctor-status-reason" onChange={(event) => setForm({ ...form, statusReason: event.target.value })} required value={form.statusReason} /></div> : null}
-              <div className="form-group full-width"><label htmlFor="doctor-notes">Notes</label><textarea disabled={submitting} id="doctor-notes" onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} value={form.notes} /></div>
-            </div>
-          </section>
-
-          {!editingDoctor ? (
-            <section className="doctor-onboarding-section">
-              <header><span><i className="ph ph-calendar-dots" aria-hidden="true" /></span><div><h3>Availability</h3><p>Initialize recurring working blocks and appointment slot duration.</p></div></header>
-              <DoctorAvailabilityEditor disabled={submitting} onChange={(availability) => setForm({ ...form, availability })} value={form.availability} />
-            </section>
-          ) : null}
-
-          {!editingDoctor ? (
-            <section className="doctor-onboarding-section">
-              <header><span><i className="ph ph-key" aria-hidden="true" /></span><div><h3>Account Access</h3><p>Optionally provision a secure login with the fixed DOCTOR role.</p></div></header>
-              <div className="doctor-account-toggle">
-                <div><strong>Create Login Account: {form.createLoginAccount ? 'Yes' : 'No'}</strong><p>{canProvisionLogin ? 'Creates and links the User account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p></div>
-                <label className="doctor-switch"><input checked={form.createLoginAccount} disabled={submitting || !canProvisionLogin} onChange={(event) => setForm({ ...form, createLoginAccount: event.target.checked, loginEmail: event.target.checked ? form.loginEmail || form.email : form.loginEmail })} type="checkbox" /><span /></label>
-              </div>
-              {form.createLoginAccount ? (
-                <div className="form-grid doctor-account-fields">
-                  <div className="form-group"><label htmlFor="doctor-employee-code">Employee code *</label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" onChange={(event) => setForm({ ...form, employeeCode: event.target.value })} required value={form.employeeCode} /></div>
-                  <div className="form-group"><label htmlFor="doctor-username">Username *</label><input autoComplete="off" disabled={submitting} id="doctor-username" onChange={(event) => setForm({ ...form, username: event.target.value })} required value={form.username} /></div>
-                  <div className="form-group"><label htmlFor="doctor-login-email">Login email *</label><input autoComplete="off" disabled={submitting} id="doctor-login-email" onChange={(event) => setForm({ ...form, loginEmail: event.target.value })} required type="email" value={form.loginEmail} /></div>
-                  <div className="form-group"><label htmlFor="doctor-temporary-password">Temporary password *</label><input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" onChange={(event) => setForm({ ...form, temporaryPassword: event.target.value })} required type="password" value={form.temporaryPassword} /></div>
-                  <div className="form-group"><label htmlFor="doctor-confirm-password">Confirm password *</label><input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" onChange={(event) => setForm({ ...form, confirmTemporaryPassword: event.target.value })} required type="password" value={form.confirmTemporaryPassword} /></div>
-                  <div className="doctor-account-role"><span>Assigned role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
-                </div>
-              ) : <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The Doctor will be created without system login access. An authorized administrator can map a legacy account later.</span></div>}
-            </section>
+          {modalLookupLoading ? (
+            <div className="um-state-cell">Loading onboarding branch and department options...</div>
           ) : (
-            <section className="doctor-onboarding-section">
-              <header><span><i className="ph ph-link" aria-hidden="true" /></span><div><h3>Legacy User Mapping</h3><p>Retained for explicit remediation of Doctor records created before onboarding integration.</p></div></header>
-              <div className="form-grid"><div className="form-group full-width"><label htmlFor="doctor-user">Linked user account</label><select disabled={submitting} id="doctor-user" onChange={(event) => setForm({ ...form, userId: event.target.value })} value={form.userId}><option value="">No linked user</option>{userOptions.filter((option) => !option.mapped_doctor_id || option.mapped_doctor_id === editingDoctor.id).map((option) => <option key={option.id} value={option.id}>{option.full_name} ({option.username})</option>)}</select></div></div>
-            </section>
+            <>
+              <section className="doctor-onboarding-section">
+                <header>
+                  <span><i className="ph ph-stethoscope" aria-hidden="true" /></span>
+                  <div><h3>Doctor Information</h3><p>Clinical identity, assignment, contact details, and operational status.</p></div>
+                </header>
+                <div className="form-grid">
+                  <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
+                    <label htmlFor="doctor-first-name">
+                      First name <span className="required-asterisk">*</span>
+                      {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
+                    </label>
+                    <input disabled={submitting || Boolean(editingDoctor)} id="doctor-first-name" onChange={(event) => setForm({ ...form, firstName: event.target.value })} required value={form.firstName} />
+                  </div>
+                  <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
+                    <label htmlFor="doctor-last-name">
+                      Last name <span className="required-asterisk">*</span>
+                      {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
+                    </label>
+                    <input disabled={submitting || Boolean(editingDoctor)} id="doctor-last-name" onChange={(event) => setForm({ ...form, lastName: event.target.value })} required value={form.lastName} />
+                  </div>
+                  <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
+                    <label htmlFor="doctor-registration-number">
+                      Registration number
+                      {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
+                    </label>
+                    <input disabled={submitting || Boolean(editingDoctor)} id="doctor-registration-number" onChange={(event) => setForm({ ...form, registrationNumber: event.target.value })} value={form.registrationNumber} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-qualification">Qualification</label>
+                    <input disabled={submitting} id="doctor-qualification" onChange={(event) => setForm({ ...form, qualification: event.target.value })} value={form.qualification} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-experience">Experience years</label>
+                    <input disabled={submitting} id="doctor-experience" max="80" min="0" onChange={(event) => setForm({ ...form, experienceYears: event.target.value })} type="number" value={form.experienceYears} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-specialization">
+                      Specialization <span className="required-asterisk">*</span>
+                    </label>
+                    <input disabled={submitting} id="doctor-specialization" onChange={(event) => setForm({ ...form, specialization: event.target.value })} required value={form.specialization} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-branch">
+                      Branch <span className="required-asterisk">*</span>
+                    </label>
+                    <select disabled={submitting} id="doctor-branch" onChange={(event) => setForm({ ...form, branchId: event.target.value, departmentId: '' })} required value={form.branchId}>
+                      <option value="">Select branch</option>
+                      {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-department">
+                      Department <span className="required-asterisk">*</span>
+                    </label>
+                    <select disabled={submitting || !form.branchId} id="doctor-department" onChange={(event) => setForm({ ...form, departmentId: event.target.value })} required value={form.departmentId}>
+                      <option value="">Select department</option>
+                      {departmentsForForm.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-room">Consultation room</label>
+                    <input disabled={submitting} id="doctor-room" onChange={(event) => setForm({ ...form, consultationRoom: event.target.value })} value={form.consultationRoom} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-phone">Phone</label>
+                    <input disabled={submitting} id="doctor-phone" onChange={(event) => setForm({ ...form, phone: event.target.value })} type="tel" value={form.phone} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-email">Clinical email</label>
+                    <input disabled={submitting} id="doctor-email" onChange={(event) => setForm({ ...form, email: event.target.value })} type="email" value={form.email} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="doctor-status">Status</label>
+                    <select disabled={submitting} id="doctor-status" onChange={(event) => setForm({ ...form, status: event.target.value as ApiDoctorStatus })} value={form.status}>
+                      <option value="ACTIVE">Active</option>
+                      <option value="ON_LEAVE">On leave</option>
+                      <option value="INACTIVE">Inactive</option>
+                    </select>
+                  </div>
+                  {editingDoctor && form.status !== editingDoctor.status ? (
+                    <div className="form-group full-width">
+                      <label htmlFor="doctor-status-reason">
+                        Status change reason <span className="required-asterisk">*</span>
+                      </label>
+                      <input disabled={submitting} id="doctor-status-reason" onChange={(event) => setForm({ ...form, statusReason: event.target.value })} required value={form.statusReason} />
+                    </div>
+                  ) : null}
+                  <div className="form-group full-width"><label htmlFor="doctor-notes">Notes</label><textarea disabled={submitting} id="doctor-notes" onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} value={form.notes} /></div>
+                </div>
+              </section>
+
+              {!editingDoctor ? (
+                <section className="doctor-onboarding-section">
+                  <header><span><i className="ph ph-calendar-dots" aria-hidden="true" /></span><div><h3>Availability</h3><p>Initialize recurring working blocks and appointment slot duration.</p></div></header>
+                  <DoctorAvailabilityEditor disabled={submitting} onChange={(availability) => setForm({ ...form, availability })} value={form.availability} />
+                </section>
+              ) : null}
+
+              {!editingDoctor ? (
+                <section className="doctor-onboarding-section">
+                  <header><span><i className="ph ph-key" aria-hidden="true" /></span><div><h3>Account Access</h3><p>Optionally provision a secure login with the fixed DOCTOR role.</p></div></header>
+                  <div className="doctor-account-toggle">
+                    <div><strong>Create Login Account: {form.createLoginAccount ? 'Yes' : 'No'}</strong><p>{canProvisionLogin ? 'Creates and links the User account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p></div>
+                    <label className="doctor-switch"><input checked={form.createLoginAccount} disabled={submitting || !canProvisionLogin} onChange={(event) => setForm({ ...form, createLoginAccount: event.target.checked, loginEmail: event.target.checked ? form.loginEmail || form.email : form.loginEmail })} type="checkbox" /><span /></label>
+                  </div>
+                  {form.createLoginAccount ? (
+                    <div className="form-grid doctor-account-fields">
+                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code *</label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" onChange={(event) => setForm({ ...form, employeeCode: event.target.value })} required value={form.employeeCode} /></div>
+                      <div className="form-group"><label htmlFor="doctor-username">Username *</label><input autoComplete="off" disabled={submitting} id="doctor-username" onChange={(event) => setForm({ ...form, username: event.target.value })} required value={form.username} /></div>
+                      <div className="form-group"><label htmlFor="doctor-login-email">Login email *</label><input autoComplete="off" disabled={submitting} id="doctor-login-email" onChange={(event) => setForm({ ...form, loginEmail: event.target.value })} required type="email" value={form.loginEmail} /></div>
+                      <div className="form-group"><label htmlFor="doctor-temporary-password">Temporary password *</label><input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" onChange={(event) => setForm({ ...form, temporaryPassword: event.target.value })} required type="password" value={form.temporaryPassword} /></div>
+                      <div className="form-group"><label htmlFor="doctor-confirm-password">Confirm password *</label><input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" onChange={(event) => setForm({ ...form, confirmTemporaryPassword: event.target.value })} required type="password" value={form.confirmTemporaryPassword} /></div>
+                      <div className="doctor-account-role"><span>Assigned role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
+                    </div>
+                  ) : <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The Doctor will be created without system login access. An authorized administrator can map a legacy account later.</span></div>}
+                </section>
+              ) : (
+                <section className="doctor-onboarding-section">
+                  <header><span><i className="ph ph-link" aria-hidden="true" /></span><div><h3>Legacy User Mapping</h3><p>Retained for explicit remediation of Doctor records created before onboarding integration.</p></div></header>
+                  <div className="form-grid"><div className="form-group full-width"><label htmlFor="doctor-user">Linked user account</label><select disabled={submitting} id="doctor-user" onChange={(event) => setForm({ ...form, userId: event.target.value })} value={form.userId}><option value="">No linked user</option>{userOptions.filter((option) => !option.mapped_doctor_id || option.mapped_doctor_id === editingDoctor.id).map((option) => <option key={option.id} value={option.id}>{option.full_name} ({option.username})</option>)}</select></div></div>
+                </section>
+              )}
+            </>
           )}
 
           <div className="modal-actions">

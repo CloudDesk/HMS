@@ -12,12 +12,14 @@ import type {
   CreatePatientDocumentDTO,
   Patient,
   PatientDocument,
+  PatientDocumentListQuery,
   PatientListQuery,
   PatientTimelineListQuery,
   PatientTimelineEvent,
   UpdatePatientDTO,
 } from './patient.types.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { UserModel } from '../users/user.model.js';
 
 type PatientLean = PatientDocumentFields & { _id: Types.ObjectId };
 type PatientDocumentLean = PatientDocumentMetadataFields & { _id: Types.ObjectId };
@@ -65,9 +67,10 @@ const toPatient = (patient: PatientLean): Patient => ({
   updated_at: patient.updatedAt,
 });
 
-const toPatientDocument = (document: PatientDocumentLean): PatientDocument => ({
+const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string | null = null): PatientDocument => ({
   id: document._id.toString(),
   patient_id: document.patientId.toString(),
+  visit_id: document.visitId?.toString() ?? null,
   document_type: document.documentType,
   title: document.title,
   file_name: document.fileName,
@@ -75,8 +78,13 @@ const toPatientDocument = (document: PatientDocumentLean): PatientDocument => ({
   file_size_bytes: document.fileSizeBytes,
   storage_key: document.storageKey,
   description: document.description ?? null,
+  consent_status: document.consentStatus ?? null,
+  signed_at: document.signedAt ?? null,
+  valid_until: document.validUntil ?? null,
+  signed_by_name: document.signedByName ?? null,
   status: document.status,
   uploaded_by: document.uploadedBy?.toString() ?? null,
+  uploaded_by_name: uploadedByName,
   created_at: document.createdAt,
   updated_at: document.updatedAt,
 });
@@ -307,17 +315,40 @@ export class PatientRepository {
     };
   }
 
-  async listDocuments(patientId: string, documentType?: string) {
+  async listDocuments(patientId: string, query: PatientDocumentListQuery = {}) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
     const filter: Record<string, unknown> = {
       patientId: new Types.ObjectId(patientId),
       status: 'ACTIVE',
     };
-    if (documentType) {
-      filter.documentType = documentType;
+    if (query.document_type) {
+      filter.documentType = query.document_type;
+    }
+    if (query.visit_id) {
+      filter.visitId = new Types.ObjectId(query.visit_id);
     }
 
-    const documents = await PatientDocumentModel.find(filter).sort({ createdAt: -1 }).lean<PatientDocumentLean[]>();
-    return documents.map(toPatientDocument);
+    const [documents, total] = await Promise.all([
+      PatientDocumentModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean<PatientDocumentLean[]>(),
+      PatientDocumentModel.countDocuments(filter),
+    ]);
+    const uploaderIds = documents.flatMap((document) => (document.uploadedBy ? [document.uploadedBy] : []));
+    const uploaders = await UserModel.find({ _id: { $in: uploaderIds } })
+      .select({ fullName: 1 })
+      .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
+    const uploaderNames = new Map(uploaders.map((user) => [user._id.toString(), user.fullName]));
+
+    return {
+      data: documents.map((document) =>
+        toPatientDocument(document, document.uploadedBy ? uploaderNames.get(document.uploadedBy.toString()) ?? null : null),
+      ),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
   }
 
   async getDocument(patientId: string, documentId: string) {
@@ -333,6 +364,7 @@ export class PatientRepository {
   async createDocument(patientId: string, data: CreatePatientDocumentDTO, userId: string) {
     const created = await PatientDocumentModel.create({
       patientId: new Types.ObjectId(patientId),
+      visitId: toObjectId(data.visit_id),
       documentType: data.document_type,
       title: data.title.trim(),
       fileName: data.file_name.trim(),
@@ -340,10 +372,39 @@ export class PatientRepository {
       fileSizeBytes: data.file_size_bytes,
       storageKey: data.storage_key.trim(),
       description: nullableString(data.description),
+      consentStatus: data.consent_status ?? null,
+      signedAt: data.signed_at ? new Date(data.signed_at) : null,
+      validUntil: data.valid_until ? new Date(data.valid_until) : null,
+      signedByName: nullableString(data.signed_by_name),
       uploadedBy: new Types.ObjectId(userId),
       status: 'ACTIVE',
     });
     return toPatientDocument(created.toObject<PatientDocumentLean>());
+  }
+
+  async replaceDocument(patientId: string, documentId: string, data: CreatePatientDocumentDTO, userId: string) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      { _id: documentId, patientId: new Types.ObjectId(patientId), status: 'ACTIVE' },
+      {
+        $set: {
+          documentType: data.document_type,
+          title: data.title.trim(),
+          fileName: data.file_name.trim(),
+          mimeType: data.mime_type.trim(),
+          fileSizeBytes: data.file_size_bytes,
+          storageKey: data.storage_key.trim(),
+          description: nullableString(data.description),
+          consentStatus: data.consent_status ?? null,
+          signedAt: data.signed_at ? new Date(data.signed_at) : null,
+          validUntil: data.valid_until ? new Date(data.valid_until) : null,
+          signedByName: nullableString(data.signed_by_name),
+          uploadedBy: new Types.ObjectId(userId),
+        },
+      },
+      { new: true, lean: true },
+    ).lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : undefined;
   }
 
   async deleteDocument(patientId: string, documentId: string, userId: string) {

@@ -15,7 +15,7 @@ const administrationPermissions = {
 
 const patientPermissions = {
   'Patient Records': ['View', 'Create', 'Edit'],
-  'Patient Documents': ['View', 'Create', 'Delete'],
+  'Patient Documents': ['View', 'Create', 'Edit', 'Delete'],
 } as const;
 
 const doctorPermissions = {

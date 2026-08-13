@@ -311,7 +311,7 @@ export class UserRepository {
       const userBranches = (user.branchIds as any[] || []).map((b, i) => ({
         id: b._id.toString(),
         name: b.name,
-        isPrimary: i === 0, // Mock primary behavior as first item
+        isPrimary: i === 0,
       }));
       branchesByUserId.set(userIdStr, userBranches);
       
