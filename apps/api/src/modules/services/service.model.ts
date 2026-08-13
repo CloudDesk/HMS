@@ -10,7 +10,6 @@ export interface IService extends Document {
   description?: string;
   departmentId: Types.ObjectId;
   standardPrice: number;
-  durationMinutes: number;
   status: 'ACTIVE' | 'INACTIVE';
   
   createdBy?: Types.ObjectId;
@@ -36,7 +35,6 @@ const serviceSchema = new Schema<IService>(
     description: { type: String },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
     standardPrice: { type: Number, required: true },
-    durationMinutes: { type: Number, required: true },
     status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },

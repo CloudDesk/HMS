@@ -26,7 +26,7 @@ export const listServicesQuerySchema = {
 
 export const createServiceBodySchema = {
   type: 'object',
-  required: ['code', 'name', 'department_id', 'standard_price', 'duration_minutes'],
+  required: ['code', 'name', 'department_id', 'standard_price'],
   additionalProperties: false,
   properties: {
     code: { type: 'string', minLength: 1 },
@@ -34,7 +34,6 @@ export const createServiceBodySchema = {
     service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE'] },
     department_id: { type: 'string', minLength: 1 },
     standard_price: { type: 'number', minimum: 0 },
-    duration_minutes: { type: 'integer', minimum: 1 },
     category: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
@@ -51,7 +50,6 @@ export const updateServiceBodySchema = {
     service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE'] },
     department_id: { type: 'string', minLength: 1 },
     standard_price: { type: 'number', minimum: 0 },
-    duration_minutes: { type: 'integer', minimum: 1 },
     category: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },

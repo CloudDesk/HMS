@@ -34,7 +34,6 @@ type ServiceFormState = {
   category: string;
   description: string;
   standard_price: string;
-  duration_minutes: string;
   status: ApiServiceStatus;
 };
 
@@ -47,7 +46,6 @@ const emptyForm: ServiceFormState = {
   category: '',
   description: '',
   standard_price: '',
-  duration_minutes: '',
   status: 'ACTIVE',
 };
 
@@ -373,7 +371,6 @@ export function ServiceCataloguePage() {
         category: svc.category ?? '',
         description: svc.description ?? '',
         standard_price: String(svc.standard_price),
-        duration_minutes: String(svc.duration_minutes),
         status: svc.status,
       });
     } else {
@@ -400,9 +397,7 @@ export function ServiceCataloguePage() {
     if (!form.department_id) { setFormError('Department is required.'); return; }
 
     const price = parseFloat(form.standard_price);
-    const duration = parseInt(form.duration_minutes, 10);
     if (Number.isNaN(price) || price < 0) { setFormError('Standard price must be a non-negative number.'); return; }
-    if (Number.isNaN(duration) || duration < 1) { setFormError('Duration must be at least 1 minute.'); return; }
 
     setSubmitting(true);
     setFormError('');
@@ -415,7 +410,6 @@ export function ServiceCataloguePage() {
           service_type: form.service_type,
           department_id: form.department_id,
           standard_price: price,
-          duration_minutes: duration,
           category: form.category.trim() || null,
           description: form.description.trim() || null,
           status: form.status,
@@ -429,7 +423,6 @@ export function ServiceCataloguePage() {
           service_type: form.service_type,
           department_id: form.department_id,
           standard_price: price,
-          duration_minutes: duration,
           category: form.category.trim() || null,
           description: form.description.trim() || null,
           status: form.status,
@@ -668,7 +661,6 @@ export function ServiceCataloguePage() {
                     <th scope="col">Department</th>
                     <th scope="col">Branch</th>
                     <SortableHeader column="standard_price" label="Price" onSort={handleSort} sortColumn={sortColumn} sortDirection={sortDirection} />
-                    <th scope="col">Duration</th>
                     <th scope="col">Status</th>
                     <SortableHeader column="created_at" label="Created" onSort={handleSort} sortColumn={sortColumn} sortDirection={sortDirection} />
                     <th scope="col">Actions</th>
@@ -719,7 +711,6 @@ export function ServiceCataloguePage() {
                         <td>{getDeptName(svc.department_id)}</td>
                         <td className="muted-cell">{getBranchForDept(svc.department_id)}</td>
                         <td className="muted-cell">{formatPrice(svc.standard_price)}</td>
-                        <td className="muted-cell">{svc.duration_minutes} min</td>
                         <td>
                           <span className={`status-badge ${svc.status === 'ACTIVE' ? 'status-active' : 'status-inactive'}`}>
                             {svc.status === 'ACTIVE' ? 'Active' : 'Inactive'}
@@ -959,7 +950,7 @@ export function ServiceCataloguePage() {
               </label>
             </div>
 
-            <div className="form-section-title">Pricing & Duration</div>
+            <div className="form-section-title">Pricing</div>
             <div className="form-grid-3">
               <label className="form-field">
                 <span>Standard Price <span className="required">*</span></span>
@@ -972,19 +963,6 @@ export function ServiceCataloguePage() {
                   step="0.01"
                   type="number"
                   value={form.standard_price}
-                />
-              </label>
-              <label className="form-field">
-                <span>Duration (minutes) <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  min="1"
-                  onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
-                  placeholder="30"
-                  required
-                  step="1"
-                  type="number"
-                  value={form.duration_minutes}
                 />
               </label>
             </div>
@@ -1016,7 +994,6 @@ export function ServiceCataloguePage() {
               <label className="form-field"><span>Branch</span><input readOnly value={getBranchForDept(activeSvc.department_id)} /></label>
               <label className="form-field"><span>Status</span><input readOnly value={activeSvc.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label>
               <label className="form-field"><span>Standard Price</span><input readOnly value={formatPrice(activeSvc.standard_price)} /></label>
-              <label className="form-field"><span>Duration</span><input readOnly value={`${activeSvc.duration_minutes} minutes`} /></label>
               <label className="form-field"><span>Created</span><input readOnly value={formatDate(activeSvc.created_at)} /></label>
               <label className="form-field" style={{ gridColumn: '1 / -1' }}>
                 <span>Description</span>

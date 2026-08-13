@@ -13,7 +13,6 @@ type ServiceRecord = {
   description?: string | null;
   departmentId: unknown;
   standardPrice: number;
-  durationMinutes: number;
   status: Service['status'];
   createdBy?: unknown;
   updatedBy?: unknown;
@@ -38,7 +37,6 @@ const toService = (service: ServiceRecord): Service => ({
   description: service.description ?? null,
   department_id: String(service.departmentId),
   standard_price: service.standardPrice,
-  duration_minutes: service.durationMinutes,
   status: service.status,
   created_by: service.createdBy ? String(service.createdBy) : null,
   updated_by: service.updatedBy ? String(service.updatedBy) : null,
@@ -56,7 +54,6 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
       description: data.description,
       departmentId: data.department_id,
       standardPrice: data.standard_price,
-      durationMinutes: data.duration_minutes,
       status: 'status' in data ? data.status : undefined,
     }).filter(([, value]) => value !== undefined),
   );

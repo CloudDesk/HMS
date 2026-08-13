@@ -1113,7 +1113,6 @@ export function UserManagementPage() {
                       sortColumn={sortColumn}
                       sortDirection={sortDirection}
                     />
-                    <th scope="col">Last Login</th>
                     <th scope="col">Actions</th>
                   </tr>
                 </thead>
@@ -1133,8 +1132,8 @@ export function UserManagementPage() {
                     </tr>
                   ) : pageUsers.length ? (
                     pageUsers.map((user) => (
-                      <tr className={selectedIds.has(user.apiId) ? 'selected' : undefined} key={user.apiId}>
-                        <td>
+                      <tr className={selectedIds.has(user.apiId) ? 'selected' : undefined} key={user.apiId} onClick={() => openModal('view', user)} style={{ cursor: 'pointer' }}>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <input
                             aria-label={`Select ${user.fullName}`}
                             checked={selectedIds.has(user.apiId)}
@@ -1163,17 +1162,8 @@ export function UserManagementPage() {
                         <td>
                           <span className={`status-badge ${statusClass[user.status]}`}>{user.status}</span>
                         </td>
-                        <td className="muted-cell">{user.lastLogin}</td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div className="action-icons">
-                            <button
-                              className="action-icon-btn"
-                              onClick={() => openModal('view', user)}
-                              title="View"
-                              type="button"
-                            >
-                              <i className="ph ph-eye" aria-hidden="true" />
-                            </button>
                             {canEdit || canDelete || canChangePassword || canResetPassword ? (
                               <>
                                  {canEdit ? <button
@@ -1183,14 +1173,6 @@ export function UserManagementPage() {
                                   type="button"
                                 >
                                    <i className="ph ph-pencil" aria-hidden="true" />
-                                 </button> : null}
-                                 {canEdit ? <button
-                                   className="action-icon-btn"
-                                   onClick={() => openModal('assign-role', user)}
-                                   title="Assign Role"
-                                   type="button"
-                                 >
-                                   <i className="ph ph-shield-check" aria-hidden="true" />
                                  </button> : null}
                                 {canEdit ? <button
                                   className="action-icon-btn success"
@@ -1222,14 +1204,6 @@ export function UserManagementPage() {
                                   type="button"
                                 >
                                   <i className="ph ph-keyhole" aria-hidden="true" />
-                                </button> : null}
-                                {canResetPassword ? <button
-                                  className="action-icon-btn"
-                                  onClick={() => openModal('reset-password', user)}
-                                  title="Reset Password"
-                                  type="button"
-                                >
-                                  <i className="ph ph-key" aria-hidden="true" />
                                 </button> : null}
                                 {canDelete ? <button
                                   className="action-icon-btn danger"

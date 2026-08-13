@@ -202,12 +202,18 @@ const roleDefinitions: RoleDefinition[] = [
 ];
 
 const initialUsers = [
-  { username: 'receptionist', fullName: 'Initial Receptionist', employeeCode: 'SEED-RECEPTION', roleCode: 'RECEPTIONIST', departmentTerms: ['reception', 'administration', 'cardiology'] },
-  { username: 'nurse', fullName: 'Initial Nurse', employeeCode: 'SEED-NURSE', roleCode: 'CLINICIAN_NURSE', departmentTerms: ['nursing', 'clinical', 'cardiology'] },
-  { username: 'pharmacy', fullName: 'Initial Pharmacy User', employeeCode: 'SEED-PHARMACY', roleCode: 'PHARMACY_USER', departmentTerms: ['pharmacy', 'cardiology'] },
-  { username: 'laboratory', fullName: 'Initial Laboratory User', employeeCode: 'SEED-LABORATORY', roleCode: 'LABORATORY_USER', departmentTerms: ['laboratory', 'lab', 'cardiology'] },
-  { username: 'imaging', fullName: 'Initial Imaging User', employeeCode: 'SEED-IMAGING', roleCode: 'IMAGING_USER', departmentTerms: ['imaging', 'radiology', 'cardiology'] },
-  { username: 'billing', fullName: 'Initial Billing User', employeeCode: 'SEED-BILLING', roleCode: 'BILLING_AUTHORIZED', departmentTerms: ['billing', 'administration', 'cardiology'] },
+  { username: 'receptionist', fullName: 'Initial Receptionist', employeeCode: 'SEED-RECEPTION', roleCode: 'RECEPTIONIST', branchCode: 'MB01', departmentTerms: ['reception'] },
+  { username: 'nurse', fullName: 'Initial Nurse', employeeCode: 'SEED-NURSE', roleCode: 'CLINICIAN_NURSE', branchCode: 'MB01', departmentTerms: ['nursing'] },
+  { username: 'pharmacy', fullName: 'Initial Pharmacy User', employeeCode: 'SEED-PHARMACY', roleCode: 'PHARMACY_USER', branchCode: 'MB01', departmentTerms: ['pharmacy'] },
+  { username: 'laboratory', fullName: 'Initial Laboratory User', employeeCode: 'SEED-LABORATORY', roleCode: 'LABORATORY_USER', branchCode: 'SB01', departmentTerms: ['laboratory', 'lab'] },
+  { username: 'imaging', fullName: 'Initial Imaging User', employeeCode: 'SEED-IMAGING', roleCode: 'IMAGING_USER', branchCode: 'SB01', departmentTerms: ['imaging', 'radiology'] },
+  { username: 'billing', fullName: 'Initial Billing User', employeeCode: 'SEED-BILLING', roleCode: 'BILLING_AUTHORIZED', branchCode: 'SB01', departmentTerms: ['billing', 'finance'] },
+  { username: 'receptionist_sb01', fullName: 'Secondary Branch Receptionist', employeeCode: 'SEED-SB01-RECEPTION', roleCode: 'RECEPTIONIST', branchCode: 'SB01', departmentTerms: ['reception'] },
+  { username: 'nurse_sb01', fullName: 'Secondary Branch Nurse', employeeCode: 'SEED-SB01-NURSE', roleCode: 'CLINICIAN_NURSE', branchCode: 'SB01', departmentTerms: ['nursing'] },
+  { username: 'pharmacy_sb01', fullName: 'Secondary Branch Pharmacy User', employeeCode: 'SEED-SB01-PHARMACY', roleCode: 'PHARMACY_USER', branchCode: 'SB01', departmentTerms: ['pharmacy'] },
+  { username: 'laboratory_mb01', fullName: 'Main Branch Laboratory User', employeeCode: 'SEED-MB01-LABORATORY', roleCode: 'LABORATORY_USER', branchCode: 'MB01', departmentTerms: ['laboratory', 'lab'] },
+  { username: 'imaging_mb01', fullName: 'Main Branch Imaging User', employeeCode: 'SEED-MB01-IMAGING', roleCode: 'IMAGING_USER', branchCode: 'MB01', departmentTerms: ['imaging', 'radiology'] },
+  { username: 'billing_mb01', fullName: 'Main Branch Billing User', employeeCode: 'SEED-MB01-BILLING', roleCode: 'BILLING_AUTHORIZED', branchCode: 'MB01', departmentTerms: ['billing', 'finance'] },
 ] as const;
 
 const sameIds = (left: Types.ObjectId[], right: Types.ObjectId[]) => {
@@ -381,38 +387,34 @@ export const seedDatabase = async () => {
     changes.usersCreated.push('admin');
   }
 
-  const activeBranch = await BranchModel.findOne({ status: 'ACTIVE', deletedAt: null }).sort({ createdAt: 1, _id: 1 }).lean();
-  if (!activeBranch) throw new Error('An active branch is required before Phase 1 operational users can be seeded');
-  const activeDepartments = await DepartmentModel.find({
-    branchId: activeBranch._id, status: 'ACTIVE', deletedAt: null,
-  }).sort({ name: 1, _id: 1 }).lean();
-  if (activeDepartments.length === 0) {
-    throw new Error('An active department in the selected branch is required before Phase 1 operational users can be seeded');
+  const branchCodes = [...new Set(initialUsers.map((user) => user.branchCode))];
+  const activeBranches = await BranchModel.find({
+    code: { $in: branchCodes }, status: 'ACTIVE', deletedAt: null,
+  }).lean();
+  const branchesByCode = new Map(activeBranches.map((branch) => [branch.code, branch]));
+  const missingBranchCodes = branchCodes.filter((branchCode) => !branchesByCode.has(branchCode));
+  if (missingBranchCodes.length > 0) {
+    throw new Error(`Active seed branches are missing: ${missingBranchCodes.join(', ')}`);
   }
+
+  const activeDepartments = await DepartmentModel.find({
+    branchId: { $in: activeBranches.map((branch) => branch._id) }, status: 'ACTIVE', deletedAt: null,
+  }).sort({ name: 1, _id: 1 }).lean();
 
   const operationalPassword = process.env.HMS_SEED_OPERATIONAL_PASSWORD ??
     (process.env.APP_ENV === 'prod' ? undefined : 'HmsPhase1Dev123!');
   for (const userSeed of initialUsers) {
     const roleId = roleIdsByCode.get(userSeed.roleCode)!;
-    const equivalent = await UserModel.findOne({
-      roleIds: roleId, status: 'active', deletedAt: null,
-    }).select('_id username branchIds departmentIds').lean();
-    if (equivalent) continue;
+    const existingUser = await UserModel.findOne({ username: new RegExp(`^${userSeed.username}$`, 'i') })
+      .select('_id').lean();
+    if (existingUser) continue;
 
-    const usernameCollision = await UserModel.findOne({ username: new RegExp(`^${userSeed.username}$`, 'i') })
-      .select('_id username status deletedAt roleIds branchIds departmentIds').lean();
+    const branch = branchesByCode.get(userSeed.branchCode)!;
     const department = activeDepartments.find((item) =>
-      userSeed.departmentTerms.some((term) => `${item.code} ${item.name}`.toLowerCase().includes(term))) ?? activeDepartments[0]!;
-
-    if (usernameCollision) {
-      const update = await UserModel.updateOne(
-        { _id: usernameCollision._id },
-        { $set: {
-          status: 'active', deletedAt: null, roleIds: [roleId],
-          branchIds: [activeBranch._id], departmentIds: [department._id],
-        } },
-      );
-      if (update.modifiedCount > 0) changes.usersReconciled.push(userSeed.username);
+      String(item.branchId) === String(branch._id) &&
+      userSeed.departmentTerms.some((term) => `${item.code} ${item.name}`.toLowerCase().includes(term)));
+    if (!department) {
+      console.warn(`[Seeder Warning] An active ${userSeed.departmentTerms.join('/')} department is required in branch ${userSeed.branchCode} to seed ${userSeed.username}`);
       continue;
     }
 
@@ -427,7 +429,7 @@ export const seedDatabase = async () => {
       jobTitle: userSeed.fullName.replace('Initial ', ''),
       employeeType: 'Development seed',
       passwordHash: await hashPassword(operationalPassword),
-      roleIds: [roleId], branchIds: [activeBranch._id], departmentIds: [department._id],
+      roleIds: [roleId], branchIds: [branch._id], departmentIds: [department._id],
       status: 'active',
     });
     changes.usersCreated.push(userSeed.username);
@@ -440,7 +442,7 @@ export const seedDatabase = async () => {
       metadataJson: {
         ...changes,
         serviceTypesBackfilled: serviceTypeBackfill.modifiedCount,
-        branchCode: activeBranch.code,
+        branchCodes,
       },
     });
   }

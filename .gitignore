@@ -21,3 +21,5 @@ Scope/
 docs/
 # Temporary local patient document storage
 apps/api/storage/
+recovered_git_diff.txt
+recovered_part1.txt
