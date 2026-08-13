@@ -1,0 +1,38 @@
+{
+  "name": "hms",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @hms/api\" \"npm run dev -w @hms/web\"",
+    "dev:api": "npm run dev --workspace=@hms/api",
+    "dev:web": "npm run dev --workspace=@hms/web",
+    "build": "npm run build --workspaces --if-present",
+    "build:api": "npm run build --workspace=@hms/api",
+    "build:web": "npm run build --workspace=@hms/web",
+    "start:api": "npm run start --workspace=@hms/api",
+    "preview:web": "npm run preview --workspace=@hms/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.2",
+    "concurrently": "^10.0.4",
+    "eslint": "^10.8.0",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}
