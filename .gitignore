@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+*.log
+npm-debug.log*
+
+# Environment files (at any depth)
+.env
+.env.*
+
+.DS_Store
+Thumbs.db
+
+# Scope
+Scope/
+
+# Project documentation
+docs/
+# Temporary local patient document storage
+apps/api/storage/
