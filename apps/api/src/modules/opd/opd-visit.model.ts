@@ -43,7 +43,7 @@ const opdVisitSchema = new Schema<OpdVisitFields>(
     checkInTime: { type: Date, required: true },
     visitType: {
       type: String,
-      enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY', 'TELEMEDICINE', 'WALK_IN', 'REVIEW'],
+      enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY', 'WALK_IN', 'REVIEW'],
       required: true,
     },
     priority: { type: String, enum: ['ROUTINE', 'URGENT', 'EMERGENCY'], default: 'ROUTINE', required: true },

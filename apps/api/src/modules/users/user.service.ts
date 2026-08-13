@@ -3,11 +3,14 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { hashPassword, verifyPassword } from '../../shared/security/hash.js';
 import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
 import { createCsvStream } from '../../shared/http/csv.js';
+import type { ClientSession } from 'mongoose';
+import type { RoleRepository } from '../roles/role.repository.js';
 import { UserRepository } from './user.repository.js';
 import type {
   AssignmentInput,
   RequestMetadata,
   UserListQuery,
+  ProvisionDoctorAccountInput,
   UserRecord,
   UserResponse,
   UserStatus,
@@ -81,7 +84,10 @@ const eventForStatus = (status: UserStatus) => {
 };
 
 export class UserService {
-  constructor(private readonly repository: UserRepository) {}
+  constructor(
+    private readonly repository: UserRepository,
+    private readonly roleRepository: RoleRepository,
+  ) {}
 
   async list(query: Partial<UserListQuery>) {
     const normalizedQuery: UserListQuery = {
@@ -139,6 +145,72 @@ export class UserService {
     await this.audit('user.created', actorUserId, user.id, metadata);
 
     return this.getById(user.id);
+  }
+
+  async provisionDoctorAccount(
+    input: ProvisionDoctorAccountInput,
+    actorUserId: string,
+    metadata: RequestMetadata,
+    session: ClientSession,
+  ) {
+    const doctorRole = await this.roleRepository.findActiveByCode('DOCTOR', session);
+    if (!doctorRole) {
+      throw new AppError('Active DOCTOR role is required for doctor login provisioning', 409, 'DOCTOR_ROLE_NOT_CONFIGURED');
+    }
+
+    const normalized = this.normalizeCreateInput({
+      employeeCode: input.employeeCode,
+      username: input.username,
+      email: input.email,
+      fullName: input.fullName,
+      phone: input.phone,
+      jobTitle: 'Doctor',
+      employeeType: 'Clinical',
+      password: input.password,
+      branches: [{ id: input.branchId, isPrimary: true }],
+      departments: [{ id: input.departmentId, isPrimary: true }],
+      roleIds: [doctorRole.id],
+      status: 'active',
+    });
+
+    if (!normalized.email) {
+      throw new AppError('Login email is required', 400, 'DOCTOR_LOGIN_EMAIL_REQUIRED');
+    }
+
+    assertPasswordPolicy(normalized.password);
+    await this.assertUniqueFields(
+      {
+        username: normalized.username,
+        email: normalized.email,
+        employeeCode: normalized.employeeCode,
+      },
+      session,
+    );
+    await this.validateReferences(normalized.branches, normalized.departments, normalized.roleIds, session);
+
+    const user = await this.repository.create(
+      {
+        ...normalized,
+        status: 'active',
+        passwordHash: await hashPassword(normalized.password),
+        actorUserId,
+        roleIds: normalized.roleIds,
+      },
+      session,
+    );
+    await this.repository.replaceAssignments(
+      user.id,
+      normalized.branches,
+      normalized.departments,
+      normalized.roleIds,
+      session,
+    );
+    await this.audit('user.created', actorUserId, user.id, metadata, {
+      source: 'doctor.onboarding',
+      assignedRoleCode: doctorRole.code,
+    }, session);
+
+    return user;
   }
 
   async update(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
@@ -493,10 +565,11 @@ export class UserService {
     branches: AssignmentInput[],
     departments: AssignmentInput[],
     roleIds: string[],
+    session?: ClientSession,
   ) {
     const branchIds = branches.map((item) => item.id);
     const departmentIds = departments.map((item) => item.id);
-    const result = await this.repository.validateReferences(branchIds, departmentIds, roleIds);
+    const result = await this.repository.validateReferences(branchIds, departmentIds, roleIds, session);
     if (result.branches !== branchIds.length) {
       throw new AppError('One or more branch assignments are invalid or inactive', 400, 'INVALID_BRANCH_ASSIGNMENT');
     }
@@ -539,8 +612,8 @@ export class UserService {
     email?: string | null;
     employeeCode?: string | null;
     excludeUserId?: string;
-  }) {
-    const duplicate = await this.repository.findByUniqueFields(input);
+  }, session?: ClientSession) {
+    const duplicate = await this.repository.findByUniqueFields(input, session);
 
     if (!duplicate) {
       return;
@@ -565,12 +638,13 @@ export class UserService {
     subjectUserId: string | undefined,
     metadata: RequestMetadata,
     eventMetadata?: Record<string, unknown>,
+    session?: ClientSession,
   ) {
     await this.repository.audit(eventType, {
       ...metadata,
       actorUserId,
       subjectUserId,
       metadata: eventMetadata,
-    });
+    }, session);
   }
 }

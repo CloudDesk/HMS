@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
 import type { SaveOpdConsultationDTO } from './opd-consultation.types.js';
@@ -19,6 +20,7 @@ export class OpdConsultationService {
     private readonly visitRepository: OpdVisitRepository,
     private readonly vitalsRepository: OpdVitalsRepository,
     private readonly patientRepository: PatientRepository,
+    private readonly appointmentRepository: AppointmentRepository,
   ) {}
 
   async getByVisit(visitId: string) {
@@ -69,13 +71,19 @@ export class OpdConsultationService {
       userId,
     );
 
-    if (visit.status !== 'IN_CONSULTATION') {
-      await this.visitRepository.updateStatus(
-        visit.id,
-        {
-          notes: 'Doctor consultation completed.',
-          status: 'IN_CONSULTATION',
-        },
+    await this.visitRepository.updateStatus(
+      visit.id,
+      {
+        notes: 'Doctor consultation completed.',
+        status: 'COMPLETED',
+      },
+      userId,
+    );
+
+    if (visit.appointment_id) {
+      await this.appointmentRepository.updateStatus(
+        visit.appointment_id,
+        { notes: 'Doctor consultation completed.', status: 'COMPLETED' },
         userId,
       );
     }

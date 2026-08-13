@@ -1,15 +1,25 @@
 export type DoctorStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
 
-export type DoctorAvailabilityDay = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
+export type DoctorAvailabilityDay =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY';
+
+export type DoctorWorkingBlock = {
+  id: string;
+  start_time: string;
+  end_time: string;
+};
 
 export type DoctorAvailability = {
   id: string;
   day_of_week: DoctorAvailabilityDay;
   is_available: boolean;
-  start_time: string;
-  end_time: string;
-  break_start_time: string | null;
-  break_end_time: string | null;
+  working_blocks: DoctorWorkingBlock[];
   slot_duration_minutes: number;
 };
 
@@ -50,10 +60,9 @@ export type DoctorListQuery = {
   sortOrder?: 'asc' | 'desc';
 };
 
-export type CreateDoctorDTO = {
+export type DoctorDetailsDTO = {
   first_name: string;
   last_name: string;
-  user_id?: string | null;
   specialization: string;
   qualification?: string | null;
   registration_number?: string | null;
@@ -67,16 +76,135 @@ export type CreateDoctorDTO = {
   notes?: string | null;
 };
 
-export type UpdateDoctorDTO = Partial<CreateDoctorDTO>;
-
 export type SaveDoctorAvailabilityDTO = {
   availability: Array<{
     day_of_week: DoctorAvailabilityDay;
     is_available: boolean;
-    start_time: string;
-    end_time: string;
-    break_start_time?: string | null;
-    break_end_time?: string | null;
+    working_blocks: Array<{
+      start_time: string;
+      end_time: string;
+    }>;
     slot_duration_minutes: number;
   }>;
+};
+
+export type DoctorAccountAccessDTO =
+  | {
+      create_login_account: false;
+    }
+  | {
+      create_login_account: true;
+      employee_code: string;
+      username: string;
+      email: string;
+      temporary_password: string;
+    };
+
+export type CreateDoctorDTO = DoctorDetailsDTO &
+  SaveDoctorAvailabilityDTO & {
+    account_access: DoctorAccountAccessDTO;
+  };
+
+export type UpdateDoctorDTO = Partial<Omit<DoctorDetailsDTO, 'status'>>;
+
+export type DoctorOnboardingResult = {
+  doctor: Doctor;
+  account: {
+    created: boolean;
+    user_id: string | null;
+    username: string | null;
+  };
+};
+
+export type UpdateDoctorStatusDTO = {
+  status: DoctorStatus;
+  reason: string;
+};
+
+export type MapDoctorUserDTO = {
+  user_id: string | null;
+};
+
+export type DoctorLeaveStatus = 'ACTIVE' | 'CANCELLED';
+
+export type DoctorLeave = {
+  id: string;
+  doctor_id: string;
+  start_date: Date;
+  end_date: Date;
+  reason: string;
+  status: DoctorLeaveStatus;
+  created_by: string | null;
+  cancelled_by: string | null;
+  cancelled_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type DoctorLeaveListQuery = {
+  status?: DoctorLeaveStatus;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type CreateDoctorLeaveDTO = {
+  start_date: string;
+  end_date: string;
+  reason: string;
+};
+
+export type DoctorAvailabilityException = {
+  id: string;
+  doctor_id: string;
+  date: Date;
+  is_available: boolean;
+  working_blocks: DoctorWorkingBlock[];
+  slot_duration_minutes: number;
+  reason: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type DoctorAvailabilityExceptionListQuery = {
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type SaveDoctorAvailabilityExceptionDTO = {
+  date: string;
+  is_available: boolean;
+  working_blocks: Array<{
+    start_time: string;
+    end_time: string;
+  }>;
+  slot_duration_minutes: number;
+  reason: string;
+};
+
+export type DoctorAvailableSlotsQuery = {
+  date: string;
+};
+
+export type DoctorAvailableSlot = {
+  start_time: string;
+  end_time: string;
+};
+
+export type DoctorUserOption = {
+  id: string;
+  full_name: string;
+  username: string;
+  email: string | null;
+  mapped_doctor_id: string | null;
+};
+
+export type DoctorRequestMetadata = {
+  ipAddress?: string;
+  userAgent?: string;
 };

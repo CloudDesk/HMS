@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { appointmentsApi, type AppointmentResponse } from '../api/appointments';
 import { doctorsApi, type DoctorResponse } from '../api/doctors';
+import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate } from '../routing/navigation';
@@ -97,6 +98,8 @@ function DonutChart({ appointments }: { appointments: AppointmentResponse[] }) {
 }
 
 export function DoctorDashboardPage() {
+  const { user } = useAuth();
+  const isDoctorUser = user?.roles.some((role) => role.code === 'DOCTOR' || role.name.toLowerCase() === 'doctor') ?? false;
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [todayAppointments, setTodayAppointments] = useState<AppointmentResponse[]>([]);
@@ -125,10 +128,12 @@ export function DoctorDashboardPage() {
   };
 
   const loadDoctors = useCallback(async () => {
-    const response = await doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-    setDoctors(response.data);
-    setSelectedDoctorId((current) => current || response.data[0]?.id || '');
-  }, []);
+    const data = isDoctorUser
+      ? [await doctorsApi.getCurrent()]
+      : (await doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' })).data;
+    setDoctors(data);
+    setSelectedDoctorId((current) => (isDoctorUser ? data[0]?.id ?? '' : current || data[0]?.id || ''));
+  }, [isDoctorUser]);
 
   const loadAppointments = useCallback(async () => {
     if (!selectedDoctorId) {

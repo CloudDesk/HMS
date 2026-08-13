@@ -1357,6 +1357,10 @@ p {
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
 }
 
+.modal-box.large {
+  width: min(100%, 1040px);
+}
+
 .modal-header,
 .modal-footer {
   display: flex;
@@ -2518,6 +2522,182 @@ p {
   grid-column: 1 / -1;
 }
 
+.doctor-onboarding-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.doctor-onboarding-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1rem;
+}
+
+.doctor-onboarding-section > header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.8rem;
+}
+
+.doctor-onboarding-section > header > span {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.doctor-onboarding-section h3,
+.doctor-onboarding-section p {
+  margin: 0;
+}
+
+.doctor-onboarding-section h3 {
+  color: #0f172a;
+  font-size: 0.94rem;
+}
+
+.doctor-onboarding-section header p,
+.doctor-account-toggle p {
+  margin-top: 0.15rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.doctor-account-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 0.85rem 1rem;
+}
+
+.doctor-account-toggle strong {
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+.doctor-account-fields {
+  margin-top: 1rem;
+}
+
+.doctor-account-role {
+  display: grid;
+  align-content: center;
+  gap: 0.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.7rem 0.8rem;
+}
+
+.doctor-account-role span,
+.doctor-account-role small {
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.doctor-account-role strong {
+  color: #166534;
+  font-size: 0.82rem;
+}
+
+.doctor-account-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.doctor-working-blocks {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.doctor-working-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.doctor-block-actions {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.doctor-subtable {
+  margin-top: 1rem;
+}
+
+.doctor-profile-avatar {
+  width: 64px;
+  height: 64px;
+  flex-basis: 64px;
+  font-size: 1rem;
+}
+
+.doctor-profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.doctor-profile-summary h3,
+.doctor-profile-summary p {
+  margin: 0;
+}
+
+.doctor-profile-summary p {
+  margin-top: 0.25rem;
+  color: #64748b;
+}
+
+.doctor-profile-summary .doc-summary-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 720px) {
+  .doctor-working-block {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .doctor-working-block .doc-action {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .doctor-block-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .doctor-switch {
   display: inline-flex;
   align-items: center;
@@ -3317,12 +3497,6 @@ p {
   border-color: #9333ea;
   background: #faf5ff;
   color: #6b21a8;
-}
-
-.appointment-calendar-event.telemedicine {
-  border-color: #0891b2;
-  background: #ecfeff;
-  color: #155e75;
 }
 
 .appointment-calendar-event.emergency,

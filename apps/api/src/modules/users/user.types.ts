@@ -75,3 +75,14 @@ export type RequestMetadata = {
   ipAddress?: string;
   userAgent?: string;
 };
+
+export type ProvisionDoctorAccountInput = {
+  employeeCode: string;
+  username: string;
+  email: string;
+  password: string;
+  fullName: string;
+  phone?: string | null;
+  branchId: string;
+  departmentId: string;
+};

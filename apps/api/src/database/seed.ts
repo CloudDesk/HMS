@@ -19,7 +19,7 @@ const patientPermissions = {
 } as const;
 
 const doctorPermissions = {
-  'Doctor Directory': ['View', 'Create', 'Edit'],
+  'Doctor Directory': ['View', 'Create', 'Edit', 'Export', 'Provision Login'],
   'Doctor Availability': ['View', 'Edit'],
 } as const;
 
@@ -246,8 +246,8 @@ export const seedDatabase = async () => {
           action,
           type: 'system',
           status: 'active',
-          categoryId: category._id,
-          groupId: group._id,
+          categoryId: systemCategory._id,
+          groupId: administrationGroup._id,
           deletedAt: null,
         },
       },
@@ -279,6 +279,15 @@ export const seedDatabase = async () => {
     action: { $ne: 'Delete' },
     status: 'active',
     deletedAt: null,
+  });
+  const doctorDefaultPermissionIds = await PermissionModel.distinct('_id', {
+    module: 'Doctors',
+    status: 'active',
+    deletedAt: null,
+    $or: [
+      { screen: 'Doctor Directory', action: 'View' },
+      { screen: 'Doctor Availability', action: { $in: ['View', 'Edit'] } },
+    ],
   });
 
   const roles = [];
@@ -312,6 +321,23 @@ export const seedDatabase = async () => {
 
     roles.push(role);
   }
+
+  await RoleModel.findOneAndUpdate(
+    { code: 'DOCTOR' },
+    {
+      $set: {
+        name: 'Doctor',
+        description: 'Clinical doctor access',
+        type: 'system',
+        status: 'active',
+        deletedAt: null,
+      },
+      $setOnInsert: {
+        permissionIds: doctorDefaultPermissionIds,
+      },
+    },
+    { upsert: true, returnDocument: 'after' },
+  );
 
   const superAdminRole = roles.find((role) => role.code === 'SUPER_ADMIN')!;
   const existingAdmin = await UserModel.findOne({ username: 'admin' }).select('_id').lean();

@@ -45,7 +45,7 @@ const appointmentSchema = new Schema<AppointmentFields>(
     durationMinutes: { type: Number, required: true },
     visitType: {
       type: String,
-      enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY', 'TELEMEDICINE'],
+      enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY'],
       required: true,
     },
     priority: { type: String, enum: ['ROUTINE', 'URGENT', 'EMERGENCY'], default: 'ROUTINE', required: true },

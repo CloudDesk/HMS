@@ -50,6 +50,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
+  const userService = new UserService(userRepository, roleRepository);
 
   return {
     database: {
@@ -57,13 +58,20 @@ export const createServiceRegistry = (): ServiceRegistry => {
     },
     administrationDashboard: new AdministrationDashboardService(administrationDashboardRepository),
     auth: new AuthService(authRepository),
-    users: new UserService(userRepository),
+    users: userService,
     roles: new RoleService(roleRepository),
     permissions: new PermissionService(permissionRepository),
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
     patients: new PatientService(patientRepository, patientDocumentStorageService),
-    doctors: new DoctorService(doctorRepository, branchRepository, departmentRepository),
+    doctors: new DoctorService(
+      doctorRepository,
+      branchRepository,
+      departmentRepository,
+      userRepository,
+      userService,
+      appointmentRepository,
+    ),
     appointments: new AppointmentService(appointmentRepository, patientRepository, doctorRepository),
     opdVisits: new OpdVisitService(opdVisitRepository, appointmentRepository, patientRepository, doctorRepository),
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
@@ -72,6 +80,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       opdVisitRepository,
       opdVitalsRepository,
       patientRepository,
+      appointmentRepository,
     ),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),

@@ -5,13 +5,19 @@ type ModalProps = PropsWithChildren<{
   open: boolean;
   icon?: string;
   footer?: ReactNode;
+  size?: 'default' | 'large';
   onClose: () => void;
 }>;
 
-export function Modal({ title, open, icon, footer, onClose, children }: ModalProps) {
+export function Modal({ title, open, icon, footer, size = 'default', onClose, children }: ModalProps) {
   return (
     <div className={`modal-overlay${open ? ' open' : ''}`} aria-hidden={!open}>
-      <section aria-labelledby="foundation-modal-title" aria-modal="true" className="modal-box" role="dialog">
+      <section
+        aria-labelledby="foundation-modal-title"
+        aria-modal="true"
+        className={`modal-box${size === 'large' ? ' large' : ''}`}
+        role="dialog"
+      >
         <header className="modal-header">
           <h3 className="modal-title" id="foundation-modal-title">
             {icon ? <i className={`ph ${icon}`} aria-hidden="true" /> : null}

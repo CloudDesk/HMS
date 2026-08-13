@@ -14,8 +14,7 @@ export type ApiAppointmentVisitType =
   | 'NEW_CONSULTATION'
   | 'FOLLOW_UP'
   | 'PROCEDURE'
-  | 'EMERGENCY'
-  | 'TELEMEDICINE';
+  | 'EMERGENCY';
 
 export type ApiAppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 

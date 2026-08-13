@@ -12,8 +12,7 @@ export type AppointmentVisitType =
   | 'NEW_CONSULTATION'
   | 'FOLLOW_UP'
   | 'PROCEDURE'
-  | 'EMERGENCY'
-  | 'TELEMEDICINE';
+  | 'EMERGENCY';
 
 export type AppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 

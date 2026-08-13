@@ -12,6 +12,8 @@ import { DoctorDashboardPage } from '../pages/DoctorDashboardPage';
 import { DoctorDirectoryPage } from '../pages/DoctorDirectoryPage';
 import { DoctorPerformancePage } from '../pages/DoctorPerformancePage';
 import { DoctorSchedulePage } from '../pages/DoctorSchedulePage';
+import { DoctorProfilePage } from '../pages/DoctorProfilePage';
+import { DoctorAvailabilityPage } from '../pages/DoctorAvailabilityPage';
 import { LoginPage } from '../pages/LoginPage';
 import { OpdDashboardPage } from '../pages/OpdDashboardPage';
 import { OpdQueuePage } from '../pages/OpdQueuePage';
@@ -150,6 +152,14 @@ export function AppRouter() {
     title = 'Doctor Directory';
     breadcrumbs = ['Home', 'Doctors', 'Doctor Directory'];
     content = <DoctorDirectoryPage />;
+  } else if (pathname === '/doctors/profile') {
+    title = 'Doctor Profile';
+    breadcrumbs = ['Home', 'Doctors', 'Doctor Profile'];
+    content = <DoctorProfilePage />;
+  } else if (pathname === '/doctors/availability') {
+    title = 'Doctor Availability';
+    breadcrumbs = ['Home', 'Doctors', 'Availability'];
+    content = <DoctorAvailabilityPage />;
   } else if (pathname === '/doctors/schedule') {
     title = 'Doctor Schedule';
     breadcrumbs = ['Home', 'Doctors', 'Schedule'];

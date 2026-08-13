@@ -16,7 +16,6 @@ export const opdVisitTypeLabels: Record<ApiOpdVisitType, string> = {
   FOLLOW_UP: 'Follow-up',
   PROCEDURE: 'Procedure',
   EMERGENCY: 'Emergency',
-  TELEMEDICINE: 'Telemedicine',
   WALK_IN: 'Walk-in',
   REVIEW: 'Review',
 };

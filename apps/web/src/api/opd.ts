@@ -14,7 +14,6 @@ export type ApiOpdVisitType =
   | 'FOLLOW_UP'
   | 'PROCEDURE'
   | 'EMERGENCY'
-  | 'TELEMEDICINE'
   | 'WALK_IN'
   | 'REVIEW';
 

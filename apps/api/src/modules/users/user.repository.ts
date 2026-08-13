@@ -1,4 +1,4 @@
-
+import type { ClientSession } from 'mongoose';
 import { UserModel } from './user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
@@ -54,7 +54,7 @@ export class UserRepository {
     email?: string | null;
     employeeCode?: string | null;
     excludeUserId?: string;
-  }) {
+  }, session?: ClientSession) {
     const filter: Record<string, any> = { deletedAt: null };
     
     if (fields.excludeUserId) {
@@ -78,7 +78,9 @@ export class UserRepository {
       return null;
     }
 
-    const user = await UserModel.findOne(filter).lean();
+    const query = UserModel.findOne(filter);
+    if (session) query.session(session);
+    const user = await query.lean();
     return user ? mapUser(user) : null;
   }
 
@@ -148,8 +150,8 @@ export class UserRepository {
     passwordHash: string;
     actorUserId: string;
     roleIds: string[];
-  }) {
-    const user = await UserModel.create({
+  }, session?: ClientSession) {
+    const [user] = await UserModel.create([{
       employeeCode: input.employeeCode,
       username: input.username,
       email: input.email,
@@ -165,7 +167,11 @@ export class UserRepository {
       roleIds: input.roleIds,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
-    } as any);
+    } as any], session ? { session } : {});
+
+    if (!user) {
+      throw new Error('User account could not be created');
+    }
     
     return mapUser(user.toObject());
   }
@@ -264,6 +270,7 @@ export class UserRepository {
     branches: AssignmentInput[],
     departments: AssignmentInput[],
     roleIds: string[],
+    session?: ClientSession,
   ) {
     await UserModel.updateOne(
       { _id: userId },
@@ -273,7 +280,8 @@ export class UserRepository {
           departmentIds: departments.map(d => d.id),
           roleIds,
         }
-      }
+      },
+      session ? { session } : undefined,
     );
   }
 
@@ -326,12 +334,28 @@ export class UserRepository {
     return { branchesByUserId, departmentsByUserId, rolesByUserId };
   }
 
-  async validateReferences(branchIds: string[], departmentIds: string[], roleIds: string[]) {
-    const [branches, departments, roles] = await Promise.all([
-      BranchModel.countDocuments({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null }),
-      DepartmentModel.countDocuments({ _id: { $in: departmentIds }, status: 'ACTIVE', deletedAt: null }),
-      RoleModel.countDocuments({ _id: { $in: roleIds }, status: 'active', deletedAt: null }),
-    ]);
+  async validateReferences(
+    branchIds: string[],
+    departmentIds: string[],
+    roleIds: string[],
+    session?: ClientSession,
+  ) {
+    const branchQuery = BranchModel.countDocuments({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null });
+    const departmentQuery = DepartmentModel.countDocuments({
+      _id: { $in: departmentIds },
+      status: 'ACTIVE',
+      deletedAt: null,
+    });
+    const roleQuery = RoleModel.countDocuments({ _id: { $in: roleIds }, status: 'active', deletedAt: null });
+
+    if (session) {
+      const branches = await branchQuery.session(session);
+      const departments = await departmentQuery.session(session);
+      const roles = await roleQuery.session(session);
+      return { branches, departments, roles };
+    }
+
+    const [branches, departments, roles] = await Promise.all([branchQuery, departmentQuery, roleQuery]);
     return { branches, departments, roles };
   }
 
@@ -382,15 +406,16 @@ export class UserRepository {
       subjectUserId?: string;
       metadata?: Record<string, unknown>;
     },
+    session?: ClientSession,
   ) {
     const { AuditLogModel } = await import('../auth/auth.model.js');
-    await AuditLogModel.create({
+    await AuditLogModel.create([{
       eventType,
       actorUserId: metadata.actorUserId,
       subjectUserId: metadata.subjectUserId,
       ipAddress: metadata.ipAddress,
       userAgent: metadata.userAgent,
       metadataJson: metadata.metadata,
-    });
+    }], session ? { session } : {});
   }
 }

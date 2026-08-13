@@ -46,7 +46,7 @@ const appointmentVisitType = (appointment: Appointment) => {
   if (appointment.visit_type === 'FOLLOW_UP') return 'FOLLOW_UP';
   if (appointment.visit_type === 'PROCEDURE') return 'PROCEDURE';
   if (appointment.visit_type === 'EMERGENCY') return 'EMERGENCY';
-  return 'TELEMEDICINE';
+  return 'NEW_CONSULTATION';
 };
 
 export class OpdVisitService {

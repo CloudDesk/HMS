@@ -89,7 +89,6 @@ export const groupAppointmentsByVisitType = (appointments: AppointmentResponse[]
       FOLLOW_UP: 0,
       PROCEDURE: 0,
       EMERGENCY: 0,
-      TELEMEDICINE: 0,
     },
   );
 

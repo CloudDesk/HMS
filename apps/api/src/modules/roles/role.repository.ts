@@ -1,4 +1,4 @@
-
+import type { ClientSession } from 'mongoose';
 import { RoleModel } from './role.model.js';
 import { UserModel } from '../users/user.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
@@ -28,6 +28,20 @@ const mapRole = (role: any, userCount: number): RoleRecord => ({
 });
 
 export class RoleRepository {
+  async findActiveByCode(code: string, session?: ClientSession) {
+    const query = RoleModel.findOne({ code, status: 'active', deletedAt: null }).select('_id code name status');
+    if (session) query.session(session);
+    const role = await query.lean();
+    return role
+      ? {
+          id: role._id.toString(),
+          code: role.code,
+          name: role.name,
+          status: role.status,
+        }
+      : null;
+  }
+
   async findById(id: string) {
     const role = await RoleModel.findOne({ _id: id, deletedAt: null }).lean();
     if (!role) return null;

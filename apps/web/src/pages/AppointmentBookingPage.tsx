@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { appointmentsApi, type ApiAppointmentPriority, type ApiAppointmentVisitType } from '../api/appointments';
-import { doctorsApi, type ApiDoctorAvailabilityDay, type DoctorResponse } from '../api/doctors';
+import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { patientsApi, type PatientResponse } from '../api/patients';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
@@ -18,68 +18,14 @@ type BookingStep = 1 | 2 | 3;
 type SlotOption = {
   startTime: string;
   endTime: string;
-  disabled: boolean;
 };
-
-const dayNames: ApiDoctorAvailabilityDay[] = [
-  'SUNDAY',
-  'MONDAY',
-  'TUESDAY',
-  'WEDNESDAY',
-  'THURSDAY',
-  'FRIDAY',
-  'SATURDAY',
-];
 
 const visitTypeOptions = Object.keys(appointmentVisitTypeLabels) as ApiAppointmentVisitType[];
 const priorityOptions = Object.keys(appointmentPriorityLabels) as ApiAppointmentPriority[];
 
-const toMinutes = (time: string) => {
-  const [hours = 0, minutes = 0] = time.split(':').map(Number);
-  return hours * 60 + minutes;
-};
-
-const toTime = (minutes: number) => {
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
-};
-
 const nullable = (value: string) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
-};
-
-const dateDayName = (dateValue: string) => {
-  const date = new Date(`${dateValue}T00:00:00`);
-  return dayNames[date.getDay()];
-};
-
-const buildSlots = (doctor: DoctorResponse | null, dateValue: string, bookedTimes: Set<string>): SlotOption[] => {
-  if (!doctor || !dateValue) return [];
-  const availability = doctor.availability.find((item) => item.day_of_week === dateDayName(dateValue));
-
-  if (!availability || !availability.is_available) {
-    return [];
-  }
-
-  const slots: SlotOption[] = [];
-  const duration = availability.slot_duration_minutes;
-  const breakStart = availability.break_start_time ? toMinutes(availability.break_start_time) : null;
-  const breakEnd = availability.break_end_time ? toMinutes(availability.break_end_time) : null;
-
-  for (let current = toMinutes(availability.start_time); current + duration <= toMinutes(availability.end_time); current += duration) {
-    const startTime = toTime(current);
-    const endTime = toTime(current + duration);
-    const overlapsBreak = breakStart !== null && breakEnd !== null && current < breakEnd && current + duration > breakStart;
-    slots.push({
-      startTime,
-      endTime,
-      disabled: overlapsBreak || bookedTimes.has(startTime),
-    });
-  }
-
-  return slots;
 };
 
 export function AppointmentBookingPage() {
@@ -97,7 +43,9 @@ export function AppointmentBookingPage() {
   const [priority, setPriority] = useState<ApiAppointmentPriority>('ROUTINE');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
-  const [bookedTimes, setBookedTimes] = useState<Set<string>>(new Set());
+  const [slotOptions, setSlotOptions] = useState<SlotOption[]>([]);
+  const [slotDuration, setSlotDuration] = useState(30);
+  const [slotUnavailableReason, setSlotUnavailableReason] = useState('');
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [patientLoading, setPatientLoading] = useState(false);
   const doctorLoading = loadingInitial;
@@ -110,11 +58,6 @@ export function AppointmentBookingPage() {
   const selectedDoctor = useMemo(
     () => doctors.find((doctor) => doctor.id === selectedDoctorId) ?? null,
     [doctors, selectedDoctorId],
-  );
-
-  const slotOptions = useMemo(
-    () => buildSlots(selectedDoctor, appointmentDate, bookedTimes),
-    [appointmentDate, bookedTimes, selectedDoctor],
   );
 
   const selectedSlotOption = slotOptions.find((slot) => slot.startTime === selectedSlot);
@@ -175,32 +118,26 @@ export function AppointmentBookingPage() {
     }
   };
 
-  const loadBookedSlots = useCallback(async () => {
+  const loadAvailableSlots = useCallback(async () => {
     if (!selectedDoctorId || !appointmentDate) {
-      setBookedTimes(new Set());
+      setSlotOptions([]);
+      setSlotUnavailableReason('Select a doctor and date to load available slots.');
       return;
     }
 
     setSlotLoading(true);
+    setSlotUnavailableReason('');
 
     try {
-      const response = await appointmentsApi.list({
-        doctor_id: selectedDoctorId,
-        date_from: appointmentDate,
-        date_to: appointmentDate,
-        limit: 100,
-        sortBy: 'start_time',
-        sortOrder: 'asc',
-      });
-      setBookedTimes(
-        new Set(
-          response.data
-            .filter((appointment) => !['CANCELLED', 'RESCHEDULED', 'NO_SHOW'].includes(appointment.status))
-            .map((appointment) => appointment.start_time),
-        ),
+      const response = await doctorsApi.availableSlots(selectedDoctorId, appointmentDate);
+      setSlotOptions(
+        response.slots.map((slot) => ({ startTime: slot.start_time, endTime: slot.end_time })),
       );
+      setSlotDuration(response.slot_duration_minutes ?? 30);
+      setSlotUnavailableReason(response.unavailable_reason ?? 'No unbooked slots remain for this date.');
     } catch (slotError) {
-      setBookedTimes(new Set());
+      setSlotOptions([]);
+      setSlotUnavailableReason('Available slots could not be loaded.');
       showToast(getAppointmentErrorMessage(slotError));
     } finally {
       setSlotLoading(false);
@@ -212,8 +149,8 @@ export function AppointmentBookingPage() {
   }, [loadInitialData]);
 
   useEffect(() => {
-    void loadBookedSlots();
-  }, [loadBookedSlots]);
+    void loadAvailableSlots();
+  }, [loadAvailableSlots]);
 
   useEffect(() => {
     setSelectedSlot('');
@@ -258,8 +195,7 @@ export function AppointmentBookingPage() {
         doctor_id: selectedDoctor.id,
         appointment_date: appointmentDate,
         start_time: selectedSlot,
-        duration_minutes: selectedDoctor.availability.find((item) => item.day_of_week === dateDayName(appointmentDate))
-          ?.slot_duration_minutes ?? 30,
+        duration_minutes: slotDuration,
         visit_type: visitType,
         priority,
         reason: nullable(reason),
@@ -469,19 +405,18 @@ export function AppointmentBookingPage() {
                   {slotLoading ? (
                     <div className="appointment-slot-state">Loading available slots...</div>
                   ) : slotOptions.length === 0 ? (
-                    <div className="appointment-slot-state">No available slots for this doctor on the selected date.</div>
+                    <div className="appointment-slot-state">{slotUnavailableReason}</div>
                   ) : (
                     <div className="appointment-slot-grid">
                       {slotOptions.map((slot) => (
                         <button
                           className={`appointment-slot${selectedSlot === slot.startTime ? ' selected' : ''}`}
-                          disabled={slot.disabled}
                           key={slot.startTime}
                           onClick={() => setSelectedSlot(slot.startTime)}
                           type="button"
                         >
                           <strong>{slot.startTime}</strong>
-                          <span>{slot.disabled ? 'Unavailable' : `${slot.endTime}`}</span>
+                          <span>{slot.endTime}</span>
                         </button>
                       ))}
                     </div>

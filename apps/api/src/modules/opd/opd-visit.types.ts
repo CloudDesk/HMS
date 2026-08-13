@@ -12,7 +12,6 @@ export type OpdVisitType =
   | 'FOLLOW_UP'
   | 'PROCEDURE'
   | 'EMERGENCY'
-  | 'TELEMEDICINE'
   | 'WALK_IN'
   | 'REVIEW';
 

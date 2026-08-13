@@ -98,7 +98,7 @@ export class AppointmentService {
       this.getActiveDoctor(data.doctor_id),
     ]);
 
-    this.validateDoctorAvailability(doctor, appointmentDate, data.start_time, endTime, data.duration_minutes);
+    await this.validateDoctorAvailability(doctor, appointmentDate, data.start_time, endTime, data.duration_minutes);
     await this.validateDoctorConflict(doctor.id, appointmentDate, data.start_time, endTime);
 
     const sequence = await this.repository.nextAppointmentSequence();
@@ -131,7 +131,7 @@ export class AppointmentService {
     const endTime = this.validateAppointmentWindow(startTime, durationMinutes);
 
     this.ensureCanChangeSchedule(existing);
-    this.validateDoctorAvailability(doctor, appointmentDate, startTime, endTime, durationMinutes);
+    await this.validateDoctorAvailability(doctor, appointmentDate, startTime, endTime, durationMinutes);
     await this.validateDoctorConflict(doctor.id, appointmentDate, startTime, endTime, id);
 
     const appointment = await this.repository.update(
@@ -270,15 +270,27 @@ export class AppointmentService {
     return toTime(endMinutes);
   }
 
-  private validateDoctorAvailability(
+  private async validateDoctorAvailability(
     doctor: Doctor,
     appointmentDate: Date,
     startTime: string,
     endTime: string,
     durationMinutes: number,
   ) {
+    if (await this.doctorRepository.hasActiveLeave(doctor.id, appointmentDate)) {
+      throw new AppError('Doctor is on leave on the selected date', 400, 'DOCTOR_ON_LEAVE');
+    }
+
+    const exception = await this.doctorRepository.getExceptionByDate(doctor.id, appointmentDate);
     const dayName = dayNames[appointmentDate.getUTCDay()];
-    const availability = doctor.availability.find((item) => item.day_of_week === dayName);
+    const recurring = doctor.availability.find((item) => item.day_of_week === dayName);
+    const availability = exception
+      ? {
+          is_available: exception.is_available,
+          working_blocks: exception.working_blocks,
+          slot_duration_minutes: exception.slot_duration_minutes,
+        }
+      : recurring;
 
     if (!availability || !availability.is_available) {
       throw new AppError('Doctor is not available on the selected date', 400, 'DOCTOR_NOT_AVAILABLE');
@@ -290,19 +302,11 @@ export class AppointmentService {
 
     const slotStart = toMinutes(startTime);
     const slotEnd = toMinutes(endTime);
-    const availableStart = toMinutes(availability.start_time);
-    const availableEnd = toMinutes(availability.end_time);
-
-    if (slotStart < availableStart || slotEnd > availableEnd) {
+    const matchingBlock = availability.working_blocks.find(
+      (block) => slotStart >= toMinutes(block.start_time) && slotEnd <= toMinutes(block.end_time),
+    );
+    if (!matchingBlock) {
       throw new AppError('Appointment time is outside doctor availability', 400, 'OUTSIDE_DOCTOR_AVAILABILITY');
-    }
-
-    if (availability.break_start_time && availability.break_end_time) {
-      const breakStart = toMinutes(availability.break_start_time);
-      const breakEnd = toMinutes(availability.break_end_time);
-      if (slotStart < breakEnd && slotEnd > breakStart) {
-        throw new AppError('Appointment time overlaps doctor break', 400, 'DOCTOR_BREAK_CONFLICT');
-      }
     }
   }
 

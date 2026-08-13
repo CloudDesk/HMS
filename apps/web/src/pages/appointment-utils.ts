@@ -22,7 +22,6 @@ export const appointmentVisitTypeLabels: Record<ApiAppointmentVisitType, string>
   FOLLOW_UP: 'Follow-up',
   PROCEDURE: 'Procedure',
   EMERGENCY: 'Emergency',
-  TELEMEDICINE: 'Telemedicine',
 };
 
 export const appointmentPriorityLabels: Record<ApiAppointmentPriority, string> = {

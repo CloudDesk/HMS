@@ -63,7 +63,6 @@ const eventClass = (appointment: AppointmentResponse) => {
   if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') return 'cancelled';
   if (appointment.visit_type === 'FOLLOW_UP') return 'follow-up';
   if (appointment.visit_type === 'PROCEDURE') return 'procedure';
-  if (appointment.visit_type === 'TELEMEDICINE') return 'telemedicine';
   if (appointment.visit_type === 'EMERGENCY') return 'emergency';
   return '';
 };
@@ -318,9 +317,6 @@ export function AppointmentCalendarPage() {
           </span>
           <span>
             <i className="purple" /> Procedures
-          </span>
-          <span>
-            <i className="cyan" /> Telemedicine
           </span>
           <span>
             <i className="red" /> Emergency

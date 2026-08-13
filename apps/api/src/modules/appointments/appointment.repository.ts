@@ -243,6 +243,23 @@ export class AppointmentRepository {
     return appointment ? toAppointment(appointment) : undefined;
   }
 
+  async listActiveWindows(doctorId: string, appointmentDate: Date) {
+    const appointments = await AppointmentModel.find({
+      doctorId: toObjectId(doctorId),
+      appointmentDate,
+      status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
+      deletedAt: null,
+    })
+      .select('startTime endTime')
+      .sort({ startTime: 1 })
+      .lean<Array<{ startTime: string; endTime: string }>>();
+
+    return appointments.map((appointment) => ({
+      start_time: appointment.startTime,
+      end_time: appointment.endTime,
+    }));
+  }
+
   async nextAppointmentSequence() {
     return AppointmentModel.countDocuments();
   }

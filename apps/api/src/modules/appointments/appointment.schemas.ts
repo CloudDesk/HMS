@@ -8,7 +8,7 @@ const appointmentStatusEnum = [
   'SKIPPED',
   'COMPLETED',
 ];
-const appointmentVisitTypeEnum = ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY', 'TELEMEDICINE'];
+const appointmentVisitTypeEnum = ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY'];
 const appointmentPriorityEnum = ['ROUTINE', 'URGENT', 'EMERGENCY'];
 
 export const appointmentIdParamsSchema = {

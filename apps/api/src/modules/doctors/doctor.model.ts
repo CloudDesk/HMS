@@ -1,15 +1,23 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import type { DoctorAvailabilityDay, DoctorStatus } from './doctor.types.js';
 
+export type DoctorWorkingBlockFields = {
+  _id: Types.ObjectId;
+  startTime: string;
+  endTime: string;
+};
+
 export type DoctorAvailabilityFields = {
   _id: Types.ObjectId;
   dayOfWeek: DoctorAvailabilityDay;
   isAvailable: boolean;
-  startTime: string;
-  endTime: string;
+  workingBlocks: DoctorWorkingBlockFields[];
+  slotDurationMinutes: number;
+  // Retained temporarily so existing single-range records can be read and normalized.
+  startTime?: string;
+  endTime?: string;
   breakStartTime?: string | null;
   breakEndTime?: string | null;
-  slotDurationMinutes: number;
 };
 
 export type DoctorFields = {
@@ -38,6 +46,14 @@ export type DoctorFields = {
   updatedAt: Date;
 };
 
+const doctorWorkingBlockSchema = new Schema<DoctorWorkingBlockFields>(
+  {
+    startTime: { type: String, required: true },
+    endTime: { type: String, required: true },
+  },
+  { _id: true },
+);
+
 const doctorAvailabilitySchema = new Schema<DoctorAvailabilityFields>(
   {
     dayOfWeek: {
@@ -46,15 +62,14 @@ const doctorAvailabilitySchema = new Schema<DoctorAvailabilityFields>(
       required: true,
     },
     isAvailable: { type: Boolean, default: true, required: true },
-    startTime: { type: String, required: true },
-    endTime: { type: String, required: true },
+    workingBlocks: { type: [doctorWorkingBlockSchema], default: [] },
+    slotDurationMinutes: { type: Number, required: true },
+    startTime: { type: String },
+    endTime: { type: String },
     breakStartTime: { type: String, default: null },
     breakEndTime: { type: String, default: null },
-    slotDurationMinutes: { type: Number, required: true },
   },
-  {
-    _id: true,
-  },
+  { _id: true },
 );
 
 const doctorSchema = new Schema<DoctorFields>(
@@ -81,12 +96,11 @@ const doctorSchema = new Schema<DoctorFields>(
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedAt: { type: Date, default: null },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-doctorSchema.index({ doctorNumber: 1 });
+// doctorNumber already receives its unique index from the field declaration.
+doctorSchema.index({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } });
 doctorSchema.index({ displayName: 1 });
 doctorSchema.index({ branchId: 1, departmentId: 1, status: 1 });
 doctorSchema.index({ specialization: 1 });

@@ -7,6 +7,7 @@ import {
 } from '../api/appointments';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { doctorsApi, type DoctorResponse } from '../api/doctors';
+import { useAuth } from '../auth/useAuth';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
   appointmentStatusLabels,
@@ -104,12 +105,13 @@ const scheduleEventClass = (appointment: AppointmentResponse) => {
   if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') return 'cancelled';
   if (appointment.visit_type === 'FOLLOW_UP') return 'follow-up';
   if (appointment.visit_type === 'PROCEDURE') return 'procedure';
-  if (appointment.visit_type === 'TELEMEDICINE') return 'telemedicine';
   if (appointment.visit_type === 'EMERGENCY') return 'emergency';
   return '';
 };
 
 export function DoctorSchedulePage() {
+  const { user } = useAuth();
+  const isDoctorUser = user?.roles.some((role) => role.code === 'DOCTOR' || role.name.toLowerCase() === 'doctor') ?? false;
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
@@ -142,14 +144,16 @@ export function DoctorSchedulePage() {
   );
 
   const loadLookups = useCallback(async () => {
-    const [doctorResponse, departmentResponse] = await Promise.all([
-      doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
+    const [doctorResult, departmentResponse] = await Promise.all([
+      isDoctorUser
+        ? doctorsApi.getCurrent().then((doctor) => ({ data: [doctor] }))
+        : doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
       departmentsApi.list({ status: 'ACTIVE', limit: 100 }),
     ]);
-    setDoctors(doctorResponse.data);
+    setDoctors(doctorResult.data);
     setDepartments(departmentResponse.data);
-    setSelectedDoctorId((current) => current || doctorResponse.data[0]?.id || '');
-  }, []);
+    setSelectedDoctorId((current) => (isDoctorUser ? doctorResult.data[0]?.id ?? '' : current || doctorResult.data[0]?.id || ''));
+  }, [isDoctorUser]);
 
   const loadAppointments = useCallback(async () => {
     if (!selectedDoctorId) {
@@ -259,7 +263,7 @@ export function DoctorSchedulePage() {
           </div>
           <div className="doc-field grow">
             <label htmlFor="schedule-doctor">Doctor</label>
-            <select id="schedule-doctor" onChange={(event) => setSelectedDoctorId(event.target.value)} value={selectedDoctorId}>
+            <select disabled={isDoctorUser} id="schedule-doctor" onChange={(event) => setSelectedDoctorId(event.target.value)} value={selectedDoctorId}>
               {doctors.map((doctor) => (
                 <option key={doctor.id} value={doctor.id}>
                   {doctor.display_name}
