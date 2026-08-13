@@ -96,31 +96,6 @@ steps:
       - --env-vars-file
       - /workspace/apps/api/.env.cloudrun.sit.yaml
 
-  - id: prepare-web-sit-env
-    name: node:22-bookworm-slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        printf 'VITE_API_BASE_URL=%s\nVITE_APP_ENV=sit\n' '${_WEB_API_BASE_URL}' > apps/web/.env.sit
-
-  - id: build-web-sit
-    name: node:22-bookworm-slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        npm ci
-        npm run build:sit --workspace=@hms/web
-
-  - id: deploy-web-sit
-    name: node:22-bookworm-slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        npx -y firebase-tools@15.26.0 deploy --only hosting --project ${_FIREBASE_PROJECT_ID} --non-interactive
-
 images:
   - gcr.io/h-m-s-505410/hms-api-sit:$SHORT_SHA
 
@@ -134,10 +109,6 @@ substitutions:
   _MAX_INSTANCES: "3"
   _CONCURRENCY: "80"
   _TIMEOUT: 300s
-  _FIREBASE_PROJECT_ID: hms-sit-a095c
-  _FIREBASE_PROJECT_NAME: hms-sit
-  _FIREBASE_PROJECT_NUMBER: "737294981350"
-  _WEB_API_BASE_URL: https://hms-api-sit-d35ijbsbha-el.a.run.app
 
 options:
   logging: CLOUD_LOGGING_ONLY
