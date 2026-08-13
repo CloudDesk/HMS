@@ -70,10 +70,12 @@ export type UpdatePatientDTO = Partial<Omit<CreatePatientDTO, 'status'>> & {
 };
 
 export type PatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
+export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
 
 export type PatientDocument = {
   id: string;
   patient_id: string;
+  visit_id: string | null;
   document_type: PatientDocumentType;
   title: string;
   file_name: string;
@@ -81,13 +83,19 @@ export type PatientDocument = {
   file_size_bytes: number;
   storage_key: string;
   description: string | null;
+  consent_status: PatientConsentStatus | null;
+  signed_at: Date | null;
+  valid_until: Date | null;
+  signed_by_name: string | null;
   status: 'ACTIVE' | 'DELETED';
   uploaded_by: string | null;
+  uploaded_by_name: string | null;
   created_at: Date;
   updated_at: Date;
 };
 
 export type CreatePatientDocumentDTO = {
+  visit_id?: string | null;
   document_type: PatientDocumentType;
   title: string;
   file_name: string;
@@ -95,6 +103,17 @@ export type CreatePatientDocumentDTO = {
   file_size_bytes: number;
   storage_key: string;
   description?: string | null;
+  consent_status?: PatientConsentStatus | null;
+  signed_at?: string | null;
+  valid_until?: string | null;
+  signed_by_name?: string | null;
+};
+
+export type PatientDocumentListQuery = {
+  document_type?: PatientDocumentType;
+  visit_id?: string;
+  page?: number;
+  limit?: number;
 };
 
 export type UploadPatientDocumentDTO = Omit<CreatePatientDocumentDTO, 'storage_key'> & {

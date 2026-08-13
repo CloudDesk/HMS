@@ -6,6 +6,8 @@ import {
   type PatientListResponse,
   type PatientResponse,
 } from '../api/patients';
+import { Modal } from '../components/ui/Modal';
+import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDate, getPatientErrorMessage, patientFullName } from './patient-utils';
 import { patientInitials } from './opd-utils';
@@ -41,6 +43,8 @@ export function PatientSearchPage() {
   const [patients, setPatients] = useState<PatientResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
 
   // Toggle for Advanced Filters
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -70,15 +74,73 @@ export function PatientSearchPage() {
   // Actions context menu state
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>('created_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [currentPage, setCurrentPage] = useState(Number(initialParams.get('page')) || 1);
-  const [meta, setMeta] = useState<PatientListResponse['meta']>({
-    limit: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
+  // Edit Patient Modal State
+  const [editingPatient, setEditingPatient] = useState<PatientResponse | null>(null);
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: 'MALE' as ApiPatientGender,
+    phone: '',
+    email: '',
+    bloodGroup: '',
+    status: 'ACTIVE' as ApiPatientStatus,
+    notes: '',
   });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editFormError, setEditFormError] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastVisible, setToastVisible] = useState(false);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    window.setTimeout(() => setToastVisible(false), 3000);
+  };
+
+  const openEditModal = (patient: PatientResponse) => {
+    setEditingPatient(patient);
+    setEditForm({
+      firstName: patient.first_name,
+      lastName: patient.last_name,
+      dateOfBirth: patient.date_of_birth.slice(0, 10),
+      gender: patient.gender,
+      phone: patient.phone ?? '',
+      email: patient.email ?? '',
+      bloodGroup: patient.blood_group ?? '',
+      status: patient.status,
+      notes: patient.notes ?? '',
+    });
+    setEditFormError('');
+    setActiveMenuId(null);
+  };
+
+  const handleSaveEditPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPatient) return;
+
+    setEditSubmitting(true);
+    setEditFormError('');
+
+    try {
+      await patientsApi.update(editingPatient.id, {
+        phone: editForm.phone.trim() || null,
+        email: editForm.email.trim() || null,
+        status: editForm.status,
+        notes: editForm.notes.trim() || null,
+      });
+      setEditingPatient(null);
+      showToast(`${editingPatient.first_name} ${editingPatient.last_name} updated successfully.`);
+      await loadPatients();
+    } catch (error) {
+      setEditFormError(getPatientErrorMessage(error));
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const [sortColumn] = useState<SortColumn | null>('created_at');
+  const [sortDirection] = useState<SortDirection>('desc');
 
   const loadPatients = useCallback(async () => {
     setLoading(true);
@@ -217,7 +279,7 @@ export function PatientSearchPage() {
               <input
                 id="search-mrn"
                 onChange={(e) => setMrnInput(e.target.value)}
-                placeholder="MRN-80001"
+                placeholder="Enter MRN or patient ID"
                 type="text"
                 value={mrnInput}
               />
@@ -425,18 +487,18 @@ export function PatientSearchPage() {
                         <div className="user-cell-info">
                           <strong style={{ color: '#0f172a' }}>{fullName}</strong>
                           <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            {patient.email || `${patient.first_name.toLowerCase()}@example.com`}
+                            {patient.email || 'Email not recorded'}
                           </span>
                         </div>
                       </td>
                       {columns.gender ? <td>{patient.gender}</td> : null}
                       {columns.age ? <td>{age} yrs</td> : null}
-                      {columns.phone ? <td>{patient.phone || '+254 794 310 659'}</td> : null}
-                      {columns.lastVisit ? <td>25 Jul 2026</td> : null}
+                      {columns.phone ? <td>{patient.phone || 'Not recorded'}</td> : null}
+                      {columns.lastVisit ? <td>Not available</td> : null}
                       {columns.registeredDate ? <td>{formatDate(patient.created_at)}</td> : null}
                       {columns.patientType ? (
                         <td>
-                          <span className="doc-status draft">Insurance</span>
+                          <span className="doc-status draft">Not recorded</span>
                         </td>
                       ) : null}
                       {columns.status ? (
@@ -472,7 +534,7 @@ export function PatientSearchPage() {
                               <i className="ph ph-user" aria-hidden="true" /> View Patient
                             </button>
                             <button
-                              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
+                              onClick={() => openEditModal(patient)}
                               type="button"
                             >
                               <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
@@ -544,6 +606,112 @@ export function PatientSearchPage() {
           </div>
         </div>
       </section>
+
+      {/* Edit Patient Modal */}
+      <Modal onClose={() => setEditingPatient(null)} open={Boolean(editingPatient)} size="large" title="Edit Patient">
+        {editingPatient ? (
+          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSaveEditPatient}>
+            {editFormError ? <div className="form-error-banner" role="alert">{editFormError}</div> : null}
+
+            <div className="locked-notice-banner">
+              <i className="ph ph-lock-key" aria-hidden="true" />
+              <span>
+                Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
+              </span>
+            </div>
+
+            <section className="doctor-onboarding-section">
+              <header>
+                <span><i className="ph ph-user" aria-hidden="true" /></span>
+                <div>
+                  <h3>Identity Information</h3>
+                  <p>Immutable patient identification and demographic attributes.</p>
+                </div>
+              </header>
+              <div className="form-grid">
+                <div className="form-group locked">
+                  <label htmlFor="search-edit-first">
+                    First name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                  </label>
+                  <input disabled id="search-edit-first" readOnly value={editForm.firstName} />
+                </div>
+                <div className="form-group locked">
+                  <label htmlFor="search-edit-last">
+                    Last name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                  </label>
+                  <input disabled id="search-edit-last" readOnly value={editForm.lastName} />
+                </div>
+                <div className="form-group locked">
+                  <label htmlFor="search-edit-dob">
+                    Date of birth <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                  </label>
+                  <input disabled id="search-edit-dob" readOnly type="date" value={editForm.dateOfBirth} />
+                </div>
+                <div className="form-group locked">
+                  <label htmlFor="search-edit-gender">
+                    Gender <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                  </label>
+                  <select disabled id="search-edit-gender" value={editForm.gender}>
+                    <option value="UNKNOWN">Unknown</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div className="form-group locked">
+                  <label htmlFor="search-edit-blood">
+                    Blood group <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                  </label>
+                  <input disabled id="search-edit-blood" readOnly value={editForm.bloodGroup || 'Not recorded'} />
+                </div>
+              </div>
+            </section>
+
+            <section className="doctor-onboarding-section">
+              <header>
+                <span><i className="ph ph-phone" aria-hidden="true" /></span>
+                <div>
+                  <h3>Contact & Operations</h3>
+                  <p>Editable communication details, status, and clinical notes.</p>
+                </div>
+              </header>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="search-edit-phone">Phone</label>
+                  <input disabled={editSubmitting} id="search-edit-phone" onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} value={editForm.phone} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="search-edit-email">Email</label>
+                  <input disabled={editSubmitting} id="search-edit-email" onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} type="email" value={editForm.email} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="search-edit-status">Status</label>
+                  <select disabled={editSubmitting} id="search-edit-status" onChange={(event) => setEditForm({ ...editForm, status: event.target.value as ApiPatientStatus })} value={editForm.status}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                    <option value="DECEASED">Deceased</option>
+                  </select>
+                </div>
+                <div className="form-group full-width">
+                  <label htmlFor="search-edit-notes">Registration Notes</label>
+                  <textarea disabled={editSubmitting} id="search-edit-notes" onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })} rows={3} value={editForm.notes} />
+                </div>
+              </div>
+            </section>
+
+            <div className="modal-actions">
+              <button className="secondary-action" disabled={editSubmitting} onClick={() => setEditingPatient(null)} type="button">
+                Cancel
+              </button>
+              <button className="primary-action" disabled={editSubmitting} type="submit">
+                {editSubmitting ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <Toast message={toastMessage} visible={toastVisible} />
     </div>
   );
 }

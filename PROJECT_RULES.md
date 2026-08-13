@@ -147,6 +147,15 @@ Do not:
 - Duplicate hooks, services, components, types, or utilities.
 - Hardcode production data.
 - Use mock data in completed features.
+- Make duplicate or repetitive API calls on page mount.
+- Fetch modal lookup data (branches, departments, user options) prematurely before the user opens a modal.
+
+### API Call Optimization & Network Efficiency Rules
+
+- **Single Mount Execution**: Every page component must consolidate data fetching into a single unified loading effect. Use mounting guards or stable parameters to prevent duplicate network calls.
+- **On-Demand Modal Lookups**: Dropdown lookups used exclusively inside modal dialogs (such as branches, departments, and user account mappings) must only be fetched when the user opens the respective modal (e.g. clicking `[+ Add Doctor]`, `[Upload Document]`, `[Upload Consent]`).
+- **Loop-Free URL Sync**: Do not trigger automatic route replaces or navigation updates on initial mount that restart the component lifecycle and duplicate network requests.
+- **Event-Driven Fetching**: Fetch network data strictly on page mount or explicit user actions (filtering, searching, pagination, submitting, tab switching). Avoid cascading state updates in `useEffect` that re-trigger network calls.
 
 ---
 
@@ -442,6 +451,15 @@ Before marking work complete:
 - MongoDB/Mongoose patterns are followed.
 - Build passes.
 - TypeScript passes.
+
+---
+
+## Global Toast Notifications & Form UX Rules
+
+- **Toast Notification Position**: All toast notifications MUST be displayed in the **Top-Right** corner of the page (`fixed; top: 1.5rem; right: 1.5rem; z-index: 99999`).
+- **Mandatory Toast Triggers**: Every save, create, or update operation across all screens and modals (Patients, Doctors, Appointments, OPD) MUST trigger a top-right toast notification upon completion.
+- **Red Required Asterisk**: Mandatory form fields must render bright red asterisks (`<span className="required-asterisk">*</span>`) next to field labels.
+- **Workspace Tab Completion**: In multi-step clinical workspaces (e.g. OPD Consultation Workspace), tabs with filled/saved details must render a green completion checkmark (`<i className="ph ph-check-circle-fill tab-completed-icon" />`) for immediate visual feedback.
 
 ---
 

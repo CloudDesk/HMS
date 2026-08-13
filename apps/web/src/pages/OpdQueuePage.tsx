@@ -4,6 +4,7 @@ import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { opdApi, type ApiOpdVisitPriority, type ApiOpdVisitStatus, type OpdVisitResponse } from '../api/opd';
 import { patientsApi, type PatientResponse } from '../api/patients';
+import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
@@ -493,19 +494,24 @@ export function OpdQueuePage() {
         </section>
       </div>
 
-      {walkInOpen ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="modal-card queue-complete-modal" aria-labelledby="walk-in-title">
-            <div className="modal-header">
-              <h2 id="walk-in-title">Walk-in Check-in</h2>
-              <button className="icon-button" onClick={() => setWalkInOpen(false)} type="button">
-                <i className="ph ph-x" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="modal-body">
-              <label className="form-field" htmlFor="walk-in-patient">
-                <span>Patient</span>
-                <select id="walk-in-patient" onChange={(event) => setWalkInPatientId(event.target.value)} value={walkInPatientId}>
+      <Modal onClose={() => setWalkInOpen(false)} open={walkInOpen} size="large" title="Walk-in Check-in">
+        <form className="modal-form doctor-onboarding-form" onSubmit={(e) => { e.preventDefault(); void submitWalkIn(); }}>
+          {walkInError ? <div className="form-error-banner" role="alert">{walkInError}</div> : null}
+
+          <section className="doctor-onboarding-section">
+            <header>
+              <span><i className="ph ph-user-plus" aria-hidden="true" /></span>
+              <div>
+                <h3>Walk-in Visit Details</h3>
+                <p>Register an unscheduled OPD visit for an active patient.</p>
+              </div>
+            </header>
+            <div className="form-grid">
+              <div className="form-group">
+                <label htmlFor="walk-in-patient">
+                  Patient <span className="required-asterisk">*</span>
+                </label>
+                <select id="walk-in-patient" onChange={(e) => setWalkInPatientId(e.target.value)} required value={walkInPatientId}>
                   <option value="">Select patient</option>
                   {patients.map((patient) => (
                     <option key={patient.id} value={patient.id}>
@@ -513,10 +519,12 @@ export function OpdQueuePage() {
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="form-field" htmlFor="walk-in-doctor">
-                <span>Doctor</span>
-                <select id="walk-in-doctor" onChange={(event) => setWalkInDoctorId(event.target.value)} value={walkInDoctorId}>
+              </div>
+              <div className="form-group">
+                <label htmlFor="walk-in-doctor">
+                  Doctor <span className="required-asterisk">*</span>
+                </label>
+                <select id="walk-in-doctor" onChange={(e) => setWalkInDoctorId(e.target.value)} required value={walkInDoctorId}>
                   <option value="">Select doctor</option>
                   {doctors.map((doctor) => (
                     <option key={doctor.id} value={doctor.id}>
@@ -524,30 +532,30 @@ export function OpdQueuePage() {
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="form-field" htmlFor="walk-in-reason">
-                <span>Reason</span>
+              </div>
+              <div className="form-group full-width">
+                <label htmlFor="walk-in-reason">Reason for Visit</label>
                 <textarea
                   id="walk-in-reason"
-                  onChange={(event) => setWalkInReason(event.target.value)}
+                  onChange={(e) => setWalkInReason(e.target.value)}
                   placeholder="Presenting reason for walk-in visit"
                   rows={3}
                   value={walkInReason}
                 />
-              </label>
-              {walkInError ? <p className="field-error">{walkInError}</p> : null}
-            </div>
-            <div className="modal-footer">
-              <button className="secondary-action" onClick={() => setWalkInOpen(false)} type="button">
-                Cancel
-              </button>
-              <button className="primary-action" disabled={updating === 'walk-in'} onClick={submitWalkIn} type="button">
-                Check in
-              </button>
+              </div>
             </div>
           </section>
-        </div>
-      ) : null}
+
+          <div className="modal-actions">
+            <button className="secondary-action" onClick={() => setWalkInOpen(false)} type="button">
+              Cancel
+            </button>
+            <button className="primary-action" disabled={updating === 'walk-in'} type="submit">
+              {updating === 'walk-in' ? 'Checking in...' : 'Check in'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Toast message={toastMessage} visible={toastVisible} />
     </>

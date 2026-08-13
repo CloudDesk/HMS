@@ -1,5 +1,11 @@
 import mongoose, { Schema, Types } from 'mongoose';
-import type { PatientDocumentType, PatientGender, PatientStatus, PatientTimelineEventType } from './patient.types.js';
+import type {
+  PatientConsentStatus,
+  PatientDocumentType,
+  PatientGender,
+  PatientStatus,
+  PatientTimelineEventType,
+} from './patient.types.js';
 
 export type PatientDocumentFields = {
   patientNumber: string;
@@ -80,6 +86,7 @@ patientSchema.index({ status: 1 });
 
 export type PatientDocumentMetadataFields = {
   patientId: Types.ObjectId;
+  visitId?: Types.ObjectId | null;
   documentType: PatientDocumentType;
   title: string;
   fileName: string;
@@ -87,6 +94,10 @@ export type PatientDocumentMetadataFields = {
   fileSizeBytes: number;
   storageKey: string;
   description?: string | null;
+  consentStatus?: PatientConsentStatus | null;
+  signedAt?: Date | null;
+  validUntil?: Date | null;
+  signedByName?: string | null;
   status: 'ACTIVE' | 'DELETED';
   uploadedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -98,6 +109,7 @@ export type PatientDocumentMetadataFields = {
 const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
   {
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
+    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
     documentType: {
       type: String,
       enum: ['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER'],
@@ -109,6 +121,10 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
     fileSizeBytes: { type: Number, required: true },
     storageKey: { type: String, required: true },
     description: { type: String, default: null },
+    consentStatus: { type: String, enum: ['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED'], default: null },
+    signedAt: { type: Date, default: null },
+    validUntil: { type: Date, default: null },
+    signedByName: { type: String, default: null },
     status: { type: String, enum: ['ACTIVE', 'DELETED'], default: 'ACTIVE', required: true },
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -120,6 +136,7 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
 );
 
 patientDocumentSchema.index({ patientId: 1, status: 1 });
+patientDocumentSchema.index({ patientId: 1, visitId: 1, status: 1, createdAt: -1 });
 patientDocumentSchema.index({ documentType: 1 });
 
 export type PatientTimelineEventFields = {

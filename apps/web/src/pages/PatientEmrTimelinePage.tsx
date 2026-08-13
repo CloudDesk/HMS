@@ -10,7 +10,6 @@ import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
-  formatDate,
   formatDateTime,
   getPatientErrorMessage,
   getPatientIdFromSearch,
@@ -34,22 +33,6 @@ const timelineTabs: TimelineTab[] = [
   { label: 'Documents', eventType: 'DOCUMENT_ADDED' },
   { label: 'Notes', eventType: '' },
 ];
-
-const buildTimelineUrl = (
-  patientId: string,
-  eventType: PatientTimelineEventType | '',
-  fromDate: string,
-  toDate: string,
-  page: number,
-) => {
-  const params = new URLSearchParams({ id: patientId });
-  if (eventType) params.set('event_type', eventType);
-  if (fromDate) params.set('from', fromDate);
-  if (toDate) params.set('to', toDate);
-  if (page > 1) params.set('page', String(page));
-
-  return `/patients/emr?${params.toString()}`;
-};
 
 const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => {
   if (eventType === 'REGISTRATION') return 'ph ph-stethoscope';
@@ -113,68 +96,47 @@ export function PatientEmrTimelinePage() {
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
 
-  // Load patients list for top patient switcher dropdown
-  const loadPatientsList = useCallback(async () => {
-    try {
-      const res = await patientsApi.list({ limit: 50 });
-      setPatientList(res.data);
-      if (!searchPatientId && res.data.length > 0) {
-        const first = res.data[0];
-        if (first) {
-          setActivePatientId(first.id);
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }, [searchPatientId]);
-
-  useEffect(() => {
-    void loadPatientsList();
-  }, [loadPatientsList]);
-
-  useEffect(() => {
-    if (searchPatientId) {
-      setActivePatientId(searchPatientId);
-    }
-  }, [searchPatientId]);
-
-  const loadLookups = useCallback(async () => {
-    try {
-      const [docRes, deptRes] = await Promise.all([
-        doctorsApi.list({ limit: 100, status: 'ACTIVE' }),
-        departmentsApi.list({ limit: 100, status: 'ACTIVE' }),
-      ]);
-      setDoctors(docRes.data);
-      setDepartments(deptRes.data);
-    } catch {
-      // Ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadLookups();
-  }, [loadLookups]);
-
-  const loadTimeline = useCallback(async () => {
-    if (!activePatientId) return;
+  // Single unified data loader guarded against duplicate mount calls
+  const loadPageData = useCallback(async () => {
     setLoading(true);
     setLoadError('');
 
     try {
-      const [patientResponse, timelineResponse] = await Promise.all([
-        patientsApi.getById(activePatientId),
-        patientsApi.timeline(activePatientId, {
+      // 1. Fetch patient list (if empty)
+      const listRes = await patientsApi.list({ limit: 50 });
+      setPatientList(listRes.data);
+
+      let targetId = searchPatientId;
+      if (!targetId && listRes.data.length > 0 && listRes.data[0]) {
+        targetId = listRes.data[0].id;
+      }
+
+      if (!targetId) {
+        setLoading(false);
+        return;
+      }
+
+      setActivePatientId(targetId);
+
+      // 2. Concurrently fetch patient detail, timeline, doctors, and departments
+      const [patientResponse, timelineResponse, docRes, deptRes] = await Promise.all([
+        patientsApi.getById(targetId),
+        patientsApi.timeline(targetId, {
           event_type: eventType || undefined,
           from: fromDate || undefined,
           to: toDate || undefined,
           page: currentPage,
           limit: 10,
         }),
+        doctorsApi.list({ limit: 100, status: 'ACTIVE' }).catch(() => ({ data: [] })),
+        departmentsApi.list({ limit: 100, status: 'ACTIVE' }).catch(() => ({ data: [] })),
       ]);
+
       setPatient(patientResponse);
       setTimeline(timelineResponse.data);
       setMeta(timelineResponse.meta);
+      setDoctors(docRes.data);
+      setDepartments(deptRes.data);
     } catch (error) {
       setPatient(null);
       setTimeline([]);
@@ -183,19 +145,11 @@ export function PatientEmrTimelinePage() {
     } finally {
       setLoading(false);
     }
-  }, [activePatientId, currentPage, eventType, fromDate, toDate]);
+  }, [searchPatientId, currentPage, eventType, fromDate, toDate]);
 
   useEffect(() => {
-    if (!activePatientId) return;
-    const nextUrl = buildTimelineUrl(activePatientId, eventType, fromDate, toDate, currentPage);
-    if (window.location.pathname + window.location.search !== nextUrl) {
-      navigate(nextUrl, { replace: true });
-    }
-  }, [activePatientId, currentPage, eventType, fromDate, toDate]);
-
-  useEffect(() => {
-    void loadTimeline();
-  }, [loadTimeline]);
+    void loadPageData();
+  }, [loadPageData]);
 
   const activeTabLabel = timelineTabs.find((t) => t.eventType === eventType)?.label || 'Timeline';
 
@@ -221,15 +175,38 @@ export function PatientEmrTimelinePage() {
                   navigate(`/patients/emr?id=${encodeURIComponent(e.target.value)}`);
                 }
               }}
-              style={{ width: '240px', padding: '0.4rem 0.6rem' }}
+              style={{ width: '220px', maxWidth: '220px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0.4rem 0.6rem' }}
+              title={patient ? `${patientFullName(patient)} - ${patient.patient_number}` : 'Select Patient'}
               value={activePatientId}
             >
               {patientList.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option key={p.id} title={`${patientFullName(p)} - ${p.patient_number}`} value={p.id}>
                   {patientFullName(p)} - {p.patient_number}
                 </option>
               ))}
             </select>
+          </div>
+
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <i className="ph ph-magnifying-glass" style={{ position: 'absolute', left: '0.6rem', color: '#64748b', fontSize: '0.9rem', pointerEvents: 'none' }} aria-hidden="true" />
+            <input
+              onChange={(e) => {
+                const query = e.target.value.toLowerCase();
+                const matched = patientList.find(
+                  (p) =>
+                    patientFullName(p).toLowerCase().includes(query) ||
+                    p.patient_number.toLowerCase().includes(query)
+                );
+                if (matched) {
+                  setActivePatientId(matched.id);
+                  setCurrentPage(1);
+                  navigate(`/patients/emr?id=${encodeURIComponent(matched.id)}`);
+                }
+              }}
+              placeholder="Search patient in-page..."
+              style={{ width: '190px', padding: '0.4rem 0.6rem 0.4rem 1.8rem', fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}
+              type="search"
+            />
           </div>
 
           <button className="doc-btn" onClick={() => window.print()} type="button">
@@ -242,29 +219,29 @@ export function PatientEmrTimelinePage() {
       {/* Patient Hero Banner */}
       <section className="doc-card opd-patient-banner" style={{ marginBottom: '1.25rem' }}>
         <div className="opd-patient-avatar-box">
-          <span>{patient ? patientInitials(patientFullName(patient)) : 'RA'}</span>
+          <span>{patient ? patientInitials(patientFullName(patient)) : '--'}</span>
         </div>
         <div className="opd-patient-banner-info">
           <div className="opd-patient-banner-title">
-            <h3>{patient ? patientFullName(patient) : 'Robert Achieng'}</h3>
-            <span className="opd-mrn-chip">{patient?.patient_number || 'MRN-80001'}</span>
+            <h3>{patient ? patientFullName(patient) : 'No patient selected'}</h3>
+            <span className="opd-mrn-chip">{patient?.patient_number || 'No MRN'}</span>
             <span className={`doc-status ${patient?.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
               • {patient?.status || 'Active'}
             </span>
           </div>
           <div className="opd-patient-meta-line">
             <span>
-              {patient?.gender || 'Male'},{' '}
+              {patient?.gender || 'Not recorded'},{' '}
               {patient
                 ? `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} years`
-                : '64 years'}
+                : 'age not recorded'}
             </span>
             <span className="divider">•</span>
-            <span>{patient?.phone || '+254 794 310 659'}</span>
+            <span>{patient?.phone || 'Phone not recorded'}</span>
             <span className="divider">•</span>
-            <span>Blood Group: {patient?.blood_group || 'O+'}</span>
+            <span>Blood Group: {patient?.blood_group || 'Not recorded'}</span>
             <span className="divider">•</span>
-            <span>Doctor: Dr. John Kamau</span>
+            <span>Clinical events: {meta.total}</span>
           </div>
         </div>
         <div className="opd-patient-banner-actions">
@@ -391,7 +368,7 @@ export function PatientEmrTimelinePage() {
           <div className="um-state-cell">
             {loadError}
             <div>
-              <button className="doc-btn mt-4" onClick={loadTimeline} type="button">
+              <button className="doc-btn mt-4" onClick={loadPageData} type="button">
                 Retry
               </button>
             </div>
@@ -420,7 +397,7 @@ export function PatientEmrTimelinePage() {
                         </div>
                         <div>
                           <strong className="emr-card-category">{categoryName}</strong>
-                          <span className="emr-card-subtitle">{event.title || 'Routine checkup'}</span>
+                          <span className="emr-card-subtitle">{event.title || 'Clinical event'}</span>
                         </div>
                       </div>
                       <span className={`doc-status ${statusBadge.class}`}>
@@ -435,19 +412,19 @@ export function PatientEmrTimelinePage() {
                       </div>
                       <div className="emr-card-cell">
                         <span>Doctor</span>
-                        <strong>Dr. John Kamau</strong>
+                        <strong>{event.created_by || 'System'}</strong>
                       </div>
                       <div className="emr-card-cell">
                         <span>Department</span>
-                        <strong>Cardiology</strong>
+                        <strong>Not recorded</strong>
                       </div>
                       <div className="emr-card-cell">
                         <span>Diagnosis</span>
-                        <strong>{event.description || 'Clinical review & health assessment'}</strong>
+                        <strong>{event.description || 'No description recorded'}</strong>
                       </div>
                       <div className="emr-card-cell">
                         <span>Treatment</span>
-                        <strong>Continue current care plan</strong>
+                        <strong>Not recorded</strong>
                       </div>
                     </div>
 
@@ -512,12 +489,12 @@ export function PatientEmrTimelinePage() {
             <div className="modal-body">
               <div className="apt-modal-patient-strip">
                 <div className="opd-patient-avatar-box">
-                  <span>{selectedDetails.patient ? patientInitials(patientFullName(selectedDetails.patient)) : 'RA'}</span>
+                  <span>{selectedDetails.patient ? patientInitials(patientFullName(selectedDetails.patient)) : '--'}</span>
                 </div>
                 <div>
-                  <h4>{selectedDetails.patient ? patientFullName(selectedDetails.patient) : 'Robert Achieng'}</h4>
+                  <h4>{selectedDetails.patient ? patientFullName(selectedDetails.patient) : 'No patient selected'}</h4>
                   <p>
-                    {selectedDetails.patient?.patient_number || 'MRN-80001'} • {formatDateTime(selectedDetails.event.occurred_at)}
+                    {selectedDetails.patient?.patient_number || 'No MRN'} • {formatDateTime(selectedDetails.event.occurred_at)}
                   </p>
                 </div>
               </div>

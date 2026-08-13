@@ -60,6 +60,9 @@ export const listPatientDocumentsQuerySchema = {
   additionalProperties: false,
   properties: {
     document_type: { type: 'string', enum: ['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER'] },
+    visit_id: { type: 'string', minLength: 1 },
+    page: { type: 'integer', minimum: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: 100 },
   },
 } as const;
 

@@ -532,7 +532,7 @@ export function AppointmentCalendarPage() {
                 <div className="apt-modal-patient-info">
                   <h4>{selectedAppointment.patient_name}</h4>
                   <p>
-                    {selectedAppointment.patient_number || 'MRN-80001'} • +254 794 310 659
+                    {selectedAppointment.patient_number || 'Patient number not recorded'}
                   </p>
                   <div className="apt-modal-patient-sub">
                     <span>
@@ -558,11 +558,11 @@ export function AppointmentCalendarPage() {
                 </div>
                 <div className="apt-modal-detail-row">
                   <span>Department</span>
-                  <strong>{selectedAppointment.doctor_specialization || 'Cardiology'}</strong>
+                  <strong>{selectedAppointment.doctor_specialization || 'Not recorded'}</strong>
                 </div>
                 <div className="apt-modal-detail-row">
-                  <span>Room</span>
-                  <strong>Consultation 3</strong>
+                  <span>Department ID</span>
+                  <strong>{selectedAppointment.department_id}</strong>
                 </div>
                 <div className="apt-modal-detail-row">
                   <span>Visit Type</span>
@@ -570,15 +570,15 @@ export function AppointmentCalendarPage() {
                 </div>
                 <div className="apt-modal-detail-row">
                   <span>Priority</span>
-                  <strong>Urgent</strong>
+                  <strong>{selectedAppointment.priority}</strong>
                 </div>
                 <div className="apt-modal-detail-row">
                   <span>Branch</span>
-                  <strong>Main Branch</strong>
+                  <strong>{selectedAppointment.branch_id}</strong>
                 </div>
                 <div className="apt-modal-detail-row">
                   <span>Duration</span>
-                  <strong>30 Minutes</strong>
+                  <strong>{selectedAppointment.duration_minutes} Minutes</strong>
                 </div>
               </div>
 
