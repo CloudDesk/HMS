@@ -4,6 +4,7 @@ import {
   type ApiAppointmentStatus,
   type AppointmentResponse,
 } from '../api/appointments';
+import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { Toast } from '../components/ui/Toast';
@@ -60,8 +61,16 @@ const formatDayHeader = (value: string) =>
 const formatMonthDay = (value: string) =>
   new Intl.DateTimeFormat('en', { day: 'numeric', weekday: 'short' }).format(parseInputDate(value));
 
+const isReferral = (appointment: AppointmentResponse) => {
+  return Boolean(
+    (appointment.notes && appointment.notes.toLowerCase().includes('referred')) ||
+      (appointment.reason && appointment.reason.toLowerCase().includes('referral')),
+  );
+};
+
 const eventClass = (appointment: AppointmentResponse) => {
   if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') return 'cancelled';
+  if (isReferral(appointment)) return 'referral';
   if (appointment.visit_type === 'FOLLOW_UP') return 'follow-up';
   if (appointment.visit_type === 'PROCEDURE') return 'procedure';
   if (appointment.visit_type === 'EMERGENCY') return 'emergency';
@@ -138,6 +147,7 @@ export function AppointmentCalendarPage() {
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
+  const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
@@ -166,12 +176,14 @@ export function AppointmentCalendarPage() {
   };
 
   const loadLookups = useCallback(async () => {
-    const [departmentResponse, doctorResponse] = await Promise.all([
+    const [departmentResponse, doctorResponse, branchResponse] = await Promise.all([
       departmentsApi.list({ status: 'ACTIVE', limit: 100 }),
       doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
+      branchesApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
     ]);
     setDepartments(departmentResponse.data);
     setDoctors(doctorResponse.data);
+    setBranches(branchResponse.data);
   }, []);
 
   const loadAppointments = useCallback(async () => {
@@ -393,6 +405,9 @@ export function AppointmentCalendarPage() {
             <i /> Appointments
           </span>
           <span>
+            <i className="cyan" style={{ background: '#06b6d4' }} /> Specialist Referrals
+          </span>
+          <span>
             <i className="green" /> Follow-ups
           </span>
           <span>
@@ -560,10 +575,14 @@ export function AppointmentCalendarPage() {
                   <span>Department</span>
                   <strong>{selectedAppointment.doctor_specialization || 'Not recorded'}</strong>
                 </div>
-                <div className="apt-modal-detail-row">
-                  <span>Department ID</span>
-                  <strong>{selectedAppointment.department_id}</strong>
-                </div>
+                {isReferral(selectedAppointment) ? (
+                  <div className="apt-modal-detail-row">
+                    <span>Referral Info</span>
+                    <strong style={{ color: '#0891b2' }}>
+                      {selectedAppointment.notes || selectedAppointment.reason || 'Specialist Referral'}
+                    </strong>
+                  </div>
+                ) : null}
                 <div className="apt-modal-detail-row">
                   <span>Visit Type</span>
                   <strong>{appointmentVisitTypeLabels[selectedAppointment.visit_type]}</strong>
@@ -574,7 +593,9 @@ export function AppointmentCalendarPage() {
                 </div>
                 <div className="apt-modal-detail-row">
                   <span>Branch</span>
-                  <strong>{selectedAppointment.branch_id}</strong>
+                  <strong>
+                    {branches.find((b) => b.id === selectedAppointment.branch_id)?.name ?? 'Main Hospital Branch'}
+                  </strong>
                 </div>
                 <div className="apt-modal-detail-row">
                   <span>Duration</span>

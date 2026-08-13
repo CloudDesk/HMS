@@ -4,7 +4,7 @@ import type {
   SaveDoctorAvailabilityPayload,
 } from '../../api/doctors';
 
-export type WorkingBlockForm = { start_time: string; end_time: string };
+export type WorkingBlockForm = { start_time: string; end_time: string; max_patients_per_slot?: number };
 export type AvailabilityDayForm = SaveDoctorAvailabilityPayload['availability'][number];
 
 export const doctorAvailabilityDayOrder: ApiDoctorAvailabilityDay[] = [
@@ -22,6 +22,7 @@ const unavailableDay = (day: ApiDoctorAvailabilityDay): AvailabilityDayForm => (
   is_available: false,
   working_blocks: [],
   slot_duration_minutes: 30,
+  max_patients_per_slot: 2,
 });
 
 export const createDefaultDoctorAvailability = (): AvailabilityDayForm[] =>
@@ -31,10 +32,11 @@ export const createDefaultDoctorAvailability = (): AvailabilityDayForm[] =>
       day_of_week: day,
       is_available: true,
       working_blocks: [
-        { start_time: '08:00', end_time: '12:30' },
-        { start_time: '13:30', end_time: '17:00' },
+        { start_time: '08:00', end_time: '12:30', max_patients_per_slot: 2 },
+        { start_time: '13:30', end_time: '17:00', max_patients_per_slot: 2 },
       ],
       slot_duration_minutes: 30,
+      max_patients_per_slot: 2,
     };
   });
 
@@ -48,8 +50,10 @@ export const doctorAvailabilityToForm = (doctor: DoctorResponse): AvailabilityDa
           working_blocks: value.working_blocks.map((block) => ({
             start_time: block.start_time,
             end_time: block.end_time,
+            max_patients_per_slot: (block as any).max_patients_per_slot ?? value.max_patients_per_slot ?? 2,
           })),
           slot_duration_minutes: value.slot_duration_minutes,
+          max_patients_per_slot: value.max_patients_per_slot ?? 2,
         }
       : unavailableDay(day);
   });
@@ -137,6 +141,22 @@ export function DoctorAvailabilityEditor({
                       onChange={(event) => updateBlock(day.day_of_week, index, { end_time: event.target.value })}
                       type="time"
                       value={block.end_time}
+                    />
+                  </label>
+                  <label className="doc-field">
+                    <span>Max Patients</span>
+                    <input
+                      disabled={disabled}
+                      max={20}
+                      min={1}
+                      onChange={(event) =>
+                        updateBlock(day.day_of_week, index, {
+                          max_patients_per_slot: Math.max(1, Number(event.target.value) || 1),
+                        })
+                      }
+                      style={{ width: '70px', textAlign: 'center' }}
+                      type="number"
+                      value={block.max_patients_per_slot ?? day.max_patients_per_slot ?? 2}
                     />
                   </label>
                   <button

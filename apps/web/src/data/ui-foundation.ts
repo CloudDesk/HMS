@@ -28,7 +28,6 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Doctors',
     icon: 'ph-stethoscope',
     links: [
-      { href: '/doctors', label: 'Dashboard' },
       { href: '/doctors/directory', label: 'Doctor Directory' },
       { href: '/doctors/schedule', label: 'Doctor Schedule' },
       { href: '/doctors/availability', label: 'Availability' },
@@ -40,7 +39,6 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Appointments',
     icon: 'ph-calendar-blank',
     links: [
-      { href: '/appointments', label: 'Appointment Dashboard' },
       { href: '/appointments/book', label: 'Book Appointment' },
       { href: '/appointments/calendar', label: 'Calendar View' },
     ],
@@ -50,7 +48,6 @@ export const sidebarModules: SidebarModule[] = [
     label: 'OPD',
     icon: 'ph-first-aid',
     links: [
-      { href: '/opd', label: 'Dashboard' },
       { href: '/opd/consultation', label: 'Consultation' },
       { href: '/opd/queue', label: 'Queue Management' },
     ],
@@ -82,7 +79,6 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Pharmacy',
     icon: 'ph-pill',
     links: [
-      { href: '/pharmacy', label: 'Dashboard' },
       { href: '/pharmacy/queue', label: 'Prescription Queue' },
       { href: '/pharmacy/dispensing', label: 'Dispensing Workspace' },
       { href: '/pharmacy/inventory', label: 'Inventory' },
@@ -93,7 +89,6 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Laboratory',
     icon: 'ph-flask',
     links: [
-      { href: '/laboratory', label: 'Dashboard' },
       { href: '/laboratory/queue', label: 'Work Queue' },
       { href: '/laboratory/workspace', label: 'Laboratory Workspace' },
       { href: '/laboratory/reports', label: 'Reports' },
@@ -104,7 +99,6 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Imaging',
     icon: 'ph-image-square',
     links: [
-      { href: '/imaging', label: 'Dashboard' },
       { href: '/imaging/queue', label: 'Work Queue' },
       { href: '/imaging/workspace', label: 'Imaging Workspace' },
       { href: '/imaging/reports', label: 'Reports' },
@@ -115,29 +109,28 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Billing',
     icon: 'ph-receipt',
     links: [
-      { href: '/billing', label: 'Billing Dashboard' },
       { href: '/billing/workspace', label: 'Billing Workspace' },
       { href: '/billing/history', label: 'Billing History' },
     ],
   },
-  {
-    key: 'inventory',
-    label: 'Inventory',
-    icon: 'ph-package',
-    links: [
-      { href: '/inventory', label: 'Inventory Dashboard' },
-      { href: '/inventory/items', label: 'Item Master' },
-      { href: '/inventory/transactions', label: 'Inventory Transactions' },
-      { href: '/inventory/history', label: 'Inventory History' },
-      { href: '/inventory/reports', label: 'Inventory Reports' },
-    ],
-  },
+  // Inventory module is disabled as per project configuration.
+  // {
+  //   key: 'inventory',
+  //   label: 'Inventory',
+  //   icon: 'ph-package',
+  //   links: [
+  //     { href: '/inventory', label: 'Inventory Dashboard' },
+  //     { href: '/inventory/items', label: 'Item Master' },
+  //     { href: '/inventory/transactions', label: 'Inventory Transactions' },
+  //     { href: '/inventory/history', label: 'Inventory History' },
+  //     { href: '/inventory/reports', label: 'Inventory Reports' },
+  //   ],
+  // },
   {
     key: 'reports',
     label: 'Reports',
     icon: 'ph-chart-bar',
     links: [
-      { href: '/reports', label: 'Reports Dashboard' },
       { href: '/reports/library', label: 'Report Library' },
       { href: '/reports/builder', label: 'Report Builder' },
       { href: '/reports/scheduled', label: 'Scheduled Reports' },
@@ -149,7 +142,6 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Administration',
     icon: 'ph-gear',
     links: [
-      { href: '/administration', label: 'Administration Dashboard' },
       { href: '/administration/users', label: 'User Management' },
       { href: '/administration/roles-permissions', label: 'Roles & Permissions' },
       { href: '/administration/departments', label: 'Department Management' },
