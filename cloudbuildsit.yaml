@@ -40,10 +40,26 @@ steps:
     args:
       - -c
       - |
-        awk '
-          /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
-          $0 !~ /^PORT=/ { print }
-        ' apps/api/.env.dev > /workspace/apps/api/.env.cloudrun.sit
+        python3 - <<'PY'
+        import json
+        from pathlib import Path
+
+        source = Path("apps/api/.env.dev")
+        target = Path("/workspace/apps/api/.env.cloudrun.sit.yaml")
+
+        with target.open("w", encoding="utf-8") as output:
+            for raw_line in source.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if key == "PORT":
+                    continue
+
+                output.write(f"{key}: {json.dumps(value)}\n")
+        PY
 
   - id: deploy-api-sit
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -78,7 +94,7 @@ steps:
       - --port
       - "8080"
       - --env-vars-file
-      - /workspace/apps/api/.env.cloudrun.sit
+      - /workspace/apps/api/.env.cloudrun.sit.yaml
 
 images:
   - gcr.io/h-m-s-505410/hms-api-sit:$SHORT_SHA
