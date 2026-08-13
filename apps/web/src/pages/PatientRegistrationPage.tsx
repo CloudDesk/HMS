@@ -199,10 +199,7 @@ export function PatientRegistrationPage() {
     <>
       <div className="patient-content">
         <div className="patient-page-header">
-          <div className="patient-page-title">
-            <h2>Register Patient</h2>
-            <p>Create a complete patient record</p>
-          </div>
+
           <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
             <i className="ph ph-arrow-left" aria-hidden="true" /> Back
           </button>

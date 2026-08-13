@@ -6,6 +6,8 @@ import {
   type ApiPatientStatus,
   type PatientHistoryResponse,
   type PatientResponse,
+  type PatientTimelineEventResponse,
+  type PatientTimelineListResponse,
   type SavePatientPayload,
 } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
@@ -28,14 +30,14 @@ type ProfileForm = {
 
 const tabs = [
   'Overview',
+  'EMR Timeline',
   'Medical History',
   'Visits',
   'Appointments',
-  'Medications',
+  'Prescriptions',
   'Lab Results',
   'Imaging',
   'Documents',
-  'Insurance',
   'Billing',
   'Consent',
 ] as const;
@@ -64,14 +66,248 @@ const toForm = (patient: PatientResponse): ProfileForm => ({
 
 const nullable = (value: string) => value.trim() || null;
 
+// ── EMR helper functions (mirrored from PatientEmrTimelinePage) ──────────────
+
+const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => {
+  if (eventType === 'REGISTRATION') return 'ph ph-stethoscope';
+  if (eventType === 'PROFILE_UPDATED') return 'ph ph-user-switch';
+  if (eventType === 'CONSENT_ADDED') return 'ph ph-pill';
+  if (eventType === 'DOCUMENT_ADDED') return 'ph ph-flask';
+  if (eventType === 'DOCUMENT_DELETED') return 'ph ph-trash';
+  return 'ph ph-file-text';
+};
+
+const getEventCategoryName = (eventType: PatientTimelineEventResponse['event_type']) => {
+  if (eventType === 'REGISTRATION') return 'Consultation';
+  if (eventType === 'PROFILE_UPDATED') return 'OPD Visit';
+  if (eventType === 'CONSENT_ADDED') return 'Prescription';
+  if (eventType === 'DOCUMENT_ADDED') return 'Lab Results';
+  if (eventType === 'DOCUMENT_DELETED') return 'Document Removed';
+  return 'Clinical Note';
+};
+
+const getEventStatusBadge = (eventType: PatientTimelineEventResponse['event_type']) => {
+  if (eventType === 'REGISTRATION') return { label: 'Completed', class: 'completed' };
+  if (eventType === 'DOCUMENT_ADDED') return { label: 'Results Ready', class: 'completed' };
+  if (eventType === 'CONSENT_ADDED') return { label: 'Active', class: 'active' };
+  return { label: 'Recorded', class: 'draft' };
+};
+
 function EmptyRecords({ message }: { message: string }) {
   return <div className="patient-empty-inline">{message}</div>;
 }
 
+// ── EMR Timeline Tab (inline, Option B) ─────────────────────────────────────
+
+type EmrTabProps = {
+  patientId: string;
+};
+
+function EmrTimelineTab({ patientId }: EmrTabProps) {
+  const [timeline, setTimeline] = useState<PatientTimelineEventResponse[]>([]);
+  const [meta, setMeta] = useState<PatientTimelineListResponse['meta']>({
+    limit: 10,
+    page: 1,
+    total: 0,
+    totalPages: 1,
+  });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [selectedDetails, setSelectedDetails] = useState<PatientTimelineEventResponse | null>(null);
+
+  const loadTimeline = useCallback(async () => {
+    if (!patientId) return;
+    setLoading(true);
+    setLoadError('');
+    try {
+      const res = await patientsApi.timeline(patientId, {
+        from: fromDate || undefined,
+        to: toDate || undefined,
+        page: currentPage,
+        limit: 10,
+      });
+      setTimeline(res.data);
+      setMeta(res.meta);
+    } catch {
+      setTimeline([]);
+      setMeta({ limit: 10, page: currentPage, total: 0, totalPages: 1 });
+      setLoadError('Failed to load EMR timeline.');
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId, currentPage, fromDate, toDate]);
+
+  useEffect(() => {
+    void loadTimeline();
+  }, [loadTimeline]);
+
+  return (
+    <div style={{ padding: '1rem' }}>
+      {/* Filter row */}
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        <div className="doc-field" style={{ margin: 0 }}>
+          <label htmlFor="emr-tab-from">From</label>
+          <input
+            id="emr-tab-from"
+            onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }}
+            type="date"
+            value={fromDate}
+          />
+        </div>
+        <div className="doc-field" style={{ margin: 0 }}>
+          <label htmlFor="emr-tab-to">To</label>
+          <input
+            id="emr-tab-to"
+            onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }}
+            type="date"
+            value={toDate}
+          />
+        </div>
+        <button
+          className="doc-btn"
+          onClick={() => { setFromDate(''); setToDate(''); setCurrentPage(1); }}
+          type="button"
+        >
+          <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset
+        </button>
+        <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '0.83rem', alignSelf: 'center' }}>
+          {loading ? 'Loading…' : `${meta.total} events`}
+        </span>
+      </div>
+
+      {/* Timeline body */}
+      {loading ? (
+        <div className="um-state-cell">Loading EMR timeline events...</div>
+      ) : loadError ? (
+        <div className="um-state-cell" role="alert">
+          {loadError}
+          <div><button className="doc-btn mt-4" onClick={() => void loadTimeline()} type="button">Retry</button></div>
+        </div>
+      ) : timeline.length === 0 ? (
+        <EmptyRecords message="No EMR events recorded for this patient." />
+      ) : (
+        <div className="emr-timeline-axis">
+          <div className="emr-timeline-line" />
+          {timeline.map((event, index) => {
+            const statusBadge = getEventStatusBadge(event.event_type);
+            const categoryName = getEventCategoryName(event.event_type);
+            const iconClass = getEventIcon(event.event_type);
+            return (
+              <div className="emr-timeline-item" key={event.id || index}>
+                <div className="emr-timeline-node">
+                  <i className={iconClass} aria-hidden="true" />
+                </div>
+                <article className="doc-card emr-event-card">
+                  <div className="emr-card-header">
+                    <div className="emr-card-title-group">
+                      <div className="emr-card-icon">
+                        <i className={iconClass} aria-hidden="true" />
+                      </div>
+                      <div>
+                        <strong className="emr-card-category">{categoryName}</strong>
+                        <span className="emr-card-subtitle">{event.title || 'Clinical event'}</span>
+                      </div>
+                    </div>
+                    <span className={`doc-status ${statusBadge.class}`}>
+                      • {statusBadge.label}
+                    </span>
+                  </div>
+                  <div className="emr-card-body-grid">
+                    <div className="emr-card-cell">
+                      <span>Date &amp; Time</span>
+                      <strong>{formatDateTime(event.occurred_at)}</strong>
+                    </div>
+                    <div className="emr-card-cell">
+                      <span>Recorded by</span>
+                      <strong>{event.created_by || 'System'}</strong>
+                    </div>
+                    <div className="emr-card-cell">
+                      <span>Description</span>
+                      <strong>{event.description || 'No description recorded'}</strong>
+                    </div>
+                  </div>
+                  <div className="emr-card-actions">
+                    <button
+                      className="doc-btn"
+                      onClick={() => setSelectedDetails(event)}
+                      type="button"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </article>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {meta.totalPages > 1 ? (
+        <div className="um-pagination" style={{ marginTop: '1.5rem' }}>
+          <span>
+            Showing {timeline.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+            {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} events
+          </span>
+          <div className="um-page-controls">
+            <button
+              className="pg-btn"
+              disabled={meta.page <= 1 || loading}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              type="button"
+            >
+              <i className="ph ph-caret-left" aria-hidden="true" />
+            </button>
+            <button className="pg-btn active" disabled type="button">{meta.page}</button>
+            <button
+              className="pg-btn"
+              disabled={meta.page >= meta.totalPages || loading}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              type="button"
+            >
+              <i className="ph ph-caret-right" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Event details modal */}
+      {selectedDetails ? (
+        <div className="modal-backdrop" onClick={() => setSelectedDetails(null)}>
+          <div className="modal-box apt-details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Timeline Record Details</h3>
+              <button className="modal-close" onClick={() => setSelectedDetails(null)} type="button">
+                <i className="ph ph-x" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="apt-modal-details-grid">
+                <div className="apt-modal-detail-row"><span>Event Type</span><strong>{selectedDetails.event_type}</strong></div>
+                <div className="apt-modal-detail-row"><span>Title</span><strong>{selectedDetails.title}</strong></div>
+                <div className="apt-modal-detail-row"><span>Description</span><strong>{selectedDetails.description || 'N/A'}</strong></div>
+                <div className="apt-modal-detail-row"><span>Timestamp</span><strong>{formatDateTime(selectedDetails.occurred_at)}</strong></div>
+                <div className="apt-modal-detail-row"><span>Recorded by</span><strong>{selectedDetails.created_by || 'System'}</strong></div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="doc-btn" onClick={() => setSelectedDetails(null)} type="button">Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ── Main Patient Workspace ───────────────────────────────────────────────────
+
 export function PatientProfilePage() {
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
-  const [patients, setPatients] = useState<PatientResponse[]>([]);
   const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
@@ -82,14 +318,13 @@ export function PatientProfilePage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [toast, setToast] = useState('');
+  const [showCardModal, setShowCardModal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError('');
     try {
-      const list = await patientsApi.list({ limit: 50 });
-      setPatients(list.data);
-      const patientId = requestedPatientId || list.data[0]?.id;
+      const patientId = requestedPatientId;
       if (!patientId) {
         setHistory(null);
         setAppointments([]);
@@ -117,11 +352,76 @@ export function PatientProfilePage() {
   const patient = history?.patient ?? null;
   const timeline = history?.timeline ?? [];
   const documents = history?.documents ?? [];
-  const consents = useMemo(() => documents.filter((document) => document.document_type === 'CONSENT'), [documents]);
+  const consents = useMemo(() => documents.filter((d) => d.document_type === 'CONSENT'), [documents]);
 
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(''), 2800);
+  };
+
+  const printPatientCard = (p: PatientResponse) => {
+    const fullName = patientFullName(p);
+    const initials = patientInitials(fullName);
+    const age = new Date().getFullYear() - new Date(p.date_of_birth).getFullYear();
+    const dob = formatDate(p.date_of_birth);
+    const registered = formatDate(p.created_at);
+    const statusColor = p.status === 'ACTIVE' ? '#16a34a' : p.status === 'DECEASED' ? '#6b7280' : '#dc2626';
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>Patient Card — ${fullName}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.card{width:340px;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.13);overflow:hidden}
+.card-header{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:20px 20px 28px;position:relative}
+.hospital-row{display:flex;align-items:center;gap:8px;margin-bottom:18px}
+.hospital-logo{width:32px;height:32px;background:rgba(255,255,255,.2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:13px}
+.hospital-name{color:#fff;font-size:13px;font-weight:700;line-height:1.2}
+.hospital-sub{color:rgba(255,255,255,.65);font-size:10px}
+.card-type-badge{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase}
+.avatar-row{display:flex;align-items:center;gap:14px}
+.avatar{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;flex-shrink:0}
+.avatar-info .name{color:#fff;font-size:18px;font-weight:800;line-height:1.2}
+.avatar-info .mrn{margin-top:4px;display:inline-block;background:rgba(255,255,255,.18);color:#fff;font-size:11px;font-weight:600;padding:2px 10px;border-radius:12px}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+.card-body{padding:18px 20px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.info-item .label{font-size:9px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.info-item .value{font-size:13px;font-weight:600;color:#0f172a}
+.divider{border:none;border-top:1px solid #e2e8f0;margin:14px 0}
+.barcode-row{background:#f8fafc;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+.barcode-lines{display:flex;align-items:flex-end;gap:2px;height:28px}
+.bar{background:#1e293b;border-radius:1px}
+.barcode-label{font-size:10px;color:#64748b;font-weight:500}
+.card-footer{background:#f8fafc;border-top:1px solid #e2e8f0;padding:10px 20px;display:flex;justify-content:space-between;align-items:center}
+.footer-text{font-size:9px;color:#94a3b8}
+.blood-badge{background:#fef2f2;color:#dc2626;font-weight:800;font-size:13px;padding:2px 10px;border-radius:8px;border:1px solid #fecaca}
+@media print{body{background:#fff}.card{box-shadow:none;border:1px solid #e2e8f0}.no-print{display:none!important}}
+.print-btn{display:block;width:100%;margin-top:20px;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+</style></head><body><div>
+<div class="card">
+<div class="card-header">
+<div class="hospital-row"><div class="hospital-logo">H</div><div><div class="hospital-name">HMS Enterprise</div><div class="hospital-sub">Hospital Management System</div></div></div>
+<span class="card-type-badge">Patient ID</span>
+<div class="avatar-row"><div class="avatar">${initials}</div><div class="avatar-info"><div class="name">${fullName}</div><span class="mrn">MRN-${p.patient_number}</span></div></div>
+</div>
+<div class="card-body">
+<div class="info-grid">
+<div class="info-item"><div class="label">Date of Birth</div><div class="value">${dob}</div></div>
+<div class="info-item"><div class="label">Age / Gender</div><div class="value">${age} yrs · ${p.gender.charAt(0)+p.gender.slice(1).toLowerCase()}</div></div>
+<div class="info-item"><div class="label">Phone</div><div class="value">${p.phone||'Not recorded'}</div></div>
+<div class="info-item"><div class="label">Status</div><div class="value"><span class="status-dot" style="background:${statusColor}"></span>${p.status}</div></div>
+<div class="info-item"><div class="label">Registered</div><div class="value">${registered}</div></div>
+<div class="info-item"><div class="label">Blood Group</div><div class="value">${p.blood_group?`<span class="blood-badge">${p.blood_group}</span>`:'Not recorded'}</div></div>
+</div>
+<hr class="divider"/>
+<div class="barcode-row"><div><div class="barcode-lines">${Array.from({length:28},(_,i)=>{const h=[24,18,28,14,22,28,16,24,12,28,20,16,28,18,24,28,14,20,28,16,24,12,28,18,24,16,28,22][i];const w=i%3===0?3:1.5;return`<div class="bar" style="width:${w}px;height:${h}px"></div>`;}).join('')}</div><div class="barcode-label" style="margin-top:4px">${p.patient_number}</div></div><div style="text-align:right"><div style="font-size:10px;color:#64748b;font-weight:600">Valid For</div><div style="font-size:12px;font-weight:700;color:#0f172a">All Departments</div></div></div>
+</div>
+<div class="card-footer"><span class="footer-text">This card is non-transferable</span><span class="footer-text">Printed: ${new Date().toLocaleDateString()}</span></div>
+</div>
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print Card</button>
+</div><script>window.onload=()=>window.print();</script></body></html>`;
+    const win = window.open('', '_blank', 'width=480,height=700,scrollbars=no,toolbar=no,menubar=no');
+    if (win) { win.document.write(html); win.document.close(); }
   };
 
   const saveProfile = async (event: FormEvent) => {
@@ -156,31 +456,39 @@ export function PatientProfilePage() {
     }
   };
 
-  if (loading) return <div className="um-state-cell">Loading patient profile...</div>;
+  if (loading) return <div className="um-state-cell">Loading patient workspace...</div>;
   if (loadError) return <div className="um-state-cell" role="alert">{loadError}<div><button className="doc-btn mt-4" onClick={() => void load()} type="button">Retry</button></div></div>;
-  if (!patient) return <EmptyRecords message="No patient records are available." />;
+  if (!patient) {
+    return (
+      <div className="appointment-page">
+        <section className="appointment-page-header">
+          <div className="appointment-page-title">
+            <h2>Patient Workspace</h2>
+            <p>Select a patient from search to open their workspace</p>
+          </div>
+          <div className="appointment-page-actions">
+            <button className="doc-btn primary" onClick={() => navigate('/patients/search')} type="button">
+              <i className="ph ph-magnifying-glass" aria-hidden="true" /> Search Patients
+            </button>
+          </div>
+        </section>
+        <div className="patient-empty-inline" style={{ marginTop: '2rem' }}>
+          No patient selected. Use <strong>Search Patients</strong> and click <strong>View Patient</strong> to open a workspace.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="appointment-page">
+        {/* Page Header */}
         <section className="appointment-page-header">
           <div className="appointment-page-title">
-            <h2>Patient Profile</h2>
-            <p>Complete demographic and clinical overview</p>
+            <h2>Patient Workspace</h2>
+            <p>Complete patient record and clinical history</p>
           </div>
           <div className="appointment-page-actions">
-            <label className="sr-only" htmlFor="profile-patient">Switch patient</label>
-            <select
-              id="profile-patient"
-              onChange={(event) => navigate(`/patients/profile?id=${encodeURIComponent(event.target.value)}`)}
-              value={patient.id}
-            >
-              {patients.map((item) => (
-                <option key={item.id} value={item.id}>
-                  Switch Patient: {patientFullName(item)} • {item.patient_number}
-                </option>
-              ))}
-            </select>
             <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
               <i className="ph ph-magnifying-glass" aria-hidden="true" />
               Search Patients
@@ -188,7 +496,7 @@ export function PatientProfilePage() {
           </div>
         </section>
 
-        {/* Hero Banner (Ripped from Image 2) */}
+        {/* Hero Banner */}
         <section className="profile-hero-card">
           <div className="profile-hero-left">
             <div className="profile-hero-avatar">
@@ -224,16 +532,20 @@ export function PatientProfilePage() {
             <button className="doc-btn" onClick={() => { setForm(toForm(patient)); setFormError(''); setEditOpen(true); }} type="button">
               <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
             </button>
-            <button className="doc-btn primary" onClick={() => navigate(`/appointments/book?patient_id=${encodeURIComponent(patient.id)}`)} type="button">
+            {/* Register Visit — temporarily disabled */}
+            {/* <button className="doc-btn" onClick={() => navigate(`/opd/visit?patient_id=${encodeURIComponent(patient.id)}`)} type="button">
+              <i className="ph ph-clipboard-text" aria-hidden="true" /> Register Visit
+            </button> */}
+            <button className="doc-btn primary" onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)} type="button">
               <i className="ph ph-calendar-plus" aria-hidden="true" /> Book Appointment
             </button>
-            <button className="doc-btn" onClick={() => window.print()} type="button">
-              <i className="ph ph-printer" aria-hidden="true" /> Print Card
+            <button className="doc-btn" onClick={() => setShowCardModal(true)} type="button">
+              <i className="ph ph-identification-card" aria-hidden="true" /> View Card
             </button>
           </div>
         </section>
 
-        {/* 10 Horizontal Navigation Tabs */}
+        {/* 11 Workspace Tabs */}
         <section className="doc-card" style={{ marginTop: '1.25rem', padding: '0.5rem 1rem 0' }}>
           <div className="opd-workspace-tabs" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
             {tabs.map((tab) => (
@@ -251,6 +563,7 @@ export function PatientProfilePage() {
 
         {/* Tab Contents */}
         <section className="doc-card" style={{ marginTop: '1.25rem', overflow: 'hidden', padding: 0 }}>
+          {/* ── Overview ──────────────────────────────────────────────────── */}
           {activeTab === 'Overview' ? (
             <div className="profile-6card-grid">
               {/* Card 1: Personal Information */}
@@ -263,7 +576,7 @@ export function PatientProfilePage() {
                   <span className="value">{patient.gender}, {calculateAge(patient.date_of_birth)}</span>
                   <span className="label">Date of Birth</span>
                   <span className="value">{formatDate(patient.date_of_birth)}</span>
-                  <span className="label">National ID</span>
+                  <span className="label">MRN</span>
                   <span className="value">{patient.patient_number}</span>
                   <span className="label">Address</span>
                   <span className="value">{[patient.address.line1, patient.address.city, patient.address.country].filter(Boolean).join(', ') || 'Not recorded'}</span>
@@ -285,11 +598,11 @@ export function PatientProfilePage() {
                 </div>
               </article>
 
-              {/* Card 3: Current Medications */}
+              {/* Card 3: Current Prescriptions */}
               <article className="profile-overview-card">
-                <h3><i className="ph ph-pill" /> Current Medications</h3>
+                <h3><i className="ph ph-pill" /> Current Prescriptions</h3>
                 {timeline.filter((t) => t.title.toLowerCase().includes('prescr') || t.title.toLowerCase().includes('med')).length === 0 ? (
-                  <EmptyRecords message="No active medications recorded for this patient." />
+                  <EmptyRecords message="No active prescriptions recorded for this patient." />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {timeline.slice(0, 3).map((item) => (
@@ -355,6 +668,12 @@ export function PatientProfilePage() {
             </div>
           ) : null}
 
+          {/* ── EMR Timeline (Option B — inline) ─────────────────────────── */}
+          {activeTab === 'EMR Timeline' ? (
+            <EmrTimelineTab patientId={patient.id} />
+          ) : null}
+
+          {/* ── Medical History ──────────────────────────────────────────── */}
           {activeTab === 'Medical History' ? (
             timeline.length === 0 ? (
               <EmptyRecords message="No medical history events recorded for this patient." />
@@ -378,6 +697,7 @@ export function PatientProfilePage() {
             )
           ) : null}
 
+          {/* ── Visits ───────────────────────────────────────────────────── */}
           {activeTab === 'Visits' ? (
             timeline.length === 0 ? (
               <EmptyRecords message="No OPD visit records found for this patient." />
@@ -402,6 +722,7 @@ export function PatientProfilePage() {
             )
           ) : null}
 
+          {/* ── Appointments ─────────────────────────────────────────────── */}
           {activeTab === 'Appointments' ? (
             appointments.length === 0 ? (
               <EmptyRecords message="No appointments recorded for this patient." />
@@ -427,18 +748,22 @@ export function PatientProfilePage() {
             )
           ) : null}
 
-          {activeTab === 'Medications' ? (
+          {/* ── Prescriptions ────────────────────────────────────────────── */}
+          {activeTab === 'Prescriptions' ? (
             <EmptyRecords message="No prescription records found for this patient." />
           ) : null}
 
+          {/* ── Lab Results ──────────────────────────────────────────────── */}
           {activeTab === 'Lab Results' ? (
             <EmptyRecords message="No laboratory test results found for this patient." />
           ) : null}
 
+          {/* ── Imaging ──────────────────────────────────────────────────── */}
           {activeTab === 'Imaging' ? (
             <EmptyRecords message="No radiology / imaging records found for this patient." />
           ) : null}
 
+          {/* ── Documents ────────────────────────────────────────────────── */}
           {activeTab === 'Documents' ? (
             documents.length === 0 ? (
               <EmptyRecords message="No uploaded documents found for this patient." />
@@ -464,14 +789,12 @@ export function PatientProfilePage() {
             )
           ) : null}
 
-          {activeTab === 'Insurance' ? (
-            <EmptyRecords message="No insurance coverage details recorded for this patient." />
-          ) : null}
-
+          {/* ── Billing ──────────────────────────────────────────────────── */}
           {activeTab === 'Billing' ? (
             <EmptyRecords message="No billing statements or invoices found for this patient." />
           ) : null}
 
+          {/* ── Consent ──────────────────────────────────────────────────── */}
           {activeTab === 'Consent' ? (
             consents.length === 0 ? (
               <EmptyRecords message="No consent forms found for this patient." />
@@ -499,6 +822,7 @@ export function PatientProfilePage() {
         </section>
       </div>
 
+      {/* Edit Patient Modal */}
       <Modal onClose={() => setEditOpen(false)} open={editOpen} size="large" title="Edit Patient">
         {form ? (
           <form className="modal-form patient-form doctor-onboarding-form" onSubmit={saveProfile}>
@@ -562,7 +886,7 @@ export function PatientProfilePage() {
               <header>
                 <span><i className="ph ph-phone" aria-hidden="true" /></span>
                 <div>
-                  <h3>Contact & Operations</h3>
+                  <h3>Contact &amp; Operations</h3>
                   <p>Editable communication details, status, and clinical notes.</p>
                 </div>
               </header>
@@ -601,6 +925,85 @@ export function PatientProfilePage() {
           </form>
         ) : null}
       </Modal>
+
+      {/* View Card Modal */}
+      {patient ? (
+        <Modal onClose={() => setShowCardModal(false)} open={showCardModal} size="default" title="Patient ID Card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
+            {/* Card Preview */}
+            <div style={{ width: '340px', background: '#fff', borderRadius: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+              {/* Gradient header */}
+              <div style={{ background: 'linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)', padding: '20px 20px 24px', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '13px' }}>H</div>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>HMS Enterprise</div>
+                    <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '10px' }}>Hospital Management System</div>
+                  </div>
+                </div>
+                <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '20px', textTransform: 'uppercase' }}>Patient ID</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '3px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                    {patientInitials(patientFullName(patient))}
+                  </div>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(patient)}</div>
+                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>MRN-{patient.patient_number}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Info grid */}
+              <div style={{ padding: '18px 20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                  {([
+                    ['Date of Birth', formatDate(patient.date_of_birth)],
+                    ['Age / Gender', `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} yrs · ${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()}`],
+                    ['Phone', patient.phone || 'Not recorded'],
+                    ['Status', patient.status],
+                    ['Registered', formatDate(patient.created_at)],
+                    ['Blood Group', patient.blood_group || 'Not recorded'],
+                  ] as [string, string][]).map(([label, value]) => (
+                    <div key={label}>
+                      <div style={{ fontSize: '9px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{label}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: label === 'Status' ? (patient.status === 'ACTIVE' ? '#16a34a' : '#dc2626') : '#0f172a' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '14px 0' }} />
+                {/* Barcode strip */}
+                <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '28px' }}>
+                      {([24,18,28,14,22,28,16,24,12,28,20,16,28,18,24,28,14,20,28,16,24,12,28,18,24,16,28,22] as number[]).map((h, i) => (
+                        <div key={i} style={{ width: `${i % 3 === 0 ? 3 : 1.5}px`, height: `${h}px`, background: '#1e293b', borderRadius: '1px' }} />
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 500, marginTop: '4px' }}>{patient.patient_number}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>Valid For</div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>All Departments</div>
+                  </div>
+                </div>
+              </div>
+              {/* Footer */}
+              <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '10px 20px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '9px', color: '#94a3b8' }}>This card is non-transferable</span>
+                <span style={{ fontSize: '9px', color: '#94a3b8' }}>Generated: {new Date().toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button className="doc-btn" onClick={() => setShowCardModal(false)} type="button">Close</button>
+              <button className="doc-btn primary" onClick={() => printPatientCard(patient)} type="button">
+                <i className="ph ph-printer" aria-hidden="true" /> Print Card
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
       <Toast message={toast} visible={Boolean(toast)} />
     </>
   );

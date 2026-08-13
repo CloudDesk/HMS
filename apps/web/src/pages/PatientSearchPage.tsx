@@ -3,37 +3,31 @@ import {
   patientsApi,
   type ApiPatientGender,
   type ApiPatientStatus,
-  type PatientListResponse,
   type PatientResponse,
 } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDate, getPatientErrorMessage, patientFullName } from './patient-utils';
-import { patientInitials } from './opd-utils';
 
 type SortColumn = 'patient_number' | 'first_name' | 'last_name' | 'created_at';
 type SortDirection = 'asc' | 'desc';
 
 type ColumnVisibility = {
-  photo: boolean;
   gender: boolean;
   age: boolean;
   phone: boolean;
   lastVisit: boolean;
   registeredDate: boolean;
-  patientType: boolean;
   status: boolean;
 };
 
 const defaultColumns: ColumnVisibility = {
-  photo: true,
   gender: true,
   age: true,
   phone: true,
   lastVisit: true,
   registeredDate: true,
-  patientType: true,
   status: true,
 };
 
@@ -436,14 +430,12 @@ export function PatientSearchPage() {
             <thead>
               <tr>
                 <th>MRN</th>
-                {columns.photo ? <th>PHOTO</th> : null}
                 <th>PATIENT NAME</th>
                 {columns.gender ? <th>GENDER</th> : null}
                 {columns.age ? <th>AGE</th> : null}
                 {columns.phone ? <th>PHONE</th> : null}
                 {columns.lastVisit ? <th>LAST VISIT</th> : null}
                 {columns.registeredDate ? <th>REGISTERED DATE</th> : null}
-                {columns.patientType ? <th>PATIENT TYPE</th> : null}
                 {columns.status ? <th>STATUS</th> : null}
                 <th className="align-right">ACTIONS</th>
               </tr>
@@ -470,19 +462,11 @@ export function PatientSearchPage() {
               ) : (
                 patients.map((patient) => {
                   const fullName = patientFullName(patient);
-                  const initials = patientInitials(fullName);
                   const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
 
                   return (
                     <tr key={patient.id}>
                       <td className="emp-id">{patient.patient_number}</td>
-                      {columns.photo ? (
-                        <td>
-                          <div className="opd-patient-avatar-box" style={{ width: '32px', height: '32px', fontSize: '0.85rem' }}>
-                            <span>{initials}</span>
-                          </div>
-                        </td>
-                      ) : null}
                       <td>
                         <div className="user-cell-info">
                           <strong style={{ color: '#0f172a' }}>{fullName}</strong>
@@ -496,11 +480,6 @@ export function PatientSearchPage() {
                       {columns.phone ? <td>{patient.phone || 'Not recorded'}</td> : null}
                       {columns.lastVisit ? <td>Not available</td> : null}
                       {columns.registeredDate ? <td>{formatDate(patient.created_at)}</td> : null}
-                      {columns.patientType ? (
-                        <td>
-                          <span className="doc-status draft">Not recorded</span>
-                        </td>
-                      ) : null}
                       {columns.status ? (
                         <td>
                           <span

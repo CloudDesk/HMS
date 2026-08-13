@@ -1,61 +1,28 @@
+import type { Types } from 'mongoose';
+import { AuditLogModel } from '../modules/auth/auth.model.js';
+import { BranchModel } from '../modules/branches/branch.model.js';
+import { DepartmentModel } from '../modules/departments/department.model.js';
 import { PermissionCategoryModel, PermissionGroupModel, PermissionModel } from '../modules/permissions/permission.model.js';
 import { RoleModel } from '../modules/roles/role.model.js';
-import { UserModel } from '../modules/users/user.model.js';
-import { AuditLogModel } from '../modules/auth/auth.model.js';
 import { ServiceModel } from '../modules/services/service.model.js';
+import { UserModel } from '../modules/users/user.model.js';
 import { hashPassword } from '../shared/security/hash.js';
 
-const administrationPermissions = {
-  Dashboard: ['View'],
-  Users: ['View', 'Create', 'Edit', 'ChangePassword', 'ResetPassword', 'Delete', 'Export'],
-  Roles: ['View', 'Create', 'Edit', 'Assign', 'Delete'],
-  Permissions: ['View', 'Create', 'Edit', 'Assign', 'Delete'],
-  Branches: ['View', 'Create', 'Edit', 'Delete', 'Export'],
-  Departments: ['View', 'Create', 'Edit', 'Delete', 'Export'],
-  Services: ['View', 'Create', 'Edit', 'Delete', 'Export'],
-  Medicines: ['View', 'Create', 'Edit', 'Delete', 'Export'],
-} as const;
+type PermissionDefinition = {
+  code?: string;
+  module: string;
+  screen: string;
+  action: string;
+  category: 'SYSTEM' | 'CLINICAL' | 'FINANCE';
+  group: string;
+};
 
-const patientPermissions = {
-  'Patient Records': ['View', 'Create', 'Edit'],
-  'Patient Documents': ['View', 'Create', 'Edit', 'Delete'],
-} as const;
-
-const doctorPermissions = {
-  'Doctor Directory': ['View', 'Create', 'Edit', 'Export', 'Provision Login'],
-  'Doctor Availability': ['View', 'Edit'],
-} as const;
-
-const appointmentPermissions = {
-  'Appointment Records': ['View', 'Edit'],
-  'Appointment Booking': ['View', 'Create', 'Edit'],
-} as const;
-
-const opdPermissions = {
-  'OPD Visits': ['View', 'Create', 'Edit'],
-  'OPD Vitals': ['View', 'Create'],
-  'OPD Consultation': ['View', 'Edit'],
-  'OPD Prescription': ['View', 'Edit'],
-  'OPD Clinical Orders': ['View', 'Edit'],
-  'OPD Follow-up': ['View', 'Edit'],
-  'OPD Referral': ['View', 'Edit'],
-} as const;
-
-const pharmacyPermissions = {
-  'Medicine Inventory': ['View', 'RegisterBatch', 'RecordMovement', 'AdjustStock', 'EditBatch', 'ConfigureLowStock'],
-} as const;
-
-const laboratoryPermissions = {
-  Orders: ['View', 'Edit', 'EnterResult', 'VerifyResult'],
-} as const;
-
-const imagingPermissions = {
-  Orders: ['View', 'Edit', 'EnterReport', 'VerifyReport'],
-} as const;
-
-const billingPermissions = {
-  Invoices: ['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'],
-} as const;
+type RoleDefinition = {
+  code: string;
+  name: string;
+  description: string;
+  permissionCodes: string[];
+};
 
 const permissionCode = (moduleName: string, screen: string, action: string) =>
   `${moduleName}_${screen}_${action}`
@@ -63,450 +30,418 @@ const permissionCode = (moduleName: string, screen: string, action: string) =>
     .replaceAll(/\s+/g, '_')
     .toUpperCase();
 
+const permission = (
+  module: string,
+  screen: string,
+  action: string,
+  category: PermissionDefinition['category'],
+  group: string,
+): PermissionDefinition => ({ module, screen, action, category, group });
+
+const expandPermissions = (
+  module: string,
+  screens: Record<string, readonly string[]>,
+  category: PermissionDefinition['category'],
+  group: string,
+) => Object.entries(screens).flatMap(([screen, actions]) =>
+  actions.map((action) => permission(module, screen, action, category, group)),
+);
+
+const permissionDefinitions: PermissionDefinition[] = [
+  ...expandPermissions('Administration', {
+    Dashboard: ['View'],
+    Users: ['View', 'Create', 'Edit', 'ChangePassword', 'ResetPassword', 'Delete', 'Export'],
+    Roles: ['View', 'Create', 'Edit', 'Assign', 'Delete'],
+    Permissions: ['View', 'Create', 'Edit', 'Assign', 'Delete'],
+    Branches: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+    Departments: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+    Services: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+    Medicines: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+  }, 'SYSTEM', 'ADMINISTRATION'),
+  ...expandPermissions('Patients', {
+    'Patient Records': ['View', 'Create', 'Edit'],
+    'Patient Documents': ['View', 'Create', 'Edit', 'Delete'],
+  }, 'CLINICAL', 'PATIENTS'),
+  ...expandPermissions('Doctors', {
+    'Doctor Directory': ['View', 'Create', 'Edit', 'Export', 'Provision Login'],
+    'Doctor Availability': ['View', 'Edit'],
+  }, 'CLINICAL', 'DOCTORS'),
+  ...expandPermissions('Appointments', {
+    'Appointment Records': ['View', 'Edit'],
+    'Appointment Booking': ['View', 'Create', 'Edit'],
+  }, 'CLINICAL', 'APPOINTMENTS'),
+  ...expandPermissions('OPD', {
+    'OPD Visits': ['View', 'Create', 'Edit'],
+    'OPD Vitals': ['View', 'Create'],
+    'OPD Consultation': ['View', 'Edit'],
+    'OPD Prescription': ['View', 'Edit'],
+    'OPD Clinical Orders': ['View', 'Edit'],
+    'OPD Follow-up': ['View', 'Edit'],
+    'OPD Referral': ['View', 'Edit'],
+  }, 'CLINICAL', 'OPD'),
+  ...expandPermissions('Pharmacy', {
+    'Medicine Inventory': ['View', 'RegisterBatch', 'RecordMovement', 'AdjustStock', 'EditBatch', 'ConfigureLowStock'],
+    Dispensing: ['View', 'Dispense', 'UpdateStatus'],
+  }, 'CLINICAL', 'PHARMACY'),
+  ...expandPermissions('Laboratory', {
+    Orders: ['View', 'Edit', 'EnterResult', 'VerifyResult'],
+  }, 'CLINICAL', 'LABORATORY'),
+  ...expandPermissions('Imaging', {
+    Orders: ['View', 'Edit', 'EnterReport', 'VerifyReport'],
+  }, 'CLINICAL', 'IMAGING'),
+  ...expandPermissions('Billing', {
+    Invoices: ['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'],
+  }, 'FINANCE', 'BILLING'),
+  ...['View', 'Edit', 'Export'].map((action) => ({
+    ...permission('Administration', 'Settings', action, 'SYSTEM', 'ADMINISTRATION'),
+    code: `settings.${action.toLowerCase()}`,
+  })),
+];
+
+const code = (moduleName: string, screen: string, action: string) =>
+  permissionCode(moduleName, screen, action);
+
+const administratorPermissionCodes = [
+  code('Administration', 'Dashboard', 'View'),
+  ...['View', 'Create', 'Edit', 'ChangePassword', 'ResetPassword', 'Export'].map((action) => code('Administration', 'Users', action)),
+  ...['View', 'Create', 'Edit', 'Assign'].map((action) => code('Administration', 'Roles', action)),
+  ...['View', 'Create', 'Edit', 'Assign'].map((action) => code('Administration', 'Permissions', action)),
+  ...['Branches', 'Departments', 'Services', 'Medicines'].flatMap((screen) =>
+    ['View', 'Create', 'Edit', 'Export'].map((action) => code('Administration', screen, action))),
+  ...['View', 'Edit', 'Export'].map((action) => `settings.${action.toLowerCase()}`),
+  ...['View', 'Create', 'Edit', 'Export', 'Provision Login'].map((action) => code('Doctors', 'Doctor Directory', action)),
+  ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
+];
+
+const roleDefinitions: RoleDefinition[] = [
+  {
+    code: 'ADMINISTRATOR',
+    name: 'Administrator',
+    description: 'Phase 1 administrative configuration without routine clinical workflow access',
+    permissionCodes: administratorPermissionCodes,
+  },
+  {
+    code: 'RECEPTIONIST',
+    name: 'Receptionist',
+    description: 'Patient registration, appointments, visit registration, and referral coordination',
+    permissionCodes: [
+      ...['View', 'Create', 'Edit'].map((action) => code('Patients', 'Patient Records', action)),
+      ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
+      code('Doctors', 'Doctor Directory', 'View'),
+      code('Doctors', 'Doctor Availability', 'View'),
+      ...['View', 'Create', 'Edit'].map((action) => code('Appointments', 'Appointment Booking', action)),
+      ...['View', 'Edit'].map((action) => code('Appointments', 'Appointment Records', action)),
+      ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
+      ...['View', 'Edit'].map((action) => code('OPD', 'OPD Referral', action)),
+    ],
+  },
+  {
+    code: 'CLINICIAN_NURSE',
+    name: 'Clinician / Nurse',
+    description: 'Clinical queue support, patient document access, and vital-sign recording',
+    permissionCodes: [
+      code('Patients', 'Patient Records', 'View'),
+      ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
+      code('Appointments', 'Appointment Records', 'View'),
+      code('Doctors', 'Doctor Directory', 'View'),
+      code('Doctors', 'Doctor Availability', 'View'),
+      ...['View', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
+      ...['View', 'Create'].map((action) => code('OPD', 'OPD Vitals', action)),
+    ],
+  },
+  {
+    code: 'DOCTOR',
+    name: 'Doctor',
+    description: 'Phase 1 doctor consultation and clinical ordering access',
+    permissionCodes: [
+      ...['View', 'Edit'].map((action) => code('Patients', 'Patient Records', action)),
+      ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
+      code('Doctors', 'Doctor Directory', 'View'),
+      ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
+      code('Appointments', 'Appointment Records', 'View'),
+      ...['View', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
+      code('OPD', 'OPD Vitals', 'View'),
+      ...['OPD Consultation', 'OPD Prescription', 'OPD Clinical Orders', 'OPD Follow-up', 'OPD Referral'].flatMap((screen) =>
+        ['View', 'Edit'].map((action) => code('OPD', screen, action))),
+    ],
+  },
+  {
+    code: 'PHARMACY_USER',
+    name: 'Pharmacy User',
+    description: 'Prescription review, medicine inventory, and Phase 1 dispensing access',
+    permissionCodes: [
+      code('OPD', 'OPD Prescription', 'View'),
+      ...['View', 'RegisterBatch', 'RecordMovement', 'AdjustStock', 'EditBatch', 'ConfigureLowStock'].map((action) =>
+        code('Pharmacy', 'Medicine Inventory', action)),
+      ...['View', 'Dispense', 'UpdateStatus'].map((action) => code('Pharmacy', 'Dispensing', action)),
+    ],
+  },
+  {
+    code: 'LABORATORY_USER',
+    name: 'Laboratory User',
+    description: 'Laboratory queue processing, result entry, and verification',
+    permissionCodes: ['View', 'Edit', 'EnterResult', 'VerifyResult'].map((action) => code('Laboratory', 'Orders', action)),
+  },
+  {
+    code: 'IMAGING_USER',
+    name: 'Imaging User',
+    description: 'Imaging queue processing, report entry, and verification',
+    permissionCodes: ['View', 'Edit', 'EnterReport', 'VerifyReport'].map((action) => code('Imaging', 'Orders', action)),
+  },
+  {
+    code: 'BILLING_AUTHORIZED',
+    name: 'Billing Authorized',
+    description: 'Reusable permission profile for authorized Phase 1 billing users',
+    permissionCodes: [
+      ...['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'].map((action) => code('Billing', 'Invoices', action)),
+      code('Administration', 'Services', 'View'),
+      code('Patients', 'Patient Records', 'View'),
+      code('OPD', 'OPD Visits', 'View'),
+    ],
+  },
+];
+
+const initialUsers = [
+  { username: 'receptionist', fullName: 'Initial Receptionist', employeeCode: 'SEED-RECEPTION', roleCode: 'RECEPTIONIST', departmentTerms: ['reception', 'administration', 'cardiology'] },
+  { username: 'nurse', fullName: 'Initial Nurse', employeeCode: 'SEED-NURSE', roleCode: 'CLINICIAN_NURSE', departmentTerms: ['nursing', 'clinical', 'cardiology'] },
+  { username: 'pharmacy', fullName: 'Initial Pharmacy User', employeeCode: 'SEED-PHARMACY', roleCode: 'PHARMACY_USER', departmentTerms: ['pharmacy', 'cardiology'] },
+  { username: 'laboratory', fullName: 'Initial Laboratory User', employeeCode: 'SEED-LABORATORY', roleCode: 'LABORATORY_USER', departmentTerms: ['laboratory', 'lab', 'cardiology'] },
+  { username: 'imaging', fullName: 'Initial Imaging User', employeeCode: 'SEED-IMAGING', roleCode: 'IMAGING_USER', departmentTerms: ['imaging', 'radiology', 'cardiology'] },
+  { username: 'billing', fullName: 'Initial Billing User', employeeCode: 'SEED-BILLING', roleCode: 'BILLING_AUTHORIZED', departmentTerms: ['billing', 'administration', 'cardiology'] },
+] as const;
+
+const sameIds = (left: Types.ObjectId[], right: Types.ObjectId[]) => {
+  const a = left.map(String).sort();
+  const b = right.map(String).sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+};
+
 export const seedDatabase = async () => {
+  const changes: {
+    permissionsCreated: string[];
+    permissionsDeprecated: string[];
+    rolesCreated: string[];
+    rolesReconciled: string[];
+    usersCreated: string[];
+    usersReconciled: string[];
+  } = {
+    permissionsCreated: [],
+    permissionsDeprecated: [],
+    rolesCreated: [],
+    rolesReconciled: [],
+    usersCreated: [],
+    usersReconciled: [],
+  };
+
   const serviceTypeBackfill = await ServiceModel.updateMany(
     { $or: [{ serviceType: { $exists: false } }, { serviceType: null }] },
     { $set: { serviceType: 'GENERAL' } },
   );
-  if (serviceTypeBackfill.modifiedCount > 0) {
-    await AuditLogModel.create({
-      eventType: 'service.type_backfilled',
-      metadataJson: {
-        modifiedCount: serviceTypeBackfill.modifiedCount,
-        serviceType: 'GENERAL',
-      },
-    });
-  }
 
-  const systemCategory = await PermissionCategoryModel.findOneAndUpdate(
-    { code: 'SYSTEM' },
-    {
-      $setOnInsert: {
-        name: 'System Management',
-        description: 'System level configurations',
-      },
-    },
-    { upsert: true, returnDocument: 'after' },
-  );
-
-  const administrationGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: systemCategory._id, code: 'ADMINISTRATION' },
-    {
-      $setOnInsert: {
-        name: 'Administration',
-      },
-    },
-    { upsert: true, returnDocument: 'after' },
-  );
-
-  const permissionIds = [];
-
-  for (const [screen, actions] of Object.entries(administrationPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Administration', screen, action) },
-        {
-          $set: {
-            name: `${screen} ${action}`,
-            module: 'Administration',
-            screen,
-            action,
-            type: 'system',
-            status: 'active',
-            categoryId: systemCategory._id,
-            groupId: administrationGroup._id,
-            deletedAt: null,
-          },
-        },
-        { upsert: true, new: true },
-      );
-
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const clinicalCategory = await PermissionCategoryModel.findOneAndUpdate(
-    { code: 'CLINICAL' },
-    {
-      $setOnInsert: {
-        name: 'Clinical Operations',
-        description: 'Patient, OPD, and clinical workflow permissions',
-      },
-    },
-    { upsert: true, new: true },
-  );
-
-  const patientsGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: clinicalCategory._id, code: 'PATIENTS' },
-    {
-      $setOnInsert: {
-        name: 'Patients',
-      },
-    },
-    { upsert: true, new: true },
-  );
-
-  for (const [screen, actions] of Object.entries(patientPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Patients', screen, action) },
-        {
-          $set: {
-            name: `${screen} ${action}`,
-            module: 'Patients',
-            screen,
-            action,
-            type: 'system',
-            status: 'active',
-            categoryId: clinicalCategory._id,
-            groupId: patientsGroup._id,
-            deletedAt: null,
-          },
-        },
-        { upsert: true, new: true },
-      );
-
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const doctorsGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: clinicalCategory._id, code: 'DOCTORS' },
-    {
-      $setOnInsert: {
-        name: 'Doctors',
-      },
-    },
-    { upsert: true, new: true },
-  );
-
-  for (const [screen, actions] of Object.entries(doctorPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Doctors', screen, action) },
-        {
-          $set: {
-            name: `${screen} ${action}`,
-            module: 'Doctors',
-            screen,
-            action,
-            type: 'system',
-            status: 'active',
-            categoryId: clinicalCategory._id,
-            groupId: doctorsGroup._id,
-            deletedAt: null,
-          },
-        },
-        { upsert: true, new: true },
-      );
-
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const appointmentsGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: clinicalCategory._id, code: 'APPOINTMENTS' },
-    {
-      $setOnInsert: {
-        name: 'Appointments',
-      },
-    },
-    { upsert: true, new: true },
-  );
-
-  for (const [screen, actions] of Object.entries(appointmentPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Appointments', screen, action) },
-        {
-          $set: {
-            name: `${screen} ${action}`,
-            module: 'Appointments',
-            screen,
-            action,
-            type: 'system',
-            status: 'active',
-            categoryId: clinicalCategory._id,
-            groupId: appointmentsGroup._id,
-            deletedAt: null,
-          },
-        },
-        { upsert: true, new: true },
-      );
-
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const opdGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: clinicalCategory._id, code: 'OPD' },
-    {
-      $setOnInsert: {
-        name: 'OPD',
-      },
-    },
-    { upsert: true, new: true },
-  );
-
-  for (const [screen, actions] of Object.entries(opdPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('OPD', screen, action) },
-        {
-          $set: {
-            name: `${screen} ${action}`,
-            module: 'OPD',
-            screen,
-            action,
-            type: 'system',
-            status: 'active',
-            categoryId: clinicalCategory._id,
-            groupId: opdGroup._id,
-            deletedAt: null,
-          },
-        },
-        { upsert: true, returnDocument: 'after' },
-      );
-
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const pharmacyGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: clinicalCategory._id, code: 'PHARMACY' },
-    { $setOnInsert: { name: 'Pharmacy' } },
-    { upsert: true, new: true },
-  );
-
-  for (const [screen, actions] of Object.entries(pharmacyPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Pharmacy', screen, action) },
-        {
-          $set: {
-            name: `${screen} ${action}`,
-            module: 'Pharmacy',
-            screen,
-            action,
-            type: 'system',
-            status: 'active',
-            categoryId: clinicalCategory._id,
-            groupId: pharmacyGroup._id,
-            deletedAt: null,
-          },
-        },
-        { upsert: true, new: true },
-      );
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const laboratoryGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: clinicalCategory._id, code: 'LABORATORY' },
-    { $setOnInsert: { name: 'Laboratory' } },
-    { upsert: true, new: true },
-  );
-  for (const [screen, actions] of Object.entries(laboratoryPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Laboratory', screen, action) },
-        { $set: {
-          name: `${screen} ${action}`, module: 'Laboratory', screen, action, type: 'system', status: 'active',
-          categoryId: clinicalCategory._id, groupId: laboratoryGroup._id, deletedAt: null,
-        } },
-        { upsert: true, new: true },
-      );
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const imagingGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: clinicalCategory._id, code: 'IMAGING' },
-    { $setOnInsert: { name: 'Imaging' } },
-    { upsert: true, new: true },
-  );
-  for (const [screen, actions] of Object.entries(imagingPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Imaging', screen, action) },
-        { $set: {
-          name: `${screen} ${action}`, module: 'Imaging', screen, action, type: 'system', status: 'active',
-          categoryId: clinicalCategory._id, groupId: imagingGroup._id, deletedAt: null,
-        } },
-        { upsert: true, new: true },
-      );
-      permissionIds.push(permission._id);
-    }
-  }
-
-  const financeCategory = await PermissionCategoryModel.findOneAndUpdate(
-    { code: 'FINANCE' },
-    {
-      $set: {
-        name: 'Finance Operations',
-        description: 'Billing and payment permissions',
-      },
-    },
-    { upsert: true, new: true },
-  );
-
-  const billingGroup = await PermissionGroupModel.findOneAndUpdate(
-    { categoryId: financeCategory._id, code: 'BILLING' },
-    { $set: { name: 'Billing' } },
-    { upsert: true, new: true },
-  );
-
-  for (const [screen, actions] of Object.entries(billingPermissions)) {
-    for (const action of actions) {
-      const permission = await PermissionModel.findOneAndUpdate(
-        { code: permissionCode('Billing', screen, action) },
-        {
-          $set: {
-            name: `${screen} ${action}`,
-            module: 'Billing',
-            screen,
-            action,
-            type: 'system',
-            status: 'active',
-            categoryId: financeCategory._id,
-            groupId: billingGroup._id,
-            deletedAt: null,
-          },
-        },
-        { upsert: true, new: true },
-      );
-      permissionIds.push(permission._id);
-    }
-  }
-
-  for (const action of ['View', 'Edit', 'Export'] as const) {
-    const permission = await PermissionModel.findOneAndUpdate(
-      { code: `settings.${action.toLowerCase()}` },
-      {
-        $set: {
-          name: `Settings ${action}`,
-          module: 'Administration',
-          screen: 'Settings',
-          action,
-          type: 'system',
-          status: 'active',
-          categoryId: systemCategory._id,
-          groupId: administrationGroup._id,
-          deletedAt: null,
-        },
-      },
+  const categories = new Map<string, Types.ObjectId>();
+  for (const category of [
+    { code: 'SYSTEM', name: 'System Management', description: 'System level configurations' },
+    { code: 'CLINICAL', name: 'Clinical Operations', description: 'Patient, OPD, and clinical workflow permissions' },
+    { code: 'FINANCE', name: 'Finance Operations', description: 'Billing and payment permissions' },
+  ]) {
+    const record = await PermissionCategoryModel.findOneAndUpdate(
+      { code: category.code },
+      { $set: category },
       { upsert: true, returnDocument: 'after' },
     );
-
-    permissionIds.push(permission._id);
+    categories.set(category.code, record._id);
   }
 
-  const systemRoles = [
-    {
-      code: 'SUPER_ADMIN',
-      name: 'Super Administrator',
-      description: 'Full system access',
-    },
-    {
-      code: 'ADMINISTRATOR',
-      name: 'Administrator',
-      description: 'System administration without destructive capabilities',
-    },
-  ];
-  const systemPermissionIds = await PermissionModel.distinct('_id', {
-    type: 'system',
-    status: 'active',
-    deletedAt: null,
-  });
-  const administratorDefaultPermissionIds = await PermissionModel.distinct('_id', {
-    module: 'Administration',
-    action: { $ne: 'Delete' },
-    status: 'active',
-    deletedAt: null,
-  });
-  const doctorDefaultPermissionIds = await PermissionModel.distinct('_id', {
-    module: 'Doctors',
-    status: 'active',
-    deletedAt: null,
-    $or: [
-      { screen: 'Doctor Directory', action: 'View' },
-      { screen: 'Doctor Availability', action: { $in: ['View', 'Edit'] } },
-    ],
-  });
-
-  const roles = [];
-
-  for (const roleSeed of systemRoles) {
-    const role = await RoleModel.findOneAndUpdate(
-      { code: roleSeed.code },
-      roleSeed.code === 'SUPER_ADMIN'
-        ? {
-            $set: {
-              ...roleSeed,
-              type: 'system',
-              status: 'active',
-              deletedAt: null,
-              permissionIds: systemPermissionIds,
-            },
-          }
-        : {
-            $set: {
-              ...roleSeed,
-              type: 'system',
-              status: 'active',
-              deletedAt: null,
-            },
-            $setOnInsert: {
-              permissionIds: administratorDefaultPermissionIds,
-            },
-          },
+  const groupNames: Record<string, string> = {
+    ADMINISTRATION: 'Administration', PATIENTS: 'Patients', DOCTORS: 'Doctors',
+    APPOINTMENTS: 'Appointments', OPD: 'OPD', PHARMACY: 'Pharmacy',
+    LABORATORY: 'Laboratory', IMAGING: 'Imaging', BILLING: 'Billing',
+  };
+  const groups = new Map<string, Types.ObjectId>();
+  for (const definition of permissionDefinitions) {
+    const groupKey = `${definition.category}:${definition.group}`;
+    if (groups.has(groupKey)) continue;
+    const record = await PermissionGroupModel.findOneAndUpdate(
+      { categoryId: categories.get(definition.category), code: definition.group },
+      { $set: { name: groupNames[definition.group] } },
       { upsert: true, returnDocument: 'after' },
     );
-
-    roles.push(role);
+    groups.set(groupKey, record._id);
   }
 
-  await RoleModel.updateOne(
-    { code: 'ADMINISTRATOR' },
-    { $addToSet: { permissionIds: { $each: administratorDefaultPermissionIds } } },
-  );
-
-  await RoleModel.findOneAndUpdate(
-    { code: 'DOCTOR' },
-    {
-      $set: {
-        name: 'Doctor',
-        description: 'Clinical doctor access',
+  const permissionsByCode = new Map<string, Types.ObjectId>();
+  for (const definition of permissionDefinitions) {
+    const generatedCode = definition.code ?? code(definition.module, definition.screen, definition.action);
+    const existing = await PermissionModel.findOne({ code: generatedCode }).select('_id').lean();
+    const record = await PermissionModel.findOneAndUpdate(
+      { code: generatedCode },
+      { $set: {
+        name: `${definition.screen} ${definition.action}`,
+        module: definition.module,
+        screen: definition.screen,
+        action: definition.action,
         type: 'system',
         status: 'active',
+        categoryId: categories.get(definition.category),
+        groupId: groups.get(`${definition.category}:${definition.group}`),
         deletedAt: null,
-      },
-      $setOnInsert: {
-        permissionIds: doctorDefaultPermissionIds,
-      },
-    },
+      } },
+      { upsert: true, returnDocument: 'after' },
+    );
+    if (!existing) changes.permissionsCreated.push(generatedCode);
+    permissionsByCode.set(generatedCode, record._id);
+  }
+
+  const legacyCodes = ['MANAGE_BRANCHES', 'MANAGE_DEPARTMENTS', 'MANAGE_ROLES', 'MANAGE_SERVICES', 'MANAGE_USERS'];
+  const legacyPermissions = await PermissionModel.find({ code: { $in: legacyCodes }, status: { $ne: 'inactive' } })
+    .select('_id code').lean();
+  if (legacyPermissions.length > 0) {
+    await PermissionModel.updateMany(
+      { _id: { $in: legacyPermissions.map((item) => item._id) } },
+      { $set: { status: 'inactive' } },
+    );
+    await RoleModel.updateMany({}, { $pull: { permissionIds: { $in: legacyPermissions.map((item) => item._id) } } });
+    changes.permissionsDeprecated.push(...legacyPermissions.map((item) => item.code));
+  }
+
+  const duplicateSettingsCodes = ['ADMINISTRATION_SETTINGS_VIEW', 'ADMINISTRATION_SETTINGS_EDIT', 'ADMINISTRATION_SETTINGS_EXPORT'];
+  const duplicateSettingsPermissions = await PermissionModel.find({
+    code: { $in: duplicateSettingsCodes }, status: { $ne: 'inactive' },
+  }).select('_id code').lean();
+  if (duplicateSettingsPermissions.length > 0) {
+    await PermissionModel.updateMany(
+      { _id: { $in: duplicateSettingsPermissions.map((item) => item._id) } },
+      { $set: { status: 'inactive' } },
+    );
+    await RoleModel.updateMany({}, {
+      $pull: { permissionIds: { $in: duplicateSettingsPermissions.map((item) => item._id) } },
+    });
+    changes.permissionsDeprecated.push(...duplicateSettingsPermissions.map((item) => item.code));
+  }
+
+  const activeSystemPermissionIds = await PermissionModel.distinct('_id', {
+    type: 'system', status: 'active', deletedAt: null,
+  });
+  const superAdmin = await RoleModel.findOne({ code: 'SUPER_ADMIN' }).select('_id permissionIds').lean();
+  const superAdminRole = await RoleModel.findOneAndUpdate(
+    { code: 'SUPER_ADMIN' },
+    { $set: {
+      name: 'Super Administrator',
+      description: 'Restricted platform/bootstrap break-glass access',
+      type: 'system', status: 'active', deletedAt: null,
+      permissionIds: activeSystemPermissionIds,
+    } },
     { upsert: true, returnDocument: 'after' },
   );
+  if (!superAdmin) changes.rolesCreated.push('SUPER_ADMIN');
+  else if (!sameIds(superAdmin.permissionIds ?? [], activeSystemPermissionIds)) changes.rolesReconciled.push('SUPER_ADMIN');
 
-  const superAdminRole = roles.find((role) => role.code === 'SUPER_ADMIN')!;
-  const existingAdmin = await UserModel.findOne({ username: 'admin' }).select('_id').lean();
-
-  if (existingAdmin) {
-    await UserModel.updateOne(
-      { _id: existingAdmin._id },
-      {
-        $addToSet: { roleIds: superAdminRole._id },
-        $set: { deletedAt: null },
-      },
+  const roleIdsByCode = new Map<string, Types.ObjectId>();
+  roleIdsByCode.set('SUPER_ADMIN', superAdminRole._id);
+  for (const definition of roleDefinitions) {
+    const requiredIds = definition.permissionCodes.map((permissionCodeValue) => {
+      const id = permissionsByCode.get(permissionCodeValue);
+      if (!id) throw new Error(`Seed permission is missing: ${permissionCodeValue}`);
+      return id;
+    });
+    const existing = await RoleModel.findOne({ code: definition.code }).select('_id permissionIds').lean();
+    const role = await RoleModel.findOneAndUpdate(
+      { code: definition.code },
+      { $set: {
+        name: definition.name,
+        description: definition.description,
+        type: 'system', status: 'active', deletedAt: null,
+        permissionIds: requiredIds,
+      } },
+      { upsert: true, returnDocument: 'after' },
     );
+    roleIdsByCode.set(definition.code, role._id);
+    if (!existing) changes.rolesCreated.push(definition.code);
+    else if (!sameIds(existing.permissionIds ?? [], requiredIds)) changes.rolesReconciled.push(definition.code);
+  }
+
+  const existingAdmin = await UserModel.findOne({ username: /^admin$/i }).select('_id roleIds deletedAt').lean();
+  if (existingAdmin) {
+    const needsSuperAdmin = !(existingAdmin.roleIds ?? []).some((id) => String(id) === String(superAdminRole._id));
+    const needsRestore = Boolean(existingAdmin.deletedAt);
+    if (needsSuperAdmin || needsRestore) {
+      await UserModel.updateOne(
+        { _id: existingAdmin._id },
+        { $addToSet: { roleIds: superAdminRole._id }, $set: { deletedAt: null } },
+      );
+      changes.usersReconciled.push('admin');
+    }
   } else {
+    const adminPassword = process.env.HMS_SEED_ADMIN_PASSWORD ?? (process.env.APP_ENV === 'prod' ? undefined : 'Admin123!');
+    if (!adminPassword) throw new Error('HMS_SEED_ADMIN_PASSWORD is required to create the bootstrap administrator');
     await UserModel.create({
-      username: 'admin',
-      email: 'admin@hms.com',
-      fullName: 'System Administrator',
-      passwordHash: await hashPassword('Admin123!'),
-      roleIds: [superAdminRole._id],
+      username: 'admin', email: 'admin@hms.com', fullName: 'System Administrator',
+      passwordHash: await hashPassword(adminPassword), roleIds: [superAdminRole._id], status: 'active',
+    });
+    changes.usersCreated.push('admin');
+  }
+
+  const activeBranch = await BranchModel.findOne({ status: 'ACTIVE', deletedAt: null }).sort({ createdAt: 1, _id: 1 }).lean();
+  if (!activeBranch) throw new Error('An active branch is required before Phase 1 operational users can be seeded');
+  const activeDepartments = await DepartmentModel.find({
+    branchId: activeBranch._id, status: 'ACTIVE', deletedAt: null,
+  }).sort({ name: 1, _id: 1 }).lean();
+  if (activeDepartments.length === 0) {
+    throw new Error('An active department in the selected branch is required before Phase 1 operational users can be seeded');
+  }
+
+  const operationalPassword = process.env.HMS_SEED_OPERATIONAL_PASSWORD ??
+    (process.env.APP_ENV === 'prod' ? undefined : 'HmsPhase1Dev123!');
+  for (const userSeed of initialUsers) {
+    const roleId = roleIdsByCode.get(userSeed.roleCode)!;
+    const equivalent = await UserModel.findOne({
+      roleIds: roleId, status: 'active', deletedAt: null,
+    }).select('_id username branchIds departmentIds').lean();
+    if (equivalent) continue;
+
+    const usernameCollision = await UserModel.findOne({ username: new RegExp(`^${userSeed.username}$`, 'i') })
+      .select('_id username status deletedAt roleIds branchIds departmentIds').lean();
+    const department = activeDepartments.find((item) =>
+      userSeed.departmentTerms.some((term) => `${item.code} ${item.name}`.toLowerCase().includes(term))) ?? activeDepartments[0]!;
+
+    if (usernameCollision) {
+      const update = await UserModel.updateOne(
+        { _id: usernameCollision._id },
+        { $set: {
+          status: 'active', deletedAt: null, roleIds: [roleId],
+          branchIds: [activeBranch._id], departmentIds: [department._id],
+        } },
+      );
+      if (update.modifiedCount > 0) changes.usersReconciled.push(userSeed.username);
+      continue;
+    }
+
+    if (!operationalPassword) {
+      throw new Error('HMS_SEED_OPERATIONAL_PASSWORD is required to create Phase 1 operational users');
+    }
+    await UserModel.create({
+      username: userSeed.username,
+      email: `${userSeed.username}@seed.hms.local`,
+      fullName: userSeed.fullName,
+      employeeCode: userSeed.employeeCode,
+      jobTitle: userSeed.fullName.replace('Initial ', ''),
+      employeeType: 'Development seed',
+      passwordHash: await hashPassword(operationalPassword),
+      roleIds: [roleId], branchIds: [activeBranch._id], departmentIds: [department._id],
       status: 'active',
+    });
+    changes.usersCreated.push(userSeed.username);
+  }
+
+  const changed = serviceTypeBackfill.modifiedCount > 0 || Object.values(changes).some((items) => items.length > 0);
+  if (changed) {
+    await AuditLogModel.create({
+      eventType: 'rbac.phase1_seed_reconciled',
+      metadataJson: {
+        ...changes,
+        serviceTypesBackfilled: serviceTypeBackfill.modifiedCount,
+        branchCode: activeBranch.code,
+      },
     });
   }
 };

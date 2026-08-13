@@ -88,14 +88,16 @@ export class AppointmentService {
     private readonly opdVisitRepository: OpdVisitRepository,
   ) {}
 
-  async list(query: AppointmentListQuery) {
+  async list(query: AppointmentListQuery, userId?: string) {
     this.validateListQuery(query);
-    return this.repository.list(this.normalizeListDates(query));
+    const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
+    return this.repository.list(this.normalizeListDates(query), scope);
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId?: string) {
     this.validateId(id, 'Appointment id is invalid');
-    const appointment = await this.repository.getById(id);
+    const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
+    const appointment = await this.repository.getById(id, scope);
     if (!appointment) {
       throw new AppError('Appointment not found', 404, 'NOT_FOUND');
     }
@@ -110,6 +112,7 @@ export class AppointmentService {
       this.getActivePatient(data.patient_id),
       this.getActiveDoctor(data.doctor_id),
     ]);
+    await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
     await this.validateDoctorAvailability(doctor, appointmentDate, data.start_time, endTime, data.duration_minutes);
     await this.validateDoctorConflict(doctor.id, appointmentDate, data.start_time, endTime);
@@ -137,8 +140,9 @@ export class AppointmentService {
   }
 
   async update(id: string, data: UpdateAppointmentDTO, userId: string) {
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, userId);
     const doctor = await this.getActiveDoctor(data.doctor_id ?? existing.doctor_id);
+    const scope = await this.repository.resolveBranchScope(userId, doctor.branch_id);
     const appointmentDate = data.appointment_date
       ? this.validateAppointmentDate(data.appointment_date)
       : existing.appointment_date;
@@ -166,6 +170,7 @@ export class AppointmentService {
         duration_minutes: durationMinutes,
       },
       userId,
+      scope,
     );
 
     if (!appointment) {
@@ -176,7 +181,8 @@ export class AppointmentService {
   }
 
   async updateStatus(id: string, data: UpdateAppointmentStatusDTO, userId: string) {
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, userId);
+    const scope = await this.repository.resolveBranchScope(userId, existing.branch_id);
 
     if (!this.isStatusTransitionAllowed(existing.status, data.status)) {
       throw new AppError('Appointment status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
@@ -196,7 +202,7 @@ export class AppointmentService {
       }
     }
 
-    const appointment = await this.repository.updateStatus(id, data, userId);
+    const appointment = await this.repository.updateStatus(id, data, userId, scope);
     if (!appointment) {
       throw new AppError('Appointment not found', 404, 'NOT_FOUND');
     }

@@ -74,14 +74,16 @@ export class DoctorService {
     private readonly appointmentRepository: AppointmentRepository,
   ) {}
 
-  async list(query: DoctorListQuery) {
+  async list(query: DoctorListQuery, userId?: string) {
     this.validateListQuery(query);
-    return this.repository.list(query);
+    const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
+    return this.repository.list(query, scope);
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId?: string) {
     this.validateId(id, 'Doctor id is invalid');
-    const doctor = await this.repository.getById(id);
+    const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
+    const doctor = await this.repository.getById(id, scope);
     if (!doctor) throw new AppError('Doctor not found', 404, 'NOT_FOUND');
     return doctor;
   }
@@ -100,6 +102,7 @@ export class DoctorService {
   }
 
   async create(data: CreateDoctorDTO, userId: string, metadata: DoctorRequestMetadata) {
+    await this.repository.resolveBranchScope(userId, data.branch_id);
     await this.validateDoctorReferences(data.branch_id, data.department_id);
     await this.validateRegistrationNumber(data.registration_number);
     this.validateContact(data.email, data.phone);
@@ -195,9 +198,10 @@ export class DoctorService {
   }
 
   async update(id: string, data: UpdateDoctorDTO, userId: string, metadata: DoctorRequestMetadata) {
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, userId);
     const branchId = data.branch_id ?? existing.branch_id;
     const departmentId = data.department_id ?? existing.department_id;
+    await this.repository.resolveBranchScope(userId, branchId);
     await this.validateDoctorReferences(branchId, departmentId);
     await this.validateRegistrationNumber(data.registration_number, id);
     this.validateContact(data.email, data.phone);
@@ -213,7 +217,7 @@ export class DoctorService {
   }
 
   async updateStatus(id: string, data: UpdateDoctorStatusDTO, userId: string, metadata: DoctorRequestMetadata) {
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, userId);
     if (existing.status === data.status) return existing;
     if (!allowedStatusTransitions[existing.status].includes(data.status)) {
       throw new AppError(
@@ -235,7 +239,7 @@ export class DoctorService {
   }
 
   async mapUser(id: string, data: MapDoctorUserDTO, userId: string, metadata: DoctorRequestMetadata) {
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, userId);
     if (data.user_id) await this.validateUserMapping(data.user_id, id);
     const doctor = await this.repository.mapUser(id, data.user_id, userId);
     if (!doctor) throw new AppError('Doctor not found', 404, 'NOT_FOUND');
@@ -254,7 +258,7 @@ export class DoctorService {
     userId: string,
     metadata: DoctorRequestMetadata,
   ) {
-    await this.getById(id);
+    await this.getById(id, userId);
     this.validateAvailability(data);
     const doctor = await this.repository.updateAvailability(id, data, userId);
     if (!doctor) throw new AppError('Doctor not found', 404, 'NOT_FOUND');
@@ -265,8 +269,8 @@ export class DoctorService {
     return doctor;
   }
 
-  async listLeaves(id: string, query: DoctorLeaveListQuery) {
-    await this.getById(id);
+  async listLeaves(id: string, query: DoctorLeaveListQuery, userId?: string) {
+    await this.getById(id, userId);
     this.validateDateRange(query.date_from, query.date_to);
     return this.repository.listLeaves(id, query);
   }
@@ -277,7 +281,7 @@ export class DoctorService {
     userId: string,
     metadata: DoctorRequestMetadata,
   ) {
-    await this.getById(id);
+    await this.getById(id, userId);
     const startDate = this.requireDate(data.start_date, 'Leave start date is invalid');
     const endDate = this.requireDate(data.end_date, 'Leave end date is invalid');
     if (startDate > endDate) throw new AppError('Leave start date must be on or before end date', 400, 'INVALID_LEAVE_RANGE');
@@ -299,7 +303,7 @@ export class DoctorService {
   }
 
   async cancelLeave(id: string, leaveId: string, userId: string, metadata: DoctorRequestMetadata) {
-    await this.getById(id);
+    await this.getById(id, userId);
     this.validateId(leaveId, 'Doctor leave id is invalid');
     const leave = await this.repository.cancelLeave(id, leaveId, userId);
     if (!leave) throw new AppError('Active doctor leave not found', 404, 'NOT_FOUND');
@@ -307,8 +311,8 @@ export class DoctorService {
     return leave;
   }
 
-  async listExceptions(id: string, query: DoctorAvailabilityExceptionListQuery) {
-    await this.getById(id);
+  async listExceptions(id: string, query: DoctorAvailabilityExceptionListQuery, userId?: string) {
+    await this.getById(id, userId);
     this.validateDateRange(query.date_from, query.date_to);
     return this.repository.listExceptions(id, query);
   }
@@ -319,7 +323,7 @@ export class DoctorService {
     userId: string,
     metadata: DoctorRequestMetadata,
   ) {
-    await this.getById(id);
+    await this.getById(id, userId);
     this.requireDate(data.date, 'Availability exception date is invalid');
     this.validateBlocks(data.working_blocks, data.is_available, data.slot_duration_minutes);
     const exception = await this.repository.saveException(id, data, userId);
@@ -334,7 +338,7 @@ export class DoctorService {
   }
 
   async deleteException(id: string, exceptionId: string, userId: string, metadata: DoctorRequestMetadata) {
-    await this.getById(id);
+    await this.getById(id, userId);
     this.validateId(exceptionId, 'Availability exception id is invalid');
     const deleted = await this.repository.deleteException(id, exceptionId);
     if (!deleted) throw new AppError('Availability exception not found', 404, 'NOT_FOUND');
@@ -344,8 +348,8 @@ export class DoctorService {
     });
   }
 
-  async availableSlots(id: string, query: DoctorAvailableSlotsQuery) {
-    const doctor = await this.getById(id);
+  async availableSlots(id: string, query: DoctorAvailableSlotsQuery, userId?: string) {
+    const doctor = await this.getById(id, userId);
     const date = this.requireDate(query.date, 'Available slots date is invalid');
     const result = {
       doctor_id: doctor.id,

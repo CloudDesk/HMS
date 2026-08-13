@@ -16,6 +16,8 @@ import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
+import { hasPermission } from '../auth/access-control';
+import { useAuth } from '../auth/useAuth';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -202,6 +204,15 @@ function ServicesByDepartment({
 // ─── Main Page Component ────────────────────────────────────────────────────────
 
 export function ServiceCataloguePage() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Administration', screen: 'Services', action,
+  });
+  const canCreate = can('Create');
+  const canEdit = can('Edit');
+  const canDelete = can('Delete');
+  const canExport = can('Export');
   const { search: locationSearch } = useAppLocation();
   // Data
   const [services, setServices] = useState<ServiceResponse[]>([]);
@@ -584,13 +595,13 @@ export function ServiceCataloguePage() {
                 </div>
                 <button
                   className="um-add-btn"
-                  disabled={forbidden || lookupsLoading}
+                  disabled={forbidden || !canCreate || lookupsLoading}
                   onClick={() => openModal('create')}
                   type="button"
                 >
                   <i className="ph ph-plus" aria-hidden="true" /> Add Service
                 </button>
-                <button className="btn-secondary admin-table-action" disabled={forbidden || submitting} onClick={() => void exportServices()} type="button">
+                <button className="btn-secondary admin-table-action" disabled={forbidden || !canExport || submitting} onClick={() => void exportServices()} type="button">
                   <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
                 </button>
                 <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadServices()} type="button">
@@ -729,7 +740,7 @@ export function ServiceCataloguePage() {
                             <button
                               aria-label={`Edit ${svc.name}`}
                               className="action-icon-btn"
-                              disabled={forbidden}
+                              disabled={forbidden || !canEdit}
                               onClick={() => openModal('edit', svc)}
                               title="Edit"
                               type="button"
@@ -739,14 +750,14 @@ export function ServiceCataloguePage() {
                             <button
                               aria-label={`Delete ${svc.name}`}
                               className="action-icon-btn danger"
-                              disabled={forbidden}
+                              disabled={forbidden || !canDelete}
                               onClick={() => setDeleteTarget(svc)}
                               title="Delete"
                               type="button"
                             >
                               <i className="ph ph-trash" aria-hidden="true" />
                             </button>
-                            <button aria-label={`${svc.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${svc.name}`} className="action-icon-btn" disabled={forbidden || submitting} onClick={() => void updateStatus(svc)} title={svc.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${svc.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
+                            <button aria-label={`${svc.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${svc.name}`} className="action-icon-btn" disabled={forbidden || !canEdit || submitting} onClick={() => void updateStatus(svc)} title={svc.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${svc.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
                           </div>
                         </td>
                       </tr>

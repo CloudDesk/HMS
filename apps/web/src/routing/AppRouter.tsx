@@ -18,10 +18,6 @@ import { LoginPage } from '../pages/LoginPage';
 import { OpdDashboardPage } from '../pages/OpdDashboardPage';
 import { OpdQueuePage } from '../pages/OpdQueuePage';
 import { OpdVisitPage } from '../pages/OpdVisitPage';
-import { PatientConsentPage } from '../pages/PatientConsentPage';
-import { PatientDocumentsPage } from '../pages/PatientDocumentsPage';
-import { PatientEmrTimelinePage } from '../pages/PatientEmrTimelinePage';
-import { PatientHistoryPage } from '../pages/PatientHistoryPage';
 import { PatientProfilePage } from '../pages/PatientProfilePage';
 import { PatientRegistrationPage } from '../pages/PatientRegistrationPage';
 import { PatientSearchPage } from '../pages/PatientSearchPage';
@@ -137,25 +133,30 @@ export function AppRouter() {
     breadcrumbs = ['Home', 'Patients', 'Register Patient'];
     content = <PatientRegistrationPage />;
   } else if (pathname === '/patients/profile') {
-    title = 'Patient Profile';
-    breadcrumbs = ['Home', 'Patients', 'Patient Profile'];
+    title = 'Patient Workspace';
+    breadcrumbs = ['Home', 'Patients', 'Patient Workspace'];
     content = <PatientProfilePage />;
-  } else if (pathname === '/patients/history') {
-    title = 'Patient History';
-    breadcrumbs = ['Home', 'Patients', 'Patient History'];
-    content = <PatientHistoryPage />;
-  } else if (pathname === '/patients/documents') {
-    title = 'Patient Documents';
-    breadcrumbs = ['Home', 'Patients', 'Documents'];
-    content = <PatientDocumentsPage />;
-  } else if (pathname === '/patients/emr') {
-    title = 'EMR Timeline';
-    breadcrumbs = ['Home', 'Patients', 'EMR Timeline'];
-    content = <PatientEmrTimelinePage />;
-  } else if (pathname === '/patients/consents' || pathname === '/patients/consent') {
-    title = 'Consent Management';
-    breadcrumbs = ['Home', 'Patients', 'Consent Management'];
-    content = <PatientConsentPage />;
+  } else if (
+    pathname === '/patients/history' ||
+    pathname === '/patients/documents' ||
+    pathname === '/patients/emr' ||
+    pathname === '/patients/consents' ||
+    pathname === '/patients/consent'
+  ) {
+    // These pages have been consolidated into the Patient Workspace.
+    // Redirect gracefully to search so users can open the workspace from there.
+    title = 'Page Moved';
+    breadcrumbs = ['Home', 'Patients', 'Page Moved'];
+    content = (
+      <div className="admin-dashboard-state" role="status">
+        <i className="ph ph-arrow-square-right" aria-hidden="true" />
+        <strong>This page has moved</strong>
+        <span>Patient information is now available in the Patient Workspace. Use Search Patients to find a patient and click View Patient.</span>
+        <button className="btn-secondary" onClick={() => navigate('/patients/search')} type="button">
+          Go to Search Patients
+        </button>
+      </div>
+    );
   } else if (pathname === '/doctors') {
     title = 'Doctor Dashboard';
     breadcrumbs = ['Home', 'Doctors', 'Dashboard'];

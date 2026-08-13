@@ -2282,7 +2282,7 @@ p {
 .patient-content {
   flex: 1;
   min-width: 0;
-  overflow: auto;
+  overflow: visible;
   padding: 1.5rem 2rem 2rem;
 }
 
@@ -2292,6 +2292,12 @@ p {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.25rem;
+  position: sticky;
+  top: -1.5rem;
+  z-index: 20;
+  background: #f1f5f9;
+  padding: 1.5rem 0 1rem;
+  margin-top: -1.5rem;
 }
 
 .patient-page-title h2 {
@@ -5132,17 +5138,16 @@ p {
 
 .patient-registration-actions {
   position: sticky;
-  bottom: 0;
+  bottom: 1rem;
   z-index: 10;
   display: flex;
   justify-content: flex-end;
   gap: 0.7rem;
   border: 1px solid #e2e8f0;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 0.9rem 1rem;
-  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1.25rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05), 0 -4px 12px rgba(0,0,0,0.03);
 }
 
 .patient-consent-check {

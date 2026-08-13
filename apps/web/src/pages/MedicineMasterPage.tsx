@@ -16,6 +16,8 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { downloadBlob } from '../utils/download';
+import { hasPermission } from '../auth/access-control';
+import { useAuth } from '../auth/useAuth';
 
 const medicineFormSchema = z.object({
   code: z.string().trim().min(1, 'Medicine code is required.').max(50),
@@ -58,6 +60,15 @@ const messageForError = (error: unknown) => {
 };
 
 export function MedicineMasterPage() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Administration', screen: 'Medicines', action,
+  });
+  const canCreate = can('Create');
+  const canEdit = can('Edit');
+  const canDelete = can('Delete');
+  const canExport = can('Export');
   const location = useAppLocation();
   const queryClient = useQueryClient();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -229,8 +240,8 @@ export function MedicineMasterPage() {
           <div className="um-toolbar">
             <div className="um-toolbar-row1">
               <div className="um-search"><i className="ph ph-magnifying-glass" aria-hidden="true" /><input onChange={(event) => updateQuery({ search: event.target.value, page: 1 })} placeholder="Search code, medicine, or generic name..." type="search" value={search} /></div>
-              <button className="um-add-btn" disabled={forbidden} onClick={() => openModal('create')} type="button"><i className="ph ph-plus" aria-hidden="true" /> Add Medicine</button>
-              <button className="btn-secondary admin-table-action" disabled={exporting || forbidden} onClick={() => void exportMedicines()} type="button"><i className="ph ph-download-simple" aria-hidden="true" /> Export CSV</button>
+              <button className="um-add-btn" disabled={forbidden || !canCreate} onClick={() => openModal('create')} type="button"><i className="ph ph-plus" aria-hidden="true" /> Add Medicine</button>
+              <button className="btn-secondary admin-table-action" disabled={exporting || forbidden || !canExport} onClick={() => void exportMedicines()} type="button"><i className="ph ph-download-simple" aria-hidden="true" /> Export CSV</button>
               <button className="btn-secondary admin-table-action" disabled={listQuery.isFetching} onClick={() => void listQuery.refetch()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh</button>
             </div>
             <div className="um-toolbar-row2">
@@ -258,9 +269,9 @@ export function MedicineMasterPage() {
                     <td className="muted-cell">{formatDate(medicine.created_at)}</td>
                     <td><div className="action-icons">
                       <button className="action-icon-btn" onClick={() => openModal('view', medicine)} title="View" type="button"><i className="ph ph-eye" /></button>
-                      <button className="action-icon-btn" disabled={forbidden} onClick={() => openModal('edit', medicine)} title="Edit" type="button"><i className="ph ph-pencil" /></button>
-                      <button className="action-icon-btn" disabled={forbidden || statusMutation.isPending} onClick={() => statusMutation.mutate(medicine)} title={medicine.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${medicine.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
-                      <button className="action-icon-btn danger" disabled={forbidden} onClick={() => setDeleteTarget(medicine)} title="Delete" type="button"><i className="ph ph-trash" /></button>
+                      <button className="action-icon-btn" disabled={forbidden || !canEdit} onClick={() => openModal('edit', medicine)} title="Edit" type="button"><i className="ph ph-pencil" /></button>
+                      <button className="action-icon-btn" disabled={forbidden || !canEdit || statusMutation.isPending} onClick={() => statusMutation.mutate(medicine)} title={medicine.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${medicine.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
+                      <button className="action-icon-btn danger" disabled={forbidden || !canDelete} onClick={() => setDeleteTarget(medicine)} title="Delete" type="button"><i className="ph ph-trash" /></button>
                     </div></td>
                   </tr>
                 ))}

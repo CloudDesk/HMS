@@ -14,6 +14,8 @@ import {
   type RoleResponse,
 } from '../api/roles';
 import { usersApi, type UserResponse } from '../api/users';
+import { hasPermission } from '../auth/access-control';
+import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { useAppLocation } from '../routing/navigation';
@@ -178,6 +180,18 @@ function PermissionSummary({
 }
 
 export function RolesPermissionsPage() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const canRole = (action: string) => isSuperAdmin || hasPermission(
+    user?.permissions ?? [], { module: 'Administration', screen: 'Roles', action },
+  );
+  const canPermission = (action: string) => isSuperAdmin || hasPermission(
+    user?.permissions ?? [], { module: 'Administration', screen: 'Permissions', action },
+  );
+  const canCreateRole = canRole('Create');
+  const canEditRole = canRole('Edit');
+  const canAssignRole = canRole('Assign');
+  const canDeleteRole = canRole('Delete');
   const { search: locationSearch } = useAppLocation();
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [roleMeta, setRoleMeta] = useState<RoleListResponse['meta']>(emptyRoleMeta);
@@ -380,7 +394,7 @@ export function RolesPermissionsPage() {
   }, [assignedPermissionIds, draftPermissionIds]);
 
   const canEditPermissions = Boolean(
-    selectedRole && selectedRole.code !== 'SUPER_ADMIN' && !forbidden && !roleLoading && !submitting,
+    canPermission('Assign') && selectedRole && selectedRole.code !== 'SUPER_ADMIN' && !forbidden && !roleLoading && !submitting,
   );
   const totalRolePages = Math.max(roleMeta.totalPages, 1);
   const safeRolePage = Math.min(rolePage, totalRolePages);
@@ -668,7 +682,7 @@ export function RolesPermissionsPage() {
           <div className="rp-left-panel card">
             <div className="rp-panel-header">
               <h3>Roles</h3>
-              <button className="rp-create-btn" disabled={forbidden} onClick={() => openRoleModal('create')} type="button">
+              <button className="rp-create-btn" disabled={forbidden || !canCreateRole} onClick={() => openRoleModal('create')} type="button">
                 <i className="ph ph-plus" aria-hidden="true" /> Create Role
               </button>
             </div>
@@ -757,10 +771,10 @@ export function RolesPermissionsPage() {
                   <div className="role-stat-item role-stat-wide"><div className="role-stat-label">Total Permissions</div><div className="role-stat-value">{draftPermissionIds.size} / {permissions.length}</div></div>
                 </div>
                 <div className="rp-user-actions">
-                  <button className="rp-btn-ghost" disabled={forbidden || selectedRole.type === 'system'} onClick={() => openRoleModal('edit')} type="button">Edit Role</button>
-                  <button className="rp-btn-ghost" disabled={forbidden || selectedRole.type === 'system'} onClick={openStatusModal} type="button">{selectedRole.status === 'active' ? 'Deactivate' : 'Activate'}</button>
-                  <button className="rp-btn-ghost" disabled={forbidden || selectedRole.status !== 'active'} onClick={() => void openUserModal('assign-user')} type="button">Assign User</button>
-                  <button className="rp-btn-ghost" disabled={forbidden || !(selectedRole.users?.length)} onClick={() => void openUserModal('remove-user')} type="button">Remove User</button>
+                  <button className="rp-btn-ghost" disabled={forbidden || !canEditRole || selectedRole.type === 'system'} onClick={() => openRoleModal('edit')} type="button">Edit Role</button>
+                  <button className="rp-btn-ghost" disabled={forbidden || !canEditRole || selectedRole.type === 'system'} onClick={openStatusModal} type="button">{selectedRole.status === 'active' ? 'Deactivate' : 'Activate'}</button>
+                  <button className="rp-btn-ghost" disabled={forbidden || !canAssignRole || selectedRole.status !== 'active'} onClick={() => void openUserModal('assign-user')} type="button">Assign User</button>
+                  <button className="rp-btn-ghost" disabled={forbidden || !canAssignRole || !(selectedRole.users?.length)} onClick={() => void openUserModal('remove-user')} type="button">Remove User</button>
                 </div>
               </div> : <div className="rp-detail-empty">{roleLoading ? 'Loading role details...' : 'Select a role to view details'}</div>}
             </div>
@@ -773,9 +787,9 @@ export function RolesPermissionsPage() {
             <div className="card rp-qa-card">
               <div className="rp-panel-header"><h3>Quick Actions</h3></div>
               <div className="rp-qa-list">
-                <button className="rp-qa-btn" disabled={!selectedRole || forbidden} onClick={() => openRoleModal('clone')} type="button"><i className="ph ph-copy" aria-hidden="true" /><span>Clone Role</span></button>
+                <button className="rp-qa-btn" disabled={!selectedRole || forbidden || !canCreateRole} onClick={() => openRoleModal('clone')} type="button"><i className="ph ph-copy" aria-hidden="true" /><span>Clone Role</span></button>
                 <button className="rp-qa-btn" disabled={!selectedRole} onClick={() => void openAuditModal()} type="button"><i className="ph ph-clock-counter-clockwise" aria-hidden="true" /><span>Audit History</span></button>
-                <button className="rp-qa-btn danger" disabled={!selectedRole || selectedRole.type === 'system' || forbidden} onClick={() => setModalMode('delete')} type="button"><i className="ph ph-trash" aria-hidden="true" /><span>Delete Role</span></button>
+                <button className="rp-qa-btn danger" disabled={!selectedRole || selectedRole.type === 'system' || forbidden || !canDeleteRole} onClick={() => setModalMode('delete')} type="button"><i className="ph ph-trash" aria-hidden="true" /><span>Delete Role</span></button>
               </div>
             </div>
           </div>

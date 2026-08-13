@@ -29,7 +29,7 @@ export const registerAppointmentRoutes = async (app: FastifyInstance, services: 
         querystring: listAppointmentsQuerySchema,
       },
     },
-    async (request) => ok(await services.appointments.list(request.query)),
+    async (request) => ok(await services.appointments.list(request.query, request.user!.id)),
   );
 
   app.get<{ Params: AppointmentIdParams }>(
@@ -40,7 +40,7 @@ export const registerAppointmentRoutes = async (app: FastifyInstance, services: 
         params: appointmentIdParamsSchema,
       },
     },
-    async (request) => ok(await services.appointments.getById(request.params.id)),
+    async (request) => ok(await services.appointments.getById(request.params.id, request.user!.id)),
   );
 
   app.post<{ Body: CreateAppointmentDTO }>(
