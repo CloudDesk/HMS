@@ -346,7 +346,9 @@ export function AppointmentBookingPage() {
 
               <div className="appointment-form-grid">
                 <div className="doc-field">
-                  <label htmlFor="booking-doctor">Doctor</label>
+                  <label htmlFor="booking-doctor">
+                    Doctor <span className="required-asterisk">*</span>
+                  </label>
                   <select
                     disabled={doctorLoading}
                     id="booking-doctor"
@@ -363,7 +365,9 @@ export function AppointmentBookingPage() {
                   </select>
                 </div>
                 <div className="doc-field">
-                  <label htmlFor="booking-date">Appointment Date</label>
+                  <label htmlFor="booking-date">
+                    Appointment Date <span className="required-asterisk">*</span>
+                  </label>
                   <input
                     id="booking-date"
                     min={todayInputValue()}
@@ -402,7 +406,9 @@ export function AppointmentBookingPage() {
                   </select>
                 </div>
                 <div className="doc-field full">
-                  <label>Available Time Slots</label>
+                  <label>
+                    Available Time Slots <span className="required-asterisk">*</span>
+                  </label>
                   {slotLoading ? (
                     <div className="appointment-slot-state">Loading available slots...</div>
                   ) : slotOptions.length === 0 ? (

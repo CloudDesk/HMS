@@ -32,6 +32,14 @@ type PatientFormState = {
   consent: boolean;
 };
 
+type FieldErrors = {
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  consent?: string;
+};
+
 type DuplicateDetails = {
   duplicates?: PatientResponse[];
 };
@@ -123,6 +131,7 @@ function RegistrationSection({ children, description, number, title }: Registrat
 
 export function PatientRegistrationPage() {
   const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState('');
   const [duplicatePatients, setDuplicatePatients] = useState<PatientResponse[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -135,21 +144,31 @@ export function PatientRegistrationPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const validate = () => {
-    if (!form.firstName.trim()) return 'First name is required.';
-    if (!form.lastName.trim()) return 'Last name is required.';
-    if (!form.dateOfBirth) return 'Date of birth is required.';
-    if (!form.consent) return 'Patient consent is required before registration.';
-    return '';
+  const validateForm = (): FieldErrors => {
+    const errs: FieldErrors = {};
+    if (!form.firstName.trim()) {
+      errs.firstName = 'First name is required';
+    }
+    if (!form.lastName.trim()) {
+      errs.lastName = 'Last name is required';
+    }
+    if (!form.dateOfBirth) {
+      errs.dateOfBirth = 'Date of birth is required';
+    }
+    if (!form.consent) {
+      errs.consent = 'Patient consent is required before registration';
+    }
+    return errs;
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const saveMode = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value;
-    const validationError = validate();
+    const errors = validateForm();
 
-    if (validationError) {
-      setFormError(validationError);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setFormError('Please fill in all required fields highlighted below.');
       return;
     }
 
@@ -224,17 +243,28 @@ export function PatientRegistrationPage() {
               number={1}
               title="Personal Information"
             >
-              <div className="doc-field">
-                <label htmlFor="patient-first-name">First Name *</label>
+              <div className={`doc-field ${fieldErrors.firstName ? 'has-error' : ''}`}>
+                <label htmlFor="patient-first-name">
+                  First Name <span className="required-asterisk">*</span>
+                </label>
                 <input
                   disabled={submitting}
                   id="patient-first-name"
-                  onChange={(event) => setForm({ ...form, firstName: event.target.value })}
-                  required
+                  onChange={(event) => {
+                    setForm({ ...form, firstName: event.target.value });
+                    if (fieldErrors.firstName) setFieldErrors({ ...fieldErrors, firstName: undefined });
+                  }}
                   type="text"
                   value={form.firstName}
                 />
+                {fieldErrors.firstName ? (
+                  <span className="field-error-msg">
+                    <i className="ph ph-warning-circle" aria-hidden="true" />
+                    {fieldErrors.firstName}
+                  </span>
+                ) : null}
               </div>
+
               <div className="doc-field">
                 <label htmlFor="patient-middle-name">Middle Name</label>
                 <input
@@ -245,24 +275,37 @@ export function PatientRegistrationPage() {
                   value={form.middleName}
                 />
               </div>
-              <div className="doc-field">
-                <label htmlFor="patient-last-name">Last Name *</label>
+
+              <div className={`doc-field ${fieldErrors.lastName ? 'has-error' : ''}`}>
+                <label htmlFor="patient-last-name">
+                  Last Name <span className="required-asterisk">*</span>
+                </label>
                 <input
                   disabled={submitting}
                   id="patient-last-name"
-                  onChange={(event) => setForm({ ...form, lastName: event.target.value })}
-                  required
+                  onChange={(event) => {
+                    setForm({ ...form, lastName: event.target.value });
+                    if (fieldErrors.lastName) setFieldErrors({ ...fieldErrors, lastName: undefined });
+                  }}
                   type="text"
                   value={form.lastName}
                 />
+                {fieldErrors.lastName ? (
+                  <span className="field-error-msg">
+                    <i className="ph ph-warning-circle" aria-hidden="true" />
+                    {fieldErrors.lastName}
+                  </span>
+                ) : null}
               </div>
+
               <div className="doc-field">
-                <label htmlFor="patient-gender">Gender *</label>
+                <label htmlFor="patient-gender">
+                  Gender <span className="required-asterisk">*</span>
+                </label>
                 <select
                   disabled={submitting}
                   id="patient-gender"
                   onChange={(event) => setForm({ ...form, gender: event.target.value as ApiPatientGender })}
-                  required
                   value={form.gender}
                 >
                   <option value="UNKNOWN">Unknown</option>
@@ -271,17 +314,29 @@ export function PatientRegistrationPage() {
                   <option value="OTHER">Other</option>
                 </select>
               </div>
-              <div className="doc-field">
-                <label htmlFor="patient-dob">Date of Birth *</label>
+
+              <div className={`doc-field ${fieldErrors.dateOfBirth ? 'has-error' : ''}`}>
+                <label htmlFor="patient-dob">
+                  Date of Birth <span className="required-asterisk">*</span>
+                </label>
                 <input
                   disabled={submitting}
                   id="patient-dob"
-                  onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })}
-                  required
+                  onChange={(event) => {
+                    setForm({ ...form, dateOfBirth: event.target.value });
+                    if (fieldErrors.dateOfBirth) setFieldErrors({ ...fieldErrors, dateOfBirth: undefined });
+                  }}
                   type="date"
                   value={form.dateOfBirth}
                 />
+                {fieldErrors.dateOfBirth ? (
+                  <span className="field-error-msg">
+                    <i className="ph ph-warning-circle" aria-hidden="true" />
+                    {fieldErrors.dateOfBirth}
+                  </span>
+                ) : null}
               </div>
+
               <div className="doc-field">
                 <label htmlFor="patient-phone">Phone</label>
                 <input
@@ -292,6 +347,7 @@ export function PatientRegistrationPage() {
                   value={form.phone}
                 />
               </div>
+
               <div className="doc-field">
                 <label htmlFor="patient-email">Email</label>
                 <input
@@ -430,19 +486,31 @@ export function PatientRegistrationPage() {
                   value={form.notes}
                 />
               </div>
-              <label className="patient-consent-check full">
-                <input
-                  checked={form.consent}
-                  disabled={submitting}
-                  onChange={(event) => setForm({ ...form, consent: event.target.checked })}
-                  required
-                  type="checkbox"
-                />
-                <span>
-                  <strong>Patient Consent</strong>
-                  <small>The patient has consented to registration, care coordination and processing of health information.</small>
-                </span>
-              </label>
+              <div className="doc-field full">
+                <label className="patient-consent-check full">
+                  <input
+                    checked={form.consent}
+                    disabled={submitting}
+                    onChange={(event) => {
+                      setForm({ ...form, consent: event.target.checked });
+                      if (fieldErrors.consent) setFieldErrors({ ...fieldErrors, consent: undefined });
+                    }}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>
+                      Patient Consent <span className="required-asterisk">*</span>
+                    </strong>
+                    <small>The patient has consented to registration, care coordination and processing of health information.</small>
+                  </span>
+                </label>
+                {fieldErrors.consent ? (
+                  <span className="field-error-msg" style={{ marginTop: '0.2rem' }}>
+                    <i className="ph ph-warning-circle" aria-hidden="true" />
+                    {fieldErrors.consent}
+                  </span>
+                ) : null}
+              </div>
             </RegistrationSection>
 
             <div className="patient-registration-actions">
@@ -464,4 +532,3 @@ export function PatientRegistrationPage() {
     </>
   );
 }
-

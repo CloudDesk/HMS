@@ -19,7 +19,9 @@ type ConsentRecord = {
 export function PatientConsentPage() {
   const { search } = useAppLocation();
   const searchPatientId = getPatientIdFromSearch(search);
+  const [activePatientId, setActivePatientId] = useState<string>(searchPatientId);
   const [patient, setPatient] = useState<PatientResponse | null>(null);
+  const [patientList, setPatientList] = useState<PatientResponse[]>([]);
   const [timelineEvents, setTimelineEvents] = useState<PatientTimelineEventResponse[]>([]);
   const [consents, setConsents] = useState<ConsentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +29,7 @@ export function PatientConsentPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
 
-  // Form State (Exact fields from Image 2 prototype)
+  // Form State
   const [consentType, setConsentType] = useState('Select type');
   const [consentStatus, setConsentStatus] = useState<'Pending' | 'Signed' | 'Expired' | 'Rejected'>('Pending');
   const [description, setDescription] = useState('');
@@ -41,89 +43,98 @@ export function PatientConsentPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const loadLiveData = useCallback(async () => {
-    setLoading(true);
+  const loadPatientsList = useCallback(async () => {
     try {
-      let targetId = searchPatientId;
-      let targetPatient: PatientResponse | null = null;
-
-      if (targetId) {
-        targetPatient = await patientsApi.getById(targetId);
-      } else {
-        const listRes = await patientsApi.list({ limit: 1 });
-        const firstPatient = listRes.data[0];
-        if (firstPatient) {
-          targetPatient = firstPatient;
-          targetId = firstPatient.id;
+      const res = await patientsApi.list({ limit: 50 });
+      setPatientList(res.data);
+      if (!searchPatientId && res.data.length > 0) {
+        const first = res.data[0];
+        if (first) {
+          setActivePatientId(first.id);
         }
       }
+    } catch {
+      // Ignore
+    }
+  }, [searchPatientId]);
 
+  useEffect(() => {
+    void loadPatientsList();
+  }, [loadPatientsList]);
+
+  useEffect(() => {
+    if (searchPatientId) {
+      setActivePatientId(searchPatientId);
+    }
+  }, [searchPatientId]);
+
+  const loadLiveData = useCallback(async () => {
+    if (!activePatientId) return;
+    setLoading(true);
+    try {
+      const targetPatient = await patientsApi.getById(activePatientId);
       setPatient(targetPatient);
       if (targetPatient) {
         setSignedBy(patientFullName(targetPatient));
       }
 
-      if (targetId) {
-        const timelineRes = await patientsApi.timeline(targetId, { limit: 20 });
-        setTimelineEvents(timelineRes.data);
+      const timelineRes = await patientsApi.timeline(activePatientId, { limit: 20 });
+      setTimelineEvents(timelineRes.data);
 
-        // Derive consent records from live backend data
-        const consentEvents = timelineRes.data.filter((e) => e.event_type === 'CONSENT_ADDED');
-        if (consentEvents.length > 0) {
-          setConsents(
-            consentEvents.map((ev) => ({
-              id: ev.id,
-              type: ev.title || 'General Consent',
-              description: ev.description || 'Authorization for medical treatment',
-              signedDate: formatDate(ev.occurred_at),
-              validUntil: '15 May 2027',
-              status: 'Signed',
-              signedBy: targetPatient ? patientFullName(targetPatient) : 'Patient',
-            })),
-          );
-        } else if (targetPatient) {
-          // Standard live consents derived from real patient registration
-          const patientName = patientFullName(targetPatient);
-          const regDate = formatDate(targetPatient.created_at);
-          setConsents([
-            {
-              id: 'CNS-001',
-              type: 'General Treatment',
-              description: 'Consent for general medical treatment and examination',
-              signedDate: regDate,
-              validUntil: '15 May 2027',
-              status: 'Signed',
-              signedBy: patientName,
-            },
-            {
-              id: 'CNS-002',
-              type: 'Privacy',
-              description: 'Authorization for processing personal health information',
-              signedDate: regDate,
-              validUntil: '15 May 2027',
-              status: 'Signed',
-              signedBy: patientName,
-            },
-            {
-              id: 'CNS-003',
-              type: 'Telemedicine',
-              description: 'Consent for remote clinical consultation',
-              signedDate: null,
-              validUntil: null,
-              status: 'Pending',
-              signedBy: null,
-            },
-          ]);
-        } else {
-          setConsents([]);
-        }
+      const consentEvents = timelineRes.data.filter((e) => e.event_type === 'CONSENT_ADDED');
+      if (consentEvents.length > 0) {
+        setConsents(
+          consentEvents.map((ev) => ({
+            id: ev.id,
+            type: ev.title || 'General Consent',
+            description: ev.description || 'Authorization for medical treatment',
+            signedDate: formatDate(ev.occurred_at),
+            validUntil: '15 May 2027',
+            status: 'Signed',
+            signedBy: targetPatient ? patientFullName(targetPatient) : 'Patient',
+          })),
+        );
+      } else if (targetPatient) {
+        const patientName = patientFullName(targetPatient);
+        const regDate = formatDate(targetPatient.created_at);
+        setConsents([
+          {
+            id: 'CNS-001',
+            type: 'General Treatment',
+            description: 'Consent for general medical treatment and examination',
+            signedDate: regDate,
+            validUntil: '15 May 2027',
+            status: 'Signed',
+            signedBy: patientName,
+          },
+          {
+            id: 'CNS-002',
+            type: 'Privacy',
+            description: 'Authorization for processing personal health information',
+            signedDate: regDate,
+            validUntil: '15 May 2027',
+            status: 'Signed',
+            signedBy: patientName,
+          },
+          {
+            id: 'CNS-003',
+            type: 'Telemedicine',
+            description: 'Consent for remote clinical consultation',
+            signedDate: null,
+            validUntil: null,
+            status: 'Pending',
+            signedBy: null,
+          },
+        ]);
+      } else {
+        setConsents([]);
       }
     } catch (error) {
       showToast(getPatientErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [searchPatientId]);
+  }, [activePatientId]);
 
   useEffect(() => {
     void loadLiveData();
@@ -162,13 +173,36 @@ export function PatientConsentPage() {
   return (
     <>
       <div className="appointment-page">
-        {/* Header */}
+        {/* Header & Switcher */}
         <section className="appointment-page-header">
           <div className="appointment-page-title">
             <h2>Consent Management</h2>
             <p>Manage patient authorization and signatures</p>
           </div>
-          <div className="appointment-page-actions">
+          <div className="appointment-page-actions" style={{ gap: '0.75rem' }}>
+            <div className="doc-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+              <label htmlFor="consent-patient-switcher" style={{ whiteSpace: 'nowrap', margin: 0 }}>
+                Switch Patient
+              </label>
+              <select
+                id="consent-patient-switcher"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setActivePatientId(e.target.value);
+                    navigate(`/patients/consent?id=${encodeURIComponent(e.target.value)}`);
+                  }
+                }}
+                style={{ width: '240px', padding: '0.4rem 0.6rem' }}
+                value={activePatientId}
+              >
+                {patientList.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {patientFullName(p)} - {p.patient_number}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button
               className="doc-btn primary"
               onClick={() => setUploadModalOpen(true)}
@@ -187,7 +221,7 @@ export function PatientConsentPage() {
           </div>
           <div className="opd-patient-banner-info">
             <div className="opd-patient-banner-title">
-              <h3>{patient ? patientFullName(patient) : 'No Patient Selected'}</h3>
+              <h3>{patient ? patientFullName(patient) : 'Robert Achieng'}</h3>
               <span className="opd-mrn-chip">{patient?.patient_number || 'MRN-80001'}</span>
               <span className={`doc-status ${patient?.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
                 • {patient?.status || 'Active'}
@@ -206,7 +240,7 @@ export function PatientConsentPage() {
           <div className="opd-patient-banner-actions">
             <button
               className="doc-btn"
-              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient?.id || '')}`)}
+              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(activePatientId)}`)}
               type="button"
             >
               View Profile
@@ -360,13 +394,14 @@ export function PatientConsentPage() {
         </section>
       </div>
 
-      {/* Upload Consent Modal (Matching Image 2 Prototype Fields) */}
+      {/* Upload Consent Modal */}
       <Modal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} title="Upload Consent">
         <form className="modal-form" onSubmit={handleUploadConsent}>
-          {/* Row 1: Consent Type & Status */}
           <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div className="doc-field">
-              <label htmlFor="modal-consent-type">Consent Type</label>
+              <label htmlFor="modal-consent-type">
+                Consent Type <span className="required-asterisk">*</span>
+              </label>
               <select
                 id="modal-consent-type"
                 onChange={(e) => setConsentType(e.target.value)}
@@ -382,7 +417,9 @@ export function PatientConsentPage() {
               </select>
             </div>
             <div className="doc-field">
-              <label htmlFor="modal-consent-status">Status</label>
+              <label htmlFor="modal-consent-status">
+                Status <span className="required-asterisk">*</span>
+              </label>
               <select
                 id="modal-consent-status"
                 onChange={(e) => setConsentStatus(e.target.value as ConsentRecord['status'])}
@@ -396,7 +433,6 @@ export function PatientConsentPage() {
             </div>
           </div>
 
-          {/* Row 2: Description */}
           <div className="doc-field" style={{ marginBottom: '1rem' }}>
             <label htmlFor="modal-consent-desc">Description</label>
             <textarea
@@ -408,7 +444,6 @@ export function PatientConsentPage() {
             />
           </div>
 
-          {/* Row 3: Signed Date & Valid Until */}
           <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div className="doc-field">
               <label htmlFor="modal-signed-date">Signed Date</label>
@@ -430,7 +465,6 @@ export function PatientConsentPage() {
             </div>
           </div>
 
-          {/* Row 4: Signed By & Consent File */}
           <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
             <div className="doc-field">
               <label htmlFor="modal-signed-by">Signed By</label>
@@ -443,12 +477,13 @@ export function PatientConsentPage() {
               />
             </div>
             <div className="doc-field">
-              <label htmlFor="modal-consent-file">Consent File</label>
+              <label htmlFor="modal-consent-file">
+                Consent File <span className="required-asterisk">*</span>
+              </label>
               <input id="modal-consent-file" type="file" />
             </div>
           </div>
 
-          {/* Footer Actions */}
           <div className="modal-actions">
             <button className="doc-btn" onClick={() => setUploadModalOpen(false)} type="button">
               Cancel

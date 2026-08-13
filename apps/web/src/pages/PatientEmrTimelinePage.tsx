@@ -25,7 +25,7 @@ type TimelineTab = {
 
 const timelineTabs: TimelineTab[] = [
   { label: 'Timeline', eventType: '' },
-  { label: 'Consultations', eventType: 'REGISTRATION' }, // Or mapped category
+  { label: 'Consultations', eventType: 'REGISTRATION' },
   { label: 'Visits', eventType: 'PROFILE_UPDATED' },
   { label: 'Medications', eventType: 'CONSENT_ADDED' },
   { label: 'Lab Results', eventType: 'DOCUMENT_ADDED' },
@@ -81,26 +81,14 @@ type TimelineModalDetails = {
   patient: PatientResponse | null;
 } | null;
 
-function NoPatientSelected() {
-  return (
-    <div className="um-grid">
-      <div className="card patient-empty-panel">
-        <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
-        <h3>Select a patient record</h3>
-        <p>Open a patient from search to view the longitudinal EMR timeline.</p>
-        <button className="primary-action" onClick={() => navigate('/patients/search')} type="button">
-          Search Patients
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function PatientEmrTimelinePage() {
   const { search } = useAppLocation();
   const searchParams = new URLSearchParams(search);
-  const patientId = getPatientIdFromSearch(search);
+  const searchPatientId = getPatientIdFromSearch(search);
+
+  const [activePatientId, setActivePatientId] = useState<string>(searchPatientId);
   const [patient, setPatient] = useState<PatientResponse | null>(null);
+  const [patientList, setPatientList] = useState<PatientResponse[]>([]);
   const [timeline, setTimeline] = useState<PatientTimelineEventResponse[]>([]);
   const [meta, setMeta] = useState<PatientTimelineListResponse['meta']>({
     limit: 10,
@@ -108,6 +96,7 @@ export function PatientEmrTimelinePage() {
     total: 0,
     totalPages: 1,
   });
+
   const [eventType, setEventType] = useState<PatientTimelineEventType | ''>(
     (searchParams.get('event_type') as PatientTimelineEventType | null) ?? '',
   );
@@ -117,12 +106,38 @@ export function PatientEmrTimelinePage() {
   const [doctorFilter, setDoctorFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
-  const [loading, setLoading] = useState(Boolean(patientId));
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [selectedDetails, setSelectedDetails] = useState<TimelineModalDetails>(null);
 
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+
+  // Load patients list for top patient switcher dropdown
+  const loadPatientsList = useCallback(async () => {
+    try {
+      const res = await patientsApi.list({ limit: 50 });
+      setPatientList(res.data);
+      if (!searchPatientId && res.data.length > 0) {
+        const first = res.data[0];
+        if (first) {
+          setActivePatientId(first.id);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, [searchPatientId]);
+
+  useEffect(() => {
+    void loadPatientsList();
+  }, [loadPatientsList]);
+
+  useEffect(() => {
+    if (searchPatientId) {
+      setActivePatientId(searchPatientId);
+    }
+  }, [searchPatientId]);
 
   const loadLookups = useCallback(async () => {
     try {
@@ -133,7 +148,7 @@ export function PatientEmrTimelinePage() {
       setDoctors(docRes.data);
       setDepartments(deptRes.data);
     } catch {
-      // Ignore fallback
+      // Ignore
     }
   }, []);
 
@@ -142,14 +157,14 @@ export function PatientEmrTimelinePage() {
   }, [loadLookups]);
 
   const loadTimeline = useCallback(async () => {
-    if (!patientId) return;
+    if (!activePatientId) return;
     setLoading(true);
     setLoadError('');
 
     try {
       const [patientResponse, timelineResponse] = await Promise.all([
-        patientsApi.getById(patientId),
-        patientsApi.timeline(patientId, {
+        patientsApi.getById(activePatientId),
+        patientsApi.timeline(activePatientId, {
           event_type: eventType || undefined,
           from: fromDate || undefined,
           to: toDate || undefined,
@@ -168,35 +183,55 @@ export function PatientEmrTimelinePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, eventType, fromDate, patientId, toDate]);
+  }, [activePatientId, currentPage, eventType, fromDate, toDate]);
 
   useEffect(() => {
-    if (!patientId) return;
-    const nextUrl = buildTimelineUrl(patientId, eventType, fromDate, toDate, currentPage);
+    if (!activePatientId) return;
+    const nextUrl = buildTimelineUrl(activePatientId, eventType, fromDate, toDate, currentPage);
     if (window.location.pathname + window.location.search !== nextUrl) {
       navigate(nextUrl, { replace: true });
     }
-  }, [currentPage, eventType, fromDate, patientId, toDate]);
+  }, [activePatientId, currentPage, eventType, fromDate, toDate]);
 
   useEffect(() => {
     void loadTimeline();
   }, [loadTimeline]);
 
-  if (!patientId) {
-    return <NoPatientSelected />;
-  }
-
   const activeTabLabel = timelineTabs.find((t) => t.eventType === eventType)?.label || 'Timeline';
 
   return (
     <div className="appointment-page">
-      {/* Top Header */}
+      {/* Top Header & Patient Switcher */}
       <section className="appointment-page-header">
         <div className="appointment-page-title">
           <h2>EMR Timeline</h2>
           <p>Review the longitudinal patient record</p>
         </div>
-        <div className="appointment-page-actions">
+        <div className="appointment-page-actions" style={{ gap: '0.75rem' }}>
+          <div className="doc-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+            <label htmlFor="timeline-patient-switcher" style={{ whiteSpace: 'nowrap', margin: 0 }}>
+              Switch Patient
+            </label>
+            <select
+              id="timeline-patient-switcher"
+              onChange={(e) => {
+                if (e.target.value) {
+                  setActivePatientId(e.target.value);
+                  setCurrentPage(1);
+                  navigate(`/patients/emr?id=${encodeURIComponent(e.target.value)}`);
+                }
+              }}
+              style={{ width: '240px', padding: '0.4rem 0.6rem' }}
+              value={activePatientId}
+            >
+              {patientList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {patientFullName(p)} - {p.patient_number}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button className="doc-btn" onClick={() => window.print()} type="button">
             <i className="ph ph-printer" aria-hidden="true" />
             Print Timeline
@@ -204,7 +239,7 @@ export function PatientEmrTimelinePage() {
         </div>
       </section>
 
-      {/* Patient Hero Card (Matching Image 1 Reference) */}
+      {/* Patient Hero Banner */}
       <section className="doc-card opd-patient-banner" style={{ marginBottom: '1.25rem' }}>
         <div className="opd-patient-avatar-box">
           <span>{patient ? patientInitials(patientFullName(patient)) : 'RA'}</span>
@@ -213,14 +248,21 @@ export function PatientEmrTimelinePage() {
           <div className="opd-patient-banner-title">
             <h3>{patient ? patientFullName(patient) : 'Robert Achieng'}</h3>
             <span className="opd-mrn-chip">{patient?.patient_number || 'MRN-80001'}</span>
-            <span className="doc-status active">• {patient?.status || 'Active'}</span>
+            <span className={`doc-status ${patient?.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
+              • {patient?.status || 'Active'}
+            </span>
           </div>
           <div className="opd-patient-meta-line">
-            <span>{patient?.gender || 'Male'}, {patient ? `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} years` : '64 years'}</span>
+            <span>
+              {patient?.gender || 'Male'},{' '}
+              {patient
+                ? `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} years`
+                : '64 years'}
+            </span>
             <span className="divider">•</span>
             <span>{patient?.phone || '+254 794 310 659'}</span>
             <span className="divider">•</span>
-            <span>Blood Group: O+</span>
+            <span>Blood Group: {patient?.blood_group || 'O+'}</span>
             <span className="divider">•</span>
             <span>Doctor: Dr. John Kamau</span>
           </div>
@@ -228,7 +270,7 @@ export function PatientEmrTimelinePage() {
         <div className="opd-patient-banner-actions">
           <button
             className="doc-btn"
-            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patientId)}`)}
+            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(activePatientId)}`)}
             type="button"
           >
             View Profile
@@ -236,10 +278,13 @@ export function PatientEmrTimelinePage() {
         </div>
       </section>
 
-      {/* Tabs & Filters Bar (Matching Image 1) */}
+      {/* Tabs & Filters Bar */}
       <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
         {/* Category Tabs */}
-        <div className="opd-workspace-tabs" style={{ borderRadius: '8px', border: '0', borderBottom: '1px solid #e2e8f0', marginBottom: '1rem' }}>
+        <div
+          className="opd-workspace-tabs"
+          style={{ borderRadius: '8px', border: '0', borderBottom: '1px solid #e2e8f0', marginBottom: '1rem' }}
+        >
           {timelineTabs.map((tab) => (
             <button
               className={`opd-workspace-tab ${activeTabLabel === tab.label ? 'active' : ''}`}
@@ -255,7 +300,7 @@ export function PatientEmrTimelinePage() {
           ))}
         </div>
 
-        {/* Filter Row (From, To, Department, Doctor, Category, Reset) */}
+        {/* Filter Row */}
         <div className="emr-filter-row">
           <div className="doc-field">
             <label htmlFor="emr-from-date">From</label>
@@ -338,7 +383,7 @@ export function PatientEmrTimelinePage() {
         </div>
       </section>
 
-      {/* Main Longitudinal Vertical Timeline Axis (Matching Image 1) */}
+      {/* Main Longitudinal Vertical Timeline Axis */}
       <section className="emr-timeline-container">
         {loading ? (
           <div className="um-state-cell">Loading EMR timeline events...</div>
@@ -352,7 +397,7 @@ export function PatientEmrTimelinePage() {
             </div>
           </div>
         ) : timeline.length === 0 ? (
-          <div className="patient-empty-inline">No EMR events recorded for this view.</div>
+          <div className="patient-empty-inline">No EMR events recorded for this patient view.</div>
         ) : (
           <div className="emr-timeline-axis">
             <div className="emr-timeline-line" />
@@ -363,12 +408,10 @@ export function PatientEmrTimelinePage() {
 
               return (
                 <div className="emr-timeline-item" key={event.id || index}>
-                  {/* Left Node Circle Icon over the vertical line */}
                   <div className="emr-timeline-node">
                     <i className={iconClass} aria-hidden="true" />
                   </div>
 
-                  {/* Event Card Content */}
                   <article className="doc-card emr-event-card">
                     <div className="emr-card-header">
                       <div className="emr-card-title-group">

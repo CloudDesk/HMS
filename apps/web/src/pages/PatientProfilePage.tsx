@@ -123,11 +123,12 @@ function NoPatientSelected() {
 
 export function PatientProfilePage() {
   const { search } = useAppLocation();
-  const patientId = getPatientIdFromSearch(search);
+  const searchPatientId = getPatientIdFromSearch(search);
+  const [activePatientId, setActivePatientId] = useState<string>(searchPatientId);
   const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
   const [patientList, setPatientList] = useState<PatientResponse[]>([]);
   const [patientAppointments, setPatientAppointments] = useState<AppointmentResponse[]>([]);
-  const [loading, setLoading] = useState(Boolean(patientId));
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('Overview');
   const [editOpen, setEditOpen] = useState(false);
@@ -147,20 +148,32 @@ export function PatientProfilePage() {
     try {
       const res = await patientsApi.list({ limit: 50 });
       setPatientList(res.data);
+      if (!searchPatientId && res.data.length > 0) {
+        const first = res.data[0];
+        if (first) {
+          setActivePatientId(first.id);
+        }
+      }
     } catch {
       // Fallback
     }
-  }, []);
+  }, [searchPatientId]);
+
+  useEffect(() => {
+    if (searchPatientId) {
+      setActivePatientId(searchPatientId);
+    }
+  }, [searchPatientId]);
 
   const loadPatient = useCallback(async () => {
-    if (!patientId) return;
+    if (!activePatientId) return;
     setLoading(true);
     setLoadError('');
 
     try {
       const [histRes, aptRes] = await Promise.all([
-        patientsApi.history(patientId),
-        appointmentsApi.list({ patient_id: patientId, limit: 20 }),
+        patientsApi.history(activePatientId),
+        appointmentsApi.list({ patient_id: activePatientId, limit: 20 }),
       ]);
       setHistory(histRes);
       setPatientAppointments(aptRes.data);
@@ -170,7 +183,7 @@ export function PatientProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [patientId]);
+  }, [activePatientId]);
 
   useEffect(() => {
     void loadPatientsList();
@@ -179,10 +192,6 @@ export function PatientProfilePage() {
   useEffect(() => {
     void loadPatient();
   }, [loadPatient]);
-
-  if (!patientId) {
-    return <NoPatientSelected />;
-  }
 
   const patient = history?.patient ?? null;
 
@@ -240,11 +249,12 @@ export function PatientProfilePage() {
                 id="patient-switcher-select"
                 onChange={(e) => {
                   if (e.target.value) {
+                    setActivePatientId(e.target.value);
                     navigate(`/patients/profile?id=${encodeURIComponent(e.target.value)}`);
                   }
                 }}
                 style={{ width: '240px', padding: '0.4rem 0.6rem' }}
-                value={patientId}
+                value={activePatientId}
               >
                 {patientList.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -310,7 +320,7 @@ export function PatientProfilePage() {
             </button>
             <button
               className="doc-btn primary"
-              onClick={() => navigate(`/appointments/book?patient_id=${encodeURIComponent(patientId)}`)}
+              onClick={() => navigate(`/appointments/book?patient_id=${encodeURIComponent(activePatientId)}`)}
               type="button"
             >
               <i className="ph ph-calendar-plus" aria-hidden="true" />
@@ -479,7 +489,7 @@ export function PatientProfilePage() {
                     </div>
                     <button
                       className="doc-btn"
-                      onClick={() => navigate(`/patients/billing?id=${encodeURIComponent(patientId)}`)}
+                      onClick={() => navigate(`/patients/billing?id=${encodeURIComponent(activePatientId)}`)}
                       type="button"
                     >
                       View Billing
@@ -923,7 +933,9 @@ export function PatientProfilePage() {
 
             <div className="form-grid">
               <div className="form-group">
-                <label htmlFor="edit-first-name">First name *</label>
+                <label htmlFor="edit-first-name">
+                  First name <span className="required-asterisk">*</span>
+                </label>
                 <input
                   disabled={submitting}
                   id="edit-first-name"
@@ -944,7 +956,9 @@ export function PatientProfilePage() {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="edit-last-name">Last name *</label>
+                <label htmlFor="edit-last-name">
+                  Last name <span className="required-asterisk">*</span>
+                </label>
                 <input
                   disabled={submitting}
                   id="edit-last-name"
@@ -955,7 +969,9 @@ export function PatientProfilePage() {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="edit-dob">Date of birth *</label>
+                <label htmlFor="edit-dob">
+                  Date of birth <span className="required-asterisk">*</span>
+                </label>
                 <input
                   disabled={submitting}
                   id="edit-dob"
@@ -966,7 +982,9 @@ export function PatientProfilePage() {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="edit-gender">Gender *</label>
+                <label htmlFor="edit-gender">
+                  Gender <span className="required-asterisk">*</span>
+                </label>
                 <select
                   disabled={submitting}
                   id="edit-gender"
