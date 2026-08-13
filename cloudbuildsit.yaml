@@ -44,7 +44,9 @@ steps:
         import json
         from pathlib import Path
 
-        source = Path("apps/api/.env.dev")
+        sit_source = Path("apps/api/.env.sit")
+        dev_source = Path("apps/api/.env.dev")
+        source = sit_source if sit_source.exists() else dev_source
         target = Path("/workspace/apps/api/.env.cloudrun.sit.yaml")
 
         with target.open("w", encoding="utf-8") as output:
