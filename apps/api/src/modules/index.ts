@@ -22,6 +22,7 @@ import { registerMedicineRoutes } from './medicines/medicine.routes.js';
 import { registerPharmacyInventoryRoutes } from './pharmacy-inventory/pharmacy-inventory.routes.js';
 import { registerLaboratoryRoutes } from './laboratory/laboratory.routes.js';
 import { registerImagingRoutes } from './imaging/imaging.routes.js';
+import { registerBillingRoutes } from './billing/billing.routes.js';
 import { registerSettingsRoutes } from './settings/settings.routes.js';
 import { registerAdministrationDashboardRoutes } from './administration-dashboard/administration-dashboard.routes.js';
 
@@ -39,6 +40,7 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerPharmacyInventoryRoutes(app, services);
   await registerLaboratoryRoutes(app, services);
   await registerImagingRoutes(app, services);
+  await registerBillingRoutes(app, services);
   await registerSettingsRoutes(app, services);
   await registerPatientRoutes(app, services);
   await registerDoctorRoutes(app, services);

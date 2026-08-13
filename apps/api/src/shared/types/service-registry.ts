@@ -20,6 +20,7 @@ import type { MedicineService } from '../../modules/medicines/medicine.service.j
 import type { PharmacyInventoryService } from '../../modules/pharmacy-inventory/pharmacy-inventory.service.js';
 import type { LaboratoryService } from '../../modules/laboratory/laboratory.service.js';
 import type { ImagingService } from '../../modules/imaging/imaging.service.js';
+import type { BillingService } from '../../modules/billing/billing.service.js';
 import type { SettingsService } from '../../modules/settings/settings.service.js';
 import type { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
 
@@ -49,5 +50,6 @@ export type ServiceRegistry = {
   pharmacyInventory: PharmacyInventoryService;
   laboratory: LaboratoryService;
   imaging: ImagingService;
+  billing: BillingService;
   settings: SettingsService;
 };

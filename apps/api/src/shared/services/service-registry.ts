@@ -41,6 +41,8 @@ import { LaboratoryRepository } from '../../modules/laboratory/laboratory.reposi
 import { LaboratoryService } from '../../modules/laboratory/laboratory.service.js';
 import { ImagingRepository } from '../../modules/imaging/imaging.repository.js';
 import { ImagingService } from '../../modules/imaging/imaging.service.js';
+import { BillingRepository } from '../../modules/billing/billing.repository.js';
+import { BillingService } from '../../modules/billing/billing.service.js';
 import { SettingsLogoStorage } from '../../modules/settings/settings.logo-storage.js';
 import { SettingsRepository } from '../../modules/settings/settings.repository.js';
 import { SettingsService } from '../../modules/settings/settings.service.js';
@@ -71,6 +73,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const pharmacyInventoryRepository = new PharmacyInventoryRepository();
   const laboratoryRepository = new LaboratoryRepository();
   const imagingRepository = new ImagingRepository();
+  const billingRepository = new BillingRepository();
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
@@ -153,6 +156,15 @@ opdVisits: new OpdVisitService(
     pharmacyInventory: new PharmacyInventoryService(pharmacyInventoryRepository),
     laboratory: new LaboratoryService(opdClinicalOrderRepository, laboratoryRepository, serviceRepository),
     imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository),
+    billing: new BillingService(
+      billingRepository,
+      patientRepository,
+      opdVisitRepository,
+      appointmentRepository,
+      opdConsultationRepository,
+      opdClinicalOrderRepository,
+      serviceRepository,
+    ),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
   };
 };

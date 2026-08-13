@@ -62,6 +62,20 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
   );
 
 export class ServiceRepository {
+  async getActiveBillingServices(ids: string[]) {
+    return ServiceModel.find({
+      _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).select('_id name serviceType standardPrice status').lean<Array<{
+      _id: Types.ObjectId;
+      name: string;
+      serviceType: Service['service_type'];
+      standardPrice: number;
+      status: Service['status'];
+    }>>();
+  }
+
   async getActiveClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },

@@ -38,6 +38,9 @@ import { LaboratoryResultEntryPage } from '../pages/LaboratoryResultEntryPage';
 import { ImagingQueuePage } from '../pages/ImagingQueuePage';
 import { ImagingWorkspacePage } from '../pages/ImagingWorkspacePage';
 import { ImagingReportEntryPage } from '../pages/ImagingReportEntryPage';
+import { BillingDashboardPage } from '../pages/BillingDashboardPage';
+import { BillingWorkspacePage } from '../pages/BillingWorkspacePage';
+import { BillingHistoryPage } from '../pages/BillingHistoryPage';
 import { SystemSettingsPage } from '../pages/SystemSettingsPage';
 import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
@@ -253,6 +256,12 @@ export function AppRouter() {
     title = 'Imaging Workspace'; breadcrumbs = ['Home', 'Imaging', 'Workspace']; content = <ImagingWorkspacePage />;
   } else if (pathname === '/imaging/reports') {
     title = 'Imaging Reports'; breadcrumbs = ['Home', 'Imaging', 'Reports']; content = <ImagingReportEntryPage />;
+  } else if (pathname === '/billing') {
+    title = 'Billing Dashboard'; breadcrumbs = ['Home', 'Billing', 'Dashboard']; content = <BillingDashboardPage />;
+  } else if (pathname === '/billing/workspace') {
+    title = 'Billing Workspace'; breadcrumbs = ['Home', 'Billing', 'Workspace']; content = <BillingWorkspacePage />;
+  } else if (pathname === '/billing/history') {
+    title = 'Billing History'; breadcrumbs = ['Home', 'Billing', 'History']; content = <BillingHistoryPage />;
   } else if (pathname === '/administration/settings') {
     title = 'System Settings';
     breadcrumbs = ['Home', 'Administration', 'System Settings'];

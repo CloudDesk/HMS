@@ -53,6 +53,10 @@ const imagingPermissions = {
   Orders: ['View', 'Edit', 'EnterReport', 'VerifyReport'],
 } as const;
 
+const billingPermissions = {
+  Invoices: ['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'],
+} as const;
+
 const permissionCode = (moduleName: string, screen: string, action: string) =>
   `${moduleName}_${screen}_${action}`
     .replaceAll(/([a-z])([A-Z])/g, '$1_$2')
@@ -329,6 +333,46 @@ export const seedDatabase = async () => {
           name: `${screen} ${action}`, module: 'Imaging', screen, action, type: 'system', status: 'active',
           categoryId: clinicalCategory._id, groupId: imagingGroup._id, deletedAt: null,
         } },
+        { upsert: true, new: true },
+      );
+      permissionIds.push(permission._id);
+    }
+  }
+
+  const financeCategory = await PermissionCategoryModel.findOneAndUpdate(
+    { code: 'FINANCE' },
+    {
+      $set: {
+        name: 'Finance Operations',
+        description: 'Billing and payment permissions',
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  const billingGroup = await PermissionGroupModel.findOneAndUpdate(
+    { categoryId: financeCategory._id, code: 'BILLING' },
+    { $set: { name: 'Billing' } },
+    { upsert: true, new: true },
+  );
+
+  for (const [screen, actions] of Object.entries(billingPermissions)) {
+    for (const action of actions) {
+      const permission = await PermissionModel.findOneAndUpdate(
+        { code: permissionCode('Billing', screen, action) },
+        {
+          $set: {
+            name: `${screen} ${action}`,
+            module: 'Billing',
+            screen,
+            action,
+            type: 'system',
+            status: 'active',
+            categoryId: financeCategory._id,
+            groupId: billingGroup._id,
+            deletedAt: null,
+          },
+        },
         { upsert: true, new: true },
       );
       permissionIds.push(permission._id);
