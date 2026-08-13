@@ -68,14 +68,16 @@ export class OpdVisitService {
     private readonly consultationRepository: OpdConsultationRepository,
   ) {}
 
-  async list(query: OpdVisitListQuery) {
+  async list(query: OpdVisitListQuery, userId?: string) {
     this.validateListQuery(query);
-    return this.repository.list(this.normalizeListDates(query));
+    const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
+    return this.repository.list(this.normalizeListDates(query), scope);
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId?: string) {
     this.validateId(id, 'OPD visit id is invalid');
-    const visit = await this.repository.getById(id);
+    const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
+    const visit = await this.repository.getById(id, scope);
     if (!visit) {
       throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
     }
@@ -92,7 +94,8 @@ export class OpdVisitService {
   }
 
   async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string) {
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, userId);
+    const scope = await this.repository.resolveBranchScope(userId, existing.branch_id);
 
     if (!this.isStatusTransitionAllowed(existing.status, data.status)) {
       throw new AppError('OPD visit status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
@@ -109,7 +112,7 @@ export class OpdVisitService {
       }
     }
 
-    const visit = await this.repository.updateStatus(id, data, userId);
+    const visit = await this.repository.updateStatus(id, data, userId, scope);
     if (!visit) {
       throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
     }
@@ -129,11 +132,12 @@ export class OpdVisitService {
     );
 
     if ((data.status === 'COMPLETED' || data.status === 'NO_SHOW') && visit.appointment_id) {
-      const previousAppointment = await this.appointmentRepository.getById(visit.appointment_id);
+      const previousAppointment = await this.appointmentRepository.getById(visit.appointment_id, scope);
       const updatedAppointment = await this.appointmentRepository.updateStatus(
         visit.appointment_id,
         { status: data.status, notes: data.notes },
         userId,
+        scope,
       );
       if (previousAppointment && updatedAppointment && previousAppointment.status !== updatedAppointment.status) {
         await this.appointmentRepository.auditStatusTransition(updatedAppointment, previousAppointment.status, userId);
@@ -145,7 +149,8 @@ export class OpdVisitService {
 
   private async createFromAppointment(data: CreateOpdVisitDTO, userId: string) {
     this.validateId(data.appointment_id, 'Appointment id is invalid');
-    const appointment = await this.appointmentRepository.getById(data.appointment_id!);
+    const scope = await this.appointmentRepository.resolveBranchScope(userId);
+    const appointment = await this.appointmentRepository.getById(data.appointment_id!, scope);
 
     if (!appointment) {
       throw new AppError('Appointment not found', 404, 'NOT_FOUND');
@@ -190,6 +195,7 @@ export class OpdVisitService {
       appointment.id,
       { status: 'CHECKED_IN', notes: data.notes },
       userId,
+      scope,
     );
     if (checkedInAppointment && appointment.status !== checkedInAppointment.status) {
       await this.appointmentRepository.auditStatusTransition(checkedInAppointment, appointment.status, userId);
@@ -211,6 +217,7 @@ export class OpdVisitService {
       this.getActivePatient(data.patient_id),
       this.getActiveDoctor(data.doctor_id),
     ]);
+    await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
     await this.ensureNoActiveVisit(patient.id);
     const sequence = await this.repository.nextVisitSequence();

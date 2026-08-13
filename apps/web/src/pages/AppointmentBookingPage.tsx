@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { appointmentsApi, type ApiAppointmentPriority, type ApiAppointmentVisitType } from '../api/appointments';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
+import { doctorsApi, type ApiDoctorAvailabilityDay, type DoctorResponse } from '../api/doctors';
 import { patientsApi, type PatientResponse } from '../api/patients';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
@@ -18,6 +18,10 @@ type BookingStep = 1 | 2 | 3;
 type SlotOption = {
   startTime: string;
   endTime: string;
+  maxCapacity: number;
+  bookedCount: number;
+  remainingSlots: number;
+  isAvailable: boolean;
 };
 
 const visitTypeOptions = Object.keys(appointmentVisitTypeLabels) as ApiAppointmentVisitType[];
@@ -128,12 +132,66 @@ export function AppointmentBookingPage() {
     setSlotUnavailableReason('');
 
     try {
-      const response = await doctorsApi.availableSlots(selectedDoctorId, appointmentDate);
-      setSlotOptions(
-        response.slots.map((slot) => ({ startTime: slot.start_time, endTime: slot.end_time })),
-      );
-      setSlotDuration(response.slot_duration_minutes ?? 30);
-      setSlotUnavailableReason(response.unavailable_reason ?? 'No unbooked slots remain for this date.');
+      const [availableSlotsRes, existingApptsRes] = await Promise.all([
+        doctorsApi.availableSlots(selectedDoctorId, appointmentDate),
+        appointmentsApi
+          .list({ doctor_id: selectedDoctorId, date_from: appointmentDate, date_to: appointmentDate, limit: 100 })
+          .catch(() => ({ data: [] })),
+      ]);
+
+      const dayNames: ApiDoctorAvailabilityDay[] = [
+        'SUNDAY',
+        'MONDAY',
+        'TUESDAY',
+        'WEDNESDAY',
+        'THURSDAY',
+        'FRIDAY',
+        'SATURDAY',
+      ];
+      const dateParts = appointmentDate.split('-');
+      const dateObj =
+        dateParts.length === 3
+          ? new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]))
+          : new Date(appointmentDate);
+      const dayOfWeek = dayNames[dateObj.getDay()];
+      const dayAvail = selectedDoctor?.availability.find((a) => a.day_of_week === dayOfWeek);
+      const configuredMaxPatients = dayAvail?.max_patients_per_slot ?? availableSlotsRes.max_patients_per_slot ?? 2;
+
+      const bookedCountMap: Record<string, number> = {};
+      existingApptsRes.data.forEach((appt) => {
+        if (appt.status !== 'CANCELLED') {
+          bookedCountMap[appt.start_time] = (bookedCountMap[appt.start_time] || 0) + 1;
+        }
+      });
+
+      const options: SlotOption[] = availableSlotsRes.slots.map((slot) => {
+        const maxCapacity = slot.max_patients_per_slot ?? configuredMaxPatients;
+        const bookedCount = bookedCountMap[slot.start_time] || 0;
+        const remainingSlots = Math.max(0, maxCapacity - bookedCount);
+        return {
+          startTime: slot.start_time,
+          endTime: slot.end_time,
+          maxCapacity,
+          bookedCount,
+          remainingSlots,
+          isAvailable: remainingSlots > 0,
+        };
+      });
+
+      setSlotOptions(options);
+      setSlotDuration(availableSlotsRes.slot_duration_minutes ?? 30);
+
+      const availableCount = options.filter((s) => s.isAvailable).length;
+      if (options.length === 0 || availableCount === 0) {
+        setSlotUnavailableReason(
+          availableSlotsRes.unavailable_reason ||
+            (options.length === 0
+              ? 'No working hours scheduled for this doctor on the selected date.'
+              : 'All available appointment slots for this date are fully booked.'),
+        );
+      } else {
+        setSlotUnavailableReason('');
+      }
     } catch (slotError) {
       setSlotOptions([]);
       setSlotUnavailableReason('Available slots could not be loaded.');
@@ -141,7 +199,7 @@ export function AppointmentBookingPage() {
     } finally {
       setSlotLoading(false);
     }
-  }, [appointmentDate, selectedDoctorId]);
+  }, [appointmentDate, selectedDoctor, selectedDoctorId]);
 
   useEffect(() => {
     void loadInitialData();
@@ -409,21 +467,37 @@ export function AppointmentBookingPage() {
                   </label>
                   {slotLoading ? (
                     <div className="appointment-slot-state">Loading available slots...</div>
-                  ) : slotOptions.length === 0 ? (
-                    <div className="appointment-slot-state">{slotUnavailableReason}</div>
+                  ) : slotOptions.length === 0 || !slotOptions.some((s) => s.isAvailable) ? (
+                    <div className="appointment-no-slots-notice" role="alert">
+                      <i className="ph ph-info" aria-hidden="true" />
+                      <div>
+                        <strong>No Slots Available</strong>
+                        <p>{slotUnavailableReason || 'No appointment slots are available for this doctor on the selected date.'}</p>
+                      </div>
+                    </div>
                   ) : (
                     <div className="appointment-slot-grid">
-                      {slotOptions.map((slot) => (
-                        <button
-                          className={`appointment-slot${selectedSlot === slot.startTime ? ' selected' : ''}`}
-                          key={slot.startTime}
-                          onClick={() => setSelectedSlot(slot.startTime)}
-                          type="button"
-                        >
-                          <strong>{slot.startTime}</strong>
-                          <span>{slot.endTime}</span>
-                        </button>
-                      ))}
+                      {slotOptions.map((slot) => {
+                        const isSelected = selectedSlot === slot.startTime;
+                        const isFull = slot.remainingSlots <= 0;
+                        return (
+                          <button
+                            className={`appointment-slot${isSelected ? ' selected' : ''}${isFull ? ' full' : ''}`}
+                            disabled={isFull}
+                            key={slot.startTime}
+                            onClick={() => setSelectedSlot(slot.startTime)}
+                            type="button"
+                          >
+                            <div className="slot-time-range">
+                              <strong>{slot.startTime}</strong>
+                              <span>{slot.endTime}</span>
+                            </div>
+                            <div className={`slot-capacity-badge ${isFull ? 'full' : slot.remainingSlots === 1 ? 'warning' : 'available'}`}>
+                              {isFull ? 'Fully Booked' : `${slot.remainingSlots} ${slot.remainingSlots === 1 ? 'slot' : 'slots'} left`}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -19,7 +19,10 @@ import type {
   UpdatePatientDTO,
 } from './patient.types.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
 
 type PatientLean = PatientDocumentFields & { _id: Types.ObjectId };
 type PatientDocumentLean = PatientDocumentMetadataFields & { _id: Types.ObjectId };
@@ -146,11 +149,33 @@ const buildPatientPayload = (data: CreatePatientDTO | UpdatePatientDTO) => ({
 });
 
 export class PatientRepository {
-  async list(query: PatientListQuery) {
+  async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null,
+    }));
+    if (requestedBranchId) {
+      const branchExists = Boolean(await BranchModel.exists({ _id: requestedBranchId, status: 'ACTIVE', deletedAt: null }));
+      if (!branchExists) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      const assigned = (user.branchIds ?? []).some((id) => String(id) === requestedBranchId);
+      if (!isSuperAdmin && !assigned) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+      return [requestedBranchId];
+    }
+    if (isSuperAdmin) return undefined;
+    const activeBranches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null,
+    }).select('_id').lean();
+    return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async list(query: PatientListQuery, branchIds?: string[]) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
     const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.registrationBranchId = { $in: branchIds.map(toObjectId) };
 
     if (query.status) {
       filter.status = query.status;
@@ -192,8 +217,10 @@ export class PatientRepository {
     };
   }
 
-  async getById(id: string): Promise<Patient | undefined> {
-    const patient = await PatientModel.findOne({ _id: id, deletedAt: null }).lean<PatientLean>();
+  async getById(id: string, branchIds?: string[]): Promise<Patient | undefined> {
+    const filter: Record<string, unknown> = { _id: id, deletedAt: null };
+    if (branchIds) filter.registrationBranchId = { $in: branchIds.map(toObjectId) };
+    const patient = await PatientModel.findOne(filter).lean<PatientLean>();
     return patient ? toPatient(patient) : undefined;
   }
 
@@ -205,7 +232,7 @@ export class PatientRepository {
     return patient ? toPatient(patient) : undefined;
   }
 
-  async findDuplicateCandidates(data: CreatePatientDTO) {
+  async findDuplicateCandidates(data: CreatePatientDTO, branchIds?: string[]) {
     const filters: Record<string, unknown>[] = [
       {
         firstName: new RegExp(`^${escapeRegex(data.first_name)}$`, 'i'),
@@ -218,7 +245,11 @@ export class PatientRepository {
       filters.push({ phone: data.phone.trim() });
     }
 
-    const patients = await PatientModel.find({ deletedAt: null, $or: filters }).limit(5).lean<PatientLean[]>();
+    const patients = await PatientModel.find({
+      deletedAt: null,
+      ...(branchIds ? { registrationBranchId: { $in: branchIds.map(toObjectId) } } : {}),
+      $or: filters,
+    }).limit(5).lean<PatientLean[]>();
     return patients.map(toPatient);
   }
 
@@ -233,14 +264,14 @@ export class PatientRepository {
     return toPatient(created.toObject<PatientLean>());
   }
 
-  async update(id: string, data: UpdatePatientDTO, updatedBy: string): Promise<Patient | undefined> {
+  async update(id: string, data: UpdatePatientDTO, updatedBy: string, branchIds?: string[]): Promise<Patient | undefined> {
     const updatePayload = {
       ...buildPatientPayload(data),
       updatedBy: new Types.ObjectId(updatedBy),
     };
 
     const patient = await PatientModel.findOneAndUpdate(
-      { _id: id, deletedAt: null },
+      { _id: id, deletedAt: null, ...(branchIds ? { registrationBranchId: { $in: branchIds.map(toObjectId) } } : {}) },
       { $set: updatePayload },
       { new: true, lean: true },
     ).lean<PatientLean>();

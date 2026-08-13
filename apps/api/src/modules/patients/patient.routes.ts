@@ -81,7 +81,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         querystring: listPatientsQuerySchema,
       },
     },
-    async (request) => ok(await services.patients.list(request.query)),
+    async (request) => ok(await services.patients.list(request.query, request.user!.id)),
   );
 
   app.get<{ Params: PatientIdParams }>(
@@ -92,7 +92,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         params: patientIdParamsSchema,
       },
     },
-    async (request) => ok(await services.patients.getById(request.params.id)),
+    async (request) => ok(await services.patients.getById(request.params.id, request.user!.id)),
   );
 
   app.post<{ Body: CreatePatientDTO }>(
@@ -129,7 +129,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         params: patientIdParamsSchema,
       },
     },
-    async (request) => ok(await services.patients.getHistory(request.params.id)),
+    async (request) => ok(await services.patients.getHistory(request.params.id, request.user!.id)),
   );
 
   app.get<{ Params: PatientIdParams; Querystring: PatientTimelineListQuery }>(
@@ -141,7 +141,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         querystring: listPatientTimelineQuerySchema,
       },
     },
-    async (request) => ok(await services.patients.getTimeline(request.params.id, request.query)),
+    async (request) => ok(await services.patients.getTimeline(request.params.id, request.query, request.user!.id)),
   );
 
   app.get<{ Params: PatientIdParams; Querystring: PatientDocumentsQuery }>(
@@ -162,7 +162,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
           visit_id: request.query.visit_id,
           page: request.query.page,
           limit: request.query.limit,
-        }),
+        }, request.user!.id),
       ),
   );
 
@@ -274,7 +274,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       },
     },
     async (request, reply) => {
-      const download = await services.patients.downloadDocument(request.params.id, request.params.documentId);
+      const download = await services.patients.downloadDocument(request.params.id, request.params.documentId, request.user!.id);
       return reply
         .header('content-type', download.contentType)
         .header('content-disposition', `attachment; filename="${safeDownloadFileName(download.document.file_name)}"`)

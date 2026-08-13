@@ -1,6 +1,10 @@
 import { Types, type SortOrder } from 'mongoose';
 import { OpdVisitModel, type OpdVisitFields } from './opd-visit.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { UserModel } from '../users/user.model.js';
 import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
 
 type OpdVisitLean = OpdVisitFields & { _id: Types.ObjectId };
@@ -67,11 +71,33 @@ const sortColumnMap = {
 const terminalStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
 export class OpdVisitRepository {
-  async list(query: OpdVisitListQuery) {
+  async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null,
+    }));
+    if (requestedBranchId) {
+      const branchExists = Boolean(await BranchModel.exists({ _id: requestedBranchId, status: 'ACTIVE', deletedAt: null }));
+      if (!branchExists) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      const assigned = (user.branchIds ?? []).some((id) => String(id) === requestedBranchId);
+      if (!isSuperAdmin && !assigned) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+      return [requestedBranchId];
+    }
+    if (isSuperAdmin) return undefined;
+    const activeBranches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null,
+    }).select('_id').lean();
+    return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async list(query: OpdVisitListQuery, branchIds?: string[]) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
     const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.branchId = { $in: branchIds.map(requiredObjectId) };
 
     if (query.status) filter.status = query.status;
     if (query.doctor_id) filter.doctorId = requiredObjectId(query.doctor_id);
@@ -118,8 +144,11 @@ export class OpdVisitRepository {
     };
   }
 
-  async getById(id: string): Promise<OpdVisit | undefined> {
-    const visit = await OpdVisitModel.findOne({ _id: id, deletedAt: null }).lean<OpdVisitLean>();
+  async getById(id: string, branchIds?: string[]): Promise<OpdVisit | undefined> {
+    const visit = await OpdVisitModel.findOne({
+      _id: id, deletedAt: null,
+      ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}),
+    }).lean<OpdVisitLean>();
     return visit ? toVisit(visit) : undefined;
   }
 
@@ -165,9 +194,9 @@ export class OpdVisitRepository {
     return toVisit(created.toObject<OpdVisitLean>());
   }
 
-  async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string): Promise<OpdVisit | undefined> {
+  async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string, branchIds?: string[]): Promise<OpdVisit | undefined> {
     const visit = await OpdVisitModel.findOneAndUpdate(
-      { _id: id, deletedAt: null },
+      { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}) },
       {
         $set: {
           status: data.status,

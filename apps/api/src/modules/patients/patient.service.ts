@@ -30,12 +30,14 @@ export class PatientService {
     private readonly documentStorage: PatientDocumentStorageService,
   ) {}
 
-  async list(query: PatientListQuery) {
-    return this.repository.list(query);
+  async list(query: PatientListQuery, userId?: string) {
+    const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
+    return this.repository.list(query, scope);
   }
 
-  async getById(id: string) {
-    const patient = await this.repository.getById(id);
+  async getById(id: string, userId?: string) {
+    const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
+    const patient = await this.repository.getById(id, scope);
     if (!patient) {
       throw new AppError('Patient not found', 404, 'NOT_FOUND');
     }
@@ -47,7 +49,13 @@ export class PatientService {
       throw new AppError('Date of birth is invalid', 400, 'VALIDATION_ERROR');
     }
 
-    const duplicates = await this.repository.findDuplicateCandidates(data);
+    const scope = await this.repository.resolveBranchScope(userId, data.registration_branch_id ?? undefined);
+    const registrationBranchId = data.registration_branch_id ?? (scope?.length === 1 ? scope[0] : undefined);
+    if (!registrationBranchId) {
+      throw new AppError('Registration branch is required', 400, 'BRANCH_REQUIRED');
+    }
+    const scopedData = { ...data, registration_branch_id: registrationBranchId };
+    const duplicates = await this.repository.findDuplicateCandidates(scopedData, scope);
     if (duplicates.length > 0) {
       throw new AppError('Potential duplicate patient found', 409, 'DUPLICATE_PATIENT', {
         duplicates,
@@ -55,7 +63,7 @@ export class PatientService {
     }
 
     const sequence = await this.repository.nextPatientSequence();
-    const patient = await this.repository.create(createPatientNumber(sequence), data, userId);
+    const patient = await this.repository.create(createPatientNumber(sequence), scopedData, userId);
 
     await this.repository.addTimelineEvent(
       patient.id,
@@ -71,13 +79,16 @@ export class PatientService {
   }
 
   async update(id: string, data: UpdatePatientDTO, userId: string) {
-    await this.getById(id);
+    const scope = await this.repository.resolveBranchScope(userId, data.registration_branch_id ?? undefined);
+    await this.repository.getById(id, scope).then((patient) => {
+      if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    });
 
     if (data.date_of_birth && !isValidDate(data.date_of_birth)) {
       throw new AppError('Date of birth is invalid', 400, 'VALIDATION_ERROR');
     }
 
-    const patient = await this.repository.update(id, data, userId);
+    const patient = await this.repository.update(id, data, userId, scope);
     if (!patient) {
       throw new AppError('Patient not found', 404, 'NOT_FOUND');
     }
@@ -95,8 +106,8 @@ export class PatientService {
     return patient;
   }
 
-  async getHistory(id: string) {
-    const patient = await this.getById(id);
+  async getHistory(id: string, userId?: string) {
+    const patient = await this.getById(id, userId);
     const timeline = await this.repository.listTimeline(id, { page: 1, limit: 10 });
     const documents = await this.repository.listDocuments(id, { limit: 100 });
 
@@ -108,14 +119,14 @@ export class PatientService {
     };
   }
 
-  async getTimeline(id: string, query: PatientTimelineListQuery) {
-    await this.getById(id);
+  async getTimeline(id: string, query: PatientTimelineListQuery, userId?: string) {
+    await this.getById(id, userId);
     this.validateTimelineQuery(query);
     return this.repository.listTimeline(id, query);
   }
 
-  async listDocuments(id: string, query: PatientDocumentListQuery) {
-    await this.getById(id);
+  async listDocuments(id: string, query: PatientDocumentListQuery, userId?: string) {
+    await this.getById(id, userId);
     if (query.visit_id && !Types.ObjectId.isValid(query.visit_id)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
@@ -123,7 +134,7 @@ export class PatientService {
   }
 
   async createDocument(id: string, data: CreatePatientDocumentDTO, userId: string) {
-    await this.getById(id);
+    await this.getById(id, userId);
     const document = await this.repository.createDocument(id, data, userId);
     const isConsent = document.document_type === 'CONSENT';
 
@@ -141,7 +152,7 @@ export class PatientService {
   }
 
   async uploadDocument(id: string, data: UploadPatientDocumentDTO, userId: string) {
-    await this.getById(id);
+    await this.getById(id, userId);
     this.validateDocumentUpload(data);
 
     const { storageKey } = await this.documentStorage.uploadPatientDocument({
@@ -177,7 +188,7 @@ export class PatientService {
   }
 
   async replaceDocument(patientId: string, documentId: string, data: UploadPatientDocumentDTO, userId: string) {
-    await this.getById(patientId);
+    await this.getById(patientId, userId);
     this.validateDocumentUpload(data);
     const activeDocument = await this.getActiveDocument(patientId, documentId);
     const { storageKey } = await this.documentStorage.uploadPatientDocument({
@@ -218,8 +229,8 @@ export class PatientService {
     }
   }
 
-  async downloadDocument(patientId: string, documentId: string) {
-    await this.getById(patientId);
+  async downloadDocument(patientId: string, documentId: string, userId?: string) {
+    await this.getById(patientId, userId);
     const document = await this.getActiveDocument(patientId, documentId);
     const storedFile = await this.documentStorage.download(document.storage_key);
 
@@ -231,7 +242,7 @@ export class PatientService {
   }
 
   async deleteDocument(patientId: string, documentId: string, userId: string) {
-    await this.getById(patientId);
+    await this.getById(patientId, userId);
     const activeDocument = await this.getActiveDocument(patientId, documentId);
     await this.documentStorage.deleteIfExists(activeDocument.storage_key);
     const document = await this.repository.deleteDocument(patientId, documentId, userId);

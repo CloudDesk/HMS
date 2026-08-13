@@ -23,7 +23,7 @@ export const registerOpdVisitRoutes = async (app: FastifyInstance, services: Ser
         querystring: listOpdVisitsQuerySchema,
       },
     },
-    async (request) => ok(await services.opdVisits.list(request.query)),
+    async (request) => ok(await services.opdVisits.list(request.query, request.user!.id)),
   );
 
   app.get<{ Params: OpdVisitIdParams }>(
@@ -34,7 +34,7 @@ export const registerOpdVisitRoutes = async (app: FastifyInstance, services: Ser
         params: opdVisitIdParamsSchema,
       },
     },
-    async (request) => ok(await services.opdVisits.getById(request.params.id)),
+    async (request) => ok(await services.opdVisits.getById(request.params.id, request.user!.id)),
   );
 
   app.post<{ Body: CreateOpdVisitDTO }>(

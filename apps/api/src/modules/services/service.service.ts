@@ -103,9 +103,8 @@ export class ServiceCatalogueService {
             service.code,
             service.name,
             service.service_type,
-            department?.name ?? 'Unavailable',
+            service.department_name ?? '—',
             service.standard_price.toFixed(2),
-            `${service.duration_minutes} min`,
             service.status,
             service.created_at,
           ];
@@ -115,7 +114,7 @@ export class ServiceCatalogueService {
       }
     }
     return createCsvStream(
-      ['Service Code', 'Service Name', 'Service Type', 'Department', 'Price', 'Duration', 'Status', 'Created Date'],
+      ['Service Code', 'Service Name', 'Service Type', 'Department', 'Price', 'Status', 'Created Date'],
       rows(),
     );
   }

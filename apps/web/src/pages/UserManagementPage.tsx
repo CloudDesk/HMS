@@ -13,7 +13,9 @@ import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { rolesApi, type RoleResponse } from '../api/roles';
 import { authApi } from '../auth/auth-api';
+import { hasPermission } from '../auth/access-control';
 import type { AuthPasswordPolicy } from '../auth/auth-types';
+import { useAuth } from '../auth/useAuth';
 
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
@@ -406,7 +408,19 @@ function UsersByRole({ users }: { users: UiUser[] }) {
 }
 
 export function UserManagementPage() {
+  const { user: authenticatedUser } = useAuth();
   const { search: locationSearch } = useAppLocation();
+  const isSuperAdmin = Boolean(authenticatedUser?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const can = (action: string) => isSuperAdmin || hasPermission(
+    authenticatedUser?.permissions ?? [],
+    { module: 'Administration', screen: 'Users', action },
+  );
+  const canCreate = can('Create');
+  const canEdit = can('Edit');
+  const canDelete = can('Delete');
+  const canExport = can('Export');
+  const canChangePassword = can('ChangePassword');
+  const canResetPassword = can('ResetPassword');
   const [users, setUsers] = useState<UiUser[]>([]);
   const [roleOptions, setRoleOptions] = useState<RoleResponse[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<DepartmentResponse[]>([]);
@@ -508,10 +522,10 @@ export function UserManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
+    if (canCreate && new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
       openModal('create');
     }
-  }, [locationSearch]);
+  }, [canCreate, locationSearch, modalMode]);
 
   const filteredUsers = useMemo(() => {
     const rows = users;
@@ -536,7 +550,7 @@ export function UserManagementPage() {
   const selectedCount = selectedIds.size;
   const pageIds = pageUsers.map((user) => user.apiId);
   const pageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
-  const canManage = !forbidden && !loading;
+  const canSelectRows = !forbidden && !loading && (canEdit || canDelete);
 
   const handleSort = (column: SortColumn) => {
     setSortColumn((currentColumn) => {
@@ -951,12 +965,12 @@ export function UserManagementPage() {
                     value={query}
                   />
                 </div>
-                {canManage ? (
+                {canCreate && !forbidden ? (
                   <button className="um-add-btn" onClick={() => openModal('create')} type="button">
                     <i className="ph ph-user-plus" aria-hidden="true" /> Add New User
                   </button>
                 ) : null}
-                <button className="btn-secondary admin-table-action" disabled={!canManage || submitting} onClick={() => void exportUsers()} type="button">
+                <button className="btn-secondary admin-table-action" disabled={!canExport || forbidden || submitting} onClick={() => void exportUsers()} type="button">
                   <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
                 </button>
                 <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadUsers()} type="button">
@@ -1030,27 +1044,27 @@ export function UserManagementPage() {
 
             <div className={`bulk-bar${selectedCount ? ' visible' : ''}`}>
               <span>{selectedCount} selected</span>
-              {canManage ? (
+              {canEdit || canDelete ? (
                 <div className="bulk-actions">
-                  <button
+                  {canEdit ? <button
                     className="bulk-btn green"
                     disabled={submitting}
                     onClick={() => void updateSelectedStatuses('Active')}
                     type="button"
                   >
                     <i className="ph ph-check-circle" aria-hidden="true" /> Activate
-                  </button>
-                  <button
+                  </button> : null}
+                  {canEdit ? <button
                     className="bulk-btn orange"
                     disabled={submitting}
                     onClick={() => void updateSelectedStatuses('Inactive')}
                     type="button"
                   >
                     <i className="ph ph-minus-circle" aria-hidden="true" /> Deactivate
-                  </button>
-                  <button className="bulk-btn red" disabled={submitting} onClick={() => void handleBulkDelete()} type="button">
+                  </button> : null}
+                  {canDelete ? <button className="bulk-btn red" disabled={submitting} onClick={() => void handleBulkDelete()} type="button">
                     <i className="ph ph-trash" aria-hidden="true" /> Delete
-                  </button>
+                  </button> : null}
                 </div>
               ) : null}
             </div>
@@ -1063,7 +1077,7 @@ export function UserManagementPage() {
                       <input
                         aria-label="Select all visible users"
                         checked={pageSelected}
-                        disabled={!canManage}
+                        disabled={!canSelectRows}
                         onChange={(event) => togglePageSelection(event.target.checked)}
                         type="checkbox"
                       />
@@ -1099,7 +1113,6 @@ export function UserManagementPage() {
                       sortColumn={sortColumn}
                       sortDirection={sortDirection}
                     />
-                    <th scope="col">Last Login</th>
                     <th scope="col">Actions</th>
                   </tr>
                 </thead>
@@ -1119,12 +1132,12 @@ export function UserManagementPage() {
                     </tr>
                   ) : pageUsers.length ? (
                     pageUsers.map((user) => (
-                      <tr className={selectedIds.has(user.apiId) ? 'selected' : undefined} key={user.apiId}>
-                        <td>
+                      <tr className={selectedIds.has(user.apiId) ? 'selected' : undefined} key={user.apiId} onClick={() => openModal('view', user)} style={{ cursor: 'pointer' }}>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <input
                             aria-label={`Select ${user.fullName}`}
                             checked={selectedIds.has(user.apiId)}
-                            disabled={!canManage}
+                            disabled={!canSelectRows}
                             onChange={(event) => toggleUserSelection(user.apiId, event.target.checked)}
                             type="checkbox"
                           />
@@ -1149,36 +1162,19 @@ export function UserManagementPage() {
                         <td>
                           <span className={`status-badge ${statusClass[user.status]}`}>{user.status}</span>
                         </td>
-                        <td className="muted-cell">{user.lastLogin}</td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div className="action-icons">
-                            <button
-                              className="action-icon-btn"
-                              onClick={() => openModal('view', user)}
-                              title="View"
-                              type="button"
-                            >
-                              <i className="ph ph-eye" aria-hidden="true" />
-                            </button>
-                            {canManage ? (
+                            {canEdit || canDelete || canChangePassword || canResetPassword ? (
                               <>
-                                 <button
+                                 {canEdit ? <button
                                    className="action-icon-btn"
                                    onClick={() => openModal('edit', user)}
                                   title="Edit"
                                   type="button"
                                 >
                                    <i className="ph ph-pencil" aria-hidden="true" />
-                                 </button>
-                                 <button
-                                   className="action-icon-btn"
-                                   onClick={() => openModal('assign-role', user)}
-                                   title="Assign Role"
-                                   type="button"
-                                 >
-                                   <i className="ph ph-shield-check" aria-hidden="true" />
-                                 </button>
-                                <button
+                                 </button> : null}
+                                {canEdit ? <button
                                   className="action-icon-btn success"
                                   disabled={submitting}
                                   onClick={() =>
@@ -1191,8 +1187,8 @@ export function UserManagementPage() {
                                   type="button"
                                 >
                                   <i className={`ph ${user.status === 'Active' ? 'ph-user-minus' : 'ph-user-check'}`} />
-                                </button>
-                                <button
+                                </button> : null}
+                                {canEdit ? <button
                                   className="action-icon-btn"
                                   disabled={submitting}
                                   onClick={() => void updateUserStatus(user, user.status === 'Locked' ? 'Active' : 'Locked')}
@@ -1200,31 +1196,23 @@ export function UserManagementPage() {
                                   type="button"
                                 >
                                   <i className={`ph ${user.status === 'Locked' ? 'ph-lock-open' : 'ph-lock'}`} />
-                                </button>
-                                <button
+                                </button> : null}
+                                {canChangePassword ? <button
                                   className="action-icon-btn"
                                   onClick={() => openModal('change-password', user)}
                                   title="Change Password"
                                   type="button"
                                 >
                                   <i className="ph ph-keyhole" aria-hidden="true" />
-                                </button>
-                                <button
-                                  className="action-icon-btn"
-                                  onClick={() => openModal('reset-password', user)}
-                                  title="Reset Password"
-                                  type="button"
-                                >
-                                  <i className="ph ph-key" aria-hidden="true" />
-                                </button>
-                                <button
+                                </button> : null}
+                                {canDelete ? <button
                                   className="action-icon-btn danger"
                                   onClick={() => setDeleteTarget(user)}
                                   title="Delete"
                                   type="button"
                                 >
                                   <i className="ph ph-trash" aria-hidden="true" />
-                                </button>
+                                </button> : null}
                               </>
                             ) : null}
                           </div>

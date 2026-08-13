@@ -1,9 +1,10 @@
 import { sidebarModules, type SidebarModule } from '../data/ui-foundation';
 import type { AuthPermission, AuthRole } from './auth-types';
 
-type PermissionRequirement = {
+export type PermissionRequirement = {
   module: string;
   screen: string;
+  action?: string;
 };
 
 const routeRequirements: Record<string, PermissionRequirement[]> = {
@@ -17,6 +18,8 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/administration/services': [{ module: 'Administration', screen: 'Services' }],
   '/administration/medicines': [{ module: 'Administration', screen: 'Medicines' }],
   '/pharmacy/inventory': [{ module: 'Pharmacy', screen: 'Medicine Inventory' }],
+  '/pharmacy/queue': [{ module: 'Pharmacy', screen: 'Dispensing' }],
+  '/pharmacy/dispensing': [{ module: 'Pharmacy', screen: 'Dispensing' }],
   '/laboratory': [{ module: 'Laboratory', screen: 'Orders' }],
   '/laboratory/queue': [{ module: 'Laboratory', screen: 'Orders' }],
   '/laboratory/workspace': [{ module: 'Laboratory', screen: 'Orders' }],
@@ -32,8 +35,8 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/administration/branches': [{ module: 'Administration', screen: 'Branches' }],
   '/administration/settings': [{ module: 'Administration', screen: 'Settings' }],
   '/patients/search': [{ module: 'Patients', screen: 'Patient Records' }],
+  '/patients/register': [{ module: 'Patients', screen: 'Patient Records', action: 'Create' }],
   '/patients/profile': [{ module: 'Patients', screen: 'Patient Records' }],
-  '/patients/documents': [{ module: 'Patients', screen: 'Patient Documents' }],
   '/doctors': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/directory': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/profile': [{ module: 'Doctors', screen: 'Doctor Directory' }],
@@ -43,21 +46,24 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/appointments': [{ module: 'Appointments', screen: 'Appointment Records' }],
   '/appointments/book': [{ module: 'Appointments', screen: 'Appointment Booking' }],
   '/appointments/calendar': [{ module: 'Appointments', screen: 'Appointment Records' }],
+  '/appointments/queue': [{ module: 'Appointments', screen: 'Appointment Records' }],
   '/opd': [{ module: 'OPD', screen: 'OPD Visits' }],
-  '/opd/consultation': [{ module: 'OPD', screen: 'OPD Visits' }],
+  '/opd/queue': [{ module: 'OPD', screen: 'OPD Visits' }],
+  '/opd/visit': [{ module: 'OPD', screen: 'OPD Visits' }],
+  '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
 };
 
 const normalize = (value: string) => value.trim().toLowerCase();
 const isSuperAdministrator = (roles: AuthRole[]) => roles.some((role) => role.code === 'SUPER_ADMIN');
 
-const hasViewPermission = (
+export const hasPermission = (
   permissions: AuthPermission[],
   requirement: PermissionRequirement,
 ) => permissions.some(
   (permission) =>
     normalize(permission.module) === normalize(requirement.module) &&
     normalize(permission.screen) === normalize(requirement.screen) &&
-    normalize(permission.action) === 'view',
+    normalize(permission.action) === normalize(requirement.action ?? 'View'),
 );
 
 export const isPermissionControlledRoute = (pathname: string) => pathname in routeRequirements;
@@ -73,7 +79,7 @@ export const canAccessRoute = (
   const requirements = routeRequirements[pathname];
   if (!requirements) return false;
 
-  return requirements.every((requirement) => hasViewPermission(permissions, requirement));
+  return requirements.every((requirement) => hasPermission(permissions, requirement));
 };
 
 export const getAccessibleSidebarModules = (
@@ -85,7 +91,7 @@ export const getAccessibleSidebarModules = (
   return sidebarModules
     .map((module) => ({
       ...module,
-      links: module.links.filter((link) => canAccessRoute(link.href, permissions)),
+      links: module.links.filter((link) => canAccessRoute(link.href, permissions, roles)),
     }))
     .filter((module) => module.links.length > 0);
 };

@@ -3,37 +3,32 @@ import {
   patientsApi,
   type ApiPatientGender,
   type ApiPatientStatus,
-  type PatientListResponse,
   type PatientResponse,
 } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { formatDate, getPatientErrorMessage, patientFullName } from './patient-utils';
 import { patientInitials } from './opd-utils';
+import { formatDate, getPatientErrorMessage, patientFullName } from './patient-utils';
 
 type SortColumn = 'patient_number' | 'first_name' | 'last_name' | 'created_at';
 type SortDirection = 'asc' | 'desc';
 
 type ColumnVisibility = {
-  photo: boolean;
   gender: boolean;
   age: boolean;
   phone: boolean;
   lastVisit: boolean;
   registeredDate: boolean;
-  patientType: boolean;
   status: boolean;
 };
 
 const defaultColumns: ColumnVisibility = {
-  photo: true,
   gender: true,
   age: true,
   phone: true,
   lastVisit: true,
   registeredDate: true,
-  patientType: true,
   status: true,
 };
 
@@ -91,11 +86,88 @@ export function PatientSearchPage() {
   const [editFormError, setEditFormError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
 
   const showToast = (message: string) => {
     setToastMessage(message);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 3000);
+  };
+
+  const printPatientCard = (p: PatientResponse) => {
+    const fullName = patientFullName(p);
+    const initials = patientInitials(fullName);
+    const age = new Date().getFullYear() - new Date(p.date_of_birth).getFullYear();
+    const dob = formatDate(p.date_of_birth);
+    const registered = formatDate(p.created_at);
+    const statusColor = p.status === 'ACTIVE' ? '#16a34a' : p.status === 'DECEASED' ? '#6b7280' : '#dc2626';
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Patient Card — ${fullName}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .card { width: 85mm; height: 54mm; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+    .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 12px 16px; color: white; display: flex; align-items: center; justify-content: space-between; }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; }
+    .name-block { display: flex; flex-direction: column; gap: 2px; }
+    .name { font-size: 14px; font-weight: 800; line-height: 1.1; }
+    .mrn { font-size: 9px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; align-self: flex-start; }
+    .logo-mark { width: 24px; height: 24px; background: rgba(255,255,255,0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; }
+    .body-grid { padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; flex: 1; }
+    .info-item { display: flex; flex-direction: column; gap: 2px; }
+    .info-label { font-size: 7px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; }
+    .info-value { font-size: 10px; font-weight: 600; color: #0f172a; }
+    .status-val { color: ${statusColor}; }
+    .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 6px 16px; display: flex; justify-content: space-between; font-size: 7px; color: #64748b; font-weight: 500; }
+    @media print {
+      @page { size: 85mm 54mm; margin: 0; }
+      body { background: white; }
+      .card { box-shadow: none; border: none; border-radius: 0; width: 100vw; height: 100vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="header-left">
+        <div class="avatar">${initials}</div>
+        <div class="name-block">
+          <div class="name">${fullName}</div>
+          <div class="mrn">MRN-${p.patient_number}</div>
+        </div>
+      </div>
+      <div class="logo-mark">H</div>
+    </div>
+    <div class="body-grid">
+      <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-value">${dob}</span></div>
+      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs · ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
+      <div class="info-item"><span class="info-label">Phone</span><span class="info-value">${p.phone || 'Not recorded'}</span></div>
+      <div class="info-item"><span class="info-label">Status</span><span class="info-value status-val">${p.status}</span></div>
+      <div class="info-item"><span class="info-label">Registered</span><span class="info-value">${registered}</span></div>
+      <div class="info-item"><span class="info-label">Blood Group</span><span class="info-value">${p.blood_group || 'N/A'}</span></div>
+    </div>
+    <div class="footer">
+      <span>HMS Enterprise</span>
+      <span>Non-transferable</span>
+    </div>
+  </div>
+  <script>
+    window.onload = () => { window.print(); };
+  </script>
+</body>
+</html>`;
+
+    const printWin = window.open('', '_blank', 'width=480,height=700,top=100,left=100');
+    if (printWin) {
+      printWin.document.open();
+      printWin.document.write(html);
+      printWin.document.close();
+    }
   };
 
   const openEditModal = (patient: PatientResponse) => {
@@ -211,58 +283,6 @@ export function PatientSearchPage() {
 
   return (
     <div className="appointment-page full-height-layout" onClick={() => setActiveMenuId(null)}>
-      {/* Top Header */}
-      <section className="appointment-page-header">
-        <div className="appointment-page-title">
-          <h2>Search Patients</h2>
-          <p>Find, review and manage patient records</p>
-        </div>
-        <div className="appointment-page-actions" style={{ position: 'relative' }}>
-          <button
-            className="doc-btn primary"
-            onClick={() => navigate('/patients/register')}
-            type="button"
-          >
-            <i className="ph ph-plus" aria-hidden="true" />
-            Register Patient
-          </button>
-          <button className="doc-btn" onClick={exportCsv} type="button">
-            <i className="ph ph-download-simple" aria-hidden="true" />
-            Export
-          </button>
-
-          {/* Column Selector */}
-          <div style={{ position: 'relative' }}>
-            <button
-              className="doc-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowColumnSelector(!showColumnSelector);
-              }}
-              type="button"
-            >
-              <i className="ph ph-columns" aria-hidden="true" />
-              Column Selector
-            </button>
-
-            {showColumnSelector ? (
-              <div className="column-selector-dropdown" onClick={(e) => e.stopPropagation()}>
-                {Object.entries(columns).map(([col, val]) => (
-                  <label key={col}>
-                    <input
-                      checked={val}
-                      onChange={(e) => setColumns({ ...columns, [col]: e.target.checked })}
-                      type="checkbox"
-                    />
-                    <span>{col.charAt(0).toUpperCase() + col.slice(1).replace(/([A-Z])/g, ' $1')}</span>
-                  </label>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
       {/* Patient Search Form Card (Compact 5 Basic Filters + Advanced Toggle) */}
       <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
         <form
@@ -420,7 +440,7 @@ export function PatientSearchPage() {
         </form>
       </section>
 
-      {/* Patient Directory Table Card (Fixed Full Height down to bottom of page as in Image 5) */}
+      {/* Patient Directory Table Card */}
       <section className="doc-card patient-directory-full-card">
         <div className="doc-card-header" style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid #e2e8f0' }}>
           <div>
@@ -429,6 +449,48 @@ export function PatientSearchPage() {
               {meta.total} patients found
             </p>
           </div>
+          {/* Table toolbar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', position: 'relative' }}>
+            <button
+              className="doc-btn primary"
+              onClick={() => navigate('/patients/register')}
+              type="button"
+            >
+              <i className="ph ph-plus" aria-hidden="true" />
+              Register Patient
+            </button>
+            <button className="doc-btn" onClick={exportCsv} type="button">
+              <i className="ph ph-download-simple" aria-hidden="true" />
+              Export
+            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                className="doc-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowColumnSelector(!showColumnSelector);
+                }}
+                type="button"
+              >
+                <i className="ph ph-columns" aria-hidden="true" />
+                Columns
+              </button>
+              {showColumnSelector ? (
+                <div className="column-selector-dropdown" onClick={(e) => e.stopPropagation()}>
+                  {Object.entries(columns).map(([col, val]) => (
+                    <label key={col}>
+                      <input
+                        checked={val}
+                        onChange={(e) => setColumns({ ...columns, [col]: e.target.checked })}
+                        type="checkbox"
+                      />
+                      <span>{col.charAt(0).toUpperCase() + col.slice(1).replace(/([A-Z])/g, ' $1')}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         <div className="table-responsive">
@@ -436,14 +498,12 @@ export function PatientSearchPage() {
             <thead>
               <tr>
                 <th>MRN</th>
-                {columns.photo ? <th>PHOTO</th> : null}
                 <th>PATIENT NAME</th>
                 {columns.gender ? <th>GENDER</th> : null}
                 {columns.age ? <th>AGE</th> : null}
                 {columns.phone ? <th>PHONE</th> : null}
                 {columns.lastVisit ? <th>LAST VISIT</th> : null}
                 {columns.registeredDate ? <th>REGISTERED DATE</th> : null}
-                {columns.patientType ? <th>PATIENT TYPE</th> : null}
                 {columns.status ? <th>STATUS</th> : null}
                 <th className="align-right">ACTIONS</th>
               </tr>
@@ -470,19 +530,15 @@ export function PatientSearchPage() {
               ) : (
                 patients.map((patient) => {
                   const fullName = patientFullName(patient);
-                  const initials = patientInitials(fullName);
                   const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
 
                   return (
-                    <tr key={patient.id}>
+                    <tr 
+                      key={patient.id}
+                      onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td className="emp-id">{patient.patient_number}</td>
-                      {columns.photo ? (
-                        <td>
-                          <div className="opd-patient-avatar-box" style={{ width: '32px', height: '32px', fontSize: '0.85rem' }}>
-                            <span>{initials}</span>
-                          </div>
-                        </td>
-                      ) : null}
                       <td>
                         <div className="user-cell-info">
                           <strong style={{ color: '#0f172a' }}>{fullName}</strong>
@@ -496,11 +552,6 @@ export function PatientSearchPage() {
                       {columns.phone ? <td>{patient.phone || 'Not recorded'}</td> : null}
                       {columns.lastVisit ? <td>Not available</td> : null}
                       {columns.registeredDate ? <td>{formatDate(patient.created_at)}</td> : null}
-                      {columns.patientType ? (
-                        <td>
-                          <span className="doc-status draft">Not recorded</span>
-                        </td>
-                      ) : null}
                       {columns.status ? (
                         <td>
                           <span
@@ -512,62 +563,36 @@ export function PatientSearchPage() {
                           </span>
                         </td>
                       ) : null}
-                      <td className="align-right" style={{ position: 'relative' }}>
-                        <button
-                          className="doc-icon-action"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuId(activeMenuId === patient.id ? null : patient.id);
-                          }}
-                          type="button"
-                        >
-                          <i className="ph ph-dots-three-vertical" aria-hidden="true" />
-                        </button>
-
-                        {/* Context Menu */}
-                        {activeMenuId === patient.id ? (
-                          <div className="table-context-menu" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
-                              type="button"
-                            >
-                              <i className="ph ph-user" aria-hidden="true" /> View Patient
-                            </button>
-                            <button
-                              onClick={() => openEditModal(patient)}
-                              type="button"
-                            >
-                              <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
-                            </button>
-                            <button
-                              onClick={() => navigate(`/opd/visit?patient_id=${encodeURIComponent(patient.id)}`)}
-                              type="button"
-                            >
-                              <i className="ph ph-clipboard-text" aria-hidden="true" /> Register Visit
-                            </button>
-                            <button
-                              onClick={() => navigate(`/patients/emr?id=${encodeURIComponent(patient.id)}`)}
-                              type="button"
-                            >
-                              <i className="ph ph-clock-counter-clockwise" aria-hidden="true" /> Open EMR
-                            </button>
-                            <button
-                              onClick={() => navigate(`/patients/documents?id=${encodeURIComponent(patient.id)}`)}
-                              type="button"
-                            >
-                              <i className="ph ph-file-text" aria-hidden="true" /> View Documents
-                            </button>
-                            <button
-                              onClick={() => navigate(`/patients/consent?id=${encodeURIComponent(patient.id)}`)}
-                              type="button"
-                            >
-                              <i className="ph ph-signature" aria-hidden="true" /> Consent
-                            </button>
-                            <button onClick={() => window.print()} type="button">
-                              <i className="ph ph-printer" aria-hidden="true" /> Print Patient Card
-                            </button>
-                          </div>
-                        ) : null}
+                      <td className="align-right">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="doc-btn"
+                            onClick={() => openEditModal(patient)}
+                            type="button"
+                            title="Edit Patient"
+                            style={{ padding: '0.3rem 0.5rem' }}
+                          >
+                            <i className="ph ph-pencil-simple" aria-hidden="true" />
+                          </button>
+                          <button
+                            className="doc-btn"
+                            onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)}
+                            type="button"
+                            title="Book Appointment"
+                            style={{ padding: '0.3rem 0.5rem' }}
+                          >
+                            <i className="ph ph-calendar-plus" aria-hidden="true" />
+                          </button>
+                          <button 
+                            className="doc-btn" 
+                            onClick={() => setCardPatient(patient)} 
+                            type="button"
+                            title="View Patient Card"
+                            style={{ padding: '0.3rem 0.5rem' }}
+                          >
+                            <i className="ph ph-identification-card" aria-hidden="true" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -710,6 +735,79 @@ export function PatientSearchPage() {
           </form>
         ) : null}
       </Modal>
+
+      {/* Print Patient Card — preview modal */}
+      {cardPatient ? (
+        <Modal onClose={() => setCardPatient(null)} open={Boolean(cardPatient)} size="default" title="Patient ID Card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
+            <div style={{ width: '340px', background: '#fff', borderRadius: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+              {/* Gradient header */}
+              <div style={{ background: 'linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)', padding: '20px 20px 24px', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '13px' }}>H</div>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>HMS Enterprise</div>
+                    <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '10px' }}>Hospital Management System</div>
+                  </div>
+                </div>
+                <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '20px', textTransform: 'uppercase' }}>Patient ID</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '3px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                    {patientInitials(patientFullName(cardPatient))}
+                  </div>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(cardPatient)}</div>
+                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>MRN-{cardPatient.patient_number}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Info grid */}
+              <div style={{ padding: '18px 20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                  {([
+                    ['Date of Birth', formatDate(cardPatient.date_of_birth)],
+                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs · ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
+                    ['Phone', cardPatient.phone || 'Not recorded'],
+                    ['Status', cardPatient.status],
+                    ['Registered', formatDate(cardPatient.created_at)],
+                    ['Blood Group', cardPatient.blood_group || 'Not recorded'],
+                  ] as [string, string][]).map(([label, value]) => (
+                    <div key={label}>
+                      <div style={{ fontSize: '9px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{label}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: label === 'Status' ? (cardPatient.status === 'ACTIVE' ? '#16a34a' : '#dc2626') : '#0f172a' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '14px 0' }} />
+                <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '28px' }}>
+                      {([24,18,28,14,22,28,16,24,12,28,20,16,28,18,24,28,14,20,28,16,24,12,28,18,24,16,28,22] as number[]).map((h, i) => (
+                        <div key={i} style={{ width: `${i % 3 === 0 ? 3 : 1.5}px`, height: `${h}px`, background: '#1e293b', borderRadius: '1px' }} />
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 500, marginTop: '4px' }}>{cardPatient.patient_number}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>Valid For</div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>All Departments</div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '10px 20px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '9px', color: '#94a3b8' }}>This card is non-transferable</span>
+                <span style={{ fontSize: '9px', color: '#94a3b8' }}>Generated: {new Date().toLocaleDateString()}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button className="doc-btn" onClick={() => setCardPatient(null)} type="button">Close</button>
+              <button className="doc-btn primary" onClick={() => printPatientCard(cardPatient)} type="button">
+                <i className="ph ph-printer" aria-hidden="true" /> Print Card
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       <Toast message={toastMessage} visible={toastVisible} />
     </div>

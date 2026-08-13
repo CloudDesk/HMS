@@ -10,7 +10,6 @@ export type Service = {
   description: string | null;
   department_id: string;
   standard_price: number;
-  duration_minutes: number;
   status: ServiceStatus;
   created_by: string | null;
   updated_by: string | null;
@@ -35,7 +34,6 @@ export type CreateServiceDTO = {
   service_type?: ServiceType;
   department_id: string;
   standard_price: number;
-  duration_minutes: number;
   category?: string | null;
   description?: string | null;
   status?: ServiceStatus;

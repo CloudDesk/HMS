@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { authenticate } from '../../middleware/authenticate.js';
 import { requirePermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
@@ -47,18 +48,18 @@ export const registerDoctorRoutes = async (app: FastifyInstance, services: Servi
       preHandler: requirePermission(services, 'Doctors', 'Doctor Directory', 'View'),
       schema: { querystring: listDoctorsQuerySchema },
     },
-    async (request) => ok(await services.doctors.list(request.query)),
+    async (request) => ok(await services.doctors.list(request.query, request.user!.id)),
   );
 
   app.get(
     '/api/doctors/me',
-    { preHandler: requirePermission(services, 'Doctors', 'Doctor Directory', 'View') },
+    { preHandler: authenticate(services) },
     async (request) => ok(await services.doctors.getCurrentDoctor(request.user!.id)),
   );
 
   app.get(
     '/api/doctors/user-options',
-    { preHandler: requirePermission(services, 'Doctors', 'Doctor Directory', 'View') },
+    { preHandler: requirePermission(services, 'Doctors', 'Doctor Directory', 'Provision Login') },
     async () => ok(await services.doctors.listUserOptions()),
   );
 
@@ -87,7 +88,7 @@ export const registerDoctorRoutes = async (app: FastifyInstance, services: Servi
       preHandler: requirePermission(services, 'Doctors', 'Doctor Directory', 'View'),
       schema: { params: doctorIdParamsSchema },
     },
-    async (request) => ok(await services.doctors.getById(request.params.id)),
+    async (request) => ok(await services.doctors.getById(request.params.id, request.user!.id)),
   );
 
   app.post<{ Body: CreateDoctorDTO }>(
@@ -199,7 +200,7 @@ export const registerDoctorRoutes = async (app: FastifyInstance, services: Servi
       preHandler: requirePermission(services, 'Doctors', 'Doctor Availability', 'View'),
       schema: { params: doctorIdParamsSchema, querystring: availableSlotsQuerySchema },
     },
-    async (request) => ok(await services.doctors.availableSlots(request.params.id, request.query)),
+    async (request) => ok(await services.doctors.availableSlots(request.params.id, request.query, request.user!.id)),
   );
 
   app.get<{ Params: DoctorIdParams; Querystring: DoctorLeaveListQuery }>(
@@ -208,7 +209,7 @@ export const registerDoctorRoutes = async (app: FastifyInstance, services: Servi
       preHandler: requirePermission(services, 'Doctors', 'Doctor Availability', 'View'),
       schema: { params: doctorIdParamsSchema, querystring: listDoctorLeavesQuerySchema },
     },
-    async (request) => ok(await services.doctors.listLeaves(request.params.id, request.query)),
+    async (request) => ok(await services.doctors.listLeaves(request.params.id, request.query, request.user!.id)),
   );
 
   app.post<{ Params: DoctorIdParams; Body: CreateDoctorLeaveDTO }>(
@@ -251,7 +252,7 @@ export const registerDoctorRoutes = async (app: FastifyInstance, services: Servi
       preHandler: requirePermission(services, 'Doctors', 'Doctor Availability', 'View'),
       schema: { params: doctorIdParamsSchema, querystring: listDoctorExceptionsQuerySchema },
     },
-    async (request) => ok(await services.doctors.listExceptions(request.params.id, request.query)),
+    async (request) => ok(await services.doctors.listExceptions(request.params.id, request.query, request.user!.id)),
   );
 
   app.post<{ Params: DoctorIdParams; Body: SaveDoctorAvailabilityExceptionDTO }>(

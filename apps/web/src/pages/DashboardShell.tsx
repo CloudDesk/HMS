@@ -6,6 +6,11 @@ import { patientsApi } from '../api/patients';
 import { useAuth } from '../auth/useAuth';
 import { navigate } from '../routing/navigation';
 import { formatDateTime } from './patient-utils';
+import { DoctorDashboardPage } from './DoctorDashboardPage';
+import { AppointmentDashboardPage } from './AppointmentDashboardPage';
+import { OpdDashboardPage } from './OpdDashboardPage';
+import { BillingDashboardPage } from './BillingDashboardPage';
+import { AdministrationDashboardPage } from './AdministrationDashboardPage';
 
 type DashboardData = {
   activeDoctors: number;
@@ -48,7 +53,7 @@ function StatCard({ icon, label, note, tone, value }: StatCardProps) {
   );
 }
 
-export function DashboardShell() {
+function ExecutiveOverviewTab() {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardData>(emptyDashboard);
   const [loading, setLoading] = useState(true);
@@ -106,7 +111,7 @@ export function DashboardShell() {
       <div className="stat-cards-container" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
         <StatCard icon="ph-users" label="Registered Patients" note="Persisted patient records" tone="blue" value={data.registeredPatients} />
         <StatCard icon="ph-stethoscope" label="Active Doctors" note="Available active records" tone="green" value={data.activeDoctors} />
-        <StatCard icon="ph-calendar-check" label="Today&apos;s Appointments" note="All appointment statuses" tone="orange" value={data.appointmentsToday} />
+        <StatCard icon="ph-calendar-check" label="Today's Appointments" note="All appointment statuses" tone="orange" value={data.appointmentsToday} />
         <StatCard icon="ph-first-aid" label="OPD Visits Today" note="Checked-in patient visits" tone="purple" value={data.opdVisitsToday} />
         <StatCard icon="ph-check-circle" label="Completed Visits" note="Completed today" tone="green" value={data.completedVisits} />
       </div>
@@ -149,6 +154,98 @@ export function DashboardShell() {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+type DashboardTab = 'overview' | 'doctors' | 'appointments' | 'opd' | 'billing' | 'admin';
+
+export function DashboardShell() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+
+  const isDoctor = user?.roles.some(
+    (r) => r.code === 'DOCTOR' || r.name.toLowerCase() === 'doctor',
+  ) ?? false;
+
+  const isReceptionist = user?.roles.some(
+    (r) =>
+      ['RECEPTIONIST', 'APPOINTMENT_STAFF', 'FRONT_DESK'].includes(r.code) ||
+      r.name.toLowerCase().includes('reception') ||
+      r.name.toLowerCase().includes('appointment'),
+  ) ?? false;
+
+  // Single-role users automatically land on their respective specialized dashboard
+  if (isDoctor) {
+    return <DoctorDashboardPage />;
+  }
+
+  if (isReceptionist) {
+    return <AppointmentDashboardPage />;
+  }
+
+  // Admin / Executive Multi-Tab Centralized Master Dashboard
+  return (
+    <div className="dashboard-master-wrapper">
+      <div className="dashboard-tab-bar">
+        <button
+          className={`dashboard-tab-btn${activeTab === 'overview' ? ' active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+          type="button"
+        >
+          <i className="ph ph-squares-four" aria-hidden="true" />
+          Overview
+        </button>
+        <button
+          className={`dashboard-tab-btn${activeTab === 'doctors' ? ' active' : ''}`}
+          onClick={() => setActiveTab('doctors')}
+          type="button"
+        >
+          <i className="ph ph-stethoscope" aria-hidden="true" />
+          Doctors
+        </button>
+        <button
+          className={`dashboard-tab-btn${activeTab === 'appointments' ? ' active' : ''}`}
+          onClick={() => setActiveTab('appointments')}
+          type="button"
+        >
+          <i className="ph ph-calendar-blank" aria-hidden="true" />
+          Appointments
+        </button>
+        <button
+          className={`dashboard-tab-btn${activeTab === 'opd' ? ' active' : ''}`}
+          onClick={() => setActiveTab('opd')}
+          type="button"
+        >
+          <i className="ph ph-first-aid" aria-hidden="true" />
+          OPD
+        </button>
+        <button
+          className={`dashboard-tab-btn${activeTab === 'billing' ? ' active' : ''}`}
+          onClick={() => setActiveTab('billing')}
+          type="button"
+        >
+          <i className="ph ph-receipt" aria-hidden="true" />
+          Billing
+        </button>
+        <button
+          className={`dashboard-tab-btn${activeTab === 'admin' ? ' active' : ''}`}
+          onClick={() => setActiveTab('admin')}
+          type="button"
+        >
+          <i className="ph ph-gear" aria-hidden="true" />
+          Administration
+        </button>
+      </div>
+
+      <div className="dashboard-tab-content">
+        {activeTab === 'overview' ? <ExecutiveOverviewTab /> : null}
+        {activeTab === 'doctors' ? <DoctorDashboardPage /> : null}
+        {activeTab === 'appointments' ? <AppointmentDashboardPage /> : null}
+        {activeTab === 'opd' ? <OpdDashboardPage /> : null}
+        {activeTab === 'billing' ? <BillingDashboardPage /> : null}
+        {activeTab === 'admin' ? <AdministrationDashboardPage /> : null}
       </div>
     </div>
   );

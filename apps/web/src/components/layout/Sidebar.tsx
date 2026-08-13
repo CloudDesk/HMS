@@ -29,6 +29,15 @@ export function Sidebar({
           <h2>HMS</h2>
           <p>Enterprise</p>
         </div>
+        <button
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="sidebar-toggle-btn"
+          onClick={onToggleCollapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          type="button"
+        >
+          <i className={`ph ${collapsed ? 'ph-caret-right' : 'ph-caret-left'}`} aria-hidden="true" />
+        </button>
       </div>
 
       <nav className="sidebar-nav" aria-label="HMS modules">
@@ -49,13 +58,6 @@ export function Sidebar({
           />
         ))}
       </nav>
-
-      <div className="sidebar-footer">
-        <button className="collapse-btn" onClick={onToggleCollapsed} type="button">
-          <i className={`ph ${collapsed ? 'ph-sidebar-simple' : 'ph-sidebar'}`} aria-hidden="true" />
-          <span>{collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}</span>
-        </button>
-      </div>
     </aside>
   );
 }

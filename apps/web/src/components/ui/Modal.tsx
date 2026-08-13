@@ -1,4 +1,5 @@
-import type { PropsWithChildren, ReactNode } from 'react';
+import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 type ModalProps = PropsWithChildren<{
   title: string;
@@ -10,7 +11,15 @@ type ModalProps = PropsWithChildren<{
 }>;
 
 export function Modal({ title, open, icon, footer, size = 'default', onClose, children }: ModalProps) {
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div className={`modal-overlay${open ? ' open' : ''}`} aria-hidden={!open}>
       <section
         aria-labelledby="foundation-modal-title"
@@ -30,6 +39,7 @@ export function Modal({ title, open, icon, footer, size = 'default', onClose, ch
         <div className="modal-body">{children}</div>
         {footer ? <footer className="modal-footer">{footer}</footer> : null}
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }

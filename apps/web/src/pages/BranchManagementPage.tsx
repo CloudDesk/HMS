@@ -14,6 +14,8 @@ import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
+import { hasPermission } from '../auth/access-control';
+import { useAuth } from '../auth/useAuth';
 
 type SortColumn = 'code' | 'name' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -72,6 +74,15 @@ const formatDateTime = (value: string | null) => {
 };
 
 export function BranchManagementPage() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Administration', screen: 'Branches', action,
+  });
+  const canCreate = can('Create');
+  const canEdit = can('Edit');
+  const canDelete = can('Delete');
+  const canExport = can('Export');
   const { search: locationSearch } = useAppLocation();
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [summary, setSummary] = useState<BranchSummary>({ total: 0, active: 0, inactive: 0, assignedUsers: 0, cities: 0 });
@@ -327,10 +338,10 @@ export function BranchManagementPage() {
                     value={search}
                   />
                 </div>
-                <button className="um-add-btn" disabled={forbidden} onClick={() => openModal('create')} type="button">
+                <button className="um-add-btn" disabled={forbidden || !canCreate} onClick={() => openModal('create')} type="button">
                   <i className="ph ph-plus" aria-hidden="true" /> Add Branch
                 </button>
-                <button className="btn-secondary admin-table-action" disabled={forbidden || submitting} onClick={() => void exportBranches()} type="button"><i className="ph ph-download-simple" /> Export CSV</button>
+                <button className="btn-secondary admin-table-action" disabled={forbidden || !canExport || submitting} onClick={() => void exportBranches()} type="button"><i className="ph ph-download-simple" /> Export CSV</button>
                 <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadBranches()} type="button"><i className="ph ph-arrows-clockwise" /> Refresh</button>
               </div>
 
@@ -413,18 +424,18 @@ export function BranchManagementPage() {
                             <button
                               aria-label={`Edit ${branch.name}`}
                               className="action-icon-btn"
-                              disabled={forbidden}
+                              disabled={forbidden || !canEdit}
                               onClick={() => openModal('edit', branch)}
                               title="Edit"
                               type="button"
                             >
                               <i className="ph ph-pencil-simple" aria-hidden="true" />
                             </button>
-                            <button aria-label={`${branch.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${branch.name}`} className="action-icon-btn success" disabled={forbidden || submitting} onClick={() => void updateStatus(branch)} title={branch.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${branch.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
+                            <button aria-label={`${branch.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} ${branch.name}`} className="action-icon-btn success" disabled={forbidden || !canEdit || submitting} onClick={() => void updateStatus(branch)} title={branch.status === 'ACTIVE' ? 'Deactivate' : 'Activate'} type="button"><i className={`ph ${branch.status === 'ACTIVE' ? 'ph-pause-circle' : 'ph-play-circle'}`} /></button>
                             <button
                               aria-label={`Delete ${branch.name}`}
                               className="action-icon-btn danger"
-                              disabled={forbidden}
+                              disabled={forbidden || !canDelete}
                               onClick={() => setDeleteTarget(branch)}
                               title="Delete"
                               type="button"

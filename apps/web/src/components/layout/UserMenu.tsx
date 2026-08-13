@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
 
 export function UserMenu() {
-  const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
 
   const displayName = user?.fullName ?? user?.username ?? 'User';
@@ -13,37 +11,24 @@ export function UserMenu() {
     .join('');
 
   return (
-    <div className="user-profile">
-      <button className="user-profile__button" onClick={() => setOpen((current) => !current)} type="button">
+    <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
         <span className="avatar-initials blue">{initials}</span>
         <span className="user-info">
           <strong>{displayName}</strong>
           <small>{user?.status ?? 'HMS User'}</small>
         </span>
-        <i className="ph ph-caret-down" aria-hidden="true" />
+      </div>
+      <button
+        className="doc-btn"
+        onClick={() => void logout()}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', fontSize: '0.82rem' }}
+        title="Sign out"
+        type="button"
+      >
+        <i className="ph ph-sign-out" aria-hidden="true" />
+        Sign out
       </button>
-      {open ? (
-        <div className="user-menu">
-          <button type="button">
-            <i className="ph ph-user" aria-hidden="true" />
-            Profile
-          </button>
-          <button type="button">
-            <i className="ph ph-gear-six" aria-hidden="true" />
-            Preferences
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              void logout();
-            }}
-          >
-            <i className="ph ph-sign-out" aria-hidden="true" />
-            Sign out
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

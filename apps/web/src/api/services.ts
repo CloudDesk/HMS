@@ -12,7 +12,6 @@ export type ServiceResponse = {
   description: string | null;
   department_id: string;
   standard_price: number;
-  duration_minutes: number;
   status: ApiServiceStatus;
   created_at: string;
   updated_at: string;
@@ -47,7 +46,6 @@ export type CreateServicePayload = {
   service_type?: ApiServiceType;
   department_id: string;
   standard_price: number;
-  duration_minutes: number;
   category?: string | null;
   description?: string | null;
   status?: ApiServiceStatus;
