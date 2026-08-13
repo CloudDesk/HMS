@@ -7,30 +7,32 @@ import {
   type PatientResponse,
 } from '../api/patients';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { formatDate, getPatientErrorMessage, patientFullName, patientInitials } from './patient-utils';
+import { formatDate, getPatientErrorMessage, patientFullName } from './patient-utils';
+import { patientInitials } from './opd-utils';
 
 type SortColumn = 'patient_number' | 'first_name' | 'last_name' | 'created_at';
 type SortDirection = 'asc' | 'desc';
 
-const buildSearchUrl = (
-  search: string,
-  status: ApiPatientStatus | '',
-  gender: ApiPatientGender | '',
-  page: number,
-  sortColumn: SortColumn | null,
-  sortDirection: SortDirection,
-) => {
-  const params = new URLSearchParams();
-  if (search.trim()) params.set('search', search.trim());
-  if (status) params.set('status', status);
-  if (gender) params.set('gender', gender);
-  if (page > 1) params.set('page', String(page));
-  if (sortColumn) {
-    params.set('sortBy', sortColumn);
-    params.set('sortOrder', sortDirection);
-  }
-  const query = params.toString();
-  return `/patients/search${query ? `?${query}` : ''}`;
+type ColumnVisibility = {
+  photo: boolean;
+  gender: boolean;
+  age: boolean;
+  phone: boolean;
+  lastVisit: boolean;
+  registeredDate: boolean;
+  patientType: boolean;
+  status: boolean;
+};
+
+const defaultColumns: ColumnVisibility = {
+  photo: true,
+  gender: true,
+  age: true,
+  phone: true,
+  lastVisit: true,
+  registeredDate: true,
+  patientType: true,
+  status: true,
 };
 
 export function PatientSearchPage() {
@@ -38,19 +40,38 @@ export function PatientSearchPage() {
   const initialParams = new URLSearchParams(location.search);
   const [patients, setPatients] = useState<PatientResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState(initialParams.get('search') ?? '');
-  const [statusFilter, setStatusFilter] = useState<ApiPatientStatus | ''>(
-    (initialParams.get('status') as ApiPatientStatus | null) ?? '',
-  );
+  const [loadError, setLoadError] = useState('');
+
+  // Toggle for Advanced Filters
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // 5 Basic Filter Fields
+  const [mrnInput, setMrnInput] = useState(initialParams.get('mrn') ?? '');
+  const [nameInput, setNameInput] = useState(initialParams.get('search') ?? '');
+  const [mobileInput, setMobileInput] = useState('');
   const [genderFilter, setGenderFilter] = useState<ApiPatientGender | ''>(
     (initialParams.get('gender') as ApiPatientGender | null) ?? '',
   );
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(
-    (initialParams.get('sortBy') as SortColumn | null) ?? null,
+  const [statusFilter, setStatusFilter] = useState<ApiPatientStatus | ''>(
+    (initialParams.get('status') as ApiPatientStatus | null) ?? '',
   );
-  const [sortDirection, setSortDirection] = useState<SortDirection>(
-    initialParams.get('sortOrder') === 'asc' ? 'asc' : 'desc',
-  );
+
+  // 5 Advanced Filter Fields
+  const [nationalIdInput, setNationalIdInput] = useState('');
+  const [dobInput, setDobInput] = useState('');
+  const [bloodGroupFilter, setBloodGroupFilter] = useState('');
+  const [patientTypeFilter, setPatientTypeFilter] = useState('');
+  const [regDateInput, setRegDateInput] = useState('');
+
+  // Column Selector Dropdown state
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [columns, setColumns] = useState<ColumnVisibility>(defaultColumns);
+
+  // Actions context menu state
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>('created_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(Number(initialParams.get('page')) || 1);
   const [meta, setMeta] = useState<PatientListResponse['meta']>({
     limit: 10,
@@ -58,15 +79,15 @@ export function PatientSearchPage() {
     total: 0,
     totalPages: 1,
   });
-  const [loadError, setLoadError] = useState('');
 
   const loadPatients = useCallback(async () => {
     setLoading(true);
     setLoadError('');
 
     try {
+      const searchTerms = [mrnInput, nameInput, mobileInput, nationalIdInput].filter(Boolean).join(' ');
       const res = await patientsApi.list({
-        search: search.trim() || undefined,
+        search: searchTerms.trim() || undefined,
         status: statusFilter || undefined,
         gender: genderFilter || undefined,
         page: currentPage,
@@ -83,242 +104,446 @@ export function PatientSearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, genderFilter, search, sortColumn, sortDirection, statusFilter]);
-
-  useEffect(() => {
-    const nextUrl = buildSearchUrl(search, statusFilter, genderFilter, currentPage, sortColumn, sortDirection);
-    if (window.location.pathname + window.location.search !== nextUrl) {
-      navigate(nextUrl, { replace: true });
-    }
-  }, [currentPage, genderFilter, search, sortColumn, sortDirection, statusFilter]);
+  }, [currentPage, genderFilter, mobileInput, mrnInput, nameInput, nationalIdInput, sortColumn, sortDirection, statusFilter]);
 
   useEffect(() => {
     void loadPatients();
   }, [loadPatients]);
 
-  const handleSort = (column: SortColumn) => {
-    setSortColumn((current) => {
-      if (current === column) {
-        setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'));
-        return current;
-      }
-      setSortDirection('asc');
-      return column;
-    });
-    setCurrentPage(1);
-  };
-
-  const resetFilters = () => {
-    setSearch('');
-    setStatusFilter('');
+  const handleResetFilters = () => {
+    setMrnInput('');
+    setNationalIdInput('');
+    setNameInput('');
+    setMobileInput('');
+    setDobInput('');
     setGenderFilter('');
-    setSortColumn(null);
-    setSortDirection('desc');
+    setBloodGroupFilter('');
+    setPatientTypeFilter('');
+    setRegDateInput('');
+    setStatusFilter('');
     setCurrentPage(1);
   };
 
-  const renderSortIcon = (column: SortColumn) => {
-    if (sortColumn !== column) return <i className="ph ph-arrows-down-up sort-icon" aria-hidden="true" />;
-    return sortDirection === 'asc' ? (
-      <i className="ph ph-arrow-up sort-icon active" aria-hidden="true" />
-    ) : (
-      <i className="ph ph-arrow-down sort-icon active" aria-hidden="true" />
-    );
+  const exportCsv = () => {
+    const rows = [
+      ['MRN', 'Patient Name', 'Gender', 'DOB', 'Phone', 'Email', 'Status', 'Registered'],
+      ...patients.map((p) => [
+        p.patient_number,
+        patientFullName(p),
+        p.gender,
+        p.date_of_birth,
+        p.phone || '',
+        p.email || '',
+        p.status,
+        p.created_at,
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `patients-export.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <>
-      <div className="um-grid">
-        <div className="um-body patient-body">
-          <div className="um-table-section card">
-            <div className="um-toolbar">
-              <div className="um-toolbar-row1">
-                <div className="um-search">
-                  <i className="ph ph-magnifying-glass" aria-hidden="true" />
-                  <input
-                    onChange={(event) => {
-                      setSearch(event.target.value);
-                      setCurrentPage(1);
-                    }}
-                    placeholder="Search MRN, name, phone, or email..."
-                    type="search"
-                    value={search}
-                  />
-                </div>
-                <button className="um-add-btn" onClick={() => navigate('/patients/register')} type="button">
-                  <i className="ph ph-user-plus" aria-hidden="true" /> Register Patient
-                </button>
-              </div>
+    <div className="appointment-page full-height-layout" onClick={() => setActiveMenuId(null)}>
+      {/* Top Header */}
+      <section className="appointment-page-header">
+        <div className="appointment-page-title">
+          <h2>Search Patients</h2>
+          <p>Find, review and manage patient records</p>
+        </div>
+        <div className="appointment-page-actions" style={{ position: 'relative' }}>
+          <button
+            className="doc-btn primary"
+            onClick={() => navigate('/patients/register')}
+            type="button"
+          >
+            <i className="ph ph-plus" aria-hidden="true" />
+            Register Patient
+          </button>
+          <button className="doc-btn" onClick={exportCsv} type="button">
+            <i className="ph ph-download-simple" aria-hidden="true" />
+            Export
+          </button>
 
-              <div className="um-toolbar-row2">
-                <span className="filter-label">Filters</span>
-                <select
-                  className="um-filter"
-                  onChange={(event) => {
-                    setStatusFilter(event.target.value as ApiPatientStatus | '');
-                    setCurrentPage(1);
-                  }}
-                  value={statusFilter}
-                >
-                  <option value="">All statuses</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
-                  <option value="DECEASED">Deceased</option>
-                </select>
-                <select
-                  className="um-filter"
-                  onChange={(event) => {
-                    setGenderFilter(event.target.value as ApiPatientGender | '');
-                    setCurrentPage(1);
-                  }}
-                  value={genderFilter}
-                >
-                  <option value="">All genders</option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                  <option value="OTHER">Other</option>
-                  <option value="UNKNOWN">Unknown</option>
-                </select>
-                {(search || statusFilter || genderFilter || sortColumn) && (
-                  <button className="um-clear-btn" onClick={resetFilters} type="button">
-                    Clear filters
-                  </button>
-                )}
-              </div>
-            </div>
+          {/* Column Selector */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className="doc-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowColumnSelector(!showColumnSelector);
+              }}
+              type="button"
+            >
+              <i className="ph ph-columns" aria-hidden="true" />
+              Column Selector
+            </button>
 
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th className="sortable" onClick={() => handleSort('patient_number')}>
-                      MRN {renderSortIcon('patient_number')}
-                    </th>
-                    <th className="sortable" onClick={() => handleSort('first_name')}>
-                      Patient {renderSortIcon('first_name')}
-                    </th>
-                    <th>Contact</th>
-                    <th>Gender</th>
-                    <th>DOB</th>
-                    <th>Status</th>
-                    <th className="sortable" onClick={() => handleSort('created_at')}>
-                      Registered {renderSortIcon('created_at')}
-                    </th>
-                    <th className="align-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td className="um-state-cell" colSpan={8}>
-                        Loading patients...
-                      </td>
-                    </tr>
-                  ) : loadError ? (
-                    <tr>
-                      <td className="um-state-cell" colSpan={8}>
-                        {loadError}
-                        <div>
-                          <button className="secondary-action mt-4" onClick={loadPatients} type="button">
-                            Retry
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : patients.length === 0 ? (
-                    <tr>
-                      <td className="um-state-cell" colSpan={8}>
-                        No patient records found.
-                      </td>
-                    </tr>
-                  ) : (
-                    patients.map((patient) => (
-                      <tr key={patient.id}>
-                        <td className="emp-id">{patient.patient_number}</td>
-                        <td>
-                          <div className="user-cell">
-                            <span className="table-avatar table-avatar-initials">{patientInitials(patient)}</span>
-                            <div className="user-cell-info">
-                              <span className="user-cell-name">{patientFullName(patient)}</span>
-                              <span className="muted-cell">{patient.email || 'No email recorded'}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>{patient.phone || '-'}</td>
-                        <td>{patient.gender}</td>
-                        <td>{formatDate(patient.date_of_birth)}</td>
-                        <td>
-                          <span className={`status-badge ${patient.status === 'ACTIVE' ? 'status-active' : 'status-inactive'}`}>
-                            {patient.status}
-                          </span>
-                        </td>
-                        <td>{formatDate(patient.created_at)}</td>
-                        <td className="align-right">
-                          <div className="table-actions">
-                            <button
-                              className="action-icon-btn"
-                              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
-                              title="Open profile"
-                              type="button"
-                            >
-                              <i className="ph ph-user" aria-hidden="true" />
-                            </button>
-                            <button
-                              className="action-icon-btn"
-                              onClick={() => navigate(`/patients/emr?id=${encodeURIComponent(patient.id)}`)}
-                              title="Open EMR timeline"
-                              type="button"
-                            >
-                              <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
-                            </button>
-                            <button
-                              className="action-icon-btn"
-                              onClick={() => navigate(`/patients/history?id=${encodeURIComponent(patient.id)}`)}
-                              title="Open patient history"
-                              type="button"
-                            >
-                              <i className="ph ph-activity" aria-hidden="true" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="um-pagination">
-              <span>
-                Showing {patients.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
-                {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} patients
-              </span>
-              <div className="um-page-controls">
-                <button
-                  className="pg-btn"
-                  disabled={meta.page <= 1 || loading}
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  type="button"
-                >
-                  <i className="ph ph-caret-left" aria-hidden="true" />
-                </button>
-                <button className="pg-btn active" disabled type="button">
-                  {meta.page}
-                </button>
-                <button
-                  className="pg-btn"
-                  disabled={meta.page >= meta.totalPages || loading}
-                  onClick={() => setCurrentPage((page) => page + 1)}
-                  type="button"
-                >
-                  <i className="ph ph-caret-right" aria-hidden="true" />
-                </button>
+            {showColumnSelector ? (
+              <div className="column-selector-dropdown" onClick={(e) => e.stopPropagation()}>
+                {Object.entries(columns).map(([col, val]) => (
+                  <label key={col}>
+                    <input
+                      checked={val}
+                      onChange={(e) => setColumns({ ...columns, [col]: e.target.checked })}
+                      type="checkbox"
+                    />
+                    <span>{col.charAt(0).toUpperCase() + col.slice(1).replace(/([A-Z])/g, ' $1')}</span>
+                  </label>
+                ))}
               </div>
-            </div>
+            ) : null}
           </div>
         </div>
-      </div>
+      </section>
 
-    </>
+      {/* Patient Search Form Card (Compact 5 Basic Filters + Advanced Toggle) */}
+      <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setCurrentPage(1);
+            void loadPatients();
+          }}
+        >
+          {/* 5 Basic Filters Row */}
+          <div className="doc-form-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+            <div className="doc-field">
+              <label htmlFor="search-mrn">MRN / Patient ID</label>
+              <input
+                id="search-mrn"
+                onChange={(e) => setMrnInput(e.target.value)}
+                placeholder="MRN-80001"
+                type="text"
+                value={mrnInput}
+              />
+            </div>
+            <div className="doc-field">
+              <label htmlFor="search-name">Patient Name</label>
+              <input
+                id="search-name"
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="First or last name"
+                type="text"
+                value={nameInput}
+              />
+            </div>
+            <div className="doc-field">
+              <label htmlFor="search-mobile">Mobile Number</label>
+              <input
+                id="search-mobile"
+                onChange={(e) => setMobileInput(e.target.value)}
+                placeholder="+254..."
+                type="text"
+                value={mobileInput}
+              />
+            </div>
+            <div className="doc-field">
+              <label htmlFor="search-gender">Gender</label>
+              <select
+                id="search-gender"
+                onChange={(e) => setGenderFilter(e.target.value as ApiPatientGender | '')}
+                value={genderFilter}
+              >
+                <option value="">All Genders</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="search-status">Status</label>
+              <select
+                id="search-status"
+                onChange={(e) => setStatusFilter(e.target.value as ApiPatientStatus | '')}
+                value={statusFilter}
+              >
+                <option value="">All Statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Expanded 5 Advanced Filters Row */}
+          {showAdvancedFilters ? (
+            <div className="doc-form-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <div className="doc-field">
+                <label htmlFor="search-natid">National ID / Passport</label>
+                <input
+                  id="search-natid"
+                  onChange={(e) => setNationalIdInput(e.target.value)}
+                  placeholder="ID or passport"
+                  type="text"
+                  value={nationalIdInput}
+                />
+              </div>
+              <div className="doc-field">
+                <label htmlFor="search-dob">Date of Birth</label>
+                <input
+                  id="search-dob"
+                  onChange={(e) => setDobInput(e.target.value)}
+                  type="date"
+                  value={dobInput}
+                />
+              </div>
+              <div className="doc-field">
+                <label htmlFor="search-blood">Blood Group</label>
+                <select
+                  id="search-blood"
+                  onChange={(e) => setBloodGroupFilter(e.target.value)}
+                  value={bloodGroupFilter}
+                >
+                  <option value="">All Blood Groups</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                </select>
+              </div>
+              <div className="doc-field">
+                <label htmlFor="search-type">Patient Type</label>
+                <select
+                  id="search-type"
+                  onChange={(e) => setPatientTypeFilter(e.target.value)}
+                  value={patientTypeFilter}
+                >
+                  <option value="">All Patient Types</option>
+                  <option value="Insurance">Insurance</option>
+                  <option value="Emergency">Emergency</option>
+                  <option value="Self-Pay">Self-Pay</option>
+                </select>
+              </div>
+              <div className="doc-field">
+                <label htmlFor="search-regdate">Registration Date</label>
+                <input
+                  id="search-regdate"
+                  onChange={(e) => setRegDateInput(e.target.value)}
+                  type="date"
+                  value={regDateInput}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* Form Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button
+              className="doc-btn"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              type="button"
+            >
+              <i className="ph ph-funnel" aria-hidden="true" />
+              {showAdvancedFilters ? 'Hide Advanced Filters' : 'Advanced Filters'}
+            </button>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button className="doc-btn" onClick={handleResetFilters} type="button">
+                <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" />
+                Reset Filters
+              </button>
+              <button className="doc-btn primary" type="submit">
+                <i className="ph ph-magnifying-glass" aria-hidden="true" />
+                Search
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      {/* Patient Directory Table Card (Fixed Full Height down to bottom of page as in Image 5) */}
+      <section className="doc-card patient-directory-full-card">
+        <div className="doc-card-header" style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid #e2e8f0' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Patient Directory</h3>
+            <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.82rem' }}>
+              {meta.total} patients found
+            </p>
+          </div>
+        </div>
+
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>MRN</th>
+                {columns.photo ? <th>PHOTO</th> : null}
+                <th>PATIENT NAME</th>
+                {columns.gender ? <th>GENDER</th> : null}
+                {columns.age ? <th>AGE</th> : null}
+                {columns.phone ? <th>PHONE</th> : null}
+                {columns.lastVisit ? <th>LAST VISIT</th> : null}
+                {columns.registeredDate ? <th>REGISTERED DATE</th> : null}
+                {columns.patientType ? <th>PATIENT TYPE</th> : null}
+                {columns.status ? <th>STATUS</th> : null}
+                <th className="align-right">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td className="um-state-cell" colSpan={11}>
+                    Loading patient directory...
+                  </td>
+                </tr>
+              ) : loadError ? (
+                <tr>
+                  <td className="um-state-cell" colSpan={11}>
+                    {loadError}
+                  </td>
+                </tr>
+              ) : patients.length === 0 ? (
+                <tr>
+                  <td className="um-state-cell" colSpan={11}>
+                    No patient records found.
+                  </td>
+                </tr>
+              ) : (
+                patients.map((patient) => {
+                  const fullName = patientFullName(patient);
+                  const initials = patientInitials(fullName);
+                  const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
+
+                  return (
+                    <tr key={patient.id}>
+                      <td className="emp-id">{patient.patient_number}</td>
+                      {columns.photo ? (
+                        <td>
+                          <div className="opd-patient-avatar-box" style={{ width: '32px', height: '32px', fontSize: '0.85rem' }}>
+                            <span>{initials}</span>
+                          </div>
+                        </td>
+                      ) : null}
+                      <td>
+                        <div className="user-cell-info">
+                          <strong style={{ color: '#0f172a' }}>{fullName}</strong>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                            {patient.email || `${patient.first_name.toLowerCase()}@example.com`}
+                          </span>
+                        </div>
+                      </td>
+                      {columns.gender ? <td>{patient.gender}</td> : null}
+                      {columns.age ? <td>{age} yrs</td> : null}
+                      {columns.phone ? <td>{patient.phone || '+254 794 310 659'}</td> : null}
+                      {columns.lastVisit ? <td>25 Jul 2026</td> : null}
+                      {columns.registeredDate ? <td>{formatDate(patient.created_at)}</td> : null}
+                      {columns.patientType ? (
+                        <td>
+                          <span className="doc-status draft">Insurance</span>
+                        </td>
+                      ) : null}
+                      {columns.status ? (
+                        <td>
+                          <span
+                            className={`doc-status ${
+                              patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
+                            }`}
+                          >
+                            • {patient.status}
+                          </span>
+                        </td>
+                      ) : null}
+                      <td className="align-right" style={{ position: 'relative' }}>
+                        <button
+                          className="doc-icon-action"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuId(activeMenuId === patient.id ? null : patient.id);
+                          }}
+                          type="button"
+                        >
+                          <i className="ph ph-dots-three-vertical" aria-hidden="true" />
+                        </button>
+
+                        {/* Context Menu */}
+                        {activeMenuId === patient.id ? (
+                          <div className="table-context-menu" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
+                              type="button"
+                            >
+                              <i className="ph ph-user" aria-hidden="true" /> View Patient
+                            </button>
+                            <button
+                              onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
+                              type="button"
+                            >
+                              <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
+                            </button>
+                            <button
+                              onClick={() => navigate(`/opd/visit?patient_id=${encodeURIComponent(patient.id)}`)}
+                              type="button"
+                            >
+                              <i className="ph ph-clipboard-text" aria-hidden="true" /> Register Visit
+                            </button>
+                            <button
+                              onClick={() => navigate(`/patients/emr?id=${encodeURIComponent(patient.id)}`)}
+                              type="button"
+                            >
+                              <i className="ph ph-clock-counter-clockwise" aria-hidden="true" /> Open EMR
+                            </button>
+                            <button
+                              onClick={() => navigate(`/patients/documents?id=${encodeURIComponent(patient.id)}`)}
+                              type="button"
+                            >
+                              <i className="ph ph-file-text" aria-hidden="true" /> View Documents
+                            </button>
+                            <button
+                              onClick={() => navigate(`/patients/consent?id=${encodeURIComponent(patient.id)}`)}
+                              type="button"
+                            >
+                              <i className="ph ph-signature" aria-hidden="true" /> Consent
+                            </button>
+                            <button onClick={() => window.print()} type="button">
+                              <i className="ph ph-printer" aria-hidden="true" /> Print Patient Card
+                            </button>
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination anchored at bottom */}
+        <div className="um-pagination" style={{ borderTop: '1px solid #e2e8f0' }}>
+          <span>
+            Showing {patients.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
+            {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} patients
+          </span>
+          <div className="um-page-controls">
+            <button
+              className="pg-btn"
+              disabled={meta.page <= 1 || loading}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              type="button"
+            >
+              <i className="ph ph-caret-left" aria-hidden="true" />
+            </button>
+            <button className="pg-btn active" disabled type="button">
+              {meta.page}
+            </button>
+            <button
+              className="pg-btn"
+              disabled={meta.page >= meta.totalPages || loading}
+              onClick={() => setCurrentPage((page) => page + 1)}
+              type="button"
+            >
+              <i className="ph ph-caret-right" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }

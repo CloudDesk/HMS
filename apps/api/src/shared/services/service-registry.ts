@@ -17,6 +17,14 @@ import { DoctorRepository } from '../../modules/doctors/doctor.repository.js';
 import { DoctorService } from '../../modules/doctors/doctor.service.js';
 import { OpdConsultationRepository } from '../../modules/opd/opd-consultation.repository.js';
 import { OpdConsultationService } from '../../modules/opd/opd-consultation.service.js';
+import { OpdClinicalOrderRepository } from '../../modules/opd/opd-clinical-order.repository.js';
+import { OpdClinicalOrderService } from '../../modules/opd/opd-clinical-order.service.js';
+import { OpdPrescriptionRepository } from '../../modules/opd/opd-prescription.repository.js';
+import { OpdPrescriptionService } from '../../modules/opd/opd-prescription.service.js';
+import { OpdFollowUpRepository } from '../../modules/opd/opd-follow-up.repository.js';
+import { OpdFollowUpService } from '../../modules/opd/opd-follow-up.service.js';
+import { OpdReferralRepository } from '../../modules/opd/opd-referral.repository.js';
+import { OpdReferralService } from '../../modules/opd/opd-referral.service.js';
 import { OpdVitalsRepository } from '../../modules/opd/opd-vitals.repository.js';
 import { OpdVitalsService } from '../../modules/opd/opd-vitals.service.js';
 import { OpdVisitRepository } from '../../modules/opd/opd-visit.repository.js';
@@ -45,12 +53,22 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const opdVisitRepository = new OpdVisitRepository();
   const opdVitalsRepository = new OpdVitalsRepository();
   const opdConsultationRepository = new OpdConsultationRepository();
+  const opdClinicalOrderRepository = new OpdClinicalOrderRepository();
+  const opdPrescriptionRepository = new OpdPrescriptionRepository();
+  const opdFollowUpRepository = new OpdFollowUpRepository();
+  const opdReferralRepository = new OpdReferralRepository();
   const patientRepository = new PatientRepository();
   const serviceRepository = new ServiceRepository();
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
   const userService = new UserService(userRepository, roleRepository);
+  const appointmentService = new AppointmentService(
+    appointmentRepository,
+    patientRepository,
+    doctorRepository,
+    opdVisitRepository,
+  );
 
   return {
     database: {
@@ -64,16 +82,24 @@ export const createServiceRegistry = (): ServiceRegistry => {
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
     patients: new PatientService(patientRepository, patientDocumentStorageService),
-    doctors: new DoctorService(
-      doctorRepository,
-      branchRepository,
-      departmentRepository,
-      userRepository,
-      userService,
-      appointmentRepository,
-    ),
-    appointments: new AppointmentService(appointmentRepository, patientRepository, doctorRepository),
-    opdVisits: new OpdVisitService(opdVisitRepository, appointmentRepository, patientRepository, doctorRepository),
+doctors: new DoctorService(
+  doctorRepository,
+  branchRepository,
+  departmentRepository,
+  userRepository,
+  userService,
+  appointmentRepository,
+),
+
+appointments: appointmentService,
+
+opdVisits: new OpdVisitService(
+  opdVisitRepository,
+  appointmentRepository,
+  patientRepository,
+  doctorRepository,
+  opdConsultationRepository,
+),
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
     opdConsultations: new OpdConsultationService(
       opdConsultationRepository,
@@ -81,6 +107,33 @@ export const createServiceRegistry = (): ServiceRegistry => {
       opdVitalsRepository,
       patientRepository,
       appointmentRepository,
+    ),
+    opdClinicalOrders: new OpdClinicalOrderService(
+      opdClinicalOrderRepository,
+      opdVisitRepository,
+      opdConsultationRepository,
+      patientRepository,
+    ),
+    opdPrescriptions: new OpdPrescriptionService(
+      opdPrescriptionRepository,
+      opdVisitRepository,
+      opdConsultationRepository,
+      patientRepository,
+    ),
+    opdFollowUps: new OpdFollowUpService(
+      opdFollowUpRepository,
+      opdVisitRepository,
+      opdConsultationRepository,
+      appointmentService,
+      patientRepository,
+    ),
+    opdReferrals: new OpdReferralService(
+      opdReferralRepository,
+      opdVisitRepository,
+      opdConsultationRepository,
+      doctorRepository,
+      appointmentService,
+      patientRepository,
     ),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),

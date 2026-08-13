@@ -72,7 +72,7 @@ const opdVisitSchema = new Schema<OpdVisitFields>(
 );
 
 opdVisitSchema.index({ visitNumber: 1 });
-opdVisitSchema.index({ appointmentId: 1 }, { sparse: true });
+opdVisitSchema.index({ appointmentId: 1 }, { sparse: true, unique: true });
 opdVisitSchema.index({ patientId: 1, visitDate: -1 });
 opdVisitSchema.index({ doctorId: 1, visitDate: 1, status: 1 });
 opdVisitSchema.index({ branchId: 1, departmentId: 1, visitDate: 1 });

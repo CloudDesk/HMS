@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { BlobServiceClient } from '@azure/storage-blob';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors/app-error.js';
 
@@ -9,14 +10,18 @@ const extensionByContentType: Record<string, string> = {
 };
 
 export class SettingsLogoStorage {
-  private getContainer() {
-    if (!env.azureStorage.connectionString) {
-      throw new AppError('Hospital logo storage is not configured', 503, 'LOGO_STORAGE_UNAVAILABLE');
+  private readonly rootDirectory = path.resolve(env.storage.localHospitalLogosPath);
+
+  private resolveStoragePath(storageKey: string) {
+    const resolvedPath = path.resolve(this.rootDirectory, ...storageKey.split('/'));
+    const isInsideRoot =
+      resolvedPath === this.rootDirectory || resolvedPath.startsWith(`${this.rootDirectory}${path.sep}`);
+
+    if (!isInsideRoot) {
+      throw new AppError('Hospital logo storage key is invalid', 400, 'INVALID_LOGO_STORAGE_KEY');
     }
 
-    return BlobServiceClient.fromConnectionString(env.azureStorage.connectionString).getContainerClient(
-      env.azureStorage.containerName,
-    );
+    return resolvedPath;
   }
 
   async upload(buffer: Buffer, contentType: string) {
@@ -25,27 +30,34 @@ export class SettingsLogoStorage {
       throw new AppError('Hospital logo must be a PNG or JPG image', 400, 'INVALID_LOGO_TYPE');
     }
 
-    const container = this.getContainer();
-    await container.createIfNotExists();
-    const blobName = `hospital-logos/${randomUUID()}.${extension}`;
-    const blob = container.getBlockBlobClient(blobName);
-    await blob.uploadData(buffer, {
-      blobHTTPHeaders: { blobContentType: contentType },
+    const storageKey = `${randomUUID()}.${extension}`;
+    const storagePath = this.resolveStoragePath(storageKey);
+
+    await mkdir(this.rootDirectory, { recursive: true });
+    await writeFile(storagePath, buffer);
+
+    return storageKey;
+  }
+
+  async download(storageKey: string) {
+    const storagePath = this.resolveStoragePath(storageKey);
+    return readFile(storagePath).catch((error: unknown) => {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new AppError('Hospital logo could not be read', 404, 'LOGO_NOT_FOUND');
+      }
+
+      throw error;
     });
-
-    return blobName;
   }
 
-  async download(blobName: string) {
-    const response = await this.getContainer().getBlobClient(blobName).download();
-    if (!response.readableStreamBody) {
-      throw new AppError('Hospital logo could not be read', 404, 'LOGO_NOT_FOUND');
-    }
+  async delete(storageKey: string) {
+    const storagePath = this.resolveStoragePath(storageKey);
+    await unlink(storagePath).catch((error: unknown) => {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return;
+      }
 
-    return response.readableStreamBody;
-  }
-
-  async delete(blobName: string) {
-    await this.getContainer().deleteBlob(blobName, { deleteSnapshots: 'include' });
+      throw error;
+    });
   }
 }

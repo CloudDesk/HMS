@@ -3,6 +3,7 @@ import { appointmentsApi, type ApiAppointmentPriority, type ApiAppointmentStatus
 import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { doctorsApi, type DoctorResponse } from '../api/doctors';
+import { opdApi, type OpdVisitResponse } from '../api/opd';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
@@ -68,6 +69,7 @@ export function AppointmentQueuePage() {
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
+  const [opdVisits, setOpdVisits] = useState<OpdVisitResponse[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [branches, setBranches] = useState<BranchResponse[]>([]);
@@ -81,6 +83,7 @@ export function AppointmentQueuePage() {
   const [queueDate, setQueueDate] = useState(initialParams.get('date') ?? todayInputValue());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [opdLoadError, setOpdLoadError] = useState('');
   const [updating, setUpdating] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completionNote, setCompletionNote] = useState('');
@@ -104,6 +107,8 @@ export function AppointmentQueuePage() {
           .filter((appointment) => waitingStatuses.has(appointment.status))
           .reduce((total, appointment, index) => total + waitMinutes(appointment, index), 0) / waitingCount,
       );
+  const visitForAppointment = (appointmentId: string) =>
+    opdVisits.find((visit) => visit.appointment_id === appointmentId) ?? null;
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -125,6 +130,7 @@ export function AppointmentQueuePage() {
   const loadAppointments = useCallback(async () => {
     setLoading(true);
     setLoadError('');
+    setOpdLoadError('');
 
     try {
       const response = await appointmentsApi.list({
@@ -139,8 +145,24 @@ export function AppointmentQueuePage() {
         sortOrder: 'asc',
       });
       setAppointments(response.data.filter((appointment) => !priorityFilter || appointment.priority === priorityFilter));
+
+      try {
+        const visitResponse = await opdApi.listVisits({
+          date_from: queueDate,
+          date_to: queueDate,
+          department_id: departmentFilter || undefined,
+          doctor_id: doctorFilter || undefined,
+          branch_id: branchFilter || undefined,
+          limit: 100,
+        });
+        setOpdVisits(visitResponse.data);
+      } catch (error) {
+        setOpdVisits([]);
+        setOpdLoadError(getAppointmentErrorMessage(error));
+      }
     } catch (error) {
       setAppointments([]);
+      setOpdVisits([]);
       setLoadError(getAppointmentErrorMessage(error));
     } finally {
       setLoading(false);
@@ -194,7 +216,25 @@ export function AppointmentQueuePage() {
       return;
     }
 
-    await updateStatus(nextAppointment, 'CHECKED_IN', 'Patient called from appointment queue.');
+    const linkedVisit = visitForAppointment(nextAppointment.id);
+    if (linkedVisit) {
+      await updateStatus(nextAppointment, 'CHECKED_IN', 'Patient called from appointment queue.');
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      await opdApi.createVisit({
+        appointment_id: nextAppointment.id,
+        notes: 'Patient checked in from appointment queue.',
+      });
+      await loadAppointments();
+      showToast(`Queue token ${nextAppointment.appointment_number} checked in to OPD.`);
+    } catch (error) {
+      showToast(getAppointmentErrorMessage(error));
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleRecall = () => {
@@ -221,7 +261,25 @@ export function AppointmentQueuePage() {
       return;
     }
 
-    await updateStatus(currentAppointment, 'NO_SHOW', 'Patient did not appear after queue call.');
+    const linkedVisit = visitForAppointment(currentAppointment.id);
+    if (!linkedVisit) {
+      await updateStatus(currentAppointment, 'NO_SHOW', 'Patient did not appear after queue call.');
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      await opdApi.updateVisitStatus(linkedVisit.id, {
+        notes: 'Patient did not appear after queue call.',
+        status: 'NO_SHOW',
+      });
+      await loadAppointments();
+      showToast(`Queue token ${currentAppointment.appointment_number} marked no show.`);
+    } catch (error) {
+      showToast(getAppointmentErrorMessage(error));
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleComplete = async () => {
@@ -242,8 +300,26 @@ export function AppointmentQueuePage() {
       return;
     }
 
-    setCompleteOpen(false);
-    await updateStatus(currentAppointment, 'COMPLETED', completionNote.trim());
+    const linkedVisit = visitForAppointment(currentAppointment.id);
+    if (!linkedVisit) {
+      setCompletionError('This appointment must be checked in to OPD before it can be completed.');
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      await opdApi.updateVisitStatus(linkedVisit.id, {
+        notes: completionNote.trim(),
+        status: 'COMPLETED',
+      });
+      setCompleteOpen(false);
+      await loadAppointments();
+      showToast(`Queue token ${currentAppointment.appointment_number} completed.`);
+    } catch (error) {
+      setCompletionError(getAppointmentErrorMessage(error));
+    } finally {
+      setUpdating(false);
+    }
   };
 
   return (
@@ -354,6 +430,11 @@ export function AppointmentQueuePage() {
         </section>
 
         {loadError ? <div className="form-error-banner">{loadError}</div> : null}
+        {opdLoadError ? (
+          <div className="form-error-banner">
+            OPD visit linkage is unavailable. Clinical queue actions are restricted: {opdLoadError}
+          </div>
+        ) : null}
 
         <section className="appointment-queue-layout">
           <div className="doc-card">

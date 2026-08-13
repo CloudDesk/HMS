@@ -110,7 +110,12 @@ export type PatientTimelineEventType =
   | 'OPD_VISIT_CREATED'
   | 'OPD_VISIT_STATUS_UPDATED'
   | 'VITALS_RECORDED'
-  | 'OPD_CONSULTATION_COMPLETED';
+  | 'OPD_CONSULTATION_COMPLETED'
+  | 'OPD_PRESCRIPTION_SUBMITTED'
+  | 'OPD_LAB_ORDER_SUBMITTED'
+  | 'OPD_IMAGING_ORDER_SUBMITTED'
+  | 'OPD_FOLLOW_UP_SCHEDULED'
+  | 'OPD_REFERRAL_SUBMITTED';
 
 export type PatientTimelineListQuery = {
   event_type?: PatientTimelineEventType;

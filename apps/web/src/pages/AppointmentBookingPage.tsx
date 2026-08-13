@@ -22,6 +22,7 @@ type SlotOption = {
 
 const visitTypeOptions = Object.keys(appointmentVisitTypeLabels) as ApiAppointmentVisitType[];
 const priorityOptions = Object.keys(appointmentPriorityLabels) as ApiAppointmentPriority[];
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const nullable = (value: string) => {
   const trimmed = value.trim();

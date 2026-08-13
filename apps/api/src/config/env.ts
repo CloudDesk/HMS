@@ -40,7 +40,7 @@ const parseCsv = (value: string | undefined, fallback: string[]) => {
 
 const parseDatabaseUrl = (value: string | undefined) => {
   if (!value) {
-    throw new Error('MONGODB_DATABASE_URL is required');
+    throw new Error('MONGODB_URI or MONGODB_DATABASE_URL is required');
   }
 
   return value;
@@ -59,7 +59,7 @@ export const env = {
     origins: parseCorsOrigins(process.env.CORS_ORIGIN),
   },
   database: {
-    url: parseDatabaseUrl(process.env.MONGODB_DATABASE_URL),
+    url: parseDatabaseUrl(process.env.MONGODB_URI ?? process.env.MONGODB_DATABASE_URL),
     dnsServers: parseDnsServers(process.env.MONGODB_DNS_SERVERS),
     poolSize: parseInteger(process.env.DATABASE_POOL_SIZE, 10),
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),
@@ -71,6 +71,7 @@ export const env = {
   storage: {
     provider: process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER ?? 'local',
     localPatientDocumentsPath: process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? './storage/patient-documents',
+    localHospitalLogosPath: process.env.LOCAL_HOSPITAL_LOGO_STORAGE_PATH ?? './storage/hospital-logos',
     gcpPatientDocumentsBucket: process.env.GCP_PATIENT_DOCUMENTS_BUCKET ?? '',
   },
   upload: {

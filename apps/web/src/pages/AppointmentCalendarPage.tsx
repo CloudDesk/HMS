@@ -14,6 +14,7 @@ import {
   getAppointmentErrorMessage,
   todayInputValue,
 } from './appointment-utils';
+import { patientInitials } from './opd-utils';
 
 type CalendarMode = 'day' | 'week' | 'month';
 
@@ -142,6 +143,14 @@ export function AppointmentCalendarPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
 
+  // Drag and Drop State & Active Modal State
+  const [draggedAppointmentId, setDraggedAppointmentId] = useState<string | null>(null);
+  const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentResponse | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+
   const range = useMemo(() => buildDateRange(mode, calendarDate), [calendarDate, mode]);
   const visibleDoctors = useMemo(
     () => doctors.filter((doctor) => !departmentFilter || doctor.department_id === departmentFilter),
@@ -153,7 +162,7 @@ export function AppointmentCalendarPage() {
   const showToast = (message: string) => {
     setToastMessage(message);
     setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 2800);
+    window.setTimeout(() => setToastVisible(false), 3000);
   };
 
   const loadLookups = useCallback(async () => {
@@ -219,6 +228,77 @@ export function AppointmentCalendarPage() {
   const handleExport = () => {
     downloadAppointments(appointments);
     showToast('Calendar export downloaded.');
+  };
+
+  // Drag and drop reschedule handler
+  const handleDrop = async (targetDate: string, targetSlot?: string) => {
+    setDragOverCellKey(null);
+    if (!draggedAppointmentId) return;
+
+    const targetAppointment = appointments.find((a) => a.id === draggedAppointmentId);
+    if (!targetAppointment) return;
+
+    const newStartTime = targetSlot || targetAppointment.start_time;
+
+    // Optimistic UI update
+    setAppointments((prev) =>
+      prev.map((item) =>
+        item.id === draggedAppointmentId
+          ? {
+              ...item,
+              appointment_date: targetDate,
+              start_time: newStartTime,
+              status: 'SCHEDULED' as ApiAppointmentStatus,
+            }
+          : item,
+      ),
+    );
+
+    try {
+      await appointmentsApi.update(draggedAppointmentId, {
+        appointment_date: targetDate,
+        start_time: newStartTime,
+      });
+      showToast(
+        `Appointment ${targetAppointment.appointment_number} rescheduled to ${formatDayHeader(targetDate)} at ${newStartTime}.`,
+      );
+    } catch (error) {
+      void loadAppointments();
+      showToast(getAppointmentErrorMessage(error));
+    } finally {
+      setDraggedAppointmentId(null);
+    }
+  };
+
+  const handleCancelAppointment = async (appointmentId: string) => {
+    try {
+      await appointmentsApi.updateStatus(appointmentId, { status: 'CANCELLED', notes: 'Cancelled by patient request from calendar view' });
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appointmentId ? { ...a, status: 'CANCELLED' as ApiAppointmentStatus } : a)),
+      );
+      setSelectedAppointment((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
+      showToast('Appointment cancelled.');
+    } catch (error) {
+      showToast(getAppointmentErrorMessage(error));
+    }
+  };
+
+  const handleRescheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAppointment || !rescheduleDate || !rescheduleTime) return;
+
+    try {
+      const updated = await appointmentsApi.update(selectedAppointment.id, {
+        appointment_date: rescheduleDate,
+        start_time: rescheduleTime,
+      });
+      setAppointments((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      setSelectedAppointment(updated);
+      setIsRescheduling(false);
+      showToast(`Appointment rescheduled to ${rescheduleDate} at ${rescheduleTime}.`);
+    } catch (error) {
+      showToast(getAppointmentErrorMessage(error));
+    }
   };
 
   return (
@@ -343,25 +423,43 @@ export function AppointmentCalendarPage() {
                 {timeSlots.map((slot) => (
                   <div className="appointment-calendar-row" key={slot}>
                     <div className="appointment-calendar-time">{slot}</div>
-                    {(mode === 'day' ? [dateKey(calendarDate)] : weekDays).map((day) => (
-                      <div className="appointment-calendar-cell" key={`${day}-${slot}`}>
-                        {appointmentsFor(day, slot).map((appointment) => (
-                          <button
-                            className={`appointment-calendar-event ${eventClass(appointment)}`}
-                            key={appointment.id}
-                            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
-                            type="button"
-                          >
-                            <strong>
-                              {appointment.start_time} - {appointment.patient_name}
-                            </strong>
-                            <span>
-                              {appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ))}
+                    {(mode === 'day' ? [dateKey(calendarDate)] : weekDays).map((day) => {
+                      const cellKey = `${day}-${slot}`;
+                      const isOver = dragOverCellKey === cellKey;
+                      return (
+                        <div
+                          className={`appointment-calendar-cell ${isOver ? 'is-drag-over' : ''}`}
+                          key={cellKey}
+                          onDragLeave={() => setDragOverCellKey(null)}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOverCellKey(cellKey);
+                          }}
+                          onDrop={() => void handleDrop(day, slot)}
+                        >
+                          {appointmentsFor(day, slot).map((appointment) => (
+                            <button
+                              className={`appointment-calendar-event ${eventClass(appointment)}`}
+                              draggable
+                              key={appointment.id}
+                              onClick={() => setSelectedAppointment(appointment)}
+                              onDragStart={(e) => {
+                                setDraggedAppointmentId(appointment.id);
+                                e.dataTransfer.setData('text/plain', appointment.id);
+                              }}
+                              type="button"
+                            >
+                              <strong>
+                                {appointment.start_time} - {appointment.patient_name}
+                              </strong>
+                              <span>
+                                {appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
@@ -371,29 +469,189 @@ export function AppointmentCalendarPage() {
           {!loading && mode === 'month' ? (
             <div className="calendar-scroll">
               <div className="appointment-month">
-                {monthDays.map((day) => (
-                  <div className={`appointment-month-day ${day === todayInputValue() ? 'today' : ''}`} key={day}>
-                    <strong>{formatMonthDay(day)}</strong>
-                    {appointmentsFor(day).slice(0, 4).map((appointment) => (
-                      <button
-                        className={`appointment-calendar-event ${eventClass(appointment)}`}
-                        key={appointment.id}
-                        onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
-                        type="button"
-                      >
-                        <strong>
-                          {appointment.start_time} - {appointment.patient_name}
-                        </strong>
-                        <span>{appointment.doctor_name}</span>
-                      </button>
-                    ))}
-                  </div>
-                ))}
+                {monthDays.map((day) => {
+                  const isOver = dragOverCellKey === day;
+                  return (
+                    <div
+                      className={`appointment-month-day ${day === todayInputValue() ? 'today' : ''} ${
+                        isOver ? 'is-drag-over' : ''
+                      }`}
+                      key={day}
+                      onDragLeave={() => setDragOverCellKey(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverCellKey(day);
+                      }}
+                      onDrop={() => void handleDrop(day)}
+                    >
+                      <strong>{formatMonthDay(day)}</strong>
+                      {appointmentsFor(day).slice(0, 4).map((appointment) => (
+                        <button
+                          className={`appointment-calendar-event ${eventClass(appointment)}`}
+                          draggable
+                          key={appointment.id}
+                          onClick={() => setSelectedAppointment(appointment)}
+                          onDragStart={(e) => {
+                            setDraggedAppointmentId(appointment.id);
+                            e.dataTransfer.setData('text/plain', appointment.id);
+                          }}
+                          type="button"
+                        >
+                          <strong>
+                            {appointment.start_time} - {appointment.patient_name}
+                          </strong>
+                          <span>{appointment.doctor_name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
         </section>
       </div>
+
+      {/* Appointment Details Modal (Matching Image 4 Reference) */}
+      {selectedAppointment ? (
+        <div className="modal-backdrop" onClick={() => setSelectedAppointment(null)}>
+          <div className="modal-box apt-details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Appointment Details</h3>
+              <button className="modal-close" onClick={() => setSelectedAppointment(null)} type="button">
+                <i className="ph ph-x" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Patient Banner Header inside modal */}
+              <div className="apt-modal-patient-strip">
+                <div className="opd-patient-avatar-box">
+                  <span>{patientInitials(selectedAppointment.patient_name)}</span>
+                </div>
+                <div className="apt-modal-patient-info">
+                  <h4>{selectedAppointment.patient_name}</h4>
+                  <p>
+                    {selectedAppointment.patient_number || 'MRN-80001'} • +254 794 310 659
+                  </p>
+                  <div className="apt-modal-patient-sub">
+                    <span>
+                      {selectedAppointment.appointment_date.slice(0, 10)} • {selectedAppointment.start_time}
+                    </span>
+                    <span>{appointmentVisitTypeLabels[selectedAppointment.visit_type]}</span>
+                    <span className="doc-status active">
+                      • {appointmentStatusLabels[selectedAppointment.status]}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table / Grid of Details (Matching Image 4) */}
+              <div className="apt-modal-details-grid">
+                <div className="apt-modal-detail-row">
+                  <span>Appointment ID</span>
+                  <strong>{selectedAppointment.appointment_number}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Doctor</span>
+                  <strong>{selectedAppointment.doctor_name}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Department</span>
+                  <strong>{selectedAppointment.doctor_specialization || 'Cardiology'}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Room</span>
+                  <strong>Consultation 3</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Visit Type</span>
+                  <strong>{appointmentVisitTypeLabels[selectedAppointment.visit_type]}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Priority</span>
+                  <strong>Urgent</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Branch</span>
+                  <strong>Main Branch</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Duration</span>
+                  <strong>30 Minutes</strong>
+                </div>
+              </div>
+
+              {/* In-line Reschedule Form if toggled */}
+              {isRescheduling ? (
+                <form className="apt-modal-reschedule-form" onSubmit={handleRescheduleSubmit}>
+                  <h4>Reschedule Appointment</h4>
+                  <div className="doc-form-grid two">
+                    <div className="doc-field">
+                      <label htmlFor="reschedule-date-input">New Date</label>
+                      <input
+                        id="reschedule-date-input"
+                        onChange={(e) => setRescheduleDate(e.target.value)}
+                        required
+                        type="date"
+                        value={rescheduleDate}
+                      />
+                    </div>
+                    <div className="doc-field">
+                      <label htmlFor="reschedule-time-input">New Time</label>
+                      <input
+                        id="reschedule-time-input"
+                        onChange={(e) => setRescheduleTime(e.target.value)}
+                        required
+                        type="time"
+                        value={rescheduleTime}
+                      />
+                    </div>
+                  </div>
+                  <div className="apt-modal-reschedule-actions">
+                    <button className="doc-btn" onClick={() => setIsRescheduling(false)} type="button">
+                      Cancel
+                    </button>
+                    <button className="doc-btn primary" type="submit">
+                      Confirm Reschedule
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </div>
+
+            {/* Modal Footer Actions (Matching Image 4) */}
+            <div className="modal-footer apt-modal-footer">
+              <button
+                className="doc-btn"
+                onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(selectedAppointment.patient_id)}`)}
+                type="button"
+              >
+                Open Patient Profile
+              </button>
+              <button
+                className="doc-btn danger-outline"
+                disabled={selectedAppointment.status === 'CANCELLED'}
+                onClick={() => void handleCancelAppointment(selectedAppointment.id)}
+                type="button"
+              >
+                Cancel Appointment
+              </button>
+              <button
+                className="doc-btn primary"
+                onClick={() => {
+                  setRescheduleDate(selectedAppointment.appointment_date.slice(0, 10));
+                  setRescheduleTime(selectedAppointment.start_time);
+                  setIsRescheduling(true);
+                }}
+                type="button"
+              >
+                Reschedule
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Toast message={toastMessage} visible={toastVisible} />
     </>

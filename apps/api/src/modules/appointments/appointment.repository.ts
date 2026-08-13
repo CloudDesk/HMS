@@ -1,5 +1,6 @@
 import { Types, type SortOrder } from 'mongoose';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
+import { AuditLogModel } from '../auth/auth.model.js';
 import type {
   Appointment,
   AppointmentListQuery,
@@ -243,22 +244,78 @@ export class AppointmentRepository {
     return appointment ? toAppointment(appointment) : undefined;
   }
 
-  async listActiveWindows(doctorId: string, appointmentDate: Date) {
-    const appointments = await AppointmentModel.find({
-      doctorId: toObjectId(doctorId),
-      appointmentDate,
-      status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
-      deletedAt: null,
-    })
-      .select('startTime endTime')
-      .sort({ startTime: 1 })
-      .lean<Array<{ startTime: string; endTime: string }>>();
+async listActiveWindows(doctorId: string, appointmentDate: Date) {
+  const appointments = await AppointmentModel.find({
+    doctorId: toObjectId(doctorId),
+    appointmentDate,
+    status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
+    deletedAt: null,
+  })
+    .select('startTime endTime')
+    .sort({ startTime: 1 })
+    .lean<Array<{ startTime: string; endTime: string }>>();
 
-    return appointments.map((appointment) => ({
-      start_time: appointment.startTime,
-      end_time: appointment.endTime,
-    }));
+  return appointments.map((appointment) => ({
+    start_time: appointment.startTime,
+    end_time: appointment.endTime,
+  }));
+}
+
+async findPatientConflict(
+  patientId: string,
+  appointmentDate: Date,
+  startTime: string,
+  endTime: string,
+  excludeAppointmentId?: string,
+) {
+  const filter: Record<string, unknown> = {
+    patientId: toObjectId(patientId),
+    appointmentDate,
+    deletedAt: null,
+    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+    startTime: { $lt: endTime },
+    endTime: { $gt: startTime },
+  };
+
+  if (excludeAppointmentId) {
+    filter._id = { $ne: toObjectId(excludeAppointmentId) };
   }
+
+  const appointment = await AppointmentModel.findOne(filter).lean<AppointmentLean>();
+  return appointment ? toAppointment(appointment) : undefined;
+}
+
+async auditStatusTransition(
+  appointment: Appointment,
+  previousStatus: Appointment['status'],
+  actorUserId: string,
+) {
+  await AuditLogModel.create({
+    actorUserId,
+    eventType: 'appointment.status.updated',
+    metadataJson: {
+      appointmentId: appointment.id,
+      appointmentNumber: appointment.appointment_number,
+      fromStatus: previousStatus,
+      patientId: appointment.patient_id,
+      toStatus: appointment.status,
+    },
+  });
+}
+
+async auditCreated(appointment: Appointment, actorUserId: string) {
+  await AuditLogModel.create({
+    actorUserId,
+    eventType: 'appointment.created',
+    metadataJson: {
+      appointmentId: appointment.id,
+      appointmentNumber: appointment.appointment_number,
+      branchId: appointment.branch_id,
+      doctorId: appointment.doctor_id,
+      patientId: appointment.patient_id,
+    },
+  });
+}
 
   async nextAppointmentSequence() {
     return AppointmentModel.countDocuments();

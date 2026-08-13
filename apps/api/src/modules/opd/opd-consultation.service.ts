@@ -31,6 +31,7 @@ export class OpdConsultationService {
   async saveDraft(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
     const visit = await this.getVisit(visitId);
     this.ensureOpenVisit(visit);
+    this.ensureConsultationReady(visit);
 
     const consultation = await this.repository.saveForVisit(
       {
@@ -58,6 +59,7 @@ export class OpdConsultationService {
   async complete(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
     const visit = await this.getVisit(visitId);
     this.ensureOpenVisit(visit);
+    this.ensureConsultationReady(visit);
     await this.ensureVitalsRecorded(visit.id);
     this.validateCompletion(data);
 
@@ -98,6 +100,13 @@ export class OpdConsultationService {
       userId,
     );
 
+    await this.patientRepository.auditClinicalEvent('opd.consultation.completed', userId, {
+      consultationId: consultation.id,
+      patientId: visit.patient_id,
+      visitId: visit.id,
+      visitNumber: visit.visit_number,
+    });
+
     return consultation;
   }
 
@@ -115,6 +124,12 @@ export class OpdConsultationService {
   private ensureOpenVisit(visit: OpdVisit) {
     if (terminalVisitStatuses.includes(visit.status)) {
       throw new AppError('Consultation cannot be updated for a closed OPD visit', 400, 'VISIT_CLOSED');
+    }
+  }
+
+  private ensureConsultationReady(visit: OpdVisit) {
+    if (!['READY_FOR_CONSULTATION', 'IN_CONSULTATION'].includes(visit.status)) {
+      throw new AppError('Patient must complete the vitals handoff before consultation', 400, 'VISIT_NOT_READY_FOR_CONSULTATION');
     }
   }
 

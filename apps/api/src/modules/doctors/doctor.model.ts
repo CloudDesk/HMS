@@ -11,11 +11,12 @@ export type DoctorAvailabilityFields = {
   _id: Types.ObjectId;
   dayOfWeek: DoctorAvailabilityDay;
   isAvailable: boolean;
-  workingBlocks: DoctorWorkingBlockFields[];
-  slotDurationMinutes: number;
-  // Retained temporarily so existing single-range records can be read and normalized.
-  startTime?: string;
-  endTime?: string;
+workingBlocks: DoctorWorkingBlockFields[];
+slotDurationMinutes: number;
+
+// Retained temporarily so existing single-range records can be read and normalized.
+startTime?: string;
+endTime?: string;
   breakStartTime?: string | null;
   breakEndTime?: string | null;
 };
@@ -62,10 +63,10 @@ const doctorAvailabilitySchema = new Schema<DoctorAvailabilityFields>(
       required: true,
     },
     isAvailable: { type: Boolean, default: true, required: true },
-    workingBlocks: { type: [doctorWorkingBlockSchema], default: [] },
-    slotDurationMinutes: { type: Number, required: true },
-    startTime: { type: String },
-    endTime: { type: String },
+workingBlocks: { type: [doctorWorkingBlockSchema], default: [] },
+slotDurationMinutes: { type: Number, required: true },
+startTime: { type: String },
+endTime: { type: String },
     breakStartTime: { type: String, default: null },
     breakEndTime: { type: String, default: null },
   },

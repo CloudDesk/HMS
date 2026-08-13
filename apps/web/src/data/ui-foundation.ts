@@ -17,9 +17,10 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-users',
     links: [
       { href: '/patients/search', label: 'Search Patients' },
-      { href: '/patients/register', label: 'Patient Registration' },
-      // Patient profile, history, documents, EMR, and consents are record-scoped views.
-      // They remain routable from patient search/profile actions with ?id=..., not as standalone sidebar entries.
+      { href: '/patients/profile', label: 'Patient Profile' },
+      { href: '/patients/documents', label: 'Documents' },
+      { href: '/patients/emr', label: 'EMR Timeline' },
+      { href: '/patients/consent', label: 'Consent Management' },
     ],
   },
   {
@@ -52,31 +53,32 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-first-aid',
     links: [
       { href: '/opd', label: 'Dashboard' },
+      { href: '/opd/consultation', label: 'Consultation' },
       { href: '/opd/queue', label: 'Waiting Queue' },
-      // OPD visit and consultation workspaces require a visit id and are opened from the queue.
     ],
   },
-  {
-    key: 'emergency',
-    label: 'Emergency',
-    icon: 'ph-star',
-    links: [
-      { href: '/emergency', label: 'Dashboard' },
-      { href: '/emergency/queue', label: 'Emergency Queue' },
-      { href: '/emergency/workspace', label: 'Emergency Workspace' },
-    ],
-  },
-  {
-    key: 'admissions',
-    label: 'Admissions',
-    icon: 'ph-bed',
-    links: [
-      { href: '/admissions', label: 'Dashboard' },
-      { href: '/admissions/requests', label: 'Admission Requests' },
-      { href: '/admissions/beds', label: 'Bed Management' },
-      { href: '/admissions/workspace', label: 'Inpatient Workspace' },
-    ],
-  },
+  // Emergency and Admissions are deferred modules. Restore these entries when their implementation phase begins.
+  // {
+  //   key: 'emergency',
+  //   label: 'Emergency',
+  //   icon: 'ph-star',
+  //   links: [
+  //     { href: '/emergency', label: 'Dashboard' },
+  //     { href: '/emergency/queue', label: 'Emergency Queue' },
+  //     { href: '/emergency/workspace', label: 'Emergency Workspace' },
+  //   ],
+  // },
+  // {
+  //   key: 'admissions',
+  //   label: 'Admissions',
+  //   icon: 'ph-bed',
+  //   links: [
+  //     { href: '/admissions', label: 'Dashboard' },
+  //     { href: '/admissions/requests', label: 'Admission Requests' },
+  //     { href: '/admissions/beds', label: 'Bed Management' },
+  //     { href: '/admissions/workspace', label: 'Inpatient Workspace' },
+  //   ],
+  // },
   {
     key: 'pharmacy',
     label: 'Pharmacy',

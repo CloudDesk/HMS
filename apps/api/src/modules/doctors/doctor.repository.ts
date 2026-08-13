@@ -43,16 +43,35 @@ const toDisplayName = (firstName: string, lastName: string) => `Dr. ${firstName.
 
 const legacyWorkingBlocks = (availability: DoctorAvailabilityFields) => {
   if (!availability.startTime || !availability.endTime) return [];
+
   if (!availability.breakStartTime || !availability.breakEndTime) {
-    return [{ id: `${availability._id.toString()}-legacy`, start_time: availability.startTime, end_time: availability.endTime }];
+    return [
+      {
+        id: `${availability._id.toString()}-legacy`,
+        start_time: availability.startTime,
+        end_time: availability.endTime,
+      },
+    ];
   }
 
   return [
     ...(availability.startTime < availability.breakStartTime
-      ? [{ id: `${availability._id.toString()}-legacy-1`, start_time: availability.startTime, end_time: availability.breakStartTime }]
+      ? [
+          {
+            id: `${availability._id.toString()}-legacy-1`,
+            start_time: availability.startTime,
+            end_time: availability.breakStartTime,
+          },
+        ]
       : []),
     ...(availability.breakEndTime < availability.endTime
-      ? [{ id: `${availability._id.toString()}-legacy-2`, start_time: availability.breakEndTime, end_time: availability.endTime }]
+      ? [
+          {
+            id: `${availability._id.toString()}-legacy-2`,
+            start_time: availability.breakEndTime,
+            end_time: availability.endTime,
+          },
+        ]
       : []),
   ];
 };

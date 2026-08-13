@@ -17,6 +17,7 @@ import type {
   PatientTimelineEvent,
   UpdatePatientDTO,
 } from './patient.types.js';
+import { AuditLogModel } from '../auth/auth.model.js';
 
 type PatientLean = PatientDocumentFields & { _id: Types.ObjectId };
 type PatientDocumentLean = PatientDocumentMetadataFields & { _id: Types.ObjectId };
@@ -257,6 +258,14 @@ export class PatientRepository {
       createdBy: new Types.ObjectId(userId),
     });
     return toTimelineEvent(created.toObject<PatientTimelineEventLean>());
+  }
+
+  async auditClinicalEvent(eventType: string, actorUserId: string, details: Record<string, unknown>) {
+    await AuditLogModel.create({
+      actorUserId,
+      eventType,
+      metadataJson: details,
+    });
   }
 
   async listTimeline(patientId: string, query: PatientTimelineListQuery = {}) {
