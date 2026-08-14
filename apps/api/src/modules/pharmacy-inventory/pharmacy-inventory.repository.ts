@@ -73,6 +73,7 @@ const toBatch = (record: any) => ({
   branch_id: String(record.branchId),
   batch_number: record.batchNumber,
   expiry_date: record.expiryDate,
+  unit_price: record.unitPrice,
   barcode: record.barcode ?? null,
   quantity_on_hand: record.quantityOnHand,
   status: record.status,
@@ -291,6 +292,7 @@ export class PharmacyInventoryRepository {
       branchId: objectId(data.branch_id),
       batchNumber: data.batch_number.trim().toUpperCase(),
       expiryDate,
+      unitPrice: data.unit_price,
       barcode: data.barcode?.trim() || null,
       quantityOnHand: data.opening_quantity,
       status: data.opening_quantity > 0 ? 'ACTIVE' : 'DEPLETED',
@@ -307,6 +309,10 @@ export class PharmacyInventoryRepository {
     return query;
   }
 
+  async getBatchById(id: string) {
+    return PharmacyMedicineBatchModel.findById(id).populate('medicine').lean();
+  }
+
   async updateBatchMetadata(
     id: string,
     data: UpdateMedicineBatchDTO,
@@ -316,6 +322,7 @@ export class PharmacyInventoryRepository {
   ) {
     const set: Record<string, unknown> = { updatedBy: objectId(actorUserId) };
     if (expiryDate) set.expiryDate = expiryDate;
+    if (data.unit_price !== undefined) set.unitPrice = data.unit_price;
     if (data.barcode !== undefined) set.barcode = data.barcode?.trim() || null;
     return PharmacyMedicineBatchModel.findOneAndUpdate(
       { _id: id, branchId: data.branch_id },
@@ -347,6 +354,37 @@ export class PharmacyInventoryRepository {
     ]);
     return {
       data: records.map(toBatch),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  async listAllBatches(query: PharmacyBatchListQuery) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const filter: Record<string, unknown> = { branchId: query.branch_id };
+    if (query.status) filter.status = query.status;
+    const sortColumns = {
+      batch_number: 'batchNumber',
+      expiry_date: 'expiryDate',
+      quantity_on_hand: 'quantityOnHand',
+      created_at: 'createdAt',
+    } as const;
+    const sortColumn = sortColumns[query.sortBy ?? 'expiry_date'];
+    const sortOrder = query.sortOrder === 'desc' ? -1 : 1;
+    const [records, total] = await Promise.all([
+      PharmacyMedicineBatchModel.find(filter)
+        .populate('medicine')
+        .sort({ [sortColumn]: sortOrder, _id: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      PharmacyMedicineBatchModel.countDocuments(filter),
+    ]);
+    return {
+      data: records.map((record: any) => ({
+        ...toBatch(record),
+        medicine: record.medicine ? { id: record.medicine._id.toString(), name: record.medicine.name } : null,
+      })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }

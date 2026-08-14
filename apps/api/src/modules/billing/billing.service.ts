@@ -7,6 +7,7 @@ import type { OpdConsultationRepository } from '../opd/opd-consultation.reposito
 import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { ServiceRepository } from '../services/service.repository.js';
+import type { PharmacyInventoryRepository } from '../pharmacy-inventory/pharmacy-inventory.repository.js';
 import type { BillingRepository } from './billing.repository.js';
 import type {
   BillingInvoice,
@@ -40,6 +41,7 @@ export class BillingService {
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly clinicalOrderRepository: OpdClinicalOrderRepository,
     private readonly serviceRepository: ServiceRepository,
+    private readonly pharmacyInventoryRepository: PharmacyInventoryRepository,
   ) {}
 
   async list(query: BillingInvoiceListQuery, actorUserId: string) {
@@ -272,17 +274,24 @@ export class BillingService {
   }
 
   private async resolveItems(visitId: string, requestedItems: SaveBillingInvoiceItemDTO[]): Promise<ResolvedBillingItem[]> {
-    const serviceIds = requestedItems.map((item) => item.service_id);
+    const nonPharmacyItems = requestedItems.filter((i) => i.service_type !== 'PHARMACY');
+    const pharmacyItems = requestedItems.filter((i) => i.service_type === 'PHARMACY');
+
+    const serviceIds = nonPharmacyItems.map((item) => item.service_id);
     const services = await this.serviceRepository.getActiveBillingServices(serviceIds);
     const serviceById = new Map(services.map((service) => [service._id.toString(), service]));
     if (serviceById.size !== new Set(serviceIds).size) {
       throw new AppError('Every invoice item must reference an active Service Catalogue entry', 409, 'INVALID_BILLING_SERVICE');
     }
 
-    const types = new Set(requestedItems.map((item) => item.service_type));
-    if (types.has('PHARMACY')) {
-      throw new AppError('Pharmacy billing integration is reserved for a future phase', 409, 'PHARMACY_BILLING_NOT_IMPLEMENTED');
+    const batchIds = pharmacyItems.map((item) => item.service_id);
+    const batches = await Promise.all(batchIds.map((id) => this.pharmacyInventoryRepository.getBatchById(id)));
+    const batchById = new Map(batches.map((batch) => batch ? [batch._id.toString(), batch as any] : ['', null]));
+    if (batchIds.some((id) => !batchById.get(id))) {
+      throw new AppError('Every pharmacy invoice item must reference a valid inventory batch', 409, 'INVALID_PHARMACY_BATCH');
     }
+
+    const types = new Set(requestedItems.map((item) => item.service_type));
     if (types.has('CONSULTATION')) {
       const consultation = await this.consultationRepository.getByVisit(visitId);
       if (!consultation || consultation.status !== 'COMPLETED') {
@@ -297,6 +306,19 @@ export class BillingService {
       : null;
 
     return requestedItems.map((item) => {
+      if (item.service_type === 'PHARMACY') {
+        const batch = batchById.get(item.service_id)!;
+        const unitPrice = roundMoney(batch.unitPrice);
+        return {
+          serviceId: item.service_id,
+          serviceName: batch.medicine?.name ? `${batch.medicine.name} (Batch: ${batch.batchNumber})` : `Batch: ${batch.batchNumber}`,
+          serviceType: item.service_type,
+          quantity: item.quantity,
+          unitPrice,
+          lineTotal: roundMoney(unitPrice * item.quantity),
+        };
+      }
+
       const service = serviceById.get(item.service_id)!;
       const expectedCatalogueType = catalogueTypeByBillingType[item.service_type as Exclude<BillingServiceType, 'PHARMACY'>];
       if (service.serviceType !== expectedCatalogueType) {

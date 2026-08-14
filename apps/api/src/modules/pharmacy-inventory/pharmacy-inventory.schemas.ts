@@ -44,6 +44,7 @@ const registerBatchSchema = z.object({
   ...branchField,
   batch_number: z.string().trim().min(1).max(100),
   expiry_date: dateOnly,
+  unit_price: z.number().min(0),
   opening_quantity: z.number().int().min(0).max(1_000_000_000),
   barcode: z.string().trim().max(100).nullable().optional(),
   reason: z.string().trim().max(500).nullable().optional(),
@@ -52,10 +53,11 @@ const registerBatchSchema = z.object({
 const updateBatchSchema = z.object({
   ...branchField,
   expiry_date: dateOnly.optional(),
+  unit_price: z.number().min(0).optional(),
   barcode: z.string().trim().max(100).nullable().optional(),
   reason: z.string().trim().min(1).max(500),
-}).strict().refine((value) => value.expiry_date !== undefined || value.barcode !== undefined, {
-  message: 'Expiry date or barcode is required',
+}).strict().refine((value) => value.expiry_date !== undefined || value.unit_price !== undefined || value.barcode !== undefined, {
+  message: 'Expiry date, unit price, or barcode is required',
 });
 
 const movementFields = {

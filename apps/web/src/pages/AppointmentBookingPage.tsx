@@ -284,7 +284,7 @@ export function AppointmentBookingPage() {
       });
 
       showToast(`Appointment ${appointment.appointment_number} booked successfully.`);
-      navigate('/appointments');
+      navigate('/opd/queue');
     } catch (submitError) {
       setError(getAppointmentErrorMessage(submitError));
     } finally {

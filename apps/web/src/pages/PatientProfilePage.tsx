@@ -8,6 +8,7 @@ import {
   patientsApi,
   type ApiPatientGender,
   type ApiPatientStatus,
+  type ApiPatientDocumentType,
   type PatientHistoryResponse,
   type PatientResponse,
   type PatientTimelineEventResponse,
@@ -307,6 +308,31 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
   );
 }
 
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const detectCategoryFromFileName = (fileName: string): string => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'pdf') return 'PDF';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'Image';
+  if (['doc', 'docx'].includes(ext)) return 'Word';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'Excel';
+  if (['txt', 'rtf'].includes(ext)) return 'Scanned File';
+  return 'PDF';
+};
+
+const getFileIconClass = (fileName: string): string => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'pdf') return 'ph ph-file-pdf';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'ph ph-file-image';
+  if (['doc', 'docx'].includes(ext)) return 'ph ph-file-doc';
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'ph ph-file-xls';
+  return 'ph ph-file-text';
+};
+
 // ── Main Patient Workspace ───────────────────────────────────────────────────
 
 export function PatientProfilePage() {
@@ -327,6 +353,15 @@ export function PatientProfilePage() {
   const [formError, setFormError] = useState('');
   const [toast, setToast] = useState('');
   const [showCardModal, setShowCardModal] = useState(false);
+
+  // Upload Form State
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [docName, setDocName] = useState('');
+  const [docType, setDocType] = useState<ApiPatientDocumentType>('CLINICAL');
+  const [docCategory, setDocCategory] = useState('PDF');
+  const [submittingUpload, setSubmittingUpload] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'DOCUMENT' | 'CONSENT'>('DOCUMENT');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -387,6 +422,64 @@ export function PatientProfilePage() {
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(''), 2800);
+  };
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files);
+    setStagedFiles((prev) => [...prev, ...newFiles]);
+
+    const firstFile = newFiles[0];
+    if (firstFile) {
+      const autoCategory = detectCategoryFromFileName(firstFile.name);
+      setDocCategory(autoCategory);
+      if (!docName.trim()) {
+        const baseName = firstFile.name.substring(0, firstFile.name.lastIndexOf('.')) || firstFile.name;
+        setDocName(baseName);
+      }
+    }
+  };
+
+  const removeStagedFile = (index: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUploadSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (stagedFiles.length === 0) {
+      showToast('Please select at least one document to upload.');
+      return;
+    }
+    if (!docName.trim()) {
+      showToast('Please enter a document name.');
+      return;
+    }
+
+    setSubmittingUpload(true);
+    try {
+      for (let i = 0; i < stagedFiles.length; i++) {
+        const file = stagedFiles[i];
+        if (!file) continue;
+        const title = stagedFiles.length > 1 ? `${docName.trim()} (${i + 1})` : docName.trim();
+        if (!requestedPatientId) throw new Error('No patient selected.');
+        
+        await patientsApi.uploadDocument(requestedPatientId, {
+          document_type: uploadMode === 'CONSENT' ? 'CONSENT' : docType,
+          title,
+          file,
+        });
+      }
+
+      setUploadModalOpen(false);
+      setStagedFiles([]);
+      setDocName('');
+      showToast(`${stagedFiles.length} file(s) uploaded successfully.`);
+      void load();
+    } catch (error) {
+      showToast(getPatientErrorMessage(error));
+    } finally {
+      setSubmittingUpload(false);
+    }
   };
 
   const printPatientCard = (p: PatientResponse) => {
@@ -862,9 +955,15 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
           {/* ── Documents ────────────────────────────────────────────────── */}
           {activeTab === 'Documents' ? (
-            documents.length === 0 ? (
-              <EmptyRecords message="No uploaded documents found for this patient." />
-            ) : (
+            <>
+              <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="doc-btn primary" onClick={() => { setUploadMode('DOCUMENT'); setUploadModalOpen(true); }} type="button">
+                  <i className="ph ph-upload-simple" aria-hidden="true" /> Upload Document
+                </button>
+              </div>
+              {documents.length === 0 ? (
+                <EmptyRecords message="No uploaded documents found for this patient." />
+              ) : (
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
@@ -883,7 +982,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   </tbody>
                 </table>
               </div>
-            )
+              )}
+            </>
           ) : null}
 
           {/* ── Billing ──────────────────────────────────────────────────── */}
@@ -915,9 +1015,15 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
           {/* ── Consent ──────────────────────────────────────────────────── */}
           {activeTab === 'Consent' ? (
-            consents.length === 0 ? (
-              <EmptyRecords message="No consent forms found for this patient." />
-            ) : (
+            <>
+              <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="doc-btn primary" onClick={() => { setUploadMode('CONSENT'); setUploadModalOpen(true); }} type="button">
+                  <i className="ph ph-upload-simple" aria-hidden="true" /> Upload Consent
+                </button>
+              </div>
+              {consents.length === 0 ? (
+                <EmptyRecords message="No consent forms found for this patient." />
+              ) : (
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
@@ -936,7 +1042,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   </tbody>
                 </table>
               </div>
-            )
+              )}
+            </>
           ) : null}
         </section>
       </div>
@@ -1123,6 +1230,109 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           </div>
         </Modal>
       ) : null}
+
+      {/* Upload Patient Document/Consent Modal */}
+      <Modal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} title={`Upload ${uploadMode === 'CONSENT' ? 'Consent Form' : 'Patient Document'}`}>
+        <form className="modal-form" onSubmit={handleUploadSubmit}>
+          <div className="lively-upload-dropzone">
+            <i className="ph ph-cloud-arrow-up lively-upload-icon" aria-hidden="true" />
+            <strong>Choose files to upload</strong>
+            <span>Drag and drop or click to browse PDF, image, Word, Excel files</span>
+            <input
+              className="lively-file-input"
+              id="modal-file-input"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx"
+              onChange={(e) => handleFileSelect(e.target.files)}
+              type="file"
+            />
+          </div>
+
+          {stagedFiles.length > 0 && (
+            <div className="staged-files-list">
+              {stagedFiles.map((file, idx) => (
+                <div className="staged-file-item" key={`${file.name}-${idx}`}>
+                  <div className="staged-file-info">
+                    <i className={`${getFileIconClass(file.name)} staged-file-icon`} aria-hidden="true" />
+                    <div className="staged-file-details">
+                      <span className="staged-file-name" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="staged-file-size">{formatFileSize(file.size)}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="staged-file-remove-btn"
+                    onClick={() => removeStagedFile(idx)}
+                    title="Remove file"
+                    type="button"
+                  >
+                    <i className="ph ph-trash" aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="doc-field">
+              <label htmlFor="modal-doc-name">
+                Document Name <span className="required-asterisk">*</span>
+              </label>
+              <input
+                id="modal-doc-name"
+                onChange={(e) => setDocName(e.target.value)}
+                placeholder="Document Title"
+                type="text"
+                value={docName}
+              />
+            </div>
+            {uploadMode === 'DOCUMENT' && (
+              <div className="doc-field">
+                <label htmlFor="modal-doc-type">
+                  Document Type <span className="required-asterisk">*</span>
+                </label>
+                <select
+                  id="modal-doc-type"
+                  onChange={(e) => setDocType(e.target.value as ApiPatientDocumentType)}
+                  value={docType}
+                >
+                  <option value="CLINICAL">Clinical</option>
+                  <option value="IDENTITY">Identity</option>
+                  <option value="INSURANCE">Insurance</option>
+                  <option value="CONSENT">Consent</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="doc-field" style={{ marginBottom: '1.25rem' }}>
+            <label htmlFor="modal-doc-category">Category / File Format (Auto-detected)</label>
+            <select
+              id="modal-doc-category"
+              onChange={(e) => setDocCategory(e.target.value)}
+              value={docCategory}
+            >
+              <option value="PDF">PDF</option>
+              <option value="Image">Image</option>
+              <option value="Word">Word</option>
+              <option value="Excel">Excel</option>
+              <option value="Scanned File">Scanned File</option>
+            </select>
+          </div>
+
+          <div className="modal-actions">
+            <button className="doc-btn" onClick={() => setUploadModalOpen(false)} type="button">
+              Cancel
+            </button>
+            <button className="doc-btn primary" disabled={submittingUpload} type="submit">
+              {submittingUpload ? 'Uploading...' : 'Upload Document'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <Toast message={toast} visible={Boolean(toast)} />
     </>
   );

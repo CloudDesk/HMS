@@ -38,6 +38,7 @@ export type RegisterMedicineBatchDTO = {
   branch_id: string;
   batch_number: string;
   expiry_date: string;
+  unit_price: number;
   opening_quantity: number;
   barcode?: string | null;
   reason?: string | null;
@@ -46,6 +47,7 @@ export type RegisterMedicineBatchDTO = {
 export type UpdateMedicineBatchDTO = {
   branch_id: string;
   expiry_date?: string;
+  unit_price?: number;
   barcode?: string | null;
   reason: string;
 };

@@ -78,6 +78,16 @@ export const registerPharmacyInventoryRoutes = async (app: FastifyInstance, serv
     ));
   });
 
+  app.get('/api/pharmacy/medicine-inventory/batches', {
+    preHandler: requirePermission(services, 'Pharmacy', 'Medicine Inventory', 'View'),
+  }, async (request) => {
+    return ok(await services.pharmacyInventory.listAllBatches(
+      parsePharmacyBatchListQuery(request.query),
+      request.user!.id,
+      metadataFromRequest(request),
+    ));
+  });
+
   app.get('/api/pharmacy/medicine-inventory/:medicineId/batches', {
     preHandler: requirePermission(services, 'Pharmacy', 'Medicine Inventory', 'View'),
   }, async (request) => {
