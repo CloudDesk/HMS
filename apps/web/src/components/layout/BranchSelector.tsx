@@ -12,12 +12,24 @@ export function BranchSelector() {
   }
 
   useEffect(() => {
-    setSelectedBranch((current) =>
-      branches.some((branch) => branch.id === current)
-        ? current
-        : (branches[0]?.id ?? ''),
-    );
+    const activeId = localStorage.getItem('activeBranchId');
+    const validBranch = branches.some((b) => b.id === activeId)
+      ? activeId!
+      : (branches[0]?.id ?? '');
+    setSelectedBranch(validBranch);
+    if (validBranch) {
+      localStorage.setItem('activeBranchId', validBranch);
+    }
   }, [branches]);
+
+  const handleBranchChange = (branchId: string) => {
+    setSelectedBranch(branchId);
+    if (branchId) {
+      localStorage.setItem('activeBranchId', branchId);
+    } else {
+      localStorage.removeItem('activeBranchId');
+    }
+  };
 
   return (
     <label className="header-dropdown">
@@ -26,7 +38,7 @@ export function BranchSelector() {
       <select
         aria-label="Branch"
         disabled={branches.length <= 1}
-        onChange={(event) => setSelectedBranch(event.target.value)}
+        onChange={(event) => handleBranchChange(event.target.value)}
         value={selectedBranch}
       >
         {branches.length === 0 && (

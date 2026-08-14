@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { appointmentsApi } from '../api/appointments';
+import { billingApi, type SaveBillingInvoiceItem } from '../api/billing';
 import { doctorsApi, type ApiDoctorAvailabilityDay, type DoctorResponse } from '../api/doctors';
 import { medicinesApi } from '../api/medicines';
 import {
@@ -417,42 +418,65 @@ export function OpdVisitPage() {
     [masterMedicines, medicationForm.medicine_name],
   );
 
+  const [selectedLabTest, setSelectedLabTest] = useState('');
+  const [labPriority, setLabPriority] = useState<any>('ROUTINE');
+  const [selectedImagingTest, setSelectedImagingTest] = useState('');
+  const [imagingPriority, setImagingPriority] = useState<any>('ROUTINE');
+
   // Load patient clinical sub-resources
   const loadClinicalData = useCallback(async () => {
     if (!activeVisitId) return;
 
     try {
-      const [vitalsRes, consultRes, prescriptionRes, docRes, medRes, invRes, servRes] = await Promise.allSettled([
-        opdApi.getLatestVitals(activeVisitId),
-        opdApi.getConsultation(activeVisitId),
-        opdApi.getPrescription(activeVisitId),
-        doctorsApi.list({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
-        medicinesApi.list({ status: 'ACTIVE', limit: 100 }),
-        pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 } as any).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
-        servicesApi.list({ status: 'ACTIVE', limit: 100 }),
-      ]);
+      const [vitalsRes, consultRes, prescriptionRes, docRes, medRes, invRes, servRes, labOrderRes, imagingOrderRes] =
+        await Promise.allSettled([
+          opdApi.getLatestVitals(activeVisitId),
+          opdApi.getConsultation(activeVisitId),
+          opdApi.getPrescription(activeVisitId),
+          doctorsApi.list({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
+          medicinesApi.list({ status: 'ACTIVE', limit: 100 }),
+          pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 } as any).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
+          servicesApi.list({ status: 'ACTIVE', limit: 100 }),
+          opdApi.getClinicalOrder(activeVisitId, 'LABORATORY'),
+          opdApi.getClinicalOrder(activeVisitId, 'IMAGING'),
+        ]);
+
+      if (labOrderRes.status === 'fulfilled' && labOrderRes.value?.items?.[0]) {
+        setSelectedLabTest(labOrderRes.value.items[0].investigation_name || '');
+        if (labOrderRes.value.priority) setLabPriority(labOrderRes.value.priority);
+      }
+      if (imagingOrderRes.status === 'fulfilled' && imagingOrderRes.value?.items?.[0]) {
+        setSelectedImagingTest(imagingOrderRes.value.items[0].investigation_name || '');
+        if (imagingOrderRes.value.priority) setImagingPriority(imagingOrderRes.value.priority);
+      }
 
       if (servRes.status === 'fulfilled' && servRes.value?.data) {
         setServices(servRes.value.data);
       }
 
       if (medRes.status === 'fulfilled' && medRes.value?.data) {
-        const invMap: Record<string, number> = {};
+        const invMapId: Record<string, { available: number; unit?: string }> = {};
+        const invMapName: Record<string, { available: number; unit?: string }> = {};
         if (invRes.status === 'fulfilled' && invRes.value?.data) {
-          invRes.value.data.forEach((item) => {
-            invMap[item.medicine_id] = item.available_quantity;
+          invRes.value.data.forEach((item: any) => {
+            const info = { available: item.available_quantity, unit: item.unit || item.packaging_unit };
+            if (item.medicine_id) invMapId[item.medicine_id] = info;
+            if (item.medicine_name) invMapName[item.medicine_name] = info;
           });
         }
 
-        const combined = medRes.value.data.map((m) => ({
-          id: m.id,
-          name: m.name,
-          generic_name: m.generic_name,
-          strength: m.strength,
-          dosage_form: m.dosage_form,
-          unit: m.unit,
-          available_quantity: invMap[m.id] ?? 120,
-        }));
+        const combined = medRes.value.data.map((m) => {
+          const invMatch = invMapId[m.id] || invMapName[m.name];
+          return {
+            id: m.id,
+            name: m.name,
+            generic_name: m.generic_name,
+            strength: m.strength,
+            dosage_form: m.dosage_form,
+            unit: invMatch?.unit || m.unit || 'units',
+            available_quantity: invMatch?.available ?? 120,
+          };
+        });
         setMasterMedicines(combined);
       }
 
@@ -534,24 +558,6 @@ export function OpdVisitPage() {
 
   const completeConsultation = async () => {
     if (!visit) return;
-    const errors: Record<string, string> = {};
-    if (!consultationForm.chief_complaint.trim()) {
-      errors.chief_complaint = 'Chief Complaint is required before completing consultation.';
-    }
-    if (!consultationForm.assessment.trim()) {
-      errors.assessment = 'Assessment / Impression is required before completing consultation.';
-    }
-    if (!consultationForm.treatment_plan.trim()) {
-      errors.treatment_plan = 'Treatment plan is required before completing consultation.';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setConsultationFieldErrors(errors);
-      setActiveTab('Consultation');
-      showToast(Object.values(errors)[0] || 'Required consultation fields missing.');
-      return;
-    }
-
     setConsultationFieldErrors({});
     setUpdating('consultation-complete');
     try {
@@ -590,19 +596,17 @@ export function OpdVisitPage() {
       }
 
       // Save & Submit Lab Clinical Orders if selected
-      const labSelectEl = document.getElementById('lab-test-name') as HTMLSelectElement | null;
-      const selectedLabName = labSelectEl?.value;
-      if (selectedLabName) {
-        const labPriorityEl = document.getElementById('lab-priority') as HTMLSelectElement | null;
-        const matchedLabService = labTestServices.find((s) => s.name === selectedLabName);
+      const labName = selectedLabTest || (document.getElementById('lab-test-name') as HTMLSelectElement | null)?.value || '';
+      const matchedLabService = labName ? labTestServices.find((s) => s.name === labName) : undefined;
+      if (labName && matchedLabService) {
         await opdApi
           .submitClinicalOrder(visit.id, 'LABORATORY', {
-            priority: (labPriorityEl?.value as any) || 'ROUTINE',
+            priority: labPriority || 'ROUTINE',
             items: [
               {
-                service_id: matchedLabService?.id || '',
-                investigation_name: selectedLabName,
-                category: matchedLabService?.category || 'General Lab',
+                service_id: matchedLabService.id,
+                investigation_name: labName,
+                category: matchedLabService.category || 'General Lab',
               },
             ],
           })
@@ -610,21 +614,64 @@ export function OpdVisitPage() {
       }
 
       // Save & Submit Imaging Clinical Orders if selected
-      const imagingSelectEl = document.getElementById('imaging-test-name') as HTMLSelectElement | null;
-      const selectedImagingName = imagingSelectEl?.value;
-      if (selectedImagingName) {
-        const imagingPriorityEl = document.getElementById('imaging-priority') as HTMLSelectElement | null;
-        const matchedImagingService = imagingServices.find((s) => s.name === selectedImagingName);
+      const imagingName = selectedImagingTest || (document.getElementById('imaging-test-name') as HTMLSelectElement | null)?.value || '';
+      const matchedImagingService = imagingName ? imagingServices.find((s) => s.name === imagingName) : undefined;
+      if (imagingName && matchedImagingService) {
         await opdApi
           .submitClinicalOrder(visit.id, 'IMAGING', {
-            priority: (imagingPriorityEl?.value as any) || 'ROUTINE',
+            priority: imagingPriority || 'ROUTINE',
             items: [
               {
-                service_id: matchedImagingService?.id || '',
-                investigation_name: selectedImagingName,
-                category: matchedImagingService?.category || 'Radiology',
+                service_id: matchedImagingService.id,
+                investigation_name: imagingName,
+                category: matchedImagingService.category || 'Radiology',
               },
             ],
+          })
+          .catch(() => null);
+      }
+
+      // Automatically Create Billing Invoice for Consultation + Lab + Imaging
+      const matchedConsultationService =
+        services.find(
+          (s) =>
+            (s.service_type as string) === 'CONSULTATION' ||
+            (s.service_type as string) === 'DOCTOR_CONSULTATION' ||
+            (s.category && s.category.toLowerCase().includes('consultation')) ||
+            s.name.toLowerCase().includes('consultation') ||
+            s.name.toLowerCase().includes((visit.doctor_specialization || '').toLowerCase()),
+        ) || services[0];
+
+      const invoiceItems: SaveBillingInvoiceItem[] = [];
+      if (matchedConsultationService) {
+        invoiceItems.push({
+          service_id: matchedConsultationService.id,
+          service_type: 'CONSULTATION',
+          quantity: 1,
+        });
+      }
+      if (matchedLabService) {
+        invoiceItems.push({
+          service_id: matchedLabService.id,
+          service_type: 'LAB_TEST',
+          quantity: 1,
+        });
+      }
+      if (matchedImagingService) {
+        invoiceItems.push({
+          service_id: matchedImagingService.id,
+          service_type: 'IMAGING_SERVICE',
+          quantity: 1,
+        });
+      }
+
+      if (invoiceItems.length > 0) {
+        await billingApi
+          .create({
+            patient_id: visit.patient_id,
+            visit_id: visit.id,
+            branch_id: visit.branch_id || localStorage.getItem('activeBranchId') || '',
+            items: invoiceItems,
           })
           .catch(() => null);
       }
@@ -633,7 +680,7 @@ export function OpdVisitPage() {
       setConsultation(response);
       await loadVisit();
       await loadClinicalData();
-      showToast('Consultation completed successfully.');
+      showToast('Consultation completed successfully & billing invoice generated.');
     } catch (error) {
       showToast(getOpdErrorMessage(error));
     } finally {
@@ -871,23 +918,14 @@ export function OpdVisitPage() {
                       </div>
                     </div>
                     <div className="doc-form-grid two">
-                      <label className={`doc-field${consultationFieldErrors.chief_complaint ? ' has-error' : ''}`} htmlFor="chief-complaint">
-                        <span>Chief Complaint <span className="required-asterisk">*</span></span>
+                      <label className="doc-field" htmlFor="chief-complaint">
+                        <span>Chief Complaint</span>
                         <textarea
                           id="chief-complaint"
-                          onChange={(e) => {
-                            setConsultationForm((c) => ({ ...c, chief_complaint: e.target.value }));
-                            setConsultationFieldErrors((prev) => ({ ...prev, chief_complaint: '' }));
-                          }}
+                          onChange={(e) => setConsultationForm((c) => ({ ...c, chief_complaint: e.target.value }))}
                           rows={3}
                           value={consultationForm.chief_complaint}
                         />
-                        {consultationFieldErrors.chief_complaint ? (
-                          <span className="field-error-msg">
-                            <i className="ph ph-warning-circle" aria-hidden="true" />
-                            {consultationFieldErrors.chief_complaint}
-                          </span>
-                        ) : null}
                       </label>
                       <label className="doc-field" htmlFor="history-present-illness">
                         <span>History of Present Illness</span>
@@ -945,41 +983,23 @@ export function OpdVisitPage() {
                           value={consultationForm.physical_examination}
                         />
                       </label>
-                      <label className={`doc-field${consultationFieldErrors.assessment ? ' has-error' : ''}`} htmlFor="assessment">
-                        <span>Assessment / Impression <span className="required-asterisk">*</span></span>
+                      <label className="doc-field" htmlFor="assessment">
+                        <span>Assessment / Impression</span>
                         <textarea
                           id="assessment"
-                          onChange={(e) => {
-                            setConsultationForm((c) => ({ ...c, assessment: e.target.value }));
-                            setConsultationFieldErrors((prev) => ({ ...prev, assessment: '' }));
-                          }}
+                          onChange={(e) => setConsultationForm((c) => ({ ...c, assessment: e.target.value }))}
                           rows={3}
                           value={consultationForm.assessment}
                         />
-                        {consultationFieldErrors.assessment ? (
-                          <span className="field-error-msg">
-                            <i className="ph ph-warning-circle" aria-hidden="true" />
-                            {consultationFieldErrors.assessment}
-                          </span>
-                        ) : null}
                       </label>
-                      <label className={`doc-field full${consultationFieldErrors.treatment_plan ? ' has-error' : ''}`} htmlFor="treatment-plan">
-                        <span>Treatment Plan &amp; Advice <span className="required-asterisk">*</span></span>
+                      <label className="doc-field full" htmlFor="treatment-plan">
+                        <span>Treatment Plan &amp; Advice</span>
                         <textarea
                           id="treatment-plan"
-                          onChange={(e) => {
-                            setConsultationForm((c) => ({ ...c, treatment_plan: e.target.value }));
-                            setConsultationFieldErrors((prev) => ({ ...prev, treatment_plan: '' }));
-                          }}
+                          onChange={(e) => setConsultationForm((c) => ({ ...c, treatment_plan: e.target.value }))}
                           rows={3}
                           value={consultationForm.treatment_plan}
                         />
-                        {consultationFieldErrors.treatment_plan ? (
-                          <span className="field-error-msg">
-                            <i className="ph ph-warning-circle" aria-hidden="true" />
-                            {consultationFieldErrors.treatment_plan}
-                          </span>
-                        ) : null}
                       </label>
                     </div>
                   </section>
@@ -1271,19 +1291,19 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="lab-test-name">
-                        <span>Test / Investigation Name <span className="required-asterisk">*</span></span>
-                        <select id="lab-test-name">
+                        <span>Test / Investigation Name</span>
+                        <select id="lab-test-name" onChange={(e) => setSelectedLabTest(e.target.value)} value={selectedLabTest}>
                           <option value="">Select Lab Test from Service Catalogue</option>
                           {labTestServices.map((service) => (
                             <option key={service.id} value={service.name}>
-                              {service.name} ({service.code}) — ₹{service.standard_price}
+                              {service.name} ({service.code})
                             </option>
                           ))}
                         </select>
                       </label>
                       <label className="doc-field" htmlFor="lab-priority">
                         <span>Priority</span>
-                        <select id="lab-priority">
+                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value)} value={labPriority}>
                           <option value="ROUTINE">Routine</option>
                           <option value="URGENT">Urgent</option>
                           <option value="STAT">STAT</option>
@@ -1332,19 +1352,19 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="imaging-test-name">
-                        <span>Scan / Modality <span className="required-asterisk">*</span></span>
-                        <select id="imaging-test-name">
+                        <span>Scan / Modality</span>
+                        <select id="imaging-test-name" onChange={(e) => setSelectedImagingTest(e.target.value)} value={selectedImagingTest}>
                           <option value="">Select Imaging Scan from Service Catalogue</option>
                           {imagingServices.map((service) => (
                             <option key={service.id} value={service.name}>
-                              {service.name} ({service.code}) — ₹{service.standard_price}
+                              {service.name} ({service.code})
                             </option>
                           ))}
                         </select>
                       </label>
                       <label className="doc-field" htmlFor="imaging-priority">
                         <span>Priority</span>
-                        <select id="imaging-priority">
+                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value)} value={imagingPriority}>
                           <option value="ROUTINE">Routine</option>
                           <option value="URGENT">Urgent</option>
                         </select>

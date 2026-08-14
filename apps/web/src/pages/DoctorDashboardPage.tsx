@@ -263,11 +263,11 @@ export function DoctorDashboardPage() {
             <p>Your clinical workspace for today</p>
           </div>
           <div className="doctor-page-actions">
-            <button className="doc-btn" onClick={() => navigate('/doctors/schedule')} type="button">
+            <button className="doc-btn" style={{ cursor: 'default' }} type="button">
               <i className="ph ph-calendar-check" aria-hidden="true" />
               Today's Appointments
             </button>
-            <button className="doc-btn primary" onClick={openStartConsultation} type="button">
+            <button className="doc-btn primary" style={{ cursor: 'default' }} type="button">
               <i className="ph ph-stethoscope" aria-hidden="true" />
               Start Consultation
             </button>
@@ -325,7 +325,7 @@ export function DoctorDashboardPage() {
                     <h3>Upcoming Appointments</h3>
                     <p>Next patients in your clinical queue</p>
                   </div>
-                  <button className="doc-btn" onClick={() => navigate('/doctors/schedule')} type="button">
+                  <button className="doc-btn" style={{ cursor: 'default' }} type="button">
                     View Schedule
                   </button>
                 </div>
@@ -361,21 +361,21 @@ export function DoctorDashboardPage() {
                   </div>
                 </div>
                 <div className="doc-quick-actions">
-                  <button className="doc-quick-action" onClick={openStartConsultation} type="button">
+                  <button className="doc-quick-action" style={{ cursor: 'default' }} type="button">
                     <i className="ph ph-stethoscope" aria-hidden="true" />
                     <span>
                       <strong>Start Consultation</strong>
                       <span>Begin the next patient encounter</span>
                     </span>
                   </button>
-                  <button className="doc-quick-action" onClick={() => navigate('/doctors/schedule')} type="button">
+                  <button className="doc-quick-action" style={{ cursor: 'default' }} type="button">
                     <i className="ph ph-calendar-check" aria-hidden="true" />
                     <span>
                       <strong>View Today's Schedule</strong>
                       <span>Review appointments and time slots</span>
                     </span>
                   </button>
-                  <button className="doc-quick-action" onClick={() => navigate('/patients/search')} type="button">
+                  <button className="doc-quick-action" style={{ cursor: 'default' }} type="button">
                     <i className="ph ph-magnifying-glass" aria-hidden="true" />
                     <span>
                       <strong>Patient Search</strong>
