@@ -18,6 +18,7 @@ import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 import { hasPermission } from '../auth/access-control';
 import { useAuth } from '../auth/useAuth';
+import { useCurrencyFormatter } from '../api/useSettings';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -89,9 +90,6 @@ const formatDate = (value: string | null): string => {
   if (Number.isNaN(d.getTime())) return '—';
   return new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
 };
-
-const formatPrice = (value: number): string =>
-  new Intl.NumberFormat('en', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -202,6 +200,7 @@ function ServicesByDepartment({
 // ─── Main Page Component ────────────────────────────────────────────────────────
 
 export function ServiceCataloguePage() {
+  const formatPrice = useCurrencyFormatter();
   const { user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {

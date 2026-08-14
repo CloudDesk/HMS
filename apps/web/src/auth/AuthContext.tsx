@@ -13,6 +13,7 @@ import { authApi } from './auth-api';
 import { AuthContext, type AuthContextValue, type AuthStatus } from './auth-context-value';
 import type { AuthUser } from './auth-types';
 import { tokenStorage } from './token-storage';
+import { canAccessRoute } from './access-control';
 
 const redirectToLogin = (reason?: string) => {
   const next = `${window.location.pathname}${window.location.search}`;
@@ -144,7 +145,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get('redirect');
-      navigate(redirect && redirect.startsWith('/') ? redirect : '/dashboard', { replace: true });
+      
+      let finalRedirect = '/dashboard';
+      if (redirect && redirect.startsWith('/')) {
+        if (canAccessRoute(redirect, session.user.permissions ?? [], session.user.roles ?? [])) {
+          finalRedirect = redirect;
+        }
+      }
+      
+      navigate(finalRedirect, { replace: true });
     } catch (error) {
       tokenStorage.clear();
       setUser(null);

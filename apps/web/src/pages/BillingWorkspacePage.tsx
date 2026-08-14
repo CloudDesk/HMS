@@ -14,6 +14,7 @@ import { opdApi } from '../api/opd';
 import { patientsApi } from '../api/patients';
 import { servicesApi } from '../api/services';
 import { useAuth } from '../auth/useAuth';
+import { useCurrencyFormatter } from '../api/useSettings';
 import { Modal } from '../components/ui/Modal';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
@@ -23,7 +24,6 @@ import {
   billingStatusLabel,
   formatBillingDate,
   formatBillingDateTime,
-  formatBillingMoney,
 } from './billing-utils';
 
 const invoiceSchema = z.object({
@@ -61,6 +61,7 @@ const catalogueType = (type: ItemForm['service_type']) => type === 'CONSULTATION
   : type === 'LAB_TEST' ? 'LAB_TEST' : 'IMAGING_SERVICE';
 
 export function BillingWorkspacePage() {
+  const formatBillingMoney = useCurrencyFormatter();
   const { user } = useAuth();
   const location = useAppLocation();
   const queryClient = useQueryClient();
@@ -323,6 +324,7 @@ export function BillingWorkspacePage() {
 }
 
 function ReceiptPaper({ receipt }: { receipt: BillingReceipt }) {
+  const formatBillingMoney = useCurrencyFormatter();
   return <article className="billing-receipt-paper">
     <header><i className="ph-fill ph-hospital" /><h3>HMS Medical Centre</h3><p>Official Payment Receipt</p></header>
     <div className="billing-receipt-grid"><div><span>Receipt Number</span><strong>{receipt.receipt_number}</strong></div><div><span>Payment Number</span><strong>{receipt.payment.payment_number}</strong></div><div><span>Invoice Number</span><strong>{receipt.invoice.invoice_number}</strong></div><div><span>Payment Date</span><strong>{formatBillingDateTime(receipt.payment.payment_date)}</strong></div><div><span>Patient</span><strong>{receipt.invoice.patient_name ?? receipt.invoice.patient_id}</strong></div><div><span>Patient Number</span><strong>{receipt.invoice.patient_number ?? '—'}</strong></div><div><span>Payment Method</span><strong>{receipt.payment.payment_method.replaceAll('_', ' ')}</strong></div><div><span>Reference</span><strong>{receipt.payment.reference_number ?? 'Cash'}</strong></div></div>

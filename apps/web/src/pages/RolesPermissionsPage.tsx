@@ -223,6 +223,16 @@ export function RolesPermissionsPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
+  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(() => new Set());
+
+  const toggleModule = (module: string) => {
+    setCollapsedModules((current) => {
+      const next = new Set(current);
+      if (next.has(module)) next.delete(module);
+      else next.add(module);
+      return next;
+    });
+  };
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -741,17 +751,41 @@ export function RolesPermissionsPage() {
                 <div className="matrix-table-wrap">
                   <table className="rp-matrix-table">
                     <thead><tr><th>Module / Screen</th>{permissionActions.map((action) => <th key={action}>{action}</th>)}</tr></thead>
-                    <tbody>{permissionRows.map((row) => <tr key={row.id}>
-                      <td><div className="module-cell"><i className={`ph ${row.icon} module-icon`} aria-hidden="true" /><span>{row.module} / {row.screen}</span></div></td>
-                      {permissionActions.map((action) => {
-                        const permission = row.permissions[action];
-                        if (!permission || permission.status !== 'active') {
-                          return <td aria-label={`${row.module} ${row.screen} ${action} not available`} className="permission-unavailable" key={action} />;
-                        }
+                    <tbody>
+                      {Array.from(new Set(permissionRows.map((r) => r.module))).flatMap((module) => {
+                        const rows = permissionRows.filter((r) => r.module === module);
+                        const isCollapsed = collapsedModules.has(module);
+                        return [
+                          <tr key={`module-${module}`} className="module-group-header" onClick={() => toggleModule(module)} style={{ cursor: 'pointer' }}>
+                            <td style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                              <div className="module-cell" style={{ fontWeight: 600 }}>
+                                <i className={`ph ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'} module-icon`} aria-hidden="true" style={{ fontSize: '0.85rem', width: '12px' }} />
+                                <i className={`ph ${moduleIcons[module] ?? 'ph-shield-check'} module-icon`} aria-hidden="true" />
+                                <span>{module}</span>
+                              </div>
+                            </td>
+                            <td colSpan={permissionActions.length} style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }} />
+                          </tr>,
+                          ...(isCollapsed ? [] : rows.map((row) => (
+                            <tr key={row.id}>
+                              <td>
+                                <div className="module-cell" style={{ paddingLeft: '3.2rem' }}>
+                                  <span>{row.screen}</span>
+                                </div>
+                              </td>
+                              {permissionActions.map((action) => {
+                                const permission = row.permissions[action];
+                                if (!permission || permission.status !== 'active') {
+                                  return <td aria-label={`${row.module} ${row.screen} ${action} not available`} className="permission-unavailable" key={action} />;
+                                }
 
-                        return <td key={action}><input aria-label={`${row.module} ${row.screen} ${action}`} checked={draftPermissionIds.has(permission.id)} className="perm-check" disabled={!canEditPermissions} onChange={(event) => updatePermission(permission, event.target.checked)} type="checkbox" /></td>;
+                                return <td key={action}><input aria-label={`${row.module} ${row.screen} ${action}`} checked={draftPermissionIds.has(permission.id)} className="perm-check" disabled={!canEditPermissions} onChange={(event) => updatePermission(permission, event.target.checked)} type="checkbox" /></td>;
+                              })}
+                            </tr>
+                          )))
+                        ];
                       })}
-                    </tr>)}</tbody>
+                    </tbody>
                   </table>
                 </div>
               ) : <div className="rp-matrix-empty"><i className="ph ph-shield-check" aria-hidden="true" /><p>No permissions are available.</p></div>}

@@ -7,7 +7,8 @@ export interface IDepartment extends Document {
   description?: string;
   branchId: Types.ObjectId;
   status: 'ACTIVE' | 'INACTIVE';
-  
+  isClinical: boolean;
+
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -24,6 +25,7 @@ const departmentSchema = new Schema<IDepartment>(
     description: { type: String },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
+    isClinical: { type: Boolean, default: false },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },

@@ -4,9 +4,11 @@ import { billingApi } from '../api/billing';
 import { branchesApi } from '../api/branches';
 import { useAuth } from '../auth/useAuth';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { billingStatusClass, billingStatusLabel, formatBillingDate, formatBillingMoney } from './billing-utils';
+import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
+import { useCurrencyFormatter } from '../api/useSettings';
 
 export function BillingDashboardPage() {
+  const formatBillingMoney = useCurrencyFormatter();
   const { user } = useAuth();
   const location = useAppLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);

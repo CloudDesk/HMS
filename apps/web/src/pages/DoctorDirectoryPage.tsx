@@ -200,12 +200,12 @@ export function DoctorDirectoryPage() {
   );
 
   const departmentsForForm = useMemo(
-    () => departments.filter((department) => !form.branchId || department.branch_id === form.branchId),
+    () => departments.filter((department) => (!form.branchId || department.branch_id === form.branchId) && department.isClinical),
     [departments, form.branchId],
   );
 
   const departmentsForFilter = useMemo(
-    () => departments.filter((department) => !branchFilter || department.branch_id === branchFilter),
+    () => departments.filter((department) => (!branchFilter || department.branch_id === branchFilter) && department.isClinical),
     [branchFilter, departments],
   );
 

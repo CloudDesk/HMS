@@ -9,6 +9,7 @@ export type DepartmentResponse = {
   description: string | null;
   branch_id: string;
   status: ApiDepartmentStatus;
+  isClinical: boolean;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -28,6 +29,7 @@ export type DepartmentListResponse = {
 export type DepartmentListParams = Partial<{
   search: string;
   status: ApiDepartmentStatus;
+  isClinical: boolean;
   branch_id: string;
   page: number;
   limit: number;
@@ -41,6 +43,7 @@ export type SaveDepartmentPayload = {
   branch_id: string;
   description?: string | null;
   status?: ApiDepartmentStatus;
+  isClinical?: boolean;
 };
 
 export type DepartmentSummary = {

@@ -488,6 +488,9 @@ export class DoctorService {
     if (department.branch_id !== branch.id) {
       throw new AppError('Department must belong to the selected branch', 400, 'DEPARTMENT_BRANCH_MISMATCH');
     }
+    if (!department.isClinical) {
+      throw new AppError('Doctors can only be assigned to clinical departments', 400, 'DEPARTMENT_NOT_CLINICAL');
+    }
   }
 
   private async validateRegistrationNumber(

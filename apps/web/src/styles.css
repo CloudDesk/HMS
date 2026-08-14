@@ -1568,7 +1568,6 @@ p {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
@@ -1584,6 +1583,7 @@ p {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
+  flex-shrink: 0;
 }
 
 .modal-header {
@@ -1592,6 +1592,8 @@ p {
   text-align: center;
   border-bottom: 1px solid var(--border);
   background: #ffffff;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
 }
 
 .modal-header h3 {
@@ -1634,6 +1636,8 @@ p {
 }
 
 .modal-body {
+  flex: 1 1 0;
+  min-height: 0;
   overflow: auto;
   padding: 1.25rem;
 }
@@ -1647,6 +1651,9 @@ p {
   border-top: 1px solid var(--border);
   background: #ffffff;
   padding: 1rem 1.25rem;
+  flex-shrink: 0;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
 }
 
 .dialog-message {
@@ -6316,6 +6323,7 @@ p {
 .rp-qa-card {
   overflow: hidden;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .rp-detail-empty {
@@ -8370,7 +8378,6 @@ p {
   border-radius: 14px !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
   max-height: 90vh !important;
-  overflow-y: auto !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -8825,7 +8832,6 @@ textarea.has-error {
   max-height: 85vh !important;
   display: flex !important;
   flex-direction: column !important;
-  overflow: hidden !important;
 }
 
 .modal-body {

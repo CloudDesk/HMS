@@ -25,6 +25,7 @@ type DepartmentFormState = {
   branch_id: string;
   description: string;
   status: ApiDepartmentStatus;
+  isClinical: boolean;
 };
 
 const emptyForm: DepartmentFormState = {
@@ -33,6 +34,7 @@ const emptyForm: DepartmentFormState = {
   branch_id: '',
   description: '',
   status: 'ACTIVE',
+  isClinical: false,
 };
 
 const getErrorMessage = (error: unknown) => {
@@ -298,6 +300,7 @@ export function DepartmentManagementPage() {
         branch_id: dept.branch_id,
         description: dept.description || '',
         status: dept.status,
+        isClinical: dept.isClinical,
       });
     } else {
       setForm(emptyForm);
@@ -332,6 +335,7 @@ export function DepartmentManagementPage() {
         branch_id: form.branch_id,
         description: form.description.trim() || null,
         status: form.status,
+        isClinical: form.isClinical,
       };
 
       if (modalMode === 'create') {
@@ -552,6 +556,7 @@ export function DepartmentManagementPage() {
                     />
                     <th scope="col">Branch</th>
                     <th scope="col">Status</th>
+                    <th scope="col">Clinical</th>
                     <SortableHeader
                       column="created_at"
                       label="Created Date"
@@ -616,6 +621,17 @@ export function DepartmentManagementPage() {
                           >
                             {dept.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                           </span>
+                        </td>
+                        <td>
+                          {dept.isClinical ? (
+                            <span className="status-badge status-active">
+                              <span style={{ marginRight: '4px' }}>🟢</span> Clinical
+                            </span>
+                          ) : (
+                            <span className="status-badge" style={{ background: '#f3f4f6', color: '#374151' }}>
+                              <span style={{ marginRight: '4px' }}>⚪</span> Non Clinical
+                            </span>
+                          )}
                         </td>
                         <td className="muted-cell">{formatDateTime(dept.created_at)}</td>
                         <td>
@@ -813,10 +829,22 @@ export function DepartmentManagementPage() {
                   >
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
-                  </select>
+                    </select>
+                  </label>
+                )}
+                <label className="form-field um-checkbox-field">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+                    <input
+                      type="checkbox"
+                      disabled={submitting}
+                      checked={form.isClinical}
+                      onChange={(e) => setForm({ ...form, isClinical: e.target.checked })}
+                      style={{ width: 'auto' }}
+                    />
+                    <span>Is Clinical Department?</span>
+                  </div>
                 </label>
-              )}
-            </div>
+              </div>
 
             <div className="form-section-title">Additional Information</div>
             <div className="form-grid-3">
@@ -848,6 +876,10 @@ export function DepartmentManagementPage() {
               <label className="form-field">
                 <span>Status</span>
                 <input readOnly value={activeDept.status === 'ACTIVE' ? 'Active' : 'Inactive'} />
+              </label>
+              <label className="form-field">
+                <span>Clinical Department</span>
+                <input readOnly value={activeDept.isClinical ? 'Yes' : 'No'} />
               </label>
               <label className="form-field">
                 <span>Branch</span>

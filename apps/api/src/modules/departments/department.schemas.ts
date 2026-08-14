@@ -33,6 +33,7 @@ export const createDepartmentBodySchema = {
     branch_id: { type: 'string', minLength: 1 },
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    isClinical: { type: 'boolean' },
   },
 } as const;
 
@@ -46,6 +47,7 @@ export const updateDepartmentBodySchema = {
     branch_id: { type: 'string', minLength: 1 },
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    isClinical: { type: 'boolean' },
   },
 } as const;
 

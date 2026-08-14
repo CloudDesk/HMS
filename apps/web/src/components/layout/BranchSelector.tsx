@@ -4,7 +4,12 @@ import { useAuth } from '../../auth/useAuth';
 export function BranchSelector() {
   const { user } = useAuth();
   const branches = user?.branches ?? [];
+  const isSuperAdmin = user?.roles.some((r) => r.code === 'SUPER_ADMIN') ?? false;
   const [selectedBranch, setSelectedBranch] = useState('');
+
+  if (branches.length === 0 && isSuperAdmin) {
+    return null;
+  }
 
   useEffect(() => {
     setSelectedBranch((current) =>
