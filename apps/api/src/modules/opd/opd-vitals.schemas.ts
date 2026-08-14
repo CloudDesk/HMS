@@ -25,14 +25,30 @@ export const createOpdVitalsBodySchema = {
   required: [],
   additionalProperties: false,
   properties: {
-    blood_pressure_systolic: { type: ['number', 'null'], minimum: 50, maximum: 260 },
-    blood_pressure_diastolic: { type: ['number', 'null'], minimum: 30, maximum: 160 },
-    weight_kg: { type: ['number', 'null'], minimum: 1, maximum: 350 },
-    height_cm: { type: ['number', 'null'], minimum: 30, maximum: 250 },
-    temperature_c: { type: ['number', 'null'], minimum: 30, maximum: 45 },
-    pulse_bpm: { type: ['number', 'null'], minimum: 20, maximum: 240 },
-    respiratory_rate_per_min: { type: ['number', 'null'], minimum: 5, maximum: 80 },
-    oxygen_saturation_percent: { type: ['number', 'null'], minimum: 50, maximum: 100 },
+    blood_pressure_systolic: {
+      anyOf: [{ type: 'number', minimum: 50, maximum: 260 }, { type: 'null' }],
+    },
+    blood_pressure_diastolic: {
+      anyOf: [{ type: 'number', minimum: 30, maximum: 160 }, { type: 'null' }],
+    },
+    weight_kg: {
+      anyOf: [{ type: 'number', minimum: 1, maximum: 350 }, { type: 'null' }],
+    },
+    height_cm: {
+      anyOf: [{ type: 'number', minimum: 30, maximum: 250 }, { type: 'null' }],
+    },
+    temperature_c: {
+      anyOf: [{ type: 'number', minimum: 30, maximum: 45 }, { type: 'null' }],
+    },
+    pulse_bpm: {
+      anyOf: [{ type: 'number', minimum: 20, maximum: 240 }, { type: 'null' }],
+    },
+    respiratory_rate_per_min: {
+      anyOf: [{ type: 'number', minimum: 5, maximum: 80 }, { type: 'null' }],
+    },
+    oxygen_saturation_percent: {
+      anyOf: [{ type: 'number', minimum: 50, maximum: 100 }, { type: 'null' }],
+    },
     notes: { type: ['string', 'null'] },
   },
 } as const;

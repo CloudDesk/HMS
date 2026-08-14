@@ -31,6 +31,19 @@ const nullable = (value: string) => {
   return trimmed ? trimmed : null;
 };
 
+export const isSlotInPast = (dateStr: string, slotStartTimeStr: string): boolean => {
+  const today = todayInputValue();
+  if (dateStr < today) return true;
+  if (dateStr > today) return false;
+
+  const now = new Date();
+  const currentHours = String(now.getHours()).padStart(2, '0');
+  const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+  const currentTimeStr = `${currentHours}:${currentMinutes}`;
+
+  return slotStartTimeStr < currentTimeStr;
+};
+
 export function AppointmentBookingPage() {
   const { search } = useAppLocation();
   const initialPatientId = new URLSearchParams(search).get('patient') ?? '';
@@ -181,12 +194,14 @@ export function AppointmentBookingPage() {
       setSlotOptions(options);
       setSlotDuration(availableSlotsRes.slot_duration_minutes ?? 30);
 
-      const availableCount = options.filter((s) => s.isAvailable).length;
+      const availableCount = options.filter((s) => s.isAvailable && !isSlotInPast(appointmentDate, s.startTime)).length;
       if (options.length === 0 || availableCount === 0) {
         setSlotUnavailableReason(
           availableSlotsRes.unavailable_reason ||
             (options.length === 0
               ? 'No working hours scheduled for this doctor on the selected date.'
+              : options.every((s) => isSlotInPast(appointmentDate, s.startTime))
+              ? 'All time slots for today have passed. Please select a future date.'
               : 'All available appointment slots for this date are fully booked.'),
         );
       } else {
@@ -480,20 +495,26 @@ export function AppointmentBookingPage() {
                       {slotOptions.map((slot) => {
                         const isSelected = selectedSlot === slot.startTime;
                         const isFull = slot.remainingSlots <= 0;
+                        const isPast = isSlotInPast(appointmentDate, slot.startTime);
+                        const isDisabled = isFull || isPast;
                         return (
                           <button
-                            className={`appointment-slot${isSelected ? ' selected' : ''}${isFull ? ' full' : ''}`}
-                            disabled={isFull}
+                            className={`appointment-slot${isSelected ? ' selected' : ''}${isFull ? ' full' : ''}${isPast ? ' past-slot' : ''}`}
+                            disabled={isDisabled}
                             key={slot.startTime}
-                            onClick={() => setSelectedSlot(slot.startTime)}
+                            onClick={() => !isDisabled && setSelectedSlot(slot.startTime)}
+                            style={isPast ? { opacity: 0.45, cursor: 'not-allowed', backgroundColor: '#f1f5f9', borderColor: '#cbd5e1' } : undefined}
                             type="button"
                           >
                             <div className="slot-time-range">
-                              <strong>{slot.startTime}</strong>
-                              <span>{slot.endTime}</span>
+                              <strong style={isPast ? { color: '#64748b', textDecoration: 'line-through' } : undefined}>{slot.startTime}</strong>
+                              <span style={isPast ? { color: '#94a3b8' } : undefined}>{slot.endTime}</span>
                             </div>
-                            <div className={`slot-capacity-badge ${isFull ? 'full' : slot.remainingSlots === 1 ? 'warning' : 'available'}`}>
-                              {isFull ? 'Fully Booked' : `${slot.remainingSlots} ${slot.remainingSlots === 1 ? 'slot' : 'slots'} left`}
+                            <div
+                              className={`slot-capacity-badge ${isPast ? 'past' : isFull ? 'full' : slot.remainingSlots === 1 ? 'warning' : 'available'}`}
+                              style={isPast ? { backgroundColor: '#e2e8f0', color: '#64748b', border: '1px solid #cbd5e1' } : undefined}
+                            >
+                              {isPast ? 'Expired / Past' : isFull ? 'Fully Booked' : `${slot.remainingSlots} ${slot.remainingSlots === 1 ? 'slot' : 'slots'} left`}
                             </div>
                           </button>
                         );
