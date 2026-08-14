@@ -66,14 +66,14 @@ export function OpdQueuePage() {
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
   const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
   const [vitalsForm, setVitalsForm] = useState({
-    blood_pressure_systolic: '120',
-    blood_pressure_diastolic: '80',
-    weight_kg: '70',
-    height_cm: '170',
-    temperature_c: '36.8',
-    pulse_bpm: '72',
-    respiratory_rate_per_min: '16',
-    oxygen_saturation_percent: '98',
+    blood_pressure_systolic: '',
+    blood_pressure_diastolic: '',
+    weight_kg: '',
+    height_cm: '',
+    temperature_c: '',
+    pulse_bpm: '',
+    respiratory_rate_per_min: '',
+    oxygen_saturation_percent: '',
     notes: '',
   });
   const [vitalsSubmitting, setVitalsSubmitting] = useState(false);
@@ -82,6 +82,17 @@ export function OpdQueuePage() {
 
   const openVitalsModal = (visit: OpdVisitResponse) => {
     setVitalsVisit(visit);
+    setVitalsForm({
+      blood_pressure_systolic: '',
+      blood_pressure_diastolic: '',
+      weight_kg: '',
+      height_cm: '',
+      temperature_c: '',
+      pulse_bpm: '',
+      respiratory_rate_per_min: '',
+      oxygen_saturation_percent: '',
+      notes: '',
+    });
     setVitalsError('');
     setVitalsFieldErrors({});
     setVitalsModalOpen(true);
@@ -91,38 +102,19 @@ export function OpdQueuePage() {
     e.preventDefault();
     if (!vitalsVisit) return;
 
-    const errors: Record<string, string> = {};
-    if (!vitalsForm.blood_pressure_systolic.trim()) {
-      errors.blood_pressure_systolic = 'Systolic BP is required.';
-    }
-    if (!vitalsForm.blood_pressure_diastolic.trim()) {
-      errors.blood_pressure_diastolic = 'Diastolic BP is required.';
-    }
-    if (!vitalsForm.weight_kg.trim()) {
-      errors.weight_kg = 'Weight is required.';
-    }
-    if (!vitalsForm.height_cm.trim()) {
-      errors.height_cm = 'Height is required.';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setVitalsFieldErrors(errors);
-      return;
-    }
-
     setVitalsFieldErrors({});
     setVitalsSubmitting(true);
     setVitalsError('');
     try {
       await opdApi.createVitals(vitalsVisit.id, {
-        blood_pressure_systolic: Number(vitalsForm.blood_pressure_systolic) || 120,
-        blood_pressure_diastolic: Number(vitalsForm.blood_pressure_diastolic) || 80,
-        weight_kg: Number(vitalsForm.weight_kg) || 70,
-        height_cm: Number(vitalsForm.height_cm) || 170,
-        temperature_c: vitalsForm.temperature_c ? Number(vitalsForm.temperature_c) : null,
-        pulse_bpm: vitalsForm.pulse_bpm ? Number(vitalsForm.pulse_bpm) : null,
-        respiratory_rate_per_min: vitalsForm.respiratory_rate_per_min ? Number(vitalsForm.respiratory_rate_per_min) : null,
-        oxygen_saturation_percent: vitalsForm.oxygen_saturation_percent ? Number(vitalsForm.oxygen_saturation_percent) : null,
+        blood_pressure_systolic: vitalsForm.blood_pressure_systolic.trim() ? Number(vitalsForm.blood_pressure_systolic) : null,
+        blood_pressure_diastolic: vitalsForm.blood_pressure_diastolic.trim() ? Number(vitalsForm.blood_pressure_diastolic) : null,
+        weight_kg: vitalsForm.weight_kg.trim() ? Number(vitalsForm.weight_kg) : null,
+        height_cm: vitalsForm.height_cm.trim() ? Number(vitalsForm.height_cm) : null,
+        temperature_c: vitalsForm.temperature_c.trim() ? Number(vitalsForm.temperature_c) : null,
+        pulse_bpm: vitalsForm.pulse_bpm.trim() ? Number(vitalsForm.pulse_bpm) : null,
+        respiratory_rate_per_min: vitalsForm.respiratory_rate_per_min.trim() ? Number(vitalsForm.respiratory_rate_per_min) : null,
+        oxygen_saturation_percent: vitalsForm.oxygen_saturation_percent.trim() ? Number(vitalsForm.oxygen_saturation_percent) : null,
         notes: vitalsForm.notes.trim() || null,
       });
       await opdApi.updateVisitStatus(vitalsVisit.id, { status: 'READY_FOR_CONSULTATION' }).catch(() => null);
@@ -672,53 +664,32 @@ export function OpdQueuePage() {
         <form onSubmit={saveVitals}>
           {vitalsError ? <div className="form-error-banner">{vitalsError}</div> : null}
           <div className="walk-in-form-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-            <div className={`form-group${vitalsFieldErrors.blood_pressure_systolic ? ' has-error' : ''}`}>
-              <label htmlFor="sys-bp">
-                Systolic BP (mmHg) <span className="required-asterisk">*</span>
-              </label>
+            <div className="form-group">
+              <label htmlFor="sys-bp">Systolic BP (mmHg)</label>
               <input
                 id="sys-bp"
-                onChange={(e) => {
-                  setVitalsForm({ ...vitalsForm, blood_pressure_systolic: e.target.value });
-                  setVitalsFieldErrors((prev) => ({ ...prev, blood_pressure_systolic: '' }));
-                }}
-                required
+                onChange={(e) => setVitalsForm({ ...vitalsForm, blood_pressure_systolic: e.target.value })}
+                placeholder="120"
                 type="number"
                 value={vitalsForm.blood_pressure_systolic}
               />
-              {vitalsFieldErrors.blood_pressure_systolic ? (
-                <span className="field-error-msg">
-                  <i className="ph ph-warning-circle" aria-hidden="true" />
-                  {vitalsFieldErrors.blood_pressure_systolic}
-                </span>
-              ) : null}
             </div>
-            <div className={`form-group${vitalsFieldErrors.blood_pressure_diastolic ? ' has-error' : ''}`}>
-              <label htmlFor="dia-bp">
-                Diastolic BP (mmHg) <span className="required-asterisk">*</span>
-              </label>
+            <div className="form-group">
+              <label htmlFor="dia-bp">Diastolic BP (mmHg)</label>
               <input
                 id="dia-bp"
-                onChange={(e) => {
-                  setVitalsForm({ ...vitalsForm, blood_pressure_diastolic: e.target.value });
-                  setVitalsFieldErrors((prev) => ({ ...prev, blood_pressure_diastolic: '' }));
-                }}
-                required
+                onChange={(e) => setVitalsForm({ ...vitalsForm, blood_pressure_diastolic: e.target.value })}
+                placeholder="80"
                 type="number"
                 value={vitalsForm.blood_pressure_diastolic}
               />
-              {vitalsFieldErrors.blood_pressure_diastolic ? (
-                <span className="field-error-msg">
-                  <i className="ph ph-warning-circle" aria-hidden="true" />
-                  {vitalsFieldErrors.blood_pressure_diastolic}
-                </span>
-              ) : null}
             </div>
             <div className="form-group">
               <label htmlFor="pulse">Pulse Rate (bpm)</label>
               <input
                 id="pulse"
                 onChange={(e) => setVitalsForm({ ...vitalsForm, pulse_bpm: e.target.value })}
+                placeholder="72"
                 type="number"
                 value={vitalsForm.pulse_bpm}
               />
@@ -728,6 +699,7 @@ export function OpdQueuePage() {
               <input
                 id="temp"
                 onChange={(e) => setVitalsForm({ ...vitalsForm, temperature_c: e.target.value })}
+                placeholder="36.8"
                 step="0.1"
                 type="number"
                 value={vitalsForm.temperature_c}
@@ -738,6 +710,7 @@ export function OpdQueuePage() {
               <input
                 id="spo2"
                 onChange={(e) => setVitalsForm({ ...vitalsForm, oxygen_saturation_percent: e.target.value })}
+                placeholder="98"
                 type="number"
                 value={vitalsForm.oxygen_saturation_percent}
               />
@@ -747,51 +720,30 @@ export function OpdQueuePage() {
               <input
                 id="resp"
                 onChange={(e) => setVitalsForm({ ...vitalsForm, respiratory_rate_per_min: e.target.value })}
+                placeholder="16"
                 type="number"
                 value={vitalsForm.respiratory_rate_per_min}
               />
             </div>
-            <div className={`form-group${vitalsFieldErrors.weight_kg ? ' has-error' : ''}`}>
-              <label htmlFor="weight">
-                Weight (kg) <span className="required-asterisk">*</span>
-              </label>
+            <div className="form-group">
+              <label htmlFor="weight">Weight (kg)</label>
               <input
                 id="weight"
-                onChange={(e) => {
-                  setVitalsForm({ ...vitalsForm, weight_kg: e.target.value });
-                  setVitalsFieldErrors((prev) => ({ ...prev, weight_kg: '' }));
-                }}
-                required
+                onChange={(e) => setVitalsForm({ ...vitalsForm, weight_kg: e.target.value })}
+                placeholder="70"
                 type="number"
                 value={vitalsForm.weight_kg}
               />
-              {vitalsFieldErrors.weight_kg ? (
-                <span className="field-error-msg">
-                  <i className="ph ph-warning-circle" aria-hidden="true" />
-                  {vitalsFieldErrors.weight_kg}
-                </span>
-              ) : null}
             </div>
-            <div className={`form-group${vitalsFieldErrors.height_cm ? ' has-error' : ''}`}>
-              <label htmlFor="height">
-                Height (cm) <span className="required-asterisk">*</span>
-              </label>
+            <div className="form-group">
+              <label htmlFor="height">Height (cm)</label>
               <input
                 id="height"
-                onChange={(e) => {
-                  setVitalsForm({ ...vitalsForm, height_cm: e.target.value });
-                  setVitalsFieldErrors((prev) => ({ ...prev, height_cm: '' }));
-                }}
-                required
+                onChange={(e) => setVitalsForm({ ...vitalsForm, height_cm: e.target.value })}
+                placeholder="170"
                 type="number"
                 value={vitalsForm.height_cm}
               />
-              {vitalsFieldErrors.height_cm ? (
-                <span className="field-error-msg">
-                  <i className="ph ph-warning-circle" aria-hidden="true" />
-                  {vitalsFieldErrors.height_cm}
-                </span>
-              ) : null}
             </div>
           </div>
         </form>

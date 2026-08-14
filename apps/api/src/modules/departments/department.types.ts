@@ -7,6 +7,7 @@ export type Department = {
   description: string | null;
   branch_id: string;
   status: DepartmentStatus;
+  isClinical: boolean;
   created_by: string | null;
   updated_by: string | null;
   created_at: Date;
@@ -29,6 +30,7 @@ export type CreateDepartmentDTO = {
   branch_id: string;
   description?: string | null;
   status?: DepartmentStatus;
+  isClinical?: boolean;
 };
 
 export type UpdateDepartmentDTO = Partial<CreateDepartmentDTO>;

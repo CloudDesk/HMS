@@ -77,7 +77,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-pill',
     links: [
       { href: '/pharmacy/queue', label: 'Prescription Queue' },
-      { href: '/pharmacy/dispensing', label: 'Dispensing Workspace' },
+      // { href: '/pharmacy/dispensing', label: 'Dispensing Workspace' },
       { href: '/pharmacy/inventory', label: 'Inventory' },
     ],
   },
@@ -87,8 +87,8 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-flask',
     links: [
       { href: '/laboratory/queue', label: 'Work Queue' },
-      { href: '/laboratory/workspace', label: 'Laboratory Workspace' },
-      { href: '/laboratory/reports', label: 'Reports' },
+      // { href: '/laboratory/workspace', label: 'Laboratory Workspace' },
+      // { href: '/laboratory/reports', label: 'Reports' },
     ],
   },
   {
@@ -97,8 +97,8 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-image-square',
     links: [
       { href: '/imaging/queue', label: 'Work Queue' },
-      { href: '/imaging/workspace', label: 'Imaging Workspace' },
-      { href: '/imaging/reports', label: 'Reports' },
+      // { href: '/imaging/workspace', label: 'Imaging Workspace' },
+      // { href: '/imaging/reports', label: 'Reports' },
     ],
   },
   {

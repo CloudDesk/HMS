@@ -10,7 +10,8 @@ const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', '
 
 const isObjectId = (value: string | null | undefined) => Boolean(value && Types.ObjectId.isValid(value));
 
-const calculateBmi = (weightKg: number, heightCm: number) => {
+const calculateBmi = (weightKg?: number | null, heightCm?: number | null) => {
+  if (!weightKg || !heightCm) return 0;
   const heightM = heightCm / 100;
   return Number((weightKg / (heightM * heightM)).toFixed(1));
 };
@@ -88,12 +89,26 @@ export class OpdVitalsService {
   }
 
   private validateVitals(data: CreateOpdVitalsDTO) {
-    this.validateRange(data.blood_pressure_systolic, 50, 260, 'Systolic blood pressure must be between 50 and 260');
-    this.validateRange(data.blood_pressure_diastolic, 30, 160, 'Diastolic blood pressure must be between 30 and 160');
-    this.validateRange(data.weight_kg, 1, 350, 'Weight must be between 1 and 350 kg');
-    this.validateRange(data.height_cm, 30, 250, 'Height must be between 30 and 250 cm');
+    if (data.blood_pressure_systolic !== undefined && data.blood_pressure_systolic !== null) {
+      this.validateRange(data.blood_pressure_systolic, 50, 260, 'Systolic blood pressure must be between 50 and 260');
+    }
+    if (data.blood_pressure_diastolic !== undefined && data.blood_pressure_diastolic !== null) {
+      this.validateRange(data.blood_pressure_diastolic, 30, 160, 'Diastolic blood pressure must be between 30 and 160');
+    }
+    if (data.weight_kg !== undefined && data.weight_kg !== null) {
+      this.validateRange(data.weight_kg, 1, 350, 'Weight must be between 1 and 350 kg');
+    }
+    if (data.height_cm !== undefined && data.height_cm !== null) {
+      this.validateRange(data.height_cm, 30, 250, 'Height must be between 30 and 250 cm');
+    }
 
-    if (data.blood_pressure_diastolic >= data.blood_pressure_systolic) {
+    if (
+      data.blood_pressure_systolic !== undefined &&
+      data.blood_pressure_systolic !== null &&
+      data.blood_pressure_diastolic !== undefined &&
+      data.blood_pressure_diastolic !== null &&
+      data.blood_pressure_diastolic >= data.blood_pressure_systolic
+    ) {
       throw new AppError('Systolic blood pressure must be greater than diastolic blood pressure', 400, 'VALIDATION_ERROR');
     }
 

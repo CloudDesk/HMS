@@ -54,7 +54,6 @@ type UserFormState = {
   fullName: string;
   phone: string;
   jobTitle: string;
-  employeeType: string;
   roleId: string;
   branchId: string;
   departmentId: string;
@@ -215,7 +214,6 @@ const emptyUserForm: UserFormState = {
   fullName: '',
   phone: '',
   jobTitle: 'Doctor',
-  employeeType: '',
   roleId: '',
   branchId: '',
   departmentId: '',
@@ -236,7 +234,6 @@ const getUserForm = (user: UiUser | null): UserFormState => {
     fullName: user.fullName,
     phone: user.phone,
     jobTitle: user.source.jobTitle ?? user.role,
-    employeeType: user.source.employeeType ?? '',
     roleId: user.roleId,
     branchId: user.branchId,
     departmentId: user.departmentId,
@@ -516,7 +513,7 @@ export function UserManagementPage() {
     ]).then(([roles, branches, departments, policy]) => {
       setRoleOptions(roles.items.filter((role) => role.status === 'active'));
       setBranchOptions(branches.data);
-      setDepartmentOptions(departments.data);
+      setDepartmentOptions(departments.data.filter((department) => !department.isClinical));
       setPasswordPolicy(policy);
     }).catch((error: unknown) => setLoadError(getErrorMessage(error)));
   }, []);
@@ -660,7 +657,6 @@ export function UserManagementPage() {
     departments: assignmentFromForm(userForm.departmentId, departmentOptions.find((department) => department.id === userForm.departmentId)?.name ?? ''),
     email: userForm.email.trim() || null,
     employeeCode: userForm.employeeCode.trim(),
-    employeeType: userForm.employeeType.trim() || null,
     fullName: userForm.fullName.trim(),
     jobTitle: userForm.jobTitle.trim() || null,
     password: includePassword ? userForm.password : undefined,
@@ -1002,10 +998,12 @@ export function UserManagementPage() {
                   value={departmentFilter}
                 >
                   <option value="">All Departments</option>
-                  {departmentOptions.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
+                  {departmentOptions
+                    .filter((department) => !branchFilter || department.branch_id === branchFilter)
+                    .map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.name}
+                      </option>
                   ))}
                 </select>
                 <select
@@ -1354,10 +1352,6 @@ export function UserManagementPage() {
                 <span>Phone</span>
                 <input onChange={(event) => updateForm('phone', event.target.value)} value={userForm.phone} />
               </label>
-              <label className="form-field">
-                <span>Employee Type</span>
-                <input onChange={(event) => updateForm('employeeType', event.target.value)} value={userForm.employeeType} />
-              </label>
             </div>
             <div className="form-section-title">Role &amp; Assignment</div>
             <div className="form-grid-3">
@@ -1373,7 +1367,9 @@ export function UserManagementPage() {
                 <span>Department <span className="required">*</span></span>
                 <select aria-invalid={Boolean(fieldErrors.departmentId)} onChange={(event) => updateForm('departmentId', event.target.value)} required value={userForm.departmentId}>
                   <option value="">Select department</option>
-                  {departmentOptions.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+                  {departmentOptions
+                    .filter((department) => !userForm.branchId || department.branch_id === userForm.branchId)
+                    .map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                 </select>
                 {fieldErrors.departmentId ? <small className="field-error">{fieldErrors.departmentId}</small> : null}
               </label>
@@ -1381,7 +1377,7 @@ export function UserManagementPage() {
                 <span>Role <span className="required">*</span></span>
                 <select aria-invalid={Boolean(fieldErrors.roleId)} onChange={(event) => updateForm('roleId', event.target.value)} required value={userForm.roleId}>
                   <option value="">Select role</option>
-                  {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                  {roleOptions.filter((role) => role.name !== 'Doctor').map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                 </select>
                 {fieldErrors.roleId ? <small className="field-error">{fieldErrors.roleId}</small> : null}
               </label>
@@ -1426,7 +1422,7 @@ export function UserManagementPage() {
                 <span>Role <span className="required">*</span></span>
                 <select aria-invalid={Boolean(fieldErrors.roleId)} onChange={(event) => updateForm('roleId', event.target.value)} required value={userForm.roleId}>
                   <option value="">Select role</option>
-                  {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                  {roleOptions.filter((role) => role.name !== 'Doctor').map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                 </select>
                 {fieldErrors.roleId ? <small className="field-error">{fieldErrors.roleId}</small> : null}
               </label>

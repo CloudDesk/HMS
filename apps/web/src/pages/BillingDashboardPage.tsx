@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { billingApi } from '../api/billing';
 import { branchesApi } from '../api/branches';
 import { useAuth } from '../auth/useAuth';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { billingStatusClass, billingStatusLabel, formatBillingDate, formatBillingMoney } from './billing-utils';
+import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
+import { useCurrencyFormatter } from '../api/useSettings';
 
 export function BillingDashboardPage() {
+  const formatBillingMoney = useCurrencyFormatter();
   const { user } = useAuth();
   const location = useAppLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -43,22 +45,19 @@ export function BillingDashboardPage() {
     by_status: { DRAFT: 0, PENDING: 0, PARTIALLY_PAID: 0, PAID: 0, CANCELLED: 0 },
   };
 
-  const setBranch = (value: string) => {
-    const next = new URLSearchParams(location.search);
-    if (value) next.set('branch_id', value); else next.delete('branch_id');
-    navigate(`/billing${next.toString() ? `?${next}` : ''}`, { replace: true });
-  };
+  const [selectedBranchId, setSelectedBranchId] = useState(branchId);
+  const effectiveBranchId = selectedBranchId || branchId;
 
   return <div className="billing-page">
     <div className="billing-page-head">
       <div><h2>Billing Dashboard</h2><p>OPD invoices, collections, and outstanding balances</p></div>
       <div className="billing-head-actions">
-        <select aria-label="Filter billing by branch" onChange={(event) => setBranch(event.target.value)} value={branchId}>
+        <select aria-label="Filter billing by branch" onChange={(event) => setSelectedBranchId(event.target.value)} value={effectiveBranchId}>
           <option value="">All accessible branches</option>
           {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
         </select>
-        <button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-clock-counter-clockwise" /> History</button>
-        {hasAction('Create') ? <button className="btn-primary" onClick={() => navigate('/billing/workspace?mode=create')} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}
+        <button className="btn-secondary" style={{ cursor: 'default' }} type="button"><i className="ph ph-clock-counter-clockwise" /> History</button>
+        {hasAction('Create') ? <button className="btn-primary" style={{ cursor: 'default' }} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}
       </div>
     </div>
 
@@ -72,7 +71,7 @@ export function BillingDashboardPage() {
     </section>
 
     <section className="billing-card">
-      <div className="billing-card-head"><div><h3>Recent Invoices</h3><p>Latest invoices across accessible branches</p></div><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button">View all</button></div>
+      <div className="billing-card-head"><div><h3>Recent Invoices</h3><p>Latest invoices across accessible branches</p></div><button className="btn-secondary" style={{ cursor: 'default' }} type="button">View all</button></div>
       <div className="table-responsive">
         <table className="data-table billing-table"><thead><tr><th>Invoice</th><th>Patient</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th aria-label="Actions" /></tr></thead>
           <tbody>

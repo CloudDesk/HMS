@@ -5,12 +5,14 @@ import { billingApi } from '../api/billing';
 import { branchesApi } from '../api/branches';
 import { patientsApi } from '../api/patients';
 import { useAuth } from '../auth/useAuth';
+import { useCurrencyFormatter } from '../api/useSettings';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { billingStatusClass, billingStatusLabel, formatBillingDate, formatBillingMoney } from './billing-utils';
+import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
 
 const statuses: BillingInvoiceStatus[] = ['DRAFT', 'PENDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'];
 
 export function BillingHistoryPage() {
+  const formatBillingMoney = useCurrencyFormatter();
   const { user } = useAuth();
   const location = useAppLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);

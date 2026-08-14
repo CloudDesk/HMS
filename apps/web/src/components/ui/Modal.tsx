@@ -17,6 +17,17 @@ export function Modal({ title, open, icon, footer, size = 'default', onClose, ch
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (open) {
+      document.body.classList.add('modal-backdrop');
+    } else {
+      document.body.classList.remove('modal-backdrop');
+    }
+    return () => {
+      document.body.classList.remove('modal-backdrop');
+    };
+  }, [open]);
+
   if (!mounted) return null;
 
   return createPortal(

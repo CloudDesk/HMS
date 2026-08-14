@@ -123,11 +123,11 @@ export function LoginPage() {
           </button>
         </form>
 
-        <button className="link-action" onClick={() => navigate('/forgot-password')} type="button">
+        {/* <button className="link-action" onClick={() => navigate('/forgot-password')} type="button">
           Need password help?
-        </button>
+        </button> */}
 
-        <dl className="runtime-list" aria-label="Frontend runtime configuration">
+        {/* <dl className="runtime-list" aria-label="Frontend runtime configuration">
           <div>
             <dt>Mode</dt>
             <dd>{appConfig.appEnv}</dd>
@@ -136,7 +136,7 @@ export function LoginPage() {
             <dt>API</dt>
             <dd>{appConfig.apiBaseUrl}</dd>
           </div>
-        </dl>
+        </dl> */}
       </section>
     </main>
   );

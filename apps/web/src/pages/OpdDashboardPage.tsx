@@ -92,15 +92,15 @@ export function OpdDashboardPage() {
           <p>Monitor outpatient activity, queues and visit flow</p>
         </div>
         <div className="opd-page-actions">
-          <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
+          <button className="doc-btn" style={{ cursor: 'default' }} type="button">
             <i className="ph ph-magnifying-glass" aria-hidden="true" />
             Search Patient
           </button>
-          <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
+          <button className="doc-btn" style={{ cursor: 'default' }} type="button">
             <i className="ph ph-queue" aria-hidden="true" />
             Open Queue
           </button>
-          <button className="doc-btn primary" onClick={() => navigate('/appointments/queue')} type="button">
+          <button className="doc-btn primary" style={{ cursor: 'default' }} type="button">
             <i className="ph ph-sign-in" aria-hidden="true" />
             Check-in Patient
           </button>
@@ -198,7 +198,7 @@ export function OpdDashboardPage() {
               <h3>Active OPD Queue</h3>
               <p>Patients currently in outpatient flow</p>
             </div>
-            <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
+            <button className="doc-btn" style={{ cursor: 'default' }} type="button">
               View Queue
             </button>
           </div>
