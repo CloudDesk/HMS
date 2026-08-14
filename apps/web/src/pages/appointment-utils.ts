@@ -26,8 +26,8 @@ export const appointmentVisitTypeLabels: Record<ApiAppointmentVisitType, string>
 
 export const appointmentPriorityLabels: Record<ApiAppointmentPriority, string> = {
   ROUTINE: 'Routine',
-  URGENT: 'Urgent',
   EMERGENCY: 'Emergency',
+  URGENT: 'Emergency',
 };
 
 export const formatAppointmentDate = (value: string | null | undefined) => {

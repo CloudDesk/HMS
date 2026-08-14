@@ -403,24 +403,7 @@ export function PatientRegistrationPage() {
                 />
               </div>
 
-              <div className="doc-field">
-                <label htmlFor="patient-registration-branch">
-                  Registration Branch <span className="required-asterisk">*</span>
-                </label>
-                <select
-                  disabled={submitting}
-                  id="patient-registration-branch"
-                  onChange={(event) => setForm({ ...form, registrationBranchId: event.target.value })}
-                  value={form.registrationBranchId}
-                >
-                  <option value="">Select Branch</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
+
             </RegistrationSection>
 
             <RegistrationSection description="Residential and postal address" number={2} title="Contact Information">

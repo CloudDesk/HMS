@@ -572,8 +572,7 @@ export function OpdVisitPage() {
         physical_examination: consultationForm.physical_examination.trim() || null,
         treatment_plan: consultationForm.treatment_plan.trim() || null,
       };
-      const response = await opdApi.completeConsultation(visit.id, payload);
-
+      // The payload will be sent when completing the consultation at the end of this function
       // Save & Submit Prescriptions if items present
       if (prescriptionForm.items.length > 0) {
         await opdApi
@@ -676,7 +675,7 @@ export function OpdVisitPage() {
           .catch(() => null);
       }
 
-      await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED' }).catch(() => null);
+      const response = await opdApi.completeConsultation(visit.id, payload);
       setConsultation(response);
       await loadVisit();
       await loadClinicalData();
@@ -1044,23 +1043,14 @@ export function OpdVisitPage() {
                       </div>
                     </div>
                     <div className="doc-form-grid two">
-                      <label className={`doc-field full${consultationFieldErrors.primaryDiagnosis ? ' has-error' : ''}`} htmlFor="primary-dx">
-                        <span>Primary Diagnosis (ICD-10) <span className="required-asterisk">*</span></span>
+                      <label className="doc-field full" htmlFor="primary-dx">
+                        <span>Primary Diagnosis (ICD-10)</span>
                         <input
                           id="primary-dx"
-                          onChange={(e) => {
-                            setPrimaryDiagnosis(e.target.value);
-                            setConsultationFieldErrors((prev) => ({ ...prev, primaryDiagnosis: '' }));
-                          }}
+                          onChange={(e) => setPrimaryDiagnosis(e.target.value)}
                           placeholder="e.g. Essential (primary) hypertension [I10]"
                           value={primaryDiagnosis}
                         />
-                        {consultationFieldErrors.primaryDiagnosis ? (
-                          <span className="field-error-msg">
-                            <i className="ph ph-warning-circle" aria-hidden="true" />
-                            {consultationFieldErrors.primaryDiagnosis}
-                          </span>
-                        ) : null}
                       </label>
                       <label className="doc-field full" htmlFor="secondary-dx">
                         <span>Secondary Diagnoses</span>
@@ -1114,7 +1104,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="opd-medication-builder">
                       <label className="doc-field medicine" htmlFor="medicine-name">
-                        <span>Medicine Name <span className="required-asterisk">*</span></span>
+                        <span>Medicine Name</span>
                         <select
                           id="medicine-name"
                           onChange={(e) => {
@@ -1305,8 +1295,7 @@ export function OpdVisitPage() {
                         <span>Priority</span>
                         <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value)} value={labPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="URGENT">Urgent</option>
-                          <option value="STAT">STAT</option>
+                          <option value="EMERGENCY">Emergency</option>
                         </select>
                       </label>
                     </div>
@@ -1366,7 +1355,7 @@ export function OpdVisitPage() {
                         <span>Priority</span>
                         <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value)} value={imagingPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="URGENT">Urgent</option>
+                          <option value="EMERGENCY">Emergency</option>
                         </select>
                       </label>
                     </div>
@@ -1412,7 +1401,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="ref-specialty">
-                        <span>Specialty <span className="required-asterisk">*</span></span>
+                        <span>Specialty</span>
                         <select
                           id="ref-specialty"
                           onChange={(e) => {
@@ -1433,7 +1422,7 @@ export function OpdVisitPage() {
                       </label>
 
                       <label className="doc-field" htmlFor="ref-doctor">
-                        <span>Referred Doctor <span className="required-asterisk">*</span></span>
+                        <span>Referred Doctor</span>
                         <select
                           disabled={!referralSpecialty}
                           id="ref-doctor"
@@ -1455,7 +1444,7 @@ export function OpdVisitPage() {
                       </label>
 
                       <label className="doc-field" htmlFor="ref-date">
-                        <span>Appointment Date <span className="required-asterisk">*</span></span>
+                        <span>Appointment Date</span>
                         <input
                           id="ref-date"
                           min={new Date().toISOString().slice(0, 10)}

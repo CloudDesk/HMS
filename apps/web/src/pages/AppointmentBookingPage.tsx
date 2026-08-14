@@ -25,7 +25,7 @@ type SlotOption = {
 };
 
 const visitTypeOptions = Object.keys(appointmentVisitTypeLabels) as ApiAppointmentVisitType[];
-const priorityOptions = Object.keys(appointmentPriorityLabels) as ApiAppointmentPriority[];
+const priorityOptions: ApiAppointmentPriority[] = ['ROUTINE', 'EMERGENCY'];
 const nullable = (value: string) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
@@ -55,6 +55,7 @@ export function AppointmentBookingPage() {
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [appointmentDate, setAppointmentDate] = useState(todayInputValue());
   const [selectedSlot, setSelectedSlot] = useState('');
+  const [slotError, setSlotError] = useState('');
   const [visitType, setVisitType] = useState<ApiAppointmentVisitType>('NEW_CONSULTATION');
   const [priority, setPriority] = useState<ApiAppointmentPriority>('ROUTINE');
   const [reason, setReason] = useState('');
@@ -226,12 +227,14 @@ export function AppointmentBookingPage() {
 
   useEffect(() => {
     setSelectedSlot('');
+    setSlotError('');
   }, [appointmentDate, selectedDoctorId]);
 
   const selectPatient = (patient: PatientResponse) => {
     setSelectedPatient(patient);
     setStep(2);
     setError('');
+    setSlotError('');
   };
 
   const continueToConfirmation = (event: FormEvent) => {
@@ -243,11 +246,17 @@ export function AppointmentBookingPage() {
       return;
     }
 
-    if (!selectedDoctor || !selectedSlot) {
-      setError('Select a doctor, date, and available time slot.');
+    if (!selectedDoctor) {
+      setError('Select a doctor and date.');
       return;
     }
 
+    if (!selectedSlot) {
+      setSlotError('Please select an available time slot before continuing.');
+      return;
+    }
+
+    setSlotError('');
     setError('');
     setStep(3);
   };
@@ -476,10 +485,18 @@ export function AppointmentBookingPage() {
                     ))}
                   </select>
                 </div>
-                <div className="doc-field full">
-                  <label>
-                    Available Time Slots <span className="required-asterisk">*</span>
-                  </label>
+                <div className={`doc-field full${slotError ? ' has-error' : ''}`}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <label style={{ margin: 0 }}>
+                      Available Time Slots <span className="required-asterisk">*</span>
+                    </label>
+                    {slotError ? (
+                      <span className="field-error-msg" style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <i className="ph ph-warning-circle" aria-hidden="true" />
+                        {slotError}
+                      </span>
+                    ) : null}
+                  </div>
                   {slotLoading ? (
                     <div className="appointment-slot-state">Loading available slots...</div>
                   ) : slotOptions.length === 0 || !slotOptions.some((s) => s.isAvailable) ? (
@@ -491,7 +508,7 @@ export function AppointmentBookingPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="appointment-slot-grid">
+                    <div className="appointment-slot-grid" style={slotError ? { border: '1px solid #fca5a5', padding: '0.75rem', borderRadius: '10px', backgroundColor: '#fef2f2' } : undefined}>
                       {slotOptions.map((slot) => {
                         const isSelected = selectedSlot === slot.startTime;
                         const isFull = slot.remainingSlots <= 0;
@@ -502,7 +519,12 @@ export function AppointmentBookingPage() {
                             className={`appointment-slot${isSelected ? ' selected' : ''}${isFull ? ' full' : ''}${isPast ? ' past-slot' : ''}`}
                             disabled={isDisabled}
                             key={slot.startTime}
-                            onClick={() => !isDisabled && setSelectedSlot(slot.startTime)}
+                            onClick={() => {
+                              if (!isDisabled) {
+                                setSelectedSlot(slot.startTime);
+                                setSlotError('');
+                              }
+                            }}
                             style={isPast ? { opacity: 0.45, cursor: 'not-allowed', backgroundColor: '#f1f5f9', borderColor: '#cbd5e1' } : undefined}
                             type="button"
                           >

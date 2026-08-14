@@ -78,7 +78,6 @@ const patientSchema = new Schema<PatientDocumentFields>(
   },
 );
 
-patientSchema.index({ patientNumber: 1 });
 patientSchema.index({ firstName: 1, lastName: 1 });
 patientSchema.index({ phone: 1 });
 patientSchema.index({ email: 1 });
