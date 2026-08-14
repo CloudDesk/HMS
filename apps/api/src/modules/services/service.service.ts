@@ -103,7 +103,7 @@ export class ServiceCatalogueService {
             service.code,
             service.name,
             service.service_type,
-            service.department_name ?? '—',
+            department?.name ?? '—',
             service.standard_price.toFixed(2),
             service.status,
             service.created_at,
