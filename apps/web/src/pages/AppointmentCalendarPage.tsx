@@ -7,6 +7,7 @@ import {
 import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { doctorsApi, type DoctorResponse } from '../api/doctors';
+import { useAuth } from '../auth/useAuth';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
@@ -135,6 +136,7 @@ const downloadAppointments = (appointments: AppointmentResponse[]) => {
 };
 
 export function AppointmentCalendarPage() {
+  const { user } = useAuth();
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   const [mode, setMode] = useState<CalendarMode>((initialParams.get('view') as CalendarMode | null) ?? 'week');
@@ -161,6 +163,11 @@ export function AppointmentCalendarPage() {
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
 
+  const loggedInDoctor = useMemo(
+    () => (user ? doctors.find((doctor) => doctor.user_id === user.id) : undefined),
+    [doctors, user],
+  );
+
   const range = useMemo(() => buildDateRange(mode, calendarDate), [calendarDate, mode]);
   const visibleDoctors = useMemo(
     () => doctors.filter((doctor) => !departmentFilter || doctor.department_id === departmentFilter),
@@ -169,6 +176,15 @@ export function AppointmentCalendarPage() {
   const weekDays = useMemo(() => buildWeekDays(calendarDate), [calendarDate]);
   const monthDays = useMemo(() => buildMonthDays(calendarDate), [calendarDate]);
 
+  useEffect(() => {
+    if (loggedInDoctor && doctorFilter !== loggedInDoctor.id) {
+      setDoctorFilter(loggedInDoctor.id);
+      if (loggedInDoctor.department_id && departmentFilter !== loggedInDoctor.department_id) {
+        setDepartmentFilter(loggedInDoctor.department_id);
+      }
+    }
+  }, [loggedInDoctor, doctorFilter, departmentFilter]);
+
   const showToast = (message: string) => {
     setToastMessage(message);
     setToastVisible(true);
@@ -176,22 +192,58 @@ export function AppointmentCalendarPage() {
   };
 
   const loadLookups = useCallback(async () => {
-    const [departmentResponse, doctorResponse, branchResponse] = await Promise.all([
-      departmentsApi.list({ status: 'ACTIVE', limit: 100 }),
-      doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
-      branchesApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
-    ]);
-    setDepartments(departmentResponse.data);
-    setDoctors(doctorResponse.data);
-    setBranches(branchResponse.data);
+    try {
+      const [departmentResponse, branchResponse] = await Promise.all([
+        departmentsApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => null),
+        branchesApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
+      ]);
+      setBranches(branchResponse.data);
+
+      let docs: DoctorResponse[] = [];
+      try {
+        const doctorResponse = await doctorsApi.list({
+          status: 'ACTIVE',
+          limit: 100,
+          sortBy: 'display_name',
+          sortOrder: 'asc',
+        });
+        docs = doctorResponse.data;
+      } catch {
+        try {
+          const currentDoc = await doctorsApi.getCurrent();
+          docs = [currentDoc];
+        } catch {
+          // not a doctor, or no access
+        }
+      }
+      setDoctors(docs);
+
+      if (departmentResponse) {
+        setDepartments(departmentResponse.data);
+      } else if (docs.length === 1 && docs[0]?.department_id) {
+        const dept = await departmentsApi.getById(docs[0]!.department_id).catch(() => null);
+        setDepartments(dept ? [dept] : []);
+      } else {
+        setDepartments([]);
+      }
+    } catch (error) {
+      console.error('Failed to load lookups', error);
+    }
   }, []);
 
-  const loadAppointments = useCallback(async () => {
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  const loadAppointments = useCallback(() => {
+    setRefreshCounter((c) => c + 1);
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
     setLoading(true);
     setLoadError('');
 
-    try {
-      const response = await appointmentsApi.list({
+    appointmentsApi
+      .list({
         date_from: range.from,
         date_to: range.to,
         department_id: departmentFilter || undefined,
@@ -200,15 +252,25 @@ export function AppointmentCalendarPage() {
         limit: 100,
         sortBy: 'start_time',
         sortOrder: 'asc',
+      })
+      .then((response) => {
+        if (!ignore) {
+          setAppointments(response.data);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setAppointments([]);
+          setLoadError(getAppointmentErrorMessage(error));
+          setLoading(false);
+        }
       });
-      setAppointments(response.data);
-    } catch (error) {
-      setAppointments([]);
-      setLoadError(getAppointmentErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [departmentFilter, doctorFilter, range.from, range.to, statusFilter]);
+
+    return () => {
+      ignore = true;
+    };
+  }, [departmentFilter, doctorFilter, range.from, range.to, statusFilter, refreshCounter]);
 
   useEffect(() => {
     void loadLookups().catch((error) => setLoadError(getAppointmentErrorMessage(error)));
@@ -226,10 +288,6 @@ export function AppointmentCalendarPage() {
       navigate(nextUrl, { replace: true });
     }
   }, [calendarDate, departmentFilter, doctorFilter, mode, statusFilter]);
-
-  useEffect(() => {
-    void loadAppointments();
-  }, [loadAppointments]);
 
   const appointmentsFor = (day: string, slot?: string) =>
     appointments.filter((appointment) => {
@@ -251,6 +309,14 @@ export function AppointmentCalendarPage() {
     if (!targetAppointment) return;
 
     const newStartTime = targetSlot || targetAppointment.start_time;
+
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    if (targetDate < todayInputValue() || (targetDate === todayInputValue() && newStartTime < currentTime)) {
+      showToast('Appointments cannot be rescheduled to a past date or time.');
+      return;
+    }
 
     // Optimistic UI update
     setAppointments((prev) =>
@@ -352,6 +418,7 @@ export function AppointmentCalendarPage() {
             <label htmlFor="calendar-department">Department</label>
             <select
               id="calendar-department"
+              disabled={Boolean(loggedInDoctor)}
               onChange={(event) => {
                 setDepartmentFilter(event.target.value);
                 setDoctorFilter('');
@@ -368,7 +435,12 @@ export function AppointmentCalendarPage() {
           </div>
           <div className="doc-field">
             <label htmlFor="calendar-doctor">Doctor</label>
-            <select id="calendar-doctor" onChange={(event) => setDoctorFilter(event.target.value)} value={doctorFilter}>
+            <select 
+              id="calendar-doctor" 
+              disabled={Boolean(loggedInDoctor)}
+              onChange={(event) => setDoctorFilter(event.target.value)} 
+              value={doctorFilter}
+            >
               <option value="">All Doctors</option>
               {visibleDoctors.map((doctor) => (
                 <option key={doctor.id} value={doctor.id}>
@@ -447,6 +519,9 @@ export function AppointmentCalendarPage() {
                           key={cellKey}
                           onDragLeave={() => setDragOverCellKey(null)}
                           onDragOver={(e) => {
+                            const now = new Date();
+                            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            if (day < todayInputValue() || (day === todayInputValue() && slot < currentTime)) return;
                             e.preventDefault();
                             setDragOverCellKey(cellKey);
                           }}
@@ -494,6 +569,7 @@ export function AppointmentCalendarPage() {
                       key={day}
                       onDragLeave={() => setDragOverCellKey(null)}
                       onDragOver={(e) => {
+                        if (day < todayInputValue()) return;
                         e.preventDefault();
                         setDragOverCellKey(day);
                       }}

@@ -176,7 +176,7 @@ export type SaveOpdConsultationPayload = {
   doctor_notes?: string | null;
 };
 
-export type ApiOpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED';
+export type ApiOpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED' | 'DISPENSED';
 
 export type OpdPrescriptionItemResponse = {
   id: string;
@@ -436,6 +436,17 @@ export const opdApi = {
         method: 'POST',
       },
     );
+  },
+
+  listPrescriptions(params: Partial<{ status: ApiOpdPrescriptionStatus; limit: number; skip: number; search: string; sortBy: string; sortOrder: 'asc' | 'desc' }> = {}) {
+    return apiClient.request<{ data: OpdPrescriptionResponse[]; total: number }>(`/opd/prescriptions${toQueryString(params)}`);
+  },
+
+  updatePrescriptionStatus(id: string, status: ApiOpdPrescriptionStatus) {
+    return apiClient.request<OpdPrescriptionResponse>(`/opd/prescriptions/${encodeURIComponent(id)}/status`, {
+      body: { status },
+      method: 'PATCH',
+    });
   },
 
   getPrescription(visitId: string) {

@@ -28,6 +28,7 @@ import { BranchManagementPage } from '../pages/BranchManagementPage';
 import { ServiceCataloguePage } from '../pages/ServiceCataloguePage';
 import { MedicineMasterPage } from '../pages/MedicineMasterPage';
 import { PharmacyMedicineInventoryPage } from '../pages/PharmacyMedicineInventoryPage';
+import { PrescriptionQueuePage } from '../pages/PrescriptionQueuePage';
 import { LaboratoryQueuePage } from '../pages/LaboratoryQueuePage';
 import { LaboratoryWorkspacePage } from '../pages/LaboratoryWorkspacePage';
 import { LaboratoryResultEntryPage } from '../pages/LaboratoryResultEntryPage';
@@ -237,6 +238,10 @@ export function AppRouter() {
     title = 'Medicine Master';
     breadcrumbs = ['Home', 'Administration', 'Medicine Master'];
     content = <MedicineMasterPage />;
+  } else if (pathname === '/pharmacy/queue') {
+    title = 'Prescription Queue';
+    breadcrumbs = ['Home', 'Pharmacy', 'Prescription Queue'];
+    content = <PrescriptionQueuePage />;
   } else if (pathname === '/pharmacy/inventory') {
     title = 'Medicine Inventory';
     breadcrumbs = ['Home', 'Pharmacy', 'Medicine Inventory'];

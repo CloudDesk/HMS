@@ -37,3 +37,31 @@ export const saveOpdPrescriptionBodySchema = {
     patient_instructions: nullableText(2000),
   },
 } as const;
+
+export const listOpdPrescriptionsQuerySchema = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['DRAFT', 'SUBMITTED', 'DISPENSED'] },
+    limit: { type: 'number', minimum: 1, maximum: 100 },
+    skip: { type: 'number', minimum: 0 },
+    search: { type: 'string' },
+    sortBy: { type: 'string' },
+    sortOrder: { type: 'string', enum: ['asc', 'desc'] },
+  },
+} as const;
+
+export const opdPrescriptionParamsSchema = {
+  type: 'object',
+  required: ['id'],
+  properties: {
+    id: { type: 'string', minLength: 1 },
+  },
+} as const;
+
+export const updateOpdPrescriptionStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  properties: {
+    status: { type: 'string', enum: ['SUBMITTED', 'DISPENSED'] },
+  },
+} as const;

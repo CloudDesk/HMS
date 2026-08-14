@@ -98,6 +98,8 @@ export function BillingWorkspacePage() {
   const selectedServiceId = itemForm.watch('service_id');
   const paymentMethod = paymentForm.watch('payment_method');
 
+  const selectedVisit = invoiceForm.watch('visit_id');
+
   const branchesQuery = useQuery({
     queryKey: ['branches', 'billing-workspace-options'],
     queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
@@ -125,6 +127,89 @@ export function BillingWorkspacePage() {
     queryFn: () => servicesApi.list({ status: 'ACTIVE', service_type: catalogueType(selectedSource), page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
     enabled: createMode,
   });
+
+  useEffect(() => {
+    if (!createMode || !selectedVisit) return;
+    
+    let ignore = false;
+    
+    const fetchOpdServices = async () => {
+      try {
+        const [consultation, labOrder, imagingOrder, servicesResponse] = await Promise.all([
+          opdApi.getConsultation(selectedVisit).catch(() => null),
+          opdApi.getClinicalOrder(selectedVisit, 'LABORATORY').catch(() => null),
+          opdApi.getClinicalOrder(selectedVisit, 'IMAGING').catch(() => null),
+          servicesApi.list({ status: 'ACTIVE', limit: 1000 }).catch(() => ({ data: [] })),
+        ]);
+        
+        if (ignore) return;
+        
+        const services = servicesResponse.data;
+        const newDraftItems: DraftItem[] = [];
+        
+        // Auto-add Consultation if completed
+        if (consultation && consultation.status === 'COMPLETED') {
+           const consultService = services.find(s => s.service_type === 'GENERAL' && s.name.toLowerCase().includes('consultation'));
+           if (consultService) {
+             newDraftItems.push({
+                service_id: consultService.id,
+                service_type: 'CONSULTATION',
+                quantity: 1,
+                service_name: consultService.name,
+                unit_price: consultService.standard_price,
+                line_total: consultService.standard_price,
+             });
+           }
+        }
+        
+        // Auto-add Lab Tests
+        if (labOrder && labOrder.status !== 'DRAFT') {
+           for (const item of labOrder.items) {
+             const service = services.find(s => s.id === item.service_id);
+             if (service) {
+               newDraftItems.push({
+                 service_id: service.id,
+                 service_type: 'LAB_TEST',
+                 quantity: 1,
+                 service_name: service.name,
+                 unit_price: service.standard_price,
+                 line_total: service.standard_price,
+               });
+             }
+           }
+        }
+        
+        // Auto-add Imaging
+        if (imagingOrder && imagingOrder.status !== 'DRAFT') {
+           for (const item of imagingOrder.items) {
+             const service = services.find(s => s.id === item.service_id);
+             if (service) {
+               newDraftItems.push({
+                 service_id: service.id,
+                 service_type: 'IMAGING_SERVICE',
+                 quantity: 1,
+                 service_name: service.name,
+                 unit_price: service.standard_price,
+                 line_total: service.standard_price,
+               });
+             }
+           }
+        }
+        
+        setDraftItems(newDraftItems);
+        
+      } catch (error) {
+        console.error('Failed to auto-populate services', error);
+      }
+    };
+    
+    void fetchOpdServices();
+    
+    return () => {
+      ignore = true;
+    };
+  }, [createMode, selectedVisit]);
+
 
   const invoiceQuery = useQuery({
     queryKey: ['billing', 'invoice', invoiceId],

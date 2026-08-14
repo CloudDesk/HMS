@@ -39,7 +39,7 @@ export function TopHeader({ title, breadcrumbs = ['Home', title], onOpenMobileSi
 
       <div className="header-right">
         <BranchSelector />
-        <NotificationsMenu />
+        {/* <NotificationsMenu /> */}
         <UserMenu />
       </div>
     </header>
