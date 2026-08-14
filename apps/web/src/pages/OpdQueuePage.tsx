@@ -411,28 +411,32 @@ export function OpdQueuePage() {
 
             <div className="doc-table-wrap appointment-queue-table-wrap">
               <table className="doc-table">
+                <colgroup>
+                  <col style={{ width: '25%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '23%' }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Visit</th>
-                    <th>Patient</th>
+                    <th>Patient &amp; Visit</th>
                     <th>Doctor</th>
-                    <th>Check-in</th>
                     <th>Wait</th>
-                    <th>Priority</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={8}>
+                      <td className="um-state-cell" colSpan={5}>
                         Loading OPD queue...
                       </td>
                     </tr>
                   ) : sortedVisits.length === 0 ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={8}>
+                      <td className="um-state-cell" colSpan={5}>
                         No OPD visits found. Check in an appointment or register a walk-in to start the queue.
                       </td>
                     </tr>
@@ -440,28 +444,23 @@ export function OpdQueuePage() {
                     sortedVisits.map((visit, index) => (
                       <tr className={visit.id === currentVisit?.id ? 'queue-current-row' : ''} key={visit.id}>
                         <td>
-                          <strong>{visit.visit_number}</strong>
-                          <br />
-                          <small>{opdVisitTypeLabels[visit.visit_type]}</small>
-                        </td>
-                        <td>
                           <div className="doc-person">
                             <span className="doc-avatar">{patientInitials(visit.patient_name)}</span>
                             <div>
                               <strong>{visit.patient_name}</strong>
-                              <span>{visit.patient_number}</span>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b' }}>{visit.visit_number}</span>
                             </div>
                           </div>
                         </td>
                         <td>
                           <strong>{visit.doctor_name}</strong>
                           <br />
-                          <small>{visit.doctor_specialization}</small>
+                          <small style={{ color: '#64748b' }}>{visit.doctor_specialization}</small>
                         </td>
-                        <td>{formatVisitDateTime(visit.check_in_time)}</td>
-                        <td>{waitMinutes(visit, index)} min</td>
                         <td>
-                          <span className={`doc-status ${visitPriorityClass(visit.priority)}`}>
+                          <strong>{waitMinutes(visit, index)} m</strong>
+                          <br />
+                          <span className={`doc-status ${visitPriorityClass(visit.priority)}`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem' }}>
                             {opdVisitPriorityLabels[visit.priority]}
                           </span>
                         </td>
@@ -471,41 +470,54 @@ export function OpdQueuePage() {
                           </span>
                         </td>
                         <td>
-                          <div className="doc-actions">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
+                            {visit.status === 'WAITING_FOR_VITALS' || visit.status === 'CHECKED_IN' ? (
+                              <button
+                                className="doc-btn primary compact"
+                                disabled={updating === visit.id}
+                                onClick={() => openVitalsModal(visit)}
+                                title="Step 1: Take Vitals"
+                                type="button"
+                              >
+                                <i className="ph ph-heartbeat" aria-hidden="true" />
+                                Take Vitals
+                              </button>
+                            ) : visit.status === 'READY_FOR_CONSULTATION' ? (
+                              <button
+                                className="doc-btn success compact"
+                                disabled={updating === visit.id}
+                                onClick={async () => {
+                                  await opdApi.updateVisitStatus(visit.id, { status: 'IN_CONSULTATION' }).catch(() => null);
+                                  navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
+                                }}
+                                title="Step 2: Start Consultation"
+                                type="button"
+                              >
+                                <i className="ph ph-stethoscope" aria-hidden="true" />
+                                Start Consultation
+                              </button>
+                            ) : visit.status === 'IN_CONSULTATION' ? (
+                              <button
+                                className="doc-btn primary compact"
+                                onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)}
+                                title="Resume Consultation"
+                                type="button"
+                              >
+                                <i className="ph ph-arrow-square-out" aria-hidden="true" />
+                                Consultation
+                              </button>
+                            ) : (
+                              <span className="doc-status completed">
+                                <i className="ph ph-check-circle" aria-hidden="true" /> Completed
+                              </span>
+                            )}
                             <button
                               className="doc-action"
                               onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)}
-                              title="Open visit"
+                              title="View Visit Details"
                               type="button"
                             >
                               <i className="ph ph-arrow-square-out" aria-hidden="true" />
-                            </button>
-                            <button
-                              className="doc-action primary"
-                              disabled={updating === visit.id}
-                              onClick={() => openVitalsModal(visit)}
-                              title="Record Vitals"
-                              type="button"
-                            >
-                              <i className="ph ph-heartbeat" aria-hidden="true" />
-                            </button>
-                            <button
-                              className="doc-action"
-                              disabled={updating === visit.id || visit.status !== 'READY_FOR_CONSULTATION'}
-                              onClick={() => updateVisitStatus(visit, 'IN_CONSULTATION', 'Patient called for doctor consultation.')}
-                              title="Call patient"
-                              type="button"
-                            >
-                              <i className="ph ph-megaphone" aria-hidden="true" />
-                            </button>
-                            <button
-                              className="doc-action"
-                              disabled={updating === visit.id || visit.status !== 'CHECKED_IN'}
-                              onClick={() => updateVisitStatus(visit, 'WAITING_FOR_VITALS', 'Patient sent for vitals assessment.')}
-                              title="Send to vitals"
-                              type="button"
-                            >
-                              <i className="ph ph-activity" aria-hidden="true" />
                             </button>
                           </div>
                         </td>
