@@ -1295,8 +1295,7 @@ export function OpdVisitPage() {
                         <span>Priority</span>
                         <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value)} value={labPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="URGENT">Urgent</option>
-                          <option value="STAT">STAT</option>
+                          <option value="EMERGENCY">Emergency</option>
                         </select>
                       </label>
                     </div>
@@ -1356,7 +1355,7 @@ export function OpdVisitPage() {
                         <span>Priority</span>
                         <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value)} value={imagingPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="URGENT">Urgent</option>
+                          <option value="EMERGENCY">Emergency</option>
                         </select>
                       </label>
                     </div>
