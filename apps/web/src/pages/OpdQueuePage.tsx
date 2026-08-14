@@ -651,7 +651,7 @@ export function OpdQueuePage() {
             <button className="secondary-action" onClick={() => setVitalsModalOpen(false)} type="button">
               Cancel
             </button>
-            <button className="primary-action" disabled={vitalsSubmitting} onClick={(e) => void saveVitals(e)} type="button">
+            <button className="primary-action" disabled={vitalsSubmitting} onClick={saveVitals} type="button">
               {vitalsSubmitting ? 'Saving...' : 'Save Vitals'}
             </button>
           </>

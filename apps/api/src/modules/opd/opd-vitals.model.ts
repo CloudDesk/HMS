@@ -6,10 +6,10 @@ export type OpdVitalsFields = {
   patientNumber: string;
   patientName: string;
   recordedAt: Date;
-  bloodPressureSystolic: number;
-  bloodPressureDiastolic: number;
-  weightKg: number;
-  heightCm: number;
+  bloodPressureSystolic?: number | null;
+  bloodPressureDiastolic?: number | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
   bmi: number;
   temperatureC?: number | null;
   pulseBpm?: number | null;
