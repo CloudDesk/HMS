@@ -164,6 +164,7 @@ opdVisits: new OpdVisitService(
       opdConsultationRepository,
       opdClinicalOrderRepository,
       serviceRepository,
+      pharmacyInventoryRepository,
     ),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
   };

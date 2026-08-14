@@ -28,7 +28,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/doctors/directory', label: 'Doctor Directory' },
       { href: '/doctors/schedule', label: 'Doctor Schedule' },
       { href: '/doctors/availability', label: 'Availability' },
-      { href: '/doctors/performance', label: 'Performance' },
+      // { href: '/doctors/performance', label: 'Performance' },
     ],
   },
   {

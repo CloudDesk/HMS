@@ -38,10 +38,12 @@ export type MedicineBatch = {
   branch_id: string;
   batch_number: string;
   expiry_date: string;
+  unit_price: number;
   barcode: string | null;
   quantity_on_hand: number;
   status: BatchStatus;
   expiry_state?: ExpiryState;
+  medicine?: { id: string; name: string };
   created_at: string;
   updated_at: string;
 };
@@ -116,6 +118,7 @@ export type RegisterBatchPayload = {
   branch_id: string;
   batch_number: string;
   expiry_date: string;
+  unit_price: number;
   opening_quantity: number;
   barcode?: string | null;
   reason?: string | null;
@@ -153,7 +156,12 @@ export const pharmacyInventoryApi = {
   },
   batches(medicineId: string, params: BatchListParams) {
     return apiClient.request<Page<MedicineBatch>>(
-      `/pharmacy/medicine-inventory/${encodeURIComponent(medicineId)}/batches${queryString(params)}`,
+      `/pharmacy/medicine-inventory/${encodeURIComponent(medicineId)}/batches${queryString(params as any)}`,
+    );
+  },
+  allBatches(params: BatchListParams) {
+    return apiClient.request<Page<MedicineBatch>>(
+      `/pharmacy/medicine-inventory/batches${queryString(params as any)}`,
     );
   },
   movements(params: MovementListParams) {
@@ -165,7 +173,7 @@ export const pharmacyInventoryApi = {
       { method: 'POST', body: payload },
     );
   },
-  updateBatch(batchId: string, payload: { branch_id: string; expiry_date?: string; barcode?: string | null; reason: string }) {
+  updateBatch(batchId: string, payload: { branch_id: string; expiry_date?: string; unit_price?: number; barcode?: string | null; reason: string }) {
     return apiClient.request<MedicineBatch>(
       `/pharmacy/medicine-inventory/batches/${encodeURIComponent(batchId)}`,
       { method: 'PATCH', body: payload },

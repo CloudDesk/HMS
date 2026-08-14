@@ -21,6 +21,8 @@ import { OpdVisitPage } from '../pages/OpdVisitPage';
 import { PatientProfilePage } from '../pages/PatientProfilePage';
 import { PatientRegistrationPage } from '../pages/PatientRegistrationPage';
 import { PatientSearchPage } from '../pages/PatientSearchPage';
+import { PatientDocumentsPage } from '../pages/PatientDocumentsPage';
+import { PatientConsentPage } from '../pages/PatientConsentPage';
 import { RolesPermissionsPage } from '../pages/RolesPermissionsPage';
 import { UserManagementPage } from '../pages/UserManagementPage';
 import { DepartmentManagementPage } from '../pages/DepartmentManagementPage';
@@ -137,15 +139,7 @@ export function AppRouter() {
     title = 'Patient Workspace';
     breadcrumbs = ['Home', 'Patients', 'Patient Workspace'];
     content = <PatientProfilePage />;
-  } else if (
-    pathname === '/patients/history' ||
-    pathname === '/patients/documents' ||
-    pathname === '/patients/emr' ||
-    pathname === '/patients/consents' ||
-    pathname === '/patients/consent'
-  ) {
-    // These pages have been consolidated into the Patient Workspace.
-    // Redirect gracefully to search so users can open the workspace from there.
+  } else if (pathname === '/patients/history' || pathname === '/patients/emr') {
     title = 'Page Moved';
     breadcrumbs = ['Home', 'Patients', 'Page Moved'];
     content = (
@@ -158,6 +152,14 @@ export function AppRouter() {
         </button>
       </div>
     );
+  } else if (pathname === '/patients/documents') {
+    title = 'Patient Documents';
+    breadcrumbs = ['Home', 'Patients', 'Documents'];
+    content = <PatientDocumentsPage />;
+  } else if (pathname === '/patients/consents' || pathname === '/patients/consent') {
+    title = 'Patient Consent';
+    breadcrumbs = ['Home', 'Patients', 'Consent Forms'];
+    content = <PatientConsentPage />;
   } else if (pathname === '/doctors') {
     title = 'Doctor Dashboard';
     breadcrumbs = ['Home', 'Doctors', 'Dashboard'];
@@ -238,7 +240,7 @@ export function AppRouter() {
     title = 'Medicine Master';
     breadcrumbs = ['Home', 'Administration', 'Medicine Master'];
     content = <MedicineMasterPage />;
-  } else if (pathname === '/pharmacy/queue') {
+  } else if (pathname === '/pharmacy' || pathname === '/pharmacy/queue') {
     title = 'Prescription Queue';
     breadcrumbs = ['Home', 'Pharmacy', 'Prescription Queue'];
     content = <PrescriptionQueuePage />;

@@ -12,6 +12,7 @@ import {
 import { branchesApi } from '../api/branches';
 import { opdApi } from '../api/opd';
 import { patientsApi } from '../api/patients';
+import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
 import { servicesApi } from '../api/services';
 import { useAuth } from '../auth/useAuth';
 import { useCurrencyFormatter } from '../api/useSettings';
@@ -35,7 +36,7 @@ const invoiceSchema = z.object({
   tax_amount: z.number().min(0, 'Tax cannot be negative.'),
 });
 const itemSchema = z.object({
-  service_type: z.enum(['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE']),
+  service_type: z.enum(['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE', 'PHARMACY']),
   service_id: z.string().min(1, 'Select a service.'),
   quantity: z.number().int().min(1, 'Quantity must be at least one.'),
 });
@@ -58,7 +59,7 @@ type DraftItem = SaveBillingInvoiceItem & { service_name: string; unit_price: nu
 const today = () => new Date().toISOString().slice(0, 10);
 const catalogueType = (type: ItemForm['service_type']) => type === 'CONSULTATION'
   ? 'GENERAL'
-  : type === 'LAB_TEST' ? 'LAB_TEST' : 'IMAGING_SERVICE';
+  : type === 'LAB_TEST' ? 'LAB_TEST' : type === 'IMAGING_SERVICE' ? 'IMAGING_SERVICE' : undefined;
 
 export function BillingWorkspacePage() {
   const formatBillingMoney = useCurrencyFormatter();
@@ -125,7 +126,12 @@ export function BillingWorkspacePage() {
   const servicesQuery = useQuery({
     queryKey: ['services', 'billing-workspace-options', selectedSource],
     queryFn: () => servicesApi.list({ status: 'ACTIVE', service_type: catalogueType(selectedSource), page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
-    enabled: createMode,
+    enabled: createMode && selectedSource !== 'PHARMACY',
+  });
+  const batchesQuery = useQuery({
+    queryKey: ['pharmacy-batches', 'billing-workspace-options', selectedBranch],
+    queryFn: () => pharmacyInventoryApi.allBatches({ branch_id: selectedBranch, status: 'ACTIVE', page: 1, limit: 100 }),
+    enabled: createMode && selectedSource === 'PHARMACY' && Boolean(selectedBranch),
   });
 
   useEffect(() => {
@@ -135,16 +141,19 @@ export function BillingWorkspacePage() {
     
     const fetchOpdServices = async () => {
       try {
-        const [consultation, labOrder, imagingOrder, servicesResponse] = await Promise.all([
+        const [consultation, labOrder, imagingOrder, prescription, servicesResponse, batchesResponse] = await Promise.all([
           opdApi.getConsultation(selectedVisit).catch(() => null),
           opdApi.getClinicalOrder(selectedVisit, 'LABORATORY').catch(() => null),
           opdApi.getClinicalOrder(selectedVisit, 'IMAGING').catch(() => null),
-          servicesApi.list({ status: 'ACTIVE', limit: 1000 }).catch(() => ({ data: [] })),
+          opdApi.getPrescription(selectedVisit).catch(() => null),
+          servicesApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
+          pharmacyInventoryApi.allBatches({ branch_id: selectedBranch, status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
         ]);
         
         if (ignore) return;
         
         const services = servicesResponse.data;
+        const batches = batchesResponse.data;
         const newDraftItems: DraftItem[] = [];
         
         // Auto-add Consultation if completed
@@ -196,6 +205,23 @@ export function BillingWorkspacePage() {
            }
         }
         
+        // Auto-add Pharmacy
+        if (prescription && prescription.status !== 'DRAFT') {
+           for (const item of prescription.items) {
+             const batch = batches.find(b => b.medicine?.name === item.medicine_name);
+             if (batch) {
+               newDraftItems.push({
+                 service_id: batch.id,
+                 service_type: 'PHARMACY',
+                 quantity: item.quantity || 1,
+                 service_name: `${batch.medicine?.name} (Batch: ${batch.batch_number})`,
+                 unit_price: batch.unit_price,
+                 line_total: batch.unit_price * (item.quantity || 1),
+               });
+             }
+           }
+        }
+        
         setDraftItems(newDraftItems);
         
       } catch (error) {
@@ -208,7 +234,7 @@ export function BillingWorkspacePage() {
     return () => {
       ignore = true;
     };
-  }, [createMode, selectedVisit]);
+  }, [createMode, selectedVisit, selectedBranch]);
 
 
   const invoiceQuery = useQuery({
@@ -307,17 +333,31 @@ export function BillingWorkspacePage() {
   });
 
   const addItem = itemForm.handleSubmit((values) => {
-    const service = servicesQuery.data?.data.find((candidate) => candidate.id === values.service_id);
-    if (!service) return itemForm.setError('service_id', { message: 'Select an active service.' });
-    if (draftItems.some((item) => item.service_id === service.id)) return itemForm.setError('service_id', { message: 'Service is already included.' });
-    setDraftItems((current) => [...current, {
-      service_id: service.id,
-      service_name: service.name,
-      service_type: values.service_type,
-      quantity: values.quantity,
-      unit_price: service.standard_price,
-      line_total: service.standard_price * values.quantity,
-    }]);
+    if (values.service_type === 'PHARMACY') {
+      const batch = batchesQuery.data?.data.find((candidate) => candidate.id === values.service_id);
+      if (!batch) return itemForm.setError('service_id', { message: 'Select an active batch.' });
+      if (draftItems.some((item) => item.service_id === batch.id)) return itemForm.setError('service_id', { message: 'Medicine batch is already included.' });
+      setDraftItems((current) => [...current, {
+        service_id: batch.id,
+        service_name: `${batch.medicine?.name} (Batch: ${batch.batch_number})`,
+        service_type: values.service_type,
+        quantity: values.quantity,
+        unit_price: batch.unit_price,
+        line_total: batch.unit_price * values.quantity,
+      }]);
+    } else {
+      const service = servicesQuery.data?.data.find((candidate) => candidate.id === values.service_id);
+      if (!service) return itemForm.setError('service_id', { message: 'Select an active service.' });
+      if (draftItems.some((item) => item.service_id === service.id)) return itemForm.setError('service_id', { message: 'Service is already included.' });
+      setDraftItems((current) => [...current, {
+        service_id: service.id,
+        service_name: service.name,
+        service_type: values.service_type,
+        quantity: values.quantity,
+        unit_price: service.standard_price,
+        line_total: service.standard_price * values.quantity,
+      }]);
+    }
     itemForm.reset({ service_type: values.service_type, service_id: '', quantity: 1 });
   });
 
@@ -327,7 +367,9 @@ export function BillingWorkspacePage() {
   });
   const draftSubtotal = draftItems.reduce((sum, item) => sum + item.line_total, 0);
   const draftTotal = draftSubtotal - invoiceForm.watch('discount_amount') + invoiceForm.watch('tax_amount');
-  const selectedService = servicesQuery.data?.data.find((service) => service.id === selectedServiceId);
+  const selectedService = selectedSource === 'PHARMACY' 
+    ? batchesQuery.data?.data.find((batch) => batch.id === selectedServiceId)
+    : servicesQuery.data?.data.find((service) => service.id === selectedServiceId);
 
   if (createMode) {
     return <div className="billing-page">
@@ -348,13 +390,17 @@ export function BillingWorkspacePage() {
           <section className="billing-card">
             <div className="billing-card-head"><div><h3>Billable Services</h3><p>Names and prices are copied from active Service Catalogue records</p></div></div>
             <form className="billing-item-builder" onSubmit={addItem}>
-              <label><span>Charge Source</span><select {...itemForm.register('service_type', { onChange: () => itemForm.setValue('service_id', '') })}><option value="CONSULTATION">Consultation</option><option value="LAB_TEST">Laboratory Test</option><option value="IMAGING_SERVICE">Imaging Service</option></select></label>
-              <label><span>Service</span><select disabled={servicesQuery.isLoading} {...itemForm.register('service_id')}><option value="">{servicesQuery.isLoading ? 'Loading services…' : 'Select service'}</option>{servicesQuery.data?.data.map((service) => <option key={service.id} value={service.id}>{service.name} · {formatBillingMoney(service.standard_price)}</option>)}</select><small>{itemForm.formState.errors.service_id?.message}</small></label>
+              <label><span>Charge Source</span><select {...itemForm.register('service_type', { onChange: () => itemForm.setValue('service_id', '') })}><option value="CONSULTATION">Consultation</option><option value="LAB_TEST">Laboratory Test</option><option value="IMAGING_SERVICE">Imaging Service</option><option value="PHARMACY">Pharmacy</option></select></label>
+              <label><span>Service / Medicine</span><select disabled={selectedSource === 'PHARMACY' ? batchesQuery.isLoading : servicesQuery.isLoading} {...itemForm.register('service_id')}><option value="">{(selectedSource === 'PHARMACY' ? batchesQuery.isLoading : servicesQuery.isLoading) ? 'Loading...' : 'Select item'}</option>
+                {selectedSource === 'PHARMACY' 
+                  ? batchesQuery.data?.data.map((batch) => <option key={batch.id} value={batch.id}>{batch.medicine?.name} (Batch: {batch.batch_number}) · {formatBillingMoney(batch.unit_price)}</option>)
+                  : servicesQuery.data?.data.map((service) => <option key={service.id} value={service.id}>{service.name} · {formatBillingMoney(service.standard_price)}</option>)}
+              </select><small>{itemForm.formState.errors.service_id?.message}</small></label>
               <label><span>Quantity</span><input min="1" type="number" {...itemForm.register('quantity', { valueAsNumber: true })} /></label>
               <button className="btn-secondary" disabled={!selectedService} type="submit"><i className="ph ph-plus" /> Add</button>
             </form>
-            {servicesQuery.isError ? <div className="billing-inline-alert error"><i className="ph ph-warning-circle" /> Service Catalogue could not be loaded.</div> : null}
-            {!servicesQuery.isLoading && !servicesQuery.isError && (servicesQuery.data?.data.length ?? 0) === 0 ? <div className="billing-inline-alert"><i className="ph ph-info" /> No active {billingServiceLabel[selectedSource]} services are configured.</div> : null}
+            {(selectedSource === 'PHARMACY' ? batchesQuery.isError : servicesQuery.isError) ? <div className="billing-inline-alert error"><i className="ph ph-warning-circle" /> {selectedSource === 'PHARMACY' ? 'Pharmacy inventory' : 'Service Catalogue'} could not be loaded.</div> : null}
+            {!(selectedSource === 'PHARMACY' ? batchesQuery.isLoading : servicesQuery.isLoading) && !(selectedSource === 'PHARMACY' ? batchesQuery.isError : servicesQuery.isError) && ((selectedSource === 'PHARMACY' ? batchesQuery.data?.data.length : servicesQuery.data?.data.length) ?? 0) === 0 ? <div className="billing-inline-alert"><i className="ph ph-info" /> No active {selectedSource === 'PHARMACY' ? 'medicines' : billingServiceLabel[selectedSource]} are configured.</div> : null}
             <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Source</th><th>Service</th><th>Quantity</th><th>Unit Price</th><th>Line Total</th><th aria-label="Remove" /></tr></thead><tbody>
               {draftItems.length === 0 ? <tr><td className="um-state-cell" colSpan={6}>No billable services added.</td></tr> : null}
               {draftItems.map((item) => <tr key={item.service_id}><td>{billingServiceLabel[item.service_type]}</td><td><strong>{item.service_name}</strong></td><td>{item.quantity}</td><td>{formatBillingMoney(item.unit_price)}</td><td>{formatBillingMoney(item.line_total)}</td><td><button aria-label={`Remove ${item.service_name}`} className="icon-btn danger" onClick={() => setDraftItems((current) => current.filter((candidate) => candidate.service_id !== item.service_id))} type="button"><i className="ph ph-trash" /></button></td></tr>)}

@@ -166,6 +166,16 @@ export class PharmacyInventoryService {
     return this.repository.listBatches(medicineId, query);
   }
 
+  async listAllBatches(
+    query: PharmacyBatchListQuery,
+    actorUserId: string,
+    metadata: PharmacyInventoryRequestMetadata,
+  ) {
+    await this.requireBranchAccess(actorUserId, query.branch_id);
+    await this.reconcileExpiry(query.branch_id, actorUserId, metadata);
+    return this.repository.listAllBatches(query);
+  }
+
   async listMovements(query: PharmacyMovementListQuery, actorUserId: string) {
     await this.requireBranchAccess(actorUserId, query.branch_id);
     const dateFrom = query.date_from ? parseDateOnly(query.date_from) : null;

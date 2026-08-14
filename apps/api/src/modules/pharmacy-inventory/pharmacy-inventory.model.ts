@@ -25,6 +25,7 @@ export type PharmacyMedicineBatchFields = {
   branchId: Types.ObjectId;
   batchNumber: string;
   expiryDate: Date;
+  unitPrice: number;
   barcode?: string | null;
   quantityOnHand: number;
   status: MedicineBatchStatus;
@@ -77,6 +78,7 @@ const batchSchema = new Schema<PharmacyMedicineBatchFields>(
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     batchNumber: { type: String, required: true, trim: true, uppercase: true },
     expiryDate: { type: Date, required: true },
+    unitPrice: { type: Number, min: 0, required: true },
     barcode: { type: String, trim: true, default: null },
     quantityOnHand: { type: Number, min: 0, default: 0, required: true },
     status: { type: String, enum: ['ACTIVE', 'DEPLETED', 'EXPIRED'], required: true },
