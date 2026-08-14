@@ -213,8 +213,8 @@ function ExecutiveOverviewTab() {
         ) : data.recentVisits.length === 0 ? (
           <div className="patient-empty-inline">No OPD visits recorded today.</div>
         ) : (
-          <div className="um-table-wrap">
-            <table className="um-table">
+          <div className="um-table-section">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Visit #</th>
