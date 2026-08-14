@@ -418,10 +418,13 @@ export function OpdVisitPage() {
     [masterMedicines, medicationForm.medicine_name],
   );
 
-  const [selectedLabTest, setSelectedLabTest] = useState('');
+  const [labOrders, setLabOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
   const [labPriority, setLabPriority] = useState<any>('ROUTINE');
-  const [selectedImagingTest, setSelectedImagingTest] = useState('');
+  const [selectedLabTest, setSelectedLabTest] = useState('');
+
+  const [imagingOrders, setImagingOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
   const [imagingPriority, setImagingPriority] = useState<any>('ROUTINE');
+  const [selectedImagingTest, setSelectedImagingTest] = useState('');
 
   // Load patient clinical sub-resources
   const loadClinicalData = useCallback(async () => {
@@ -441,12 +444,12 @@ export function OpdVisitPage() {
           opdApi.getClinicalOrder(activeVisitId, 'IMAGING'),
         ]);
 
-      if (labOrderRes.status === 'fulfilled' && labOrderRes.value?.items?.[0]) {
-        setSelectedLabTest(labOrderRes.value.items[0].investigation_name || '');
+      if (labOrderRes.status === 'fulfilled' && labOrderRes.value?.items?.length) {
+        setLabOrders(labOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, local_id: i.id || `lab-${Date.now()}-${Math.random()}` })));
         if (labOrderRes.value.priority) setLabPriority(labOrderRes.value.priority);
       }
-      if (imagingOrderRes.status === 'fulfilled' && imagingOrderRes.value?.items?.[0]) {
-        setSelectedImagingTest(imagingOrderRes.value.items[0].investigation_name || '');
+      if (imagingOrderRes.status === 'fulfilled' && imagingOrderRes.value?.items?.length) {
+        setImagingOrders(imagingOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, local_id: i.id || `img-${Date.now()}-${Math.random()}` })));
         if (imagingOrderRes.value.priority) setImagingPriority(imagingOrderRes.value.priority);
       }
 
@@ -572,8 +575,7 @@ export function OpdVisitPage() {
         physical_examination: consultationForm.physical_examination.trim() || null,
         treatment_plan: consultationForm.treatment_plan.trim() || null,
       };
-      const response = await opdApi.completeConsultation(visit.id, payload);
-
+      // The payload will be sent when completing the consultation at the end of this function
       // Save & Submit Prescriptions if items present
       if (prescriptionForm.items.length > 0) {
         await opdApi
@@ -596,37 +598,56 @@ export function OpdVisitPage() {
       }
 
       // Save & Submit Lab Clinical Orders if selected
-      const labName = selectedLabTest || (document.getElementById('lab-test-name') as HTMLSelectElement | null)?.value || '';
-      const matchedLabService = labName ? labTestServices.find((s) => s.name === labName) : undefined;
-      if (labName && matchedLabService) {
+      const pendingLabName = selectedLabTest || (document.getElementById('lab-test-name') as HTMLSelectElement | null)?.value || '';
+      const matchedPendingLab = pendingLabName ? labTestServices.find((s) => s.name === pendingLabName) : undefined;
+      
+      const allLabItems = [...labOrders.map(o => ({
+        service_id: o.id,
+        investigation_name: o.name,
+        category: labTestServices.find(s => s.id === o.id)?.category || 'General Lab',
+      }))];
+      
+      if (matchedPendingLab && !allLabItems.find(i => i.service_id === matchedPendingLab.id)) {
+        allLabItems.push({
+          service_id: matchedPendingLab.id,
+          investigation_name: pendingLabName,
+          category: matchedPendingLab.category || 'General Lab',
+        });
+      }
+
+      if (allLabItems.length > 0) {
         await opdApi
           .submitClinicalOrder(visit.id, 'LABORATORY', {
             priority: labPriority || 'ROUTINE',
-            items: [
-              {
-                service_id: matchedLabService.id,
-                investigation_name: labName,
-                category: matchedLabService.category || 'General Lab',
-              },
-            ],
+            specimen_type: 'Not Specified',
+            items: allLabItems,
           })
           .catch(() => null);
       }
 
       // Save & Submit Imaging Clinical Orders if selected
-      const imagingName = selectedImagingTest || (document.getElementById('imaging-test-name') as HTMLSelectElement | null)?.value || '';
-      const matchedImagingService = imagingName ? imagingServices.find((s) => s.name === imagingName) : undefined;
-      if (imagingName && matchedImagingService) {
+      const pendingImagingName = selectedImagingTest || (document.getElementById('imaging-test-name') as HTMLSelectElement | null)?.value || '';
+      const matchedPendingImaging = pendingImagingName ? imagingServices.find((s) => s.name === pendingImagingName) : undefined;
+
+      const allImagingItems = [...imagingOrders.map(o => ({
+        service_id: o.id,
+        investigation_name: o.name,
+        category: imagingServices.find(s => s.id === o.id)?.category || 'Radiology',
+      }))];
+
+      if (matchedPendingImaging && !allImagingItems.find(i => i.service_id === matchedPendingImaging.id)) {
+        allImagingItems.push({
+          service_id: matchedPendingImaging.id,
+          investigation_name: pendingImagingName,
+          category: matchedPendingImaging.category || 'Radiology',
+        });
+      }
+
+      if (allImagingItems.length > 0) {
         await opdApi
           .submitClinicalOrder(visit.id, 'IMAGING', {
             priority: imagingPriority || 'ROUTINE',
-            items: [
-              {
-                service_id: matchedImagingService.id,
-                investigation_name: imagingName,
-                category: matchedImagingService.category || 'Radiology',
-              },
-            ],
+            items: allImagingItems,
           })
           .catch(() => null);
       }
@@ -650,16 +671,17 @@ export function OpdVisitPage() {
           quantity: 1,
         });
       }
-      if (matchedLabService) {
+      for (const item of allLabItems) {
         invoiceItems.push({
-          service_id: matchedLabService.id,
+          service_id: item.service_id,
           service_type: 'LAB_TEST',
           quantity: 1,
         });
       }
-      if (matchedImagingService) {
+
+      for (const item of allImagingItems) {
         invoiceItems.push({
-          service_id: matchedImagingService.id,
+          service_id: item.service_id,
           service_type: 'IMAGING_SERVICE',
           quantity: 1,
         });
@@ -676,7 +698,7 @@ export function OpdVisitPage() {
           .catch(() => null);
       }
 
-      await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED' }).catch(() => null);
+      const response = await opdApi.completeConsultation(visit.id, payload);
       setConsultation(response);
       await loadVisit();
       await loadClinicalData();
@@ -1044,23 +1066,14 @@ export function OpdVisitPage() {
                       </div>
                     </div>
                     <div className="doc-form-grid two">
-                      <label className={`doc-field full${consultationFieldErrors.primaryDiagnosis ? ' has-error' : ''}`} htmlFor="primary-dx">
-                        <span>Primary Diagnosis (ICD-10) <span className="required-asterisk">*</span></span>
+                      <label className="doc-field full" htmlFor="primary-dx">
+                        <span>Primary Diagnosis (ICD-10)</span>
                         <input
                           id="primary-dx"
-                          onChange={(e) => {
-                            setPrimaryDiagnosis(e.target.value);
-                            setConsultationFieldErrors((prev) => ({ ...prev, primaryDiagnosis: '' }));
-                          }}
+                          onChange={(e) => setPrimaryDiagnosis(e.target.value)}
                           placeholder="e.g. Essential (primary) hypertension [I10]"
                           value={primaryDiagnosis}
                         />
-                        {consultationFieldErrors.primaryDiagnosis ? (
-                          <span className="field-error-msg">
-                            <i className="ph ph-warning-circle" aria-hidden="true" />
-                            {consultationFieldErrors.primaryDiagnosis}
-                          </span>
-                        ) : null}
                       </label>
                       <label className="doc-field full" htmlFor="secondary-dx">
                         <span>Secondary Diagnoses</span>
@@ -1114,7 +1127,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="opd-medication-builder">
                       <label className="doc-field medicine" htmlFor="medicine-name">
-                        <span>Medicine Name <span className="required-asterisk">*</span></span>
+                        <span>Medicine Name</span>
                         <select
                           id="medicine-name"
                           onChange={(e) => {
@@ -1305,10 +1318,66 @@ export function OpdVisitPage() {
                         <span>Priority</span>
                         <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value)} value={labPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="URGENT">Urgent</option>
-                          <option value="STAT">STAT</option>
+                          <option value="EMERGENCY">Emergency</option>
                         </select>
                       </label>
+                      <button
+                        className="doc-btn primary add-medication"
+                        onClick={() => {
+                          if (!selectedLabTest.trim()) return;
+                          const matchedLab = labTestServices.find(s => s.name === selectedLabTest);
+                          if (!matchedLab) return;
+                          setLabOrders((prev) => [
+                            ...prev,
+                            { id: matchedLab.id, name: selectedLabTest, local_id: `lab-${Date.now()}` }
+                          ]);
+                          setSelectedLabTest('');
+                        }}
+                        type="button"
+                        style={{ alignSelf: 'flex-end', height: 'fit-content', marginBottom: '4px' }}
+                      >
+                        <i className="ph ph-plus" aria-hidden="true" />
+                        Add Test
+                      </button>
+                    </div>
+
+                    <div className="doc-table-wrap" style={{ marginTop: '1rem' }}>
+                      <table className="doc-table opd-prescription-table">
+                        <thead>
+                          <tr>
+                            <th>Test / Investigation Name</th>
+                            <th style={{ width: '60px' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {labOrders.length === 0 ? (
+                            <tr>
+                              <td colSpan={2} style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>
+                                No lab tests added yet. Select a test and click "Add Test".
+                              </td>
+                            </tr>
+                          ) : (
+                            labOrders.map((item) => (
+                              <tr key={item.local_id}>
+                                <td>
+                                  <strong>{item.name}</strong>
+                                </td>
+                                <td>
+                                  <button
+                                    className="btn-icon"
+                                    onClick={() => setLabOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
+                                    title="Remove test"
+                                    type="button"
+                                    style={{ color: '#ef4444' }}
+                                  >
+                                    <i className="ph ph-trash" aria-hidden="true" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </section>
 
@@ -1366,9 +1435,66 @@ export function OpdVisitPage() {
                         <span>Priority</span>
                         <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value)} value={imagingPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="URGENT">Urgent</option>
+                          <option value="EMERGENCY">Emergency</option>
                         </select>
                       </label>
+                      <button
+                        className="doc-btn primary add-medication"
+                        onClick={() => {
+                          if (!selectedImagingTest.trim()) return;
+                          const matchedImg = imagingServices.find(s => s.name === selectedImagingTest);
+                          if (!matchedImg) return;
+                          setImagingOrders((prev) => [
+                            ...prev,
+                            { id: matchedImg.id, name: selectedImagingTest, local_id: `img-${Date.now()}` }
+                          ]);
+                          setSelectedImagingTest('');
+                        }}
+                        type="button"
+                        style={{ alignSelf: 'flex-end', height: 'fit-content', marginBottom: '4px' }}
+                      >
+                        <i className="ph ph-plus" aria-hidden="true" />
+                        Add Scan
+                      </button>
+                    </div>
+
+                    <div className="doc-table-wrap" style={{ marginTop: '1rem' }}>
+                      <table className="doc-table opd-prescription-table">
+                        <thead>
+                          <tr>
+                            <th>Scan / Modality</th>
+                            <th style={{ width: '60px' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {imagingOrders.length === 0 ? (
+                            <tr>
+                              <td colSpan={2} style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>
+                                No imaging scans added yet. Select a scan and click "Add Scan".
+                              </td>
+                            </tr>
+                          ) : (
+                            imagingOrders.map((item) => (
+                              <tr key={item.local_id}>
+                                <td>
+                                  <strong>{item.name}</strong>
+                                </td>
+                                <td>
+                                  <button
+                                    className="btn-icon"
+                                    onClick={() => setImagingOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
+                                    title="Remove scan"
+                                    type="button"
+                                    style={{ color: '#ef4444' }}
+                                  >
+                                    <i className="ph ph-trash" aria-hidden="true" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </section>
 
@@ -1412,7 +1538,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="ref-specialty">
-                        <span>Specialty <span className="required-asterisk">*</span></span>
+                        <span>Specialty</span>
                         <select
                           id="ref-specialty"
                           onChange={(e) => {
@@ -1433,7 +1559,7 @@ export function OpdVisitPage() {
                       </label>
 
                       <label className="doc-field" htmlFor="ref-doctor">
-                        <span>Referred Doctor <span className="required-asterisk">*</span></span>
+                        <span>Referred Doctor</span>
                         <select
                           disabled={!referralSpecialty}
                           id="ref-doctor"
@@ -1455,7 +1581,7 @@ export function OpdVisitPage() {
                       </label>
 
                       <label className="doc-field" htmlFor="ref-date">
-                        <span>Appointment Date <span className="required-asterisk">*</span></span>
+                        <span>Appointment Date</span>
                         <input
                           id="ref-date"
                           min={new Date().toISOString().slice(0, 10)}

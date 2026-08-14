@@ -116,4 +116,58 @@ export class OpdPrescriptionRepository {
 
     return toPrescription(record);
   }
+  async list(params: import('./opd-prescription.types.js').ListPrescriptionsParams): Promise<{ data: OpdPrescription[]; total: number }> {
+    const { status, limit = 50, skip = 0, search, sortBy = 'createdAt', sortOrder = 'desc' } = params;
+    const filter: any = { deletedAt: null };
+
+    if (status) {
+      filter.status = status;
+    } else {
+      filter.status = { $ne: 'DRAFT' }; // by default, don't show drafts in queue
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      filter.$or = [
+        { patientName: searchRegex },
+        { patientNumber: searchRegex },
+        { doctorName: searchRegex },
+      ];
+    }
+
+    const sortConfig: any = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+
+    const [records, total] = await Promise.all([
+      OpdPrescriptionModel.find(filter)
+        .sort(sortConfig)
+        .skip(skip)
+        .limit(limit)
+        .lean<OpdPrescriptionLean[]>(),
+      OpdPrescriptionModel.countDocuments(filter),
+    ]);
+
+    return {
+      data: records.map(toPrescription),
+      total,
+    };
+  }
+
+  async updateStatus(id: string, status: import('./opd-prescription.types.js').OpdPrescriptionStatus, userId: string): Promise<OpdPrescription> {
+    const record = await OpdPrescriptionModel.findOneAndUpdate(
+      { _id: objectId(id), deletedAt: null },
+      {
+        $set: {
+          status,
+          updatedBy: objectId(userId),
+        },
+      },
+      { lean: true, returnDocument: 'after' },
+    ).lean<OpdPrescriptionLean>();
+
+    if (!record) {
+      throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
+    }
+
+    return toPrescription(record);
+  }
 }

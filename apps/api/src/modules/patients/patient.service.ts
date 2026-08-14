@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { UserModel } from '../users/user.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { env } from '../../config/env.js';
 import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
@@ -58,8 +59,11 @@ export class PatientService {
       throw new AppError('Phone number must be a valid African regional phone number', 400, 'VALIDATION_ERROR');
     }
 
+    const user = await UserModel.findById(userId).lean();
+    const defaultBranchId = user?.branchIds?.[0]?.toString();
+
     const scope = await this.repository.resolveBranchScope(userId, data.registration_branch_id ?? undefined);
-    const registrationBranchId = data.registration_branch_id ?? (scope?.length === 1 ? scope[0] : undefined);
+    const registrationBranchId = data.registration_branch_id ?? (scope?.length === 1 ? scope[0] : defaultBranchId);
     if (!registrationBranchId) {
       throw new AppError('Registration branch is required', 400, 'BRANCH_REQUIRED');
     }

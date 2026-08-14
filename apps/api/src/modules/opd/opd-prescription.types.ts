@@ -1,4 +1,4 @@
-export type OpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED';
+export type OpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED' | 'DISPENSED';
 
 export type OpdPrescriptionItem = {
   id: string;
@@ -40,4 +40,13 @@ export type SaveOpdPrescriptionDTO = {
   follow_up_date?: string | null;
   doctor_instructions?: string | null;
   patient_instructions?: string | null;
+};
+
+export type ListPrescriptionsParams = {
+  status?: OpdPrescriptionStatus;
+  limit?: number;
+  skip?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 };

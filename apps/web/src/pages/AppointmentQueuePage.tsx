@@ -405,11 +405,8 @@ export function AppointmentQueuePage() {
               value={priorityFilter}
             >
               <option value="">All Priorities</option>
-              {Object.entries(appointmentPriorityLabels).map(([priority, label]) => (
-                <option key={priority} value={priority}>
-                  {label}
-                </option>
-              ))}
+              <option value="ROUTINE">Routine</option>
+              <option value="EMERGENCY">Emergency</option>
             </select>
           </div>
           <div className="doc-field">

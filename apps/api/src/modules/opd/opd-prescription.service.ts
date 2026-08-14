@@ -84,6 +84,14 @@ export class OpdPrescriptionService {
     return prescription;
   }
 
+  async list(params: import('./opd-prescription.types.js').ListPrescriptionsParams) {
+    return this.repository.list(params);
+  }
+
+  async updateStatus(id: string, status: import('./opd-prescription.types.js').OpdPrescriptionStatus, userId: string) {
+    return this.repository.updateStatus(id, status, userId);
+  }
+
   private async getVisit(visitId: string) {
     if (!Types.ObjectId.isValid(visitId)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
