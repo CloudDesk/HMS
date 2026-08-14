@@ -24,6 +24,12 @@ const createPatientNumber = (sequence: number) => {
   return `HMS-${year}-${String(sequence + 1).padStart(6, '0')}`;
 };
 
+const isValidAfricanPhone = (phone: string): boolean => {
+  if (!phone || !phone.trim()) return true;
+  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
+};
+
 export class PatientService {
   constructor(
     private readonly repository: PatientRepository,
@@ -47,6 +53,9 @@ export class PatientService {
   async create(data: CreatePatientDTO, userId: string) {
     if (!isValidDate(data.date_of_birth)) {
       throw new AppError('Date of birth is invalid', 400, 'VALIDATION_ERROR');
+    }
+    if (data.phone && !isValidAfricanPhone(data.phone)) {
+      throw new AppError('Phone number must be a valid African regional phone number', 400, 'VALIDATION_ERROR');
     }
 
     const scope = await this.repository.resolveBranchScope(userId, data.registration_branch_id ?? undefined);

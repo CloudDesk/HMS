@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
+import { branchesApi, type BranchResponse } from '../api/branches';
 import {
   patientsApi,
   type ApiPatientGender,
@@ -18,6 +19,7 @@ type PatientFormState = {
   gender: ApiPatientGender;
   phone: string;
   email: string;
+  registrationBranchId: string;
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -37,6 +39,7 @@ type FieldErrors = {
   lastName?: string;
   dateOfBirth?: string;
   gender?: string;
+  phone?: string;
   consent?: string;
 };
 
@@ -52,6 +55,7 @@ const emptyPatientForm: PatientFormState = {
   gender: 'UNKNOWN',
   phone: '',
   email: '',
+  registrationBranchId: '',
   addressLine1: '',
   addressLine2: '',
   city: '',
@@ -71,6 +75,12 @@ const nullable = (value: string) => {
   return trimmed ? trimmed : null;
 };
 
+const isValidAfricanPhone = (phone: string): boolean => {
+  if (!phone || !phone.trim()) return true;
+  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
+};
+
 const toPatientPayload = (form: PatientFormState): SavePatientPayload => ({
   first_name: form.firstName.trim(),
   middle_name: nullable(form.middleName),
@@ -79,6 +89,7 @@ const toPatientPayload = (form: PatientFormState): SavePatientPayload => ({
   gender: form.gender,
   phone: nullable(form.phone),
   email: nullable(form.email),
+  registration_branch_id: nullable(form.registrationBranchId),
   blood_group: nullable(form.bloodGroup),
   address: {
     line1: nullable(form.addressLine1),
@@ -131,12 +142,32 @@ function RegistrationSection({ children, description, number, title }: Registrat
 
 export function PatientRegistrationPage() {
   const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
+  const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState('');
   const [duplicatePatients, setDuplicatePatients] = useState<PatientResponse[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+
+  useEffect(() => {
+    branchesApi
+      .list({ status: 'ACTIVE', limit: 100 })
+      .then((res) => {
+        setBranches(res.data);
+        const storedBranchId = localStorage.getItem('activeBranchId');
+        const defaultBranch = storedBranchId && res.data.some((b) => b.id === storedBranchId)
+          ? storedBranchId
+          : res.data[0]?.id || '';
+        if (defaultBranch) {
+          setForm((prev) => ({
+            ...prev,
+            registrationBranchId: prev.registrationBranchId || defaultBranch,
+          }));
+        }
+      })
+      .catch(() => null);
+  }, []);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -154,6 +185,9 @@ export function PatientRegistrationPage() {
     }
     if (!form.dateOfBirth) {
       errs.dateOfBirth = 'Date of birth is required';
+    }
+    if (form.phone.trim() && !isValidAfricanPhone(form.phone)) {
+      errs.phone = 'Please enter a valid African phone number (e.g. +233 24 123 4567 or 0241234567)';
     }
     if (!form.consent) {
       errs.consent = 'Patient consent is required before registration';
@@ -334,15 +368,25 @@ export function PatientRegistrationPage() {
                 ) : null}
               </div>
 
-              <div className="doc-field">
+              <div className={`doc-field ${fieldErrors.phone ? 'has-error' : ''}`}>
                 <label htmlFor="patient-phone">Phone</label>
                 <input
                   disabled={submitting}
                   id="patient-phone"
-                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                  onChange={(event) => {
+                    setForm({ ...form, phone: event.target.value });
+                    if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: undefined });
+                  }}
+                  placeholder="e.g. +233 24 123 4567"
                   type="tel"
                   value={form.phone}
                 />
+                {fieldErrors.phone ? (
+                  <span className="field-error-msg">
+                    <i className="ph ph-warning-circle" aria-hidden="true" />
+                    {fieldErrors.phone}
+                  </span>
+                ) : null}
               </div>
 
               <div className="doc-field">
@@ -354,6 +398,25 @@ export function PatientRegistrationPage() {
                   type="email"
                   value={form.email}
                 />
+              </div>
+
+              <div className="doc-field">
+                <label htmlFor="patient-registration-branch">
+                  Registration Branch <span className="required-asterisk">*</span>
+                </label>
+                <select
+                  disabled={submitting}
+                  id="patient-registration-branch"
+                  onChange={(event) => setForm({ ...form, registrationBranchId: event.target.value })}
+                  value={form.registrationBranchId}
+                >
+                  <option value="">Select Branch</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
               </div>
             </RegistrationSection>
 

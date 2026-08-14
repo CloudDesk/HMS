@@ -9572,6 +9572,49 @@ textarea.has-error {
   min-height: 40px !important;
 }
 
+/* OPD Waiting Queue Table Layout & Visible Action Buttons Fix */
+.opd-queue-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr) !important;
+  gap: 1.25rem !important;
+}
+
+.appointment-queue-table-wrap {
+  overflow-x: auto !important;
+  width: 100% !important;
+  scrollbar-width: thin !important;
+}
+
+.appointment-queue-table-wrap table {
+  width: 100% !important;
+  table-layout: auto !important;
+  min-width: 560px !important;
+}
+
+.appointment-queue-table-wrap th,
+.appointment-queue-table-wrap td {
+  padding: 0.6rem 0.5rem !important;
+  font-size: 0.81rem !important;
+}
+
+.appointment-queue-table-wrap th:last-child,
+.appointment-queue-table-wrap td:last-child {
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+
+.doc-btn.compact {
+  padding: 0.4rem 0.75rem !important;
+  font-size: 0.8rem !important;
+  font-weight: 650 !important;
+  min-height: 34px !important;
+  border-radius: 7px !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+}
+
 /* Stock Available Level Pill */
 .stock-level-chip {
   display: inline-flex;
