@@ -141,18 +141,8 @@ export class OpdConsultationService {
     }
   }
 
-  private validateCompletion(data: SaveOpdConsultationDTO) {
-    if (!hasText(data.chief_complaint)) {
-      throw new AppError('Chief complaint is required before completing consultation', 400, 'VALIDATION_ERROR');
-    }
-
-    if (!hasText(data.assessment)) {
-      throw new AppError('Assessment is required before completing consultation', 400, 'VALIDATION_ERROR');
-    }
-
-    if (!hasText(data.treatment_plan)) {
-      throw new AppError('Treatment plan is required before completing consultation', 400, 'VALIDATION_ERROR');
-    }
+  private validateCompletion(_data: SaveOpdConsultationDTO) {
+    // All consultation fields are optional
   }
 
   private validateId(id: string | null | undefined, message: string) {

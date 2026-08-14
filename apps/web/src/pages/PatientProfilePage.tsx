@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { appointmentsApi, type AppointmentResponse } from '../api/appointments';
+import { billingApi, type BillingInvoice } from '../api/billing';
+import { imagingApi } from '../api/imaging';
+import { laboratoryApi, type DiagnosticOrder } from '../api/laboratory';
+import { opdApi, type OpdPrescriptionResponse } from '../api/opd';
 import {
   patientsApi,
   type ApiPatientGender,
@@ -310,6 +314,10 @@ export function PatientProfilePage() {
   const requestedPatientId = getPatientIdFromSearch(search);
   const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
+  const [labOrders, setLabOrders] = useState<DiagnosticOrder[]>([]);
+  const [imagingOrders, setImagingOrders] = useState<DiagnosticOrder[]>([]);
+  const [billingInvoices, setBillingInvoices] = useState<BillingInvoice[]>([]);
+  const [prescriptions, setPrescriptions] = useState<OpdPrescriptionResponse[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -328,17 +336,39 @@ export function PatientProfilePage() {
       if (!patientId) {
         setHistory(null);
         setAppointments([]);
+        setLabOrders([]);
+        setImagingOrders([]);
+        setBillingInvoices([]);
+        setPrescriptions([]);
         return;
       }
-      const [historyResult, appointmentResult] = await Promise.all([
+      const [historyResult, appointmentResult, labResult, imagingResult, billingResult, visitResult] = await Promise.allSettled([
         patientsApi.history(patientId),
         appointmentsApi.list({ patient_id: patientId, limit: 50, sortBy: 'appointment_date', sortOrder: 'desc' }),
+        laboratoryApi.list({ patient_id: patientId, limit: 50 }),
+        imagingApi.list({ patient_id: patientId, limit: 50 }),
+        billingApi.list({ patient_id: patientId, limit: 50 }),
+        opdApi.listVisits({ patient_id: patientId, limit: 50 }),
       ]);
-      setHistory(historyResult);
-      setAppointments(appointmentResult.data);
+
+      if (historyResult.status === 'fulfilled') setHistory(historyResult.value);
+      if (appointmentResult.status === 'fulfilled') setAppointments(appointmentResult.value.data);
+      if (labResult.status === 'fulfilled') setLabOrders(labResult.value.data);
+      if (imagingResult.status === 'fulfilled') setImagingOrders(imagingResult.value.data);
+      if (billingResult.status === 'fulfilled') setBillingInvoices(billingResult.value.data);
+
+      if (visitResult.status === 'fulfilled' && visitResult.value?.data?.length > 0) {
+        const scriptPromises = visitResult.value.data.map((v) => opdApi.getPrescription(v.id).catch(() => null));
+        const scriptRes = await Promise.all(scriptPromises);
+        setPrescriptions(scriptRes.filter((p): p is OpdPrescriptionResponse => Boolean(p && p.items?.length > 0)));
+      }
     } catch (error) {
       setHistory(null);
       setAppointments([]);
+      setLabOrders([]);
+      setImagingOrders([]);
+      setBillingInvoices([]);
+      setPrescriptions([]);
       setLoadError(getPatientErrorMessage(error));
     } finally {
       setLoading(false);
@@ -750,17 +780,84 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
           {/* ── Prescriptions ────────────────────────────────────────────── */}
           {activeTab === 'Prescriptions' ? (
-            <EmptyRecords message="No prescription records found for this patient." />
+            prescriptions.length === 0 ? (
+              <EmptyRecords message="No prescription records found for this patient." />
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>DATE</th><th>DOCTOR</th><th>MEDICINES PRESCRIBED</th><th>DOSAGE &amp; FREQUENCY</th><th>STATUS</th></tr>
+                  </thead>
+                  <tbody>
+                    {prescriptions.map((script) => (
+                      <tr key={script.id}>
+                        <td>{formatDate(script.created_at)}</td>
+                        <td><strong>{script.doctor_name || 'Attending Physician'}</strong></td>
+                        <td>
+                          {script.items.map((i) => `${i.medicine_name}${i.strength ? ` (${i.strength})` : ''}`).join(', ')}
+                        </td>
+                        <td>
+                          {script.items.map((i) => `${i.dosage} - ${i.frequency} (${i.duration})`).join('; ')}
+                        </td>
+                        <td><span className="doc-status active">{script.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : null}
 
           {/* ── Lab Results ──────────────────────────────────────────────── */}
           {activeTab === 'Lab Results' ? (
-            <EmptyRecords message="No laboratory test results found for this patient." />
+            labOrders.length === 0 ? (
+              <EmptyRecords message="No laboratory test results found for this patient." />
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>DATE</th><th>INVESTIGATION NAME</th><th>CATEGORY</th><th>PRIORITY</th><th>STATUS</th></tr>
+                  </thead>
+                  <tbody>
+                    {labOrders.map((order) => (
+                      <tr key={order.id}>
+                        <td>{formatDate(order.created_at)}</td>
+                        <td><strong>{order.items.map((i) => i.investigation_name).join(', ') || 'Lab Requisition'}</strong></td>
+                        <td>{order.items[0]?.category || 'General Lab'}</td>
+                        <td><span className="doc-status draft">{order.priority}</span></td>
+                        <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : null}
 
           {/* ── Imaging ──────────────────────────────────────────────────── */}
           {activeTab === 'Imaging' ? (
-            <EmptyRecords message="No radiology / imaging records found for this patient." />
+            imagingOrders.length === 0 ? (
+              <EmptyRecords message="No radiology / imaging records found for this patient." />
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>DATE</th><th>SCAN / MODALITY</th><th>CATEGORY</th><th>PRIORITY</th><th>STATUS</th></tr>
+                  </thead>
+                  <tbody>
+                    {imagingOrders.map((order) => (
+                      <tr key={order.id}>
+                        <td>{formatDate(order.created_at)}</td>
+                        <td><strong>{order.items.map((i) => i.investigation_name).join(', ') || 'Imaging Requisition'}</strong></td>
+                        <td>{order.items[0]?.category || 'Radiology'}</td>
+                        <td><span className="doc-status draft">{order.priority}</span></td>
+                        <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : null}
 
           {/* ── Documents ────────────────────────────────────────────────── */}
@@ -791,7 +888,29 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
           {/* ── Billing ──────────────────────────────────────────────────── */}
           {activeTab === 'Billing' ? (
-            <EmptyRecords message="No billing statements or invoices found for this patient." />
+            billingInvoices.length === 0 ? (
+              <EmptyRecords message="No billing statements or invoices found for this patient." />
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>INVOICE #</th><th>DATE</th><th>SERVICES BILLED</th><th>TOTAL AMOUNT</th><th>BALANCE</th><th>STATUS</th></tr>
+                  </thead>
+                  <tbody>
+                    {billingInvoices.map((inv) => (
+                      <tr key={inv.id}>
+                        <td><strong>{inv.invoice_number}</strong></td>
+                        <td>{formatDate(inv.invoice_date || inv.created_at)}</td>
+                        <td>{inv.items.map((i) => i.service_name).join(', ') || 'OPD Services'}</td>
+                        <td>₹{inv.total_amount.toLocaleString()}</td>
+                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>₹{inv.balance_amount.toLocaleString()}</strong></td>
+                        <td><span className="doc-status active">{inv.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : null}
 
           {/* ── Consent ──────────────────────────────────────────────────── */}

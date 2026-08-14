@@ -5,11 +5,11 @@ export type OpdVitals = {
   patient_number: string;
   patient_name: string;
   recorded_at: Date;
-  blood_pressure_systolic: number;
-  blood_pressure_diastolic: number;
+  blood_pressure_systolic: number | null;
+  blood_pressure_diastolic: number | null;
   blood_pressure: string;
-  weight_kg: number;
-  height_cm: number;
+  weight_kg: number | null;
+  height_cm: number | null;
   bmi: number;
   temperature_c: number | null;
   pulse_bpm: number | null;
@@ -30,10 +30,10 @@ export type OpdVitalsListQuery = {
 };
 
 export type CreateOpdVitalsDTO = {
-  blood_pressure_systolic: number;
-  blood_pressure_diastolic: number;
-  weight_kg: number;
-  height_cm: number;
+  blood_pressure_systolic?: number | null;
+  blood_pressure_diastolic?: number | null;
+  weight_kg?: number | null;
+  height_cm?: number | null;
   temperature_c?: number | null;
   pulse_bpm?: number | null;
   respiratory_rate_per_min?: number | null;

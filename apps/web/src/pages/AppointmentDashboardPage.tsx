@@ -169,13 +169,6 @@ export function AppointmentDashboardPage() {
   }, [currentPage, dateFrom, dateTo, search, sortColumn, sortDirection, statusFilter]);
 
   useEffect(() => {
-    const nextUrl = buildDashboardUrl(search, statusFilter, dateFrom, dateTo, currentPage, sortColumn, sortDirection);
-    if (window.location.pathname + window.location.search !== nextUrl) {
-      navigate(nextUrl, { replace: true });
-    }
-  }, [currentPage, dateFrom, dateTo, search, sortColumn, sortDirection, statusFilter]);
-
-  useEffect(() => {
     void loadAppointments();
   }, [loadAppointments]);
 
@@ -224,7 +217,7 @@ export function AppointmentDashboardPage() {
             <p>Monitor booking records, arrival readiness, and the front-desk schedule.</p>
           </div>
           <div className="doctor-page-actions">
-            <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
+            <button className="doc-btn primary" style={{ cursor: 'default' }} type="button">
               <i className="ph ph-calendar-plus" aria-hidden="true" />
               Book Appointment
             </button>
@@ -284,14 +277,14 @@ export function AppointmentDashboardPage() {
             <div className="appointment-quick-grid">
               {(
                 [
-                  ['ph-calendar-plus', 'Book Appointment', 'Reserve a consultation time', '/appointments/book'],
-                  ['ph-person-simple-walk', 'Walk-in Registration', 'Check in an unscheduled patient', '/appointments/book?mode=walkin'],
-                  ['ph-calendar-blank', 'Calendar View', 'Review all schedules', '/appointments/calendar'],
-                  ['ph-queue', 'Queue Management', 'Coordinate waiting patients', '/appointments/queue'],
-                  ['ph-magnifying-glass', 'Search Patient', 'Open the patient directory', '/patients/search'],
+                  ['ph-calendar-plus', 'Book Appointment', 'Reserve a consultation time'],
+                  ['ph-person-simple-walk', 'Walk-in Registration', 'Check in an unscheduled patient'],
+                  ['ph-calendar-blank', 'Calendar View', 'Review all schedules'],
+                  ['ph-queue', 'Queue Management', 'Coordinate waiting patients'],
+                  ['ph-magnifying-glass', 'Search Patient', 'Open the patient directory'],
                 ] as const
-              ).map(([icon, label, copy, href]) => (
-                <button className="appointment-quick-action" key={label} onClick={() => navigate(href)} type="button">
+              ).map(([icon, label, copy]) => (
+                <button className="appointment-quick-action" key={label} style={{ cursor: 'default' }} type="button">
                   <i className={`ph ${icon}`} aria-hidden="true" />
                   <span>
                     <strong>{label}</strong>
@@ -310,7 +303,7 @@ export function AppointmentDashboardPage() {
                 <h3>Upcoming Appointments</h3>
                 <p>Next confirmed bookings</p>
               </div>
-              <button className="doc-btn" onClick={() => navigate('/appointments/calendar')} type="button">
+              <button className="doc-btn" style={{ cursor: 'default' }} type="button">
                 View Calendar
               </button>
             </div>
