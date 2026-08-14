@@ -26,11 +26,14 @@ const toVitals = (vitals: OpdVitalsLean): OpdVitals => ({
   patient_number: vitals.patientNumber,
   patient_name: vitals.patientName,
   recorded_at: vitals.recordedAt,
-  blood_pressure_systolic: vitals.bloodPressureSystolic,
-  blood_pressure_diastolic: vitals.bloodPressureDiastolic,
-  blood_pressure: `${vitals.bloodPressureSystolic}/${vitals.bloodPressureDiastolic} mmHg`,
-  weight_kg: vitals.weightKg,
-  height_cm: vitals.heightCm,
+  blood_pressure_systolic: vitals.bloodPressureSystolic ?? null,
+  blood_pressure_diastolic: vitals.bloodPressureDiastolic ?? null,
+  blood_pressure:
+    vitals.bloodPressureSystolic && vitals.bloodPressureDiastolic
+      ? `${vitals.bloodPressureSystolic}/${vitals.bloodPressureDiastolic} mmHg`
+      : 'N/A',
+  weight_kg: vitals.weightKg ?? null,
+  height_cm: vitals.heightCm ?? null,
   bmi: vitals.bmi,
   temperature_c: vitals.temperatureC ?? null,
   pulse_bpm: vitals.pulseBpm ?? null,

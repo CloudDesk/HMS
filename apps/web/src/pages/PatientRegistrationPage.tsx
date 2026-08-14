@@ -7,6 +7,7 @@ import {
   type PatientResponse,
   type SavePatientPayload,
 } from '../api/patients';
+import { useAuth } from '../auth/useAuth';
 import { Toast } from '../components/ui/Toast';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, patientFullName } from './patient-utils';
@@ -141,6 +142,7 @@ function RegistrationSection({ children, description, number, title }: Registrat
 }
 
 export function PatientRegistrationPage() {
+  const { user } = useAuth();
   const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -155,19 +157,20 @@ export function PatientRegistrationPage() {
       .list({ status: 'ACTIVE', limit: 100 })
       .then((res) => {
         setBranches(res.data);
-        const storedBranchId = localStorage.getItem('activeBranchId');
-        const defaultBranch = storedBranchId && res.data.some((b) => b.id === storedBranchId)
-          ? storedBranchId
-          : res.data[0]?.id || '';
+        const activeId = localStorage.getItem('activeBranchId');
+        const userBranchId = user?.branches?.[0]?.id;
+        const targetBranchId = activeId || userBranchId;
+        const matchedBranch = targetBranchId ? res.data.find((b) => b.id === targetBranchId) : undefined;
+        const defaultBranch = matchedBranch ? matchedBranch.id : (res.data[0]?.id || '');
         if (defaultBranch) {
           setForm((prev) => ({
             ...prev,
-            registrationBranchId: prev.registrationBranchId || defaultBranch,
+            registrationBranchId: defaultBranch,
           }));
         }
       })
       .catch(() => null);
-  }, []);
+  }, [user]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
