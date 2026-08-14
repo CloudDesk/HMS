@@ -7,6 +7,15 @@ import type {
 export type WorkingBlockForm = { start_time: string; end_time: string; max_patients_per_slot?: number };
 export type AvailabilityDayForm = SaveDoctorAvailabilityPayload['availability'][number];
 
+const toMinutes = (time: string) => {
+  if (!time) return 0;
+  const [hours = 0, minutes = 0] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const toTime = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
 export const doctorAvailabilityDayOrder: ApiDoctorAvailabilityDay[] = [
   'MONDAY',
   'TUESDAY',
@@ -123,57 +132,84 @@ export function DoctorAvailabilityEditor({
 
           {day.is_available ? (
             <div className="doctor-working-blocks">
-              {day.working_blocks.map((block, index) => (
-                <div className="doctor-working-block" key={`${day.day_of_week}-${index}`}>
-                  <label className="doc-field">
-                    <span>From</span>
-                    <input
-                      disabled={disabled}
-                      onChange={(event) => updateBlock(day.day_of_week, index, { start_time: event.target.value })}
-                      type="time"
-                      value={block.start_time}
-                    />
-                  </label>
-                  <label className="doc-field">
-                    <span>To</span>
-                    <input
-                      disabled={disabled}
-                      onChange={(event) => updateBlock(day.day_of_week, index, { end_time: event.target.value })}
-                      type="time"
-                      value={block.end_time}
-                    />
-                  </label>
-                  <label className="doc-field">
-                    <span>Max Patients</span>
-                    <input
-                      disabled={disabled}
-                      max={20}
-                      min={1}
-                      onChange={(event) =>
-                        updateBlock(day.day_of_week, index, {
-                          max_patients_per_slot: Math.max(1, Number(event.target.value) || 1),
-                        })
-                      }
-                      style={{ width: '70px', textAlign: 'center' }}
-                      type="number"
-                      value={block.max_patients_per_slot ?? day.max_patients_per_slot ?? 2}
-                    />
-                  </label>
-                  <button
-                    aria-label={`Remove ${day.day_of_week.toLowerCase()} working block`}
-                    className="doc-action danger"
-                    disabled={disabled || day.working_blocks.length === 1}
-                    onClick={() =>
-                      updateDay(day.day_of_week, {
-                        working_blocks: day.working_blocks.filter((_, blockIndex) => blockIndex !== index),
-                      })
-                    }
-                    type="button"
-                  >
-                    <i className="ph ph-trash" aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
+              {day.working_blocks.map((block, index) => {
+                const startMins = toMinutes(block.start_time);
+                const endMins = toMinutes(block.end_time);
+                const durationMins = Math.max(0, endMins - startMins);
+                const slotMins = day.slot_duration_minutes || 30;
+                const fullSlots = Math.floor(durationMins / slotMins);
+                const remainderMins = durationMins % slotMins;
+                const cutoffTime = toTime(startMins + fullSlots * slotMins);
+
+                return (
+                  <div key={`${day.day_of_week}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div className="doctor-working-block">
+                      <label className="doc-field">
+                        <span>From</span>
+                        <input
+                          disabled={disabled}
+                          onChange={(event) => updateBlock(day.day_of_week, index, { start_time: event.target.value })}
+                          type="time"
+                          value={block.start_time}
+                        />
+                      </label>
+                      <label className="doc-field">
+                        <span>To</span>
+                        <input
+                          disabled={disabled}
+                          onChange={(event) => updateBlock(day.day_of_week, index, { end_time: event.target.value })}
+                          type="time"
+                          value={block.end_time}
+                        />
+                      </label>
+                      <label className="doc-field">
+                        <span>Max Patients</span>
+                        <input
+                          disabled={disabled}
+                          max={20}
+                          min={1}
+                          onChange={(event) =>
+                            updateBlock(day.day_of_week, index, {
+                              max_patients_per_slot: Math.max(1, Number(event.target.value) || 1),
+                            })
+                          }
+                          style={{ width: '70px', textAlign: 'center' }}
+                          type="number"
+                          value={block.max_patients_per_slot ?? day.max_patients_per_slot ?? 2}
+                        />
+                      </label>
+                      <button
+                        aria-label={`Remove ${day.day_of_week.toLowerCase()} working block`}
+                        className="doc-action danger"
+                        disabled={disabled || day.working_blocks.length === 1}
+                        onClick={() =>
+                          updateDay(day.day_of_week, {
+                            working_blocks: day.working_blocks.filter((_, blockIndex) => blockIndex !== index),
+                          })
+                        }
+                        type="button"
+                      >
+                        <i className="ph ph-trash" aria-hidden="true" />
+                      </button>
+                    </div>
+                    {remainderMins > 0 ? (
+                      <div style={{ fontSize: '0.73rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem', paddingLeft: '0.2rem' }}>
+                        <i className="ph ph-info" aria-hidden="true" />
+                        <span>
+                          <strong>Discarding incomplete slot ({remainderMins} mins)</strong>: {fullSlots} slots ({slotMins}m each) generated. Remaining {cutoffTime} - {block.end_time} is ignored.
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.73rem', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.3rem', paddingLeft: '0.2rem' }}>
+                        <i className="ph ph-check-circle" aria-hidden="true" />
+                        <span>
+                          {fullSlots} complete {slotMins}-min slots generated ({block.start_time} - {block.end_time}).
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               <div className="doctor-block-actions">
                 <label className="doc-field compact">
                   <span>Slot duration</span>
