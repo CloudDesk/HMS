@@ -61,7 +61,15 @@ export function OpdQueuePage() {
   const [loadError, setLoadError] = useState('');
   const [updating, setUpdating] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
+
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastTone(tone);
+    setToastVisible(true);
+    window.setTimeout(() => setToastVisible(false), 3500);
+  };
 
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
   const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
@@ -121,9 +129,11 @@ export function OpdQueuePage() {
       setVitalsModalOpen(false);
       setVitalsVisit(null);
       await loadQueue();
-      showToast(`Vitals recorded for ${vitalsVisit.patient_name}`);
+      showToast(`Vitals recorded for ${vitalsVisit.patient_name}`, 'success');
     } catch (err) {
-      setVitalsError(getOpdErrorMessage(err));
+      const errorMsg = getOpdErrorMessage(err);
+      setVitalsError('');
+      showToast(errorMsg, 'error');
     } finally {
       setVitalsSubmitting(false);
     }
@@ -142,12 +152,6 @@ export function OpdQueuePage() {
     activeVisits.length === 0
       ? 0
       : Math.round(activeVisits.reduce((total, visit, index) => total + waitMinutes(visit, index), 0) / activeVisits.length);
-
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 3000);
-  };
 
   const loadLookups = useCallback(async () => {
     const [departmentResponse, doctorResponse, patientResponse] = await Promise.all([
@@ -749,7 +753,7 @@ export function OpdQueuePage() {
         </form>
       </Modal>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

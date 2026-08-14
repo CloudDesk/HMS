@@ -72,7 +72,7 @@ const permissionDefinitions: PermissionDefinition[] = [
   }, 'CLINICAL', 'APPOINTMENTS'),
   ...expandPermissions('OPD', {
     'OPD Visits': ['View', 'Create', 'Edit'],
-    'OPD Vitals': ['View', 'Create'],
+    'OPD Vitals': ['View', 'Create', 'Edit'],
     'OPD Consultation': ['View', 'Edit'],
     'OPD Prescription': ['View', 'Edit'],
     'OPD Clinical Orders': ['View', 'Edit'],
@@ -132,6 +132,7 @@ const roleDefinitions: RoleDefinition[] = [
       ...['View', 'Create', 'Edit'].map((action) => code('Appointments', 'Appointment Booking', action)),
       ...['View', 'Edit'].map((action) => code('Appointments', 'Appointment Records', action)),
       ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
+      ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Vitals', action)),
       ...['View', 'Edit'].map((action) => code('OPD', 'OPD Referral', action)),
     ],
   },

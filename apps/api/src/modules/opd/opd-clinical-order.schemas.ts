@@ -12,9 +12,9 @@ export const clinicalOrderParamsSchema = {
 export const saveClinicalOrderBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['priority', 'items'],
+  required: [],
   properties: {
-    priority: { type: 'string', enum: ['ROUTINE', 'URGENT', 'STAT'] },
+    priority: { type: ['string', 'null'], enum: ['ROUTINE', 'URGENT', 'STAT', 'EMERGENCY', null] },
     destination: nullableText(200),
     specimen_type: nullableText(100),
     items: {
@@ -23,11 +23,11 @@ export const saveClinicalOrderBodySchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['service_id', 'investigation_name', 'category'],
+        required: [],
         properties: {
-          service_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
-          investigation_name: { type: 'string', minLength: 1, maxLength: 200 },
-          category: { type: 'string', minLength: 1, maxLength: 100 },
+          service_id: { type: ['string', 'null'] },
+          investigation_name: { type: ['string', 'null'], maxLength: 200 },
+          category: { type: ['string', 'null'], maxLength: 100 },
         },
       },
     },

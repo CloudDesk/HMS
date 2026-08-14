@@ -11,7 +11,7 @@ export const opdPrescriptionVisitParamsSchema = {
 export const saveOpdPrescriptionBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['items'],
+  required: [],
   properties: {
     items: {
       type: 'array',
@@ -19,14 +19,14 @@ export const saveOpdPrescriptionBodySchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['medicine_name', 'dosage', 'route', 'frequency', 'duration'],
+        required: [],
         properties: {
-          medicine_name: { type: 'string', minLength: 1, maxLength: 200 },
+          medicine_name: { type: ['string', 'null'], maxLength: 200 },
           strength: nullableText(100),
-          dosage: { type: 'string', minLength: 1, maxLength: 100 },
-          route: { type: 'string', minLength: 1, maxLength: 100 },
-          frequency: { type: 'string', minLength: 1, maxLength: 100 },
-          duration: { type: 'string', minLength: 1, maxLength: 100 },
+          dosage: { type: ['string', 'null'], maxLength: 100 },
+          route: { type: ['string', 'null'], maxLength: 100 },
+          frequency: { type: ['string', 'null'], maxLength: 100 },
+          duration: { type: ['string', 'null'], maxLength: 100 },
           quantity: { type: ['number', 'null'], minimum: 1, maximum: 100000 },
           instructions: nullableText(500),
         },
