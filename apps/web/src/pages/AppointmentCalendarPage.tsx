@@ -154,6 +154,7 @@ export function AppointmentCalendarPage() {
   const [loadError, setLoadError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   // Drag and Drop State & Active Modal State
   const [draggedAppointmentId, setDraggedAppointmentId] = useState<string | null>(null);
@@ -185,8 +186,9 @@ export function AppointmentCalendarPage() {
     }
   }, [loggedInDoctor, doctorFilter, departmentFilter]);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 3000);
   };
@@ -314,7 +316,7 @@ export function AppointmentCalendarPage() {
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
     if (targetDate < todayInputValue() || (targetDate === todayInputValue() && newStartTime < currentTime)) {
-      showToast('Appointments cannot be rescheduled to a past date or time.');
+      showToast('Appointments cannot be rescheduled to a past date or time.', 'error');
       return;
     }
 
@@ -342,7 +344,7 @@ export function AppointmentCalendarPage() {
       );
     } catch (error) {
       void loadAppointments();
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     } finally {
       setDraggedAppointmentId(null);
     }
@@ -357,7 +359,7 @@ export function AppointmentCalendarPage() {
       setSelectedAppointment((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
       showToast('Appointment cancelled.');
     } catch (error) {
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     }
   };
 
@@ -375,7 +377,7 @@ export function AppointmentCalendarPage() {
       setIsRescheduling(false);
       showToast(`Appointment rescheduled to ${rescheduleDate} at ${rescheduleTime}.`);
     } catch (error) {
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     }
   };
 
@@ -750,7 +752,7 @@ export function AppointmentCalendarPage() {
         </div>
       ) : null}
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

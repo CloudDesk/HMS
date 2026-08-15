@@ -46,6 +46,7 @@ export function PrescriptionQueuePage() {
     } catch (error: any) {
       setPrescriptions([]);
       setLoadError(error.message || 'Failed to load prescription queue');
+      showToast(error.message || 'Failed to load prescription queue', 'error');
     } finally {
       setLoading(false);
     }

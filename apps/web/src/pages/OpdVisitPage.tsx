@@ -183,6 +183,7 @@ export function OpdVisitPage() {
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   // Referral Tab (Tab 6) State
   const [referralSpecialty, setReferralSpecialty] = useState('');
@@ -274,7 +275,7 @@ export function OpdVisitPage() {
 
   const handleBookReferralAppointment = async () => {
     if (!visit || !referralDoctorId || !referralDate || !referralTimeSlot) {
-      showToast('Please select a doctor, date, and available time slot.');
+      showToast('Please select a doctor, date, and available time slot.', 'error');
       return;
     }
     const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
@@ -295,14 +296,15 @@ export function OpdVisitPage() {
       setReferralTimeSlot('');
       await loadReferralSlots();
     } catch (err) {
-      showToast(getOpdErrorMessage(err));
+      showToast(getOpdErrorMessage(err), 'error');
     } finally {
       setReferralBooking(false);
     }
   };
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 3200);
   };
@@ -310,7 +312,7 @@ export function OpdVisitPage() {
   const handleSaveVitalsModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vitalsForm.blood_pressure_systolic || !vitalsForm.blood_pressure_diastolic) {
-      showToast('Blood Pressure (Systolic & Diastolic) is required.');
+      showToast('Blood Pressure (Systolic & Diastolic) is required.', 'error');
       return;
     }
 
@@ -332,7 +334,7 @@ export function OpdVisitPage() {
       showToast('Patient vitals recorded successfully.');
       setVitalsModalOpen(false);
     } catch (error) {
-      showToast(getOpdErrorMessage(error));
+      showToast(getOpdErrorMessage(error), 'error');
     } finally {
       setUpdating('');
     }
@@ -505,7 +507,7 @@ export function OpdVisitPage() {
       }
       if (docRes.status === 'fulfilled') setDoctors(docRes.value.data);
     } catch (error) {
-      showToast(getOpdErrorMessage(error));
+      showToast(getOpdErrorMessage(error), 'error');
     }
   }, [activeVisitId]);
 
@@ -523,7 +525,7 @@ export function OpdVisitPage() {
       setDocuments(response.data);
     } catch (error) {
       setDocuments([]);
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   }, [visit]);
 
@@ -551,7 +553,7 @@ export function OpdVisitPage() {
       setConsultation(response);
       showToast('Consultation draft saved.');
     } catch (error) {
-      showToast(getOpdErrorMessage(error));
+      showToast(getOpdErrorMessage(error), 'error');
     } finally {
       setUpdating('');
     }
@@ -700,11 +702,15 @@ export function OpdVisitPage() {
 
       const response = await opdApi.completeConsultation(visit.id, payload);
       setConsultation(response);
+      
+      // Update the overall visit status to COMPLETED now that consultation is closed
+      await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED', notes: 'Consultation completed.' });
+      
       await loadVisit();
       await loadClinicalData();
       showToast('Consultation completed successfully & billing invoice generated.');
     } catch (error) {
-      showToast(getOpdErrorMessage(error));
+      showToast(getOpdErrorMessage(error), 'error');
     } finally {
       setUpdating('');
     }
@@ -713,7 +719,7 @@ export function OpdVisitPage() {
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile || !visit) {
-      showToast('Please choose a file to upload.');
+      showToast('Please choose a file to upload.', 'error');
       return;
     }
     setUpdating('document-upload');
@@ -729,7 +735,7 @@ export function OpdVisitPage() {
       setSelectedFile(null);
       showToast(`${document.file_name} uploaded successfully.`);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setUpdating('');
     }
@@ -743,7 +749,7 @@ export function OpdVisitPage() {
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   };
 
@@ -758,7 +764,7 @@ export function OpdVisitPage() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   };
 
@@ -769,7 +775,7 @@ export function OpdVisitPage() {
       setDocuments((current) => current.filter((item) => item.id !== document.id));
       showToast(`${document.title} deleted.`);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   };
 
@@ -835,7 +841,7 @@ export function OpdVisitPage() {
         </div>
       </section>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
 
       {loadError ? <div className="form-error-banner">{loadError}</div> : null}
 
@@ -1728,10 +1734,6 @@ export function OpdVisitPage() {
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Notes')} type="button">
-                        Next: Notes
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
-                      </button>
                       <button
                         className="doc-btn success"
                         disabled={updating === 'consultation-complete'}
@@ -2115,7 +2117,7 @@ export function OpdVisitPage() {
         </form>
       </Modal>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </div>
   );
 }

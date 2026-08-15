@@ -182,6 +182,7 @@ export function DoctorDirectoryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   const lookupsLoadedRef = useRef(false);
 
@@ -209,8 +210,9 @@ export function DoctorDirectoryPage() {
     [branchFilter, departments],
   );
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -230,7 +232,7 @@ export function DoctorDirectoryPage() {
       setUserOptions(userResponse);
       lookupsLoadedRef.current = true;
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setModalLookupLoading(false);
     }
@@ -388,7 +390,7 @@ export function DoctorDirectoryPage() {
       downloadBlob(blob, 'hms-doctors.csv');
       showToast('Doctor export downloaded.');
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   };
 
@@ -788,7 +790,7 @@ export function DoctorDirectoryPage() {
         </form>
       </Modal>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

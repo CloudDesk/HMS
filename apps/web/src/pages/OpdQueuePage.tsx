@@ -25,12 +25,17 @@ type PriorityFilter = ApiOpdVisitPriority | '';
 
 const appointmentEligibleStatuses = ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN', 'SKIPPED'];
 
+const tokenFor = (visit: OpdVisitResponse, index: number) =>
+  `${visit.priority === 'EMERGENCY' ? 'E' : visit.priority === 'URGENT' ? 'U' : 'O'}${String(index + 1).padStart(3, '0')}`;
+
 const waitMinutes = (visit: OpdVisitResponse, index: number) => {
   if (!isActiveVisit(visit)) return 0;
   return Math.max(0, Math.round((Date.now() - new Date(visit.check_in_time).getTime()) / 60000) + index * 4);
 };
 
 const visitSort = (left: OpdVisitResponse, right: OpdVisitResponse) => {
+  if (left.status === 'SKIPPED' && right.status !== 'SKIPPED') return 1;
+  if (left.status !== 'SKIPPED' && right.status === 'SKIPPED') return -1;
   if (left.priority === 'EMERGENCY' && right.priority !== 'EMERGENCY') return -1;
   if (left.priority !== 'EMERGENCY' && right.priority === 'EMERGENCY') return 1;
   return new Date(left.check_in_time).getTime() - new Date(right.check_in_time).getTime();
@@ -143,6 +148,9 @@ export function OpdQueuePage() {
   const activeVisits = sortedVisits.filter(isActiveVisit);
   const currentVisit = sortedVisits.find((visit) => visit.status === 'IN_CONSULTATION') ?? null;
   const nextVisit = sortedVisits.find((visit) => visit.status !== 'IN_CONSULTATION' && isActiveVisit(visit)) ?? null;
+  
+  const currentIndex = currentVisit ? sortedVisits.findIndex((v) => v.id === currentVisit.id) : -1;
+  const nextIndex = nextVisit ? sortedVisits.findIndex((v) => v.id === nextVisit.id) : -1;
   const pendingAppointments = appointments.filter(
     (appointment) =>
       appointmentEligibleStatuses.includes(appointment.status) &&
@@ -238,7 +246,7 @@ export function OpdQueuePage() {
       await loadQueue();
       showToast(`${appointment.patient_name} checked in to OPD.`);
     } catch (error) {
-      showToast(getOpdErrorMessage(error));
+      showToast(getOpdErrorMessage(error), 'error');
     } finally {
       setUpdating('');
     }
@@ -251,10 +259,39 @@ export function OpdQueuePage() {
       await loadQueue();
       showToast(`${visit.visit_number} moved to ${opdVisitStatusLabels[status].toLowerCase()}.`);
     } catch (error) {
-      showToast(getOpdErrorMessage(error));
+      showToast(getOpdErrorMessage(error), 'error');
     } finally {
       setUpdating('');
     }
+  };
+
+  const handleCallNext = async () => {
+    if (currentVisit) {
+      showToast('Complete or skip the current patient first.', 'error');
+      return;
+    }
+    if (!nextVisit) {
+      showToast('No waiting patient is available in the queue.', 'error');
+      return;
+    }
+    setUpdating(nextVisit.id);
+    try {
+      await opdApi.updateVisitStatus(nextVisit.id, { status: 'IN_CONSULTATION' });
+      await loadQueue();
+      navigate(`/opd/consultation?id=${encodeURIComponent(nextVisit.id)}`);
+    } catch (error) {
+      showToast(getOpdErrorMessage(error), 'error');
+      setUpdating('');
+    }
+  };
+
+  const handleSkip = async (visit: OpdVisitResponse) => {
+    await updateVisitStatus(visit, 'SKIPPED', 'Patient skipped and moved behind waiting tokens.');
+  };
+
+  const handleNoShow = async (visit: OpdVisitResponse) => {
+    if (!window.confirm('Mark this patient as No Show? They will be removed from the active queue.')) return;
+    await updateVisitStatus(visit, 'NO_SHOW', 'Patient did not appear after queue call.');
   };
 
   const submitWalkIn = async () => {
@@ -410,12 +447,16 @@ export function OpdQueuePage() {
                 <colgroup>
                   <col style={{ width: '25%' }} />
                   <col style={{ width: '22%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '18%' }} />
-                  <col style={{ width: '23%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '25%' }} />
                 </colgroup>
                 <thead>
                   <tr>
+                    <th>Token</th>
                     <th>Patient &amp; Visit</th>
                     <th>Doctor</th>
                     <th>Wait</th>
@@ -439,6 +480,9 @@ export function OpdQueuePage() {
                   ) : (
                     sortedVisits.map((visit, index) => (
                       <tr className={visit.id === currentVisit?.id ? 'queue-current-row' : ''} key={visit.id}>
+                        <td>
+                          <span className="queue-token-chip">{tokenFor(visit, index)}</span>
+                        </td>
                         <td>
                           <div className="doc-person">
                             <span className="doc-avatar">{patientInitials(visit.patient_name)}</span>
@@ -478,20 +522,40 @@ export function OpdQueuePage() {
                                 <i className="ph ph-heartbeat" aria-hidden="true" />
                                 Take Vitals
                               </button>
-                            ) : visit.status === 'READY_FOR_CONSULTATION' ? (
-                              <button
-                                className="doc-btn success compact"
-                                disabled={updating === visit.id}
-                                onClick={async () => {
-                                  await opdApi.updateVisitStatus(visit.id, { status: 'IN_CONSULTATION' }).catch(() => null);
-                                  navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
-                                }}
-                                title="Step 2: Start Consultation"
-                                type="button"
-                              >
-                                <i className="ph ph-stethoscope" aria-hidden="true" />
-                                Start Consultation
-                              </button>
+                            ) : visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED' ? (
+                              <>
+                                <button
+                                  className="doc-btn success compact"
+                                  disabled={updating === visit.id}
+                                  onClick={async () => {
+                                    await opdApi.updateVisitStatus(visit.id, { status: 'IN_CONSULTATION' }).catch(() => null);
+                                    navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
+                                  }}
+                                  title="Step 2: Start Consultation"
+                                  type="button"
+                                >
+                                  <i className="ph ph-stethoscope" aria-hidden="true" />
+                                  Start Consultation
+                                </button>
+                                <button
+                                  className="doc-action"
+                                  disabled={updating === visit.id}
+                                  onClick={() => handleSkip(visit)}
+                                  title="Skip Patient"
+                                  type="button"
+                                >
+                                  <i className="ph ph-skip-forward" aria-hidden="true" />
+                                </button>
+                                <button
+                                  className="doc-action error"
+                                  disabled={updating === visit.id}
+                                  onClick={() => handleNoShow(visit)}
+                                  title="Mark No Show"
+                                  type="button"
+                                >
+                                  <i className="ph ph-user-minus" aria-hidden="true" />
+                                </button>
+                              </>
                             ) : visit.status === 'IN_CONSULTATION' ? (
                               <button
                                 className="doc-btn primary compact"
@@ -533,14 +597,14 @@ export function OpdQueuePage() {
               </div>
             </div>
             <div className="opd-token-display">
-              <span>Current Visit</span>
-              <strong>{currentVisit?.visit_number ?? '-'}</strong>
+              <span>Current Token</span>
+              <strong>{currentVisit ? tokenFor(currentVisit, currentIndex) : '-'}</strong>
               <p>{currentVisit?.patient_name ?? 'No patient in consultation'}</p>
             </div>
             <div className="opd-queue-stats">
               <div className="opd-queue-stat">
-                <span>Next Visit</span>
-                <strong>{nextVisit?.visit_number ?? '-'}</strong>
+                <span>Next Token</span>
+                <strong>{nextVisit ? tokenFor(nextVisit, nextIndex) : '-'}</strong>
               </div>
               <div className="opd-queue-stat">
                 <span>Average Wait</span>
@@ -554,6 +618,18 @@ export function OpdQueuePage() {
                 <span>Active Visits</span>
                 <strong>{activeVisits.length}</strong>
               </div>
+            </div>
+
+            <div className="doc-action-group" style={{ margin: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button
+                className="doc-btn primary full-width"
+                disabled={Boolean(updating) || !nextVisit || Boolean(currentVisit)}
+                onClick={handleCallNext}
+                type="button"
+              >
+                <i className="ph ph-megaphone" aria-hidden="true" />
+                Call Next Patient
+              </button>
             </div>
 
             <div className="opd-pending-list">

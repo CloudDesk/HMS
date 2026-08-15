@@ -352,6 +352,7 @@ export function PatientProfilePage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [toast, setToast] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [showCardModal, setShowCardModal] = useState(false);
 
   // Upload Form State
@@ -419,8 +420,9 @@ export function PatientProfilePage() {
   const documents = history?.documents ?? [];
   const consents = useMemo(() => documents.filter((d) => d.document_type === 'CONSENT'), [documents]);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToast(message);
+    setToastTone(tone);
     window.setTimeout(() => setToast(''), 2800);
   };
 
@@ -447,11 +449,11 @@ export function PatientProfilePage() {
   const handleUploadSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (stagedFiles.length === 0) {
-      showToast('Please select at least one document to upload.');
+      showToast('Please select at least one document to upload.', 'error');
       return;
     }
     if (!docName.trim()) {
-      showToast('Please enter a document name.');
+      showToast('Please enter a document name.', 'error');
       return;
     }
 
@@ -476,7 +478,7 @@ export function PatientProfilePage() {
       showToast(`${stagedFiles.length} file(s) uploaded successfully.`);
       void load();
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setSubmittingUpload(false);
     }
@@ -574,6 +576,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
       await load();
     } catch (error) {
       setFormError(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -1333,7 +1336,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
         </form>
       </Modal>
 
-      <Toast message={toast} visible={Boolean(toast)} />
+      <Toast message={toast} tone={toastTone} visible={Boolean(toast)} />
     </>
   );
 }

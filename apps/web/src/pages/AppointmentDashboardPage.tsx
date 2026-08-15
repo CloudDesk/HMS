@@ -91,6 +91,7 @@ export function AppointmentDashboardPage() {
   const [updatingStatusId, setUpdatingStatusId] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   const kpis = useMemo(
     () => [
@@ -136,8 +137,9 @@ export function AppointmentDashboardPage() {
     ['SCHEDULED', 'CONFIRMED', 'SKIPPED'].includes(appointment.status),
   );
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -202,7 +204,7 @@ export function AppointmentDashboardPage() {
       showToast(`Appointment marked ${appointmentStatusLabels[status].toLowerCase()}.`);
       await loadAppointments();
     } catch (error) {
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     } finally {
       setUpdatingStatusId('');
     }
@@ -574,7 +576,7 @@ export function AppointmentDashboardPage() {
         </section>
       </div>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

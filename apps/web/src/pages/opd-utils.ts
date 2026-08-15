@@ -9,6 +9,7 @@ export const opdVisitStatusLabels: Record<ApiOpdVisitStatus, string> = {
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
   NO_SHOW: 'No show',
+  SKIPPED: 'Skipped',
 };
 
 export const opdVisitTypeLabels: Record<ApiOpdVisitType, string> = {
@@ -48,7 +49,7 @@ export const visitStatusClass = (status: ApiOpdVisitStatus) => {
   if (status === 'IN_CONSULTATION') return 'in-consultation';
   if (status === 'READY_FOR_CONSULTATION') return 'submitted';
   if (status === 'WAITING_FOR_VITALS' || status === 'CHECKED_IN') return 'scheduled';
-  if (status === 'NO_SHOW' || status === 'CANCELLED') return 'cancelled';
+  if (status === 'NO_SHOW' || status === 'CANCELLED' || status === 'SKIPPED') return 'cancelled';
   return 'draft';
 };
 
@@ -72,6 +73,7 @@ export const activeVisitStatuses: ApiOpdVisitStatus[] = [
   'WAITING_FOR_VITALS',
   'READY_FOR_CONSULTATION',
   'IN_CONSULTATION',
+  'SKIPPED',
 ];
 
 export const isActiveVisit = (visit: OpdVisitResponse) => activeVisitStatuses.includes(visit.status);

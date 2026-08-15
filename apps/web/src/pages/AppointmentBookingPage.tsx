@@ -71,16 +71,18 @@ export function AppointmentBookingPage() {
   const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   const selectedDoctor = useMemo(
-    () => doctors.find((doctor) => doctor.id === selectedDoctorId) ?? null,
+    () => doctors.find((d) => d.id === selectedDoctorId),
     [doctors, selectedDoctorId],
   );
 
   const selectedSlotOption = slotOptions.find((slot) => slot.startTime === selectedSlot);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -211,7 +213,7 @@ export function AppointmentBookingPage() {
     } catch (slotError) {
       setSlotOptions([]);
       setSlotUnavailableReason('Available slots could not be loaded.');
-      showToast(getAppointmentErrorMessage(slotError));
+      showToast(getAppointmentErrorMessage(slotError), 'error');
     } finally {
       setSlotLoading(false);
     }
@@ -643,7 +645,7 @@ export function AppointmentBookingPage() {
         )}
       </div>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }
