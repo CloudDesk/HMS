@@ -329,16 +329,11 @@ export class AppointmentService {
       ? {
           is_available: exception.is_available,
           working_blocks: exception.working_blocks,
-          slot_duration_minutes: exception.slot_duration_minutes,
         }
       : recurring;
 
     if (!availability || !availability.is_available) {
       throw new AppError('Doctor is not available on the selected date', 400, 'DOCTOR_NOT_AVAILABLE');
-    }
-
-    if (durationMinutes !== availability.slot_duration_minutes) {
-      throw new AppError('Appointment duration must match the doctor slot duration', 400, 'INVALID_SLOT_DURATION');
     }
 
     const slotStart = toMinutes(startTime);
@@ -348,6 +343,10 @@ export class AppointmentService {
     );
     if (!matchingBlock) {
       throw new AppError('Appointment time is outside doctor availability', 400, 'OUTSIDE_DOCTOR_AVAILABILITY');
+    }
+
+    if (durationMinutes !== matchingBlock.slot_duration_minutes) {
+      throw new AppError('Appointment duration must match the doctor slot duration', 400, 'INVALID_SLOT_DURATION');
     }
   }
 

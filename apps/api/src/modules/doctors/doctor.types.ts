@@ -13,6 +13,7 @@ export type DoctorWorkingBlock = {
   id: string;
   start_time: string;
   end_time: string;
+  slot_duration_minutes: number;
 };
 
 export type DoctorAvailability = {
@@ -20,7 +21,6 @@ export type DoctorAvailability = {
   day_of_week: DoctorAvailabilityDay;
   is_available: boolean;
   working_blocks: DoctorWorkingBlock[];
-  slot_duration_minutes: number;
 };
 
 export type Doctor = {
@@ -83,8 +83,8 @@ export type SaveDoctorAvailabilityDTO = {
     working_blocks: Array<{
       start_time: string;
       end_time: string;
+      slot_duration_minutes: number;
     }>;
-    slot_duration_minutes: number;
   }>;
 };
 
@@ -161,7 +161,6 @@ export type DoctorAvailabilityException = {
   date: Date;
   is_available: boolean;
   working_blocks: DoctorWorkingBlock[];
-  slot_duration_minutes: number;
   reason: string;
   created_by: string | null;
   updated_by: string | null;
@@ -182,8 +181,8 @@ export type SaveDoctorAvailabilityExceptionDTO = {
   working_blocks: Array<{
     start_time: string;
     end_time: string;
+    slot_duration_minutes: number;
   }>;
-  slot_duration_minutes: number;
   reason: string;
 };
 

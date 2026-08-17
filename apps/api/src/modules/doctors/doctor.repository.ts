@@ -47,12 +47,15 @@ const toDisplayName = (firstName: string, lastName: string) => `Dr. ${firstName.
 const legacyWorkingBlocks = (availability: DoctorAvailabilityFields) => {
   if (!availability.startTime || !availability.endTime) return [];
 
+  const legacyDuration = (availability as any).slotDurationMinutes ?? 30;
+
   if (!availability.breakStartTime || !availability.breakEndTime) {
     return [
       {
         id: `${availability._id.toString()}-legacy`,
         start_time: availability.startTime,
         end_time: availability.endTime,
+        slot_duration_minutes: legacyDuration,
       },
     ];
   }
@@ -64,6 +67,7 @@ const legacyWorkingBlocks = (availability: DoctorAvailabilityFields) => {
             id: `${availability._id.toString()}-legacy-1`,
             start_time: availability.startTime,
             end_time: availability.breakStartTime,
+            slot_duration_minutes: legacyDuration,
           },
         ]
       : []),
@@ -73,6 +77,7 @@ const legacyWorkingBlocks = (availability: DoctorAvailabilityFields) => {
             id: `${availability._id.toString()}-legacy-2`,
             start_time: availability.breakEndTime,
             end_time: availability.endTime,
+            slot_duration_minutes: legacyDuration,
           },
         ]
       : []),
@@ -88,9 +93,9 @@ const toAvailability = (availability: DoctorAvailabilityFields): DoctorAvailabil
         id: block._id.toString(),
         start_time: block.startTime,
         end_time: block.endTime,
+        slot_duration_minutes: block.slotDurationMinutes,
       }))
     : legacyWorkingBlocks(availability),
-  slot_duration_minutes: availability.slotDurationMinutes,
 });
 
 const toDoctor = (doctor: DoctorLean): Doctor => ({
@@ -141,8 +146,8 @@ const toException = (exception: DoctorExceptionLean): DoctorAvailabilityExceptio
     id: block._id.toString(),
     start_time: block.startTime,
     end_time: block.endTime,
+    slot_duration_minutes: block.slotDurationMinutes,
   })),
-  slot_duration_minutes: exception.slotDurationMinutes,
   reason: exception.reason,
   created_by: exception.createdBy?.toString() ?? null,
   updated_by: exception.updatedBy?.toString() ?? null,
@@ -173,15 +178,14 @@ const buildDoctorPayload = (data: CreateDoctorDTO | UpdateDoctorDTO) => ({
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
 });
 
-const buildWorkingBlocks = (blocks: Array<{ start_time: string; end_time: string }>) =>
-  blocks.map((block) => ({ startTime: block.start_time, endTime: block.end_time }));
+const buildWorkingBlocks = (blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number }>) =>
+  blocks.map((block) => ({ startTime: block.start_time, endTime: block.end_time, slotDurationMinutes: block.slot_duration_minutes }));
 
 const buildAvailabilityPayload = (input: SaveDoctorAvailabilityDTO) =>
   input.availability.map((item) => ({
     dayOfWeek: item.day_of_week,
     isAvailable: item.is_available,
     workingBlocks: buildWorkingBlocks(item.working_blocks),
-    slotDurationMinutes: item.slot_duration_minutes,
   }));
 
 const isDuplicateKeyError = (error: unknown) =>
@@ -492,7 +496,6 @@ export class DoctorRepository {
         $set: {
           isAvailable: data.is_available,
           workingBlocks: buildWorkingBlocks(data.working_blocks),
-          slotDurationMinutes: data.slot_duration_minutes,
           reason: data.reason.trim(),
           updatedBy: requiredObjectId(userId),
         },

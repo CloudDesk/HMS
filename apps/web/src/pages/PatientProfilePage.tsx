@@ -3,7 +3,8 @@ import { appointmentsApi, type AppointmentResponse } from '../api/appointments';
 import { billingApi, type BillingInvoice } from '../api/billing';
 import { imagingApi } from '../api/imaging';
 import { laboratoryApi, type DiagnosticOrder } from '../api/laboratory';
-import { opdApi, type OpdPrescriptionResponse } from '../api/opd';
+import { opdApi, type OpdPrescriptionResponse, type OpdVisitResponse } from '../api/opd';
+import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import {
   patientsApi,
   type ApiPatientGender,
@@ -17,6 +18,10 @@ import {
 } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { PrintPrescriptionModal } from '../components/print/PrintPrescriptionModal';
+import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
+import { PrintImagingOrderModal } from '../components/print/PrintImagingOrderModal';
+import { PrintBillingModal } from '../components/print/PrintBillingModal';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { patientInitials } from './opd-utils';
 import { formatDate, formatDateTime, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
@@ -344,6 +349,28 @@ export function PatientProfilePage() {
   const [imagingOrders, setImagingOrders] = useState<DiagnosticOrder[]>([]);
   const [billingInvoices, setBillingInvoices] = useState<BillingInvoice[]>([]);
   const [prescriptions, setPrescriptions] = useState<OpdPrescriptionResponse[]>([]);
+  
+  const [viewingPrescription, setViewingPrescription] = useState<OpdPrescriptionResponse | null>(null);
+  const [viewingLabOrder, setViewingLabOrder] = useState<DiagnosticOrder | null>(null);
+  const [viewingImagingOrder, setViewingImagingOrder] = useState<DiagnosticOrder | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<BillingInvoice | null>(null);
+
+  // Pagination & Filter States
+  const [timelineData, setTimelineData] = useState<PatientTimelineEventResponse[]>([]);
+  const [timelineMeta, setTimelineMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
+  const [timelineFilters, setTimelineFilters] = useState({ from: '', to: '' });
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
+  const [visitsData, setVisitsData] = useState<OpdVisitResponse[]>([]);
+  const [visitsMeta, setVisitsMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
+  const [visitsFilters, setVisitsFilters] = useState({ date_from: '', date_to: '' });
+  const [visitsLoading, setVisitsLoading] = useState(false);
+
+  const [appointmentsMeta, setAppointmentsMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
+  const [appointmentFilters, setAppointmentFilters] = useState({ date_from: '', date_to: '', doctor_id: '' });
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [doctorsList, setDoctorsList] = useState<DoctorResponse[]>([]);
+
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -414,6 +441,60 @@ export function PatientProfilePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    doctorsApi.list({ limit: 100, status: 'ACTIVE' }).then(res => setDoctorsList(res.data)).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'Medical History' && requestedPatientId) {
+      setTimelineLoading(true);
+      patientsApi.timeline(requestedPatientId, {
+        page: timelineMeta.page,
+        limit: timelineMeta.limit,
+        from: timelineFilters.from,
+        to: timelineFilters.to
+      }).then(res => {
+        setTimelineData(res.data);
+        setTimelineMeta(res.meta);
+      }).catch(console.error).finally(() => setTimelineLoading(false));
+    }
+  }, [activeTab, requestedPatientId, timelineMeta.page, timelineMeta.limit, timelineFilters.from, timelineFilters.to]);
+
+  useEffect(() => {
+    if (activeTab === 'Visits' && requestedPatientId) {
+      setVisitsLoading(true);
+      opdApi.listVisits({
+        patient_id: requestedPatientId,
+        page: visitsMeta.page,
+        limit: visitsMeta.limit,
+        date_from: visitsFilters.date_from,
+        date_to: visitsFilters.date_to
+      }).then(res => {
+        setVisitsData(res.data);
+        setVisitsMeta(res.meta);
+      }).catch(console.error).finally(() => setVisitsLoading(false));
+    }
+  }, [activeTab, requestedPatientId, visitsMeta.page, visitsMeta.limit, visitsFilters.date_from, visitsFilters.date_to]);
+
+  useEffect(() => {
+    if (activeTab === 'Appointments' && requestedPatientId) {
+      setAppointmentsLoading(true);
+      appointmentsApi.list({
+        patient_id: requestedPatientId,
+        page: appointmentsMeta.page,
+        limit: appointmentsMeta.limit,
+        date_from: appointmentFilters.date_from,
+        date_to: appointmentFilters.date_to,
+        doctor_id: appointmentFilters.doctor_id,
+        sortBy: 'appointment_date',
+        sortOrder: 'desc'
+      }).then(res => {
+        setAppointments(res.data);
+        setAppointmentsMeta(res.meta);
+      }).catch(console.error).finally(() => setAppointmentsLoading(false));
+    }
+  }, [activeTab, requestedPatientId, appointmentsMeta.page, appointmentsMeta.limit, appointmentFilters.date_from, appointmentFilters.date_to, appointmentFilters.doctor_id]);
 
   const patient = history?.patient ?? null;
   const timeline = history?.timeline ?? [];
@@ -801,77 +882,201 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
           {/* ── Medical History ──────────────────────────────────────────── */}
           {activeTab === 'Medical History' ? (
-            timeline.length === 0 ? (
-              <EmptyRecords message="No medical history events recorded for this patient." />
-            ) : (
-              <div className="table-responsive">
-                <table className="data-table">
-                  <thead>
-                    <tr><th>DATE</th><th>EVENT</th><th>DESCRIPTION</th></tr>
-                  </thead>
-                  <tbody>
-                    {timeline.map((event) => (
-                      <tr key={event.id}>
-                        <td>{formatDateTime(event.occurred_at)}</td>
-                        <td><strong>{event.title}</strong></td>
-                        <td>{event.description || 'No description recorded'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="emr-filter-row">
+                <div className="doc-field">
+                  <label>From</label>
+                  <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters(prev => ({ ...prev, from: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} />
+                </div>
+                <div className="doc-field">
+                  <label>To</label>
+                  <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters(prev => ({ ...prev, to: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} />
+                </div>
+                <div className="doc-field">
+                  <label>&nbsp;</label>
+                  <button className="doc-btn secondary" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} style={{ padding: '0.625rem 1rem' }}>
+                    <i className="ph ph-arrow-counter-clockwise" /> Reset
+                  </button>
+                </div>
+                {timelineLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'flex-end', paddingBottom: '0.5rem' }}>Loading...</span>}
               </div>
-            )
+              {timelineData.length === 0 ? (
+                <EmptyRecords message="No medical history events recorded for this patient." />
+              ) : (
+                <div className="table-responsive">
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>DATE</th><th>EVENT</th><th>DESCRIPTION</th></tr>
+                    </thead>
+                    <tbody>
+                      {timelineData.map((event) => (
+                        <tr key={event.id}>
+                          <td>{formatDateTime(event.occurred_at)}</td>
+                          <td><strong>{event.title}</strong></td>
+                          <td>{event.description || 'No description recorded'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {timelineMeta.totalPages > 1 && (
+                <div className="um-pagination" style={{ marginTop: '1rem' }}>
+                  <span>
+                    Showing {timelineData.length === 0 ? 0 : (timelineMeta.page - 1) * timelineMeta.limit + 1}-
+                    {Math.min(timelineMeta.page * timelineMeta.limit, (timelineMeta as any).total || 0)} of {(timelineMeta as any).total || 0} events
+                  </span>
+                  <div className="um-page-controls">
+                    <button className="pg-btn" disabled={timelineMeta.page <= 1} onClick={() => setTimelineMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
+                      <i className="ph ph-caret-left" aria-hidden="true" />
+                    </button>
+                    <button className="pg-btn active" disabled type="button">
+                      {timelineMeta.page}
+                    </button>
+                    <button className="pg-btn" disabled={timelineMeta.page >= timelineMeta.totalPages} onClick={() => setTimelineMeta(prev => ({ ...prev, page: prev.page + 1 }))} type="button">
+                      <i className="ph ph-caret-right" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : null}
 
           {/* ── Visits ───────────────────────────────────────────────────── */}
           {activeTab === 'Visits' ? (
-            timeline.length === 0 ? (
-              <EmptyRecords message="No OPD visit records found for this patient." />
-            ) : (
-              <div className="table-responsive">
-                <table className="data-table">
-                  <thead>
-                    <tr><th>DATE</th><th>VISIT NUMBER</th><th>TYPE</th><th>STATUS</th></tr>
-                  </thead>
-                  <tbody>
-                    {timeline.map((event) => (
-                      <tr key={event.id}>
-                        <td>{formatDate(event.occurred_at)}</td>
-                        <td><strong>{event.title}</strong></td>
-                        <td>OPD Consultation</td>
-                        <td><span className="doc-status active">COMPLETED</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="emr-filter-row">
+                <div className="doc-field">
+                  <label>From</label>
+                  <input type="date" value={visitsFilters.date_from} onChange={(e) => { setVisitsFilters(prev => ({ ...prev, date_from: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} />
+                </div>
+                <div className="doc-field">
+                  <label>To</label>
+                  <input type="date" value={visitsFilters.date_to} onChange={(e) => { setVisitsFilters(prev => ({ ...prev, date_to: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} />
+                </div>
+                <div className="doc-field">
+                  <label>&nbsp;</label>
+                  <button className="doc-btn secondary" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} style={{ padding: '0.625rem 1rem' }}>
+                    <i className="ph ph-arrow-counter-clockwise" /> Reset
+                  </button>
+                </div>
+                {visitsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'flex-end', paddingBottom: '0.5rem' }}>Loading...</span>}
               </div>
-            )
+              {visitsData.length === 0 ? (
+                <EmptyRecords message="No OPD visit records found for this patient." />
+              ) : (
+                <div className="table-responsive">
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>DATE</th><th>VISIT NUMBER</th><th>DOCTOR</th><th>TYPE</th><th>STATUS</th></tr>
+                    </thead>
+                    <tbody>
+                      {visitsData.map((visit) => (
+                        <tr key={visit.id}>
+                          <td>{formatDate(visit.visit_date)}</td>
+                          <td><strong>{visit.visit_number}</strong></td>
+                          <td>{visit.doctor_name}</td>
+                          <td>{visit.visit_type.replaceAll('_', ' ')}</td>
+                          <td><span className={`status-badge status-${visit.status.toLowerCase()}`}>{visit.status.replaceAll('_', ' ')}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {visitsMeta.totalPages > 1 && (
+                <div className="um-pagination" style={{ marginTop: '1rem' }}>
+                  <span>
+                    Showing {visitsData.length === 0 ? 0 : (visitsMeta.page - 1) * visitsMeta.limit + 1}-
+                    {Math.min(visitsMeta.page * visitsMeta.limit, (visitsMeta as any).total || 0)} of {(visitsMeta as any).total || 0} visits
+                  </span>
+                  <div className="um-page-controls">
+                    <button className="pg-btn" disabled={visitsMeta.page <= 1} onClick={() => setVisitsMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
+                      <i className="ph ph-caret-left" aria-hidden="true" />
+                    </button>
+                    <button className="pg-btn active" disabled type="button">
+                      {visitsMeta.page}
+                    </button>
+                    <button className="pg-btn" disabled={visitsMeta.page >= visitsMeta.totalPages} onClick={() => setVisitsMeta(prev => ({ ...prev, page: prev.page + 1 }))} type="button">
+                      <i className="ph ph-caret-right" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : null}
 
           {/* ── Appointments ─────────────────────────────────────────────── */}
           {activeTab === 'Appointments' ? (
-            appointments.length === 0 ? (
-              <EmptyRecords message="No appointments recorded for this patient." />
-            ) : (
-              <div className="table-responsive">
-                <table className="data-table">
-                  <thead>
-                    <tr><th>DATE</th><th>TIME</th><th>DOCTOR</th><th>TYPE</th><th>STATUS</th></tr>
-                  </thead>
-                  <tbody>
-                    {appointments.map((appointment) => (
-                      <tr key={appointment.id}>
-                        <td>{formatDate(appointment.appointment_date)}</td>
-                        <td>{appointment.start_time}</td>
-                        <td>{appointment.doctor_name}</td>
-                        <td>{appointment.visit_type.replaceAll('_', ' ')}</td>
-                        <td><span className="doc-status active">{appointment.status.replaceAll('_', ' ')}</span></td>
-                      </tr>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="emr-filter-row">
+                <div className="doc-field">
+                  <label>From</label>
+                  <input type="date" value={appointmentFilters.date_from} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, date_from: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }} />
+                </div>
+                <div className="doc-field">
+                  <label>To</label>
+                  <input type="date" value={appointmentFilters.date_to} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, date_to: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }} />
+                </div>
+                <div className="doc-field">
+                  <label>Doctor</label>
+                  <select value={appointmentFilters.doctor_id} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, doctor_id: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }}>
+                    <option value="">All Doctors</option>
+                    {doctorsList.map(doc => (
+                      <option key={doc.id} value={doc.id}>{doc.display_name || doc.first_name + ' ' + doc.last_name}</option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+                </div>
+                <div className="doc-field">
+                  <label>&nbsp;</label>
+                  <button className="doc-btn secondary" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }} style={{ padding: '0.625rem 1rem' }}>
+                    <i className="ph ph-arrow-counter-clockwise" /> Reset
+                  </button>
+                </div>
+                {appointmentsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'flex-end', paddingBottom: '0.5rem' }}>Loading...</span>}
               </div>
-            )
+              {appointments.length === 0 ? (
+                <EmptyRecords message="No appointments recorded for this patient." />
+              ) : (
+                <div className="table-responsive">
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>DATE</th><th>TIME</th><th>DOCTOR</th><th>TYPE</th><th>STATUS</th></tr>
+                    </thead>
+                    <tbody>
+                      {appointments.map((appointment) => (
+                        <tr key={appointment.id}>
+                          <td>{formatDate(appointment.appointment_date)}</td>
+                          <td>{appointment.start_time}</td>
+                          <td>{appointment.doctor_name}</td>
+                          <td>{appointment.visit_type.replaceAll('_', ' ')}</td>
+                          <td><span className="doc-status active">{appointment.status.replaceAll('_', ' ')}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {appointmentsMeta.totalPages > 1 && (
+                <div className="um-pagination" style={{ marginTop: '1rem' }}>
+                  <span>
+                    Showing {appointments.length === 0 ? 0 : (appointmentsMeta.page - 1) * appointmentsMeta.limit + 1}-
+                    {Math.min(appointmentsMeta.page * appointmentsMeta.limit, (appointmentsMeta as any).total || 0)} of {(appointmentsMeta as any).total || 0} appointments
+                  </span>
+                  <div className="um-page-controls">
+                    <button className="pg-btn" disabled={appointmentsMeta.page <= 1} onClick={() => setAppointmentsMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
+                      <i className="ph ph-caret-left" aria-hidden="true" />
+                    </button>
+                    <button className="pg-btn active" disabled type="button">
+                      {appointmentsMeta.page}
+                    </button>
+                    <button className="pg-btn" disabled={appointmentsMeta.page >= appointmentsMeta.totalPages} onClick={() => setAppointmentsMeta(prev => ({ ...prev, page: prev.page + 1 }))} type="button">
+                      <i className="ph ph-caret-right" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : null}
 
           {/* ── Prescriptions ────────────────────────────────────────────── */}
@@ -882,7 +1087,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
-                    <tr><th>DATE</th><th>DOCTOR</th><th>MEDICINES PRESCRIBED</th><th>DOSAGE &amp; FREQUENCY</th><th>STATUS</th></tr>
+                    <tr><th>DATE</th><th>DOCTOR</th><th>MEDICINES PRESCRIBED</th><th>DOSAGE &amp; FREQUENCY</th><th>STATUS</th><th style={{ width: '80px', textAlign: 'center' }}>ACTION</th></tr>
                   </thead>
                   <tbody>
                     {prescriptions.map((script) => (
@@ -896,6 +1101,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                           {script.items.map((i) => `${i.dosage} - ${i.frequency} (${i.duration})`).join('; ')}
                         </td>
                         <td><span className="doc-status active">{script.status}</span></td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button className="doc-btn small" onClick={() => setViewingPrescription(script)} title="View Prescription" type="button">
+                            <i aria-hidden="true" className="ph ph-file-text" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -912,7 +1122,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
-                    <tr><th>DATE</th><th>INVESTIGATION NAME</th><th>CATEGORY</th><th>PRIORITY</th><th>STATUS</th></tr>
+                    <tr><th>DATE</th><th>INVESTIGATION NAME</th><th>CATEGORY</th><th>PRIORITY</th><th>STATUS</th><th style={{ width: '80px', textAlign: 'center' }}>ACTION</th></tr>
                   </thead>
                   <tbody>
                     {labOrders.map((order) => (
@@ -922,6 +1132,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                         <td>{order.items[0]?.category || 'General Lab'}</td>
                         <td><span className="doc-status draft">{order.priority}</span></td>
                         <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button className="doc-btn small" onClick={() => setViewingLabOrder(order)} title="View Lab Order" type="button">
+                            <i aria-hidden="true" className="ph ph-file-text" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -938,7 +1153,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
-                    <tr><th>DATE</th><th>SCAN / MODALITY</th><th>CATEGORY</th><th>PRIORITY</th><th>STATUS</th></tr>
+                    <tr><th>DATE</th><th>SCAN / MODALITY</th><th>CATEGORY</th><th>PRIORITY</th><th>STATUS</th><th style={{ width: '80px', textAlign: 'center' }}>ACTION</th></tr>
                   </thead>
                   <tbody>
                     {imagingOrders.map((order) => (
@@ -948,6 +1163,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                         <td>{order.items[0]?.category || 'Radiology'}</td>
                         <td><span className="doc-status draft">{order.priority}</span></td>
                         <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button className="doc-btn small" onClick={() => setViewingImagingOrder(order)} title="View Imaging Order" type="button">
+                            <i aria-hidden="true" className="ph ph-file-text" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -997,7 +1217,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
-                    <tr><th>INVOICE #</th><th>DATE</th><th>SERVICES BILLED</th><th>TOTAL AMOUNT</th><th>BALANCE</th><th>STATUS</th></tr>
+                    <tr><th>INVOICE #</th><th>DATE</th><th>SERVICES BILLED</th><th>TOTAL AMOUNT</th><th>BALANCE</th><th>STATUS</th><th style={{ width: '80px', textAlign: 'center' }}>ACTION</th></tr>
                   </thead>
                   <tbody>
                     {billingInvoices.map((inv) => (
@@ -1008,6 +1228,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                         <td>₹{inv.total_amount.toLocaleString()}</td>
                         <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>₹{inv.balance_amount.toLocaleString()}</strong></td>
                         <td><span className="doc-status active">{inv.status}</span></td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button className="doc-btn small" onClick={() => setViewingInvoice(inv)} title="View Invoice" type="button">
+                            <i aria-hidden="true" className="ph ph-file-text" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1335,6 +1560,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           </div>
         </form>
       </Modal>
+
+      <PrintPrescriptionModal onClose={() => setViewingPrescription(null)} patient={patient} prescription={viewingPrescription} />
+      <PrintLabOrderModal onClose={() => setViewingLabOrder(null)} order={viewingLabOrder} patient={patient} />
+      <PrintImagingOrderModal onClose={() => setViewingImagingOrder(null)} order={viewingImagingOrder} patient={patient} />
+      <PrintBillingModal invoice={viewingInvoice} onClose={() => setViewingInvoice(null)} patient={patient} />
 
       <Toast message={toast} tone={toastTone} visible={Boolean(toast)} />
     </>

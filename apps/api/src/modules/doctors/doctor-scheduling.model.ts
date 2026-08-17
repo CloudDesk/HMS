@@ -20,7 +20,6 @@ export type DoctorAvailabilityExceptionFields = {
   date: Date;
   isAvailable: boolean;
   workingBlocks: DoctorWorkingBlockFields[];
-  slotDurationMinutes: number;
   reason: string;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -37,6 +36,7 @@ const workingBlockSchema = new Schema<DoctorWorkingBlockFields>(
   {
     startTime: { type: String, required: true },
     endTime: { type: String, required: true },
+    slotDurationMinutes: { type: Number, required: true, default: 30 },
   },
   { _id: true },
 );
@@ -63,7 +63,6 @@ const doctorAvailabilityExceptionSchema = new Schema<DoctorAvailabilityException
     date: { type: Date, required: true },
     isAvailable: { type: Boolean, required: true },
     workingBlocks: { type: [workingBlockSchema], default: [] },
-    slotDurationMinutes: { type: Number, required: true },
     reason: { type: String, required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
