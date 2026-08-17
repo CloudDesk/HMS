@@ -11,7 +11,7 @@ export const registerOpdFollowUpRoutes = async (app: FastifyInstance, services: 
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/follow-up', {
     preHandler: requirePermission(services, 'OPD', 'OPD Follow-up', 'View'),
     schema: { params: followUpVisitParamsSchema },
-  }, async (request) => ok(await services.opdFollowUps.getByVisit(request.params.visitId)));
+  }, async (request) => ok(await services.opdFollowUps.getByVisit(request.params.visitId, request.user!.id)));
 
   app.put<{ Params: VisitParams; Body: SaveOpdFollowUpDTO }>('/api/opd/visits/:visitId/follow-up', {
     preHandler: requirePermission(services, 'OPD', 'OPD Follow-up', 'Edit'),

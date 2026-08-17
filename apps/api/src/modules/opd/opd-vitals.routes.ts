@@ -23,7 +23,7 @@ export const registerOpdVitalsRoutes = async (app: FastifyInstance, services: Se
         querystring: listOpdVitalsQuerySchema,
       },
     },
-    async (request) => ok(await services.opdVitals.listByVisit(request.params.visitId, request.query)),
+    async (request) => ok(await services.opdVitals.listByVisit(request.params.visitId, request.query, request.user!.id)),
   );
 
   app.get<{ Params: OpdVitalsVisitParams }>(
@@ -34,7 +34,7 @@ export const registerOpdVitalsRoutes = async (app: FastifyInstance, services: Se
         params: opdVitalsVisitParamsSchema,
       },
     },
-    async (request) => ok(await services.opdVitals.getLatestByVisit(request.params.visitId)),
+    async (request) => ok(await services.opdVitals.getLatestByVisit(request.params.visitId, request.user!.id)),
   );
 
   app.post<{ Params: OpdVitalsVisitParams; Body: CreateOpdVitalsDTO }>(

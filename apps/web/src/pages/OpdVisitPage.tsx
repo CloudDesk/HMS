@@ -5,6 +5,7 @@ import { doctorsApi, type ApiDoctorAvailabilityDay, type DoctorResponse } from '
 import { medicinesApi } from '../api/medicines';
 import {
   opdApi,
+  type ApiClinicalOrderPriority,
   type OpdConsultationResponse,
   type OpdPrescriptionResponse,
   type OpdVisitResponse,
@@ -13,6 +14,8 @@ import {
 import { patientsApi, type PatientDocumentResponse } from '../api/patients';
 import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
 import { servicesApi, type ServiceResponse } from '../api/services';
+import { hasPermission } from '../auth/access-control';
+import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
@@ -138,6 +141,21 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null
 });
 
 export function OpdVisitPage() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const can = (module: string, screen: string, action: string) => isSuperAdmin || hasPermission(
+    user?.permissions ?? [],
+    { module, screen, action },
+  );
+  const canEditConsultation = can('OPD', 'OPD Consultation', 'Edit');
+  const canEditPrescription = can('OPD', 'OPD Prescription', 'Edit');
+  const canEditClinicalOrders = can('OPD', 'OPD Clinical Orders', 'Edit');
+  const canEditReferral = can('OPD', 'OPD Referral', 'Edit');
+  const canBookAppointments = can('Appointments', 'Appointment Booking', 'Create');
+  const canCreateDocuments = can('Patients', 'Patient Documents', 'Create');
+  const canDeleteDocuments = can('Patients', 'Patient Documents', 'Delete');
+  const canCreateVitals = can('OPD', 'OPD Vitals', 'Create');
+  const canCreateInvoice = can('Billing', 'Invoices', 'Create');
   const { search } = useAppLocation();
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
   const visitIdParam = searchParams.get('id') ?? '';
@@ -273,6 +291,7 @@ export function OpdVisitPage() {
   }, [loadReferralSlots]);
 
   const handleBookReferralAppointment = async () => {
+    if (!canEditReferral || !canBookAppointments) return;
     if (!visit || !referralDoctorId || !referralDate || !referralTimeSlot) {
       showToast('Please select a doctor, date, and available time slot.');
       return;
@@ -309,6 +328,7 @@ export function OpdVisitPage() {
 
   const handleSaveVitalsModal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateVitals) return;
     if (!vitalsForm.blood_pressure_systolic || !vitalsForm.blood_pressure_diastolic) {
       showToast('Blood Pressure (Systolic & Diastolic) is required.');
       return;
@@ -419,11 +439,11 @@ export function OpdVisitPage() {
   );
 
   const [labOrders, setLabOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
-  const [labPriority, setLabPriority] = useState<any>('ROUTINE');
+  const [labPriority, setLabPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
   const [selectedLabTest, setSelectedLabTest] = useState('');
 
   const [imagingOrders, setImagingOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
-  const [imagingPriority, setImagingPriority] = useState<any>('ROUTINE');
+  const [imagingPriority, setImagingPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
   const [selectedImagingTest, setSelectedImagingTest] = useState('');
 
   // Load patient clinical sub-resources
@@ -438,7 +458,7 @@ export function OpdVisitPage() {
           opdApi.getPrescription(activeVisitId),
           doctorsApi.list({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
           medicinesApi.list({ status: 'ACTIVE', limit: 100 }),
-          pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 } as any).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
+          pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 }).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
           servicesApi.list({ status: 'ACTIVE', limit: 100 }),
           opdApi.getClinicalOrder(activeVisitId, 'LABORATORY'),
           opdApi.getClinicalOrder(activeVisitId, 'IMAGING'),
@@ -461,10 +481,10 @@ export function OpdVisitPage() {
         const invMapId: Record<string, { available: number; unit?: string }> = {};
         const invMapName: Record<string, { available: number; unit?: string }> = {};
         if (invRes.status === 'fulfilled' && invRes.value?.data) {
-          invRes.value.data.forEach((item: any) => {
-            const info = { available: item.available_quantity, unit: item.unit || item.packaging_unit };
+          invRes.value.data.forEach((item) => {
+            const info = { available: item.available_quantity, unit: item.medicine.unit ?? undefined };
             if (item.medicine_id) invMapId[item.medicine_id] = info;
-            if (item.medicine_name) invMapName[item.medicine_name] = info;
+            if (item.medicine.name) invMapName[item.medicine.name] = info;
           });
         }
 
@@ -533,7 +553,7 @@ export function OpdVisitPage() {
 
   // Action Handlers
   const saveConsultationDraft = async () => {
-    if (!visit) return;
+    if (!visit || !canEditConsultation) return;
     setUpdating('consultation-draft');
     try {
       const payload: SaveOpdConsultationPayload = {
@@ -557,11 +577,20 @@ export function OpdVisitPage() {
     }
   };
 
-  const [consultationFieldErrors, setConsultationFieldErrors] = useState<Record<string, string>>({});
-
   const completeConsultation = async () => {
-    if (!visit) return;
-    setConsultationFieldErrors({});
+    if (!visit || !canEditConsultation) return;
+    if (prescriptionForm.items.length > 0 && !canEditPrescription) {
+      showToast('Prescription Edit permission is required to submit the entered medications.');
+      return;
+    }
+    if ((labOrders.length > 0 || selectedLabTest) && !canEditClinicalOrders) {
+      showToast('Clinical Orders Edit permission is required to submit laboratory orders.');
+      return;
+    }
+    if ((imagingOrders.length > 0 || selectedImagingTest) && !canEditClinicalOrders) {
+      showToast('Clinical Orders Edit permission is required to submit imaging orders.');
+      return;
+    }
     setUpdating('consultation-complete');
     try {
       const payload: SaveOpdConsultationPayload = {
@@ -687,7 +716,7 @@ export function OpdVisitPage() {
         });
       }
 
-      if (invoiceItems.length > 0) {
+      if (invoiceItems.length > 0 && canCreateInvoice) {
         await billingApi
           .create({
             patient_id: visit.patient_id,
@@ -702,7 +731,11 @@ export function OpdVisitPage() {
       setConsultation(response);
       await loadVisit();
       await loadClinicalData();
-      showToast('Consultation completed successfully & billing invoice generated.');
+      showToast(
+        canCreateInvoice
+          ? 'Consultation completed successfully and the billing invoice was generated.'
+          : 'Consultation completed successfully.',
+      );
     } catch (error) {
       showToast(getOpdErrorMessage(error));
     } finally {
@@ -712,6 +745,7 @@ export function OpdVisitPage() {
 
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateDocuments) return;
     if (!selectedFile || !visit) {
       showToast('Please choose a file to upload.');
       return;
@@ -763,7 +797,7 @@ export function OpdVisitPage() {
   };
 
   const deleteDocument = async (document: PatientDocumentResponse) => {
-    if (!visit || !window.confirm(`Delete ${document.title}?`)) return;
+    if (!visit || !canDeleteDocuments || !window.confirm(`Delete ${document.title}?`)) return;
     try {
       await patientsApi.deleteDocument(visit.patient_id, document.id);
       setDocuments((current) => current.filter((item) => item.id !== document.id));
@@ -941,7 +975,7 @@ export function OpdVisitPage() {
                     </div>
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="chief-complaint">
-                        <span>Chief Complaint</span>
+                        <span>Complaint</span>
                         <textarea
                           id="chief-complaint"
                           onChange={(e) => setConsultationForm((c) => ({ ...c, chief_complaint: e.target.value }))}
@@ -1032,7 +1066,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
                       </button>
@@ -1042,7 +1076,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={!canEditConsultation || updating === 'consultation-complete'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1093,7 +1127,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Prescription')} type="button">
@@ -1102,7 +1136,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={!canEditConsultation || updating === 'consultation-complete'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1198,6 +1232,7 @@ export function OpdVisitPage() {
                       </label>
                       <button
                         className="doc-btn primary add-medication"
+                        disabled={!canEditPrescription}
                         onClick={() => {
                           if (!medicationForm.medicine_name.trim()) return;
                           setPrescriptionForm((prev) => ({
@@ -1244,6 +1279,7 @@ export function OpdVisitPage() {
                                 <td>
                                   <button
                                     className="doc-action danger"
+                                    disabled={!canEditPrescription}
                                     onClick={() =>
                                       setPrescriptionForm((prev) => ({
                                         ...prev,
@@ -1270,7 +1306,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Lab Orders')} type="button">
@@ -1279,7 +1315,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={!canEditConsultation || updating === 'consultation-complete'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1316,13 +1352,15 @@ export function OpdVisitPage() {
                       </label>
                       <label className="doc-field" htmlFor="lab-priority">
                         <span>Priority</span>
-                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value)} value={labPriority}>
+                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value as ApiClinicalOrderPriority)} value={labPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="EMERGENCY">Emergency</option>
+                          <option value="URGENT">Urgent</option>
+                          <option value="STAT">Stat</option>
                         </select>
                       </label>
                       <button
                         className="doc-btn primary add-medication"
+                        disabled={!canEditClinicalOrders}
                         onClick={() => {
                           if (!selectedLabTest.trim()) return;
                           const matchedLab = labTestServices.find(s => s.name === selectedLabTest);
@@ -1365,6 +1403,7 @@ export function OpdVisitPage() {
                                 <td>
                                   <button
                                     className="btn-icon"
+                                    disabled={!canEditClinicalOrders}
                                     onClick={() => setLabOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
                                     title="Remove test"
                                     type="button"
@@ -1387,7 +1426,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Imaging Orders')} type="button">
@@ -1396,7 +1435,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={!canEditConsultation || updating === 'consultation-complete'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1433,13 +1472,15 @@ export function OpdVisitPage() {
                       </label>
                       <label className="doc-field" htmlFor="imaging-priority">
                         <span>Priority</span>
-                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value)} value={imagingPriority}>
+                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value as ApiClinicalOrderPriority)} value={imagingPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="EMERGENCY">Emergency</option>
+                          <option value="URGENT">Urgent</option>
+                          <option value="STAT">Stat</option>
                         </select>
                       </label>
                       <button
                         className="doc-btn primary add-medication"
+                        disabled={!canEditClinicalOrders}
                         onClick={() => {
                           if (!selectedImagingTest.trim()) return;
                           const matchedImg = imagingServices.find(s => s.name === selectedImagingTest);
@@ -1482,6 +1523,7 @@ export function OpdVisitPage() {
                                 <td>
                                   <button
                                     className="btn-icon"
+                                    disabled={!canEditClinicalOrders}
                                     onClick={() => setImagingOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
                                     title="Remove scan"
                                     type="button"
@@ -1504,7 +1546,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Referral')} type="button">
@@ -1513,7 +1555,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={!canEditConsultation || updating === 'consultation-complete'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1650,7 +1692,7 @@ export function OpdVisitPage() {
                       <div className="referral-booking-action-bar" style={{ marginTop: '1.25rem' }}>
                         <button
                           className="doc-btn primary"
-                          disabled={!referralTimeSlot || referralBooking}
+                          disabled={!canEditReferral || !canBookAppointments || !referralTimeSlot || referralBooking}
                           onClick={() => void handleBookReferralAppointment()}
                           style={{ minWidth: '220px' }}
                           type="button"
@@ -1668,7 +1710,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Follow-up')} type="button">
@@ -1677,7 +1719,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={!canEditConsultation || updating === 'consultation-complete'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1725,7 +1767,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Notes')} type="button">
@@ -1734,7 +1776,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={!canEditConsultation || updating === 'consultation-complete'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1776,7 +1818,7 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation} onClick={saveConsultationDraft} type="button">
                         Save Notes Draft
                       </button>
                       <button className="doc-btn primary" onClick={() => setActiveTab('Documents')} type="button">
@@ -1807,6 +1849,7 @@ export function OpdVisitPage() {
                             <input
                               id="document-file-input"
                               accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx"
+                              disabled={!canCreateDocuments}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 setSelectedFile(file ?? null);
@@ -1819,6 +1862,7 @@ export function OpdVisitPage() {
                           <label htmlFor="document-type-select">Document Type</label>
                           <select
                             id="document-type-select"
+                            disabled={!canCreateDocuments}
                             onChange={(e) => setUploadFileType(e.target.value)}
                             value={uploadFileType}
                           >
@@ -1831,7 +1875,7 @@ export function OpdVisitPage() {
                           </select>
                         </div>
                         <div className="opd-upload-btn-wrap">
-                          <button className="doc-btn primary upload-btn" disabled={updating === 'document-upload'} type="submit">
+                          <button className="doc-btn primary upload-btn" disabled={!canCreateDocuments || updating === 'document-upload'} type="submit">
                             <i className="ph ph-upload-simple" aria-hidden="true" />
                             {updating === 'document-upload' ? 'Uploading...' : 'Upload'}
                           </button>
@@ -1880,15 +1924,17 @@ export function OpdVisitPage() {
                             >
                               <i className="ph ph-download-simple" aria-hidden="true" />
                             </button>
-                            <button
-                              aria-label={`Delete ${doc.title}`}
-                              className="doc-icon-action"
-                              onClick={() => void deleteDocument(doc)}
-                              title="Delete Document"
-                              type="button"
-                            >
-                              <i className="ph ph-trash" aria-hidden="true" />
-                            </button>
+                            {canDeleteDocuments ? (
+                              <button
+                                aria-label={`Delete ${doc.title}`}
+                                className="doc-icon-action"
+                                onClick={() => void deleteDocument(doc)}
+                                title="Delete Document"
+                                type="button"
+                              >
+                                <i className="ph ph-trash" aria-hidden="true" />
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       ))}
@@ -2108,7 +2154,7 @@ export function OpdVisitPage() {
             <button className="doc-btn" onClick={() => setVitalsModalOpen(false)} type="button">
               Cancel
             </button>
-            <button className="doc-btn primary" disabled={updating === 'vitals'} type="submit">
+            <button className="doc-btn primary" disabled={!canCreateVitals || updating === 'vitals'} type="submit">
               {updating === 'vitals' ? 'Saving Vitals...' : 'Save Vitals'}
             </button>
           </div>

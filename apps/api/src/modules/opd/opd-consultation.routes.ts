@@ -21,7 +21,7 @@ export const registerOpdConsultationRoutes = async (app: FastifyInstance, servic
         params: opdConsultationVisitParamsSchema,
       },
     },
-    async (request) => ok(await services.opdConsultations.getByVisit(request.params.visitId)),
+    async (request) => ok(await services.opdConsultations.getByVisit(request.params.visitId, request.user!.id)),
   );
 
   app.put<{ Params: OpdConsultationVisitParams; Body: SaveOpdConsultationDTO }>(

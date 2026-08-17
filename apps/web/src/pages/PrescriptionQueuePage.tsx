@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { opdApi, type OpdPrescriptionResponse, type ApiOpdPrescriptionStatus } from '../api/opd';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { hasPermission } from '../auth/access-control';
+import { useAuth } from '../auth/useAuth';
 import { navigate, useAppLocation } from '../routing/navigation';
 
 export function PrescriptionQueuePage() {
+  const { user } = useAuth();
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   const [prescriptions, setPrescriptions] = useState<OpdPrescriptionResponse[]>([]);
@@ -22,6 +25,14 @@ export function PrescriptionQueuePage() {
 
   const [dispenseModalOpen, setDispenseModalOpen] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<OpdPrescriptionResponse | null>(null);
+  const canDispense = Boolean(
+    user?.roles.some((role) => role.code === 'SUPER_ADMIN') ||
+    hasPermission(user?.permissions ?? [], {
+      module: 'Pharmacy',
+      screen: 'Dispensing',
+      action: 'Dispense',
+    }),
+  );
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -43,9 +54,9 @@ export function PrescriptionQueuePage() {
         sortOrder: 'desc',
       });
       setPrescriptions(response.data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setPrescriptions([]);
-      setLoadError(error.message || 'Failed to load prescription queue');
+      setLoadError(error instanceof Error ? error.message : 'Failed to load prescription queue');
     } finally {
       setLoading(false);
     }
@@ -80,8 +91,8 @@ export function PrescriptionQueuePage() {
       setDispenseModalOpen(false);
       setSelectedPrescription(null);
       await loadQueue();
-    } catch (error: any) {
-      showToast(error.message || 'Failed to dispense prescription', 'error');
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'Failed to dispense prescription', 'error');
     } finally {
       setUpdating('');
     }
@@ -187,7 +198,7 @@ export function PrescriptionQueuePage() {
                       </td>
                       <td>
                         <div className="action-icons">
-                          {rx.status === 'SUBMITTED' ? (
+                          {rx.status === 'SUBMITTED' && canDispense ? (
                             <button
                               className="btn-primary compact"
                               style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
@@ -230,7 +241,7 @@ export function PrescriptionQueuePage() {
         title={selectedPrescription ? `Prescription for ${selectedPrescription.patient_name}` : 'Prescription Details'}
         size="large"
         footer={
-          selectedPrescription?.status === 'SUBMITTED' ? (
+          selectedPrescription?.status === 'SUBMITTED' && canDispense ? (
             <>
               <button className="secondary-action" onClick={() => setDispenseModalOpen(false)} type="button">
                 Cancel

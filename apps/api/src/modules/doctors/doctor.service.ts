@@ -404,12 +404,13 @@ export class DoctorService {
 
   async export(query: DoctorListQuery, userId: string, metadata: DoctorRequestMetadata) {
     this.validateListQuery(query);
+    const scope = await this.repository.resolveBranchScope(userId, query.branch_id);
     await this.repository.audit('doctor.exported', userId, metadata, { filters: query });
     const repository = this.repository;
     async function* rows() {
       let page = 1;
       while (true) {
-        const result = await repository.list({ ...query, page, limit: 100 });
+        const result = await repository.list({ ...query, page, limit: 100 }, scope);
         for (const doctor of result.data) {
           yield [
             doctor.doctor_number,

@@ -64,12 +64,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
       tokenStorage.setTokens(session.tokens);
       setUser(session.user);
       setStatus('authenticated');
+      setAuthError(null);
 
       return session.tokens.accessToken;
     })()
-      .catch(() => {
-        clearSession('session-expired');
-        return null;
+      .catch((error: unknown) => {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          clearSession('session-expired');
+          return null;
+        }
+
+        setAuthError(getFriendlyAuthMessage(error));
+        throw error;
       })
       .finally(() => {
         refreshPromiseRef.current = null;
@@ -77,6 +83,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     return refreshPromiseRef.current;
   }, [clearSession]);
+
+  const refreshCurrentUser = useCallback(async () => {
+    if (!tokenStorage.hasRefreshToken()) {
+      return;
+    }
+
+    const currentUser = await authApi.me();
+    setUser(currentUser);
+    setStatus('authenticated');
+    setAuthError(null);
+  }, []);
 
   useEffect(() => {
     apiClient.setRefreshHandler(refreshSession);
@@ -101,9 +118,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
 
       try {
-        const accessToken = tokenStorage.isAccessTokenExpired()
-          ? await refreshSession()
-          : tokenStorage.getAccessToken();
+        if (tokenStorage.isAccessTokenExpired()) {
+          // Refresh already returns a database-backed user access context. Avoid a
+          // second /me request after rotating the one-time refresh token.
+          const accessToken = await refreshSession();
+          if (!accessToken && isMounted) {
+            setStatus('session-expired');
+          }
+          return;
+        }
+
+        const accessToken = tokenStorage.getAccessToken();
 
         if (!accessToken) {
           if (isMounted) {
@@ -119,10 +144,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
           setUser(currentUser);
           setStatus('authenticated');
         }
-      } catch {
-        if (isMounted) {
+      } catch (error) {
+        if (!isMounted) return;
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
           clearSession('session-expired');
+          return;
         }
+
+        // A temporary API/network failure must not destroy a still-valid refresh
+        // token. Keep the provider in its restoration state so focus/reload can retry.
+        setAuthError(getFriendlyAuthMessage(error));
       }
     };
 
@@ -132,6 +163,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isMounted = false;
     };
   }, [clearSession, refreshSession]);
+
+  useEffect(() => {
+    const synchronizeAccess = () => {
+      if (status !== 'authenticated' || document.visibilityState !== 'visible') return;
+      void refreshCurrentUser().catch(() => {
+        // The API client handles a real 401 by expiring the session. Transient
+        // failures retain the last verified access context until the next sync.
+      });
+    };
+
+    window.addEventListener('focus', synchronizeAccess);
+    document.addEventListener('visibilitychange', synchronizeAccess);
+    const intervalId = window.setInterval(synchronizeAccess, 60_000);
+    return () => {
+      window.removeEventListener('focus', synchronizeAccess);
+      document.removeEventListener('visibilitychange', synchronizeAccess);
+      window.clearInterval(intervalId);
+    };
+  }, [refreshCurrentUser, status]);
 
   const login = useCallback(async (identifier: string, password: string) => {
     setAuthError(null);
@@ -187,9 +237,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       authError,
       login,
       logout,
+      refreshCurrentUser,
       clearAuthError: () => setAuthError(null),
     }),
-    [authError, login, logout, status, user],
+    [authError, login, logout, refreshCurrentUser, status, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
