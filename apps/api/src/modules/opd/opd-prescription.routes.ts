@@ -21,13 +21,13 @@ export const registerOpdPrescriptionRoutes = async (app: FastifyInstance, servic
       preHandler: requirePermission(services, 'OPD', 'OPD Prescription', 'View'),
       schema: { querystring: listOpdPrescriptionsQuerySchema },
     },
-    async (request) => ok(await services.opdPrescriptions.list(request.query)),
+    async (request) => ok(await services.opdPrescriptions.list(request.query, request.user!.id)),
   );
 
   app.patch<{ Params: IdParams; Body: { status: OpdPrescriptionStatus } }>(
     '/api/opd/prescriptions/:id/status',
     {
-      preHandler: requirePermission(services, 'OPD', 'OPD Prescription', 'Edit'),
+      preHandler: requirePermission(services, 'Pharmacy', 'Dispensing', 'Dispense'),
       schema: { params: opdPrescriptionParamsSchema, body: updateOpdPrescriptionStatusBodySchema },
     },
     async (request) => ok(await services.opdPrescriptions.updateStatus(request.params.id, request.body.status, request.user!.id)),
@@ -39,7 +39,7 @@ export const registerOpdPrescriptionRoutes = async (app: FastifyInstance, servic
       preHandler: requirePermission(services, 'OPD', 'OPD Prescription', 'View'),
       schema: { params: opdPrescriptionVisitParamsSchema },
     },
-    async (request) => ok(await services.opdPrescriptions.getByVisit(request.params.visitId)),
+    async (request) => ok(await services.opdPrescriptions.getByVisit(request.params.visitId, request.user!.id)),
   );
 
   app.put<{ Params: VisitParams; Body: SaveOpdPrescriptionDTO }>(

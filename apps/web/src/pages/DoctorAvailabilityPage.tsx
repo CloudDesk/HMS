@@ -7,6 +7,7 @@ import {
   type SaveDoctorAvailabilityPayload,
 } from '../api/doctors';
 import { useAuth } from '../auth/useAuth';
+import { hasPermission } from '../auth/access-control';
 import {
   DoctorAvailabilityEditor,
   createDefaultDoctorAvailability,
@@ -27,6 +28,14 @@ export function DoctorAvailabilityPage() {
   const { search } = useAppLocation();
   const initialDoctorId = new URLSearchParams(search).get('doctor_id') ?? '';
   const isDoctorUser = user?.roles.some((role) => role.code === 'DOCTOR' || role.name.toLowerCase() === 'doctor') ?? false;
+  const canEditAvailability = Boolean(
+    user?.roles.some((role) => role.code === 'SUPER_ADMIN') ||
+    hasPermission(user?.permissions ?? [], {
+      module: 'Doctors',
+      screen: 'Doctor Availability',
+      action: 'Edit',
+    }),
+  );
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState(initialDoctorId);
   const [availability, setAvailability] = useState(createDefaultDoctorAvailability);
@@ -67,7 +76,7 @@ export function DoctorAvailabilityPage() {
   }, [isDoctorUser]);
 
   const loadSchedule = useCallback(async () => {
-    if (!selectedDoctorId) return;
+    if (!selectedDoctorId || !canEditAvailability) return;
     const [doctor, leaveResponse, exceptionResponse] = await Promise.all([
       doctorsApi.getById(selectedDoctorId),
       doctorsApi.listLeaves(selectedDoctorId, { limit: 100 }),
@@ -86,7 +95,7 @@ export function DoctorAvailabilityPage() {
   }, [loadDoctors]);
 
   useEffect(() => {
-    if (!selectedDoctorId) return;
+    if (!selectedDoctorId || !canEditAvailability) return;
     const params = new URLSearchParams({ doctor_id: selectedDoctorId });
     navigate(`/doctors/availability?${params.toString()}`, { replace: true });
     setLoading(true);
@@ -95,7 +104,7 @@ export function DoctorAvailabilityPage() {
   }, [loadSchedule, selectedDoctorId]);
 
   const saveAvailability = async () => {
-    if (!selectedDoctorId) return;
+    if (!selectedDoctorId || !canEditAvailability) return;
     setSaving(true);
     setError('');
     try {
@@ -112,7 +121,7 @@ export function DoctorAvailabilityPage() {
 
   const submitLeave = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedDoctorId) return;
+    if (!selectedDoctorId || !canEditAvailability) return;
     setSaving(true);
     setError('');
     try {
@@ -128,7 +137,7 @@ export function DoctorAvailabilityPage() {
   };
 
   const cancelLeave = async (leaveId: string) => {
-    if (!selectedDoctorId) return;
+    if (!selectedDoctorId || !canEditAvailability) return;
     setSaving(true);
     try {
       await doctorsApi.cancelLeave(selectedDoctorId, leaveId);
@@ -180,7 +189,7 @@ export function DoctorAvailabilityPage() {
           <div className="doctor-page-title"><h2>Availability Management</h2><p>Configure recurring blocks, dated exceptions, and doctor leave.</p></div>
           <div className="doctor-page-actions">
             <button className="doc-btn" onClick={() => navigate(`/doctors/profile?id=${selectedDoctorId}`)} type="button"><i className="ph ph-user-circle" /> Profile</button>
-            <button className="doc-btn primary" disabled={saving || !selectedDoctorId} onClick={() => void saveAvailability()} type="button"><i className="ph ph-floppy-disk" /> Save Working Hours</button>
+            <button className="doc-btn primary" disabled={saving || !selectedDoctorId || !canEditAvailability} onClick={() => void saveAvailability()} type="button"><i className="ph ph-floppy-disk" /> Save Working Hours</button>
           </div>
         </section>
 
@@ -194,14 +203,14 @@ export function DoctorAvailabilityPage() {
           <>
             <section className="doc-card">
               <div className="doc-card-header"><div><h3>Recurring Working Hours</h3><p>Add multiple non-overlapping blocks for each available day.</p></div></div>
-              <DoctorAvailabilityEditor disabled={saving} onChange={setAvailability} value={availability} />
+              <DoctorAvailabilityEditor disabled={saving || !canEditAvailability} onChange={setAvailability} value={availability} />
             </section>
 
             <div className="doc-grid two doctor-availability-management-grid">
               <section className="doc-card">
                 <div className="doc-card-header"><div><h3>Doctor Leave</h3><p>Date ranges block all generated appointment slots.</p></div></div>
-                <form className="doc-form-grid two" onSubmit={submitLeave}><label className="doc-field"><span>From</span><input min={todayValue()} onChange={(event) => setLeaveForm({ ...leaveForm, start_date: event.target.value })} required type="date" value={leaveForm.start_date} /></label><label className="doc-field"><span>To</span><input min={leaveForm.start_date} onChange={(event) => setLeaveForm({ ...leaveForm, end_date: event.target.value })} required type="date" value={leaveForm.end_date} /></label><label className="doc-field full"><span>Reason</span><input minLength={3} onChange={(event) => setLeaveForm({ ...leaveForm, reason: event.target.value })} required value={leaveForm.reason} /></label><div className="full"><button className="doc-btn primary" disabled={saving} type="submit"><i className="ph ph-plus" /> Add Leave</button></div></form>
-                <div className="doc-table-wrap doctor-subtable"><table className="doc-table"><thead><tr><th>From</th><th>To</th><th>Reason</th><th>Status</th><th /></tr></thead><tbody>{leaves.length === 0 ? <tr><td className="um-state-cell" colSpan={5}>No leave records.</td></tr> : leaves.map((leave) => <tr key={leave.id}><td>{leave.start_date.slice(0, 10)}</td><td>{leave.end_date.slice(0, 10)}</td><td>{leave.reason}</td><td>{leave.status}</td><td>{leave.status === 'ACTIVE' ? <button className="doc-action danger" disabled={saving} onClick={() => void cancelLeave(leave.id)} title="Cancel leave" type="button"><i className="ph ph-x" /></button> : null}</td></tr>)}</tbody></table></div>
+                <form className="doc-form-grid two" onSubmit={submitLeave}><label className="doc-field"><span>From</span><input disabled={!canEditAvailability} min={todayValue()} onChange={(event) => setLeaveForm({ ...leaveForm, start_date: event.target.value })} required type="date" value={leaveForm.start_date} /></label><label className="doc-field"><span>To</span><input disabled={!canEditAvailability} min={leaveForm.start_date} onChange={(event) => setLeaveForm({ ...leaveForm, end_date: event.target.value })} required type="date" value={leaveForm.end_date} /></label><label className="doc-field full"><span>Reason</span><input disabled={!canEditAvailability} minLength={3} onChange={(event) => setLeaveForm({ ...leaveForm, reason: event.target.value })} required value={leaveForm.reason} /></label><div className="full"><button className="doc-btn primary" disabled={saving || !canEditAvailability} type="submit"><i className="ph ph-plus" /> Add Leave</button></div></form>
+                <div className="doc-table-wrap doctor-subtable"><table className="doc-table"><thead><tr><th>From</th><th>To</th><th>Reason</th><th>Status</th><th /></tr></thead><tbody>{leaves.length === 0 ? <tr><td className="um-state-cell" colSpan={5}>No leave records.</td></tr> : leaves.map((leave) => <tr key={leave.id}><td>{leave.start_date.slice(0, 10)}</td><td>{leave.end_date.slice(0, 10)}</td><td>{leave.reason}</td><td>{leave.status}</td><td>{leave.status === 'ACTIVE' ? <button className="doc-action danger" disabled={saving || !canEditAvailability} onClick={() => void cancelLeave(leave.id)} title="Cancel leave" type="button"><i className="ph ph-x" /></button> : null}</td></tr>)}</tbody></table></div>
               </section>
 
               <section className="doc-card">

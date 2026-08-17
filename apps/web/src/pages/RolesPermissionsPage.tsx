@@ -180,7 +180,7 @@ function PermissionSummary({
 }
 
 export function RolesPermissionsPage() {
-  const { user } = useAuth();
+  const { refreshCurrentUser, user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const canRole = (action: string) => isSuperAdmin || hasPermission(
     user?.permissions ?? [], { module: 'Administration', screen: 'Roles', action },
@@ -444,6 +444,7 @@ export function RolesPermissionsPage() {
       const savedIds = new Set(response.items.map((permission) => permission.id));
       setAssignedPermissionIds(savedIds);
       setDraftPermissionIds(new Set(savedIds));
+      await refreshCurrentUser();
       showToast('Role permissions saved successfully.');
     } catch (error) {
       showToast(getErrorMessage(error), 'error');

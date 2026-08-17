@@ -49,7 +49,7 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/appointments/queue': [{ module: 'Appointments', screen: 'Appointment Records' }],
   '/opd': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/queue': [{ module: 'OPD', screen: 'OPD Visits' }],
-  '/opd/visit': [{ module: 'OPD', screen: 'OPD Visits' }],
+  '/opd/visit': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
 };
 

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
+import { hasPermission } from '../auth/access-control';
+import { useAuth } from '../auth/useAuth';
 import {
   settingsApi,
   type GeneralSettings,
@@ -69,6 +71,7 @@ const detailsToErrors = (error: ApiError): FieldErrors => {
 };
 
 export function SystemSettingsPage() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [navSearch, setNavSearch] = useState('');
@@ -77,7 +80,14 @@ export function SystemSettingsPage() {
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [canEdit, setCanEdit] = useState(true);
+  const canEdit = Boolean(
+    user?.roles.some((role) => role.code === 'SUPER_ADMIN') ||
+    hasPermission(user?.permissions ?? [], {
+      module: 'Administration',
+      screen: 'Settings',
+      action: 'Edit',
+    }),
+  );
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const logoObjectUrl = useRef<string | null>(null);
   const [toast, setToast] = useState('');
@@ -138,7 +148,6 @@ export function SystemSettingsPage() {
     if (error instanceof ApiError) {
       setErrors(detailsToErrors(error));
       if (error.status === 403) {
-        setCanEdit(false);
         showMessage('You do not have permission to edit System Settings.', 'error');
         return;
       }
