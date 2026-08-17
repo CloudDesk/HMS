@@ -73,6 +73,7 @@ export function PatientDocumentsPage() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   // Filters State
   const [searchInput, setSearchInput] = useState('');
@@ -94,8 +95,9 @@ export function PatientDocumentsPage() {
 
   const loadedPatientIdRef = useRef<string | null>(null);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -165,11 +167,11 @@ export function PatientDocumentsPage() {
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (stagedFiles.length === 0) {
-      showToast('Please select at least one document to upload.');
+      showToast('Please select at least one document to upload.', 'error');
       return;
     }
     if (!docName.trim()) {
-      showToast('Please enter a document name.');
+      showToast('Please enter a document name.', 'error');
       return;
     }
 
@@ -197,7 +199,7 @@ export function PatientDocumentsPage() {
       setDocName('');
       showToast(`${uploadedRecords.length} document(s) uploaded successfully to patient record.`);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setSubmittingUpload(false);
     }
@@ -212,7 +214,7 @@ export function PatientDocumentsPage() {
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   };
 
@@ -232,7 +234,7 @@ export function PatientDocumentsPage() {
         showToast(`Downloaded ${doc.name}`);
         return;
       } catch (error) {
-        showToast(getPatientErrorMessage(error));
+        showToast(getPatientErrorMessage(error), 'error');
       }
     }
   };
@@ -244,7 +246,7 @@ export function PatientDocumentsPage() {
       setDocuments((current) => current.filter((document) => document.id !== documentToDelete.id));
       showToast(`${documentToDelete.name} deleted.`);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setDocumentToDelete(null);
     }
@@ -261,7 +263,7 @@ export function PatientDocumentsPage() {
       setDocuments((current) => current.map((document) => (document.id === replaced.id ? toDocumentRecord(replaced) : document)));
       showToast(`${documentToReplace.name} replaced successfully.`);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setDocumentToReplace(null);
       if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
@@ -687,7 +689,7 @@ export function PatientDocumentsPage() {
         title="Delete Patient Document"
       />
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

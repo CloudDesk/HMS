@@ -112,6 +112,7 @@ export function DoctorDashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   const selectedDoctor = doctors.find((doctor) => doctor.id === selectedDoctorId) ?? null;
   const startableAppointments = todayAppointments.filter((appointment) =>
@@ -121,8 +122,9 @@ export function DoctorDashboardPage() {
     todayAppointments.find((appointment) => appointment.id === consultationAppointmentId) ?? startableAppointments[0] ?? null;
   const trend = useMemo(() => buildTrend(weekAppointments), [weekAppointments]);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -200,7 +202,7 @@ export function DoctorDashboardPage() {
 
   const openStartConsultation = () => {
     if (startableAppointments.length === 0) {
-      showToast('No active appointment is available to start consultation.');
+      showToast('No active appointment is available to start consultation.', 'error');
       return;
     }
     setModalOpen(true);
@@ -221,7 +223,7 @@ export function DoctorDashboardPage() {
       setModalOpen(false);
       await loadAppointments();
     } catch (error) {
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -435,7 +437,7 @@ export function DoctorDashboardPage() {
         </form>
       </Modal>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

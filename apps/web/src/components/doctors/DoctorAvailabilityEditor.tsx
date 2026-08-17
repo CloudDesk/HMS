@@ -4,7 +4,7 @@ import type {
   SaveDoctorAvailabilityPayload,
 } from '../../api/doctors';
 
-export type WorkingBlockForm = { start_time: string; end_time: string; max_patients_per_slot?: number };
+export type WorkingBlockForm = { start_time: string; end_time: string; slot_duration_minutes: number; max_patients_per_slot?: number };
 export type AvailabilityDayForm = SaveDoctorAvailabilityPayload['availability'][number];
 
 const toMinutes = (time: string) => {
@@ -30,7 +30,6 @@ const unavailableDay = (day: ApiDoctorAvailabilityDay): AvailabilityDayForm => (
   day_of_week: day,
   is_available: false,
   working_blocks: [],
-  slot_duration_minutes: 30,
   max_patients_per_slot: 2,
 });
 
@@ -41,10 +40,9 @@ export const createDefaultDoctorAvailability = (): AvailabilityDayForm[] =>
       day_of_week: day,
       is_available: true,
       working_blocks: [
-        { start_time: '08:00', end_time: '12:30', max_patients_per_slot: 2 },
-        { start_time: '13:30', end_time: '17:00', max_patients_per_slot: 2 },
+        { start_time: '08:00', end_time: '12:30', slot_duration_minutes: 30, max_patients_per_slot: 2 },
+        { start_time: '13:30', end_time: '17:00', slot_duration_minutes: 30, max_patients_per_slot: 2 },
       ],
-      slot_duration_minutes: 30,
       max_patients_per_slot: 2,
     };
   });
@@ -59,9 +57,9 @@ export const doctorAvailabilityToForm = (doctor: DoctorResponse): AvailabilityDa
           working_blocks: value.working_blocks.map((block) => ({
             start_time: block.start_time,
             end_time: block.end_time,
+            slot_duration_minutes: block.slot_duration_minutes || 30,
             max_patients_per_slot: (block as any).max_patients_per_slot ?? value.max_patients_per_slot ?? 2,
           })),
-          slot_duration_minutes: value.slot_duration_minutes,
           max_patients_per_slot: value.max_patients_per_slot ?? 2,
         }
       : unavailableDay(day);
@@ -120,7 +118,7 @@ export function DoctorAvailabilityEditor({
                     working_blocks: event.target.checked
                       ? day.working_blocks.length > 0
                         ? day.working_blocks
-                        : [{ start_time: '09:00', end_time: '17:00' }]
+                        : [{ start_time: '09:00', end_time: '17:00', slot_duration_minutes: 30 }]
                       : [],
                   })
                 }
@@ -136,7 +134,7 @@ export function DoctorAvailabilityEditor({
                 const startMins = toMinutes(block.start_time);
                 const endMins = toMinutes(block.end_time);
                 const durationMins = Math.max(0, endMins - startMins);
-                const slotMins = day.slot_duration_minutes || 30;
+                const slotMins = block.slot_duration_minutes || 30;
                 const fullSlots = Math.floor(durationMins / slotMins);
                 const remainderMins = durationMins % slotMins;
                 const cutoffTime = toTime(startMins + fullSlots * slotMins);
@@ -178,6 +176,21 @@ export function DoctorAvailabilityEditor({
                           value={block.max_patients_per_slot ?? day.max_patients_per_slot ?? 2}
                         />
                       </label>
+                      <label className="doc-field">
+                        <span>Duration (min)</span>
+                        <select
+                          disabled={disabled}
+                          onChange={(event) =>
+                            updateBlock(day.day_of_week, index, { slot_duration_minutes: Number(event.target.value) })
+                          }
+                          style={{ width: '85px' }}
+                          value={block.slot_duration_minutes}
+                        >
+                          {[10, 15, 20, 30, 45, 60].map((duration) => (
+                            <option key={duration} value={duration}>{duration}</option>
+                          ))}
+                        </select>
+                      </label>
                       <button
                         aria-label={`Remove ${day.day_of_week.toLowerCase()} working block`}
                         className="doc-action danger"
@@ -211,26 +224,12 @@ export function DoctorAvailabilityEditor({
                 );
               })}
               <div className="doctor-block-actions">
-                <label className="doc-field compact">
-                  <span>Slot duration</span>
-                  <select
-                    disabled={disabled}
-                    onChange={(event) =>
-                      updateDay(day.day_of_week, { slot_duration_minutes: Number(event.target.value) })
-                    }
-                    value={day.slot_duration_minutes}
-                  >
-                    {[10, 15, 20, 30, 45, 60].map((duration) => (
-                      <option key={duration} value={duration}>{duration} minutes</option>
-                    ))}
-                  </select>
-                </label>
                 <button
                   className="doc-btn"
                   disabled={disabled || day.working_blocks.length >= 8}
                   onClick={() =>
                     updateDay(day.day_of_week, {
-                      working_blocks: [...day.working_blocks, { start_time: '17:00', end_time: '18:00' }],
+                      working_blocks: [...day.working_blocks, { start_time: '17:00', end_time: '18:00', slot_duration_minutes: 30 }],
                     })
                   }
                   type="button"

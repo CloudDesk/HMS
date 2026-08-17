@@ -151,6 +151,7 @@ export function PatientRegistrationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
     branchesApi
@@ -172,8 +173,9 @@ export function PatientRegistrationPage() {
       .catch(() => null);
   }, [user]);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -224,7 +226,10 @@ export function PatientRegistrationPage() {
     } catch (error) {
       const duplicates = getDuplicatePatients(error);
       setDuplicatePatients(duplicates);
-      setFormError(getPatientErrorMessage(error));
+      if (!duplicates.length) {
+        setFormError(getPatientErrorMessage(error));
+      }
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -574,7 +579,7 @@ export function PatientRegistrationPage() {
         </div>
       </div>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }
