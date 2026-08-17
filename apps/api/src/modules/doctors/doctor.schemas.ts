@@ -5,23 +5,23 @@ const timePattern = '^([01]\\d|2[0-3]):[0-5]\\d$';
 
 const workingBlockSchema = {
   type: 'object',
-  required: ['start_time', 'end_time'],
+  required: ['start_time', 'end_time', 'slot_duration_minutes'],
   additionalProperties: false,
   properties: {
     start_time: { type: 'string', pattern: timePattern },
     end_time: { type: 'string', pattern: timePattern },
+    slot_duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
   },
 } as const;
 
 const availabilityItemSchema = {
   type: 'object',
-  required: ['day_of_week', 'is_available', 'working_blocks', 'slot_duration_minutes'],
+  required: ['day_of_week', 'is_available', 'working_blocks'],
   additionalProperties: false,
   properties: {
     day_of_week: { type: 'string', enum: availabilityDayEnum },
     is_available: { type: 'boolean' },
     working_blocks: { type: 'array', maxItems: 8, items: workingBlockSchema },
-    slot_duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
   },
 } as const;
 
@@ -203,13 +203,12 @@ export const listDoctorExceptionsQuerySchema = {
 
 export const saveDoctorExceptionBodySchema = {
   type: 'object',
-  required: ['date', 'is_available', 'working_blocks', 'slot_duration_minutes', 'reason'],
+  required: ['date', 'is_available', 'working_blocks', 'reason'],
   additionalProperties: false,
   properties: {
     date: { type: 'string', pattern: dateOnlyPattern },
     is_available: { type: 'boolean' },
     working_blocks: { type: 'array', maxItems: 8, items: workingBlockSchema },
-    slot_duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
     reason: { type: 'string', minLength: 3, maxLength: 500 },
   },
 } as const;

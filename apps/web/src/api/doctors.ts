@@ -14,6 +14,7 @@ export type DoctorWorkingBlockResponse = {
   id: string;
   start_time: string;
   end_time: string;
+  slot_duration_minutes: number;
   max_patients_per_slot?: number;
 };
 
@@ -22,7 +23,6 @@ export type DoctorAvailabilityResponse = {
   day_of_week: ApiDoctorAvailabilityDay;
   is_available: boolean;
   working_blocks: DoctorWorkingBlockResponse[];
-  slot_duration_minutes: number;
   max_patients_per_slot?: number;
 };
 
@@ -88,8 +88,7 @@ export type SaveDoctorAvailabilityPayload = {
   availability: Array<{
     day_of_week: ApiDoctorAvailabilityDay;
     is_available: boolean;
-    working_blocks: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }>;
-    slot_duration_minutes: number;
+    working_blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number; max_patients_per_slot?: number }>;
     max_patients_per_slot?: number;
   }>;
 };
@@ -138,7 +137,6 @@ export type DoctorAvailabilityExceptionResponse = {
   date: string;
   is_available: boolean;
   working_blocks: DoctorWorkingBlockResponse[];
-  slot_duration_minutes: number;
   reason: string;
   created_by: string | null;
   updated_by: string | null;
@@ -159,7 +157,6 @@ export type DoctorAvailableSlotsResponse = {
   date: string;
   is_available: boolean;
   unavailable_reason: string | null;
-  slot_duration_minutes: number | null;
   max_patients_per_slot?: number | null;
   slots: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }>;
 };
@@ -273,8 +270,7 @@ export const doctorsApi = {
     payload: {
       date: string;
       is_available: boolean;
-      working_blocks: Array<{ start_time: string; end_time: string }>;
-      slot_duration_minutes: number;
+      working_blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number }>;
       reason: string;
     },
   ) {

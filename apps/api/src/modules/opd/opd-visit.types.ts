@@ -3,6 +3,7 @@ export type OpdVisitStatus =
   | 'WAITING_FOR_VITALS'
   | 'READY_FOR_CONSULTATION'
   | 'IN_CONSULTATION'
+  | 'SKIPPED'
   | 'COMPLETED'
   | 'CANCELLED'
   | 'NO_SHOW';

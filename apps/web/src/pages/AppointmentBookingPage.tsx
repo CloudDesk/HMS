@@ -18,6 +18,7 @@ type BookingStep = 1 | 2 | 3;
 type SlotOption = {
   startTime: string;
   endTime: string;
+  durationMinutes: number;
   maxCapacity: number;
   bookedCount: number;
   remainingSlots: number;
@@ -61,7 +62,6 @@ export function AppointmentBookingPage() {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
   const [slotOptions, setSlotOptions] = useState<SlotOption[]>([]);
-  const [slotDuration, setSlotDuration] = useState(30);
   const [slotUnavailableReason, setSlotUnavailableReason] = useState('');
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [patientLoading, setPatientLoading] = useState(false);
@@ -71,16 +71,18 @@ export function AppointmentBookingPage() {
   const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   const selectedDoctor = useMemo(
-    () => doctors.find((doctor) => doctor.id === selectedDoctorId) ?? null,
+    () => doctors.find((d) => d.id === selectedDoctorId),
     [doctors, selectedDoctorId],
   );
 
   const selectedSlotOption = slotOptions.find((slot) => slot.startTime === selectedSlot);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -182,9 +184,14 @@ export function AppointmentBookingPage() {
         const maxCapacity = slot.max_patients_per_slot ?? configuredMaxPatients;
         const bookedCount = bookedCountMap[slot.start_time] || 0;
         const remainingSlots = Math.max(0, maxCapacity - bookedCount);
+        const startParts = slot.start_time.split(':').map(Number);
+        const endParts = slot.end_time.split(':').map(Number);
+        const durationMinutes = ((endParts[0] || 0) * 60 + (endParts[1] || 0)) - ((startParts[0] || 0) * 60 + (startParts[1] || 0));
+
         return {
           startTime: slot.start_time,
           endTime: slot.end_time,
+          durationMinutes,
           maxCapacity,
           bookedCount,
           remainingSlots,
@@ -193,7 +200,6 @@ export function AppointmentBookingPage() {
       });
 
       setSlotOptions(options);
-      setSlotDuration(availableSlotsRes.slot_duration_minutes ?? 30);
 
       const availableCount = options.filter((s) => s.isAvailable && !isSlotInPast(appointmentDate, s.startTime)).length;
       if (options.length === 0 || availableCount === 0) {
@@ -211,7 +217,7 @@ export function AppointmentBookingPage() {
     } catch (slotError) {
       setSlotOptions([]);
       setSlotUnavailableReason('Available slots could not be loaded.');
-      showToast(getAppointmentErrorMessage(slotError));
+      showToast(getAppointmentErrorMessage(slotError), 'error');
     } finally {
       setSlotLoading(false);
     }
@@ -276,7 +282,7 @@ export function AppointmentBookingPage() {
         doctor_id: selectedDoctor.id,
         appointment_date: appointmentDate,
         start_time: selectedSlot,
-        duration_minutes: slotDuration,
+        duration_minutes: selectedSlotOption?.durationMinutes ?? 30,
         visit_type: visitType,
         priority,
         reason: nullable(reason),
@@ -643,7 +649,7 @@ export function AppointmentBookingPage() {
         )}
       </div>
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

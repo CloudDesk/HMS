@@ -116,8 +116,8 @@ export function DoctorProfilePage() {
                 <tr key={day.day_of_week}>
                   <td><strong>{day.day_of_week}</strong></td>
                   <td><span className={`status-badge ${day.is_available ? 'status-active' : 'status-inactive'}`}>{day.is_available ? 'Available' : 'Off duty'}</span></td>
-                  <td>{day.working_blocks.length ? day.working_blocks.map((block) => `${block.start_time}–${block.end_time}`).join(', ') : '—'}</td>
-                  <td>{day.slot_duration_minutes} minutes</td>
+                  <td>{day.working_blocks.length ? day.working_blocks.map((block) => `${block.start_time}-${block.end_time}`).join(', ') : '-'}</td>
+                  <td>{day.working_blocks.length ? Array.from(new Set(day.working_blocks.map(b => b.slot_duration_minutes))).join(', ') + ' minutes' : '-'}</td>
                 </tr>
               ))}
             </tbody>

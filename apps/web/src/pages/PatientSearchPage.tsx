@@ -86,10 +86,12 @@ export function PatientSearchPage() {
   const [editFormError, setEditFormError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 3000);
   };
@@ -206,6 +208,7 @@ export function PatientSearchPage() {
       await loadPatients();
     } catch (error) {
       setEditFormError(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setEditSubmitting(false);
     }
@@ -234,6 +237,7 @@ export function PatientSearchPage() {
     } catch (error) {
       setPatients([]);
       setMeta({ limit: 10, page: currentPage, total: 0, totalPages: 1 });
+      showToast(getPatientErrorMessage(error), 'error');
       setLoadError(getPatientErrorMessage(error));
     } finally {
       setLoading(false);
@@ -809,7 +813,7 @@ export function PatientSearchPage() {
         </Modal>
       ) : null}
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </div>
   );
 }

@@ -90,6 +90,7 @@ export function AppointmentQueuePage() {
   const [completionError, setCompletionError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   const sortedAppointments = useMemo(() => [...appointments].sort(queueSort), [appointments]);
   const currentAppointment = sortedAppointments.find((appointment) => appointment.status === 'CHECKED_IN') ?? null;
@@ -110,8 +111,9 @@ export function AppointmentQueuePage() {
   const visitForAppointment = (appointmentId: string) =>
     opdVisits.find((visit) => visit.appointment_id === appointmentId) ?? null;
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 3000);
   };
@@ -199,7 +201,7 @@ export function AppointmentQueuePage() {
       await loadAppointments();
       showToast(`Queue token ${appointment.appointment_number} marked ${appointmentStatusLabels[status].toLowerCase()}.`);
     } catch (error) {
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     } finally {
       setUpdating(false);
     }
@@ -207,12 +209,12 @@ export function AppointmentQueuePage() {
 
   const handleCallNext = async () => {
     if (currentAppointment) {
-      showToast('Complete or skip the current patient first.');
+      showToast('Complete or skip the current patient first.', 'error');
       return;
     }
 
     if (!nextAppointment) {
-      showToast('No waiting patient is available in the queue.');
+      showToast('No waiting patient is available in the queue.', 'error');
       return;
     }
 
@@ -231,7 +233,7 @@ export function AppointmentQueuePage() {
       await loadAppointments();
       showToast(`Queue token ${nextAppointment.appointment_number} checked in to OPD.`);
     } catch (error) {
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     } finally {
       setUpdating(false);
     }
@@ -239,7 +241,7 @@ export function AppointmentQueuePage() {
 
   const handleRecall = () => {
     if (!currentAppointment) {
-      showToast('No active patient is currently called.');
+      showToast('No active patient is currently called.', 'error');
       return;
     }
 
@@ -248,7 +250,7 @@ export function AppointmentQueuePage() {
 
   const handleSkip = async () => {
     if (!currentAppointment) {
-      showToast('Call a patient before skipping the queue token.');
+      showToast('Call a patient before skipping the queue token.', 'error');
       return;
     }
 
@@ -257,7 +259,7 @@ export function AppointmentQueuePage() {
 
   const handleNoShow = async () => {
     if (!currentAppointment) {
-      showToast('Call a patient before marking no show.');
+      showToast('Call a patient before marking no show.', 'error');
       return;
     }
 
@@ -276,7 +278,7 @@ export function AppointmentQueuePage() {
       await loadAppointments();
       showToast(`Queue token ${currentAppointment.appointment_number} marked no show.`);
     } catch (error) {
-      showToast(getAppointmentErrorMessage(error));
+      showToast(getAppointmentErrorMessage(error), 'error');
     } finally {
       setUpdating(false);
     }
@@ -284,7 +286,7 @@ export function AppointmentQueuePage() {
 
   const handleComplete = async () => {
     if (!currentAppointment) {
-      showToast('Call a patient before completing the visit.');
+      showToast('Call a patient before completing the visit.', 'error');
       return;
     }
 
@@ -611,7 +613,7 @@ export function AppointmentQueuePage() {
         </div>
       ) : null}
 
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

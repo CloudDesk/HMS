@@ -56,7 +56,8 @@ export function PrescriptionQueuePage() {
       setPrescriptions(response.data);
     } catch (error: unknown) {
       setPrescriptions([]);
-      setLoadError(error instanceof Error ? error.message : 'Failed to load prescription queue');
+      setLoadError(error.message || 'Failed to load prescription queue');
+      showToast(error.message || 'Failed to load prescription queue', 'error');
     } finally {
       setLoading(false);
     }

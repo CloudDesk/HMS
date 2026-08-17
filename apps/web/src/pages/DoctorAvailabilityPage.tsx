@@ -46,7 +46,6 @@ export function DoctorAvailabilityPage() {
     date: todayValue(),
     is_available: false,
     working_blocks: [] as WorkingBlockForm[],
-    slot_duration_minutes: 30,
     reason: '',
   });
   const [loading, setLoading] = useState(true);
@@ -54,14 +53,16 @@ export function DoctorAvailabilityPage() {
   const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   const selectedDoctor = useMemo(
     () => doctors.find((doctor) => doctor.id === selectedDoctorId) ?? null,
     [doctors, selectedDoctorId],
   );
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
@@ -144,6 +145,7 @@ export function DoctorAvailabilityPage() {
       showToast('Doctor leave cancelled.');
     } catch (saveError) {
       setError(getPatientErrorMessage(saveError));
+      showToast(getPatientErrorMessage(saveError), 'error');
     } finally {
       setSaving(false);
     }
@@ -156,7 +158,7 @@ export function DoctorAvailabilityPage() {
     setError('');
     try {
       await doctorsApi.saveException(selectedDoctorId, exceptionForm);
-      setExceptionForm({ date: todayValue(), is_available: false, working_blocks: [], slot_duration_minutes: 30, reason: '' });
+      setExceptionForm({ date: todayValue(), is_available: false, working_blocks: [], reason: '' });
       await loadSchedule();
       showToast('Availability exception saved.');
     } catch (saveError) {
@@ -213,14 +215,14 @@ export function DoctorAvailabilityPage() {
 
               <section className="doc-card">
                 <div className="doc-card-header"><div><h3>Availability Exceptions</h3><p>Override a single date with closure or custom working blocks.</p></div></div>
-                <form className="doc-form-grid two" onSubmit={submitException}><label className="doc-field"><span>Date</span><input disabled={!canEditAvailability} min={todayValue()} onChange={(event) => setExceptionForm({ ...exceptionForm, date: event.target.value })} required type="date" value={exceptionForm.date} /></label><label className="doc-field"><span>Availability</span><select disabled={!canEditAvailability} onChange={(event) => setExceptionForm({ ...exceptionForm, is_available: event.target.value === 'available', working_blocks: event.target.value === 'available' ? exceptionForm.working_blocks.length ? exceptionForm.working_blocks : [{ start_time: '09:00', end_time: '13:00' }] : [] })} value={exceptionForm.is_available ? 'available' : 'unavailable'}><option value="unavailable">Unavailable</option><option value="available">Custom hours</option></select></label>{exceptionForm.is_available ? <><label className="doc-field"><span>From</span><input disabled={!canEditAvailability} onChange={(event) => setExceptionForm({ ...exceptionForm, working_blocks: [{ ...exceptionForm.working_blocks[0]!, start_time: event.target.value }] })} required type="time" value={exceptionForm.working_blocks[0]?.start_time ?? ''} /></label><label className="doc-field"><span>To</span><input disabled={!canEditAvailability} onChange={(event) => setExceptionForm({ ...exceptionForm, working_blocks: [{ ...exceptionForm.working_blocks[0]!, end_time: event.target.value }] })} required type="time" value={exceptionForm.working_blocks[0]?.end_time ?? ''} /></label></> : null}<label className="doc-field full"><span>Reason</span><input disabled={!canEditAvailability} minLength={3} onChange={(event) => setExceptionForm({ ...exceptionForm, reason: event.target.value })} required value={exceptionForm.reason} /></label><div className="full"><button className="doc-btn primary" disabled={saving || !canEditAvailability} type="submit"><i className="ph ph-plus" /> Save Exception</button></div></form>
-                <div className="doc-table-wrap doctor-subtable"><table className="doc-table"><thead><tr><th>Date</th><th>Override</th><th>Reason</th><th /></tr></thead><tbody>{exceptions.length === 0 ? <tr><td className="um-state-cell" colSpan={4}>No dated exceptions.</td></tr> : exceptions.map((exception) => <tr key={exception.id}><td>{exception.date.slice(0, 10)}</td><td>{exception.is_available ? exception.working_blocks.map((block) => `${block.start_time}–${block.end_time}`).join(', ') : 'Unavailable'}</td><td>{exception.reason}</td><td><button className="doc-action danger" disabled={saving || !canEditAvailability} onClick={() => void deleteException(exception.id)} title="Delete exception" type="button"><i className="ph ph-trash" /></button></td></tr>)}</tbody></table></div>
+                <form className="doc-form-grid two" onSubmit={submitException}><label className="doc-field"><span>Date</span><input min={todayValue()} onChange={(event) => setExceptionForm({ ...exceptionForm, date: event.target.value })} required type="date" value={exceptionForm.date} /></label><label className="doc-field"><span>Availability</span><select onChange={(event) => setExceptionForm({ ...exceptionForm, is_available: event.target.value === 'available', working_blocks: event.target.value === 'available' ? exceptionForm.working_blocks.length ? exceptionForm.working_blocks : [{ start_time: '09:00', end_time: '13:00', slot_duration_minutes: 30 }] : [] })} value={exceptionForm.is_available ? 'available' : 'unavailable'}><option value="unavailable">Unavailable</option><option value="available">Custom hours</option></select></label>{exceptionForm.is_available ? <><label className="doc-field"><span>From</span><input onChange={(event) => setExceptionForm({ ...exceptionForm, working_blocks: [{ ...exceptionForm.working_blocks[0]!, start_time: event.target.value }] })} required type="time" value={exceptionForm.working_blocks[0]?.start_time ?? ''} /></label><label className="doc-field"><span>To</span><input onChange={(event) => setExceptionForm({ ...exceptionForm, working_blocks: [{ ...exceptionForm.working_blocks[0]!, end_time: event.target.value }] })} required type="time" value={exceptionForm.working_blocks[0]?.end_time ?? ''} /></label></> : null}<label className="doc-field full"><span>Reason</span><input minLength={3} onChange={(event) => setExceptionForm({ ...exceptionForm, reason: event.target.value })} required value={exceptionForm.reason} /></label><div className="full"><button className="doc-btn primary" disabled={saving} type="submit"><i className="ph ph-plus" /> Save Exception</button></div></form>
+                <div className="doc-table-wrap doctor-subtable"><table className="doc-table"><thead><tr><th>Date</th><th>Override</th><th>Reason</th><th /></tr></thead><tbody>{exceptions.length === 0 ? <tr><td className="um-state-cell" colSpan={4}>No dated exceptions.</td></tr> : exceptions.map((exception) => <tr key={exception.id}><td>{exception.date.slice(0, 10)}</td><td>{exception.is_available ? exception.working_blocks.map((block) => `${block.start_time}–${block.end_time}`).join(', ') : 'Unavailable'}</td><td>{exception.reason}</td><td><button className="doc-action danger" disabled={saving} onClick={() => void deleteException(exception.id)} title="Delete exception" type="button"><i className="ph ph-trash" /></button></td></tr>)}</tbody></table></div>
               </section>
             </div>
           </>
         )}
       </div>
-      <Toast message={toastMessage} tone="success" visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

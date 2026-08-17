@@ -325,7 +325,7 @@ export class DoctorService {
   ) {
     await this.getById(id, userId);
     this.requireDate(data.date, 'Availability exception date is invalid');
-    this.validateBlocks(data.working_blocks, data.is_available, data.slot_duration_minutes);
+    this.validateBlocks(data.working_blocks, data.is_available);
     const exception = await this.repository.saveException(id, data, userId);
     await this.repository.audit('doctor.availability_exception.saved', userId, metadata, {
       doctorId: id,
@@ -356,7 +356,6 @@ export class DoctorService {
       date: query.date,
       is_available: false,
       unavailable_reason: null as string | null,
-      slot_duration_minutes: null as number | null,
       slots: [] as Array<{ start_time: string; end_time: string }>,
     };
     if (doctor.status !== 'ACTIVE') {
@@ -374,7 +373,6 @@ export class DoctorService {
       ? {
           is_available: exception.is_available,
           working_blocks: exception.working_blocks,
-          slot_duration_minutes: exception.slot_duration_minutes,
         }
       : recurring;
     if (!schedule?.is_available || schedule.working_blocks.length === 0) {
@@ -383,8 +381,8 @@ export class DoctorService {
     }
 
     const appointments = await this.appointmentRepository.listActiveWindows(id, date);
-    const duration = schedule.slot_duration_minutes;
     const slots = schedule.working_blocks.flatMap((block) => {
+      const duration = block.slot_duration_minutes;
       const blockSlots: Array<{ start_time: string; end_time: string }> = [];
       for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += duration) {
         const startTime = toTime(current);
@@ -397,7 +395,6 @@ export class DoctorService {
       return blockSlots;
     });
     result.is_available = true;
-    result.slot_duration_minutes = duration;
     result.slots = slots;
     return result;
   }
@@ -535,14 +532,13 @@ export class DoctorService {
         throw new AppError('Doctor availability has duplicate days', 400, 'DUPLICATE_AVAILABILITY_DAY');
       }
       seenDays.add(item.day_of_week);
-      this.validateBlocks(item.working_blocks, item.is_available, item.slot_duration_minutes);
+      this.validateBlocks(item.working_blocks, item.is_available);
     }
   }
 
   private validateBlocks(
-    blocks: Array<{ start_time: string; end_time: string }>,
+    blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number }>,
     isAvailable: boolean,
-    slotDurationMinutes: number,
   ) {
     if (isAvailable && blocks.length === 0) {
       throw new AppError('At least one working block is required for an available day', 400, 'WORKING_BLOCK_REQUIRED');
@@ -550,17 +546,17 @@ export class DoctorService {
     if (!isAvailable && blocks.length > 0) {
       throw new AppError('Unavailable days cannot contain working blocks', 400, 'UNAVAILABLE_DAY_HAS_BLOCKS');
     }
-    if (slotDurationMinutes < 5 || slotDurationMinutes > 240) {
-      throw new AppError('Slot duration must be between 5 and 240 minutes', 400, 'VALIDATION_ERROR');
-    }
     const ordered = [...blocks].sort((left, right) => left.start_time.localeCompare(right.start_time));
     ordered.forEach((block, index) => {
+      if (block.slot_duration_minutes < 5 || block.slot_duration_minutes > 240) {
+        throw new AppError('Slot duration must be between 5 and 240 minutes', 400, 'VALIDATION_ERROR');
+      }
       this.validateTimeRange(block.start_time, block.end_time, 'Working block time range is invalid');
       const previous = ordered[index - 1];
       if (previous && toMinutes(block.start_time) < toMinutes(previous.end_time)) {
         throw new AppError('Doctor working blocks cannot overlap', 400, 'WORKING_BLOCK_OVERLAP');
       }
-      if (toMinutes(block.end_time) - toMinutes(block.start_time) < slotDurationMinutes) {
+      if (toMinutes(block.end_time) - toMinutes(block.start_time) < block.slot_duration_minutes) {
         throw new AppError('Working block must fit at least one appointment slot', 400, 'WORKING_BLOCK_TOO_SHORT');
       }
     });

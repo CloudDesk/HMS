@@ -43,9 +43,11 @@ export function PatientConsentPage() {
   const replacementInput = useRef<HTMLInputElement>(null);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
+    setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 3000);
   };
@@ -85,7 +87,7 @@ export function PatientConsentPage() {
   const submitConsent = async (event: FormEvent) => {
     event.preventDefault();
     if (!patient || !file || !title.trim()) {
-      showToast('Patient, consent title, and consent file are required.');
+      showToast('Patient, consent title, and consent file are required.', 'error');
       return;
     }
     setSubmitting(true);
@@ -107,7 +109,7 @@ export function PatientConsentPage() {
       setDescription('');
       showToast('Consent file uploaded successfully.');
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -121,7 +123,7 @@ export function PatientConsentPage() {
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   };
 
@@ -136,7 +138,7 @@ export function PatientConsentPage() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     }
   };
 
@@ -147,7 +149,7 @@ export function PatientConsentPage() {
       setConsents((current) => current.filter((document) => document.id !== deleting.id));
       showToast('Consent file deleted.');
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setDeleting(null);
     }
@@ -170,7 +172,7 @@ export function PatientConsentPage() {
       setConsents((current) => current.map((document) => document.id === replacement.id ? replacement : document));
       showToast('Consent file replaced successfully.');
     } catch (error) {
-      showToast(getPatientErrorMessage(error));
+      showToast(getPatientErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
       setReplacing(null);
@@ -235,7 +237,7 @@ export function PatientConsentPage() {
       </Modal>
       <ConfirmDialog confirmLabel="Delete Consent" message={`Delete ${deleting?.title ?? 'this consent file'}?`} onCancel={() => setDeleting(null)} onConfirm={() => void deleteConsent()} open={Boolean(deleting)} title="Delete Consent File" />
       <input accept={fileAccept} hidden onChange={(event) => { const replacementFile = event.target.files?.[0]; if (replacementFile) void replaceConsent(replacementFile); }} ref={replacementInput} type="file" />
-      <Toast message={toastMessage} visible={toastVisible} />
+      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

@@ -60,6 +60,17 @@ export class OpdConsultationService {
     this.ensureConsultationReady(visit);
     await this.ensureVitalsRecorded(visit.id);
 
+    if (visit.status === 'READY_FOR_CONSULTATION') {
+      await this.visitRepository.updateStatus(
+        visit.id,
+        {
+          notes: 'Doctor consultation completed directly.',
+          status: 'IN_CONSULTATION',
+        },
+        userId,
+      );
+    }
+
     const consultation = await this.repository.saveForVisit(
       {
         ...data,
