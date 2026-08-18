@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useState } from 'react';
-import { opdApi, type OpdPrescriptionResponse, type ApiOpdPrescriptionStatus } from '../api/opd';
+import { useEffect, useState } from 'react';
 import { Modal } from '../components/ui/Modal';
-import { Toast } from '../components/ui/Toast';
 import { hasPermission } from '../auth/access-control';
 import { useAuth } from '../auth/useAuth';
+import {
+  usePrescriptionQueue,
+  type ApiOpdPrescriptionStatus,
+  type OpdPrescriptionResponse,
+} from '../hooks/opd/usePrescriptionQueue';
 import { navigate, useAppLocation } from '../routing/navigation';
+
+const isPrescriptionStatus = (value: string | null): value is ApiOpdPrescriptionStatus =>
+  value === 'DRAFT' || value === 'SUBMITTED' || value === 'DISPENSED';
 
 export function PrescriptionQueuePage() {
   const { user } = useAuth();
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
-  const [prescriptions, setPrescriptions] = useState<OpdPrescriptionResponse[]>([]);
-  const [statusFilter, setStatusFilter] = useState<ApiOpdPrescriptionStatus | ''>(
-    (initialParams.get('status') as ApiOpdPrescriptionStatus | null) ?? ''
+  const initialStatus = initialParams.get('status');
+  const [statusFilter, setStatusFilter] = useState<ApiOpdPrescriptionStatus | ''>(() =>
+    isPrescriptionStatus(initialStatus) ? initialStatus : '',
   );
   const [searchTerm, setSearchTerm] = useState(initialParams.get('search') ?? '');
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [updating, setUpdating] = useState('');
-  
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-  const [toastVisible, setToastVisible] = useState(false);
+  const queue = usePrescriptionQueue({ search: searchTerm, status: statusFilter });
 
   const [dispenseModalOpen, setDispenseModalOpen] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<OpdPrescriptionResponse | null>(null);
@@ -34,35 +34,6 @@ export function PrescriptionQueuePage() {
     }),
   );
 
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 3500);
-  };
-
-  const loadQueue = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      const response = await opdApi.listPrescriptions({
-        search: searchTerm.trim() || undefined,
-        status: statusFilter || undefined,
-        limit: 100,
-        sortBy: 'submitted_at',
-        sortOrder: 'desc',
-      });
-      setPrescriptions(response.data);
-    } catch (error: unknown) {
-      setPrescriptions([]);
-      setLoadError(error.message || 'Failed to load prescription queue');
-      showToast(error.message || 'Failed to load prescription queue', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [searchTerm, statusFilter]);
-
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchTerm.trim()) params.set('search', searchTerm.trim());
@@ -74,10 +45,6 @@ export function PrescriptionQueuePage() {
     }
   }, [searchTerm, statusFilter]);
 
-  useEffect(() => {
-    void loadQueue();
-  }, [loadQueue]);
-
   const openDispenseModal = (prescription: OpdPrescriptionResponse) => {
     setSelectedPrescription(prescription);
     setDispenseModalOpen(true);
@@ -85,22 +52,15 @@ export function PrescriptionQueuePage() {
 
   const markAsDispensed = async () => {
     if (!selectedPrescription) return;
-    setUpdating(selectedPrescription.id);
-    try {
-      await opdApi.updatePrescriptionStatus(selectedPrescription.id, 'DISPENSED');
-      showToast(`Prescription for ${selectedPrescription.patient_name} marked as dispensed.`, 'success');
+    const updated = await queue.markAsDispensed(selectedPrescription);
+    if (updated) {
       setDispenseModalOpen(false);
       setSelectedPrescription(null);
-      await loadQueue();
-    } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : 'Failed to dispense prescription', 'error');
-    } finally {
-      setUpdating('');
     }
   };
 
-  const pendingCount = prescriptions.filter(p => p.status === 'SUBMITTED').length;
-  const dispensedCount = prescriptions.filter(p => p.status === 'DISPENSED').length;
+  const prescriptions = queue.prescriptions;
+  const loading = queue.isLoading;
 
   return (
     <>
@@ -112,7 +72,7 @@ export function PrescriptionQueuePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Pending Dispensing</span>
-              <span className="kpi-value">{loading ? '—' : pendingCount}</span>
+              <span className="kpi-value">{loading ? '—' : queue.pendingCount}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -121,7 +81,7 @@ export function PrescriptionQueuePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Dispensed Today</span>
-              <span className="kpi-value">{loading ? '—' : dispensedCount}</span>
+              <span className="kpi-value">{loading ? '—' : queue.dispensedCount}</span>
             </div>
           </div>
         </div>
@@ -140,20 +100,23 @@ export function PrescriptionQueuePage() {
               </div>
               <select 
                 className="um-filter" 
-                onChange={(event) => setStatusFilter(event.target.value as ApiOpdPrescriptionStatus | '')} 
+                onChange={(event) => {
+                  const status = event.target.value;
+                  setStatusFilter(isPrescriptionStatus(status) ? status : '');
+                }}
                 value={statusFilter}
               >
                 <option value="">All Statuses (Excl. Drafts)</option>
                 <option value="SUBMITTED">Submitted (Pending)</option>
                 <option value="DISPENSED">Dispensed</option>
               </select>
-              <button className="btn-secondary admin-table-action" disabled={loading} onClick={loadQueue} type="button">
+              <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void queue.refetch()} type="button">
                 <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
               </button>
             </div>
           </div>
 
-          {loadError ? <div className="form-error-banner" style={{ margin: '1rem' }}>{loadError}</div> : null}
+          {queue.errorMessage ? <div className="form-error-banner" style={{ margin: '1rem' }}>{queue.errorMessage}</div> : null}
 
           <div className="table-responsive">
             <table className="data-table">
@@ -247,8 +210,8 @@ export function PrescriptionQueuePage() {
               <button className="secondary-action" onClick={() => setDispenseModalOpen(false)} type="button">
                 Cancel
               </button>
-              <button className="primary-action" disabled={!!updating} onClick={markAsDispensed} type="button">
-                {updating ? 'Dispensing...' : 'Mark as Dispensed'}
+              <button className="primary-action" disabled={queue.isUpdating} onClick={markAsDispensed} type="button">
+                {queue.isUpdating ? 'Dispensing...' : 'Mark as Dispensed'}
               </button>
             </>
           ) : (
@@ -307,7 +270,6 @@ export function PrescriptionQueuePage() {
         )}
       </Modal>
 
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

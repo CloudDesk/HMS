@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   patientsApi,
   type ApiPatientDocumentType,
   type PatientDocumentResponse,
-  type PatientResponse,
 } from '../api/patients';
 import { Toast } from '../components/ui/Toast';
 import { Modal } from '../components/ui/Modal';
@@ -11,6 +10,8 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDate, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
 import { patientInitials } from './opd-utils';
+import { usePatientsList, usePatientDetails, usePatientDocuments, useUploadPatientDocument, useDeletePatientDocument, useReplacePatientDocument } from '../hooks/patients/usePatients';
+import { toast } from 'sonner';
 
 type PatientDocumentRecord = {
   id: string;
@@ -64,16 +65,39 @@ const getFileIconClass = (fileName: string): string => {
 export function PatientDocumentsPage() {
   const { search } = useAppLocation();
   const searchPatientId = getPatientIdFromSearch(search);
-  const [activePatientId, setActivePatientId] = useState<string>(searchPatientId);
-  const [patient, setPatient] = useState<PatientResponse | null>(null);
-  const [patientList, setPatientList] = useState<PatientResponse[]>([]);
-  const [documents, setDocuments] = useState<PatientDocumentRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+
+  const { data: listRes } = usePatientsList({ limit: 50 });
+  const patientList = listRes?.data || [];
+
+  let initialTargetId = searchPatientId;
+  if (!initialTargetId && patientList.length > 0 && patientList[0]) {
+    initialTargetId = patientList[0].id;
+  }
+
+  const [activePatientId, setActivePatientId] = useState<string>(initialTargetId || '');
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+
+  // Sync activePatientId with initialTargetId once loaded
+  useEffect(() => {
+    if (!activePatientId && initialTargetId) {
+      setActivePatientId(initialTargetId);
+    }
+  }, [initialTargetId, activePatientId]);
+
+  const { data: patient, isLoading: loadingPatient } = usePatientDetails(activePatientId);
+  const { data: docsRes, isLoading: loadingDocs, isError, error: docsError } = usePatientDocuments(activePatientId, { limit: 100 });
+
+  const documents = (docsRes?.data || []).map(toDocumentRecord);
+  const loading = loadingPatient || loadingDocs;
+  const loadError = isError ? getPatientErrorMessage(docsError) : '';
+
+  const uploadDoc = useUploadPatientDocument();
+  const deleteDoc = useDeletePatientDocument();
+  const replaceDoc = useReplacePatientDocument();
+
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   // Filters State
   const [searchInput, setSearchInput] = useState('');
@@ -93,57 +117,8 @@ export function PatientDocumentsPage() {
   const [documentToReplace, setDocumentToReplace] = useState<PatientDocumentRecord | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadedPatientIdRef = useRef<string | null>(null);
 
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 2800);
-  };
 
-  // Single unified data loader guarded against duplicate mount calls
-  const loadPageData = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    try {
-      const listRes = await patientsApi.list({ limit: 50 });
-      setPatientList(listRes.data);
-
-      let targetId = searchPatientId;
-      if (!targetId && listRes.data.length > 0 && listRes.data[0]) {
-        targetId = listRes.data[0].id;
-      }
-
-      if (!targetId) {
-        setLoading(false);
-        return;
-      }
-
-      setActivePatientId(targetId);
-      loadedPatientIdRef.current = targetId;
-
-      const [targetPatient, backendDocs] = await Promise.all([
-        patientsApi.getById(targetId),
-        patientsApi.documents(targetId, { limit: 100 }),
-      ]);
-
-      setPatient(targetPatient);
-
-      setDocuments(backendDocs.data.map(toDocumentRecord));
-    } catch (error) {
-      setDocuments([]);
-      setLoadError(getPatientErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [searchPatientId]);
-
-  useEffect(() => {
-    void loadPageData();
-  }, [loadPageData]);
-
-  // File selection & auto category detection
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const newFiles = Array.from(files);
@@ -167,45 +142,48 @@ export function PatientDocumentsPage() {
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (stagedFiles.length === 0) {
-      showToast('Please select at least one document to upload.', 'error');
+      toast.error('Please select at least one document to upload.');
       return;
     }
     if (!docName.trim()) {
-      showToast('Please enter a document name.', 'error');
+      toast.error('Please enter a document name.');
+      return;
+    }
+
+    if (!activePatientId) {
+      toast.error('Select a patient before uploading documents.');
       return;
     }
 
     setSubmittingUpload(true);
+    let successCount = 0;
     try {
-      const uploadedRecords: PatientDocumentRecord[] = [];
-
       for (let i = 0; i < stagedFiles.length; i++) {
         const file = stagedFiles[i];
         if (!file) continue;
 
         const title = stagedFiles.length > 1 ? `${docName.trim()} (${i + 1})` : docName.trim();
-        if (!activePatientId) throw new Error('Select a patient before uploading documents.');
-        const apiRes = await patientsApi.uploadDocument(activePatientId, {
-          document_type: docType,
-          title,
-          file,
+        await uploadDoc.mutateAsync({
+          id: activePatientId,
+          payload: {
+            document_type: docType,
+            title,
+            file,
+          }
         });
-        uploadedRecords.push(toDocumentRecord(apiRes));
+        successCount++;
       }
-
-      setDocuments((prev) => [...uploadedRecords, ...prev]);
       setUploadModalOpen(false);
       setStagedFiles([]);
       setDocName('');
-      showToast(`${uploadedRecords.length} document(s) uploaded successfully to patient record.`);
+      toast.success(`${successCount} document(s) uploaded successfully.`);
     } catch (error) {
-      showToast(getPatientErrorMessage(error), 'error');
+      toast.error(getPatientErrorMessage(error));
     } finally {
       setSubmittingUpload(false);
     }
   };
 
-  // View document in new tab
   const handleViewDocument = async (doc: PatientDocumentRecord) => {
     if (!activePatientId) return;
     try {
@@ -214,60 +192,55 @@ export function PatientDocumentsPage() {
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
-      showToast(getPatientErrorMessage(error), 'error');
+      toast.error(getPatientErrorMessage(error));
     }
   };
 
-  // Download document file
   const handleDownloadDocument = async (doc: PatientDocumentRecord) => {
-    if (activePatientId) {
-      try {
-        const downloadRes = await patientsApi.downloadDocument(activePatientId, doc.id);
-        const url = URL.createObjectURL(downloadRes.blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = downloadRes.fileName ?? doc.fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast(`Downloaded ${doc.name}`);
-        return;
-      } catch (error) {
-        showToast(getPatientErrorMessage(error), 'error');
-      }
-    }
-  };
-
-  const handleDeleteDocument = async () => {
-    if (!activePatientId || !documentToDelete) return;
+    if (!activePatientId) return;
     try {
-      await patientsApi.deleteDocument(activePatientId, documentToDelete.id);
-      setDocuments((current) => current.filter((document) => document.id !== documentToDelete.id));
-      showToast(`${documentToDelete.name} deleted.`);
+      const downloadRes = await patientsApi.downloadDocument(activePatientId, doc.id);
+      const url = URL.createObjectURL(downloadRes.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadRes.fileName ?? doc.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${doc.name}`);
     } catch (error) {
-      showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setDocumentToDelete(null);
+      toast.error(getPatientErrorMessage(error));
     }
   };
 
-  const handleReplaceFile = async (file: File | undefined) => {
+  const handleDeleteDocument = () => {
+    if (!activePatientId || !documentToDelete) return;
+    deleteDoc.mutate({ id: activePatientId, documentId: documentToDelete.id }, {
+      onSuccess: () => {
+        toast.success(`${documentToDelete.name} deleted.`);
+        setDocumentToDelete(null);
+      }
+    });
+  };
+
+  const handleReplaceFile = (file: File | undefined) => {
     if (!file || !activePatientId || !documentToReplace) return;
-    try {
-      const replaced = await patientsApi.replaceDocument(activePatientId, documentToReplace.id, {
+    replaceDoc.mutate({
+      id: activePatientId,
+      documentId: documentToReplace.id,
+      payload: {
         document_type: documentToReplace.type as ApiPatientDocumentType,
         title: documentToReplace.name,
         file,
-      });
-      setDocuments((current) => current.map((document) => (document.id === replaced.id ? toDocumentRecord(replaced) : document)));
-      showToast(`${documentToReplace.name} replaced successfully.`);
-    } catch (error) {
-      showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setDocumentToReplace(null);
-      if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
-    }
+      }
+    }, {
+      onSuccess: () => {
+        toast.success(`${documentToReplace.name} replaced successfully.`);
+        setDocumentToReplace(null);
+        if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
+      }
+    });
   };
 
   const resetFilters = () => {

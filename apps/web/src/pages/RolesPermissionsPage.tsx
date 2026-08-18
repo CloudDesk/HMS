@@ -1,24 +1,37 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { ApiError } from '../api/api-error';
+import { type PermissionResponse } from '../api/permissions';
 import {
-  permissionsApi,
-  type PermissionResponse,
-} from '../api/permissions';
-import {
-  rolesApi,
   type ApiRoleStatus,
   type ApiRoleType,
   type RoleListResponse,
-  type RoleAuditLogItem,
-  type RoleResponse,
 } from '../api/roles';
-import { usersApi, type UserResponse } from '../api/users';
 import { hasPermission } from '../auth/access-control';
 import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
-import { Toast } from '../components/ui/Toast';
 import { useAppLocation } from '../routing/navigation';
+import { toast } from 'sonner';
+import {
+  useRolesList,
+  useRoleStats,
+  useRoleDetails,
+  useRoleAuditLogs,
+  useCreateRole,
+  useUpdateRole,
+  useUpdateRoleStatus,
+  useAssignUserToRole,
+  useRemoveUserFromRole,
+  useDeleteRole,
+  getRoleErrorMessage,
+} from '../hooks/roles/useRoles';
+import {
+  useAllPermissions,
+  useRolePermissions,
+  useReplaceRolePermissions,
+  getPermissionErrorMessage,
+} from '../hooks/permissions/usePermissions';
+import { useUsersList } from '../hooks/users/useUsers';
 
 type ModalMode = 'create' | 'edit' | 'clone' | 'status' | 'assign-user' | 'remove-user' | 'delete' | 'audit';
 
@@ -43,18 +56,6 @@ type PermissionRow = {
   screen: string;
   icon: string;
   permissions: Record<string, PermissionResponse>;
-};
-
-const fetchRolePermissionDetails = async (roleId: string) => {
-  const [role, rolePermissions] = await Promise.all([
-    rolesApi.getById(roleId),
-    permissionsApi.getByRole(roleId),
-  ]);
-
-  return {
-    permissionIds: new Set(rolePermissions.items.map((permission) => permission.id)),
-    role,
-  };
 };
 
 const rolePageSize = 5;
@@ -115,19 +116,6 @@ const roleCodeFromName = (name: string) =>
     .replaceAll(/_+/g, '_')
     .replace(/^_|_$/g, '')
     .toUpperCase();
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof ApiError) {
-    if (error.status === 401) return 'Your session has expired. Please sign in again.';
-    if (error.status === 403) return 'You do not have permission to manage roles and permissions.';
-    if (error.status === 404) return 'The selected role or permission could not be found.';
-    if (error.status === 409) return error.message;
-    if (error.status >= 500) return 'The roles and permissions service is unavailable. Please try again shortly.';
-    return error.message;
-  }
-
-  return 'Unable to complete the roles and permissions request.';
-};
 
 const downloadJson = (filename: string, value: unknown) => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }));
@@ -193,37 +181,82 @@ export function RolesPermissionsPage() {
   const canAssignRole = canRole('Assign');
   const canDeleteRole = canRole('Delete');
   const { search: locationSearch } = useAppLocation();
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
-  const [roleMeta, setRoleMeta] = useState<RoleListResponse['meta']>(emptyRoleMeta);
-  const [roleStats, setRoleStats] = useState<RoleStats>(emptyRoleStats);
-  const [permissions, setPermissions] = useState<PermissionResponse[]>([]);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<RoleResponse | null>(null);
-  const [assignedPermissionIds, setAssignedPermissionIds] = useState<Set<string>>(() => new Set());
-  const [draftPermissionIds, setDraftPermissionIds] = useState<Set<string>>(() => new Set());
+
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ApiRoleType | ''>('');
   const [statusFilter, setStatusFilter] = useState<ApiRoleStatus | ''>('');
   const [rolePage, setRolePage] = useState(1);
-  const [rolesLoading, setRolesLoading] = useState(true);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const [roleLoading, setRoleLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [loadError, setLoadError] = useState('');
-  const [permissionError, setPermissionError] = useState('');
-  const [forbidden, setForbidden] = useState(false);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+
+  // Feature Hooks
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [roleForm, setRoleForm] = useState<RoleFormState>(emptyRoleForm);
-  const [userOptions, setUserOptions] = useState<UserResponse[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [formError, setFormError] = useState('');
-  const [auditItems, setAuditItems] = useState<RoleAuditLogItem[]>([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-  const [toastVisible, setToastVisible] = useState(false);
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(() => new Set());
+
+  const listParams = useMemo(() => ({
+    limit: rolePageSize,
+    page: rolePage,
+    search: search.trim() || undefined,
+    sortBy: 'name' as const,
+    sortOrder: 'asc' as const,
+    status: statusFilter || undefined,
+    type: typeFilter || undefined,
+  }), [rolePage, search, statusFilter, typeFilter]);
+
+  const rolesQuery = useRolesList(listParams);
+  const roleStatsQuery = useRoleStats();
+  const allPermissionsQuery = useAllPermissions();
+  const roleDetailsQuery = useRoleDetails(selectedRoleId);
+  const rolePermissionsQuery = useRolePermissions(selectedRoleId);
+  const roleAuditLogsQuery = useRoleAuditLogs(modalMode === 'audit' ? selectedRoleId : null);
+
+  const createRoleMutation = useCreateRole();
+  const updateRoleMutation = useUpdateRole();
+  const updateRoleStatusMutation = useUpdateRoleStatus();
+  const assignUserMutation = useAssignUserToRole();
+  const removeUserMutation = useRemoveUserFromRole();
+  const deleteRoleMutation = useDeleteRole();
+  const replacePermissionsMutation = useReplaceRolePermissions();
+
+  const usersListQuery = useUsersList({
+    limit: 100,
+    page: 1,
+    sortBy: 'fullName',
+    sortOrder: 'asc',
+    status: 'active',
+  }, modalMode === 'assign-user');
+
+  const roles = rolesQuery.data?.items ?? [];
+  const roleMeta = rolesQuery.data?.meta ?? emptyRoleMeta;
+  const roleStats = roleStatsQuery.data ?? emptyRoleStats;
+  const permissions = allPermissionsQuery.data?.items ?? [];
+  const selectedRole = roleDetailsQuery.data ?? null;
+
+  // Track draft permissions
+  const [assignedPermissionIds, setAssignedPermissionIds] = useState<Set<string>>(() => new Set());
+  const [draftPermissionIds, setDraftPermissionIds] = useState<Set<string>>(() => new Set());
+  
+  useEffect(() => {
+    if (rolePermissionsQuery.data) {
+      const ids = new Set(rolePermissionsQuery.data.items.map(p => p.id));
+      setAssignedPermissionIds(ids);
+      setDraftPermissionIds(new Set(ids));
+    } else {
+      setAssignedPermissionIds(new Set());
+      setDraftPermissionIds(new Set());
+    }
+  }, [rolePermissionsQuery.data]);
+
+  // Set selected role ID to first item if current is invalid
+  useEffect(() => {
+    if (roles.length > 0 && (!selectedRoleId || !roles.find(r => r.id === selectedRoleId))) {
+      setSelectedRoleId(roles[0]?.id ?? null);
+    } else if (roles.length === 0 && selectedRoleId) {
+      setSelectedRoleId(null);
+    }
+  }, [roles, selectedRoleId]);
 
   const toggleModule = (module: string) => {
     setCollapsedModules((current) => {
@@ -233,137 +266,6 @@ export function RolesPermissionsPage() {
       return next;
     });
   };
-
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 2800);
-  };
-
-  const loadRoles = useCallback(async () => {
-    setRolesLoading(true);
-    setLoadError('');
-
-    try {
-      const response = await rolesApi.list({
-        limit: rolePageSize,
-        page: rolePage,
-        search: search.trim() || undefined,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        status: statusFilter || undefined,
-        type: typeFilter || undefined,
-      });
-
-      setRoles(response.items);
-      setRoleMeta(response.meta);
-      setSelectedRoleId((current) =>
-        response.items.some((role) => role.id === current) ? current : (response.items[0]?.id ?? null),
-      );
-
-      if (rolePage > response.meta.totalPages) {
-        setRolePage(response.meta.totalPages);
-      }
-    } catch (error) {
-      setRoles([]);
-      setSelectedRoleId(null);
-      setLoadError(getErrorMessage(error));
-      if (error instanceof ApiError && error.status === 403) setForbidden(true);
-    } finally {
-      setRolesLoading(false);
-    }
-  }, [rolePage, search, statusFilter, typeFilter]);
-
-  const loadRoleStats = useCallback(async () => {
-    setStatsLoading(true);
-
-    try {
-      const [allRoles, activeRoles, systemRoles, customRoles] = await Promise.all([
-        rolesApi.list({ limit: 1, page: 1 }),
-        rolesApi.list({ limit: 1, page: 1, status: 'active' }),
-        rolesApi.list({ limit: 1, page: 1, type: 'system' }),
-        rolesApi.list({ limit: 1, page: 1, type: 'custom' }),
-      ]);
-      setRoleStats({
-        active: activeRoles.meta.total,
-        custom: customRoles.meta.total,
-        system: systemRoles.meta.total,
-        total: allRoles.meta.total,
-      });
-    } catch (error) {
-      setLoadError(getErrorMessage(error));
-      if (error instanceof ApiError && error.status === 403) setForbidden(true);
-    } finally {
-      setStatsLoading(false);
-    }
-  }, []);
-
-  const loadPermissions = useCallback(async () => {
-    setPermissionsLoading(true);
-    setPermissionError('');
-
-    try {
-      const response = await permissionsApi.listAll();
-      setPermissions(response.items);
-    } catch (error) {
-      setPermissionError(getErrorMessage(error));
-      if (error instanceof ApiError && error.status === 403) setForbidden(true);
-    } finally {
-      setPermissionsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void Promise.all([loadPermissions(), loadRoleStats()]);
-  }, [loadPermissions, loadRoleStats]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void loadRoles(), search.trim() ? 250 : 0);
-    return () => window.clearTimeout(timer);
-  }, [loadRoles, search]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    if (!selectedRoleId) {
-      setSelectedRole(null);
-      setAssignedPermissionIds(new Set());
-      setDraftPermissionIds(new Set());
-      return () => {
-        mounted = false;
-      };
-    }
-
-    const loadRole = async () => {
-      setRoleLoading(true);
-      setPermissionError('');
-
-      try {
-        const details = await fetchRolePermissionDetails(selectedRoleId);
-
-        if (mounted) {
-          setSelectedRole(details.role);
-          setAssignedPermissionIds(details.permissionIds);
-          setDraftPermissionIds(new Set(details.permissionIds));
-        }
-      } catch (error) {
-        if (mounted) {
-          setSelectedRole(null);
-          setPermissionError(getErrorMessage(error));
-          if (error instanceof ApiError && error.status === 403) setForbidden(true);
-        }
-      } finally {
-        if (mounted) setRoleLoading(false);
-      }
-    };
-
-    void loadRole();
-
-    return () => {
-      mounted = false;
-    };
-  }, [selectedRoleId]);
 
   const permissionActions = useMemo(() => {
     const actions = [...new Set(permissions.map((permission) => permission.action))];
@@ -403,8 +305,18 @@ export function RolesPermissionsPage() {
     return [...assignedPermissionIds].some((id) => !draftPermissionIds.has(id));
   }, [assignedPermissionIds, draftPermissionIds]);
 
+  const isMutating = 
+    createRoleMutation.isPending || 
+    updateRoleMutation.isPending || 
+    updateRoleStatusMutation.isPending || 
+    assignUserMutation.isPending || 
+    removeUserMutation.isPending || 
+    deleteRoleMutation.isPending;
+
+  const forbidden = rolesQuery.error instanceof ApiError && rolesQuery.error.status === 403;
+
   const canEditPermissions = Boolean(
-    canPermission('Assign') && selectedRole && selectedRole.code !== 'SUPER_ADMIN' && !forbidden && !roleLoading && !submitting,
+    canPermission('Assign') && selectedRole && selectedRole.code !== 'SUPER_ADMIN' && !forbidden && !roleDetailsQuery.isFetching && !replacePermissionsMutation.isPending,
   );
   const totalRolePages = Math.max(roleMeta.totalPages, 1);
   const safeRolePage = Math.min(rolePage, totalRolePages);
@@ -429,53 +341,35 @@ export function RolesPermissionsPage() {
     );
   };
 
-  const savePermissions = async () => {
+  const savePermissions = () => {
     if (!selectedRole || !canEditPermissions || !dirty) return;
-    setSubmitting(true);
 
-    try {
-      const activePermissionIds = new Set(
-        permissions.filter((permission) => permission.status === 'active').map((permission) => permission.id),
-      );
-      const response = await permissionsApi.replaceForRole(
-        selectedRole.id,
-        [...draftPermissionIds].filter((id) => activePermissionIds.has(id)),
-      );
-      const savedIds = new Set(response.items.map((permission) => permission.id));
-      setAssignedPermissionIds(savedIds);
-      setDraftPermissionIds(new Set(savedIds));
-      await refreshCurrentUser();
-      showToast('Role permissions saved successfully.');
-    } catch (error) {
-      showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    const activePermissionIds = new Set(
+      permissions.filter((permission) => permission.status === 'active').map((permission) => permission.id),
+    );
+    const validIds = [...draftPermissionIds].filter((id) => activePermissionIds.has(id));
+    
+    replacePermissionsMutation.mutate({ roleId: selectedRole.id, permissionIds: validIds }, {
+      onSuccess: async () => {
+        await refreshCurrentUser();
+        toast.success('Role permissions saved successfully.');
+      }
+    });
   };
 
-  const refreshRolesAndPermissions = async () => {
-    setRoleLoading(true);
-
-    try {
-      await Promise.all([loadPermissions(), loadRoleStats(), loadRoles()]);
-
-      if (selectedRoleId) {
-        const details = await fetchRolePermissionDetails(selectedRoleId);
-        setSelectedRole(details.role);
-        setAssignedPermissionIds(details.permissionIds);
-        setDraftPermissionIds(new Set(details.permissionIds));
-      }
-
-      showToast('Roles and permissions refreshed.');
-    } catch (error) {
-      showToast(getErrorMessage(error), 'error');
-    } finally {
-      setRoleLoading(false);
+  const refreshRolesAndPermissions = () => {
+    void rolesQuery.refetch();
+    void roleStatsQuery.refetch();
+    void allPermissionsQuery.refetch();
+    if (selectedRoleId) {
+      void roleDetailsQuery.refetch();
+      void rolePermissionsQuery.refetch();
     }
+    toast.success('Roles and permissions refreshed.');
   };
 
   const closeModal = () => {
-    if (submitting) return;
+    if (isMutating) return;
     setModalMode(null);
     setFormError('');
     setSelectedUserId('');
@@ -493,20 +387,10 @@ export function RolesPermissionsPage() {
     });
   };
 
-  const openAuditModal = async () => {
+  const openAuditModal = () => {
     if (!selectedRole) return;
     setModalMode('audit');
-    setAuditLoading(true);
     setFormError('');
-    try {
-      const result = await rolesApi.auditLogs(selectedRole.id);
-      setAuditItems(result.items);
-    } catch (error) {
-      setAuditItems([]);
-      setFormError(getErrorMessage(error));
-    } finally {
-      setAuditLoading(false);
-    }
   };
 
   const openStatusModal = () => {
@@ -520,37 +404,14 @@ export function RolesPermissionsPage() {
     if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openRoleModal('create');
   }, [locationSearch]);
 
-  const openUserModal = async (mode: Extract<ModalMode, 'assign-user' | 'remove-user'>) => {
+  const openUserModal = (mode: Extract<ModalMode, 'assign-user' | 'remove-user'>) => {
     if (!selectedRole) return;
     setModalMode(mode);
     setFormError('');
     setSelectedUserId('');
-
-    if (mode === 'assign-user') {
-      setSubmitting(true);
-      try {
-        const response = await usersApi.list({
-          limit: 100,
-          page: 1,
-          sortBy: 'fullName',
-          sortOrder: 'asc',
-          status: 'active',
-        });
-        const assignedUserIds = new Set((selectedRole.users ?? []).map((user) => user.id));
-        setUserOptions(response.items.filter((user) => !assignedUserIds.has(user.id)));
-      } catch (error) {
-        setFormError(getErrorMessage(error));
-      } finally {
-        setSubmitting(false);
-      }
-    }
   };
 
-  const refreshRoles = async () => {
-    await Promise.all([loadRoles(), loadRoleStats()]);
-  };
-
-  const handleModalAction = async () => {
+  const handleModalAction = () => {
     if (!modalMode || modalMode === 'audit') return;
     setFormError('');
 
@@ -569,62 +430,68 @@ export function RolesPermissionsPage() {
       return;
     }
 
-    setSubmitting(true);
-
-    try {
-      if (modalMode === 'create' || modalMode === 'clone') {
-        const code = roleCodeFromName(roleForm.name);
-        if (!code) throw new Error('Role name must contain letters or numbers.');
-
-        const created = await rolesApi.create({
-          code,
-          color: roleForm.color,
-          description: roleForm.description.trim() || null,
-          name: roleForm.name.trim(),
-          status: roleForm.status,
-          type: 'custom',
-        });
-
-        if (modalMode === 'clone') {
-          await permissionsApi.replaceForRole(created.id, [...assignedPermissionIds]);
-        }
-
-        setSelectedRoleId(created.id);
-        showToast(modalMode === 'clone' ? 'Role cloned successfully.' : 'Role created successfully.');
-      } else if (modalMode === 'edit' && selectedRole) {
-        const role = await rolesApi.update(selectedRole.id, {
-          color: roleForm.color,
-          description: roleForm.description.trim() || null,
-          name: roleForm.name.trim(),
-        });
-        setSelectedRole(role);
-        showToast('Role updated successfully.');
-      } else if (modalMode === 'status' && selectedRole) {
-        const role = await rolesApi.updateStatus(selectedRole.id, roleForm.status);
-        setSelectedRole(role);
-        showToast(`Role ${role.status === 'active' ? 'activated' : 'deactivated'}.`);
-      } else if (modalMode === 'assign-user' && selectedRole) {
-        const role = await rolesApi.assignUser(selectedRole.id, selectedUserId);
-        setSelectedRole(role);
-        showToast('User assigned to role successfully.');
-      } else if (modalMode === 'remove-user' && selectedRole) {
-        const role = await rolesApi.removeUser(selectedRole.id, selectedUserId);
-        setSelectedRole(role);
-        showToast('User removed from role successfully.');
-      } else if (modalMode === 'delete' && selectedRole) {
-        await rolesApi.delete(selectedRole.id);
-        setSelectedRoleId(null);
-        setSelectedRole(null);
-        showToast('Role deleted successfully.');
+    if (modalMode === 'create' || modalMode === 'clone') {
+      const code = roleCodeFromName(roleForm.name);
+      if (!code) {
+        setFormError('Role name must contain letters or numbers.');
+        return;
       }
 
-      setModalMode(null);
-      setSelectedUserId('');
-      await refreshRoles();
-    } catch (error) {
-      setFormError(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
+      createRoleMutation.mutate({
+        code,
+        color: roleForm.color,
+        description: roleForm.description.trim() || null,
+        name: roleForm.name.trim(),
+        status: roleForm.status,
+        type: 'custom',
+      }, {
+        onSuccess: (created) => {
+          if (modalMode === 'clone') {
+            replacePermissionsMutation.mutate({ roleId: created.id, permissionIds: [...assignedPermissionIds] }, {
+              onSuccess: () => {
+                setSelectedRoleId(created.id);
+                toast.success('Role cloned successfully.');
+                closeModal();
+              }
+            });
+          } else {
+            setSelectedRoleId(created.id);
+            toast.success('Role created successfully.');
+            closeModal();
+          }
+        }
+      });
+    } else if (modalMode === 'edit' && selectedRole) {
+      updateRoleMutation.mutate({
+        id: selectedRole.id,
+        payload: {
+          color: roleForm.color,
+          description: roleForm.description.trim() || null,
+          name: roleForm.name.trim(),
+        }
+      }, { onSuccess: closeModal });
+    } else if (modalMode === 'status' && selectedRole) {
+      updateRoleStatusMutation.mutate({
+        id: selectedRole.id,
+        status: roleForm.status,
+      }, { onSuccess: closeModal });
+    } else if (modalMode === 'assign-user' && selectedRole) {
+      assignUserMutation.mutate({
+        id: selectedRole.id,
+        userId: selectedUserId,
+      }, { onSuccess: closeModal });
+    } else if (modalMode === 'remove-user' && selectedRole) {
+      removeUserMutation.mutate({
+        id: selectedRole.id,
+        userId: selectedUserId,
+      }, { onSuccess: closeModal });
+    } else if (modalMode === 'delete' && selectedRole) {
+      deleteRoleMutation.mutate(selectedRole.id, {
+        onSuccess: () => {
+          setSelectedRoleId(null);
+          closeModal();
+        }
+      });
     }
   };
 
@@ -641,7 +508,7 @@ export function RolesPermissionsPage() {
         status: permission.status,
       })),
     });
-    showToast('Permission matrix exported.');
+    toast.success('Permission matrix exported.');
   };
 
   const modalTitle =
@@ -662,6 +529,19 @@ export function RolesPermissionsPage() {
               : modalMode === 'audit'
                 ? 'Audit History'
                 : 'Roles & Permissions';
+
+  const rolesLoading = rolesQuery.isFetching;
+  const statsLoading = roleStatsQuery.isFetching;
+  const permissionsLoading = allPermissionsQuery.isFetching;
+  const roleLoading = roleDetailsQuery.isFetching || rolePermissionsQuery.isFetching;
+  
+  const loadError = rolesQuery.error ? getRoleErrorMessage(rolesQuery.error) : '';
+  const permissionError = allPermissionsQuery.error ? getPermissionErrorMessage(allPermissionsQuery.error) : roleDetailsQuery.error ? getRoleErrorMessage(roleDetailsQuery.error) : '';
+
+  const userOptions = usersListQuery.data?.items.filter(u => !(selectedRole?.users ?? []).some(su => su.id === u.id)) ?? [];
+  const auditItems = roleAuditLogsQuery.data?.items ?? [];
+  const auditLoading = roleAuditLogsQuery.isFetching;
+  const submitting = isMutating || replacePermissionsMutation.isPending;
 
   return (
     <>
@@ -853,12 +733,11 @@ export function RolesPermissionsPage() {
           </div>
         </> : null}
         {modalMode === 'status' ? <p>Change <strong>{selectedRole?.name}</strong> to <strong>{roleStatusLabel(roleForm.status)}</strong>? Inactive roles no longer grant access.</p> : null}
-        {modalMode === 'assign-user' ? <div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" onChange={(event) => setSelectedUserId(event.target.value)} value={selectedUserId}><option value="">{submitting ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select></div> : null}
+        {modalMode === 'assign-user' ? <div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" onChange={(event) => setSelectedUserId(event.target.value)} value={selectedUserId}><option value="">{usersListQuery.isFetching ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select></div> : null}
         {modalMode === 'remove-user' ? <div className="form-field"><label htmlFor="remove-role-user">User</label><select id="remove-role-user" onChange={(event) => setSelectedUserId(event.target.value)} value={selectedUserId}><option value="">Select user</option>{(selectedRole?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select></div> : null}
         {modalMode === 'delete' ? <p>Delete {selectedRole?.name}? The backend will enforce status and assignment restrictions.</p> : null}
         {modalMode === 'audit' ? auditLoading ? <div className="rp-detail-empty">Loading audit history...</div> : auditItems.length ? <div className="role-audit-list">{auditItems.map((item) => <article key={item.id}><div><strong>{item.actorName}</strong><span>{item.eventType}</span></div><time dateTime={item.createdAt}>{new Intl.DateTimeFormat('en-KE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.createdAt))}</time></article>)}</div> : <div className="rp-detail-empty">No audit activity found for this role.</div> : null}
       </Modal>
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

@@ -1,17 +1,22 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import { z } from 'zod';
 import { ApiError } from '../api/api-error';
 import {
-  medicinesApi,
   type ApiMedicineStatus,
   type MedicineListParams,
   type MedicineResponse,
-  type SaveMedicinePayload,
 } from '../api/medicines';
+import {
+  getMedicineErrorMessage,
+  useDeleteMedicine,
+  useExportMedicines,
+  useMedicinesList,
+  useMedicinesSummary,
+  useSaveMedicine,
+  useUpdateMedicineStatus,
+} from '../hooks/medicines/useMedicines';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { navigate, useAppLocation } from '../routing/navigation';
@@ -49,15 +54,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('en', {
   day: '2-digit', month: 'short', year: 'numeric',
 }).format(new Date(value));
 
-const messageForError = (error: unknown) => {
-  if (error instanceof ApiError) {
-    if (error.status === 403) return 'You do not have permission to manage medicines.';
-    if (error.status === 409) return error.message;
-    if (error.status === 400) return error.message || 'Check the medicine details and try again.';
-    return error.message;
-  }
-  return 'Unable to complete the medicine request.';
-};
+
 
 export function MedicineMasterPage() {
   const { user } = useAuth();
@@ -70,7 +67,6 @@ export function MedicineMasterPage() {
   const canDelete = can('Delete');
   const canExport = can('Export');
   const location = useAppLocation();
-  const queryClient = useQueryClient();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const search = query.get('search') ?? '';
   const status = (query.get('status') ?? '') as ApiMedicineStatus | '';
@@ -82,7 +78,6 @@ export function MedicineMasterPage() {
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [activeMedicine, setActiveMedicine] = useState<MedicineResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MedicineResponse | null>(null);
-  const [exporting, setExporting] = useState(false);
 
   const updateQuery = useCallback((updates: Record<string, string | number | null>) => {
     const next = new URLSearchParams(location.search);
@@ -104,14 +99,12 @@ export function MedicineMasterPage() {
     sortOrder,
   }), [dosageForm, limit, page, search, sortBy, sortOrder, status]);
 
-  const listQuery = useQuery({
-    queryKey: ['medicines', 'list', listParams],
-    queryFn: () => medicinesApi.list(listParams),
-  });
-  const summaryQuery = useQuery({
-    queryKey: ['medicines', 'summary'],
-    queryFn: () => medicinesApi.summary(),
-  });
+  const listQuery = useMedicinesList(listParams);
+  const summaryQuery = useMedicinesSummary();
+  const { exportMedicines, isExporting: exporting } = useExportMedicines();
+  const saveMutation = useSaveMedicine();
+  const statusMutation = useUpdateMedicineStatus();
+  const deleteMutation = useDeleteMedicine();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<MedicineFormValues>({
     defaultValues: emptyForm,
@@ -146,66 +139,21 @@ export function MedicineMasterPage() {
     }
   }, [query, modalMode]);
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['medicines'] });
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: async (values: MedicineFormValues) => {
-      const payload: SaveMedicinePayload = {
-        code: values.code,
-        name: values.name,
-        generic_name: optional(values.generic_name),
-        strength: optional(values.strength),
-        dosage_form: optional(values.dosage_form),
-        unit: optional(values.unit),
-        description: optional(values.description),
-        status: values.status,
-      };
-      return modalMode === 'edit' && activeMedicine
-        ? medicinesApi.update(activeMedicine.id, payload)
-        : medicinesApi.create(payload);
-    },
-    onSuccess: async (medicine) => {
-      toast.success(`${medicine.name} ${modalMode === 'edit' ? 'updated' : 'created'} successfully.`);
-      closeModal();
-      await invalidate();
-    },
-    onError: (error) => toast.error(messageForError(error)),
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: (medicine: MedicineResponse) => medicinesApi.updateStatus(
-      medicine.id,
-      medicine.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
-    ),
-    onSuccess: async (medicine) => {
-      toast.success(`${medicine.name} ${medicine.status === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
-      await invalidate();
-    },
-    onError: (error) => toast.error(messageForError(error)),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (medicine: MedicineResponse) => medicinesApi.delete(medicine.id),
-    onSuccess: async () => {
-      toast.success('Medicine deleted successfully.');
-      setDeleteTarget(null);
-      await invalidate();
-    },
-    onError: (error) => toast.error(messageForError(error)),
-  });
-
-  const exportMedicines = async () => {
-    setExporting(true);
-    try {
-      downloadBlob(await medicinesApi.export(listParams), 'hms-medicines.csv');
-      toast.success('Filtered medicines exported.');
-    } catch (error) {
-      toast.error(messageForError(error));
-    } finally {
-      setExporting(false);
-    }
+  const handleSave = (values: MedicineFormValues) => {
+    const payload = {
+      code: values.code,
+      name: values.name,
+      generic_name: optional(values.generic_name),
+      strength: optional(values.strength),
+      dosage_form: optional(values.dosage_form),
+      unit: optional(values.unit),
+      description: optional(values.description),
+      status: values.status,
+    };
+    saveMutation.mutate(
+      { id: modalMode === 'edit' && activeMedicine ? activeMedicine.id : undefined, payload },
+      { onSuccess: closeModal }
+    );
   };
 
   const records = listQuery.data?.data ?? [];
@@ -241,7 +189,7 @@ export function MedicineMasterPage() {
             <div className="um-toolbar-row1">
               <div className="um-search"><i className="ph ph-magnifying-glass" aria-hidden="true" /><input onChange={(event) => updateQuery({ search: event.target.value, page: 1 })} placeholder="Search code, medicine, or generic name..." type="search" value={search} /></div>
               <button className="um-add-btn" disabled={forbidden || !canCreate} onClick={() => openModal('create')} type="button"><i className="ph ph-plus" aria-hidden="true" /> Add Medicine</button>
-              <button className="btn-secondary admin-table-action" disabled={exporting || forbidden || !canExport} onClick={() => void exportMedicines()} type="button"><i className="ph ph-download-simple" aria-hidden="true" /> Export CSV</button>
+              <button className="btn-secondary admin-table-action" disabled={exporting || forbidden || !canExport} onClick={() => void exportMedicines(listParams, downloadBlob)} type="button"><i className="ph ph-download-simple" aria-hidden="true" /> Export CSV</button>
               <button className="btn-secondary admin-table-action" disabled={listQuery.isFetching} onClick={() => void listQuery.refetch()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh</button>
             </div>
             <div className="um-toolbar-row2">
@@ -258,7 +206,7 @@ export function MedicineMasterPage() {
               <thead><tr><th>Code</th><th>Medicine</th><th>Strength</th><th>Dosage Form</th><th>Unit</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
               <tbody>
                 {listQuery.isLoading ? <tr><td className="um-state-cell" colSpan={8}><span className="loading-spinner" /> Loading medicines...</td></tr> : null}
-                {listQuery.isError ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-warning" aria-hidden="true" /> {messageForError(listQuery.error)}</td></tr> : null}
+                {listQuery.isError ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-warning" aria-hidden="true" /> {getMedicineErrorMessage(listQuery.error)}</td></tr> : null}
                 {!listQuery.isLoading && !listQuery.isError && records.length === 0 ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-pill" aria-hidden="true" /> No medicines found matching your filters.</td></tr> : null}
                 {records.map((medicine) => (
                   <tr key={medicine.id}>
@@ -284,7 +232,7 @@ export function MedicineMasterPage() {
 
       <Modal footer={modalMode === 'view' ? <button className="btn-secondary" onClick={closeModal} type="button">Close</button> : <><button className="btn-secondary" disabled={saveMutation.isPending} onClick={closeModal} type="button">Cancel</button><button className="btn-primary" disabled={saveMutation.isPending} form="medicine-master-form" type="submit">{saveMutation.isPending ? 'Saving...' : 'Save Medicine'}</button></>} icon="ph-pill" onClose={closeModal} open={Boolean(modalMode)} title={modalTitle}>
         {(modalMode === 'create' || modalMode === 'edit') ? (
-          <form id="medicine-master-form" onSubmit={(event) => void handleSubmit((values) => saveMutation.mutate(values))(event)}>
+          <form id="medicine-master-form" onSubmit={(event) => void handleSubmit(handleSave)(event)}>
             <div className="form-section-title">Medicine Information</div><div className="form-grid-2">
               <label className="form-field"><span>Medicine Code <span className="required">*</span></span><input {...register('code')} disabled={saveMutation.isPending} />{errors.code ? <small className="field-error">{errors.code.message}</small> : null}</label>
               <label className="form-field"><span>Medicine Name <span className="required">*</span></span><input {...register('name')} disabled={saveMutation.isPending} />{errors.name ? <small className="field-error">{errors.name.message}</small> : null}</label>
@@ -300,7 +248,7 @@ export function MedicineMasterPage() {
         {modalMode === 'view' && activeMedicine ? <div className="form-grid-2"><label className="form-field"><span>Code</span><input readOnly value={activeMedicine.code} /></label><label className="form-field"><span>Name</span><input readOnly value={activeMedicine.name} /></label><label className="form-field"><span>Generic Name</span><input readOnly value={activeMedicine.generic_name ?? ''} /></label><label className="form-field"><span>Strength</span><input readOnly value={activeMedicine.strength ?? ''} /></label><label className="form-field"><span>Dosage Form</span><input readOnly value={activeMedicine.dosage_form ?? ''} /></label><label className="form-field"><span>Unit</span><input readOnly value={activeMedicine.unit ?? ''} /></label><label className="form-field"><span>Status</span><input readOnly value={activeMedicine.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label><label className="form-field"><span>Created</span><input readOnly value={formatDate(activeMedicine.created_at)} /></label><label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Description</span><textarea readOnly rows={3} value={activeMedicine.description ?? ''} /></label></div> : null}
       </Modal>
 
-      <ConfirmDialog confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete Medicine'} message={deleteTarget ? `Delete ${deleteTarget.name}? Historical audit records will be retained.` : ''} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget); }} open={Boolean(deleteTarget)} title="Delete Medicine" />
+      <ConfirmDialog confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete Medicine'} message={deleteTarget ? `Delete ${deleteTarget.name}? Historical audit records will be retained.` : ''} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) }); }} open={Boolean(deleteTarget)} title="Delete Medicine" />
     </>
   );
 }

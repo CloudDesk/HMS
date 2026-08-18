@@ -17,12 +17,6 @@ export function LoginPage() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const showExpiredNotice = status === 'session-expired' || query.get('reason') === 'session-expired';
 
-  useEffect(() => {
-    if (status === 'authenticated') {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [status]);
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     clearAuthError();

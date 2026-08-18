@@ -1,22 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  appointmentsApi,
-  type ApiAppointmentStatus,
-  type AppointmentResponse,
-} from '../api/appointments';
-import { branchesApi, type BranchResponse } from '../api/branches';
-import { departmentsApi, type DepartmentResponse } from '../api/departments';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
+import { useEffect, useMemo, useState } from 'react';
+import { type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
 import { useAuth } from '../auth/useAuth';
-import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
   appointmentStatusLabels,
   appointmentVisitTypeLabels,
-  getAppointmentErrorMessage,
   todayInputValue,
 } from './appointment-utils';
 import { patientInitials } from './opd-utils';
+import { useAppointmentsList, useUpdateAppointment, useUpdateAppointmentStatus } from '../hooks/appointments/useAppointments';
+import { useDepartmentsList } from '../hooks/departments/useDepartments';
+import { useDoctorsList } from '../hooks/doctors/useDoctors';
+import { useBranchesList } from '../hooks/branches/useBranches';
+import { toast } from 'sonner';
 
 type CalendarMode = 'day' | 'week' | 'month';
 
@@ -146,33 +142,51 @@ export function AppointmentCalendarPage() {
   const [statusFilter, setStatusFilter] = useState<ApiAppointmentStatus | ''>(
     (initialParams.get('status') as ApiAppointmentStatus | null) ?? '',
   );
-  const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+
+  const range = useMemo(() => buildDateRange(mode, calendarDate), [calendarDate, mode]);
+
+  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 });
+  const { data: docData } = useDoctorsList({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
+  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100 });
+
+  const departments = deptData?.data || [];
+  const allDoctors = docData?.data || [];
+  const branches = branchData?.data || [];
+
+  const { data: apptData, isLoading: loading, isError, error } = useAppointmentsList({
+    date_from: range.from,
+    date_to: range.to,
+    department_id: departmentFilter || undefined,
+    doctor_id: doctorFilter || undefined,
+    status: statusFilter || undefined,
+    limit: 100,
+    sortBy: 'start_time',
+    sortOrder: 'asc',
+  });
+
+  const appointments = apptData?.data || [];
+  const loadError = isError && error instanceof Error ? error.message : isError ? 'Failed to load' : '';
+
+  const updateAppointment = useUpdateAppointment();
+  const updateStatus = useUpdateAppointmentStatus();
 
   // Drag and Drop State & Active Modal State
   const [draggedAppointmentId, setDraggedAppointmentId] = useState<string | null>(null);
   const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
-  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentResponse | null>(null);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const selectedAppointment = appointments.find((a) => a.id === selectedAppointmentId) ?? null;
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
 
   const loggedInDoctor = useMemo(
-    () => (user ? doctors.find((doctor) => doctor.user_id === user.id) : undefined),
-    [doctors, user],
+    () => (user ? allDoctors.find((doctor) => doctor.user_id === user.id) : undefined),
+    [allDoctors, user],
   );
 
-  const range = useMemo(() => buildDateRange(mode, calendarDate), [calendarDate, mode]);
   const visibleDoctors = useMemo(
-    () => doctors.filter((doctor) => !departmentFilter || doctor.department_id === departmentFilter),
-    [departmentFilter, doctors],
+    () => allDoctors.filter((doctor) => !departmentFilter || doctor.department_id === departmentFilter),
+    [departmentFilter, allDoctors],
   );
   const weekDays = useMemo(() => buildWeekDays(calendarDate), [calendarDate]);
   const monthDays = useMemo(() => buildMonthDays(calendarDate), [calendarDate]);
@@ -185,98 +199,6 @@ export function AppointmentCalendarPage() {
       }
     }
   }, [loggedInDoctor, doctorFilter, departmentFilter]);
-
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 3000);
-  };
-
-  const loadLookups = useCallback(async () => {
-    try {
-      const [departmentResponse, branchResponse] = await Promise.all([
-        departmentsApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => null),
-        branchesApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
-      ]);
-      setBranches(branchResponse.data);
-
-      let docs: DoctorResponse[] = [];
-      try {
-        const doctorResponse = await doctorsApi.list({
-          status: 'ACTIVE',
-          limit: 100,
-          sortBy: 'display_name',
-          sortOrder: 'asc',
-        });
-        docs = doctorResponse.data;
-      } catch {
-        try {
-          const currentDoc = await doctorsApi.getCurrent();
-          docs = [currentDoc];
-        } catch {
-          // not a doctor, or no access
-        }
-      }
-      setDoctors(docs);
-
-      if (departmentResponse) {
-        setDepartments(departmentResponse.data);
-      } else if (docs.length === 1 && docs[0]?.department_id) {
-        const dept = await departmentsApi.getById(docs[0]!.department_id).catch(() => null);
-        setDepartments(dept ? [dept] : []);
-      } else {
-        setDepartments([]);
-      }
-    } catch (error) {
-      console.error('Failed to load lookups', error);
-    }
-  }, []);
-
-  const [refreshCounter, setRefreshCounter] = useState(0);
-
-  const loadAppointments = useCallback(() => {
-    setRefreshCounter((c) => c + 1);
-  }, []);
-
-  useEffect(() => {
-    let ignore = false;
-    setLoading(true);
-    setLoadError('');
-
-    appointmentsApi
-      .list({
-        date_from: range.from,
-        date_to: range.to,
-        department_id: departmentFilter || undefined,
-        doctor_id: doctorFilter || undefined,
-        status: statusFilter || undefined,
-        limit: 100,
-        sortBy: 'start_time',
-        sortOrder: 'asc',
-      })
-      .then((response) => {
-        if (!ignore) {
-          setAppointments(response.data);
-          setLoading(false);
-        }
-      })
-      .catch((error) => {
-        if (!ignore) {
-          setAppointments([]);
-          setLoadError(getAppointmentErrorMessage(error));
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [departmentFilter, doctorFilter, range.from, range.to, statusFilter, refreshCounter]);
-
-  useEffect(() => {
-    void loadLookups().catch((error) => setLoadError(getAppointmentErrorMessage(error)));
-  }, [loadLookups]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -299,10 +221,9 @@ export function AppointmentCalendarPage() {
 
   const handleExport = () => {
     downloadAppointments(appointments);
-    showToast('Calendar export downloaded.');
+    toast.success('Calendar export downloaded.');
   };
 
-  // Drag and drop reschedule handler
   const handleDrop = async (targetDate: string, targetSlot?: string) => {
     setDragOverCellKey(null);
     if (!draggedAppointmentId) return;
@@ -316,69 +237,43 @@ export function AppointmentCalendarPage() {
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
     if (targetDate < todayInputValue() || (targetDate === todayInputValue() && newStartTime < currentTime)) {
-      showToast('Appointments cannot be rescheduled to a past date or time.', 'error');
+      toast.error('Appointments cannot be rescheduled to a past date or time.');
       return;
     }
 
-    // Optimistic UI update
-    setAppointments((prev) =>
-      prev.map((item) =>
-        item.id === draggedAppointmentId
-          ? {
-              ...item,
-              appointment_date: targetDate,
-              start_time: newStartTime,
-              status: 'SCHEDULED' as ApiAppointmentStatus,
-            }
-          : item,
-      ),
-    );
-
     try {
-      await appointmentsApi.update(draggedAppointmentId, {
-        appointment_date: targetDate,
-        start_time: newStartTime,
+      await updateAppointment.mutateAsync({
+        id: draggedAppointmentId,
+        payload: {
+          appointment_date: targetDate,
+          start_time: newStartTime,
+        },
       });
-      showToast(
-        `Appointment ${targetAppointment.appointment_number} rescheduled to ${formatDayHeader(targetDate)} at ${newStartTime}.`,
-      );
-    } catch (error) {
-      void loadAppointments();
-      showToast(getAppointmentErrorMessage(error), 'error');
+      // success toast is handled by mutation
     } finally {
       setDraggedAppointmentId(null);
     }
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
-    try {
-      await appointmentsApi.updateStatus(appointmentId, { status: 'CANCELLED', notes: 'Cancelled by patient request from calendar view' });
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === appointmentId ? { ...a, status: 'CANCELLED' as ApiAppointmentStatus } : a)),
-      );
-      setSelectedAppointment((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
-      showToast('Appointment cancelled.');
-    } catch (error) {
-      showToast(getAppointmentErrorMessage(error), 'error');
-    }
+    await updateStatus.mutateAsync({
+      id: appointmentId,
+      payload: { status: 'CANCELLED', notes: 'Cancelled by patient request from calendar view' }
+    });
   };
 
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAppointment || !rescheduleDate || !rescheduleTime) return;
 
-    try {
-      const updated = await appointmentsApi.update(selectedAppointment.id, {
+    await updateAppointment.mutateAsync({
+      id: selectedAppointment.id,
+      payload: {
         appointment_date: rescheduleDate,
         start_time: rescheduleTime,
-      });
-      setAppointments((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-      setSelectedAppointment(updated);
-      setIsRescheduling(false);
-      showToast(`Appointment rescheduled to ${rescheduleDate} at ${rescheduleTime}.`);
-    } catch (error) {
-      showToast(getAppointmentErrorMessage(error), 'error');
-    }
+      }
+    });
+    setIsRescheduling(false);
   };
 
   return (
@@ -534,7 +429,7 @@ export function AppointmentCalendarPage() {
                               className={`appointment-calendar-event ${eventClass(appointment)}`}
                               draggable
                               key={appointment.id}
-                              onClick={() => setSelectedAppointment(appointment)}
+                              onClick={() => setSelectedAppointmentId(appointment.id)}
                               onDragStart={(e) => {
                                 setDraggedAppointmentId(appointment.id);
                                 e.dataTransfer.setData('text/plain', appointment.id);
@@ -583,7 +478,7 @@ export function AppointmentCalendarPage() {
                           className={`appointment-calendar-event ${eventClass(appointment)}`}
                           draggable
                           key={appointment.id}
-                          onClick={() => setSelectedAppointment(appointment)}
+                          onClick={() => setSelectedAppointmentId(appointment.id)}
                           onDragStart={(e) => {
                             setDraggedAppointmentId(appointment.id);
                             e.dataTransfer.setData('text/plain', appointment.id);
@@ -605,19 +500,18 @@ export function AppointmentCalendarPage() {
         </section>
       </div>
 
-      {/* Appointment Details Modal (Matching Image 4 Reference) */}
+      {/* Appointment Details Modal */}
       {selectedAppointment ? (
-        <div className="modal-backdrop" onClick={() => setSelectedAppointment(null)}>
+        <div className="modal-backdrop" onClick={() => setSelectedAppointmentId(null)}>
           <div className="modal-box apt-details-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Appointment Details</h3>
-              <button className="modal-close" onClick={() => setSelectedAppointment(null)} type="button">
+              <button className="modal-close" onClick={() => setSelectedAppointmentId(null)} type="button">
                 <i className="ph ph-x" aria-hidden="true" />
               </button>
             </div>
 
             <div className="modal-body">
-              {/* Patient Banner Header inside modal */}
               <div className="apt-modal-patient-strip">
                 <div className="opd-patient-avatar-box">
                   <span>{patientInitials(selectedAppointment.patient_name)}</span>
@@ -639,7 +533,6 @@ export function AppointmentCalendarPage() {
                 </div>
               </div>
 
-              {/* Table / Grid of Details (Matching Image 4) */}
               <div className="apt-modal-details-grid">
                 <div className="apt-modal-detail-row">
                   <span>Appointment ID</span>
@@ -681,9 +574,8 @@ export function AppointmentCalendarPage() {
                 </div>
               </div>
 
-              {/* In-line Reschedule Form if toggled */}
               {isRescheduling ? (
-                <form className="apt-modal-reschedule-form" onSubmit={handleRescheduleSubmit}>
+                <form className="apt-modal-reschedule-form" onSubmit={(e) => void handleRescheduleSubmit(e)}>
                   <h4>Reschedule Appointment</h4>
                   <div className="doc-form-grid two">
                     <div className="doc-field">
@@ -711,7 +603,7 @@ export function AppointmentCalendarPage() {
                     <button className="doc-btn" onClick={() => setIsRescheduling(false)} type="button">
                       Cancel
                     </button>
-                    <button className="doc-btn primary" type="submit">
+                    <button className="doc-btn primary" disabled={updateAppointment.isPending} type="submit">
                       Confirm Reschedule
                     </button>
                   </div>
@@ -719,7 +611,6 @@ export function AppointmentCalendarPage() {
               ) : null}
             </div>
 
-            {/* Modal Footer Actions (Matching Image 4) */}
             <div className="modal-footer apt-modal-footer">
               <button
                 className="doc-btn"
@@ -730,7 +621,7 @@ export function AppointmentCalendarPage() {
               </button>
               <button
                 className="doc-btn danger-outline"
-                disabled={selectedAppointment.status === 'CANCELLED'}
+                disabled={selectedAppointment.status === 'CANCELLED' || updateStatus.isPending}
                 onClick={() => void handleCancelAppointment(selectedAppointment.id)}
                 type="button"
               >
@@ -751,8 +642,6 @@ export function AppointmentCalendarPage() {
           </div>
         </div>
       ) : null}
-
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

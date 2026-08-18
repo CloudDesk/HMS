@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { opdApi, type OpdVisitResponse } from '../api/opd';
 import { navigate } from '../routing/navigation';
 import {
   activeVisitStatuses,
@@ -10,79 +8,25 @@ import {
   opdVisitStatusLabels,
   opdVisitTypeLabels,
   patientInitials,
-  todayInputValue,
   visitPriorityClass,
   visitStatusClass,
 } from './opd-utils';
-
-const toInputDate = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
-const buildTrend = (visits: OpdVisitResponse[]) => {
-  const today = new Date(`${todayInputValue()}T00:00:00`);
-  return Array.from({ length: 7 }).map((_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - (6 - index));
-    const key = toInputDate(date);
-    return {
-      label: new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short' }).format(date),
-      value: visits.filter((visit) => visit.visit_date.slice(0, 10) === key).length,
-    };
-  });
-};
+import { useOpdDashboard } from '../hooks/opd/useOpdDashboard';
 
 export function OpdDashboardPage() {
-  const [visits, setVisits] = useState<OpdVisitResponse[]>([]);
-  const [weekVisits, setWeekVisits] = useState<OpdVisitResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const {
+    visits,
+    loading,
+    loadError,
+    trend,
+    waitingVisits,
+    readyVisits,
+    inConsultationVisits,
+    completedVisits,
+    urgentVisits,
+  } = useOpdDashboard();
 
-  const trend = useMemo(() => buildTrend(weekVisits), [weekVisits]);
   const maxTrend = Math.max(1, ...trend.map((point) => point.value));
-  const waitingVisits = visits.filter((visit) => ['CHECKED_IN', 'WAITING_FOR_VITALS'].includes(visit.status));
-  const readyVisits = visits.filter((visit) => visit.status === 'READY_FOR_CONSULTATION');
-  const inConsultationVisits = visits.filter((visit) => visit.status === 'IN_CONSULTATION');
-  const completedVisits = visits.filter((visit) => visit.status === 'COMPLETED');
-  const urgentVisits = visits.filter((visit) => visit.priority !== 'ROUTINE' && isActiveVisit(visit));
-
-  const loadVisits = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      const now = new Date(`${todayInputValue()}T00:00:00`);
-      const start = new Date(now);
-      start.setDate(now.getDate() - 6);
-      const [todayResponse, weekResponse] = await Promise.all([
-        opdApi.listVisits({
-          date_from: todayInputValue(),
-          date_to: todayInputValue(),
-          limit: 100,
-          sortBy: 'check_in_time',
-          sortOrder: 'asc',
-        }),
-        opdApi.listVisits({
-          date_from: toInputDate(start),
-          date_to: todayInputValue(),
-          limit: 100,
-          sortBy: 'check_in_time',
-          sortOrder: 'asc',
-        }),
-      ]);
-      setVisits(todayResponse.data);
-      setWeekVisits(weekResponse.data);
-    } catch (error) {
-      setVisits([]);
-      setWeekVisits([]);
-      setLoadError(getOpdErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadVisits();
-  }, [loadVisits]);
 
   return (
     <div className="opd-page">
@@ -92,22 +36,22 @@ export function OpdDashboardPage() {
           <p>Monitor outpatient activity, queues and visit flow</p>
         </div>
         <div className="opd-page-actions">
-          <button className="doc-btn" style={{ cursor: 'default' }} type="button">
+          <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
             <i className="ph ph-magnifying-glass" aria-hidden="true" />
             Search Patient
           </button>
-          <button className="doc-btn" style={{ cursor: 'default' }} type="button">
+          <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
             <i className="ph ph-queue" aria-hidden="true" />
             Open Queue
           </button>
-          <button className="doc-btn primary" style={{ cursor: 'default' }} type="button">
+          <button className="doc-btn primary" onClick={() => navigate('/opd/queue')} type="button">
             <i className="ph ph-sign-in" aria-hidden="true" />
             Check-in Patient
           </button>
         </div>
       </section>
 
-      {loadError ? <div className="form-error-banner">{loadError}</div> : null}
+      {loadError ? <div className="form-error-banner">{getOpdErrorMessage(loadError)}</div> : null}
 
       <section className="doc-kpi-grid opd-kpi-grid">
         {([
@@ -198,7 +142,7 @@ export function OpdDashboardPage() {
               <h3>Active OPD Queue</h3>
               <p>Patients currently in outpatient flow</p>
             </div>
-            <button className="doc-btn" style={{ cursor: 'default' }} type="button">
+            <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
               View Queue
             </button>
           </div>

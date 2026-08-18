@@ -1,31 +1,35 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import {
-  billingApi,
-  type BillingReceipt,
-  type SaveBillingInvoiceItem,
-} from '../api/billing';
-import { branchesApi } from '../api/branches';
-import { opdApi } from '../api/opd';
-import { patientsApi } from '../api/patients';
-import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
-import { servicesApi } from '../api/services';
+import type { BillingReceipt } from '../api/billing';
 import { useAuth } from '../auth/useAuth';
 import { useCurrencyFormatter } from '../api/useSettings';
 import { Modal } from '../components/ui/Modal';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
-  billingErrorMessage,
   billingServiceLabel,
   billingStatusClass,
   billingStatusLabel,
   formatBillingDate,
   formatBillingDateTime,
 } from './billing-utils';
+import { useBranchesList } from '../hooks/branches/useBranches';
+import { usePatientsList } from '../hooks/patients/usePatients';
+import { useOpdVisits } from '../hooks/opd/useOpd';
+import { useServicesList } from '../hooks/services/useServices';
+import { usePharmacyBatches } from '../hooks/pharmacy/usePharmacy';
+import {
+  useBillingInvoiceDetails,
+  useBillingPayments,
+  useCreateBillingInvoice,
+  useUpdateBillingInvoice,
+  useCancelBillingInvoice,
+  useCollectBillingPayment,
+  useBillingReceipt,
+} from '../hooks/billing/useBilling';
+import { useBillingAutoPopulate, type DraftItem } from '../hooks/billing/useBillingAutoPopulate';
 
 const invoiceSchema = z.object({
   branch_id: z.string().min(1, 'Select a branch.'),
@@ -54,7 +58,6 @@ const paymentSchema = z.object({
 type InvoiceForm = z.infer<typeof invoiceSchema>;
 type ItemForm = z.infer<typeof itemSchema>;
 type PaymentForm = z.infer<typeof paymentSchema>;
-type DraftItem = SaveBillingInvoiceItem & { service_name: string; unit_price: number; line_total: number };
 
 const today = () => new Date().toISOString().slice(0, 10);
 const catalogueType = (type: ItemForm['service_type']) => type === 'CONSULTATION'
@@ -65,7 +68,6 @@ export function BillingWorkspacePage() {
   const formatBillingMoney = useCurrencyFormatter();
   const { user } = useAuth();
   const location = useAppLocation();
-  const queryClient = useQueryClient();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const invoiceId = params.get('id') ?? '';
   const createMode = params.get('mode') === 'create' || !invoiceId;
@@ -101,11 +103,7 @@ export function BillingWorkspacePage() {
 
   const selectedVisit = invoiceForm.watch('visit_id');
 
-  const branchesQuery = useQuery({
-    queryKey: ['branches', 'billing-workspace-options'],
-    queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
-    enabled: createMode && superAdmin,
-  });
+  const branchesQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }, createMode && superAdmin);
   const branches = superAdmin
     ? (branchesQuery.data?.data ?? []).map((branch) => ({ id: branch.id, name: branch.name }))
     : (user?.branches ?? []).map((branch) => ({ id: branch.id, name: branch.name }));
@@ -113,140 +111,20 @@ export function BillingWorkspacePage() {
     if (createMode && !selectedBranch && branches.length === 1) invoiceForm.setValue('branch_id', branches[0]!.id);
   }, [branches, createMode, invoiceForm, selectedBranch]);
 
-  const patientsQuery = useQuery({
-    queryKey: ['patients', 'billing-workspace-options'],
-    queryFn: () => patientsApi.list({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'last_name', sortOrder: 'asc' }),
-    enabled: createMode,
-  });
-  const visitsQuery = useQuery({
-    queryKey: ['opd-visits', 'billing-workspace-options', selectedPatient, selectedBranch],
-    queryFn: () => opdApi.listVisits({ patient_id: selectedPatient, branch_id: selectedBranch, page: 1, limit: 100, sortBy: 'visit_date', sortOrder: 'desc' }),
-    enabled: createMode && Boolean(selectedPatient && selectedBranch),
-  });
-  const servicesQuery = useQuery({
-    queryKey: ['services', 'billing-workspace-options', selectedSource],
-    queryFn: () => servicesApi.list({ status: 'ACTIVE', service_type: catalogueType(selectedSource), page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
-    enabled: createMode && selectedSource !== 'PHARMACY',
-  });
-  const batchesQuery = useQuery({
-    queryKey: ['pharmacy-batches', 'billing-workspace-options', selectedBranch],
-    queryFn: () => pharmacyInventoryApi.allBatches({ branch_id: selectedBranch, status: 'ACTIVE', page: 1, limit: 100 }),
-    enabled: createMode && selectedSource === 'PHARMACY' && Boolean(selectedBranch),
+  const patientsQuery = usePatientsList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'last_name', sortOrder: 'asc' }, createMode);
+  const visitsQuery = useOpdVisits({ patient_id: selectedPatient, branch_id: selectedBranch, page: 1, limit: 100, sortBy: 'visit_date', sortOrder: 'desc' }, createMode && Boolean(selectedPatient && selectedBranch));
+  const servicesQuery = useServicesList({ status: 'ACTIVE', service_type: catalogueType(selectedSource), page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }, createMode && selectedSource !== 'PHARMACY');
+  const batchesQuery = usePharmacyBatches({ branch_id: selectedBranch, status: 'ACTIVE', page: 1, limit: 100 }, createMode && selectedSource === 'PHARMACY' && Boolean(selectedBranch));
+
+  useBillingAutoPopulate({
+    visitId: selectedVisit,
+    branchId: selectedBranch,
+    createMode,
+    onPopulate: setDraftItems,
   });
 
-  useEffect(() => {
-    if (!createMode || !selectedVisit) return;
-    
-    let ignore = false;
-    
-    const fetchOpdServices = async () => {
-      try {
-        const [consultation, labOrder, imagingOrder, prescription, servicesResponse, batchesResponse] = await Promise.all([
-          opdApi.getConsultation(selectedVisit).catch(() => null),
-          opdApi.getClinicalOrder(selectedVisit, 'LABORATORY').catch(() => null),
-          opdApi.getClinicalOrder(selectedVisit, 'IMAGING').catch(() => null),
-          opdApi.getPrescription(selectedVisit).catch(() => null),
-          servicesApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
-          pharmacyInventoryApi.allBatches({ branch_id: selectedBranch, status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [] })),
-        ]);
-        
-        if (ignore) return;
-        
-        const services = servicesResponse.data;
-        const batches = batchesResponse.data;
-        const newDraftItems: DraftItem[] = [];
-        
-        // Auto-add Consultation if completed
-        if (consultation && consultation.status === 'COMPLETED') {
-           const consultService = services.find(s => s.service_type === 'GENERAL' && s.name.toLowerCase().includes('consultation'));
-           if (consultService) {
-             newDraftItems.push({
-                service_id: consultService.id,
-                service_type: 'CONSULTATION',
-                quantity: 1,
-                service_name: consultService.name,
-                unit_price: consultService.standard_price,
-                line_total: consultService.standard_price,
-             });
-           }
-        }
-        
-        // Auto-add Lab Tests
-        if (labOrder && labOrder.status !== 'DRAFT') {
-           for (const item of labOrder.items) {
-             const service = services.find(s => s.id === item.service_id);
-             if (service) {
-               newDraftItems.push({
-                 service_id: service.id,
-                 service_type: 'LAB_TEST',
-                 quantity: 1,
-                 service_name: service.name,
-                 unit_price: service.standard_price,
-                 line_total: service.standard_price,
-               });
-             }
-           }
-        }
-        
-        // Auto-add Imaging
-        if (imagingOrder && imagingOrder.status !== 'DRAFT') {
-           for (const item of imagingOrder.items) {
-             const service = services.find(s => s.id === item.service_id);
-             if (service) {
-               newDraftItems.push({
-                 service_id: service.id,
-                 service_type: 'IMAGING_SERVICE',
-                 quantity: 1,
-                 service_name: service.name,
-                 unit_price: service.standard_price,
-                 line_total: service.standard_price,
-               });
-             }
-           }
-        }
-        
-        // Auto-add Pharmacy
-        if (prescription && prescription.status !== 'DRAFT') {
-           for (const item of prescription.items) {
-             const batch = batches.find(b => b.medicine?.name === item.medicine_name);
-             if (batch) {
-               newDraftItems.push({
-                 service_id: batch.id,
-                 service_type: 'PHARMACY',
-                 quantity: item.quantity || 1,
-                 service_name: `${batch.medicine?.name} (Batch: ${batch.batch_number})`,
-                 unit_price: batch.unit_price,
-                 line_total: batch.unit_price * (item.quantity || 1),
-               });
-             }
-           }
-        }
-        
-        setDraftItems(newDraftItems);
-        
-      } catch (error) {
-        console.error('Failed to auto-populate services', error);
-      }
-    };
-    
-    void fetchOpdServices();
-    
-    return () => {
-      ignore = true;
-    };
-  }, [createMode, selectedVisit, selectedBranch]);
-
-
-  const invoiceQuery = useQuery({
-    queryKey: ['billing', 'invoice', invoiceId],
-    queryFn: () => billingApi.getById(invoiceId),
-    enabled: !createMode,
-  });
-  const paymentsQuery = useQuery({
-    queryKey: ['billing', 'payments', invoiceId],
-    queryFn: () => billingApi.payments(invoiceId),
-    enabled: !createMode,
-  });
+  const invoiceQuery = useBillingInvoiceDetails(!createMode ? invoiceId : null);
+  const paymentsQuery = useBillingPayments(!createMode ? invoiceId : null);
   const invoice = invoiceQuery.data;
 
   useEffect(() => {
@@ -261,76 +139,11 @@ export function BillingWorkspacePage() {
     });
   }, [invoice, invoiceForm]);
 
-  const invalidateInvoice = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['billing'] }),
-      invoiceId ? queryClient.invalidateQueries({ queryKey: ['billing', 'invoice', invoiceId] }) : Promise.resolve(),
-    ]);
-  };
-
-  const createMutation = useMutation({
-    mutationFn: (values: InvoiceForm) => {
-      const visit = visitsQuery.data?.data.find((item) => item.id === values.visit_id);
-      return billingApi.create({
-        ...values,
-        appointment_id: visit?.appointment_id ?? null,
-        items: draftItems.map(({ service_id, service_type, quantity }) => ({ service_id, service_type, quantity })),
-      });
-    },
-    onSuccess: async (created) => {
-      toast.success('Invoice draft created.');
-      await queryClient.invalidateQueries({ queryKey: ['billing'] });
-      navigate(`/billing/workspace?id=${created.id}`, { replace: true });
-    },
-    onError: (error) => toast.error(billingErrorMessage(error)),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ values, finalize }: { values: InvoiceForm; finalize: boolean }) => billingApi.update(invoiceId, {
-      invoice_date: values.invoice_date,
-      discount_amount: values.discount_amount,
-      tax_amount: values.tax_amount,
-      ...(finalize ? { status: 'PENDING' as const } : {}),
-    }),
-    onSuccess: async (_result, variables) => {
-      toast.success(variables.finalize ? 'Invoice finalized and ready for payment.' : 'Invoice updated.');
-      await invalidateInvoice();
-    },
-    onError: (error) => toast.error(billingErrorMessage(error)),
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: () => billingApi.cancel(invoiceId),
-    onSuccess: async () => {
-      toast.success('Invoice cancelled.');
-      setCancelOpen(false);
-      await invalidateInvoice();
-    },
-    onError: (error) => toast.error(billingErrorMessage(error)),
-  });
-
-  const paymentMutation = useMutation({
-    mutationFn: (values: PaymentForm) => billingApi.collectPayment(invoiceId, {
-      amount: values.amount,
-      payment_method: values.payment_method,
-      payment_date: values.payment_date,
-      reference_number: values.reference_number || null,
-    }),
-    onSuccess: async (result) => {
-      toast.success(result.invoice.status === 'PAID' ? 'Invoice paid in full.' : 'Partial payment collected.');
-      setPaymentOpen(false);
-      paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' });
-      await invalidateInvoice();
-      await queryClient.invalidateQueries({ queryKey: ['billing', 'payments', invoiceId] });
-    },
-    onError: (error) => toast.error(billingErrorMessage(error)),
-  });
-
-  const receiptMutation = useMutation({
-    mutationFn: (paymentId: string) => billingApi.receipt(paymentId),
-    onSuccess: setReceipt,
-    onError: (error) => toast.error(billingErrorMessage(error)),
-  });
+  const createMutation = useCreateBillingInvoice();
+  const updateMutation = useUpdateBillingInvoice();
+  const cancelMutation = useCancelBillingInvoice();
+  const paymentMutation = useCollectBillingPayment();
+  const receiptMutation = useBillingReceipt();
 
   const addItem = itemForm.handleSubmit((values) => {
     if (values.service_type === 'PHARMACY') {
@@ -363,7 +176,14 @@ export function BillingWorkspacePage() {
 
   const createInvoice = invoiceForm.handleSubmit((values) => {
     if (draftItems.length === 0) return toast.error('Add at least one billable service.');
-    createMutation.mutate(values);
+    const visit = visitsQuery.data?.data.find((item) => item.id === values.visit_id);
+    createMutation.mutate({
+      ...values,
+      appointment_id: visit?.appointment_id ?? null,
+      items: draftItems.map(({ service_id, service_type, quantity }) => ({ service_id, service_type, quantity })),
+    }, {
+      onSuccess: (created) => navigate(`/billing/workspace?id=${created.id}`, { replace: true })
+    });
   });
   const draftSubtotal = draftItems.reduce((sum, item) => sum + item.line_total, 0);
   const draftTotal = draftSubtotal - invoiceForm.watch('discount_amount') + invoiceForm.watch('tax_amount');
@@ -430,21 +250,21 @@ export function BillingWorkspacePage() {
     <div className="billing-workspace-grid">
       <main>
         <section className="billing-card"><div className="billing-card-head"><div><h3>Invoice Items</h3><p>Price snapshots remain unchanged after invoice creation</p></div></div><div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Source</th><th>Service</th><th>Quantity</th><th>Unit Price</th><th>Line Total</th></tr></thead><tbody>{invoice.items.map((item) => <tr key={item.id}><td>{billingServiceLabel[item.service_type]}</td><td><strong>{item.service_name}</strong></td><td>{item.quantity}</td><td>{formatBillingMoney(item.unit_price)}</td><td>{formatBillingMoney(item.line_total)}</td></tr>)}</tbody></table></div></section>
-        <section className="billing-card"><div className="billing-card-head"><div><h3>Payments</h3><p>Collected payments and receipt access</p></div></div>{paymentsQuery.isError ? <div className="billing-inline-alert error">Payments could not be loaded.</div> : <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Payment</th><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th><th>Receipt</th></tr></thead><tbody>{paymentsQuery.isLoading ? <tr><td className="um-state-cell" colSpan={6}>Loading payments…</td></tr> : null}{!paymentsQuery.isLoading && (paymentsQuery.data?.length ?? 0) === 0 ? <tr><td className="um-state-cell" colSpan={6}>No payments collected.</td></tr> : null}{paymentsQuery.data?.map((payment) => <tr key={payment.id}><td><strong>{payment.payment_number}</strong></td><td>{formatBillingDateTime(payment.payment_date)}</td><td>{payment.payment_method.replaceAll('_', ' ')}</td><td>{payment.reference_number ?? 'Cash'}</td><td>{formatBillingMoney(payment.amount)}</td><td>{hasAction('ViewReceipt') ? <button className="btn-secondary" disabled={receiptMutation.isPending} onClick={() => receiptMutation.mutate(payment.id)} type="button"><i className="ph ph-receipt" /> View</button> : '—'}</td></tr>)}</tbody></table></div>}</section>
+        <section className="billing-card"><div className="billing-card-head"><div><h3>Payments</h3><p>Collected payments and receipt access</p></div></div>{paymentsQuery.isError ? <div className="billing-inline-alert error">Payments could not be loaded.</div> : <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Payment</th><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th><th>Receipt</th></tr></thead><tbody>{paymentsQuery.isLoading ? <tr><td className="um-state-cell" colSpan={6}>Loading payments…</td></tr> : null}{!paymentsQuery.isLoading && (paymentsQuery.data?.length ?? 0) === 0 ? <tr><td className="um-state-cell" colSpan={6}>No payments collected.</td></tr> : null}{paymentsQuery.data?.map((payment) => <tr key={payment.id}><td><strong>{payment.payment_number}</strong></td><td>{formatBillingDateTime(payment.payment_date)}</td><td>{payment.payment_method.replaceAll('_', ' ')}</td><td>{payment.reference_number ?? 'Cash'}</td><td>{formatBillingMoney(payment.amount)}</td><td>{hasAction('ViewReceipt') ? <button className="btn-secondary" disabled={receiptMutation.isPending} onClick={() => receiptMutation.mutate(payment.id, { onSuccess: setReceipt })} type="button"><i className="ph ph-receipt" /> View</button> : '—'}</td></tr>)}</tbody></table></div>}</section>
       </main>
       <aside className="billing-summary-card">
         <h3>Financial Summary</h3>
-        {editable ? <form onSubmit={invoiceForm.handleSubmit((values) => updateMutation.mutate({ values, finalize: false }))}><label><span>Invoice Date</span><input type="date" {...invoiceForm.register('invoice_date')} /></label><label><span>Discount Amount</span><input min="0" step="0.01" type="number" {...invoiceForm.register('discount_amount', { valueAsNumber: true })} /></label><label><span>Tax Amount</span><input min="0" step="0.01" type="number" {...invoiceForm.register('tax_amount', { valueAsNumber: true })} /></label></form> : null}
+        {editable ? <form onSubmit={invoiceForm.handleSubmit((values) => updateMutation.mutate({ id: invoiceId, payload: { invoice_date: values.invoice_date, discount_amount: values.discount_amount, tax_amount: values.tax_amount }, finalize: false }))}><label><span>Invoice Date</span><input type="date" {...invoiceForm.register('invoice_date')} /></label><label><span>Discount Amount</span><input min="0" step="0.01" type="number" {...invoiceForm.register('discount_amount', { valueAsNumber: true })} /></label><label><span>Tax Amount</span><input min="0" step="0.01" type="number" {...invoiceForm.register('tax_amount', { valueAsNumber: true })} /></label></form> : null}
         <div className="billing-total-row"><span>Subtotal</span><strong>{formatBillingMoney(invoice.subtotal)}</strong></div><div className="billing-total-row"><span>Discount</span><strong>− {formatBillingMoney(invoice.discount_amount)}</strong></div><div className="billing-total-row"><span>Tax</span><strong>{formatBillingMoney(invoice.tax_amount)}</strong></div><div className="billing-total-row grand"><span>Total</span><strong>{formatBillingMoney(invoice.total_amount)}</strong></div><div className="billing-total-row"><span>Paid</span><strong className="billing-balance-clear">{formatBillingMoney(invoice.paid_amount)}</strong></div><div className="billing-total-row due"><span>Balance</span><strong>{formatBillingMoney(invoice.balance_amount)}</strong></div>
-        {editable && hasAction('Edit') ? <><button className="btn-secondary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ values, finalize: false }))} type="button">Save Changes</button>{invoice.status === 'DRAFT' ? <button className="btn-primary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ values, finalize: true }))} type="button">Finalize Invoice</button> : null}</> : null}
+        {editable && hasAction('Edit') ? <><button className="btn-secondary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ id: invoiceId, payload: { invoice_date: values.invoice_date, discount_amount: values.discount_amount, tax_amount: values.tax_amount }, finalize: false }))} type="button">Save Changes</button>{invoice.status === 'DRAFT' ? <button className="btn-primary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ id: invoiceId, payload: { invoice_date: values.invoice_date, discount_amount: values.discount_amount, tax_amount: values.tax_amount }, finalize: true }))} type="button">Finalize Invoice</button> : null}</> : null}
       </aside>
     </div>
 
-    <Modal footer={<><button className="btn-secondary" onClick={() => setPaymentOpen(false)} type="button">Cancel</button><button className="btn-primary" disabled={paymentMutation.isPending} onClick={paymentForm.handleSubmit((values) => paymentMutation.mutate(values))} type="button">{paymentMutation.isPending ? 'Collecting…' : 'Collect Payment'}</button></>} icon="ph-currency-circle-dollar" onClose={() => setPaymentOpen(false)} open={paymentOpen} title="Collect Payment">
-      <div className="billing-payment-summary"><span>Invoice balance</span><strong>{formatBillingMoney(invoice.balance_amount)}</strong></div><form className="billing-modal-form" onSubmit={paymentForm.handleSubmit((values) => paymentMutation.mutate(values))}><label><span>Amount *</span><input max={invoice.balance_amount} min="0.01" step="0.01" type="number" {...paymentForm.register('amount', { valueAsNumber: true })} /><small>{paymentForm.formState.errors.amount?.message}</small></label><label><span>Payment Method *</span><select {...paymentForm.register('payment_method')}><option value="CASH">Cash</option><option value="CARD">Card</option><option value="UPI">UPI</option><option value="BANK_TRANSFER">Bank Transfer</option></select></label><label><span>Payment Date *</span><input type="date" {...paymentForm.register('payment_date')} /></label><label><span>Reference Number {paymentMethod === 'CASH' ? '(optional)' : '*'}</span><input {...paymentForm.register('reference_number')} /><small>{paymentForm.formState.errors.reference_number?.message}</small></label></form>
+    <Modal footer={<><button className="btn-secondary" onClick={() => setPaymentOpen(false)} type="button">Cancel</button><button className="btn-primary" disabled={paymentMutation.isPending} onClick={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))} type="button">{paymentMutation.isPending ? 'Collecting…' : 'Collect Payment'}</button></>} icon="ph-currency-circle-dollar" onClose={() => setPaymentOpen(false)} open={paymentOpen} title="Collect Payment">
+      <div className="billing-payment-summary"><span>Invoice balance</span><strong>{formatBillingMoney(invoice.balance_amount)}</strong></div><form className="billing-modal-form" onSubmit={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))}><label><span>Amount *</span><input max={invoice.balance_amount} min="0.01" step="0.01" type="number" {...paymentForm.register('amount', { valueAsNumber: true })} /><small>{paymentForm.formState.errors.amount?.message}</small></label><label><span>Payment Method *</span><select {...paymentForm.register('payment_method')}><option value="CASH">Cash</option><option value="CARD">Card</option><option value="UPI">UPI</option><option value="BANK_TRANSFER">Bank Transfer</option></select></label><label><span>Payment Date *</span><input type="date" {...paymentForm.register('payment_date')} /></label><label><span>Reference Number {paymentMethod === 'CASH' ? '(optional)' : '*'}</span><input {...paymentForm.register('reference_number')} /><small>{paymentForm.formState.errors.reference_number?.message}</small></label></form>
     </Modal>
 
-    <Modal footer={<><button className="btn-secondary" onClick={() => setCancelOpen(false)} type="button">Keep Invoice</button><button className="btn-danger" disabled={cancelMutation.isPending} onClick={() => cancelMutation.mutate()} type="button">Cancel Invoice</button></>} icon="ph-warning" onClose={() => setCancelOpen(false)} open={cancelOpen} title="Cancel Invoice">
+    <Modal footer={<><button className="btn-secondary" onClick={() => setCancelOpen(false)} type="button">Keep Invoice</button><button className="btn-danger" disabled={cancelMutation.isPending} onClick={() => cancelMutation.mutate(invoiceId, { onSuccess: () => setCancelOpen(false) })} type="button">Cancel Invoice</button></>} icon="ph-warning" onClose={() => setCancelOpen(false)} open={cancelOpen} title="Cancel Invoice">
       <p>This cancels the unpaid invoice and prevents future payments. This action is audit logged.</p>
     </Modal>
 

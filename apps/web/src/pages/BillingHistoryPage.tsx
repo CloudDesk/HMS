@@ -1,13 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import type { BillingInvoiceListParams, BillingInvoiceStatus } from '../api/billing';
-import { billingApi } from '../api/billing';
-import { branchesApi } from '../api/branches';
-import { patientsApi } from '../api/patients';
 import { useAuth } from '../auth/useAuth';
 import { useCurrencyFormatter } from '../api/useSettings';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
+import { useBranchesList } from '../hooks/branches/useBranches';
+import { usePatientsList } from '../hooks/patients/usePatients';
+import { useBillingInvoices } from '../hooks/billing/useBilling';
 
 const statuses: BillingInvoiceStatus[] = ['DRAFT', 'PENDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'];
 
@@ -30,15 +29,9 @@ export function BillingHistoryPage() {
   const branchId = params.get('branch_id') ?? '';
   const [invoiceInput, setInvoiceInput] = useState(invoiceNumber);
 
-  const branchesQuery = useQuery({
-    queryKey: ['branches', 'billing-history-options'],
-    queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
-    enabled: superAdmin,
-  });
-  const patientsQuery = useQuery({
-    queryKey: ['patients', 'billing-history-options'],
-    queryFn: () => patientsApi.list({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'last_name', sortOrder: 'asc' }),
-  });
+  const branchesQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }, superAdmin);
+  const patientsQuery = usePatientsList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'last_name', sortOrder: 'asc' });
+  
   const branches = superAdmin
     ? (branchesQuery.data?.data ?? []).map((branch) => ({ id: branch.id, name: branch.name }))
     : (user?.branches ?? []).map((branch) => ({ id: branch.id, name: branch.name }));
@@ -55,10 +48,7 @@ export function BillingHistoryPage() {
     sortBy: 'created_at',
     sortOrder: 'desc',
   };
-  const invoicesQuery = useQuery({
-    queryKey: ['billing', 'history', queryParams],
-    queryFn: () => billingApi.list(queryParams),
-  });
+  const invoicesQuery = useBillingInvoices(queryParams);
 
   const update = (changes: Record<string, string | number | null>) => {
     const next = new URLSearchParams(location.search);
