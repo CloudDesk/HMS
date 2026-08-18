@@ -89,6 +89,9 @@ export class OpdPrescriptionService {
   }
 
   async updateStatus(id: string, status: import('./opd-prescription.types.js').OpdPrescriptionStatus, userId: string) {
+    if (status === 'DISPENSED' || status === 'CANCELLED') {
+      throw new AppError('Prescription dispensing status is managed by the pharmacy workflow', 409, 'PRESCRIPTION_STATUS_MANAGED_BY_WORKFLOW');
+    }
     return this.repository.updateStatus(id, status, userId);
   }
 

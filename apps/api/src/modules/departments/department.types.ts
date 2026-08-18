@@ -5,7 +5,7 @@ export type Department = {
   code: string;
   name: string;
   description: string | null;
-  branch_id: string;
+  branch_ids: string[];
   status: DepartmentStatus;
   isClinical: boolean;
   created_by: string | null;
@@ -27,7 +27,7 @@ export type DepartmentListQuery = {
 export type CreateDepartmentDTO = {
   code: string;
   name: string;
-  branch_id: string;
+  branch_ids: string[];
   description?: string | null;
   status?: DepartmentStatus;
   isClinical?: boolean;

@@ -5,7 +5,7 @@ export interface IDepartment extends Document {
   code: string;
   name: string;
   description?: string;
-  branchId: Types.ObjectId;
+  branchIds: Types.ObjectId[];
   status: 'ACTIVE' | 'INACTIVE';
   isClinical: boolean;
 
@@ -23,7 +23,7 @@ const departmentSchema = new Schema<IDepartment>(
     code: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     description: { type: String },
-    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    branchIds: [{ type: Schema.Types.ObjectId, ref: 'Branch', required: true }],
     status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
     isClinical: { type: Boolean, default: false },
 
@@ -46,7 +46,7 @@ const departmentSchema = new Schema<IDepartment>(
 );
 
 departmentSchema.index({ name: 1 });
-departmentSchema.index({ branchId: 1 });
+departmentSchema.index({ branchIds: 1 });
 departmentSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
 
 export const DepartmentModel = mongoose.model<IDepartment>('Department', departmentSchema);

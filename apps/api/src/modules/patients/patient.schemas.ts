@@ -83,10 +83,10 @@ export const listPatientTimelineQuerySchema = {
 
 export const createPatientBodySchema = {
   type: 'object',
-  required: ['first_name', 'last_name', 'date_of_birth', 'gender'],
+  required: ['last_name', 'date_of_birth', 'gender'],
   additionalProperties: false,
   properties: {
-    first_name: { type: 'string', minLength: 1 },
+    first_name: { type: ['string', 'null'] },
     middle_name: { type: ['string', 'null'] },
     last_name: { type: 'string', minLength: 1 },
     date_of_birth: { type: 'string', minLength: 1 },
@@ -98,6 +98,7 @@ export const createPatientBodySchema = {
     registration_branch_id: { type: ['string', 'null'] },
     blood_group: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DECEASED'] },
+    parent_guardian: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
   },
 } as const;
@@ -107,7 +108,7 @@ export const updatePatientBodySchema = {
   minProperties: 1,
   additionalProperties: false,
   properties: {
-    first_name: { type: 'string', minLength: 1 },
+    first_name: { type: ['string', 'null'] },
     middle_name: { type: ['string', 'null'] },
     last_name: { type: 'string', minLength: 1 },
     date_of_birth: { type: 'string', minLength: 1 },
@@ -119,6 +120,7 @@ export const updatePatientBodySchema = {
     registration_branch_id: { type: ['string', 'null'] },
     blood_group: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DECEASED'] },
+    parent_guardian: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
   },
 } as const;

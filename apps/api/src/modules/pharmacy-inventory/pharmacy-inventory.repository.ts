@@ -128,6 +128,20 @@ export class PharmacyInventoryRepository {
     return query;
   }
 
+  async findMedicineByName(name: string, session?: ClientSession) {
+    const query = MedicineModel.findOne({ name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), status: 'ACTIVE', deletedAt: null })
+      .select('_id code name status').lean();
+    if (session) query.session(session);
+    return query;
+  }
+
+  async findAvailableBatch(medicineId: string, branchId: string, session?: ClientSession) {
+    const query = PharmacyMedicineBatchModel.findOne({ medicineId: objectId(medicineId), branchId: objectId(branchId), status: 'ACTIVE', quantityOnHand: { $gt: 0 }, expiryDate: { $gte: startOfUtcDay() } })
+      .sort({ expiryDate: 1, _id: 1 }).lean();
+    if (session) query.session(session);
+    return query;
+  }
+
   async hasInventoryReferences(medicineId: string) {
     return Boolean(await PharmacyMedicineInventoryModel.exists({ medicineId }));
   }

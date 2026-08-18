@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   OpdPrescriptionModel,
@@ -169,5 +169,19 @@ export class OpdPrescriptionRepository {
     }
 
     return toPrescription(record);
+  }
+
+  async updateStatusIf(
+    id: string,
+    currentStatus: import('./opd-prescription.types.js').OpdPrescriptionStatus,
+    status: import('./opd-prescription.types.js').OpdPrescriptionStatus,
+    userId: string,
+    session: ClientSession,
+  ) {
+    return OpdPrescriptionModel.findOneAndUpdate(
+      { _id: objectId(id), status: currentStatus, deletedAt: null },
+      { $set: { status, updatedBy: objectId(userId) } },
+      { returnDocument: 'after', lean: true, session },
+    ).lean<OpdPrescriptionLean>();
   }
 }

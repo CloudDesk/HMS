@@ -171,7 +171,7 @@ export function AppointmentBookingPage() {
           : new Date(appointmentDate);
       const dayOfWeek = dayNames[dateObj.getDay()];
       const dayAvail = selectedDoctor?.availability.find((a) => a.day_of_week === dayOfWeek);
-      const configuredMaxPatients = dayAvail?.max_patients_per_slot ?? availableSlotsRes.max_patients_per_slot ?? 2;
+      const configuredMaxPatients = dayAvail?.max_patients_per_slot ?? availableSlotsRes.max_patients_per_slot ?? 1;
 
       const bookedCountMap: Record<string, number> = {};
       existingApptsRes.data.forEach((appt) => {
@@ -306,10 +306,6 @@ export function AppointmentBookingPage() {
             <h2>Book Appointment</h2>
             <p>Find a patient, choose an available clinician slot, and confirm the booking.</p>
           </div>
-          <button className="doc-btn" onClick={() => navigate('/appointments')} type="button">
-            <i className="ph ph-arrow-left" aria-hidden="true" />
-            Appointment Dashboard
-          </button>
         </section>
 
         <section className="appointment-steps" aria-label="Booking progress">

@@ -40,7 +40,7 @@ const toObjectId = (value: string | null | undefined) => (value ? new Types.Obje
 const toPatient = (patient: PatientLean): Patient => ({
   id: patient._id.toString(),
   patient_number: patient.patientNumber,
-  first_name: patient.firstName,
+  first_name: patient.firstName ?? null,
   middle_name: patient.middleName ?? null,
   last_name: patient.lastName,
   date_of_birth: patient.dateOfBirth,
@@ -60,6 +60,7 @@ const toPatient = (patient: PatientLean): Patient => ({
     relationship: patient.emergencyContact?.relationship ?? null,
     phone: patient.emergencyContact?.phone ?? null,
   },
+  parent_guardian: patient.parentGuardian ?? null,
   registration_branch_id: patient.registrationBranchId?.toString() ?? null,
   blood_group: patient.bloodGroup ?? null,
   status: patient.status,
@@ -112,7 +113,7 @@ const sortColumnMap = {
 } as const;
 
 const buildPatientPayload = (data: CreatePatientDTO | UpdatePatientDTO) => ({
-  ...(data.first_name !== undefined ? { firstName: data.first_name.trim() } : {}),
+  ...(data.first_name !== undefined ? { firstName: nullableString(data.first_name) } : {}),
   ...(data.middle_name !== undefined ? { middleName: nullableString(data.middle_name) } : {}),
   ...(data.last_name !== undefined ? { lastName: data.last_name.trim() } : {}),
   ...(data.date_of_birth !== undefined ? { dateOfBirth: new Date(data.date_of_birth) } : {}),
@@ -140,6 +141,7 @@ const buildPatientPayload = (data: CreatePatientDTO | UpdatePatientDTO) => ({
         },
       }
     : {}),
+  ...(data.parent_guardian !== undefined ? { parentGuardian: nullableString(data.parent_guardian) } : {}),
   ...(data.registration_branch_id !== undefined
     ? { registrationBranchId: toObjectId(data.registration_branch_id) }
     : {}),
@@ -235,7 +237,7 @@ export class PatientRepository {
   async findDuplicateCandidates(data: CreatePatientDTO, branchIds?: string[]) {
     const filters: Record<string, unknown>[] = [
       {
-        firstName: new RegExp(`^${escapeRegex(data.first_name)}$`, 'i'),
+        ...(data.first_name ? { firstName: new RegExp(`^${escapeRegex(data.first_name)}$`, 'i') } : {}),
         lastName: new RegExp(`^${escapeRegex(data.last_name)}$`, 'i'),
         dateOfBirth: new Date(data.date_of_birth),
       },

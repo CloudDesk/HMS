@@ -58,7 +58,7 @@ const opdPrescriptionSchema = new Schema<OpdPrescriptionFields>(
     patientName: { type: String, required: true },
     doctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true },
     doctorName: { type: String, required: true },
-    status: { type: String, enum: ['DRAFT', 'SUBMITTED', 'DISPENSED'], default: 'DRAFT', required: true },
+    status: { type: String, enum: ['DRAFT', 'SUBMITTED', 'DISPENSED', 'CANCELLED'], default: 'DRAFT', required: true },
     items: { type: [prescriptionItemSchema], default: [] },
     followUpDate: { type: Date, default: null },
     doctorInstructions: { type: String, default: null },

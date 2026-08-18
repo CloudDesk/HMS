@@ -11,6 +11,7 @@ const workingBlockSchema = {
     start_time: { type: 'string', pattern: timePattern },
     end_time: { type: 'string', pattern: timePattern },
     slot_duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
+    max_patients_per_slot: { type: 'integer', minimum: 1, maximum: 100 },
   },
 } as const;
 

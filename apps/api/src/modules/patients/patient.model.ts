@@ -9,7 +9,7 @@ import type {
 
 export type PatientDocumentFields = {
   patientNumber: string;
-  firstName: string;
+  firstName?: string | null;
   middleName?: string | null;
   lastName: string;
   dateOfBirth: Date;
@@ -29,6 +29,7 @@ export type PatientDocumentFields = {
     relationship?: string | null;
     phone?: string | null;
   };
+  parentGuardian?: string | null;
   registrationBranchId?: Types.ObjectId | null;
   bloodGroup?: string | null;
   status: PatientStatus;
@@ -44,7 +45,7 @@ export type PatientDocumentFields = {
 const patientSchema = new Schema<PatientDocumentFields>(
   {
     patientNumber: { type: String, required: true, unique: true },
-    firstName: { type: String, required: true },
+    firstName: { type: String, default: null },
     middleName: { type: String, default: null },
     lastName: { type: String, required: true },
     dateOfBirth: { type: Date, required: true },
@@ -64,6 +65,7 @@ const patientSchema = new Schema<PatientDocumentFields>(
       relationship: { type: String, default: null },
       phone: { type: String, default: null },
     },
+    parentGuardian: { type: String, default: null },
     registrationBranchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
     bloodGroup: { type: String, default: null },
     status: { type: String, enum: ['ACTIVE', 'INACTIVE', 'DECEASED'], default: 'ACTIVE', required: true },

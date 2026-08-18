@@ -5,7 +5,7 @@ export const patientFullName = (patient: PatientResponse) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
 
 export const patientInitials = (patient: PatientResponse) =>
-  `${patient.first_name.charAt(0)}${patient.last_name.charAt(0)}`.toUpperCase();
+  `${patient.first_name?.charAt(0) ?? ''}${patient.last_name.charAt(0)}`.toUpperCase();
 
 export const formatDate = (value: string | null | undefined) => {
   if (!value) return '-';
@@ -16,6 +16,16 @@ export const formatDate = (value: string | null | undefined) => {
     month: 'short',
     year: 'numeric',
   }).format(date);
+};
+
+export const calculateAge = (dob: string | null | undefined) => {
+  if (!dob) return '';
+  const birthDate = new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) return '';
+  const ageDifMs = Date.now() - birthDate.getTime();
+  const ageDate = new Date(ageDifMs);
+  const years = Math.abs(ageDate.getUTCFullYear() - 1970);
+  return `${years} years`;
 };
 
 export const formatDateTime = (value: string | null | undefined) => {

@@ -94,6 +94,7 @@ const toAvailability = (availability: DoctorAvailabilityFields): DoctorAvailabil
         start_time: block.startTime,
         end_time: block.endTime,
         slot_duration_minutes: block.slotDurationMinutes,
+        max_patients_per_slot: block.maxPatientsPerSlot ?? 1,
       }))
     : legacyWorkingBlocks(availability),
 });
@@ -147,6 +148,7 @@ const toException = (exception: DoctorExceptionLean): DoctorAvailabilityExceptio
     start_time: block.startTime,
     end_time: block.endTime,
     slot_duration_minutes: block.slotDurationMinutes,
+    max_patients_per_slot: block.maxPatientsPerSlot ?? 1,
   })),
   reason: exception.reason,
   created_by: exception.createdBy?.toString() ?? null,
@@ -178,8 +180,8 @@ const buildDoctorPayload = (data: CreateDoctorDTO | UpdateDoctorDTO) => ({
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
 });
 
-const buildWorkingBlocks = (blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number }>) =>
-  blocks.map((block) => ({ startTime: block.start_time, endTime: block.end_time, slotDurationMinutes: block.slot_duration_minutes }));
+const buildWorkingBlocks = (blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number; max_patients_per_slot?: number }>) =>
+  blocks.map((block) => ({ startTime: block.start_time, endTime: block.end_time, slotDurationMinutes: block.slot_duration_minutes, maxPatientsPerSlot: block.max_patients_per_slot ?? 1 }));
 
 const buildAvailabilityPayload = (input: SaveDoctorAvailabilityDTO) =>
   input.availability.map((item) => ({

@@ -1,4 +1,4 @@
-export type OpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED' | 'DISPENSED';
+export type OpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED' | 'DISPENSED' | 'CANCELLED';
 
 export type OpdPrescriptionItem = {
   id: string;

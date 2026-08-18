@@ -23,11 +23,12 @@ export type PatientEmergencyContact = {
 export type PatientResponse = {
   id: string;
   patient_number: string;
-  first_name: string;
+  first_name: string | null;
   middle_name: string | null;
   last_name: string;
   date_of_birth: string;
   gender: ApiPatientGender;
+  parent_guardian: string | null;
   phone: string | null;
   email: string | null;
   address: PatientAddress;
@@ -63,11 +64,12 @@ export type PatientListParams = Partial<{
 }>;
 
 export type SavePatientPayload = {
-  first_name: string;
+  first_name?: string | null;
   middle_name?: string | null;
   last_name: string;
   date_of_birth: string;
   gender: ApiPatientGender;
+  parent_guardian?: string | null;
   phone?: string | null;
   email?: string | null;
   address?: PatientAddress;

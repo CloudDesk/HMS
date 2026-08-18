@@ -81,8 +81,13 @@ const permissionDefinitions: PermissionDefinition[] = [
   }, 'CLINICAL', 'OPD'),
   ...expandPermissions('Pharmacy', {
     'Medicine Inventory': ['View', 'RegisterBatch', 'RecordMovement', 'AdjustStock', 'EditBatch', 'ConfigureLowStock'],
-    Dispensing: ['View', 'Dispense', 'UpdateStatus'],
+    Dispensing: ['View', 'Edit', 'Dispense', 'Cancel', 'Reverse', 'UpdateStatus'],
   }, 'CLINICAL', 'PHARMACY'),
+  ...expandPermissions('Admissions', {
+    Wards: ['View', 'Create', 'Edit', 'ChangeStatus'],
+    Beds: ['View', 'Create', 'Edit', 'ChangeStatus'],
+    'Inpatient Admissions': ['View', 'Create'],
+  }, 'CLINICAL', 'ADMISSIONS'),
   ...expandPermissions('Laboratory', {
     Orders: ['View', 'Edit', 'EnterResult', 'VerifyResult'],
   }, 'CLINICAL', 'LABORATORY'),
@@ -109,6 +114,8 @@ const administratorPermissionCodes = [
   ...['Branches', 'Departments', 'Services', 'Medicines'].flatMap((screen) =>
     ['View', 'Create', 'Edit', 'Export'].map((action) => code('Administration', screen, action))),
   ...['View', 'Edit', 'Export'].map((action) => `settings.${action.toLowerCase()}`),
+  ...['View', 'Create', 'Edit', 'ChangeStatus'].flatMap((action) => [code('Admissions', 'Wards', action), code('Admissions', 'Beds', action)]),
+  ...['View', 'Create'].map((action) => code('Admissions', 'Inpatient Admissions', action)),
   ...['View', 'Create', 'Edit', 'Export', 'Provision Login'].map((action) => code('Doctors', 'Doctor Directory', action)),
   ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
 ];
@@ -174,7 +181,7 @@ const roleDefinitions: RoleDefinition[] = [
       code('OPD', 'OPD Prescription', 'View'),
       ...['View', 'RegisterBatch', 'RecordMovement', 'AdjustStock', 'EditBatch', 'ConfigureLowStock'].map((action) =>
         code('Pharmacy', 'Medicine Inventory', action)),
-      ...['View', 'Dispense', 'UpdateStatus'].map((action) => code('Pharmacy', 'Dispensing', action)),
+      ...['View', 'Edit', 'Dispense', 'Cancel', 'Reverse', 'UpdateStatus'].map((action) => code('Pharmacy', 'Dispensing', action)),
     ],
   },
   {
@@ -399,7 +406,7 @@ export const seedDatabase = async () => {
   }
 
   const activeDepartments = await DepartmentModel.find({
-    branchId: { $in: activeBranches.map((branch) => branch._id) }, status: 'ACTIVE', deletedAt: null,
+    branchIds: { $in: activeBranches.map((branch) => branch._id) }, status: 'ACTIVE', deletedAt: null,
   }).sort({ name: 1, _id: 1 }).lean();
 
   const operationalPassword = process.env.HMS_SEED_OPERATIONAL_PASSWORD ??
@@ -412,7 +419,7 @@ export const seedDatabase = async () => {
 
     const branch = branchesByCode.get(userSeed.branchCode)!;
     const department = activeDepartments.find((item) =>
-      String(item.branchId) === String(branch._id) &&
+      item.branchIds.map(id => String(id)).includes(String(branch._id)) &&
       userSeed.departmentTerms.some((term) => `${item.code} ${item.name}`.toLowerCase().includes(term)));
     if (!department) {
       console.warn(`[Seeder Warning] An active ${userSeed.departmentTerms.join('/')} department is required in branch ${userSeed.branchCode} to seed ${userSeed.username}`);

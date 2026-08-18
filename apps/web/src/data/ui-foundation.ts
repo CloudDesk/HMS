@@ -49,7 +49,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/opd/queue', label: 'Queue Management' },
     ],
   },
-  // Emergency and Admissions are deferred modules. Restore these entries when their implementation phase begins.
+  // Emergency remains deferred. Admissions configuration is enabled for R2.
   // {
   //   key: 'emergency',
   //   label: 'Emergency',
@@ -60,17 +60,15 @@ export const sidebarModules: SidebarModule[] = [
   //     { href: '/emergency/workspace', label: 'Emergency Workspace' },
   //   ],
   // },
-  // {
-  //   key: 'admissions',
-  //   label: 'Admissions',
-  //   icon: 'ph-bed',
-  //   links: [
-  //     { href: '/admissions', label: 'Dashboard' },
-  //     { href: '/admissions/requests', label: 'Admission Requests' },
-  //     { href: '/admissions/beds', label: 'Bed Management' },
-  //     { href: '/admissions/workspace', label: 'Inpatient Workspace' },
-  //   ],
-  // },
+  {
+    key: 'admissions',
+    label: 'Admissions',
+    icon: 'ph-bed',
+    links: [
+      { href: '/admissions/inpatients', label: 'Inpatient Admission' },
+      { href: '/admissions/beds', label: 'Bed Management' },
+    ],
+  },
   {
     key: 'pharmacy',
     label: 'Pharmacy',

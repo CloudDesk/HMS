@@ -51,6 +51,8 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/opd/queue': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/visit': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
+  '/admissions/beds': [{ module: 'Admissions', screen: 'Beds' }],
+  '/admissions/inpatients': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
 };
 
 const normalize = (value: string) => value.trim().toLowerCase();

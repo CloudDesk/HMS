@@ -66,7 +66,7 @@ const toForm = (patient: PatientResponse): ProfileForm => ({
   bloodGroup: patient.blood_group ?? '',
   dateOfBirth: patient.date_of_birth.slice(0, 10),
   email: patient.email ?? '',
-  firstName: patient.first_name,
+  firstName: patient.first_name ?? '',
   gender: patient.gender,
   lastName: patient.last_name,
   notes: patient.notes ?? '',
@@ -808,17 +808,17 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               {/* Card 3: Current Prescriptions */}
               <article className="profile-overview-card">
                 <h3><i className="ph ph-pill" /> Current Prescriptions</h3>
-                {timeline.filter((t) => t.title.toLowerCase().includes('prescr') || t.title.toLowerCase().includes('med')).length === 0 ? (
-                  <EmptyRecords message="No active prescriptions recorded for this patient." />
+                {prescriptions.flatMap(p => p.items).length === 0 ? (
+                  <EmptyRecords message="No prescriptions recorded for this patient." />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {timeline.slice(0, 3).map((item) => (
+                    {prescriptions.flatMap(p => p.items.map(item => ({ item, pStatus: p.status }))).slice(0, 3).map(({ item, pStatus }) => (
                       <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
                         <div>
-                          <strong>{item.title}</strong>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.description}</div>
+                          <strong>{item.medicine_name}</strong>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.dosage} - {item.frequency} ({item.duration})</div>
                         </div>
-                        <span className="doc-status active">• Active</span>
+                        <span className={`doc-status ${pStatus === 'SUBMITTED' || pStatus === 'DRAFT' ? 'active' : pStatus === 'DISPENSED' ? 'success' : 'neutral'}`}>• {pStatus.charAt(0).toUpperCase() + pStatus.slice(1).toLowerCase()}</span>
                       </div>
                     ))}
                   </div>
@@ -883,7 +883,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           {/* ── Medical History ──────────────────────────────────────────── */}
           {activeTab === 'Medical History' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="emr-filter-row">
+              <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
                   <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters(prev => ({ ...prev, from: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} />
@@ -892,13 +892,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <label>To</label>
                   <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters(prev => ({ ...prev, to: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} />
                 </div>
-                <div className="doc-field">
-                  <label>&nbsp;</label>
-                  <button className="doc-btn secondary" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} style={{ padding: '0.625rem 1rem' }}>
-                    <i className="ph ph-arrow-counter-clockwise" /> Reset
-                  </button>
-                </div>
-                {timelineLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'flex-end', paddingBottom: '0.5rem' }}>Loading...</span>}
+                <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta(prev => ({ ...prev, page: 1 })); }}>
+                  Reset
+                </button>
+                {timelineLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
               {timelineData.length === 0 ? (
                 <EmptyRecords message="No medical history events recorded for this patient." />
@@ -945,7 +942,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           {/* ── Visits ───────────────────────────────────────────────────── */}
           {activeTab === 'Visits' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="emr-filter-row">
+              <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
                   <input type="date" value={visitsFilters.date_from} onChange={(e) => { setVisitsFilters(prev => ({ ...prev, date_from: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} />
@@ -954,13 +951,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <label>To</label>
                   <input type="date" value={visitsFilters.date_to} onChange={(e) => { setVisitsFilters(prev => ({ ...prev, date_to: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} />
                 </div>
-                <div className="doc-field">
-                  <label>&nbsp;</label>
-                  <button className="doc-btn secondary" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} style={{ padding: '0.625rem 1rem' }}>
-                    <i className="ph ph-arrow-counter-clockwise" /> Reset
-                  </button>
-                </div>
-                {visitsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'flex-end', paddingBottom: '0.5rem' }}>Loading...</span>}
+                <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta(prev => ({ ...prev, page: 1 })); }}>
+                  Reset
+                </button>
+                {visitsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
               {visitsData.length === 0 ? (
                 <EmptyRecords message="No OPD visit records found for this patient." />
@@ -1009,7 +1003,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           {/* ── Appointments ─────────────────────────────────────────────── */}
           {activeTab === 'Appointments' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="emr-filter-row">
+              <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
                   <input type="date" value={appointmentFilters.date_from} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, date_from: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }} />
@@ -1023,17 +1017,14 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <select value={appointmentFilters.doctor_id} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, doctor_id: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }}>
                     <option value="">All Doctors</option>
                     {doctorsList.map(doc => (
-                      <option key={doc.id} value={doc.id}>{doc.display_name || doc.first_name + ' ' + doc.last_name}</option>
+                      <option key={doc.id} value={doc.id}>{doc.display_name}</option>
                     ))}
                   </select>
                 </div>
-                <div className="doc-field">
-                  <label>&nbsp;</label>
-                  <button className="doc-btn secondary" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }} style={{ padding: '0.625rem 1rem' }}>
-                    <i className="ph ph-arrow-counter-clockwise" /> Reset
-                  </button>
-                </div>
-                {appointmentsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'flex-end', paddingBottom: '0.5rem' }}>Loading...</span>}
+                <button className="doc-btn" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }}>
+                  Reset
+                </button>
+                {appointmentsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
               {appointments.length === 0 ? (
                 <EmptyRecords message="No appointments recorded for this patient." />

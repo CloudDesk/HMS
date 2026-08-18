@@ -36,7 +36,7 @@ type InvoiceListRow = InvoiceLean & {
   appointmentNumber?: string | null;
 };
 
-type CreateInvoiceRecord = {
+export type CreateInvoiceRecord = {
   invoiceNumber: string;
   patientId: string;
   visitId: string;

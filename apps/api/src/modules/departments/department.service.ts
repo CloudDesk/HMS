@@ -32,7 +32,7 @@ export class DepartmentService {
       throw new AppError(`Department with code ${data.code} already exists`, 409, 'CONFLICT');
     }
 
-    await this.requireActiveBranch(data.branch_id);
+    await Promise.all(data.branch_ids.map((branch_id) => this.requireActiveBranch(branch_id)));
     const department = await this.repository.create(data, userId);
     await this.repository.audit('department.created', userId, metadata, { departmentId: department.id, code: department.code });
     return department;
@@ -48,8 +48,8 @@ export class DepartmentService {
       }
     }
 
-    if (data.branch_id) {
-      await this.requireActiveBranch(data.branch_id);
+    if (data.branch_ids) {
+      await Promise.all(data.branch_ids.map((branch_id) => this.requireActiveBranch(branch_id)));
     }
     const updated = await this.repository.update(id, data, userId);
     const eventType = data.status && data.status !== department.status

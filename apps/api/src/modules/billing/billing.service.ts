@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
@@ -9,6 +8,7 @@ import type { PatientRepository } from '../patients/patient.repository.js';
 import type { ServiceRepository } from '../services/service.repository.js';
 import type { PharmacyInventoryRepository } from '../pharmacy-inventory/pharmacy-inventory.repository.js';
 import type { BillingRepository } from './billing.repository.js';
+import { createBillingNumber } from './billing-number.js';
 import type {
   BillingInvoice,
   BillingInvoiceListQuery,
@@ -23,8 +23,6 @@ import type {
 } from './billing.types.js';
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-const dateCode = (date = new Date()) => date.toISOString().slice(0, 10).replaceAll('-', '');
-const numberCode = (prefix: 'INV' | 'PAY') => `${prefix}-${dateCode()}-${randomBytes(4).toString('hex').toUpperCase()}`;
 
 const catalogueTypeByBillingType: Record<Exclude<BillingServiceType, 'PHARMACY'>, 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE'> = {
   CONSULTATION: 'GENERAL',
@@ -70,7 +68,7 @@ export class BillingService {
     try {
       const createdId = await session.withTransaction(async () => {
         const created = await this.repository.createInvoice({
-          invoiceNumber: numberCode('INV'),
+          invoiceNumber: createBillingNumber('INV'),
           patientId: data.patient_id,
           visitId: data.visit_id,
           appointmentId: context.appointmentId,
@@ -198,7 +196,7 @@ export class BillingService {
             balance_amount: invoice.balance_amount,
           });
         }
-        const payment = await this.repository.createPayment(invoice, numberCode('PAY'), data, actorUserId, session);
+        const payment = await this.repository.createPayment(invoice, createBillingNumber('PAY'), data, actorUserId, session);
         const updated = await this.repository.applyPayment(invoice, data.amount, actorUserId, session);
         if (!updated) throw new AppError('Invoice balance changed; refresh and retry', 409, 'PAYMENT_CONFLICT');
         paymentId = payment.id;

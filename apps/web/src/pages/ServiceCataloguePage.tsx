@@ -266,7 +266,7 @@ export function ServiceCataloguePage() {
 
   // ── Derived: filter departments by selected branch ─────────────────────────
   const formDepartmentOptions = useMemo(
-    () => (form.branch_id ? departments.filter((department) => department.branch_id === form.branch_id) : departments),
+    () => (form.branch_id ? departments.filter((department) => department.branch_ids.includes(form.branch_id)) : departments),
     [departments, form.branch_id],
   );
 
@@ -365,7 +365,7 @@ export function ServiceCataloguePage() {
         code: svc.code,
         name: svc.name,
         service_type: svc.service_type,
-        branch_id: department?.branch_id ?? '',
+        branch_id: department?.branch_ids[0] ?? '',
         department_id: svc.department_id,
         category: svc.category ?? '',
         description: svc.description ?? '',
@@ -495,7 +495,7 @@ export function ServiceCataloguePage() {
   const getBranchForDept = (deptId: string) => {
     const dept = departments.find((d) => d.id === deptId);
     if (!dept) return '—';
-    return branches.find((b) => b.id === dept.branch_id)?.name ?? '—';
+    return dept.branch_ids.map(id => branches.find(b => b.id === id)?.name).filter(Boolean).join(', ') || '-';
   };
 
   // ── Pagination ─────────────────────────────────────────────────────────────

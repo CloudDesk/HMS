@@ -11,6 +11,9 @@ import type { OpdVisit } from './opd-visit.types.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
+import type { NotificationService } from '../notifications/notification.service.js';
+import type { UserRepository } from '../users/user.repository.js';
+
 export class OpdReferralService {
   constructor(
     private readonly repository: OpdReferralRepository,
@@ -19,6 +22,8 @@ export class OpdReferralService {
     private readonly doctorRepository: DoctorRepository,
     private readonly appointmentService: AppointmentService,
     private readonly patientRepository: PatientRepository,
+    private readonly notificationService: NotificationService,
+    private readonly userRepository: UserRepository,
   ) {}
 
   async getByVisit(visitId: string) {
@@ -56,29 +61,7 @@ export class OpdReferralService {
     const doctor = await this.getInternalDoctor(data.referred_doctor_id);
     const wantsAppointment = Boolean(data.appointment_date || data.appointment_start_time || data.appointment_duration_minutes);
 
-    if (wantsAppointment && data.referral_type !== 'INTERNAL') {
-      throw new AppError('Only internal referrals can create HMS appointments', 400, 'INVALID_REFERRAL_APPOINTMENT');
-    }
-    if (wantsAppointment && (!data.appointment_date || !data.appointment_start_time || !data.appointment_duration_minutes)) {
-      throw new AppError('Referral appointment date, time and duration must all be provided', 400, 'VALIDATION_ERROR');
-    }
-
-    const appointment = wantsAppointment
-      ? await this.appointmentService.create(
-          {
-            patient_id: visit.patient_id,
-            doctor_id: data.referred_doctor_id!,
-            appointment_date: data.appointment_date!,
-            start_time: data.appointment_start_time!,
-            duration_minutes: data.appointment_duration_minutes!,
-            visit_type: 'NEW_CONSULTATION',
-            priority: data.priority ?? 'ROUTINE',
-            reason: data.reason,
-            notes: `Internal referral from OPD visit ${visit.visit_number}.`,
-          },
-          userId,
-        )
-      : null;
+    const appointment = null; // Appointment creation is now handled manually by receptionist
 
     const referral = await this.repository.saveForVisit(
       {
@@ -98,17 +81,43 @@ export class OpdReferralService {
       {
         event_type: 'OPD_REFERRAL_SUBMITTED',
         title: 'OPD referral submitted',
-        description: `${data.referral_type} referral to ${doctor?.display_name ?? data.referred_doctor_name?.trim() ?? data.facility?.trim()}${appointment ? `; appointment ${appointment.appointment_number} created` : ''}.`,
+        description: `${data.referral_type} referral to ${doctor?.display_name ?? data.referred_doctor_name?.trim() ?? data.facility?.trim()}.`,
       },
       userId,
     );
     await this.patientRepository.auditClinicalEvent('opd.referral.submitted', userId, {
-      appointmentId: appointment?.id ?? null,
+      appointmentId: null,
       patientId: visit.patient_id,
       referralId: referral.id,
       referralType: data.referral_type,
       visitId: visit.id,
     });
+
+    // Generate notifications
+    const patient = await this.patientRepository.getById(visit.patient_id);
+    const patientName = patient ? `${patient.first_name || ''} ${patient.last_name}`.trim() : 'Unknown Patient';
+
+    await this.notificationService.createNotification({
+      recipient_role: 'RECEPTIONIST',
+      title: 'New Patient Referral',
+      message: `Patient ${patientName} has been referred for ${data.specialty}. Please schedule an appointment.`,
+      type: 'REFERRAL',
+      related_entity_id: visit.id,
+    });
+
+    if (data.referral_type === 'INTERNAL' && doctor) {
+      // Find the user ID for this doctor
+      if (doctor.user_id) {
+        await this.notificationService.createNotification({
+          recipient_user_id: doctor.user_id,
+          title: 'New Patient Referral',
+          message: `Patient ${patientName} has been referred to you for ${data.specialty}.`,
+          type: 'REFERRAL',
+          related_entity_id: visit.id,
+        });
+      }
+    }
+
     return referral;
   }
 

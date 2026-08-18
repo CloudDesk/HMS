@@ -175,7 +175,7 @@ export function PatientSearchPage() {
   const openEditModal = (patient: PatientResponse) => {
     setEditingPatient(patient);
     setEditForm({
-      firstName: patient.first_name,
+      firstName: patient.first_name ?? '',
       lastName: patient.last_name,
       dateOfBirth: patient.date_of_birth.slice(0, 10),
       gender: patient.gender,

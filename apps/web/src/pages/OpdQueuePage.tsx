@@ -337,10 +337,10 @@ export function OpdQueuePage() {
               <i className="ph ph-arrow-clockwise" aria-hidden="true" />
               Refresh Queue
             </button>
-            <button className="doc-btn primary" onClick={() => setWalkInOpen(true)} type="button">
+            {/* <button className="doc-btn primary" onClick={() => setWalkInOpen(true)} type="button">
               <i className="ph ph-person-simple-walk" aria-hidden="true" />
               Walk-in Check-in
-            </button>
+            </button> */}
           </div>
         </section>
 
@@ -661,7 +661,7 @@ export function OpdQueuePage() {
         </section>
       </div>
 
-      <Modal onClose={() => setWalkInOpen(false)} open={walkInOpen} size="large" title="Walk-in Check-in">
+      {/* <Modal onClose={() => setWalkInOpen(false)} open={walkInOpen} size="large" title="Walk-in Check-in">
         <form className="modal-form doctor-onboarding-form" onSubmit={(e) => { e.preventDefault(); void submitWalkIn(); }}>
           {walkInError ? <div className="form-error-banner" role="alert">{walkInError}</div> : null}
 
@@ -722,7 +722,7 @@ export function OpdQueuePage() {
             </button>
           </div>
         </form>
-      </Modal>
+      </Modal> */}
 
       {/* Record Patient Vitals Modal */}
       <Modal

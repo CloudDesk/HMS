@@ -6,6 +6,7 @@ export type DoctorWorkingBlockFields = {
   startTime: string;
   endTime: string;
   slotDurationMinutes: number;
+  maxPatientsPerSlot?: number;
 };
 
 export type DoctorAvailabilityFields = {
@@ -52,6 +53,7 @@ const doctorWorkingBlockSchema = new Schema<DoctorWorkingBlockFields>(
     startTime: { type: String, required: true },
     endTime: { type: String, required: true },
     slotDurationMinutes: { type: Number, required: true, default: 30 },
+    maxPatientsPerSlot: { type: Number, default: 1 },
   },
   { _id: true },
 );

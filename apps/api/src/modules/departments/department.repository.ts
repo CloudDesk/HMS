@@ -16,7 +16,7 @@ export class DepartmentRepository {
       filter.status = query.status;
     }
     if (query.branch_id) {
-      filter.branchId = query.branch_id;
+      filter.branchIds = query.branch_id;
     }
     if (query.search) {
       const searchRegex = new RegExp(query.search, 'i');
@@ -39,7 +39,7 @@ export class DepartmentRepository {
       data: data.map((d) => ({
         ...d,
         id: d._id.toString(),
-        branch_id: d.branchId.toString(),
+        branch_ids: (d.branchIds || (d.branchId ? [d.branchId] : [])).map((id: any) => id.toString()),
       })) as unknown as Department[],
       meta: {
         total: count,
@@ -56,7 +56,7 @@ export class DepartmentRepository {
       ? ({
           ...department,
           id: department._id.toString(),
-          branch_id: department.branchId.toString(),
+          branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
         } as unknown as Department)
       : undefined;
   }
@@ -67,7 +67,7 @@ export class DepartmentRepository {
       ? ({
           ...department,
           id: department._id.toString(),
-          branch_id: department.branchId.toString(),
+          branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
         } as unknown as Department)
       : undefined;
   }
@@ -75,7 +75,7 @@ export class DepartmentRepository {
   async create(data: CreateDepartmentDTO, createdBy: string): Promise<Department> {
     const department = await DepartmentModel.create({
       ...data,
-      branchId: data.branch_id,
+      branchIds: data.branch_ids,
       status: data.status ?? 'ACTIVE',
       createdBy: createdBy,
       updatedBy: createdBy,
@@ -83,15 +83,15 @@ export class DepartmentRepository {
     return {
       ...department.toJSON(),
       id: department._id.toString(),
-      branch_id: department.branchId.toString(),
+      branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
     } as unknown as Department;
   }
 
   async update(id: string, data: UpdateDepartmentDTO, updatedBy: string): Promise<Department> {
     const updatePayload: Record<string, any> = { ...data, updatedBy };
-    if (data.branch_id) {
-      updatePayload.branchId = data.branch_id;
-      delete updatePayload.branch_id;
+    if (data.branch_ids) {
+      updatePayload.branchIds = data.branch_ids;
+      delete updatePayload.branch_ids;
     }
 
     const department = await DepartmentModel.findOneAndUpdate(
@@ -105,7 +105,7 @@ export class DepartmentRepository {
     return {
       ...department,
       id: department._id.toString(),
-      branch_id: department.branchId.toString(),
+      branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
     } as unknown as Department;
   }
 
@@ -116,7 +116,7 @@ export class DepartmentRepository {
       DepartmentModel.countDocuments({ deletedAt: null, status: 'ACTIVE' }),
       DepartmentModel.countDocuments({ deletedAt: null, status: 'INACTIVE' }),
       DepartmentModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
-      DepartmentModel.distinct('branchId', { deletedAt: null }).then((ids) => ids.length),
+      DepartmentModel.distinct('branchIds', { deletedAt: null }).then((ids) => ids.length),
     ]);
     return { total, active, inactive, addedThisMonth, branchesCovered };
   }

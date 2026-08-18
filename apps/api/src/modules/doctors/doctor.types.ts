@@ -14,6 +14,7 @@ export type DoctorWorkingBlock = {
   start_time: string;
   end_time: string;
   slot_duration_minutes: number;
+  max_patients_per_slot?: number;
 };
 
 export type DoctorAvailability = {
@@ -84,6 +85,7 @@ export type SaveDoctorAvailabilityDTO = {
       start_time: string;
       end_time: string;
       slot_duration_minutes: number;
+      max_patients_per_slot?: number;
     }>;
   }>;
 };
@@ -182,6 +184,7 @@ export type SaveDoctorAvailabilityExceptionDTO = {
     start_time: string;
     end_time: string;
     slot_duration_minutes: number;
+    max_patients_per_slot?: number;
   }>;
   reason: string;
 };

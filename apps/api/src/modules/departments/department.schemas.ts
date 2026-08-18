@@ -25,12 +25,16 @@ export const listDepartmentsQuerySchema = {
 
 export const createDepartmentBodySchema = {
   type: 'object',
-  required: ['code', 'name', 'branch_id'],
+  required: ['code', 'name', 'branch_ids'],
   additionalProperties: false,
   properties: {
     code: { type: 'string', minLength: 1 },
     name: { type: 'string', minLength: 1 },
-    branch_id: { type: 'string', minLength: 1 },
+    branch_ids: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      minItems: 1,
+    },
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
     isClinical: { type: 'boolean' },
@@ -44,7 +48,11 @@ export const updateDepartmentBodySchema = {
   properties: {
     code: { type: 'string', minLength: 1 },
     name: { type: 'string', minLength: 1 },
-    branch_id: { type: 'string', minLength: 1 },
+    branch_ids: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+      minItems: 1,
+    },
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
     isClinical: { type: 'boolean' },

@@ -10,13 +10,13 @@ import {
   type OpdVisitResponse,
   type SaveOpdConsultationPayload,
 } from '../api/opd';
-import { patientsApi, type PatientDocumentResponse } from '../api/patients';
+import { patientsApi, type PatientDocumentResponse, type PatientResponse } from '../api/patients';
 import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
 import { servicesApi, type ServiceResponse } from '../api/services';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { getPatientErrorMessage } from './patient-utils';
+import { getPatientErrorMessage, calculateAge } from './patient-utils';
 import {
   getOpdErrorMessage,
   opdVisitStatusLabels,
@@ -166,6 +166,7 @@ export function OpdVisitPage() {
   const [vitalsForm, setVitalsForm] = useState<VitalsFormState>(emptyVitalsForm);
 
   const [, setConsultation] = useState<OpdConsultationResponse | null>(null);
+  const [patient, setPatient] = useState<PatientResponse | null>(null);
   const [consultationForm, setConsultationForm] = useState<ConsultationFormState>(emptyConsultationForm);
 
   const [primaryDiagnosis, setPrimaryDiagnosis] = useState('');
@@ -188,13 +189,7 @@ export function OpdVisitPage() {
   // Referral Tab (Tab 6) State
   const [referralSpecialty, setReferralSpecialty] = useState('');
   const [referralDoctorId, setReferralDoctorId] = useState('');
-  const [referralDate, setReferralDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [referralTimeSlot, setReferralTimeSlot] = useState('');
   const [referralReason, setReferralReason] = useState('');
-  const [referralSlots, setReferralSlots] = useState<
-    Array<{ startTime: string; endTime: string; remainingSlots: number; isAvailable: boolean }>
-  >([]);
-  const [referralSlotLoading, setReferralSlotLoading] = useState(false);
   const [referralBooking, setReferralBooking] = useState(false);
 
   // Derive unique specialties from Doctor Directory records
@@ -208,93 +203,27 @@ export function OpdVisitPage() {
     return doctors.filter((d) => d.specialization === referralSpecialty);
   }, [doctors, referralSpecialty]);
 
-  // Load available slots for selected referral doctor and date
-  const loadReferralSlots = useCallback(async () => {
-    if (!referralDoctorId || !referralDate) {
-      setReferralSlots([]);
-      return;
-    }
-    setReferralSlotLoading(true);
-    try {
-      const [availableSlotsRes, existingApptsRes] = await Promise.all([
-        doctorsApi.availableSlots(referralDoctorId, referralDate),
-        appointmentsApi
-          .list({ doctor_id: referralDoctorId, date_from: referralDate, date_to: referralDate, limit: 100 })
-          .catch(() => ({ data: [] })),
-      ]);
 
-      const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
-      const dayNames: ApiDoctorAvailabilityDay[] = [
-        'SUNDAY',
-        'MONDAY',
-        'TUESDAY',
-        'WEDNESDAY',
-        'THURSDAY',
-        'FRIDAY',
-        'SATURDAY',
-      ];
-      const dateParts = referralDate.split('-');
-      const dateObj =
-        dateParts.length === 3
-          ? new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]))
-          : new Date(referralDate);
-      const dayOfWeek = dayNames[dateObj.getDay()];
-      const dayAvail = selectedDoc?.availability.find((a) => a.day_of_week === dayOfWeek);
-      const configuredMax = dayAvail?.max_patients_per_slot ?? availableSlotsRes.max_patients_per_slot ?? 2;
 
-      const bookedCountMap: Record<string, number> = {};
-      existingApptsRes.data.forEach((appt) => {
-        if (appt.status !== 'CANCELLED') {
-          bookedCountMap[appt.start_time] = (bookedCountMap[appt.start_time] || 0) + 1;
-        }
-      });
-
-      const options = availableSlotsRes.slots.map((slot) => {
-        const maxCapacity = slot.max_patients_per_slot ?? configuredMax;
-        const bookedCount = bookedCountMap[slot.start_time] || 0;
-        const remainingSlots = Math.max(0, maxCapacity - bookedCount);
-        return {
-          startTime: slot.start_time,
-          endTime: slot.end_time,
-          remainingSlots,
-          isAvailable: remainingSlots > 0,
-        };
-      });
-
-      setReferralSlots(options);
-    } catch {
-      setReferralSlots([]);
-    } finally {
-      setReferralSlotLoading(false);
-    }
-  }, [doctors, referralDate, referralDoctorId]);
-
-  useEffect(() => {
-    void loadReferralSlots();
-  }, [loadReferralSlots]);
-
-  const handleBookReferralAppointment = async () => {
-    if (!visit || !referralDoctorId || !referralDate || !referralTimeSlot) {
-      showToast('Please select a doctor, date, and available time slot.', 'error');
+  const handleSubmitReferral = async () => {
+    if (!visit || !referralDoctorId || !referralSpecialty) {
+      showToast('Please select a specialty and a doctor.', 'error');
       return;
     }
     const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
     setReferralBooking(true);
     try {
-      await appointmentsApi.create({
-        patient_id: visit.patient_id,
-        doctor_id: referralDoctorId,
-        appointment_date: referralDate,
-        start_time: referralTimeSlot,
-        duration_minutes: 30,
-        visit_type: 'FOLLOW_UP',
-        priority: 'ROUTINE',
-        reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty || selectedDoc?.specialization}`,
-        notes: `Referred from OPD Visit #${visit.visit_number}`,
+      await opdApi.submitReferral(visit.id, {
+        referral_type: 'INTERNAL',
+        specialty: referralSpecialty,
+        referred_doctor_id: referralDoctorId,
+        reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+        clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
       });
-      showToast(`Referral appointment booked successfully with ${selectedDoc?.display_name ?? 'Doctor'} on ${referralDate} at ${referralTimeSlot}!`);
-      setReferralTimeSlot('');
-      await loadReferralSlots();
+      showToast(`Referral submitted successfully to ${selectedDoc?.display_name ?? 'Doctor'}!`);
+      setReferralReason('');
+      setReferralDoctorId('');
+      setReferralSpecialty('');
     } catch (err) {
       showToast(getOpdErrorMessage(err), 'error');
     } finally {
@@ -369,18 +298,28 @@ export function OpdVisitPage() {
   const loadVisit = useCallback(async () => {
     if (!activeVisitId) {
       setVisit(null);
+      setPatient(null);
       setLoading(false);
       return;
     }
 
     setLoading(true);
     setLoadError('');
+    setPatient(null);
 
     try {
       const response = await opdApi.getVisitById(activeVisitId);
       setVisit(response);
+      try {
+        const patientData = await patientsApi.getById(response.patient_id);
+        setPatient(patientData);
+      } catch (err) {
+        console.error('Failed to load patient data:', err);
+        setPatient(null);
+      }
     } catch (error) {
       setVisit(null);
+      setPatient(null);
       setLoadError(getOpdErrorMessage(error));
     } finally {
       setLoading(false);
@@ -709,6 +648,9 @@ export function OpdVisitPage() {
       await loadVisit();
       await loadClinicalData();
       showToast('Consultation completed successfully & billing invoice generated.');
+
+      // Automatically trigger "Call Next Patient"
+      await handleCallNextPatient();
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
     } finally {
@@ -776,6 +718,32 @@ export function OpdVisitPage() {
       showToast(`${document.title} deleted.`);
     } catch (error) {
       showToast(getPatientErrorMessage(error), 'error');
+    }
+  };
+
+  const handleCallNextPatient = async () => {
+    if (!visit) return;
+    try {
+      // Import isn't strictly necessary as we can use apiClient directly if needed,
+      // but we have `notificationsApi` available.
+      const { notificationsApi } = await import('../api/notifications');
+      await notificationsApi.listMe(); // Just to make sure we imported it
+      // Create notification by calling API directly or via a new endpoint if we had one.
+      // Wait, we don't have a `create` exposed in notificationsApi. Let's just use `apiClient.post`
+      const { apiClient } = await import('../api/client');
+      await apiClient.request('/notifications', {
+        method: 'POST',
+        body: {
+          recipient_role: 'RECEPTIONIST',
+          title: 'Call Next Patient',
+          message: `Dr. ${visit.doctor_name} is ready for the next patient. Previous patient: ${visit.patient_name}.`,
+          type: 'CALL_NEXT_PATIENT',
+          related_entity_id: visit.id,
+        }
+      });
+      showToast('Receptionist notified to call the next patient.');
+    } catch (err) {
+      showToast('Failed to notify receptionist.', 'error');
     }
   };
 
@@ -874,7 +842,7 @@ export function OpdVisitPage() {
                 </span>
               </div>
               <div className="opd-patient-meta-line">
-                <span>Female • 34 years</span>
+                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} • ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
                 <span className="divider">|</span>
                 <span>{opdVisitTypeLabels[visit.visit_type]}</span>
                 <span className="divider">|</span>
@@ -1048,7 +1016,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1108,7 +1076,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1285,7 +1253,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1402,7 +1370,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1519,7 +1487,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1550,8 +1518,6 @@ export function OpdVisitPage() {
                           onChange={(e) => {
                             setReferralSpecialty(e.target.value);
                             setReferralDoctorId('');
-                            setReferralTimeSlot('');
-                            setReferralSlots([]);
                           }}
                           value={referralSpecialty}
                         >
@@ -1571,7 +1537,6 @@ export function OpdVisitPage() {
                           id="ref-doctor"
                           onChange={(e) => {
                             setReferralDoctorId(e.target.value);
-                            setReferralTimeSlot('');
                           }}
                           value={referralDoctorId}
                         >
@@ -1586,20 +1551,6 @@ export function OpdVisitPage() {
                         </select>
                       </label>
 
-                      <label className="doc-field" htmlFor="ref-date">
-                        <span>Appointment Date</span>
-                        <input
-                          id="ref-date"
-                          min={new Date().toISOString().slice(0, 10)}
-                          onChange={(e) => {
-                            setReferralDate(e.target.value);
-                            setReferralTimeSlot('');
-                          }}
-                          type="date"
-                          value={referralDate}
-                        />
-                      </label>
-
                       <label className="doc-field" htmlFor="ref-reason">
                         <span>Reason for Referral</span>
                         <input
@@ -1612,61 +1563,21 @@ export function OpdVisitPage() {
                     </div>
                   </section>
 
-                  {/* Doctor Availability & Time Slots Section */}
-                  {referralDoctorId ? (
-                    <section className="opd-form-section" style={{ marginTop: '1.25rem' }}>
-                      <div className="opd-form-section-head">
-                        <div>
-                          <h3>Doctor Availability &amp; Open Slots</h3>
-                          <p>
-                            Select an available slot to book appointment for {referralDate}
-                          </p>
-                        </div>
-                      </div>
-
-                      {referralSlotLoading ? (
-                        <div className="um-state-cell">Loading available doctor time slots...</div>
-                      ) : referralSlots.length === 0 ? (
-                        <div className="form-error-banner" style={{ background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626' }}>
-                          <i className="ph ph-warning-circle" aria-hidden="true" />
-                          <span>Doctor is not available for appointments on {referralDate}. Please pick another date.</span>
-                        </div>
-                      ) : (
-                        <div className="referral-slots-grid">
-                          {referralSlots.map((slot) => {
-                            const isSelected = referralTimeSlot === slot.startTime;
-                            return (
-                              <button
-                                className={`referral-slot-btn${isSelected ? ' selected' : ''}${!slot.isAvailable ? ' disabled' : ''}`}
-                                disabled={!slot.isAvailable}
-                                key={slot.startTime}
-                                onClick={() => setReferralTimeSlot(slot.startTime)}
-                                type="button"
-                              >
-                                <span className="slot-time">{slot.startTime}</span>
-                                <span className={`slot-capacity-badge ${slot.remainingSlots > 2 ? 'available' : slot.remainingSlots > 0 ? 'warning' : 'full'}`}>
-                                  {slot.isAvailable ? `${slot.remainingSlots} slots left` : 'Fully booked'}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      <div className="referral-booking-action-bar" style={{ marginTop: '1.25rem' }}>
-                        <button
-                          className="doc-btn primary"
-                          disabled={!referralTimeSlot || referralBooking}
-                          onClick={() => void handleBookReferralAppointment()}
-                          style={{ minWidth: '220px' }}
-                          type="button"
-                        >
-                          <i className="ph ph-calendar-plus" aria-hidden="true" />
-                          {referralBooking ? 'Booking Appointment...' : 'Book Referral Appointment'}
-                        </button>
-                      </div>
-                    </section>
-                  ) : null}
+                  {/* Submit Referral Section */}
+                  <section className="opd-form-section" style={{ marginTop: '1.25rem' }}>
+                    <div className="referral-booking-action-bar">
+                      <button
+                        className="doc-btn primary"
+                        disabled={!referralDoctorId || referralBooking}
+                        onClick={() => void handleSubmitReferral()}
+                        style={{ minWidth: '220px' }}
+                        type="button"
+                      >
+                        <i className="ph ph-paper-plane-tilt" aria-hidden="true" />
+                        {referralBooking ? 'Submitting...' : 'Submit Referral'}
+                      </button>
+                    </div>
+                  </section>
 
                   <div className="opd-sticky-actions">
                     <span className="opd-autosave saved">
@@ -1683,7 +1594,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -1736,7 +1647,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn success"
-                        disabled={updating === 'consultation-complete'}
+                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
                         onClick={completeConsultation}
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
@@ -2121,3 +2032,4 @@ export function OpdVisitPage() {
     </div>
   );
 }
+

@@ -999,7 +999,7 @@ export function UserManagementPage() {
                 >
                   <option value="">All Departments</option>
                   {departmentOptions
-                    .filter((department) => !branchFilter || department.branch_id === branchFilter)
+                    .filter((department) => !branchFilter || department.branch_ids.includes(branchFilter))
                     .map((department) => (
                       <option key={department.id} value={department.id}>
                         {department.name}
@@ -1368,7 +1368,7 @@ export function UserManagementPage() {
                 <select aria-invalid={Boolean(fieldErrors.departmentId)} onChange={(event) => updateForm('departmentId', event.target.value)} required value={userForm.departmentId}>
                   <option value="">Select department</option>
                   {departmentOptions
-                    .filter((department) => !userForm.branchId || department.branch_id === userForm.branchId)
+                    .filter((department) => !userForm.branchId || department.branch_ids.includes(userForm.branchId))
                     .map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                 </select>
                 {fieldErrors.departmentId ? <small className="field-error">{fieldErrors.departmentId}</small> : null}

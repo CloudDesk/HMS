@@ -20,7 +20,7 @@ export type PatientEmergencyContact = {
 export type Patient = {
   id: string;
   patient_number: string;
-  first_name: string;
+  first_name: string | null;
   middle_name: string | null;
   last_name: string;
   date_of_birth: Date;
@@ -29,6 +29,7 @@ export type Patient = {
   email: string | null;
   address: PatientAddress;
   emergency_contact: PatientEmergencyContact;
+  parent_guardian: string | null;
   registration_branch_id: string | null;
   blood_group: string | null;
   status: PatientStatus;
@@ -50,7 +51,7 @@ export type PatientListQuery = {
 };
 
 export type CreatePatientDTO = {
-  first_name: string;
+  first_name?: string | null;
   middle_name?: string | null;
   last_name: string;
   date_of_birth: string;
@@ -59,6 +60,7 @@ export type CreatePatientDTO = {
   email?: string | null;
   address?: PatientAddress;
   emergency_contact?: PatientEmergencyContact;
+  parent_guardian?: string | null;
   registration_branch_id?: string | null;
   blood_group?: string | null;
   status?: PatientStatus;

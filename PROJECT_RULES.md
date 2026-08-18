@@ -65,13 +65,33 @@ Do not introduce:
 - Reuse existing components, hooks, services, schemas, utilities, and types.
 - Do not duplicate logic.
 - Keep business logic out of React components.
-- Follow the existing flow: Components -> Hooks -> Services -> API Client -> Backend.
+- Follow the existing frontend flow:
+
+```plaintext
+Page / Component
+-> Feature Hook
+-> Domain Feature Hook
+-> Domain Service
+-> API Client
+-> Backend
+```
+
+- Pages and components must not call domain services, the API client, or `fetch()` directly.
+- Pages and components must not own server-state fetching or mutations.
+- Domain hooks may communicate only with services belonging to their own domain.
+- Do not place another domain's business logic inside a domain hook.
+- Cross-domain workflows belong in feature hooks that compose existing domain hooks and expose a meaningful typed contract.
 - Controllers must not access database models directly.
 - Repositories are the only layer that performs database queries.
 - Use TypeScript strictly.
 - Do not use `any`.
+- Do not use `as any`.
 - Do not add unnecessary type assertions.
+- Avoid unnecessary non-null assertions (`!`).
+- Do not use `@ts-ignore` or `@ts-expect-error` to bypass type problems.
+- Fix the underlying type or contract mismatch instead of suppressing it.
 - Do not leave empty catch blocks.
+- Do not leave dead code, unused imports, unused variables, or dead form state.
 - Do not introduce new architectural layers unless explicitly requested.
 
 ---
@@ -102,6 +122,10 @@ Do not introduce:
 - Load permissions from the database.
 - Enforce authorization on the backend for every protected action.
 - Apply hospital, branch, department, and role scoping consistently wherever the existing project supports it.
+- Preserve organization/hospital, branch, department, and user-level data scope in every query and mutation.
+- Permission-gate frontend actions while treating backend authorization as authoritative.
+- Use request gating so the frontend does not call endpoints the authenticated user cannot access.
+- Explicitly handle permission dependencies in cross-domain workflows.
 
 ---
 
@@ -119,6 +143,10 @@ Every new endpoint must:
 - Use existing OpenAPI/Swagger patterns.
 - Avoid exposing internal database details in responses.
 - Return predictable validation errors that the frontend can display safely.
+- Keep request payloads, responses, query parameters, path parameters, mutation results, enum values, and required/optional fields aligned with the actual backend contract.
+- Do not change a backend API merely to accommodate an incorrect frontend implementation unless explicitly requested.
+- Do not invent frontend-only API fields or send view-only form state in API payloads.
+- Validate all external input before use, including URL parameters, query parameters, route parameters, IDs, dates, enum-like values, and user-provided values.
 
 ---
 
@@ -152,10 +180,35 @@ Do not:
 
 ### API Call Optimization & Network Efficiency Rules
 
-- **Single Mount Execution**: Every page component must consolidate data fetching into a single unified loading effect. Use mounting guards or stable parameters to prevent duplicate network calls.
+- **TanStack Query Ownership**: Server-state fetching and mutations must be owned by feature/domain hooks using TanStack Query. Do not fetch server state through page-level `useEffect()` calls.
+- **Stable Query Keys**: Use the existing hierarchical query-key factory conventions. Query keys must include every normalized parameter that changes the response.
+- **Targeted Invalidation**: Invalidate or update only the queries affected by a mutation. Never use an unscoped or global `invalidateQueries()` call.
+- **Request Gating**: Use `enabled` conditions for permissions, IDs, modes, dependencies, and required context. Disabled or unauthorized workflows must not generate requests.
 - **On-Demand Modal Lookups**: Dropdown lookups used exclusively inside modal dialogs (such as branches, departments, and user account mappings) must only be fetched when the user opens the respective modal (e.g. clicking `[+ Add Doctor]`, `[Upload Document]`, `[Upload Consent]`).
 - **Loop-Free URL Sync**: Do not trigger automatic route replaces or navigation updates on initial mount that restart the component lifecycle and duplicate network requests.
-- **Event-Driven Fetching**: Fetch network data strictly on page mount or explicit user actions (filtering, searching, pagination, submitting, tab switching). Avoid cascading state updates in `useEffect` that re-trigger network calls.
+- **Event-Driven Fetching**: Fetch network data only when required by the active workflow or an explicit user action such as filtering, searching, pagination, submitting, or tab switching.
+- **Query Reuse**: Reuse cached server state and existing hooks where appropriate. Do not mount multiple hooks that request the same data without a clear need.
+- **Refetch Discipline**: Avoid eager requests, duplicate requests, cascading requests, and unnecessary refetching.
+
+### TypeScript Contract Rules
+
+- Reuse existing API and domain types; do not create parallel type definitions.
+- Verify frontend types against the actual backend contract rather than assuming they are correct.
+- Strongly type query parameters, URL parameters, request payloads, response bodies, mutation results, hook return values, IDs, dates, enum values, select values, and external inputs.
+- Avoid broad `Record<string, ...>` casts when a concrete typed object can be used.
+- Validate external values at runtime before relying on their TypeScript types.
+- Feature hooks with complex return shapes must expose explicit, meaningful typed contracts.
+
+### Zod & Form Contract Rules
+
+- Define Zod schemas from the actual business and API contract.
+- Derive React Hook Form value types from the corresponding Zod schema.
+- Keep frontend Zod rules aligned with backend validation, including required/optional fields, string lengths, formats, enum values, numeric ranges, date/time formats, arrays, item counts, and conditional fields.
+- Do not weaken validation merely to make TypeScript compile or make a submission pass.
+- Keep validation errors distinguishable from API and authorization errors.
+- Frontend Zod validation is the first validation layer; backend validation remains authoritative.
+- Before duplicating a complex business rule in the frontend, verify the backend rule and keep both implementations aligned.
+- Pay particular attention to overlapping schedules, duplicate records, data-scope restrictions, and workflow state transitions.
 
 ---
 

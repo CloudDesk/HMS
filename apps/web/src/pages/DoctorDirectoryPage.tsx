@@ -183,6 +183,7 @@ export function DoctorDirectoryPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+  const [showPassword, setShowPassword] = useState(false);
 
   const lookupsLoadedRef = useRef(false);
 
@@ -201,12 +202,12 @@ export function DoctorDirectoryPage() {
   );
 
   const departmentsForForm = useMemo(
-    () => departments.filter((department) => (!form.branchId || department.branch_id === form.branchId) && department.isClinical),
+    () => departments.filter((department) => (!form.branchId || department.branch_ids.includes(form.branchId)) && department.isClinical),
     [departments, form.branchId],
   );
 
   const departmentsForFilter = useMemo(
-    () => departments.filter((department) => (!branchFilter || department.branch_id === branchFilter) && department.isClinical),
+    () => departments.filter((department) => (!branchFilter || department.branch_ids.includes(branchFilter)) && department.isClinical),
     [branchFilter, departments],
   );
 
@@ -761,11 +762,29 @@ export function DoctorDirectoryPage() {
                   </div>
                   {form.createLoginAccount ? (
                     <div className="form-grid doctor-account-fields">
-                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code *</label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" onChange={(event) => setForm({ ...form, employeeCode: event.target.value })} required value={form.employeeCode} /></div>
-                      <div className="form-group"><label htmlFor="doctor-username">Username *</label><input autoComplete="off" disabled={submitting} id="doctor-username" onChange={(event) => setForm({ ...form, username: event.target.value })} required value={form.username} /></div>
-                      <div className="form-group"><label htmlFor="doctor-login-email">Login email *</label><input autoComplete="off" disabled={submitting} id="doctor-login-email" onChange={(event) => setForm({ ...form, loginEmail: event.target.value })} required type="email" value={form.loginEmail} /></div>
-                      <div className="form-group"><label htmlFor="doctor-temporary-password">Temporary password *</label><input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" onChange={(event) => setForm({ ...form, temporaryPassword: event.target.value })} required type="password" value={form.temporaryPassword} /></div>
-                      <div className="form-group"><label htmlFor="doctor-confirm-password">Confirm password *</label><input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" onChange={(event) => setForm({ ...form, confirmTemporaryPassword: event.target.value })} required type="password" value={form.confirmTemporaryPassword} /></div>
+                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" onChange={(event) => setForm({ ...form, employeeCode: event.target.value })} required value={form.employeeCode} /></div>
+                      <div className="form-group"><label htmlFor="doctor-username">Username <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-username" onChange={(event) => setForm({ ...form, username: event.target.value })} required value={form.username} /></div>
+                      <div className="form-group"><label htmlFor="doctor-login-email">Login email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" onChange={(event) => setForm({ ...form, loginEmail: event.target.value })} required type="email" value={form.loginEmail} /></div>
+                      
+                      <div className="form-group">
+                        <label htmlFor="doctor-temporary-password">password <span className="required-asterisk">*</span></label>
+                        <div style={{ position: 'relative' }}>
+                          <input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" onChange={(event) => setForm({ ...form, temporaryPassword: event.target.value })} required type={showPassword ? 'text' : 'password'} value={form.temporaryPassword} style={{ width: '100%', paddingRight: '2rem' }} />
+                          <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                            <i className={showPassword ? "ph ph-eye-slash" : "ph ph-eye"} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label htmlFor="doctor-confirm-password">Confirm password <span className="required-asterisk">*</span></label>
+                        <div style={{ position: 'relative' }}>
+                          <input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" onChange={(event) => setForm({ ...form, confirmTemporaryPassword: event.target.value })} required type={showPassword ? 'text' : 'password'} value={form.confirmTemporaryPassword} style={{ width: '100%', paddingRight: '2rem' }} />
+                          <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                            <i className={showPassword ? "ph ph-eye-slash" : "ph ph-eye"} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
                       <div className="doctor-account-role"><span>Assigned role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
                     </div>
                   ) : <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The Doctor will be created without system login access. An authorized administrator can map a legacy account later.</span></div>}

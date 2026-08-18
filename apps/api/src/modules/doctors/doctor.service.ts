@@ -356,7 +356,7 @@ export class DoctorService {
       date: query.date,
       is_available: false,
       unavailable_reason: null as string | null,
-      slots: [] as Array<{ start_time: string; end_time: string }>,
+      slots: [] as Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }>,
     };
     if (doctor.status !== 'ACTIVE') {
       result.unavailable_reason = doctor.status === 'ON_LEAVE' ? 'Doctor is on leave' : 'Doctor is inactive';
@@ -383,14 +383,14 @@ export class DoctorService {
     const appointments = await this.appointmentRepository.listActiveWindows(id, date);
     const slots = schedule.working_blocks.flatMap((block) => {
       const duration = block.slot_duration_minutes;
-      const blockSlots: Array<{ start_time: string; end_time: string }> = [];
+      const blockSlots: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }> = [];
       for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += duration) {
         const startTime = toTime(current);
         const endTime = toTime(current + duration);
         const conflict = appointments.some(
           (appointment) => startTime < appointment.end_time && endTime > appointment.start_time,
         );
-        if (!conflict) blockSlots.push({ start_time: startTime, end_time: endTime });
+        if (!conflict) blockSlots.push({ start_time: startTime, end_time: endTime, max_patients_per_slot: block.max_patients_per_slot ?? 1 });
       }
       return blockSlots;
     });
@@ -482,7 +482,7 @@ export class DoctorService {
     if (!department || department.status !== 'ACTIVE') {
       throw new AppError('Active department is required', 400, 'INVALID_DEPARTMENT');
     }
-    if (department.branch_id !== branch.id) {
+    if (!department.branch_ids.includes(branch.id)) {
       throw new AppError('Department must belong to the selected branch', 400, 'DEPARTMENT_BRANCH_MISMATCH');
     }
     if (!department.isClinical) {

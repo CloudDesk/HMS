@@ -42,6 +42,8 @@ import { BillingWorkspacePage } from '../pages/BillingWorkspacePage';
 import { BillingHistoryPage } from '../pages/BillingHistoryPage';
 import { SystemSettingsPage } from '../pages/SystemSettingsPage';
 import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
+import { BedManagementPage } from '../pages/BedManagementPage';
+import { InpatientAdmissionPage } from '../pages/InpatientAdmissionPage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { sidebarModules } from '../data/ui-foundation';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -274,6 +276,14 @@ export function AppRouter() {
     title = 'System Settings';
     breadcrumbs = ['Home', 'Administration', 'System Settings'];
     content = <SystemSettingsPage />;
+  } else if (pathname === '/admissions/beds') {
+    title = 'Bed Management';
+    breadcrumbs = ['Home', 'Admissions', 'Bed Management'];
+    content = <BedManagementPage />;
+  } else if (pathname === '/admissions/inpatients') {
+    title = 'Inpatient Admission';
+    breadcrumbs = ['Home', 'Admissions', 'Inpatient Admission'];
+    content = <InpatientAdmissionPage />;
   } 
   // 2. All other sidebar routes automatically get a ComingSoonPage stub
   else if (matchedModule && matchedLink) {

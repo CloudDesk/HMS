@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
 import { branchesApi, type BranchResponse } from '../api/branches';
 import {
@@ -22,7 +22,7 @@ type ModalMode = 'create' | 'edit' | 'view';
 type DepartmentFormState = {
   code: string;
   name: string;
-  branch_id: string;
+  branch_ids: string[];
   description: string;
   status: ApiDepartmentStatus;
   isClinical: boolean;
@@ -31,7 +31,7 @@ type DepartmentFormState = {
 const emptyForm: DepartmentFormState = {
   code: '',
   name: '',
-  branch_id: '',
+  branch_ids: [],
   description: '',
   status: 'ACTIVE',
   isClinical: false,
@@ -141,7 +141,7 @@ function DeptsByBranch({
   const branchCounts = useMemo(() => {
     const counts = new Map<string, number>();
     departments.forEach((d) =>
-      counts.set(d.branch_id, (counts.get(d.branch_id) ?? 0) + 1)
+      d.branch_ids.forEach((bid) => counts.set(bid, (counts.get(bid) ?? 0) + 1))
     );
     return [...counts.entries()]
       .map(([id, count]) => ({
@@ -171,6 +171,128 @@ function DeptsByBranch({
             </div>
           </div>
         ))
+      )}
+    </div>
+  );
+}
+
+function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { branches: BranchResponse[], selectedIds: string[], onChange: (ids: string[]) => void, disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <div 
+        onClick={() => !disabled && setOpen(!open)}
+        style={{ 
+          border: '1px solid var(--border-color)', 
+          padding: '6px', 
+          borderRadius: '4px', 
+          cursor: disabled ? 'not-allowed' : 'pointer', 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: '6px',
+          minHeight: '42px',
+          alignItems: 'center',
+          backgroundColor: disabled ? '#f3f4f6' : '#fff'
+        }}
+      >
+        {selectedIds.length === 0 ? (
+          <span style={{ color: '#9ca3af', fontSize: '0.9rem', paddingLeft: '4px' }}>Select branches...</span>
+        ) : (
+          selectedIds.map(id => {
+            const b = branches.find(br => br.id === id);
+            if (!b) return null;
+            return (
+              <span 
+                key={id} 
+                style={{ 
+                  background: 'var(--primary-color, #2563eb)', 
+                  color: '#fff', 
+                  padding: '2px 8px', 
+                  borderRadius: '16px', 
+                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  lineHeight: '1.2'
+                }}
+              >
+                {b.name}
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!disabled) onChange(selectedIds.filter(sid => sid !== id));
+                  }}
+                  style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: '1.2rem', lineHeight: 1 }}
+                >
+                  &times;
+                </button>
+              </span>
+            );
+          })
+        )}
+      </div>
+      
+      {open && (
+        <div style={{ 
+          position: 'absolute', 
+          top: '100%', 
+          left: 0, 
+          right: 0, 
+          background: '#fff', 
+          border: '1px solid var(--border-color)', 
+          zIndex: 10, 
+          maxHeight: '220px', 
+          overflowY: 'auto', 
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+          borderRadius: '4px',
+          marginTop: '4px'
+        }}>
+          {branches.map(b => {
+            const isSelected = selectedIds.includes(b.id);
+            return (
+              <label 
+                key={b.id} 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  padding: '8px 12px', 
+                  cursor: 'pointer', 
+                  borderBottom: '1px solid #f3f4f6', 
+                  margin: 0,
+                  backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                  fontWeight: 'normal',
+                  fontSize: '0.9rem'
+                }}
+              >
+                <input 
+                  type="checkbox" 
+                  checked={isSelected} 
+                  onChange={(e) => {
+                    const newIds = e.target.checked 
+                      ? [...selectedIds, b.id] 
+                      : selectedIds.filter(id => id !== b.id);
+                    onChange(newIds);
+                  }} 
+                  style={{ marginRight: '12px', width: '16px', height: '16px' }} 
+                />
+                {b.name}
+              </label>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -297,7 +419,7 @@ export function DepartmentManagementPage() {
       setForm({
         code: dept.code,
         name: dept.name,
-        branch_id: dept.branch_id,
+        branch_ids: dept.branch_ids,
         description: dept.description || '',
         status: dept.status,
         isClinical: dept.isClinical,
@@ -323,7 +445,7 @@ export function DepartmentManagementPage() {
     event.preventDefault();
     if (!form.code.trim()) { setFormError('Code is required.'); return; }
     if (!form.name.trim()) { setFormError('Name is required.'); return; }
-    if (!form.branch_id) { setFormError('Branch is required.'); return; }
+    if (form.branch_ids.length === 0) { setFormError('At least one branch is required.'); return; }
 
     setSubmitting(true);
     setFormError('');
@@ -332,7 +454,7 @@ export function DepartmentManagementPage() {
       const payload: SaveDepartmentPayload = {
         code: form.code.trim(),
         name: form.name.trim(),
-        branch_id: form.branch_id,
+        branch_ids: form.branch_ids,
         description: form.description.trim() || null,
         status: form.status,
         isClinical: form.isClinical,
@@ -614,7 +736,7 @@ export function DepartmentManagementPage() {
                             </div>
                           </div>
                         </td>
-                        <td>{getBranchName(dept.branch_id)}</td>
+                        <td>{dept.branch_ids.map(getBranchName).join(', ')}</td>
                         <td>
                           <span
                             className={`status-badge ${dept.status === 'ACTIVE' ? 'status-active' : 'status-inactive'}`}
@@ -807,17 +929,12 @@ export function DepartmentManagementPage() {
             <div className="form-grid-3">
               <label className="form-field">
                 <span>Branch <span className="required">*</span></span>
-                <select
-                  disabled={submitting}
-                  onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
-                  required
-                  value={form.branch_id}
-                >
-                  <option value="">Select Branch</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
+                <BranchMultiSelect 
+                  branches={branches} 
+                  selectedIds={form.branch_ids} 
+                  onChange={(newIds) => setForm({ ...form, branch_ids: newIds })} 
+                  disabled={submitting} 
+                />
               </label>
               {modalMode === 'edit' && (
                 <label className="form-field">
@@ -883,7 +1000,7 @@ export function DepartmentManagementPage() {
               </label>
               <label className="form-field">
                 <span>Branch</span>
-                <input readOnly value={getBranchName(activeDept.branch_id)} />
+                <input readOnly value={activeDept.branch_ids.map(getBranchName).join(', ')} />
               </label>
               <label className="form-field">
                 <span>Created Date</span>

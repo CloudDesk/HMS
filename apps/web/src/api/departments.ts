@@ -7,7 +7,7 @@ export type DepartmentResponse = {
   code: string;
   name: string;
   description: string | null;
-  branch_id: string;
+  branch_ids: string[];
   status: ApiDepartmentStatus;
   isClinical: boolean;
   created_at: string;
@@ -40,7 +40,7 @@ export type DepartmentListParams = Partial<{
 export type SaveDepartmentPayload = {
   code: string;
   name: string;
-  branch_id: string;
+  branch_ids: string[];
   description?: string | null;
   status?: ApiDepartmentStatus;
   isClinical?: boolean;

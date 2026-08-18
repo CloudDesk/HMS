@@ -23,6 +23,10 @@ import type { ImagingService } from '../../modules/imaging/imaging.service.js';
 import type { BillingService } from '../../modules/billing/billing.service.js';
 import type { SettingsService } from '../../modules/settings/settings.service.js';
 import type { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
+import type { NotificationService } from '../../modules/notifications/notification.service.js';
+import type { PharmacyDispensingService } from '../../modules/pharmacy-dispensing/pharmacy-dispensing.service.js';
+import type { AdmissionsConfigurationService } from '../../modules/admissions-configuration/admissions-configuration.service.js';
+import type { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -52,4 +56,8 @@ export type ServiceRegistry = {
   imaging: ImagingService;
   billing: BillingService;
   settings: SettingsService;
+  notification: NotificationService;
+  pharmacyDispensing: PharmacyDispensingService;
+  admissionsConfiguration: AdmissionsConfigurationService;
+  inpatientAdmissions: InpatientAdmissionService;
 };

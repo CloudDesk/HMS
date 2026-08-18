@@ -5,6 +5,7 @@ import {
   type AppointmentListResponse,
   type AppointmentResponse,
 } from '../api/appointments';
+import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
@@ -27,6 +28,7 @@ const buildDashboardUrl = (
   status: ApiAppointmentStatus | '',
   dateFrom: string,
   dateTo: string,
+  doctorFilter: string,
   page: number,
   sortColumn: SortColumn,
   sortDirection: SortDirection,
@@ -36,6 +38,7 @@ const buildDashboardUrl = (
   if (status) params.set('status', status);
   if (dateFrom) params.set('date_from', dateFrom);
   if (dateTo) params.set('date_to', dateTo);
+  if (doctorFilter) params.set('doctor_id', doctorFilter);
   if (page > 1) params.set('page', String(page));
   params.set('sortBy', sortColumn);
   params.set('sortOrder', sortDirection);
@@ -67,9 +70,11 @@ export function AppointmentDashboardPage() {
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
+  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState(initialParams.get('search') ?? '');
+  const [doctorFilter, setDoctorFilter] = useState(initialParams.get('doctor_id') ?? '');
   const [statusFilter, setStatusFilter] = useState<ApiAppointmentStatus | ''>(
     (initialParams.get('status') as ApiAppointmentStatus | null) ?? '',
   );
@@ -144,6 +149,19 @@ export function AppointmentDashboardPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
+  const loadLookups = useCallback(async () => {
+    try {
+      const doctorResponse = await doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
+      setDoctors(doctorResponse.data);
+    } catch (error) {
+      console.error('Failed to load doctors', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLookups();
+  }, [loadLookups]);
+
   const loadAppointments = useCallback(async () => {
     setLoading(true);
     setLoadError('');
@@ -152,6 +170,7 @@ export function AppointmentDashboardPage() {
       const response = await appointmentsApi.list({
         search: search.trim() || undefined,
         status: statusFilter || undefined,
+        doctor_id: doctorFilter || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         page: currentPage,
@@ -168,7 +187,7 @@ export function AppointmentDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, dateFrom, dateTo, search, sortColumn, sortDirection, statusFilter]);
+  }, [currentPage, dateFrom, dateTo, doctorFilter, search, sortColumn, sortDirection, statusFilter]);
 
   useEffect(() => {
     void loadAppointments();
@@ -189,6 +208,7 @@ export function AppointmentDashboardPage() {
   const resetFilters = () => {
     setSearch('');
     setStatusFilter('');
+    setDoctorFilter('');
     setDateFrom(todayInputValue());
     setDateTo(todayInputValue());
     setSortColumn('appointment_date');
@@ -387,6 +407,24 @@ export function AppointmentDashboardPage() {
               {Object.entries(appointmentStatusLabels).map(([status, label]) => (
                 <option key={status} value={status}>
                   {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="doc-field">
+            <label htmlFor="appointment-doctor">Doctor</label>
+            <select
+              id="appointment-doctor"
+              onChange={(event) => {
+                setDoctorFilter(event.target.value);
+                setCurrentPage(1);
+              }}
+              value={doctorFilter}
+            >
+              <option value="">All Doctors</option>
+              {doctors.map((doctor) => (
+                <option key={doctor.id} value={doctor.id}>
+                  {doctor.display_name}
                 </option>
               ))}
             </select>
