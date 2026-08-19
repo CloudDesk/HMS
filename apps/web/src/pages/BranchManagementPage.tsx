@@ -1,4 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { ApiError } from '../api/api-error';
 import {
   type ApiBranchStatus,
@@ -16,33 +19,23 @@ import { useBranchManagementFeature, type SortColumn } from '../hooks/branches/u
 
 type ModalMode = 'create' | 'edit' | 'view';
 
-type BranchFormState = {
-  code: string;
-  name: string;
-  shortName: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  country: string;
-  postalCode: string;
-  status: ApiBranchStatus;
-};
 
-const emptyForm: BranchFormState = {
-  code: '',
-  name: '',
-  shortName: '',
-  email: '',
-  phone: '',
-  address: '',
-  city: '',
-  state: '',
-  country: '',
-  postalCode: '',
-  status: 'ACTIVE',
-};
+const branchSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  name: z.string().min(1, 'Name is required'),
+  shortName: z.string().optional(),
+  email: z.string().email('Valid email required').optional().or(z.literal('')),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  postalCode: z.string().optional(),
+  status: z.enum(['active', 'inactive', 'archived'])
+});
+type BranchFormData = z.infer<typeof branchSchema>;
+
+
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -84,7 +77,13 @@ export function BranchManagementPage() {
   // Modals
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [activeBranch, setActiveBranch] = useState<BranchResponse | null>(null);
-  const [form, setForm] = useState<BranchFormState>(emptyForm);
+  const branchForm = useForm<BranchFormData>({
+    resolver: zodResolver(branchSchema),
+    defaultValues: {
+      code: '', name: '', shortName: '', email: '', phone: '', address: '',
+      city: '', state: '', country: '', postalCode: '', status: 'active'
+    }
+  });
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BranchResponse | null>(null);
 
@@ -104,23 +103,19 @@ export function BranchManagementPage() {
     setModalMode(mode);
     setActiveBranch(branch);
     setFormError('');
-    if (branch) {
-      setForm({
-        code: branch.code,
-        name: branch.name,
-        shortName: branch.short_name || '',
-        email: branch.email || '',
-        phone: branch.phone || '',
-        address: branch.address || '',
-        city: branch.city || '',
-        state: branch.state || '',
-        country: branch.country || '',
-        postalCode: branch.postal_code || '',
-        status: branch.status,
-      });
-    } else {
-      setForm(emptyForm);
-    }
+    branchForm.reset({
+      code: branch?.code ?? '',
+      name: branch?.name ?? '',
+      shortName: branch?.short_name ?? '',
+      email: branch?.email ?? '',
+      phone: branch?.phone ?? '',
+      address: branch?.address ?? '',
+      city: branch?.city ?? '',
+      state: branch?.state ?? '',
+      country: branch?.country ?? '',
+      postalCode: branch?.postal_code ?? '',
+      status: (branch?.status?.toLowerCase() as BranchFormData['status']) ?? 'active',
+    });
   };
 
   const closeModal = () => {
@@ -134,26 +129,22 @@ export function BranchManagementPage() {
     if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openModal('create');
   }, [locationSearch]);
 
-  const handleSave = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!form.code.trim()) { setFormError('Code is required'); return; }
-    if (!form.name.trim()) { setFormError('Name is required'); return; }
+  const handleSave = async (data: BranchFormData) => {
     setFormError('');
 
     try {
       const payload: UpdateBranchPayload = {
-        code: form.code,
-        name: form.name,
-        short_name: form.shortName || undefined,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        address: form.address || undefined,
-        city: form.city || undefined,
-        state: form.state || undefined,
-        country: form.country || undefined,
-        postal_code: form.postalCode || undefined,
-        status: form.status,
+        code: data.code,
+        name: data.name,
+        short_name: data.shortName || undefined,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        address: data.address || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        country: data.country || undefined,
+        postal_code: data.postalCode || undefined,
+        status: data.status.toUpperCase() as ApiBranchStatus,
       };
 
       if (modalMode === 'create') {
@@ -425,7 +416,7 @@ export function BranchManagementPage() {
               <label className="form-field full-width"><span>Address</span><input readOnly value={activeBranch.address || '-'} /></label>
             </div>
           ) : (
-          <form className="modal-form" id="branch-management-form" onSubmit={handleSave}>
+          <form className="modal-form" id="branch-management-form" onSubmit={(e) => { e.stopPropagation(); void branchForm.handleSubmit(handleSave)(e); }}>
             {formError && (
               <div className="form-error-banner" role="alert">
                 <i className="ph ph-warning-circle" aria-hidden="true" />
@@ -440,10 +431,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-code"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  required
-                  type="text"
-                  value={form.code}
+                    {...branchForm.register('code')}
                 />
               </div>
 
@@ -452,10 +440,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-name"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                  type="text"
-                  value={form.name}
+                    {...branchForm.register('name')}
                 />
               </div>
 
@@ -464,9 +449,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-short-name"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, shortName: e.target.value })}
-                  type="text"
-                  value={form.shortName}
+                    {...branchForm.register('shortName')}
                 />
               </div>
 
@@ -475,9 +458,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-email"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  type="email"
-                  value={form.email}
+                    {...branchForm.register('email')}
                 />
               </div>
 
@@ -486,9 +467,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-phone"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  type="tel"
-                  value={form.phone}
+                    {...branchForm.register('phone')}
                 />
               </div>
 
@@ -497,9 +476,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-city"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  type="text"
-                  value={form.city}
+                    {...branchForm.register('city')}
                 />
               </div>
 
@@ -508,9 +485,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-state"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, state: e.target.value })}
-                  type="text"
-                  value={form.state}
+                    {...branchForm.register('state')}
                 />
               </div>
 
@@ -519,9 +494,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-postal-code"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
-                  type="text"
-                  value={form.postalCode}
+                    {...branchForm.register('postalCode')}
                 />
               </div>
 
@@ -530,9 +503,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-country"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, country: e.target.value })}
-                  type="text"
-                  value={form.country}
+                    {...branchForm.register('country')}
                 />
               </div>
 
@@ -541,9 +512,7 @@ export function BranchManagementPage() {
                 <select
                   id="branch-status"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, status: e.target.value as ApiBranchStatus })}
-                  required
-                  value={form.status}
+                    {...branchForm.register('status')}
                 >
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
@@ -555,9 +524,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-address"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  type="text"
-                  value={form.address}
+                    {...branchForm.register('address')}
                 />
               </div>
             </div>

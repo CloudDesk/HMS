@@ -1,9 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { appointmentsApi } from '../api/appointments';
-import { billingApi, type BillingSummary } from '../api/billing';
-import { doctorsApi } from '../api/doctors';
-import { opdApi, type OpdVisitResponse } from '../api/opd';
-import { patientsApi } from '../api/patients';
+import { useState, useEffect } from 'react';
+import { useDashboardOverviewFeature } from '../hooks/dashboard/useDashboardOverviewFeature';
 import { useAuth } from '../auth/useAuth';
 import { useAppLocation } from '../routing/navigation';
 import { formatDateTime } from './patient-utils';
@@ -13,29 +9,6 @@ import { OpdDashboardPage } from './OpdDashboardPage';
 import { BillingDashboardPage } from './BillingDashboardPage';
 import { AdministrationDashboardPage } from './AdministrationDashboardPage';
 
-type ExecutiveData = {
-  activeDoctors: number;
-  appointmentsToday: number;
-  completedVisits: number;
-  opdVisitsToday: number;
-  registeredPatients: number;
-  billedTotal: number;
-  collectedTotal: number;
-  recentVisits: OpdVisitResponse[];
-  trend: Array<{ day: string; visits: number; revenue: number }>;
-};
-
-const defaultExecutiveData: ExecutiveData = {
-  activeDoctors: 0,
-  appointmentsToday: 0,
-  completedVisits: 0,
-  opdVisitsToday: 0,
-  registeredPatients: 0,
-  billedTotal: 0,
-  collectedTotal: 0,
-  recentVisits: [],
-  trend: [],
-};
 
 type StatCardProps = {
   icon: string;
@@ -62,65 +35,10 @@ function StatCard({ icon, label, note, tone, value }: StatCardProps) {
 
 function ExecutiveOverviewTab() {
   const { user } = useAuth();
-  const [data, setData] = useState<ExecutiveData>(defaultExecutiveData);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
   const firstName = user?.fullName?.split(' ')[0] ?? user?.username ?? 'User';
+  const { data, isLoading: loading, isError, refresh } = useDashboardOverviewFeature();
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    const today = new Date().toISOString().slice(0, 10);
-
-    try {
-      const [patients, doctors, appointments, visits, billingSummary] = await Promise.allSettled([
-        patientsApi.list({ limit: 1 }),
-        doctorsApi.list({ limit: 1, status: 'ACTIVE' }),
-        appointmentsApi.list({ date_from: today, date_to: today, limit: 100 }),
-        opdApi.listVisits({ date_from: today, date_to: today, limit: 100, sortBy: 'created_at', sortOrder: 'desc' }),
-        billingApi.summary(),
-      ]);
-
-      const patientTotal = patients.status === 'fulfilled' ? patients.value.meta.total : 0;
-      const doctorTotal = doctors.status === 'fulfilled' ? doctors.value.meta.total : 0;
-      const apptTotal = appointments.status === 'fulfilled' ? appointments.value.meta.total : 0;
-      const visitData = visits.status === 'fulfilled' ? visits.value.data : [];
-      const billing: Partial<BillingSummary> = billingSummary.status === 'fulfilled' ? billingSummary.value : {};
-
-      // Build 7-day trend mock/live data
-      const now = new Date();
-      const trendPoints = Array.from({ length: 7 }).map((_, i) => {
-        const d = new Date(now);
-        d.setDate(now.getDate() - (6 - i));
-        const dayLabel = new Intl.DateTimeFormat('en', { weekday: 'short' }).format(d);
-        const dayVisits = visitData.length > 0 ? Math.floor(Math.random() * 8) + (i + 1) * 2 : (i + 1) * 3;
-        const dayRevenue = dayVisits * 450 + 500;
-        return { day: dayLabel, visits: dayVisits, revenue: dayRevenue };
-      });
-
-      setData({
-        activeDoctors: doctorTotal,
-        appointmentsToday: apptTotal,
-        completedVisits: visitData.filter((v) => v.status === 'COMPLETED').length,
-        opdVisitsToday: visitData.length,
-        registeredPatients: patientTotal,
-        billedTotal: billing.billed_amount ?? 14500,
-        collectedTotal: billing.collected_amount ?? 11200,
-        recentVisits: visitData.slice(0, 6),
-        trend: trendPoints,
-      });
-    } catch {
-      setData(defaultExecutiveData);
-      setLoadError('Executive dashboard metrics could not be updated.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
-
+  const loadError = isError ? 'Executive dashboard metrics could not be updated.' : '';
   const maxRevenue = Math.max(1, ...data.trend.map((t) => t.revenue));
 
   return (
@@ -130,7 +48,7 @@ function ExecutiveOverviewTab() {
           <h2>Hospital Executive Overview</h2>
           <p>Welcome back, {firstName}. Live enterprise health, encounters, and financial performance.</p>
         </div>
-        <button className="secondary-action" disabled={loading} onClick={() => void loadDashboard()} type="button">
+        <button className="secondary-action" disabled={loading} onClick={() => refresh()} type="button">
           <i className="ph ph-arrow-clockwise" aria-hidden="true" />
           Refresh Live Data
         </button>
@@ -245,10 +163,15 @@ function ExecutiveOverviewTab() {
 
 type DashboardTab = 'overview' | 'doctors' | 'appointments' | 'opd' | 'billing' | 'admin';
 
+const isDashboardTab = (val: string | null): val is DashboardTab => {
+  return val !== null && ['overview', 'doctors', 'appointments', 'opd', 'billing', 'admin'].includes(val);
+};
+
 export function DashboardShell() {
   const location = useAppLocation();
   const searchParams = new URLSearchParams(location.search);
-  const requestedTab = (searchParams.get('tab') as DashboardTab) || 'overview';
+  const rawTab = searchParams.get('tab');
+  const requestedTab = isDashboardTab(rawTab) ? rawTab : 'overview';
   const [activeTab, setActiveTab] = useState<DashboardTab>(requestedTab);
 
   useEffect(() => {
@@ -321,3 +244,8 @@ export function DashboardShell() {
     </div>
   );
 }
+
+
+
+
+

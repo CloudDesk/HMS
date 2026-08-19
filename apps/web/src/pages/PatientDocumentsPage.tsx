@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  patientsApi,
   type ApiPatientDocumentType,
   type PatientDocumentResponse,
 } from '../api/patients';
-import { Toast } from '../components/ui/Toast';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDate, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
 import { patientInitials } from './opd-utils';
-import { usePatientsList, usePatientDetails, usePatientDocuments, useUploadPatientDocument, useDeletePatientDocument, useReplacePatientDocument } from '../hooks/patients/usePatients';
+import { usePatientsList, usePatientDetails, usePatientDocuments, useUploadPatientDocument, useDeletePatientDocument,
+  useDownloadPatientDocument, useReplacePatientDocument } from '../hooks/patients/usePatients';
 import { toast } from 'sonner';
 
 type PatientDocumentRecord = {
@@ -75,10 +74,7 @@ export function PatientDocumentsPage() {
   }
 
   const [activePatientId, setActivePatientId] = useState<string>(initialTargetId || '');
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-
+      
   // Sync activePatientId with initialTargetId once loaded
   useEffect(() => {
     if (!activePatientId && initialTargetId) {
@@ -95,6 +91,7 @@ export function PatientDocumentsPage() {
 
   const uploadDoc = useUploadPatientDocument();
   const deleteDoc = useDeletePatientDocument();
+  const downloadDoc = useDownloadPatientDocument();
   const replaceDoc = useReplacePatientDocument();
 
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -187,7 +184,7 @@ export function PatientDocumentsPage() {
   const handleViewDocument = async (doc: PatientDocumentRecord) => {
     if (!activePatientId) return;
     try {
-      const download = await patientsApi.downloadDocument(activePatientId, doc.id);
+      const download = await downloadDoc.mutateAsync({ patientId: activePatientId, docId: doc.id });
       const url = URL.createObjectURL(download.blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -199,7 +196,7 @@ export function PatientDocumentsPage() {
   const handleDownloadDocument = async (doc: PatientDocumentRecord) => {
     if (!activePatientId) return;
     try {
-      const downloadRes = await patientsApi.downloadDocument(activePatientId, doc.id);
+      const downloadRes = await downloadDoc.mutateAsync({ patientId: activePatientId, docId: doc.id });
       const url = URL.createObjectURL(downloadRes.blob);
       const a = document.createElement('a');
       a.href = url;
@@ -662,7 +659,10 @@ export function PatientDocumentsPage() {
         title="Delete Patient Document"
       />
 
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
+      
     </>
   );
 }
+
+
+

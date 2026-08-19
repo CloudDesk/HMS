@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useUserManagementFeature } from '../hooks/users/useUserManagementFeature';
 import { ApiError } from '../api/api-error';
 import {
@@ -16,6 +19,30 @@ type UserStatus = 'Active' | 'Inactive' | 'Locked';
 type SortColumn = 'fullName' | 'role' | 'department' | 'status';
 type SortDirection = 'asc' | 'desc';
 type ModalMode = 'create' | 'edit' | 'view' | 'assign-role' | 'change-password' | 'reset-password';
+
+
+const baseUserSchema = z.object({
+  employeeCode: z.string().optional(),
+  username: z.string().min(1, 'Username is required.'),
+  email: z.string().email('Valid email is required.').min(1, 'Email is required.'),
+  fullName: z.string().min(1, 'Full name is required.'),
+  phone: z.string().optional(),
+  jobTitle: z.string().optional(),
+  roleId: z.string().min(1, 'Role assignment is required.'),
+  branchId: z.string().min(1, 'Branch assignment is required.'),
+  departmentId: z.string().min(1, 'Department assignment is required.'),
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
+  status: z.enum(['Active', 'Inactive', 'Locked'])
+});
+
+export type UserFormData = z.infer<typeof baseUserSchema>;
+
+const passwordSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(1, 'New password is required.'),
+});
+export type PasswordFormData = z.infer<typeof passwordSchema>;
 
 type UiUser = {
   apiId: string;
@@ -46,25 +73,7 @@ const getPasswordPolicyErrors = (password: string, policy: AuthPasswordPolicy) =
   if (policy.requireSymbol && !/[^A-Za-z0-9]/.test(password)) errors.push('contain a special character');
   return errors;
 };
-type UserFormState = {
-  employeeCode: string;
-  username: string;
-  email: string;
-  fullName: string;
-  phone: string;
-  jobTitle: string;
-  roleId: string;
-  branchId: string;
-  departmentId: string;
-  password: string;
-  confirmPassword: string;
-  status: UserStatus;
-};
 
-type PasswordFormState = {
-  currentPassword: string;
-  newPassword: string;
-};
 
 type PasswordFieldKey = 'create' | 'confirm' | 'current' | 'new';
 
@@ -123,20 +132,6 @@ const initials = (name: string) =>
 
 
 
-const emptyUserForm: UserFormState = {
-  employeeCode: '',
-  username: '',
-  email: '',
-  fullName: '',
-  phone: '',
-  jobTitle: 'Doctor',
-  roleId: '',
-  branchId: '',
-  departmentId: '',
-  password: '',
-  confirmPassword: '',
-  status: 'Active',
-};
 
 
 
@@ -167,30 +162,27 @@ const getErrorMessage = (error: unknown) => {
   return 'Unable to complete the user request.';
 };
 
-function PasswordInput({
-  autoComplete,
-  invalid = false,
-  onChange,
-  onToggle,
-  value,
-  visible,
-}: {
+const PasswordInput = React.forwardRef<HTMLInputElement, {
   autoComplete: 'current-password' | 'new-password';
   invalid?: boolean;
-  onChange: (value: string) => void;
   onToggle: () => void;
-  value: string;
   visible: boolean;
-}) {
+} & Omit<React.ComponentPropsWithoutRef<'input'>, 'onChange'> & { onChange?: React.ChangeEventHandler<HTMLInputElement> }>(({
+  autoComplete,
+  invalid = false,
+  onToggle,
+  visible,
+  ...props
+}, ref) => {
   return (
     <div className="password-input">
       <input
         aria-invalid={invalid}
         autoComplete={autoComplete}
-        onChange={(event) => onChange(event.target.value)}
         required
         type={visible ? 'text' : 'password'}
-        value={value}
+        ref={ref}
+        {...props}
       />
       <button
         aria-label={visible ? 'Hide password' : 'Show password'}
@@ -203,7 +195,7 @@ function PasswordInput({
       </button>
     </div>
   );
-}
+});
 
 function PasswordPolicyNote({ policy }: { policy: AuthPasswordPolicy | null }) {
   if (!policy) return null;
@@ -321,9 +313,18 @@ export function UserManagementPage() {
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
-  const [passwordForm, setPasswordForm] = useState<PasswordFormState>({ currentPassword: '', newPassword: '' });
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof UserFormState | keyof PasswordFormState, string>>>({});
+  const userForm = useForm<UserFormData>({
+    resolver: zodResolver(baseUserSchema),
+    defaultValues: {
+      employeeCode: '', username: '', email: '', fullName: '', phone: '', jobTitle: '',
+      roleId: '', branchId: '', departmentId: '', password: '', confirmPassword: '', status: 'Active'
+    }
+  });
+
+  const passwordForm = useForm<PasswordFormData>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { currentPassword: '', newPassword: '' }
+  });
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -332,25 +333,7 @@ export function UserManagementPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const updateForm = (field: keyof UserFormState, value: string) => {
-    const updates = { [field]: value } as Partial<UserFormState>;
-    setUserForm((current) => ({ ...current, ...updates }));
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next[field];
-      return next;
-    });
-  };
 
-  const updatePasswordForm = (field: keyof PasswordFormState, value: string) => {
-    const updates = { [field]: value } as Partial<PasswordFormState>;
-    setPasswordForm((current) => ({ ...current, ...updates }));
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next[field];
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (canCreate && new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
@@ -389,10 +372,10 @@ export function UserManagementPage() {
     setModalMode(mode);
     setActiveUser(user);
     setFormError('');
-    setFieldErrors({});
+
 
     if (user) {
-      setUserForm({
+      userForm.reset({
         employeeCode: user.source.employeeCode ?? '',
         username: user.username,
         email: user.email,
@@ -402,16 +385,16 @@ export function UserManagementPage() {
         roleId: user.roleId,
         branchId: user.branchId,
         departmentId: user.departmentId,
-        status: user.status,
+        status: user.status as UserFormData['status'],
         password: '',
         confirmPassword: '',
       });
     } else {
-      setUserForm(emptyUserForm);
+      userForm.reset({ employeeCode: '', username: '', email: '', fullName: '', phone: '', jobTitle: '', roleId: '', branchId: '', departmentId: '', password: '', confirmPassword: '', status: 'Active' });
     }
 
     if (mode === 'change-password' || mode === 'reset-password') {
-      setPasswordForm({ currentPassword: '', newPassword: '' });
+      passwordForm.reset();
       setVisiblePasswordFields(new Set());
     }
   };
@@ -421,55 +404,51 @@ export function UserManagementPage() {
     setModalMode(null);
     setActiveUser(null);
     setFormError('');
-    setFieldErrors({});
+
   };
 
-  const validateUserForm = () => {
-    const errors: Partial<Record<keyof UserFormState, string>> = {};
-    if (!userForm.fullName.trim()) errors.fullName = 'Full name is required.';
-    if (!userForm.username.trim()) errors.username = 'Username is required.';
-    if (!userForm.email.trim()) errors.email = 'Email is required.';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userForm.email)) errors.email = 'Valid email is required.';
-    if (!userForm.roleId) errors.roleId = 'Role assignment is required.';
-    if (!userForm.branchId) errors.branchId = 'Branch assignment is required.';
-    if (!userForm.departmentId) errors.departmentId = 'Department assignment is required.';
 
-    if (modalMode === 'create') {
-      if (!userForm.password) errors.password = 'Password is required for new users.';
-      else if (passwordPolicy) {
-        const policyErrors = getPasswordPolicyErrors(userForm.password, passwordPolicy);
-        if (policyErrors.length > 0) errors.password = `Password must ${policyErrors.join(' and ')}.`;
-      }
-      if (userForm.password !== userForm.confirmPassword) errors.confirmPassword = 'Passwords must match.';
-    }
 
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const buildSavePayload = (): SaveUserPayload => ({
-    branches: branchOptions.filter(b => b.id === userForm.branchId).map(b => ({ id: b.id, name: b.name, isPrimary: true })),
-    departments: departmentOptions.filter(d => d.id === userForm.departmentId).map(d => ({ id: d.id, name: d.name, isPrimary: true })),
-    email: userForm.email || null,
-    employeeCode: userForm.employeeCode || '',
-    fullName: userForm.fullName,
-    jobTitle: userForm.jobTitle || '',
-    phone: userForm.phone || null,
-    roleIds: [userForm.roleId],
-    status: userForm.status.toLowerCase() as ApiUserStatus,
-    username: userForm.username,
+  const buildSavePayload = (data: UserFormData): SaveUserPayload => ({
+    branches: branchOptions.filter(b => b.id === data.branchId).map(b => ({ id: b.id, name: b.name, isPrimary: true })),
+    departments: departmentOptions.filter(d => d.id === data.departmentId).map(d => ({ id: d.id, name: d.name, isPrimary: true })),
+    email: data.email || null,
+    employeeCode: data.employeeCode || '',
+    fullName: data.fullName,
+    jobTitle: data.jobTitle || '',
+    phone: data.phone || null,
+    roleIds: [data.roleId],
+    status: data.status.toLowerCase() as ApiUserStatus,
+    username: data.username,
   });
 
-  const handleSaveUser = async (event: FormEvent) => {
-    event.preventDefault();
-    if (submitting || !validateUserForm()) return;
+  const handleSaveUser = async (formData: UserFormData) => {
+    if (submitting) return;
     setFormError('');
 
+    if (modalMode === 'create') {
+      if (!formData.password) {
+        userForm.setError('password', { message: 'Password is required for new users.' });
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        userForm.setError('confirmPassword', { message: 'Passwords must match.' });
+        return;
+      }
+      if (passwordPolicy) {
+        const policyErrors = getPasswordPolicyErrors(formData.password, passwordPolicy);
+        if (policyErrors.length > 0) {
+          userForm.setError('password', { message: `Password must ${policyErrors.join(' and ')}.` });
+          return;
+        }
+      }
+    }
+
     try {
-      const payload = buildSavePayload();
+      const payload = buildSavePayload(formData);
 
       if (modalMode === 'create') {
-        await mutations.createUser.mutateAsync({ ...payload, password: userForm.password });
+        await mutations.createUser.mutateAsync({ ...payload, password: formData.password! });
         showToast('User created successfully.');
       } else if (modalMode === 'edit' && activeUser) {
         await mutations.updateUser.mutateAsync({ id: activeUser.apiId, payload });
@@ -484,31 +463,20 @@ export function UserManagementPage() {
     }
   };
 
-  const handlePasswordSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const handlePasswordSubmit = async (formData: PasswordFormData) => {
     if (!activeUser || submitting) return;
-
-    const errors: Partial<Record<keyof PasswordFormState, string>> = {};
-    if (modalMode === 'change-password' && !passwordForm.currentPassword) {
-      errors.currentPassword = 'Current password is required.';
-    }
-    if (!passwordForm.newPassword) {
-      errors.newPassword = 'New password is required.';
-    } else if (passwordPolicy) {
-      const policyErrors = getPasswordPolicyErrors(passwordForm.newPassword, passwordPolicy);
-      if (policyErrors.length > 0) errors.newPassword = `Password must ${policyErrors.join(' and ')}.`;
-    }
-
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
     setFormError('');
+    if (passwordPolicy) {
+      const policyErrors = getPasswordPolicyErrors(formData.newPassword, passwordPolicy);
+      if (policyErrors.length > 0) {
+        passwordForm.setError('newPassword', { message: `Password must ${policyErrors.join(' and ')}.` });
+        return;
+      }
+    }
     try {
       if (modalMode === 'reset-password') {
-        await mutations.resetPassword.mutateAsync({ id: activeUser.apiId, newPassword: passwordForm.newPassword });
+        await mutations.resetPassword.mutateAsync({ id: activeUser.apiId, newPassword: formData.newPassword });
         showToast('Password reset successfully.');
-      } else if (modalMode === 'change-password') {
-        // ...
       }
       closeModal();
     } catch (error) {
@@ -1007,66 +975,66 @@ export function UserManagementPage() {
         ) : null}
 
         {modalMode === 'create' || modalMode === 'edit' || modalMode === 'assign-role' ? (
-          <form id="user-management-modal-form" onSubmit={(event) => void handleSaveUser(event)}>
+          <form id="user-management-modal-form" onSubmit={(event) => { event.stopPropagation(); void userForm.handleSubmit(handleSaveUser)(event); }}>
             {modalMode !== 'assign-role' ? <>
             <div className="form-section-title">Personal Information</div>
             <div className="form-grid-3">
               <label className="form-field">
                 <span>Employee ID <span className="required">*</span></span>
-                <input aria-invalid={Boolean(fieldErrors.employeeCode)} onChange={(event) => updateForm('employeeCode', event.target.value)} required value={userForm.employeeCode} />
-                {fieldErrors.employeeCode ? <small className="field-error">{fieldErrors.employeeCode}</small> : null}
+                <input  {...userForm.register('employeeCode')} />
+                {userForm.formState.errors.employeeCode ? <small className="field-error">{userForm.formState.errors.employeeCode.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Full Name <span className="required">*</span></span>
-                <input aria-invalid={Boolean(fieldErrors.fullName)} onChange={(event) => updateForm('fullName', event.target.value)} required value={userForm.fullName} />
-                {fieldErrors.fullName ? <small className="field-error">{fieldErrors.fullName}</small> : null}
+                <input  {...userForm.register('fullName')} />
+                {userForm.formState.errors.fullName ? <small className="field-error">{userForm.formState.errors.fullName.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Username <span className="required">*</span></span>
-                <input aria-invalid={Boolean(fieldErrors.username)} onChange={(event) => updateForm('username', event.target.value)} required value={userForm.username} />
-                {fieldErrors.username ? <small className="field-error">{fieldErrors.username}</small> : null}
+                <input  {...userForm.register('username')} />
+                {userForm.formState.errors.username ? <small className="field-error">{userForm.formState.errors.username.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Email <span className="required">*</span></span>
-                <input aria-invalid={Boolean(fieldErrors.email)} onChange={(event) => updateForm('email', event.target.value)} required type="email" value={userForm.email} />
-                {fieldErrors.email ? <small className="field-error">{fieldErrors.email}</small> : null}
+                <input  {...userForm.register('email')} />
+                {userForm.formState.errors.email ? <small className="field-error">{userForm.formState.errors.email.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Phone</span>
-                <input onChange={(event) => updateForm('phone', event.target.value)} value={userForm.phone} />
+                <input {...userForm.register('phone')} />
               </label>
             </div>
             <div className="form-section-title">Role &amp; Assignment</div>
             <div className="form-grid-3">
               <label className="form-field">
                 <span>Branch <span className="required">*</span></span>
-                <select aria-invalid={Boolean(fieldErrors.branchId)} onChange={(event) => updateForm('branchId', event.target.value)} required value={userForm.branchId}>
+                <select  {...userForm.register('branchId')}>
                   <option value="">Select branch</option>
                   {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </select>
-                {fieldErrors.branchId ? <small className="field-error">{fieldErrors.branchId}</small> : null}
+                {userForm.formState.errors.branchId ? <small className="field-error">{userForm.formState.errors.branchId.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Department <span className="required">*</span></span>
-                <select aria-invalid={Boolean(fieldErrors.departmentId)} onChange={(event) => updateForm('departmentId', event.target.value)} required value={userForm.departmentId}>
+                <select  {...userForm.register('departmentId')}>
                   <option value="">Select department</option>
                   {departmentOptions
-                    .filter((department) => !userForm.branchId || department.branch_id === userForm.branchId)
+                    .filter((department) => !userForm.watch('branchId') || department.branch_id === userForm.watch('branchId'))
                     .map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                 </select>
-                {fieldErrors.departmentId ? <small className="field-error">{fieldErrors.departmentId}</small> : null}
+                {userForm.formState.errors.departmentId ? <small className="field-error">{userForm.formState.errors.departmentId.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Role <span className="required">*</span></span>
-                <select aria-invalid={Boolean(fieldErrors.roleId)} onChange={(event) => updateForm('roleId', event.target.value)} required value={userForm.roleId}>
+                <select  {...userForm.register('roleId')}>
                   <option value="">Select role</option>
                   {roleOptions.filter((role) => role.name !== 'Doctor').map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                 </select>
-                {fieldErrors.roleId ? <small className="field-error">{fieldErrors.roleId}</small> : null}
+                {userForm.formState.errors.roleId ? <small className="field-error">{userForm.formState.errors.roleId.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Status <span className="required">*</span></span>
-                <select onChange={(event) => updateForm('status', event.target.value)} required value={userForm.status}>
+                <select {...userForm.register('status')}>
                   {statuses.map((status) => <option key={status}>{status}</option>)}
                 </select>
               </label>
@@ -1075,25 +1043,25 @@ export function UserManagementPage() {
                   <span>Password <span className="required">*</span></span>
                   <PasswordInput
                     autoComplete="new-password"
-                    invalid={Boolean(fieldErrors.password)}
-                    onChange={(value) => updateForm('password', value)}
-                    onToggle={() => togglePasswordVisibility('create')}
-                    value={userForm.password}
+                    invalid={Boolean(userForm.formState.errors.password)}
+                    {...userForm.register('password')}
+                      onToggle={() => togglePasswordVisibility('create')}
+
                     visible={visiblePasswordFields.has('create')}
                   />
-                  {fieldErrors.password ? <small className="field-error">{fieldErrors.password}</small> : null}
+                  {userForm.formState.errors.password ? <small className="field-error">{userForm.formState.errors.password.message}</small> : null}
                 </label>
                 <label className="form-field">
                   <span>Confirm Password <span className="required">*</span></span>
                   <PasswordInput
                     autoComplete="new-password"
-                    invalid={Boolean(fieldErrors.confirmPassword)}
-                    onChange={(value) => updateForm('confirmPassword', value)}
-                    onToggle={() => togglePasswordVisibility('confirm')}
-                    value={userForm.confirmPassword}
+                    invalid={Boolean(userForm.formState.errors.confirmPassword)}
+                    {...userForm.register('confirmPassword')}
+                      onToggle={() => togglePasswordVisibility('confirm')}
+
                     visible={visiblePasswordFields.has('confirm')}
                   />
-                  {fieldErrors.confirmPassword ? <small className="field-error">{fieldErrors.confirmPassword}</small> : null}
+                  {userForm.formState.errors.confirmPassword ? <small className="field-error">{userForm.formState.errors.confirmPassword.message}</small> : null}
                 </label>
                 <PasswordPolicyNote policy={passwordPolicy} />
               </> : null}
@@ -1103,11 +1071,11 @@ export function UserManagementPage() {
               <div className="form-grid-3">
               <label className="form-field">
                 <span>Role <span className="required">*</span></span>
-                <select aria-invalid={Boolean(fieldErrors.roleId)} onChange={(event) => updateForm('roleId', event.target.value)} required value={userForm.roleId}>
+                <select  {...userForm.register('roleId')}>
                   <option value="">Select role</option>
                   {roleOptions.filter((role) => role.name !== 'Doctor').map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                 </select>
-                {fieldErrors.roleId ? <small className="field-error">{fieldErrors.roleId}</small> : null}
+                {userForm.formState.errors.roleId ? <small className="field-error">{userForm.formState.errors.roleId.message}</small> : null}
               </label>
               </div>
             </>}
@@ -1115,7 +1083,7 @@ export function UserManagementPage() {
         ) : null}
 
         {modalMode === 'change-password' || modalMode === 'reset-password' ? (
-          <form id="user-management-modal-form" onSubmit={(event) => void handlePasswordSubmit(event)}>
+          <form id="user-management-modal-form" onSubmit={(event) => { event.stopPropagation(); void passwordForm.handleSubmit(handlePasswordSubmit)(event); }}>
             <div className="form-section-title">Password Action</div>
             <div className="form-grid-3">
               {modalMode === 'change-password' ? (
@@ -1123,26 +1091,26 @@ export function UserManagementPage() {
                   <span>Current Password <span className="required">*</span></span>
                   <PasswordInput
                     autoComplete="current-password"
-                    invalid={Boolean(fieldErrors.currentPassword)}
-                    onChange={(value) => updatePasswordForm('currentPassword', value)}
-                    onToggle={() => togglePasswordVisibility('current')}
-                    value={passwordForm.currentPassword}
+                    invalid={Boolean(passwordForm.formState.errors.currentPassword)}
+                    {...passwordForm.register('currentPassword')}
+                      onToggle={() => togglePasswordVisibility('current')}
+
                     visible={visiblePasswordFields.has('current')}
                   />
-                  {fieldErrors.currentPassword ? <small className="field-error">{fieldErrors.currentPassword}</small> : null}
+                  {passwordForm.formState.errors.currentPassword ? <small className="field-error">{passwordForm.formState.errors.currentPassword?.message}</small> : null}
                 </label>
               ) : null}
               <label className="form-field">
                 <span>New Password <span className="required">*</span></span>
                 <PasswordInput
                   autoComplete="new-password"
-                  invalid={Boolean(fieldErrors.newPassword)}
-                  onChange={(value) => updatePasswordForm('newPassword', value)}
-                  onToggle={() => togglePasswordVisibility('new')}
-                  value={passwordForm.newPassword}
+                  invalid={Boolean(passwordForm.formState.errors.newPassword)}
+                  {...passwordForm.register('newPassword')}
+                      onToggle={() => togglePasswordVisibility('new')}
+
                   visible={visiblePasswordFields.has('new')}
                 />
-                {fieldErrors.newPassword ? <small className="field-error">{fieldErrors.newPassword}</small> : null}
+                {passwordForm.formState.errors.newPassword ? <small className="field-error">{passwordForm.formState.errors.newPassword?.message}</small> : null}
               </label>
               <PasswordPolicyNote policy={passwordPolicy} />
             </div>

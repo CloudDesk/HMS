@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { type BillingInvoice } from '../api/billing';
 import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
 import {
-  patientsApi,
-  type ApiPatientDocumentType,
+    type ApiPatientDocumentType,
   type PatientResponse,
   type PatientTimelineEventResponse,
-  type PatientTimelineListResponse,
-} from '../api/patients';
+  } from '../api/patients';
 import { usePatientProfile, type PatientProfileTab } from '../hooks/patients/usePatientProfile';
 import { useUpdatePatient, useUploadPatientDocument } from '../hooks/patients/usePatients';
 import { useForm } from 'react-hook-form';
@@ -96,50 +94,11 @@ function EmptyRecords({ message }: { message: string }) {
 
 // ── EMR Timeline Tab (inline, Option B) ─────────────────────────────────────
 
-type EmrTabProps = {
-  patientId: string;
-};
+type EmrTabProps = { patientId: string; loading: boolean; loadError: string; timeline: PatientTimelineEventResponse[]; meta: { page: number; limit: number; total: number; totalPages: number }; filters: { from: string; to: string }; /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  setFilters: (val: any) => void; currentPage: number; setCurrentPage: (val: number) => void; };
 
-function EmrTimelineTab({ patientId }: EmrTabProps) {
-  const [timeline, setTimeline] = useState<PatientTimelineEventResponse[]>([]);
-  const [meta, setMeta] = useState<PatientTimelineListResponse['meta']>({
-    limit: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  });
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilters, currentPage, setCurrentPage }: EmrTabProps) {
   const [selectedDetails, setSelectedDetails] = useState<PatientTimelineEventResponse | null>(null);
-
-  const loadTimeline = useCallback(async () => {
-    if (!patientId) return;
-    setLoading(true);
-    setLoadError('');
-    try {
-      const res = await patientsApi.timeline(patientId, {
-        from: fromDate || undefined,
-        to: toDate || undefined,
-        page: currentPage,
-        limit: 10,
-      });
-      setTimeline(res.data);
-      setMeta(res.meta);
-    } catch {
-      setTimeline([]);
-      setMeta({ limit: 10, page: currentPage, total: 0, totalPages: 1 });
-      setLoadError('Failed to load EMR timeline.');
-    } finally {
-      setLoading(false);
-    }
-  }, [patientId, currentPage, fromDate, toDate]);
-
-  useEffect(() => {
-    void loadTimeline();
-  }, [loadTimeline]);
 
   return (
     <div style={{ padding: '1rem' }}>
@@ -149,23 +108,25 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
           <label htmlFor="emr-tab-from">From</label>
           <input
             id="emr-tab-from"
-            onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => { setFilters(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+            (prev: any) => ({ ...prev, from: e.target.value })); setCurrentPage(1); }}
             type="date"
-            value={fromDate}
+            value={filters.from}
           />
         </div>
         <div className="doc-field" style={{ margin: 0 }}>
           <label htmlFor="emr-tab-to">To</label>
           <input
             id="emr-tab-to"
-            onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => { setFilters(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+            (prev: any) => ({ ...prev, to: e.target.value })); setCurrentPage(1); }}
             type="date"
-            value={toDate}
+            value={filters.to}
           />
         </div>
         <button
           className="doc-btn"
-          onClick={() => { setFromDate(''); setToDate(''); setCurrentPage(1); }}
+          onClick={() => { setFilters({ from: "", to: "" }); setCurrentPage(1); }}
           type="button"
         >
           <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset
@@ -181,7 +142,7 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
       ) : loadError ? (
         <div className="um-state-cell" role="alert">
           {loadError}
-          <div><button className="doc-btn mt-4" onClick={() => void loadTimeline()} type="button">Retry</button></div>
+          
         </div>
       ) : timeline.length === 0 ? (
         <EmptyRecords message="No EMR events recorded for this patient." />
@@ -253,7 +214,7 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
             <button
               className="pg-btn"
               disabled={meta.page <= 1 || loading}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               type="button"
             >
               <i className="ph ph-caret-left" aria-hidden="true" />
@@ -262,7 +223,7 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
             <button
               className="pg-btn"
               disabled={meta.page >= meta.totalPages || loading}
-              onClick={() => setCurrentPage((p) => p + 1)}
+              onClick={() => setCurrentPage(currentPage + 1)}
               type="button"
             >
               <i className="ph ph-caret-right" aria-hidden="true" />
@@ -379,9 +340,12 @@ export function PatientProfilePage() {
   const visitsMeta = rawVisitsMeta || { page: 1, limit: 10, totalPages: 1, total: 0 };
   const appointmentsMeta = rawAppointmentsMeta || { page: 1, limit: 10, totalPages: 1, total: 0 };
 
-  const setTimelineMeta = (val: Partial<{ page: number; limit: number }>) => setTimelinePageInfo((prev: any) => ({ ...prev, ...val }));
-  const setVisitsMeta = (val: Partial<{ page: number; limit: number }>) => setVisitsPageInfo((prev: any) => ({ ...prev, ...val }));
-  const setAppointmentsMeta = (val: Partial<{ page: number; limit: number }>) => setAppointmentsPageInfo((prev: any) => ({ ...prev, ...val }));
+  const setTimelineMeta = (val: Partial<{ page: number; limit: number }>) => setTimelinePageInfo(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+            (prev: any) => ({ ...prev, ...val }));
+  const setVisitsMeta = (val: Partial<{ page: number; limit: number }>) => setVisitsPageInfo(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+            (prev: any) => ({ ...prev, ...val }));
+  const setAppointmentsMeta = (val: Partial<{ page: number; limit: number }>) => setAppointmentsPageInfo(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+            (prev: any) => ({ ...prev, ...val }));
 
   const prescriptions: import('../api/opd').OpdPrescriptionResponse[] = []; // Quick fallback since scripts are nested
 
@@ -775,7 +739,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
           {/* ── EMR Timeline (Option B — inline) ─────────────────────────── */}
           {activeTab === 'EMR Timeline' ? (
-            <EmrTimelineTab patientId={patient.id} />
+            <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timelineData || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={timelinePageInfo.page} setCurrentPage={(p: number) => setTimelineMeta({ page: p })} />
           ) : null}
 
           {/* ── Medical History ──────────────────────────────────────────── */}
@@ -1452,3 +1416,12 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
     </>
   );
 }
+
+
+
+
+
+
+
+
+

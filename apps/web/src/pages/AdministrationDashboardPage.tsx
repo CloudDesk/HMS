@@ -1,7 +1,5 @@
-import { useMemo } from 'react';
+import { useAdministrationDashboardFeature } from '../hooks/admin/useAdministrationDashboardFeature';
 import type { DashboardMetric } from '../api/administration-dashboard';
-import { useAdministrationDashboard } from '../hooks/admin/useAdministrationDashboard';
-import { ApiError } from '../api/api-error';
 import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { KpiCard } from '../components/ui/KpiCard';
@@ -32,23 +30,10 @@ function MetricBars({ items }: { items: DashboardMetric[] }) {
 }
 
 export function AdministrationDashboardPage() {
-  const { data: dashboard, isFetching: loading, error: requestError, refetch } = useAdministrationDashboard();
-
-  const error = requestError
-    ? requestError instanceof ApiError && requestError.status === 403
-      ? 'You do not have permission to view the Administration Dashboard.'
-      : requestError instanceof Error
-        ? requestError.message
-        : 'Administration statistics could not be loaded.'
-    : '';
-
-  const kpis = useMemo(() => dashboard ? [
-    { detail: `${dashboard.kpis.activeUsers} active`, icon: 'ph-users-three', label: 'Total Users', tone: 'blue' as const, value: dashboard.kpis.totalUsers },
-    { detail: 'Configured access roles', icon: 'ph-shield-check', label: 'Roles', tone: 'purple' as const, value: dashboard.kpis.totalRoles },
-    { detail: 'Clinical and support units', icon: 'ph-buildings', label: 'Departments', tone: 'green' as const, value: dashboard.kpis.totalDepartments },
-    { detail: 'Available catalogue items', icon: 'ph-first-aid-kit', label: 'Services', tone: 'orange' as const, value: dashboard.kpis.totalServices },
-    { detail: 'Hospital locations', icon: 'ph-map-pin', label: 'Branches', tone: 'red' as const, value: dashboard.kpis.totalBranches },
-  ] : [], [dashboard]);
+  const { data, status, actions } = useAdministrationDashboardFeature();
+  const { dashboard, kpis } = data;
+  const { isFetching: loading, loadError: error } = status;
+  const { refetch } = actions;
 
   if (loading) {
     return <div className="admin-dashboard-state" role="status"><span className="loading-spinner" /> Loading administration dashboard...</div>;

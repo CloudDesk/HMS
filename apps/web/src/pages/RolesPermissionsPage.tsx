@@ -1,40 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRolesPermissionsFeature } from '../hooks/admin/useRolesPermissionsFeature';
+
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
-import { ApiError } from '../api/api-error';
 import { type PermissionResponse } from '../api/permissions';
-import {
-  type ApiRoleStatus,
-  type ApiRoleType,
-  type RoleListResponse,
-} from '../api/roles';
-import { hasPermission } from '../auth/access-control';
+import { type UserResponse } from '../api/users';
+import { type ApiRoleStatus, type ApiRoleType, } from '../api/roles';
 import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { useAppLocation } from '../routing/navigation';
 import { toast } from 'sonner';
-import {
-  useRolesList,
-  useRoleStats,
-  useRoleDetails,
-  useRoleAuditLogs,
-  useCreateRole,
-  useUpdateRole,
-  useUpdateRoleStatus,
-  useAssignUserToRole,
-  useRemoveUserFromRole,
-  useDeleteRole,
-  getRoleErrorMessage,
-} from '../hooks/roles/useRoles';
-import {
-  useAllPermissions,
-  useRolePermissions,
-  useReplaceRolePermissions,
-  getPermissionErrorMessage,
-} from '../hooks/permissions/usePermissions';
-import { useUsersList } from '../hooks/users/useUsers';
 
 type ModalMode = 'create' | 'edit' | 'clone' | 'status' | 'assign-user' | 'remove-user' | 'delete' | 'audit';
 
@@ -53,12 +30,6 @@ const userSchema = z.object({
 type UserFormData = z.infer<typeof userSchema>;
 
 
-type RoleStats = {
-  total: number;
-  active: number;
-  system: number;
-  custom: number;
-};
 
 type PermissionRow = {
   id: string;
@@ -68,23 +39,7 @@ type PermissionRow = {
   permissions: Record<string, PermissionResponse>;
 };
 
-const rolePageSize = 5;
-const emptyRoleMeta: RoleListResponse['meta'] = { limit: rolePageSize, page: 1, total: 0, totalPages: 1 };
-const emptyRoleStats: RoleStats = { active: 0, custom: 0, system: 0, total: 0 };
 
-const preferredActionOrder = [
-  'View',
-  'Create',
-  'Edit',
-  'ChangePassword',
-  'ResetPassword',
-  'Assign',
-  'Approve',
-  'Cancel',
-  'Print',
-  'Export',
-  'Delete',
-];
 
 const moduleIcons: Record<string, string> = {
   Administration: 'ph-gear',
@@ -115,6 +70,8 @@ const fallbackRoleColor = (name: string) => {
   const index = [...name].reduce((total, character) => total + character.charCodeAt(0), 0);
   return roleColors[index % roleColors.length];
 };
+
+const isApiRoleStatus = (val: string): val is ApiRoleStatus => val === 'active' || val === 'inactive';
 
 const roleStatusLabel = (status: ApiRoleStatus) => (status === 'active' ? 'Active' : 'Inactive');
 
@@ -177,28 +134,19 @@ function PermissionSummary({
 }
 
 export function RolesPermissionsPage() {
-  const { refreshCurrentUser, user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const canRole = (action: string) => isSuperAdmin || hasPermission(
-    user?.permissions ?? [], { module: 'Administration', screen: 'Roles', action },
-  );
-  const canPermission = (action: string) => isSuperAdmin || hasPermission(
-    user?.permissions ?? [], { module: 'Administration', screen: 'Permissions', action },
-  );
-  const canCreateRole = canRole('Create');
-  const canEditRole = canRole('Edit');
-  const canAssignRole = canRole('Assign');
-  const canDeleteRole = canRole('Delete');
+  const { refreshCurrentUser } = useAuth();
   const { search: locationSearch } = useAppLocation();
 
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<ApiRoleType | ''>('');
-  const [statusFilter, setStatusFilter] = useState<ApiRoleStatus | ''>('');
-  const [rolePage, setRolePage] = useState(1);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-
-  // Feature Hooks
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const feature = useRolesPermissionsFeature(modalMode);
+
+  const { state, data, status, rbac, actions, mutations } = feature;
+  const { search, typeFilter, statusFilter, rolePage, selectedRoleId, setSearch, setTypeFilter, setStatusFilter, setRolePage, setSelectedRoleId } = state;
+  const { roles, roleMeta, roleStats, permissions, selectedRole, rolePermissions, roleAuditLogs, usersList, permissionActions, permissionRows } = data;
+  const { isFetching, isMutating, forbidden, rolesLoading, statsLoading, permissionsLoading, roleLoading, auditLoading, loadError, permissionError } = status;
+  const { canCreateRole, canEditRole, canAssignRole, canDeleteRole, canEditPermissions } = rbac;
+  const { refreshRolesAndPermissions } = actions;
+
   const roleForm = useForm<RoleFormData>({
     resolver: zodResolver(roleSchema),
     defaultValues: { name: '', color: '#2563eb', type: 'custom', status: 'active', description: '' }
@@ -211,59 +159,17 @@ export function RolesPermissionsPage() {
   const [formError, setFormError] = useState('');
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(() => new Set());
 
-  const listParams = useMemo(() => ({
-    limit: rolePageSize,
-    page: rolePage,
-    search: search.trim() || undefined,
-    sortBy: 'name' as const,
-    sortOrder: 'asc' as const,
-    status: statusFilter || undefined,
-    type: typeFilter || undefined,
-  }), [rolePage, search, statusFilter, typeFilter]);
-
-  const rolesQuery = useRolesList(listParams);
-  const roleStatsQuery = useRoleStats();
-  const allPermissionsQuery = useAllPermissions();
-  const roleDetailsQuery = useRoleDetails(selectedRoleId);
-  const rolePermissionsQuery = useRolePermissions(selectedRoleId);
-  const roleAuditLogsQuery = useRoleAuditLogs(modalMode === 'audit' ? selectedRoleId : null);
-
-  const createRoleMutation = useCreateRole();
-  const updateRoleMutation = useUpdateRole();
-  const updateRoleStatusMutation = useUpdateRoleStatus();
-  const assignUserMutation = useAssignUserToRole();
-  const removeUserMutation = useRemoveUserFromRole();
-  const deleteRoleMutation = useDeleteRole();
-  const replacePermissionsMutation = useReplaceRolePermissions();
-
-  const usersListQuery = useUsersList({
-    limit: 100,
-    page: 1,
-    sortBy: 'fullName',
-    sortOrder: 'asc',
-    status: 'active',
-  }, modalMode === 'assign-user');
-
-  const roles = rolesQuery.data?.items ?? [];
-  const roleMeta = rolesQuery.data?.meta ?? emptyRoleMeta;
-  const roleStats = roleStatsQuery.data ?? emptyRoleStats;
-  const permissions = allPermissionsQuery.data?.items ?? [];
-  const selectedRole = roleDetailsQuery.data ?? null;
-
   // Track draft permissions
   const [assignedPermissionIds, setAssignedPermissionIds] = useState<Set<string>>(() => new Set());
   const [draftPermissionIds, setDraftPermissionIds] = useState<Set<string>>(() => new Set());
-  
+
   useEffect(() => {
-    if (rolePermissionsQuery.data) {
-      const ids = new Set(rolePermissionsQuery.data.items.map(p => p.id));
+    if (rolePermissions) {
+      const ids = new Set(rolePermissions.map(p => p.id));
       setAssignedPermissionIds(ids);
       setDraftPermissionIds(new Set(ids));
-    } else {
-      setAssignedPermissionIds(new Set());
-      setDraftPermissionIds(new Set());
     }
-  }, [rolePermissionsQuery.data]);
+  }, [rolePermissions]);
 
   // Set selected role ID to first item if current is invalid
   useEffect(() => {
@@ -272,7 +178,7 @@ export function RolesPermissionsPage() {
     } else if (roles.length === 0 && selectedRoleId) {
       setSelectedRoleId(null);
     }
-  }, [roles, selectedRoleId]);
+  }, [roles, selectedRoleId, setSelectedRoleId]);
 
   const toggleModule = (module: string) => {
     setCollapsedModules((current) => {
@@ -283,57 +189,11 @@ export function RolesPermissionsPage() {
     });
   };
 
-  const permissionActions = useMemo(() => {
-    const actions = [...new Set(permissions.map((permission) => permission.action))];
-    return actions.sort((left, right) => {
-      const leftIndex = preferredActionOrder.indexOf(left);
-      const rightIndex = preferredActionOrder.indexOf(right);
-      if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right);
-      if (leftIndex === -1) return 1;
-      if (rightIndex === -1) return -1;
-      return leftIndex - rightIndex;
-    });
-  }, [permissions]);
-
-  const permissionRows = useMemo(() => {
-    const rows = new Map<string, PermissionRow>();
-
-    permissions.forEach((permission) => {
-      const id = `${permission.module}::${permission.screen}`;
-      const row = rows.get(id) ?? {
-        icon: moduleIcons[permission.module] ?? 'ph-shield-check',
-        id,
-        module: permission.module,
-        permissions: {},
-        screen: permission.screen,
-      };
-      row.permissions[permission.action] = permission;
-      rows.set(id, row);
-    });
-
-    return [...rows.values()].sort((left, right) =>
-      `${left.module}:${left.screen}`.localeCompare(`${right.module}:${right.screen}`),
-    );
-  }, [permissions]);
-
   const dirty = useMemo(() => {
     if (assignedPermissionIds.size !== draftPermissionIds.size) return true;
     return [...assignedPermissionIds].some((id) => !draftPermissionIds.has(id));
   }, [assignedPermissionIds, draftPermissionIds]);
 
-  const isMutating = 
-    createRoleMutation.isPending || 
-    updateRoleMutation.isPending || 
-    updateRoleStatusMutation.isPending || 
-    assignUserMutation.isPending || 
-    removeUserMutation.isPending || 
-    deleteRoleMutation.isPending;
-
-  const forbidden = rolesQuery.error instanceof ApiError && rolesQuery.error.status === 403;
-
-  const canEditPermissions = Boolean(
-    canPermission('Assign') && selectedRole && selectedRole.code !== 'SUPER_ADMIN' && !forbidden && !roleDetailsQuery.isFetching && !replacePermissionsMutation.isPending,
-  );
   const totalRolePages = Math.max(roleMeta.totalPages, 1);
   const safeRolePage = Math.min(rolePage, totalRolePages);
 
@@ -364,24 +224,13 @@ export function RolesPermissionsPage() {
       permissions.filter((permission) => permission.status === 'active').map((permission) => permission.id),
     );
     const validIds = [...draftPermissionIds].filter((id) => activePermissionIds.has(id));
-    
-    replacePermissionsMutation.mutate({ roleId: selectedRole.id, permissionIds: validIds }, {
+
+    mutations.replacePermissions.mutate({ roleId: selectedRole.id, permissionIds: validIds }, {
       onSuccess: async () => {
         await refreshCurrentUser();
         toast.success('Role permissions saved successfully.');
       }
     });
-  };
-
-  const refreshRolesAndPermissions = () => {
-    void rolesQuery.refetch();
-    void roleStatsQuery.refetch();
-    void allPermissionsQuery.refetch();
-    if (selectedRoleId) {
-      void roleDetailsQuery.refetch();
-      void rolePermissionsQuery.refetch();
-    }
-    toast.success('Roles and permissions refreshed.');
   };
 
   const closeModal = () => {
@@ -433,7 +282,7 @@ export function RolesPermissionsPage() {
         setFormError('Role name must contain letters or numbers.');
         return;
       }
-      createRoleMutation.mutate({
+      mutations.createRole.mutate({
         code,
         color: values.color ?? null,
         description: values.description?.trim() || null,
@@ -443,7 +292,7 @@ export function RolesPermissionsPage() {
       }, {
         onSuccess: (created) => {
           if (modalMode === 'clone') {
-            replacePermissionsMutation.mutate({ roleId: created.id, permissionIds: [...assignedPermissionIds] }, {
+            mutations.replacePermissions.mutate({ roleId: created.id, permissionIds: [...assignedPermissionIds] }, {
               onSuccess: () => {
                 setSelectedRoleId(created.id);
                 toast.success('Role cloned successfully.');
@@ -458,7 +307,7 @@ export function RolesPermissionsPage() {
         }
       });
     } else if (modalMode === 'edit' && selectedRole) {
-      updateRoleMutation.mutate({
+      mutations.updateRole.mutate({
         id: selectedRole.id,
         payload: {
           color: values.color ?? null,
@@ -473,12 +322,12 @@ export function RolesPermissionsPage() {
     setFormError('');
     if (!selectedRole) return;
     if (modalMode === 'assign-user') {
-      assignUserMutation.mutate({
+      mutations.assignUser.mutate({
         id: selectedRole.id,
         userId: values.userId,
       }, { onSuccess: closeModal });
     } else if (modalMode === 'remove-user') {
-      removeUserMutation.mutate({
+      mutations.removeUser.mutate({
         id: selectedRole.id,
         userId: values.userId,
       }, { onSuccess: closeModal });
@@ -495,12 +344,12 @@ export function RolesPermissionsPage() {
     }
 
     if (modalMode === 'status' && selectedRole) {
-      updateRoleStatusMutation.mutate({
+      mutations.updateRoleStatus.mutate({
         id: selectedRole.id,
         status: selectedRole.status === 'active' ? 'inactive' : 'active',
       }, { onSuccess: closeModal });
     } else if (modalMode === 'delete' && selectedRole) {
-      deleteRoleMutation.mutate(selectedRole.id, {
+      mutations.deleteRole.mutate(selectedRole.id, {
         onSuccess: () => {
           setSelectedRoleId(null);
           closeModal();
@@ -544,18 +393,11 @@ export function RolesPermissionsPage() {
                 ? 'Audit History'
                 : 'Roles & Permissions';
 
-  const rolesLoading = rolesQuery.isFetching;
-  const statsLoading = roleStatsQuery.isFetching;
-  const permissionsLoading = allPermissionsQuery.isFetching;
-  const roleLoading = roleDetailsQuery.isFetching || rolePermissionsQuery.isFetching;
-  
-  const loadError = rolesQuery.error ? getRoleErrorMessage(rolesQuery.error) : '';
-  const permissionError = allPermissionsQuery.error ? getPermissionErrorMessage(allPermissionsQuery.error) : roleDetailsQuery.error ? getRoleErrorMessage(roleDetailsQuery.error) : '';
 
-  const userOptions = usersListQuery.data?.items.filter(u => !(selectedRole?.users ?? []).some(su => su.id === u.id)) ?? [];
-  const auditItems = roleAuditLogsQuery.data?.items ?? [];
-  const auditLoading = roleAuditLogsQuery.isFetching;
-  const submitting = isMutating || replacePermissionsMutation.isPending;
+
+  const userOptions = usersList.filter((u: UserResponse) => !(selectedRole?.users ?? []).some((su) => su.id === u.id)) ?? [];
+  const auditItems = roleAuditLogs;
+  const submitting = isMutating;
 
   return (
     <>
@@ -599,7 +441,7 @@ export function RolesPermissionsPage() {
               <select aria-label="Role type filter" onChange={(event) => { setTypeFilter(event.target.value as ApiRoleType | ''); setRolePage(1); }} value={typeFilter}>
                 <option value="">All Types</option><option value="system">System</option><option value="custom">Custom</option>
               </select>
-              <select aria-label="Role status filter" onChange={(event) => { setStatusFilter(event.target.value as ApiRoleStatus | ''); setRolePage(1); }} value={statusFilter}>
+              <select aria-label="Role status filter" onChange={(event) => { const val = event.target.value; setStatusFilter(isApiRoleStatus(val) ? val : ''); setRolePage(1); }} value={statusFilter}>
                 <option value="">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option>
               </select>
             </div>
@@ -753,7 +595,7 @@ export function RolesPermissionsPage() {
           </div>
         </form> : null}
         {modalMode === 'status' ? <p>Change <strong>{selectedRole?.name}</strong> to <strong>{roleStatusLabel(selectedRole?.status === 'active' ? 'inactive' : 'active')}</strong>? Inactive roles no longer grant access.</p> : null}
-        {modalMode === 'assign-user' ? <form id="user-form" onSubmit={onSubmitUser}><div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" {...userForm.register('userId')}><option value="">{usersListQuery.isFetching ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select>{userForm.formState.errors.userId ? <span className="field-error">{userForm.formState.errors.userId.message}</span> : null}</div></form> : null}
+        {modalMode === 'assign-user' ? <form id="user-form" onSubmit={onSubmitUser}><div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" {...userForm.register('userId')}><option value="">{isFetching ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select>{userForm.formState.errors.userId ? <span className="field-error">{userForm.formState.errors.userId.message}</span> : null}</div></form> : null}
         {modalMode === 'remove-user' ? <form id="user-form" onSubmit={onSubmitUser}><div className="form-field"><label htmlFor="remove-role-user">User</label><select id="remove-role-user" {...userForm.register('userId')}><option value="">Select user</option>{(selectedRole?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select>{userForm.formState.errors.userId ? <span className="field-error">{userForm.formState.errors.userId.message}</span> : null}</div></form> : null}
         {modalMode === 'delete' ? <p>Delete {selectedRole?.name}? The backend will enforce status and assignment restrictions.</p> : null}
         {modalMode === 'audit' ? auditLoading ? <div className="rp-detail-empty">Loading audit history...</div> : auditItems.length ? <div className="role-audit-list">{auditItems.map((item) => <article key={item.id}><div><strong>{item.actorName}</strong><span>{item.eventType}</span></div><time dateTime={item.createdAt}>{new Intl.DateTimeFormat('en-KE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.createdAt))}</time></article>)}</div> : <div className="rp-detail-empty">No audit activity found for this role.</div> : null}

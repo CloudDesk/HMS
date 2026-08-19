@@ -1,6 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
 import {
-  patientsApi,
   type ApiPatientConsentStatus,
   type PatientDocumentResponse,
 } from '../api/patients';
@@ -15,6 +14,7 @@ import {
   usePatientDocuments,
   useUploadPatientDocument,
   useDeletePatientDocument,
+  useDownloadPatientDocument,
   useReplacePatientDocument
 } from '../hooks/patients/usePatients';
 import { toast } from 'sonner';
@@ -45,6 +45,7 @@ export function PatientConsentPage() {
   // Mutations
   const uploadDoc = useUploadPatientDocument();
   const deleteDoc = useDeletePatientDocument();
+  const downloadDoc = useDownloadPatientDocument();
   const replaceDoc = useReplacePatientDocument();
 
   // State
@@ -94,7 +95,7 @@ export function PatientConsentPage() {
   const viewConsent = async (document: PatientDocumentResponse) => {
     if (!patient) return;
     try {
-      const download = await patientsApi.downloadDocument(patient.id, document.id);
+      const download = await downloadDoc.mutateAsync({ patientId: patient.id, docId: document.id });
       const url = URL.createObjectURL(download.blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -106,7 +107,7 @@ export function PatientConsentPage() {
   const downloadConsent = async (document: PatientDocumentResponse) => {
     if (!patient) return;
     try {
-      const download = await patientsApi.downloadDocument(patient.id, document.id);
+      const download = await downloadDoc.mutateAsync({ patientId: patient.id, docId: document.id });
       const url = URL.createObjectURL(download.blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -212,3 +213,4 @@ export function PatientConsentPage() {
     </>
   );
 }
+

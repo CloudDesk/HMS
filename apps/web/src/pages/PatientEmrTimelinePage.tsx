@@ -1,18 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  patientsApi,
-  type PatientResponse,
-  type PatientTimelineEventType,
-  type PatientTimelineListResponse,
-  type PatientTimelineEventResponse,
-} from '../api/patients';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
-import { departmentsApi, type DepartmentResponse } from '../api/departments';
+import { useState } from 'react';
+import { type PatientResponse, type PatientTimelineEventType, type PatientTimelineEventResponse } from '../api/patients';
+import { usePatientEmrTimelineFeature } from '../hooks/patients/usePatientEmrTimelineFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
   formatDateTime,
-  getPatientErrorMessage,
-  getPatientIdFromSearch,
   patientFullName,
 } from './patient-utils';
 import { patientInitials } from './opd-utils';
@@ -67,18 +58,6 @@ type TimelineModalDetails = {
 export function PatientEmrTimelinePage() {
   const { search } = useAppLocation();
   const searchParams = new URLSearchParams(search);
-  const searchPatientId = getPatientIdFromSearch(search);
-
-  const [activePatientId, setActivePatientId] = useState<string>(searchPatientId);
-  const [patient, setPatient] = useState<PatientResponse | null>(null);
-  const [patientList, setPatientList] = useState<PatientResponse[]>([]);
-  const [timeline, setTimeline] = useState<PatientTimelineEventResponse[]>([]);
-  const [meta, setMeta] = useState<PatientTimelineListResponse['meta']>({
-    limit: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  });
 
   const [eventType, setEventType] = useState<PatientTimelineEventType | ''>(
     (searchParams.get('event_type') as PatientTimelineEventType | null) ?? '',
@@ -89,68 +68,28 @@ export function PatientEmrTimelinePage() {
   const [doctorFilter, setDoctorFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+
   const [selectedDetails, setSelectedDetails] = useState<TimelineModalDetails>(null);
 
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+  const {
+    patientId: activePatientId,
+    patient,
+    patientList,
+    timeline,
+    meta,
+    doctors,
+    departments,
+    loading,
+    loadError,
+    refresh
+  } = usePatientEmrTimelineFeature({
+    eventType,
+    fromDate,
+    toDate,
+    page: currentPage
+  });
 
-  // Single unified data loader guarded against duplicate mount calls
-  const loadPageData = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      // 1. Fetch patient list (if empty)
-      const listRes = await patientsApi.list({ limit: 50 });
-      setPatientList(listRes.data);
-
-      let targetId = searchPatientId;
-      if (!targetId && listRes.data.length > 0 && listRes.data[0]) {
-        targetId = listRes.data[0].id;
-      }
-
-      if (!targetId) {
-        setLoading(false);
-        return;
-      }
-
-      setActivePatientId(targetId);
-
-      // 2. Concurrently fetch patient detail, timeline, doctors, and departments
-      const [patientResponse, timelineResponse, docRes, deptRes] = await Promise.all([
-        patientsApi.getById(targetId),
-        patientsApi.timeline(targetId, {
-          event_type: eventType || undefined,
-          from: fromDate || undefined,
-          to: toDate || undefined,
-          page: currentPage,
-          limit: 10,
-        }),
-        doctorsApi.list({ limit: 100, status: 'ACTIVE' }).catch(() => ({ data: [] })),
-        departmentsApi.list({ limit: 100, status: 'ACTIVE' }).catch(() => ({ data: [] })),
-      ]);
-
-      setPatient(patientResponse);
-      setTimeline(timelineResponse.data);
-      setMeta(timelineResponse.meta);
-      setDoctors(docRes.data);
-      setDepartments(deptRes.data);
-    } catch (error) {
-      setPatient(null);
-      setTimeline([]);
-      setMeta({ limit: 10, page: currentPage, total: 0, totalPages: 1 });
-      setLoadError(getPatientErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [searchPatientId, currentPage, eventType, fromDate, toDate]);
-
-  useEffect(() => {
-    void loadPageData();
-  }, [loadPageData]);
-
+  const loadPageData = refresh;
   const activeTabLabel = timelineTabs.find((t) => t.eventType === eventType)?.label || 'Timeline';
 
   return (
@@ -170,14 +109,14 @@ export function PatientEmrTimelinePage() {
               id="timeline-patient-switcher"
               onChange={(e) => {
                 if (e.target.value) {
-                  setActivePatientId(e.target.value);
+                  
                   setCurrentPage(1);
                   navigate(`/patients/emr?id=${encodeURIComponent(e.target.value)}`);
                 }
               }}
               style={{ width: '220px', maxWidth: '220px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0.4rem 0.6rem' }}
               title={patient ? `${patientFullName(patient)} - ${patient.patient_number}` : 'Select Patient'}
-              value={activePatientId}
+              value={activePatientId || ""}
             >
               {patientList.map((p) => (
                 <option key={p.id} title={`${patientFullName(p)} - ${p.patient_number}`} value={p.id}>
@@ -198,7 +137,7 @@ export function PatientEmrTimelinePage() {
                     p.patient_number.toLowerCase().includes(query)
                 );
                 if (matched) {
-                  setActivePatientId(matched.id);
+                  
                   setCurrentPage(1);
                   navigate(`/patients/emr?id=${encodeURIComponent(matched.id)}`);
                 }
@@ -247,7 +186,7 @@ export function PatientEmrTimelinePage() {
         <div className="opd-patient-banner-actions">
           <button
             className="doc-btn"
-            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(activePatientId)}`)}
+            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(activePatientId || "")}`)}
             type="button"
           >
             View Profile
@@ -455,7 +394,7 @@ export function PatientEmrTimelinePage() {
               <button
                 className="pg-btn"
                 disabled={meta.page <= 1 || loading}
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                onClick={() => setCurrentPage((page: number) => Math.max(1, page - 1))}
                 type="button"
               >
                 <i className="ph ph-caret-left" aria-hidden="true" />
@@ -466,7 +405,7 @@ export function PatientEmrTimelinePage() {
               <button
                 className="pg-btn"
                 disabled={meta.page >= meta.totalPages || loading}
-                onClick={() => setCurrentPage((page) => page + 1)}
+                onClick={() => setCurrentPage((page: number) => page + 1)}
                 type="button"
               >
                 <i className="ph ph-caret-right" aria-hidden="true" />
@@ -532,3 +471,6 @@ export function PatientEmrTimelinePage() {
     </div>
   );
 }
+
+
+

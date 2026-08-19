@@ -107,3 +107,8 @@ export function useDeleteService() {
     }
   });
 }
+export function useExportServices() {
+  return useMutation({
+    mutationFn: (params: ServiceListParams = {}) => servicesApi.export(params),
+  });
+}

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   settingsApi,
+  type AuditAction,
   type GeneralSettings,
   type HospitalSettings,
   type LocalizationSettings,
@@ -12,7 +13,7 @@ export const settingsKeys = {
   all: ['settings'] as const,
   details: () => [...settingsKeys.all, 'detail'] as const,
   auditLogs: () => [...settingsKeys.all, 'auditLogs'] as const,
-  auditLogList: (params: any) => [...settingsKeys.auditLogs(), params] as const,
+  auditLogList: (params: { search?: string; action?: AuditAction; page?: number; limit?: number }) => [...settingsKeys.auditLogs(), params] as const,
 };
 
 export function useSystemSettings(enabled = true) {
@@ -98,10 +99,19 @@ export function useResetSettings<T>() {
   });
 }
 
-export function useSettingsAuditLogs(params: any, enabled = true) {
+export function useSettingsAuditLogs(params: { search?: string; action?: AuditAction; page?: number; limit?: number }, enabled = true) {
   return useQuery({
     queryKey: settingsKeys.auditLogList(params),
     queryFn: () => settingsApi.listAuditLogs(params),
     enabled,
+  });
+}
+export function useUploadHospitalLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => settingsApi.uploadLogo(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+    },
   });
 }
