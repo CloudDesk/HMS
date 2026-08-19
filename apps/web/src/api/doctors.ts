@@ -15,7 +15,6 @@ export type DoctorWorkingBlockResponse = {
   start_time: string;
   end_time: string;
   slot_duration_minutes: number;
-  max_patients_per_slot?: number;
 };
 
 export type DoctorAvailabilityResponse = {
@@ -23,7 +22,6 @@ export type DoctorAvailabilityResponse = {
   day_of_week: ApiDoctorAvailabilityDay;
   is_available: boolean;
   working_blocks: DoctorWorkingBlockResponse[];
-  max_patients_per_slot?: number;
 };
 
 export type DoctorResponse = {
@@ -88,8 +86,7 @@ export type SaveDoctorAvailabilityPayload = {
   availability: Array<{
     day_of_week: ApiDoctorAvailabilityDay;
     is_available: boolean;
-    working_blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number; max_patients_per_slot?: number }>;
-    max_patients_per_slot?: number;
+    working_blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number }>;
   }>;
 };
 
@@ -157,19 +154,39 @@ export type DoctorAvailableSlotsResponse = {
   date: string;
   is_available: boolean;
   unavailable_reason: string | null;
-  max_patients_per_slot?: number | null;
-  slots: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }>;
+  slots: Array<{ start_time: string; end_time: string }>;
 };
+
+export type DoctorLeaveListParams = Partial<{
+  status: 'ACTIVE' | 'CANCELLED';
+  date_from: string;
+  date_to: string;
+  page: number;
+  limit: number;
+}>;
+
+export type DoctorExceptionListParams = Partial<{
+  date_from: string;
+  date_to: string;
+  page: number;
+  limit: number;
+}>;
 
 type Paginated<T> = {
   data: T[];
   meta: { page: number; limit: number; total: number; totalPages: number };
 };
 
-const toQueryString = (params: Record<string, string | number | undefined>) => {
+type QueryParams<Params> = {
+  [Key in keyof Params]: string | number | undefined;
+};
+
+const toQueryString = <Params extends QueryParams<Params>>(params: Params) => {
   const searchParams = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && String(value).length > 0) searchParams.set(key, String(value));
+  Object.entries(params).forEach(([key, value]: [string, unknown]) => {
+    if (typeof value === 'string' || typeof value === 'number') {
+      if (String(value).length > 0) searchParams.set(key, String(value));
+    }
   });
   const query = searchParams.toString();
   return query ? `?${query}` : '';
@@ -178,7 +195,7 @@ const toQueryString = (params: Record<string, string | number | undefined>) => {
 export const doctorsApi = {
   list(params: DoctorListParams = {}) {
     return apiClient.request<DoctorListResponse>(
-      `/doctors${toQueryString(params as Record<string, string | number | undefined>)}`,
+      `/doctors${toQueryString(params)}`,
     );
   },
 
@@ -196,7 +213,7 @@ export const doctorsApi = {
 
   async export(params: DoctorListParams = {}) {
     const response = await apiClient.download(
-      `/doctors/export${toQueryString(params as Record<string, string | number | undefined>)}`,
+      `/doctors/export${toQueryString(params)}`,
     );
     return response.blob;
   },
@@ -239,7 +256,7 @@ export const doctorsApi = {
     );
   },
 
-  listLeaves(id: string, params: { status?: 'ACTIVE' | 'CANCELLED'; page?: number; limit?: number } = {}) {
+  listLeaves(id: string, params: DoctorLeaveListParams = {}) {
     return apiClient.request<Paginated<DoctorLeaveResponse>>(
       `/doctors/${encodeURIComponent(id)}/leaves${toQueryString(params)}`,
     );
@@ -259,7 +276,7 @@ export const doctorsApi = {
     );
   },
 
-  listExceptions(id: string, params: { date_from?: string; date_to?: string; page?: number; limit?: number } = {}) {
+  listExceptions(id: string, params: DoctorExceptionListParams = {}) {
     return apiClient.request<Paginated<DoctorAvailabilityExceptionResponse>>(
       `/doctors/${encodeURIComponent(id)}/availability-exceptions${toQueryString(params)}`,
     );

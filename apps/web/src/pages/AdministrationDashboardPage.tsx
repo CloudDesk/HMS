@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  administrationDashboardApi,
-  type AdministrationDashboard,
-  type DashboardMetric,
-} from '../api/administration-dashboard';
+import { useMemo } from 'react';
+import type { DashboardMetric } from '../api/administration-dashboard';
+import { useAdministrationDashboard } from '../hooks/admin/useAdministrationDashboard';
 import { ApiError } from '../api/api-error';
 import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -35,31 +32,15 @@ function MetricBars({ items }: { items: DashboardMetric[] }) {
 }
 
 export function AdministrationDashboardPage() {
-  const [dashboard, setDashboard] = useState<AdministrationDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: dashboard, isFetching: loading, error: requestError, refetch } = useAdministrationDashboard();
 
-  const load = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setDashboard(await administrationDashboardApi.get());
-    } catch (requestError) {
-      setError(
-        requestError instanceof ApiError && requestError.status === 403
-          ? 'You do not have permission to view the Administration Dashboard.'
-          : requestError instanceof Error
-            ? requestError.message
-            : 'Administration statistics could not be loaded.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void load();
-  }, []);
+  const error = requestError
+    ? requestError instanceof ApiError && requestError.status === 403
+      ? 'You do not have permission to view the Administration Dashboard.'
+      : requestError instanceof Error
+        ? requestError.message
+        : 'Administration statistics could not be loaded.'
+    : '';
 
   const kpis = useMemo(() => dashboard ? [
     { detail: `${dashboard.kpis.activeUsers} active`, icon: 'ph-users-three', label: 'Total Users', tone: 'blue' as const, value: dashboard.kpis.totalUsers },
@@ -79,7 +60,7 @@ export function AdministrationDashboardPage() {
         <i className="ph ph-warning-circle" aria-hidden="true" />
         <strong>Administration dashboard unavailable</strong>
         <span>{error}</span>
-        <button className="btn-secondary" onClick={() => void load()} type="button">Try again</button>
+        <button className="btn-secondary" onClick={() => void refetch()} type="button">Try again</button>
       </div>
     );
   }

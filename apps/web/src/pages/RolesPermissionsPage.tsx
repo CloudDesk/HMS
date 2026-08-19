@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 import { ApiError } from '../api/api-error';
 import { type PermissionResponse } from '../api/permissions';
@@ -35,13 +38,20 @@ import { useUsersList } from '../hooks/users/useUsers';
 
 type ModalMode = 'create' | 'edit' | 'clone' | 'status' | 'assign-user' | 'remove-user' | 'delete' | 'audit';
 
-type RoleFormState = {
-  name: string;
-  description: string;
-  color: string;
-  type: ApiRoleType;
-  status: ApiRoleStatus;
-};
+const roleSchema = z.object({
+  name: z.string().min(1, 'Role name is required.'),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  type: z.enum(['system', 'custom']),
+  status: z.enum(['active', 'inactive']),
+});
+type RoleFormData = z.infer<typeof roleSchema>;
+
+const userSchema = z.object({
+  userId: z.string().min(1, 'Select a user.'),
+});
+type UserFormData = z.infer<typeof userSchema>;
+
 
 type RoleStats = {
   total: number;
@@ -59,7 +69,6 @@ type PermissionRow = {
 };
 
 const rolePageSize = 5;
-const emptyRoleForm: RoleFormState = { color: '#2563eb', description: '', name: '', status: 'active', type: 'custom' };
 const emptyRoleMeta: RoleListResponse['meta'] = { limit: rolePageSize, page: 1, total: 0, totalPages: 1 };
 const emptyRoleStats: RoleStats = { active: 0, custom: 0, system: 0, total: 0 };
 
@@ -190,8 +199,15 @@ export function RolesPermissionsPage() {
 
   // Feature Hooks
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
-  const [roleForm, setRoleForm] = useState<RoleFormState>(emptyRoleForm);
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const roleForm = useForm<RoleFormData>({
+    resolver: zodResolver(roleSchema),
+    defaultValues: { name: '', color: '#2563eb', type: 'custom', status: 'active', description: '' }
+  });
+
+  const userForm = useForm<UserFormData>({
+    resolver: zodResolver(userSchema),
+    defaultValues: { userId: '' }
+  });
   const [formError, setFormError] = useState('');
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(() => new Set());
 
@@ -372,13 +388,12 @@ export function RolesPermissionsPage() {
     if (isMutating) return;
     setModalMode(null);
     setFormError('');
-    setSelectedUserId('');
   };
 
   const openRoleModal = (mode: Extract<ModalMode, 'create' | 'edit' | 'clone'>) => {
     setModalMode(mode);
     setFormError('');
-    setRoleForm({
+    roleForm.reset({
       color: selectedRole?.color ?? '#2563eb',
       description: mode === 'create' ? '' : (selectedRole?.description ?? ''),
       name: mode === 'clone' && selectedRole ? `${selectedRole.name} Copy` : mode === 'edit' ? (selectedRole?.name ?? '') : '',
@@ -395,7 +410,6 @@ export function RolesPermissionsPage() {
 
   const openStatusModal = () => {
     if (!selectedRole) return;
-    setRoleForm({ color: selectedRole.color ?? '#2563eb', description: selectedRole.description ?? '', name: selectedRole.name, status: selectedRole.status === 'active' ? 'inactive' : 'active', type: selectedRole.type });
     setFormError('');
     setModalMode('status');
   };
@@ -408,41 +422,23 @@ export function RolesPermissionsPage() {
     if (!selectedRole) return;
     setModalMode(mode);
     setFormError('');
-    setSelectedUserId('');
+    userForm.reset({ userId: '' });
   };
 
-  const handleModalAction = () => {
-    if (!modalMode || modalMode === 'audit') return;
+  const onSubmitRole = roleForm.handleSubmit((values) => {
     setFormError('');
-
-    if ((modalMode === 'create' || modalMode === 'clone' || modalMode === 'edit') && !roleForm.name.trim()) {
-      setFormError('Role name is required.');
-      return;
-    }
-
-    if ((modalMode === 'assign-user' || modalMode === 'remove-user') && !selectedUserId) {
-      setFormError('Select a user.');
-      return;
-    }
-
-    if (modalMode !== 'create' && modalMode !== 'clone' && !selectedRole) {
-      setFormError('Select a role first.');
-      return;
-    }
-
     if (modalMode === 'create' || modalMode === 'clone') {
-      const code = roleCodeFromName(roleForm.name);
+      const code = roleCodeFromName(values.name);
       if (!code) {
         setFormError('Role name must contain letters or numbers.');
         return;
       }
-
       createRoleMutation.mutate({
         code,
-        color: roleForm.color,
-        description: roleForm.description.trim() || null,
-        name: roleForm.name.trim(),
-        status: roleForm.status,
+        color: values.color ?? null,
+        description: values.description?.trim() || null,
+        name: values.name.trim(),
+        status: values.status,
         type: 'custom',
       }, {
         onSuccess: (created) => {
@@ -465,25 +461,43 @@ export function RolesPermissionsPage() {
       updateRoleMutation.mutate({
         id: selectedRole.id,
         payload: {
-          color: roleForm.color,
-          description: roleForm.description.trim() || null,
-          name: roleForm.name.trim(),
+          color: values.color ?? null,
+          description: values.description?.trim() || null,
+          name: values.name.trim(),
         }
       }, { onSuccess: closeModal });
-    } else if (modalMode === 'status' && selectedRole) {
-      updateRoleStatusMutation.mutate({
-        id: selectedRole.id,
-        status: roleForm.status,
-      }, { onSuccess: closeModal });
-    } else if (modalMode === 'assign-user' && selectedRole) {
+    }
+  });
+
+  const onSubmitUser = userForm.handleSubmit((values) => {
+    setFormError('');
+    if (!selectedRole) return;
+    if (modalMode === 'assign-user') {
       assignUserMutation.mutate({
         id: selectedRole.id,
-        userId: selectedUserId,
+        userId: values.userId,
       }, { onSuccess: closeModal });
-    } else if (modalMode === 'remove-user' && selectedRole) {
+    } else if (modalMode === 'remove-user') {
       removeUserMutation.mutate({
         id: selectedRole.id,
-        userId: selectedUserId,
+        userId: values.userId,
+      }, { onSuccess: closeModal });
+    }
+  });
+
+  const handleModalAction = () => {
+    if (!modalMode || modalMode === 'audit') return;
+    setFormError('');
+
+    if (modalMode !== 'create' && modalMode !== 'clone' && !selectedRole) {
+      setFormError('Select a role first.');
+      return;
+    }
+
+    if (modalMode === 'status' && selectedRole) {
+      updateRoleStatusMutation.mutate({
+        id: selectedRole.id,
+        status: selectedRole.status === 'active' ? 'inactive' : 'active',
       }, { onSuccess: closeModal });
     } else if (modalMode === 'delete' && selectedRole) {
       deleteRoleMutation.mutate(selectedRole.id, {
@@ -714,7 +728,13 @@ export function RolesPermissionsPage() {
       <Modal
         footer={modalMode ? <>
           <button className="btn-secondary" disabled={submitting} onClick={closeModal} type="button">{modalMode === 'audit' ? 'Close' : 'Cancel'}</button>
-          {modalMode !== 'audit' ? <button className="btn-primary" disabled={submitting} onClick={() => void handleModalAction()} type="button">{submitting ? 'Saving...' : modalMode === 'delete' ? 'Delete' : modalMode === 'assign-user' ? 'Assign' : modalMode === 'remove-user' ? 'Remove' : 'Save'}</button> : null}
+          {modalMode === 'create' || modalMode === 'clone' || modalMode === 'edit' ? (
+            <button className="btn-primary" disabled={submitting} type="submit" form="role-form">{submitting ? 'Saving...' : 'Save'}</button>
+          ) : modalMode === 'assign-user' || modalMode === 'remove-user' ? (
+            <button className="btn-primary" disabled={submitting} type="submit" form="user-form">{submitting ? 'Saving...' : modalMode === 'assign-user' ? 'Assign' : 'Remove'}</button>
+          ) : modalMode !== 'audit' ? (
+            <button className="btn-primary" disabled={submitting} onClick={() => void handleModalAction()} type="button">{submitting ? 'Saving...' : modalMode === 'delete' ? 'Delete' : 'Save'}</button>
+          ) : null}
         </> : undefined}
         onClose={closeModal}
         open={Boolean(modalMode)}
@@ -722,19 +742,19 @@ export function RolesPermissionsPage() {
         title={modalTitle}
       >
         {formError ? <div className="auth-alert auth-alert--error" role="alert">{formError}</div> : null}
-        {modalMode === 'create' || modalMode === 'clone' || modalMode === 'edit' ? <>
+        {modalMode === 'create' || modalMode === 'clone' || modalMode === 'edit' ? <form id="role-form" onSubmit={onSubmitRole}>
           <div className="form-section-title">Role Information</div>
           <div className="form-grid-3">
-            <div className="form-field"><label htmlFor="role-name">Role Name <span className="required">*</span></label><input id="role-name" onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} required value={roleForm.name} /></div>
-            <div className="form-field"><label htmlFor="role-color">Display Color</label><input id="role-color" onChange={(event) => setRoleForm((current) => ({ ...current, color: event.target.value }))} type="color" value={roleForm.color} /></div>
-            <div className="form-field"><label htmlFor="role-type">Role Type</label><select disabled id="role-type" value={roleForm.type}><option value="custom">Custom</option><option value="system">System</option></select></div>
-            <div className="form-field"><label htmlFor="role-status">Status</label><select id="role-status" onChange={(event) => setRoleForm((current) => ({ ...current, status: event.target.value as ApiRoleStatus }))} value={roleForm.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-            <div className="form-field full-width"><label htmlFor="role-description">Description</label><textarea id="role-description" onChange={(event) => setRoleForm((current) => ({ ...current, description: event.target.value }))} value={roleForm.description} /></div>
+            <div className="form-field"><label htmlFor="role-name">Role Name <span className="required">*</span></label><input id="role-name" {...roleForm.register('name')} />{roleForm.formState.errors.name ? <span className="field-error">{roleForm.formState.errors.name.message}</span> : null}</div>
+            <div className="form-field"><label htmlFor="role-color">Display Color</label><input id="role-color" type="color" {...roleForm.register('color')} /></div>
+            <div className="form-field"><label htmlFor="role-type">Role Type</label><select disabled id="role-type" {...roleForm.register('type')}><option value="custom">Custom</option><option value="system">System</option></select></div>
+            <div className="form-field"><label htmlFor="role-status">Status</label><select id="role-status" {...roleForm.register('status')}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+            <div className="form-field full-width"><label htmlFor="role-description">Description</label><textarea id="role-description" {...roleForm.register('description')} /></div>
           </div>
-        </> : null}
-        {modalMode === 'status' ? <p>Change <strong>{selectedRole?.name}</strong> to <strong>{roleStatusLabel(roleForm.status)}</strong>? Inactive roles no longer grant access.</p> : null}
-        {modalMode === 'assign-user' ? <div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" onChange={(event) => setSelectedUserId(event.target.value)} value={selectedUserId}><option value="">{usersListQuery.isFetching ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select></div> : null}
-        {modalMode === 'remove-user' ? <div className="form-field"><label htmlFor="remove-role-user">User</label><select id="remove-role-user" onChange={(event) => setSelectedUserId(event.target.value)} value={selectedUserId}><option value="">Select user</option>{(selectedRole?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select></div> : null}
+        </form> : null}
+        {modalMode === 'status' ? <p>Change <strong>{selectedRole?.name}</strong> to <strong>{roleStatusLabel(selectedRole?.status === 'active' ? 'inactive' : 'active')}</strong>? Inactive roles no longer grant access.</p> : null}
+        {modalMode === 'assign-user' ? <form id="user-form" onSubmit={onSubmitUser}><div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" {...userForm.register('userId')}><option value="">{usersListQuery.isFetching ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select>{userForm.formState.errors.userId ? <span className="field-error">{userForm.formState.errors.userId.message}</span> : null}</div></form> : null}
+        {modalMode === 'remove-user' ? <form id="user-form" onSubmit={onSubmitUser}><div className="form-field"><label htmlFor="remove-role-user">User</label><select id="remove-role-user" {...userForm.register('userId')}><option value="">Select user</option>{(selectedRole?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select>{userForm.formState.errors.userId ? <span className="field-error">{userForm.formState.errors.userId.message}</span> : null}</div></form> : null}
         {modalMode === 'delete' ? <p>Delete {selectedRole?.name}? The backend will enforce status and assignment restrictions.</p> : null}
         {modalMode === 'audit' ? auditLoading ? <div className="rp-detail-empty">Loading audit history...</div> : auditItems.length ? <div className="role-audit-list">{auditItems.map((item) => <article key={item.id}><div><strong>{item.actorName}</strong><span>{item.eventType}</span></div><time dateTime={item.createdAt}>{new Intl.DateTimeFormat('en-KE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.createdAt))}</time></article>)}</div> : <div className="rp-detail-empty">No audit activity found for this role.</div> : null}
       </Modal>

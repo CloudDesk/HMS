@@ -1,4 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useAuth } from '../auth/useAuth';
+import { hasPermission } from '../auth/access-control';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,12 +10,10 @@ import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
-  formatVisitDateTime,
   getOpdErrorMessage,
   isActiveVisit,
   opdVisitPriorityLabels,
   opdVisitStatusLabels,
-  opdVisitTypeLabels,
   patientInitials,
   todayInputValue,
   visitPriorityClass,
@@ -72,7 +72,23 @@ type WalkInForm = z.infer<typeof walkInSchema>;
 type StatusFilter = ApiOpdVisitStatus | '';
 type PriorityFilter = ApiOpdVisitPriority | '';
 
+
+const isStatusFilter = (val: string | null): val is ApiOpdVisitStatus =>
+  val !== null && ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'SKIPPED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(val);
+
+const isPriorityFilter = (val: string | null): val is ApiOpdVisitPriority =>
+  val !== null && ['ROUTINE', 'URGENT', 'EMERGENCY'].includes(val);
+
 export function OpdQueuePage() {
+
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles?.some((role: { code: string }) => role.code === 'SUPER_ADMIN'));
+  const canAccess = (module: string, screen: string, action: string) =>
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
+  const canCreateVisit = canAccess('OPD', 'OPD Visits', 'Create');
+  const canEditVisit = canAccess('OPD', 'OPD Visits', 'Edit');
+  const canCreateVitals = canAccess('OPD', 'OPD Vitals', 'Create');
+
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   
@@ -80,8 +96,8 @@ export function OpdQueuePage() {
     search: initialParams.get('search') ?? '',
     department_id: initialParams.get('department_id') ?? '',
     doctor_id: initialParams.get('doctor_id') ?? '',
-    status: (initialParams.get('status') as ApiOpdVisitStatus | null) ?? '',
-    priority: (initialParams.get('priority') as ApiOpdVisitPriority | null) ?? '',
+    status: isStatusFilter(initialParams.get('status')) ? (initialParams.get('status') as ApiOpdVisitStatus) : '',
+    priority: isPriorityFilter(initialParams.get('priority')) ? (initialParams.get('priority') as ApiOpdVisitPriority) : '',
     date: initialParams.get('date') ?? todayInputValue(),
   });
 
@@ -191,6 +207,7 @@ export function OpdQueuePage() {
       : Math.round(activeVisits.reduce((total, visit, index) => total + waitMinutes(visit, index), 0) / activeVisits.length);
 
   const onVitalsSubmit = async (data: VitalsForm) => {
+    if (!canCreateVitals || !canEditVisit) return;
     if (!vitalsVisit) return;
     setActionError('');
     try {
@@ -218,6 +235,7 @@ export function OpdQueuePage() {
   };
 
   const onWalkInSubmit = async (data: WalkInForm) => {
+    if (!canCreateVisit) return;
     setActionError('');
     try {
       await createVisit({
@@ -236,6 +254,7 @@ export function OpdQueuePage() {
   };
 
   const createVisitFromAppointment = async (appointment: AppointmentResponse) => {
+    if (!canCreateVisit) return;
     try {
       await createVisit({
         appointment_id: appointment.id,
@@ -248,6 +267,7 @@ export function OpdQueuePage() {
   };
 
   const handleStatusChange = async (visit: OpdVisitResponse, status: ApiOpdVisitStatus, notes?: string) => {
+    if (!canEditVisit) return;
     try {
       await updateVisitStatus({ id: visit.id, payload: { status, notes } });
       showToast(`${visit.visit_number} moved to ${opdVisitStatusLabels[status].toLowerCase()}.`);
@@ -257,6 +277,7 @@ export function OpdQueuePage() {
   };
 
   const handleCallNext = async () => {
+    if (!canEditVisit) return;
     if (currentVisit) {
       showToast('Complete or skip the current patient first.', 'error');
       return;
@@ -282,7 +303,7 @@ export function OpdQueuePage() {
             <p>Coordinate check-in, active visits and consultation readiness</p> */}
           </div>
           <div className="opd-page-actions">
-            <button className="doc-btn primary" onClick={() => setWalkInOpen(true)} type="button">
+            <button className="doc-btn primary" onClick={() => setWalkInOpen(true)} type="button" disabled={!canCreateVisit}>
               <i className="ph ph-person-simple-walk" aria-hidden="true" />
               Walk-in Check-in
             </button>
@@ -326,7 +347,7 @@ export function OpdQueuePage() {
             <label htmlFor="opd-department">Department</label>
             <select id="opd-department" onChange={(event) => setFilters(prev => ({ ...prev, department_id: event.target.value }))} value={filters.department_id}>
               <option value="">All Departments</option>
-              {departments.map((department: any) => (
+              {departments.map((department: import('../api/departments').DepartmentResponse) => (
                 <option key={department.id} value={department.id}>
                   {department.name}
                 </option>
@@ -337,7 +358,7 @@ export function OpdQueuePage() {
             <label htmlFor="opd-doctor">Doctor</label>
             <select id="opd-doctor" onChange={(event) => setFilters(prev => ({ ...prev, doctor_id: event.target.value }))} value={filters.doctor_id}>
               <option value="">All Doctors</option>
-              {doctors.map((doctor: any) => (
+              {doctors.map((doctor: import('../api/doctors').DoctorResponse) => (
                 <option key={doctor.id} value={doctor.id}>
                   {doctor.display_name}
                 </option>
@@ -459,7 +480,7 @@ export function OpdQueuePage() {
                             {visit.status === 'WAITING_FOR_VITALS' || visit.status === 'CHECKED_IN' ? (
                               <button
                                 className="doc-btn primary compact"
-                                disabled={isUpdating}
+                                disabled={isUpdating || !canCreateVitals || !canEditVisit}
                                 onClick={() => {
                                   setVitalsVisit(visit);
                                   resetVitals();
@@ -475,7 +496,7 @@ export function OpdQueuePage() {
                               <>
                                 <button
                                   className="doc-btn success compact"
-                                  disabled={isUpdating}
+                                  disabled={isUpdating || !canEditVisit}
                                   onClick={async () => {
                                     await handleStatusChange(visit, 'IN_CONSULTATION');
                                     navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
@@ -488,7 +509,7 @@ export function OpdQueuePage() {
                                 </button>
                                 <button
                                   className="doc-action"
-                                  disabled={isUpdating}
+                                  disabled={isUpdating || !canEditVisit}
                                   onClick={() => handleStatusChange(visit, 'SKIPPED', 'Patient skipped and moved behind waiting tokens.')}
                                   title="Skip Patient"
                                   type="button"
@@ -497,7 +518,7 @@ export function OpdQueuePage() {
                                 </button>
                                 <button
                                   className="doc-action error"
-                                  disabled={isUpdating}
+                                  disabled={isUpdating || !canEditVisit}
                                   onClick={() => {
                                     if (window.confirm('Mark this patient as No Show? They will be removed from the active queue.')) {
                                       void handleStatusChange(visit, 'NO_SHOW', 'Patient did not appear after queue call.');
@@ -576,7 +597,7 @@ export function OpdQueuePage() {
             <div className="doc-action-group" style={{ margin: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <button
                 className="doc-btn primary full-width"
-                disabled={isUpdating || !nextVisit || Boolean(currentVisit)}
+                disabled={isUpdating || !nextVisit || Boolean(currentVisit) || !canEditVisit}
                 onClick={handleCallNext}
                 type="button"
               >
@@ -600,7 +621,7 @@ export function OpdQueuePage() {
                     </div>
                     <button
                       className="doc-btn"
-                      disabled={isUpdating}
+                      disabled={isUpdating || !canCreateVisit}
                       onClick={() => createVisitFromAppointment(appointment)}
                       type="button"
                     >
@@ -633,7 +654,7 @@ export function OpdQueuePage() {
                 </label>
                 <select id="walk-in-patient" {...registerWalkIn('patient_id')}>
                   <option value="">Select patient</option>
-                  {patients.map((patient: any) => (
+                  {patients.map((patient: import('../api/patients').PatientResponse) => (
                     <option key={patient.id} value={patient.id}>
                       {patient.patient_number} - {patient.first_name} {patient.last_name}
                     </option>
@@ -647,7 +668,7 @@ export function OpdQueuePage() {
                 </label>
                 <select id="walk-in-doctor" {...registerWalkIn('doctor_id')}>
                   <option value="">Select doctor</option>
-                  {doctors.map((doctor: any) => (
+                  {doctors.map((doctor: import('../api/doctors').DoctorResponse) => (
                     <option key={doctor.id} value={doctor.id}>
                       {doctor.display_name} - {doctor.specialization}
                     </option>

@@ -5,15 +5,22 @@ import { z } from 'zod';
 import { Modal } from '../ui/Modal';
 import { type OpdVisitResponse } from '../../api/opd';
 
+const numericStringWithRange = (min: number, max: number, name: string) => 
+  z.string().optional().refine(val => {
+    if (!val || val.trim() === '') return true;
+    const num = Number(val);
+    return !isNaN(num) && num >= min && num <= max;
+  }, { message: `${name} must be between ${min} and ${max}` });
+
 const vitalsSchema = z.object({
-  blood_pressure_systolic: z.string().optional(),
-  blood_pressure_diastolic: z.string().optional(),
-  weight_kg: z.string().optional(),
-  height_cm: z.string().optional(),
-  temperature_c: z.string().optional(),
-  pulse_bpm: z.string().optional(),
-  respiratory_rate_per_min: z.string().optional(),
-  oxygen_saturation_percent: z.string().optional(),
+  blood_pressure_systolic: numericStringWithRange(50, 260, 'Systolic BP'),
+  blood_pressure_diastolic: numericStringWithRange(30, 160, 'Diastolic BP'),
+  weight_kg: numericStringWithRange(1, 350, 'Weight'),
+  height_cm: numericStringWithRange(30, 250, 'Height'),
+  temperature_c: numericStringWithRange(30, 45, 'Temperature'),
+  pulse_bpm: numericStringWithRange(20, 240, 'Pulse'),
+  respiratory_rate_per_min: numericStringWithRange(5, 80, 'Respiratory rate'),
+  oxygen_saturation_percent: numericStringWithRange(50, 100, 'Oxygen saturation'),
   notes: z.string().optional(),
 }).refine(data => {
   if ((data.blood_pressure_systolic && !data.blood_pressure_diastolic) || (!data.blood_pressure_systolic && data.blood_pressure_diastolic)) {
@@ -23,6 +30,14 @@ const vitalsSchema = z.object({
 }, {
   message: "Both systolic and diastolic BP must be provided together",
   path: ["blood_pressure_systolic"]
+}).refine(data => {
+  if (data.blood_pressure_systolic && data.blood_pressure_diastolic) {
+    return Number(data.blood_pressure_systolic) > Number(data.blood_pressure_diastolic);
+  }
+  return true;
+}, {
+  message: "Systolic BP must be greater than Diastolic BP",
+  path: ["blood_pressure_systolic"]
 });
 
 export type VitalsForm = z.infer<typeof vitalsSchema>;
@@ -31,7 +46,7 @@ interface OpdVitalsModalProps {
   open: boolean;
   onClose: () => void;
   visit: OpdVisitResponse | null;
-  initialData: any;
+  initialData: import('../../api/opd').OpdVitalsResponse | null;
   onSave: (data: VitalsForm) => void;
   isSaving: boolean;
 }

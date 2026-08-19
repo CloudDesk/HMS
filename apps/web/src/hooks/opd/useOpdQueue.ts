@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { useOpdVisits, useCreateOpdVisit, useUpdateOpdVisitStatus, useCreateOpdVitals } from './useOpd';
-import { useAppointmentsList as useAppointments, useCreateAppointment, useUpdateAppointmentStatus } from '../appointments/useAppointments';
+import { useAppointmentsList as useAppointments } from '../appointments/useAppointments';
 import { useDoctorsList as useDoctors } from '../doctors/useDoctors';
 import { useDepartmentsList as useDepartments } from '../departments/useDepartments';
 import { usePatientsList as usePatients } from '../patients/usePatients';
 import { type ApiOpdVisitPriority, type ApiOpdVisitStatus } from '../../api/opd';
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
 
 export type OpdQueueFilters = {
   search?: string;
@@ -16,6 +18,11 @@ export type OpdQueueFilters = {
 };
 
 export function useOpdQueue(filters: OpdQueueFilters) {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
+  const canAccess = (module: string, screen: string) =>
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen });
+
   // Queries
   const { data: visitsData, isLoading: visitsLoading, error: visitsError } = useOpdVisits({
     search: filters.search || undefined,
@@ -27,7 +34,7 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     limit: 100,
     sortBy: 'check_in_time',
     sortOrder: 'asc',
-  });
+  }, canAccess('OPD', 'OPD Visits'));
 
   const { data: appointmentsData, isLoading: appointmentsLoading, error: appointmentsError } = useAppointments({
     search: filters.search || undefined,
@@ -38,11 +45,22 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     limit: 100,
     sortBy: 'start_time',
     sortOrder: 'asc',
-  });
+  }, canAccess('Appointments', 'Appointment Records'));
 
-  const { data: doctorsData, isLoading: doctorsLoading } = useDoctors({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-  const { data: departmentsData, isLoading: departmentsLoading } = useDepartments({ status: 'ACTIVE', limit: 100 });
-  const { data: patientsData, isLoading: patientsLoading } = usePatients({ status: 'ACTIVE', limit: 100, sortBy: 'created_at', sortOrder: 'desc' });
+  const { data: doctorsData, isLoading: doctorsLoading } = useDoctors(
+    { status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' },
+    canAccess('Doctors', 'Doctor Directory')
+  );
+  
+  const { data: departmentsData, isLoading: departmentsLoading } = useDepartments(
+    { status: 'ACTIVE', limit: 100 },
+    canAccess('Administration', 'Departments')
+  );
+  
+  const { data: patientsData, isLoading: patientsLoading } = usePatients(
+    { status: 'ACTIVE', limit: 100, sortBy: 'created_at', sortOrder: 'desc' },
+    canAccess('Patients', 'Patient Records')
+  );
 
   // Mutations
   const { mutateAsync: createVisit, isPending: isCreatingVisit } = useCreateOpdVisit();

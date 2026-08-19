@@ -19,40 +19,59 @@ import {
 } from './useOpd';
 import { useDoctorsList as useDoctors } from '../doctors/useDoctors';
 import { useMedicinesList as useMedicines } from '../medicines/useMedicines';
-import { pharmacyInventoryApi } from '../../api/pharmacy-inventory';
-import { useQuery } from '@tanstack/react-query';
+
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
+import { usePharmacyInventoryList } from '../pharmacy/usePharmacy';
 import { useServicesList as useServices } from '../services/useServices';
 import {
   useDeletePatientDocument,
   useDownloadPatientDocument,
   usePatientDocuments,
-  usePatientsList as usePatients,
   useUploadPatientDocument,
 } from '../patients/usePatients';
 import { useCreateAppointment } from '../appointments/useAppointments';
 import { useCreateBillingInvoice } from '../billing/useBilling';
 
-export function useOpdWorkspace(visitId: string | null) {
+export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
+  const canAccess = (module: string, screen: string) =>
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen });
+
   const { data: visitData, isLoading: visitLoading } = useOpdVisit(visitId);
   const { data: vitalsData, isLoading: vitalsLoading } = useOpdLatestVitals(visitId);
-  const { data: consultationData, isLoading: consultationLoading } = useOpdConsultation(visitId);
-  const { data: prescriptionData, isLoading: prescriptionLoading } = useOpdPrescription(visitId);
-  const { data: followUpData, isLoading: followUpLoading } = useOpdFollowUp(visitId);
-  const { data: referralData, isLoading: referralLoading } = useOpdReferral(visitId);
-  const { data: labOrderData, isLoading: labOrderLoading } = useOpdClinicalOrder(visitId, 'LABORATORY');
-  const { data: imagingOrderData, isLoading: imagingOrderLoading } = useOpdClinicalOrder(visitId, 'IMAGING');
+  const { data: consultationData, isLoading: consultationLoading } = useOpdConsultation(visitId, !activeTab || activeTab === 'Consultation' || activeTab === 'Diagnosis');
+  const { data: prescriptionData, isLoading: prescriptionLoading } = useOpdPrescription(visitId, !activeTab || activeTab === 'Prescription');
+  const { data: followUpData, isLoading: followUpLoading } = useOpdFollowUp(visitId, !activeTab || activeTab === 'Follow-up');
+  const { data: referralData, isLoading: referralLoading } = useOpdReferral(visitId, !activeTab || activeTab === 'Referral');
+  const { data: labOrderData, isLoading: labOrderLoading } = useOpdClinicalOrder(visitId, 'LABORATORY', !activeTab || activeTab === 'Lab Orders');
+  const { data: imagingOrderData, isLoading: imagingOrderLoading } = useOpdClinicalOrder(visitId, 'IMAGING', !activeTab || activeTab === 'Imaging Orders');
 
-  const { data: doctorsData, isLoading: doctorsLoading } = useDoctors({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-  const { data: medicinesData, isLoading: medicinesLoading } = useMedicines({ status: 'ACTIVE', limit: 100 });
+  const { data: doctorsData, isLoading: doctorsLoading } = useDoctors(
+    { limit: 100, sortBy: 'display_name', sortOrder: 'asc' },
+    canAccess('Doctors', 'Doctor Directory') && (!activeTab || activeTab === 'Referral' || activeTab === 'Follow-up')
+  );
+  const { data: medicinesData, isLoading: medicinesLoading } = useMedicines(
+    { status: 'ACTIVE', limit: 100 },
+    (!activeTab || activeTab === 'Prescription') && (canAccess('Administration', 'Medicines') || canAccess('Pharmacy', 'Medicine Inventory') || canAccess('OPD', 'OPD Prescription'))
+  );
 
   const branchId = visitData?.branch_id || '';
-  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({ queryKey: ['pharmacyInventory', branchId], queryFn: () => pharmacyInventoryApi.list({ branch_id: branchId, limit: 100 }), enabled: Boolean(branchId) }); // { branch_id: branchId, limit: 100 }, Boolean(branchId));
-  const { data: servicesData, isLoading: servicesLoading } = useServices({ status: 'ACTIVE', limit: 100 });
-  const { data: patientsData, isLoading: patientsLoading } = usePatients({ status: 'ACTIVE', limit: 100 });
+  const { data: inventoryData, isLoading: inventoryLoading } = usePharmacyInventoryList(
+    { branch_id: branchId, limit: 100 },
+    Boolean(branchId && (!activeTab || activeTab === 'Prescription') && (canAccess('Pharmacy', 'Medicine Inventory') || canAccess('OPD', 'OPD Prescription')))
+  );
+
+  const { data: servicesData, isLoading: servicesLoading } = useServices(
+    { status: 'ACTIVE', limit: 100 },
+    (!activeTab || activeTab === 'Lab Orders' || activeTab === 'Imaging Orders') && (canAccess('Administration', 'Services') || canAccess('OPD', 'OPD Clinical Orders'))
+  );
+
   const { data: documentsData, isLoading: documentsLoading } = usePatientDocuments(
     visitData?.patient_id ?? null,
     { visit_id: visitId ?? undefined, limit: 100 },
-    Boolean(visitData?.patient_id && visitId),
+    Boolean(visitData?.patient_id && visitId && canAccess('Patients', 'Patient Records') && (!activeTab || activeTab === 'Documents'))
   );
 
   const { mutateAsync: saveConsultationDraft, isPending: isSavingConsultation } = useSaveOpdConsultationDraft();
@@ -85,7 +104,6 @@ export function useOpdWorkspace(visitId: string | null) {
     medicinesLoading ||
     inventoryLoading ||
     servicesLoading ||
-    patientsLoading ||
     documentsLoading;
 
   const isUpdating =
@@ -121,7 +139,6 @@ export function useOpdWorkspace(visitId: string | null) {
     medicines: medicinesData?.data ?? [],
     inventory: inventoryData?.data ?? [],
     services: servicesData?.data ?? [],
-    patients: patientsData?.data ?? [],
     documents: documentsData?.data ?? [],
     isLoading,
     isUpdating: isUpdatingOpd,

@@ -39,7 +39,7 @@ export function useLaboratorySummary(branchId?: string, enabled = true) {
 export function useLaboratoryOrderDetails(id: string | null, enabled = true) {
   return useQuery({
     queryKey: id ? laboratoryKeys.detail(id) : laboratoryKeys.details(),
-    queryFn: () => laboratoryApi.get(id!),
+    queryFn: () => laboratoryApi.get(id as string),
     enabled: enabled && Boolean(id),
   });
 }
@@ -47,7 +47,7 @@ export function useLaboratoryOrderDetails(id: string | null, enabled = true) {
 export function useLaboratoryResult(id: string | null, enabled = true) {
   return useQuery({
     queryKey: id ? laboratoryKeys.result(id) : laboratoryKeys.results(),
-    queryFn: () => laboratoryApi.getResult(id!),
+    queryFn: () => laboratoryApi.getResult(id as string),
     enabled: enabled && Boolean(id),
   });
 }
@@ -58,9 +58,12 @@ export function useUpdateLaboratoryStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: Exclude<LaboratoryStatus, 'SUBMITTED' | 'RESULT_ENTERED'> }) =>
       laboratoryApi.updateStatus(id, status),
-    onSuccess: async () => {
+    onSuccess: async (_, { id }) => {
       toast.success('Laboratory order status updated.');
-      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.result(id) });
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)), // Adjust to a generic API error message if needed
   });
@@ -72,9 +75,12 @@ export function useEnterLaboratoryResult() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: LaboratoryResultPayload }) =>
       laboratoryApi.enterResult(id, payload),
-    onSuccess: async () => {
+    onSuccess: async (_, { id }) => {
       toast.success('Laboratory results entered successfully.');
-      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.result(id) });
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)),
   });
@@ -86,9 +92,12 @@ export function useUpdateLaboratoryResult() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: LaboratoryResultPayload }) =>
       laboratoryApi.updateResult(id, payload),
-    onSuccess: async () => {
+    onSuccess: async (_, { id }) => {
       toast.success('Laboratory results updated successfully.');
-      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: laboratoryKeys.result(id) });
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)),
   });

@@ -37,7 +37,7 @@ export const opdKeys = {
 export function useOpdVisit(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.visitDetails(visitId) : opdKeys.visits(),
-    queryFn: () => opdApi.getVisitById(visitId!),
+    queryFn: () => opdApi.getVisitById(visitId as string),
     enabled: enabled && Boolean(visitId),
   });
 }
@@ -45,7 +45,7 @@ export function useOpdVisit(visitId: string | null, enabled = true) {
 export function useOpdLatestVitals(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.latestVitals(visitId) : opdKeys.vitals(),
-    queryFn: () => opdApi.getLatestVitals(visitId!),
+    queryFn: () => opdApi.getLatestVitals(visitId as string),
     enabled: enabled && Boolean(visitId),
   });
 }
@@ -61,7 +61,7 @@ export function useOpdVisits(params: OpdVisitListParams, enabled = true) {
 export function useOpdConsultation(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.consultation(visitId) : opdKeys.consultations(),
-    queryFn: () => opdApi.getConsultation(visitId!),
+    queryFn: () => opdApi.getConsultation(visitId as string),
     enabled: enabled && Boolean(visitId),
   });
 }
@@ -69,7 +69,7 @@ export function useOpdConsultation(visitId: string | null, enabled = true) {
 export function useOpdClinicalOrder(visitId: string | null, type: ApiClinicalOrderType, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.clinicalOrder(visitId, type) : opdKeys.clinicalOrders(),
-    queryFn: () => opdApi.getClinicalOrder(visitId!, type),
+    queryFn: () => opdApi.getClinicalOrder(visitId as string, type),
     enabled: enabled && Boolean(visitId),
   });
 }
@@ -77,7 +77,7 @@ export function useOpdClinicalOrder(visitId: string | null, type: ApiClinicalOrd
 export function useOpdPrescription(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.prescription(visitId) : opdKeys.prescriptions(),
-    queryFn: () => opdApi.getPrescription(visitId!),
+    queryFn: () => opdApi.getPrescription(visitId as string),
     enabled: enabled && Boolean(visitId),
   });
 }
@@ -85,7 +85,7 @@ export function useOpdPrescription(visitId: string | null, enabled = true) {
 export function useOpdFollowUp(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.followUp(visitId) : opdKeys.followUps(),
-    queryFn: () => opdApi.getFollowUp(visitId!),
+    queryFn: () => opdApi.getFollowUp(visitId as string),
     enabled: enabled && Boolean(visitId),
   });
 }
@@ -93,7 +93,7 @@ export function useOpdFollowUp(visitId: string | null, enabled = true) {
 export function useOpdReferral(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.referral(visitId) : opdKeys.referrals(),
-    queryFn: () => opdApi.getReferral(visitId!),
+    queryFn: () => opdApi.getReferral(visitId as string),
     enabled: enabled && Boolean(visitId),
   });
 }

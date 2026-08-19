@@ -1,14 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { ApiError } from '../api/api-error';
-import { branchesApi } from '../api/branches';
-import { medicinesApi, type SaveMedicinePayload } from '../api/medicines';
+
+import { type SaveMedicinePayload } from '../api/medicines';
 import {
-  pharmacyInventoryApi,
   type ExpiryState,
   type InventoryItem,
   type InventoryListParams,
@@ -16,10 +13,13 @@ import {
   type StockMovementType,
   type StockState,
 } from '../api/pharmacy-inventory';
-import { useAuth } from '../auth/useAuth';
-import { Modal } from '../components/ui/Modal';
-import { navigate, useAppLocation } from '../routing/navigation';
 import { useCurrencyFormatter } from '../api/useSettings';
+import { Modal } from '../components/ui/Modal';
+import { usePharmacyInventoryFeature } from '../hooks/pharmacy/usePharmacyInventoryFeature';
+import { navigate, useAppLocation } from '../routing/navigation';
+import { formatDate, formatDateTime } from './patient-utils';
+
+// --- Validation Schemas ---
 
 const batchSchema = z.object({
   medicine_id: z.string().min(1, 'Select a medicine.'),
@@ -30,6 +30,7 @@ const batchSchema = z.object({
   barcode: z.string().trim().max(100),
   reason: z.string().trim().max(500),
 });
+type BatchForm = z.infer<typeof batchSchema>;
 
 const editBatchSchema = z.object({
   expiry_date: z.string().min(1, 'Expiry date is required.'),
@@ -37,6 +38,7 @@ const editBatchSchema = z.object({
   barcode: z.string().trim().max(100),
   reason: z.string().trim().min(1, 'Reason for edit is required.').max(500),
 });
+type EditBatchForm = z.infer<typeof editBatchSchema>;
 
 const movementSchema = z.object({
   batch_id: z.string().min(1, 'Select a batch.'),
@@ -45,11 +47,13 @@ const movementSchema = z.object({
   reason: z.string().trim().min(1, 'Reason is required.').max(500),
   reference: z.string().trim().max(100),
 });
+type MovementForm = z.infer<typeof movementSchema>;
 
 const thresholdSchema = z.object({
   low_stock_threshold: z.number().int().min(0, 'Threshold cannot be negative.'),
   reason: z.string().trim().min(1, 'Reason is required.').max(500),
 });
+type ThresholdForm = z.infer<typeof thresholdSchema>;
 
 const medicineFormSchema = z.object({
   code: z.string().trim().min(1, 'Medicine code is required.').max(50),
@@ -61,32 +65,10 @@ const medicineFormSchema = z.object({
   description: z.string().trim().max(1000),
   status: z.enum(['ACTIVE', 'INACTIVE']),
 });
-
-type BatchForm = z.infer<typeof batchSchema>;
-type EditBatchForm = z.infer<typeof editBatchSchema>;
-type MovementForm = z.infer<typeof movementSchema>;
-type ThresholdForm = z.infer<typeof thresholdSchema>;
 type MedicineFormValues = z.infer<typeof medicineFormSchema>;
-type ModalMode = 'batch' | 'edit-batch' | 'movement' | 'threshold' | 'detail' | 'add-medicine-master';
 
-const formatDate = (value: string | null) => value
-  ? new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value))
-  : '—';
-const formatDateTime = (value: string) => new Intl.DateTimeFormat('en', {
-  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-}).format(new Date(value));
+type ModalMode = 'batch' | 'movement' | 'threshold' | 'detail' | 'edit-batch' | 'add-medicine-master';
 
-const errorMessage = (error: unknown) => {
-  if (error instanceof ApiError) {
-    if (error.status === 403) return 'You do not have access to this branch or action.';
-    return error.message;
-  }
-  return 'Unable to complete the inventory request.';
-};
-
-const stateLabel: Record<StockState, string> = {
-  AVAILABLE: 'Available', LOW_STOCK: 'Low Stock', OUT_OF_STOCK: 'Out of Stock',
-};
 const movementLabel: Record<StockMovementType, string> = {
   OPENING_STOCK: 'Opening Stock', STOCK_IN: 'Stock In', STOCK_OUT: 'Stock Out',
   ADJUSTMENT_IN: 'Adjustment In', ADJUSTMENT_OUT: 'Adjustment Out',
@@ -94,21 +76,10 @@ const movementLabel: Record<StockMovementType, string> = {
 
 export function PharmacyMedicineInventoryPage() {
   const formatMoney = useCurrencyFormatter();
-  const { user } = useAuth();
   const location = useAppLocation();
-  const queryClient = useQueryClient();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const allBranchesQuery = useQuery({
-    queryKey: ['branches', 'pharmacy-inventory-options'],
-    queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
-    enabled: isSuperAdmin,
-  });
-  const branches = useMemo(() => isSuperAdmin
-    ? (allBranchesQuery.data?.data ?? []).map((branch) => ({ id: branch.id, code: branch.code, name: branch.name }))
-    : (user?.branches ?? []), [allBranchesQuery.data?.data, isSuperAdmin, user?.branches]);
+
   const requestedBranch = query.get('branch_id') ?? '';
-  const branchId = branches.some((branch) => branch.id === requestedBranch) ? requestedBranch : (branches[0]?.id ?? '');
   const search = query.get('search') ?? '';
   const stockState = (query.get('stock_state') ?? '') as StockState | '';
   const expiryState = (query.get('expiry_state') ?? '') as ExpiryState | '';
@@ -121,13 +92,35 @@ export function PharmacyMedicineInventoryPage() {
   const [selectedBatch, setSelectedBatch] = useState<MedicineBatch | null>(null);
   const [detailTab, setDetailTab] = useState<'batches' | 'movements'>('batches');
 
-  const hasAction = useCallback((action: string) => Boolean(
-    isSuperAdmin ||
-    user?.permissions.some((permission) =>
-      permission.module.toLowerCase() === 'pharmacy' &&
-      permission.screen.toLowerCase() === 'medicine inventory' &&
-      permission.action.toLowerCase() === action.toLowerCase()),
-  ), [isSuperAdmin, user]);
+  const feature = usePharmacyInventoryFeature({
+    requestedBranch,
+    search,
+    stockState,
+    expiryState,
+    page,
+    limit,
+    sortBy,
+    sortOrder,
+    selectedMedicineId: selected?.medicine_id ?? null,
+    detailTab,
+    modalMode,
+  });
+
+  const {
+    branches,
+    activeBranchId,
+    inventory,
+    meta,
+    summary,
+    medicinesOptions,
+    batches,
+    movements,
+    isLoading,
+    isDetailLoading,
+    isUpdating,
+    permissions: { canRegisterBatch, canRecordMovement, canAdjustStock, canConfigureLowStock, canEditBatch },
+    actions
+  } = feature;
 
   const updateQuery = useCallback((updates: Record<string, string | number | null>) => {
     const next = new URLSearchParams(location.search);
@@ -140,49 +133,8 @@ export function PharmacyMedicineInventoryPage() {
   }, [location.search]);
 
   useEffect(() => {
-    if (branchId && requestedBranch !== branchId) updateQuery({ branch_id: branchId, page: 1 });
-  }, [branchId, requestedBranch, updateQuery]);
-
-  const listParams = useMemo<InventoryListParams>(() => ({
-    branch_id: branchId,
-    search: search.trim() || undefined,
-    stock_state: stockState || undefined,
-    expiry_state: expiryState || undefined,
-    page,
-    limit,
-    sortBy,
-    sortOrder,
-  }), [branchId, expiryState, limit, page, search, sortBy, sortOrder, stockState]);
-
-  const listQuery = useQuery({
-    queryKey: ['pharmacy-inventory', 'list', listParams],
-    queryFn: () => pharmacyInventoryApi.list(listParams),
-    enabled: Boolean(branchId),
-  });
-  const summaryQuery = useQuery({
-    queryKey: ['pharmacy-inventory', 'summary', branchId],
-    queryFn: () => pharmacyInventoryApi.summary(branchId),
-    enabled: Boolean(branchId),
-  });
-  const medicineOptionsQuery = useQuery({
-    queryKey: ['medicines', 'inventory-options'],
-    queryFn: () => medicinesApi.list({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }),
-    enabled: modalMode === 'batch' || modalMode === 'add-medicine-master',
-  });
-  const batchesQuery = useQuery({
-    queryKey: ['pharmacy-inventory', 'batches', selected?.medicine_id, branchId],
-    queryFn: () => pharmacyInventoryApi.batches(selected!.medicine_id, {
-      branch_id: branchId, page: 1, limit: 100, sortBy: 'expiry_date', sortOrder: 'asc',
-    }),
-    enabled: Boolean(selected && branchId && (modalMode === 'detail' || modalMode === 'movement')),
-  });
-  const movementsQuery = useQuery({
-    queryKey: ['pharmacy-inventory', 'movements', selected?.medicine_id, branchId],
-    queryFn: () => pharmacyInventoryApi.movements({
-      branch_id: branchId, medicine_id: selected!.medicine_id, page: 1, limit: 50,
-    }),
-    enabled: Boolean(selected && branchId && modalMode === 'detail' && detailTab === 'movements'),
-  });
+    if (activeBranchId && requestedBranch !== activeBranchId) updateQuery({ branch_id: activeBranchId, page: 1 });
+  }, [activeBranchId, requestedBranch, updateQuery]);
 
   const batchForm = useForm<BatchForm>({
     resolver: zodResolver(batchSchema),
@@ -205,275 +157,295 @@ export function PharmacyMedicineInventoryPage() {
     defaultValues: { code: '', name: '', generic_name: '', strength: '', dosage_form: '', unit: '', description: '', status: 'ACTIVE' },
   });
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['pharmacy-inventory'] });
+  const openBatch = useCallback(() => {
+    setModalMode('batch');
+    batchForm.reset();
+  }, [batchForm]);
+
+  const openMovement = useCallback((item: InventoryItem) => {
+    setSelected(item);
+    setModalMode('movement');
+    movementForm.reset();
+  }, [movementForm]);
+
+  const openThreshold = useCallback((item: InventoryItem) => {
+    setSelected(item);
+    setModalMode('threshold');
+    thresholdForm.reset({ low_stock_threshold: item.low_stock_threshold, reason: '' });
+  }, [thresholdForm]);
+
+  const openDetail = useCallback((item: InventoryItem) => {
+    setSelected(item);
+    setDetailTab('batches');
+    setModalMode('detail');
+  }, []);
+
+  const openEditBatch = (batch: MedicineBatch) => {
+    setSelectedBatch(batch);
+    setModalMode('edit-batch');
+    editBatchForm.reset({
+      expiry_date: batch.expiry_date.split('T')[0],
+      unit_price: batch.unit_price,
+      barcode: batch.barcode ?? '',
+      reason: '',
+    });
   };
 
-  const batchMutation = useMutation({
-    mutationFn: (values: BatchForm) => pharmacyInventoryApi.registerBatch(values.medicine_id, {
-      branch_id: branchId,
-      batch_number: values.batch_number,
-      expiry_date: values.expiry_date,
-      unit_price: values.unit_price,
-      opening_quantity: values.opening_quantity,
-      barcode: values.barcode.trim() || null,
-      reason: values.reason.trim() || null,
-    }),
-    onSuccess: async () => {
-      toast.success('Medicine batch registered successfully.');
-      setModalMode(null);
-      batchForm.reset();
-      await invalidate();
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  const onSubmitBatch = async (values: BatchForm) => {
+    await actions.addBatch({
+      medicineId: values.medicine_id,
+      payload: {
+        branch_id: activeBranchId,
+        batch_number: values.batch_number,
+        expiry_date: values.expiry_date,
+        unit_price: values.unit_price,
+        opening_quantity: values.opening_quantity,
+        barcode: values.barcode.trim() || null,
+        reason: values.reason.trim() || null,
+      }
+    });
+    setModalMode(null);
+    batchForm.reset();
+  };
 
-  const editBatchMutation = useMutation({
-    mutationFn: (values: EditBatchForm) => pharmacyInventoryApi.updateBatch(selectedBatch!.id, {
-      branch_id: branchId,
-      expiry_date: values.expiry_date,
-      unit_price: values.unit_price,
-      barcode: values.barcode.trim() || null,
-      reason: values.reason.trim(),
-    }),
-    onSuccess: async () => {
-      toast.success('Medicine batch updated successfully.');
-      setModalMode('detail');
-      setSelectedBatch(null);
-      editBatchForm.reset();
-      await queryClient.invalidateQueries({ queryKey: ['pharmacy-inventory', 'batches'] });
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-
-  const movementMutation = useMutation({
-    mutationFn: (values: MovementForm) => pharmacyInventoryApi.recordMovement({
-      branch_id: branchId,
+  const onSubmitMovement = async (values: MovementForm) => {
+    await actions.recordMovement({
+      branch_id: activeBranchId,
       batch_id: values.batch_id,
-      movement_type: values.movement_type,
+      movement_type: values.movement_type as Exclude<StockMovementType, 'OPENING_STOCK'>,
       quantity: values.quantity,
       reason: values.reason,
       reference: values.reference.trim() || null,
       idempotency_key: crypto.randomUUID(),
-    }),
-    onSuccess: async (result) => {
-      toast.success(result.replayed ? 'Stock movement was already recorded.' : 'Stock movement recorded successfully.');
-      setModalMode(null);
-      movementForm.reset();
-      await invalidate();
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-
-  const thresholdMutation = useMutation({
-    mutationFn: (values: ThresholdForm) => pharmacyInventoryApi.updateThreshold(selected!.medicine_id, {
-      branch_id: branchId,
-      low_stock_threshold: values.low_stock_threshold,
-      reason: values.reason,
-    }),
-    onSuccess: async () => {
-      toast.success('Low-stock threshold updated.');
-      setModalMode(null);
-      await invalidate();
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-
-  const addMedicineMutation = useMutation({
-    mutationFn: async (values: MedicineFormValues) => {
-      const payload: SaveMedicinePayload = {
-        code: values.code,
-        name: values.name,
-        generic_name: values.generic_name.trim() || null,
-        strength: values.strength.trim() || null,
-        dosage_form: values.dosage_form.trim() || null,
-        unit: values.unit.trim() || null,
-        description: values.description.trim() || null,
-        status: values.status,
-      };
-      return medicinesApi.create(payload);
-    },
-    onSuccess: async (medicine) => {
-      toast.success(`${medicine.name} added to Master successfully.`);
-      await queryClient.invalidateQueries({ queryKey: ['medicines', 'inventory-options'] });
-      setModalMode('batch');
-      medicineForm.reset();
-      batchForm.setValue('medicine_id', medicine.id);
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-
-  const openBatch = () => {
-    setSelected(null);
-    batchForm.reset({ medicine_id: '', batch_number: '', expiry_date: '', unit_price: 0, opening_quantity: 0, barcode: '', reason: '' });
-    setModalMode('batch');
-  };
-  const openEditBatch = (batch: MedicineBatch) => {
-    setSelectedBatch(batch);
-    editBatchForm.reset({
-      expiry_date: batch.expiry_date.split('T')[0],
-      unit_price: batch.unit_price ?? 0,
-      barcode: batch.barcode ?? '',
-      reason: '',
     });
-    setModalMode('edit-batch');
-  };
-  const openMovement = (item: InventoryItem) => {
-    setSelected(item);
-    movementForm.reset({ batch_id: '', movement_type: 'STOCK_IN', quantity: 1, reason: '', reference: '' });
-    setModalMode('movement');
-  };
-  const openThreshold = (item: InventoryItem) => {
-    setSelected(item);
-    thresholdForm.reset({ low_stock_threshold: item.low_stock_threshold, reason: '' });
-    setModalMode('threshold');
-  };
-  const openDetail = (item: InventoryItem) => {
-    setSelected(item);
-    setDetailTab('batches');
-    setModalMode('detail');
+    setModalMode(null);
+    movementForm.reset();
   };
 
-  const records = listQuery.data?.data ?? [];
-  const meta = listQuery.data?.meta ?? { page, limit, total: 0, totalPages: 1 };
-  const summary = summaryQuery.data ?? {
-    total_medicines: 0, stocked_medicines: 0, total_available_quantity: 0,
-    low_stock_medicines: 0, out_of_stock_medicines: 0, expiring_soon_medicines: 0,
-    expired_medicines: 0, expiry_warning_days: 30,
+  const onSubmitThreshold = async (values: ThresholdForm) => {
+    await actions.updateThreshold({
+      medicineId: selected!.medicine_id,
+      payload: {
+        branch_id: activeBranchId,
+        low_stock_threshold: values.low_stock_threshold,
+        reason: values.reason,
+      }
+    });
+    setModalMode(null);
   };
-  const selectedMovementType = movementForm.watch('movement_type');
-  const availableBatches = (batchesQuery.data?.data ?? []).filter((batch) =>
-    selectedMovementType === 'ADJUSTMENT_OUT'
-      ? batch.quantity_on_hand > 0
-      : batch.status !== 'EXPIRED',
-  );
-  const canSubmitMovement = selectedMovementType.startsWith('ADJUSTMENT')
-    ? hasAction('AdjustStock')
-    : hasAction('RecordMovement');
 
   return (
-    <div className="um-grid">
-      <div className="inventory-alert-strip">
-        <i className="ph ph-shield-check" aria-hidden="true" />
-        <span>Available quantity excludes expired batches. Expiry warnings cover the next {summary.expiry_warning_days} days.</span>
-      </div>
-
-      <div className="um-kpi-row inventory-kpis" aria-label="Medicine inventory KPIs">
-        {[
-          ['ph-pill', 'blue', 'Stocked Medicines', summary.stocked_medicines],
-          ['ph-stack', 'green', 'Available Units', summary.total_available_quantity],
-          ['ph-warning', 'orange', 'Low Stock', summary.low_stock_medicines],
-          ['ph-x-circle', 'red', 'Out of Stock', summary.out_of_stock_medicines],
-          ['ph-calendar-warning', 'purple', 'Expiring Soon', summary.expiring_soon_medicines],
-          ['ph-calendar-x', 'red', 'Expired', summary.expired_medicines],
-        ].map(([icon, tone, label, value]) => (
-          <div className="kpi-card" key={String(label)}>
-            <div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} aria-hidden="true" /></div>
-            <div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{summaryQuery.isLoading ? '—' : value}</span></div>
-          </div>
-        ))}
-      </div>
-
-      <section className="um-table-section card">
-        <div className="um-toolbar">
-          <div className="um-toolbar-row1 inventory-toolbar-row">
-            <div className="um-search"><i className="ph ph-magnifying-glass" /><input onChange={(event) => updateQuery({ search: event.target.value, page: 1 })} placeholder="Search medicine code, name, or generic name..." type="search" value={search} /></div>
-            <select className="um-filter inventory-branch-filter" disabled={branches.length <= 1} onChange={(event) => updateQuery({ branch_id: event.target.value, page: 1 })} value={branchId}>
-              {branches.length === 0 ? <option value="">No assigned branch</option> : null}
+    <div className="opd-queue-page">
+      <header className="page-header">
+        <div className="header-title">
+          <h1>Medicine Inventory</h1>
+          <div className="branch-selector">
+            <select
+              disabled={branches.length <= 1}
+              onChange={(e) => updateQuery({ branch_id: e.target.value, page: 1 })}
+              value={activeBranchId}
+            >
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </select>
-            <button className="um-add-btn" disabled={!branchId || !hasAction('RegisterBatch')} onClick={openBatch} type="button"><i className="ph ph-plus" /> Register Batch</button>
-            <button className="btn-secondary admin-table-action" disabled={listQuery.isFetching || !branchId} onClick={() => void invalidate()} type="button"><i className="ph ph-arrows-clockwise" /> Refresh</button>
-          </div>
-          <div className="um-toolbar-row2">
-            <span className="filter-label">Filter by:</span>
-            <select className="um-filter" onChange={(event) => updateQuery({ stock_state: event.target.value, page: 1 })} value={stockState}><option value="">All Stock States</option><option value="AVAILABLE">Available</option><option value="LOW_STOCK">Low Stock</option><option value="OUT_OF_STOCK">Out of Stock</option></select>
-            <select className="um-filter" onChange={(event) => updateQuery({ expiry_state: event.target.value, page: 1 })} value={expiryState}><option value="">All Expiry States</option><option value="VALID">Valid</option><option value="EXPIRING_SOON">Expiring Soon</option><option value="EXPIRED">Has Expired Stock</option></select>
-            <select className="um-filter" onChange={(event) => updateQuery({ sortBy: event.target.value, page: 1 })} value={sortBy}><option value="updated_at">Recently Updated</option><option value="medicine_name">Medicine Name</option><option value="available_quantity">Available Quantity</option><option value="next_expiry_date">Nearest Expiry</option></select>
-            <button className="um-clear-btn" onClick={() => navigate(`/pharmacy/inventory${branchId ? `?branch_id=${branchId}` : ''}`, { replace: true })} type="button"><i className="ph ph-x" /> Clear Filters</button>
           </div>
         </div>
+      </header>
 
+      {summary ? (
+        <div className="inventory-dashboard-cards">
+          <div className="stat-card">
+            <div className="stat-icon stat-blue"><i className="ph ph-pill" /></div>
+            <div className="stat-content"><h3>Medicines Stocked</h3><div className="stat-value">{summary.stocked_medicines} / {summary.total_medicines}</div></div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon stat-green"><i className="ph ph-stack" /></div>
+            <div className="stat-content"><h3>Total Units</h3><div className="stat-value">{summary.total_available_quantity.toLocaleString()}</div></div>
+          </div>
+          <div className="stat-card" style={summary.low_stock_medicines > 0 ? { borderColor: 'var(--warning)', backgroundColor: 'var(--warning-light)' } : {}}>
+            <div className="stat-icon stat-yellow"><i className="ph ph-warning" /></div>
+            <div className="stat-content"><h3>Low Stock</h3><div className="stat-value">{summary.low_stock_medicines}</div></div>
+          </div>
+          <div className="stat-card" style={summary.out_of_stock_medicines > 0 ? { borderColor: 'var(--danger)', backgroundColor: 'var(--danger-light)' } : {}}>
+            <div className="stat-icon stat-red"><i className="ph ph-warning-octagon" /></div>
+            <div className="stat-content"><h3>Out of Stock</h3><div className="stat-value">{summary.out_of_stock_medicines}</div></div>
+          </div>
+          <div className="stat-card" style={summary.expiring_soon_medicines > 0 || summary.expired_medicines > 0 ? { borderColor: 'var(--danger)', backgroundColor: 'var(--danger-light)' } : {}}>
+            <div className="stat-icon stat-red"><i className="ph ph-calendar-x" /></div>
+            <div className="stat-content"><h3>Expiring &lt;{summary.expiry_warning_days}d</h3><div className="stat-value">{summary.expiring_soon_medicines} <span>({summary.expired_medicines} expired)</span></div></div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="filters-bar">
+        <div className="search-box">
+          <i className="ph ph-magnifying-glass" />
+          <input
+            onChange={(e) => updateQuery({ search: e.target.value, page: 1 })}
+            placeholder="Search medicine name or code..."
+            type="search"
+            value={search}
+          />
+        </div>
+        <div className="filter-group">
+          <select onChange={(e) => updateQuery({ stock_state: e.target.value, page: 1 })} value={stockState}>
+            <option value="">All Stock States</option>
+            <option value="AVAILABLE">Available</option>
+            <option value="LOW_STOCK">Low Stock</option>
+            <option value="OUT_OF_STOCK">Out of Stock</option>
+          </select>
+          <select onChange={(e) => updateQuery({ expiry_state: e.target.value, page: 1 })} value={expiryState}>
+            <option value="">All Expiry States</option>
+            <option value="VALID">Valid</option>
+            <option value="EXPIRING_SOON">Expiring Soon</option>
+            <option value="EXPIRED">Expired</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="table-container">
+        <div className="table-actions-row">
+          <div className="table-controls">
+            <button className="um-add-btn" disabled={!activeBranchId || !canRegisterBatch} onClick={openBatch} type="button"><i className="ph ph-plus" /> Register Batch</button>
+          </div>
+        </div>
         <div className="table-responsive">
-          <table className="data-table inventory-table">
-            <thead><tr><th>Medicine</th><th>Available</th><th>Batches</th><th>Nearest Expiry</th><th>Threshold</th><th>Stock State</th><th>Expiry</th><th>Actions</th></tr></thead>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Medicine</th>
+                <th>Unit</th>
+                <th>Stock</th>
+                <th>Nearest Expiry</th>
+                <th>Batches</th>
+                <th className="action-col">Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {!branchId ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-buildings" /> No active branch is assigned to your account.</td></tr> : null}
-              {listQuery.isLoading ? <tr><td className="um-state-cell" colSpan={8}><span className="loading-spinner" /> Loading medicine inventory...</td></tr> : null}
-              {listQuery.isError ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-warning" /> {errorMessage(listQuery.error)}</td></tr> : null}
-              {branchId && !listQuery.isLoading && !listQuery.isError && records.length === 0 ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-package" /> No inventory records found. Register a medicine batch to begin tracking stock.</td></tr> : null}
-              {records.map((item) => (
+              {isLoading ? (
+                <tr><td className="table-message" colSpan={7}>Loading inventory...</td></tr>
+              ) : null}
+              {!isLoading && inventory.length === 0 ? (
+                <tr><td className="table-message" colSpan={7}>No inventory matches your filters.</td></tr>
+              ) : null}
+              {inventory.map((item) => (
                 <tr key={item.id}>
-                  <td><div className="user-cell-info"><span className="user-cell-name">{item.medicine.name}</span><span className="muted-cell">{item.medicine.code}{item.medicine.strength ? ` · ${item.medicine.strength}` : ''}{item.medicine.dosage_form ? ` · ${item.medicine.dosage_form}` : ''}</span></div></td>
-                  <td><strong className="inventory-quantity">{item.available_quantity.toLocaleString()}</strong><span className="muted-cell inventory-unit">{item.medicine.unit ?? 'units'}</span></td>
-                  <td><span className="inventory-batch-chip"><i className="ph ph-stack" /> {item.active_batch_count} active</span>{item.expired_batch_count > 0 ? <span className="inventory-batch-chip danger">{item.expired_batch_count} expired</span> : null}</td>
-                  <td>{formatDate(item.next_expiry_date)}</td>
-                  <td>{item.low_stock_threshold.toLocaleString()}</td>
-                  <td><span className={`inventory-state state-${item.stock_state.toLowerCase().replaceAll('_', '-')}`}>{stateLabel[item.stock_state]}</span></td>
-                  <td><span className={`inventory-expiry expiry-${item.expiry_state.toLowerCase().replaceAll('_', '-')}`}>{item.expiry_state === 'EXPIRING_SOON' ? 'Expiring Soon' : item.expiry_state === 'EXPIRED' ? 'Expired Stock' : 'Valid'}</span></td>
-                  <td><div className="action-icons">
-                    <button className="action-icon-btn" onClick={() => openDetail(item)} title="View batches and movements" type="button"><i className="ph ph-eye" /></button>
-                    <button className="action-icon-btn" disabled={!hasAction('RecordMovement') && !hasAction('AdjustStock')} onClick={() => openMovement(item)} title="Record stock movement" type="button"><i className="ph ph-arrows-down-up" /></button>
-                    <button className="action-icon-btn" disabled={!hasAction('ConfigureLowStock')} onClick={() => openThreshold(item)} title="Configure low-stock threshold" type="button"><i className="ph ph-gauge" /></button>
-                  </div></td>
+                  <td className="monospace">{item.medicine.code}</td>
+                  <td>
+                    <div className="fw-600 cursor-pointer text-primary" onClick={() => openDetail(item)} onKeyDown={(e) => e.key === 'Enter' && openDetail(item)} role="button" tabIndex={0}>
+                      {item.medicine.name}
+                    </div>
+                    {item.medicine.generic_name ? <div className="text-sm text-muted">{item.medicine.generic_name} {item.medicine.strength}</div> : null}
+                  </td>
+                  <td>{item.medicine.unit ?? '-'}</td>
+                  <td>
+                    <div className="inventory-stock-amount">
+                      <strong className={`stock-${item.stock_state.toLowerCase().replaceAll('_', '-')}`}>{item.available_quantity.toLocaleString()}</strong>
+                      {item.low_stock_threshold > 0 ? <span className="text-xs text-muted">/ {item.low_stock_threshold} min</span> : null}
+                    </div>
+                  </td>
+                  <td>
+                    {item.next_expiry_date ? (
+                      <span className={`inventory-expiry expiry-${item.expiry_state.toLowerCase().replaceAll('_', '-')}`}>
+                        <i className="ph ph-calendar" /> {formatDate(item.next_expiry_date)}
+                      </span>
+                    ) : '-'}
+                  </td>
+                  <td>
+                    {item.active_batch_count > 0 ? (
+                      <span className="inventory-batch-count cursor-pointer" onClick={() => openDetail(item)} onKeyDown={(e) => e.key === 'Enter' && openDetail(item)} role="button" tabIndex={0}>
+                        {item.active_batch_count} Active
+                      </span>
+                    ) : '-'}
+                    {item.expired_batch_count > 0 ? <span className="inventory-batch-count expiry-expired ms-2">{item.expired_batch_count} Expired</span> : null}
+                  </td>
+                  <td className="action-col">
+                    <button className="action-icon-btn" disabled={!canRecordMovement && !canAdjustStock} onClick={() => openMovement(item)} title="Record stock movement" type="button"><i className="ph ph-arrows-down-up" /></button>
+                    <button className="action-icon-btn" disabled={!canConfigureLowStock} onClick={() => openThreshold(item)} title="Configure low-stock threshold" type="button"><i className="ph ph-gauge" /></button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="um-pagination"><div className="um-showing">{meta.total === 0 ? 'No inventory records' : `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}`}</div><div className="um-page-size"><span>Rows:</span><select onChange={(event) => updateQuery({ limit: event.target.value, page: 1 })} value={limit}><option value="5">5</option><option value="10">10</option><option value="25">25</option></select></div><div className="um-page-controls"><button className="pg-btn" disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button><span className="pg-btn active">{page}</span><button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button></div></div>
-      </section>
+        {meta && meta.totalPages > 1 ? (
+          <div className="pagination">
+            <button disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /> Prev</button>
+            <span className="page-info">Page {page} of {meta.totalPages}</span>
+            <button disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button">Next <i className="ph ph-caret-right" /></button>
+          </div>
+        ) : null}
+      </div>
 
-      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode(null)} type="button">Cancel</button><button className="btn-primary" disabled={batchMutation.isPending} form="register-batch-form" type="submit">{batchMutation.isPending ? 'Registering...' : 'Register Batch'}</button></>} icon="ph-stack" onClose={() => setModalMode(null)} open={modalMode === 'batch'} title="Register Medicine Batch">
-        <form id="register-batch-form" onSubmit={(event) => void batchForm.handleSubmit((values) => batchMutation.mutate(values))(event)}>
-          <div className="form-section-title">Batch and Opening Stock</div>
+      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode(null)} type="button">Cancel</button><button className="btn-primary" disabled={isUpdating} form="register-batch-form" type="submit">{isUpdating ? 'Saving...' : 'Register Batch'}</button></>} icon="ph-plus-circle" onClose={() => setModalMode(null)} open={modalMode === 'batch'} size="large" title="Register New Batch">
+        <form id="register-batch-form" onSubmit={(event) => void batchForm.handleSubmit(onSubmitBatch)(event)}>
+          <div className="form-section-title">Select Medicine</div>
           <div className="form-grid-2">
-            <div className="form-field" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-field" style={{ gridColumn: '1 / -1' }}>
               <span>Medicine <span className="required">*</span></span>
-              <select {...batchForm.register('medicine_id')} disabled={medicineOptionsQuery.isLoading}>
-                <option value="">Select medicine</option>
-                {(medicineOptionsQuery.data?.data ?? []).map((medicine) => (
-                  <option key={medicine.id} value={medicine.id}>{medicine.code} — {medicine.name}{medicine.strength ? ` ${medicine.strength}` : ''}</option>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <select {...batchForm.register('medicine_id')} style={{ flex: 1 }}>
+                  <option value="">-- Select Medicine --</option>
+                  {isDetailLoading ? <option disabled value="">Loading master list...</option> : null}
+                  {medicinesOptions.map((medicine) => (
+                    <option key={medicine.id} value={medicine.id}>{medicine.name} {medicine.strength ? `(${medicine.strength})` : ''} [{medicine.code}]</option>
+                  ))}
+                </select>
+                <button className="btn-secondary btn-sm" onClick={() => setModalMode('add-medicine-master')} type="button" style={{ whiteSpace: 'nowrap' }}><i className="ph ph-plus" /> Add to Master</button>
+              </div>
+              {batchForm.formState.errors.medicine_id ? <small className="field-error">{batchForm.formState.errors.medicine_id.message}</small> : null}
+            </label>
+          </div>
+          <div className="form-section-title">Batch Details</div>
+          <div className="form-grid-2">
+            <label className="form-field"><span>Batch Number <span className="required">*</span></span><input {...batchForm.register('batch_number')} />{batchForm.formState.errors.batch_number ? <small className="field-error">{batchForm.formState.errors.batch_number.message}</small> : null}</label>
+            <label className="form-field"><span>Expiry Date <span className="required">*</span></span><input {...batchForm.register('expiry_date')} type="date" />{batchForm.formState.errors.expiry_date ? <small className="field-error">{batchForm.formState.errors.expiry_date.message}</small> : null}</label>
+            <label className="form-field"><span>Unit Price <span className="required">*</span></span><input {...batchForm.register('unit_price', { valueAsNumber: true })} min={0} step={0.01} type="number" />{batchForm.formState.errors.unit_price ? <small className="field-error">{batchForm.formState.errors.unit_price.message}</small> : null}</label>
+            <label className="form-field"><span>Opening Quantity <span className="required">*</span></span><input {...batchForm.register('opening_quantity', { valueAsNumber: true })} min={0} type="number" />{batchForm.formState.errors.opening_quantity ? <small className="field-error">{batchForm.formState.errors.opening_quantity.message}</small> : null}</label>
+            <label className="form-field"><span>Barcode</span><input {...batchForm.register('barcode')} placeholder="Optional scan" /></label>
+            <label className="form-field"><span>Reason / Source</span><input {...batchForm.register('reason')} placeholder="e.g. Supplier invoice 123" /></label>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode(null)} type="button">Cancel</button><button className="btn-primary" disabled={isUpdating} form="record-movement-form" type="submit">{isUpdating ? 'Saving...' : 'Record Movement'}</button></>} icon="ph-arrows-down-up" onClose={() => setModalMode(null)} open={modalMode === 'movement'} title={selected ? `Stock Movement: ${selected.medicine.name}` : 'Stock Movement'}>
+        <form id="record-movement-form" onSubmit={(event) => void movementForm.handleSubmit(onSubmitMovement)(event)}>
+          <div className="form-grid-2">
+            <label className="form-field" style={{ gridColumn: '1 / -1' }}>
+              <span>Target Batch <span className="required">*</span></span>
+              <select {...movementForm.register('batch_id')}>
+                <option value="">-- Select Batch --</option>
+                {isDetailLoading ? <option disabled value="">Loading batches...</option> : null}
+                {batches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.batch_number} (Exp: {formatDate(batch.expiry_date)}) - {batch.quantity_on_hand} available
+                  </option>
                 ))}
               </select>
-              <button 
-                type="button" 
-                onClick={() => { setModalMode('add-medicine-master'); medicineForm.reset(); }} 
-                style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.75rem', fontWeight: 600, padding: 0, marginTop: '0.2rem', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-              >
-                <i className="ph ph-plus-circle" /> Can't find a medicine? Add to Master
-              </button>
-              {batchForm.formState.errors.medicine_id ? <small className="field-error">{batchForm.formState.errors.medicine_id.message}</small> : null}
-            </div>
-            <label className="form-field"><span>Batch Number <span className="required">*</span></span><input {...batchForm.register('batch_number')} />{batchForm.formState.errors.batch_number ? <small className="field-error">{batchForm.formState.errors.batch_number.message}</small> : null}</label>
-            <label className="form-field"><span>Expiry Date <span className="required">*</span></span><input {...batchForm.register('expiry_date')} min={new Date().toISOString().slice(0, 10)} type="date" />{batchForm.formState.errors.expiry_date ? <small className="field-error">{batchForm.formState.errors.expiry_date.message}</small> : null}</label>
-            <label className="form-field"><span>Unit Price <span className="required">*</span></span><input {...batchForm.register('unit_price', { valueAsNumber: true })} min={0} step={0.01} type="number" />{batchForm.formState.errors.unit_price ? <small className="field-error">{batchForm.formState.errors.unit_price.message}</small> : null}</label>
-            <label className="form-field"><span>Opening Quantity</span><input {...batchForm.register('opening_quantity', { valueAsNumber: true })} min={0} step={1} type="number" />{batchForm.formState.errors.opening_quantity ? <small className="field-error">{batchForm.formState.errors.opening_quantity.message}</small> : null}</label>
-            <label className="form-field"><span>Barcode</span><input {...batchForm.register('barcode')} placeholder="Optional batch/product barcode" /></label>
-            <label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Reason / Note</span><input {...batchForm.register('reason')} placeholder="Optional for opening stock" /></label>
+              {movementForm.formState.errors.batch_id ? <small className="field-error">{movementForm.formState.errors.batch_id.message}</small> : null}
+            </label>
+            <label className="form-field">
+              <span>Movement Type <span className="required">*</span></span>
+              <select {...movementForm.register('movement_type')}>
+                {canRecordMovement ? <><option value="STOCK_IN">Stock In (Receive)</option><option value="STOCK_OUT">Stock Out (Dispense/Return)</option></> : null}
+                {canAdjustStock ? <><option value="ADJUSTMENT_IN">Adjustment In (Found)</option><option value="ADJUSTMENT_OUT">Adjustment Out (Loss/Damage)</option></> : null}
+              </select>
+            </label>
+            <label className="form-field"><span>Quantity <span className="required">*</span></span><input {...movementForm.register('quantity', { valueAsNumber: true })} min={1} type="number" />{movementForm.formState.errors.quantity ? <small className="field-error">{movementForm.formState.errors.quantity.message}</small> : null}</label>
+            <label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Reason / Notes <span className="required">*</span></span><input {...movementForm.register('reason')} placeholder="Required explanation" />{movementForm.formState.errors.reason ? <small className="field-error">{movementForm.formState.errors.reason.message}</small> : null}</label>
+            <label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Reference</span><input {...movementForm.register('reference')} placeholder="Optional invoice or ticket ID" /></label>
           </div>
-          {!medicineOptionsQuery.isLoading && (medicineOptionsQuery.data?.data.length ?? 0) === 0 ? <div className="inventory-inline-warning"><i className="ph ph-warning" /> No active medicines exist. Create Medicine Master records before registering stock.</div> : null}
         </form>
       </Modal>
 
-      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode(null)} type="button">Cancel</button><button className="btn-primary" disabled={movementMutation.isPending || !canSubmitMovement} form="stock-movement-form" type="submit">{movementMutation.isPending ? 'Posting...' : 'Post Movement'}</button></>} icon="ph-arrows-down-up" onClose={() => setModalMode(null)} open={modalMode === 'movement'} size="large" title={selected ? `Stock Movement · ${selected.medicine.name}` : 'Stock Movement'}>
-        <form id="stock-movement-form" onSubmit={(event) => void movementForm.handleSubmit((values) => movementMutation.mutate(values))(event)}>
-          <div className="form-grid-3">
-            <label className="form-field"><span>Movement Type <span className="required">*</span></span><select {...movementForm.register('movement_type')}><option value="STOCK_IN">Stock In</option><option value="STOCK_OUT">Stock Out</option><option value="ADJUSTMENT_IN">Adjustment In</option><option value="ADJUSTMENT_OUT">Adjustment Out</option></select></label>
-            <label className="form-field"><span>Batch <span className="required">*</span></span><select {...movementForm.register('batch_id')} disabled={batchesQuery.isLoading}><option value="">Select batch</option>{availableBatches.map((batch: MedicineBatch) => <option key={batch.id} value={batch.id}>{batch.batch_number} · {batch.quantity_on_hand} available · exp {formatDate(batch.expiry_date)}</option>)}</select>{movementForm.formState.errors.batch_id ? <small className="field-error">{movementForm.formState.errors.batch_id.message}</small> : null}</label>
-            <label className="form-field"><span>Quantity <span className="required">*</span></span><input {...movementForm.register('quantity', { valueAsNumber: true })} min={1} step={1} type="number" />{movementForm.formState.errors.quantity ? <small className="field-error">{movementForm.formState.errors.quantity.message}</small> : null}</label>
-            <label className="form-field"><span>Reference</span><input {...movementForm.register('reference')} placeholder="Optional internal reference" /></label>
-            <label className="form-field" style={{ gridColumn: 'span 2' }}><span>Reason <span className="required">*</span></span><input {...movementForm.register('reason')} />{movementForm.formState.errors.reason ? <small className="field-error">{movementForm.formState.errors.reason.message}</small> : null}</label>
+      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode(null)} type="button">Cancel</button><button className="btn-primary" disabled={isUpdating} form="threshold-form" type="submit">{isUpdating ? 'Saving...' : 'Save Threshold'}</button></>} icon="ph-gauge" onClose={() => setModalMode(null)} open={modalMode === 'threshold'} title={selected ? `Low-Stock Threshold: ${selected.medicine.name}` : 'Configure Threshold'}>
+        <form id="threshold-form" onSubmit={(event) => void thresholdForm.handleSubmit(onSubmitThreshold)(event)}>
+          <div className="alert alert-info mb-4">
+            <i className="ph-info" />
+            <div>You will receive warnings when the total available quantity across all active batches falls below this threshold.</div>
           </div>
-          {!canSubmitMovement ? <div className="inventory-inline-warning"><i className="ph ph-lock" /> You do not have permission for the selected movement type.</div> : null}
-          {!batchesQuery.isLoading && availableBatches.length === 0 ? <div className="inventory-inline-warning"><i className="ph ph-warning" /> No eligible batches are available for the selected movement type.</div> : null}
-        </form>
-      </Modal>
-
-      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode(null)} type="button">Cancel</button><button className="btn-primary" disabled={thresholdMutation.isPending} form="threshold-form" type="submit">{thresholdMutation.isPending ? 'Saving...' : 'Save Threshold'}</button></>} icon="ph-gauge" onClose={() => setModalMode(null)} open={modalMode === 'threshold'} title={selected ? `Low-Stock Threshold · ${selected.medicine.name}` : 'Low-Stock Threshold'}>
-        <form id="threshold-form" onSubmit={(event) => void thresholdForm.handleSubmit((values) => thresholdMutation.mutate(values))(event)}>
-          <div className="form-grid-2">
-            <label className="form-field"><span>Threshold <span className="required">*</span></span><input {...thresholdForm.register('low_stock_threshold', { valueAsNumber: true })} min={0} step={1} type="number" />{thresholdForm.formState.errors.low_stock_threshold ? <small className="field-error">{thresholdForm.formState.errors.low_stock_threshold.message}</small> : null}</label>
+          <div className="form-grid-1">
+            <label className="form-field"><span>Minimum Required Quantity <span className="required">*</span></span><input {...thresholdForm.register('low_stock_threshold', { valueAsNumber: true })} min={0} type="number" />{thresholdForm.formState.errors.low_stock_threshold ? <small className="field-error">{thresholdForm.formState.errors.low_stock_threshold.message}</small> : null}</label>
             <label className="form-field"><span>Reason <span className="required">*</span></span><input {...thresholdForm.register('reason')} />{thresholdForm.formState.errors.reason ? <small className="field-error">{thresholdForm.formState.errors.reason.message}</small> : null}</label>
           </div>
         </form>
@@ -483,29 +455,57 @@ export function PharmacyMedicineInventoryPage() {
         {selected ? <>
           <div className="inventory-detail-summary"><div><span>Available</span><strong>{selected.available_quantity.toLocaleString()} {selected.medicine.unit ?? 'units'}</strong></div><div><span>Threshold</span><strong>{selected.low_stock_threshold.toLocaleString()}</strong></div><div><span>Active Batches</span><strong>{selected.active_batch_count}</strong></div><div><span>Nearest Expiry</span><strong>{formatDate(selected.next_expiry_date)}</strong></div></div>
           <div className="inventory-detail-tabs"><button className={detailTab === 'batches' ? 'active' : ''} onClick={() => setDetailTab('batches')} type="button">Batches</button><button className={detailTab === 'movements' ? 'active' : ''} onClick={() => setDetailTab('movements')} type="button">Movement Ledger</button></div>
-          {detailTab === 'batches' ? <div className="table-responsive"><table className="data-table compact-table"><thead><tr><th>Batch</th><th>Barcode</th><th>Expiry</th><th>On Hand</th><th>Unit Price</th><th>Status</th><th>Actions</th></tr></thead><tbody>{batchesQuery.isLoading ? <tr><td colSpan={7}>Loading batches...</td></tr> : null}{!batchesQuery.isLoading && (batchesQuery.data?.data.length ?? 0) === 0 ? <tr><td colSpan={7}>No batches found.</td></tr> : null}{(batchesQuery.data?.data ?? []).map((batch) => <tr key={batch.id}><td><strong>{batch.batch_number}</strong></td><td>{batch.barcode ? <span className="inventory-barcode-chip"><i className="ph ph-barcode" /> {batch.barcode}</span> : '—'}</td><td>{formatDate(batch.expiry_date)}</td><td>{batch.quantity_on_hand.toLocaleString()}</td><td>{formatMoney(batch.unit_price)}</td><td><span className={`inventory-expiry expiry-${(batch.expiry_state ?? 'VALID').toLowerCase().replaceAll('_', '-')}`}>{batch.status}</span></td><td><button className="action-icon-btn" onClick={() => openEditBatch(batch)} title="Edit batch" type="button"><i className="ph ph-pencil-simple" /></button></td></tr>)}</tbody></table></div> : null}
-          {detailTab === 'movements' ? <div className="table-responsive"><table className="data-table compact-table"><thead><tr><th>Date</th><th>Movement</th><th>Batch</th><th>Quantity</th><th>Available After</th><th>Reason</th></tr></thead><tbody>{movementsQuery.isLoading ? <tr><td colSpan={6}>Loading movement ledger...</td></tr> : null}{!movementsQuery.isLoading && (movementsQuery.data?.data.length ?? 0) === 0 ? <tr><td colSpan={6}>No stock movements found.</td></tr> : null}{(movementsQuery.data?.data ?? []).map((movement) => <tr key={movement.id}><td>{formatDateTime(movement.created_at)}</td><td><strong>{movementLabel[movement.movement_type]}</strong></td><td>{movement.batch_number ?? '—'}</td><td>{movement.quantity.toLocaleString()}</td><td>{movement.available_quantity_after.toLocaleString()}</td><td>{movement.reason}</td></tr>)}</tbody></table></div> : null}
+          {detailTab === 'batches' ? <div className="table-responsive"><table className="data-table compact-table"><thead><tr><th>Batch</th><th>Barcode</th><th>Expiry</th><th>On Hand</th><th>Unit Price</th><th>Status</th><th>Actions</th></tr></thead><tbody>{isDetailLoading ? <tr><td colSpan={7}>Loading batches...</td></tr> : null}{!isDetailLoading && batches.length === 0 ? <tr><td colSpan={7}>No batches found.</td></tr> : null}{batches.map((batch) => <tr key={batch.id}><td><strong>{batch.batch_number}</strong></td><td>{batch.barcode ? <span className="inventory-barcode-chip"><i className="ph ph-barcode" /> {batch.barcode}</span> : '---'}</td><td>{formatDate(batch.expiry_date)}</td><td>{batch.quantity_on_hand.toLocaleString()}</td><td>{formatMoney(batch.unit_price)}</td><td><span className={`inventory-expiry expiry-${(batch.expiry_state ?? 'VALID').toLowerCase().replaceAll('_', '-')}`}>{batch.status}</span></td><td><button className="action-icon-btn" onClick={() => openEditBatch(batch)} title="Edit batch" type="button"><i className="ph ph-pencil-simple" /></button></td></tr>)}</tbody></table></div> : null}
+          {detailTab === 'movements' ? <div className="table-responsive"><table className="data-table compact-table"><thead><tr><th>Date</th><th>Movement</th><th>Batch</th><th>Quantity</th><th>Available After</th><th>Reason</th></tr></thead><tbody>{isDetailLoading ? <tr><td colSpan={6}>Loading movement ledger...</td></tr> : null}{!isDetailLoading && movements.length === 0 ? <tr><td colSpan={6}>No stock movements found.</td></tr> : null}{movements.map((movement) => <tr key={movement.id}><td>{formatDateTime(movement.created_at)}</td><td><strong>{movementLabel[movement.movement_type]}</strong></td><td>{movement.batch_number ?? '---'}</td><td>{movement.quantity.toLocaleString()}</td><td>{movement.available_quantity_after.toLocaleString()}</td><td>{movement.reason}</td></tr>)}</tbody></table></div> : null}
         </> : null}
       </Modal>
 
-      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode('batch')} type="button">Back to Batch</button><button className="btn-primary" disabled={addMedicineMutation.isPending} form="add-medicine-master-form" type="submit">{addMedicineMutation.isPending ? 'Saving...' : 'Save Medicine'}</button></>} icon="ph-pill" onClose={() => setModalMode('batch')} open={modalMode === 'add-medicine-master'} title="Add Medicine to Master">
-        <form id="add-medicine-master-form" onSubmit={(event) => void medicineForm.handleSubmit((values) => addMedicineMutation.mutate(values))(event)}>
+      <Modal footer={<><button className="btn-secondary" onClick={() => setModalMode('batch')} type="button">Back to Batch</button><button className="btn-primary" disabled={isUpdating} form="add-medicine-master-form" type="submit">{isUpdating ? 'Saving...' : 'Save Medicine'}</button></>} icon="ph-pill" onClose={() => setModalMode('batch')} open={modalMode === 'add-medicine-master'} title="Add Medicine to Master">
+        <form id="add-medicine-master-form" onSubmit={(event) => void medicineForm.handleSubmit(async (values) => {
+    const payload: SaveMedicinePayload = {
+      code: values.code,
+      name: values.name,
+      generic_name: values.generic_name.trim() || null,
+      strength: values.strength.trim() || null,
+      dosage_form: values.dosage_form.trim() || null,
+      unit: values.unit.trim() || null,
+      description: values.description.trim() || null,
+      status: values.status,
+    };
+    await actions.saveMedicine({ payload });
+    setModalMode('batch');
+    medicineForm.reset();
+  })(event)}>
           <div className="form-section-title">Medicine Information</div>
           <div className="form-grid-2">
-            <label className="form-field"><span>Medicine Code <span className="required">*</span></span><input {...medicineForm.register('code')} disabled={addMedicineMutation.isPending} />{medicineForm.formState.errors.code ? <small className="field-error">{medicineForm.formState.errors.code.message}</small> : null}</label>
-            <label className="form-field"><span>Medicine Name <span className="required">*</span></span><input {...medicineForm.register('name')} disabled={addMedicineMutation.isPending} />{medicineForm.formState.errors.name ? <small className="field-error">{medicineForm.formState.errors.name.message}</small> : null}</label>
-            <label className="form-field"><span>Generic Name</span><input {...medicineForm.register('generic_name')} disabled={addMedicineMutation.isPending} /></label>
-            <label className="form-field"><span>Strength</span><input {...medicineForm.register('strength')} disabled={addMedicineMutation.isPending} placeholder="e.g. 500 mg" /></label>
-            <label className="form-field"><span>Dosage Form</span><input {...medicineForm.register('dosage_form')} disabled={addMedicineMutation.isPending} placeholder="e.g. Tablet" /></label>
-            <label className="form-field"><span>Unit</span><input {...medicineForm.register('unit')} disabled={addMedicineMutation.isPending} placeholder="e.g. Tablet" /></label>
-            <label className="form-field"><span>Status</span><select {...medicineForm.register('status')} disabled={addMedicineMutation.isPending}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
-            <label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Description</span><textarea {...medicineForm.register('description')} disabled={addMedicineMutation.isPending} rows={3} /></label>
+            <label className="form-field"><span>Medicine Code <span className="required">*</span></span><input {...medicineForm.register('code')} disabled={isUpdating} />{medicineForm.formState.errors.code ? <small className="field-error">{medicineForm.formState.errors.code.message}</small> : null}</label>
+            <label className="form-field"><span>Medicine Name <span className="required">*</span></span><input {...medicineForm.register('name')} disabled={isUpdating} />{medicineForm.formState.errors.name ? <small className="field-error">{medicineForm.formState.errors.name.message}</small> : null}</label>
+            <label className="form-field"><span>Generic Name</span><input {...medicineForm.register('generic_name')} disabled={isUpdating} /></label>
+            <label className="form-field"><span>Strength</span><input {...medicineForm.register('strength')} disabled={isUpdating} placeholder="e.g. 500 mg" /></label>
+            <label className="form-field"><span>Dosage Form</span><input {...medicineForm.register('dosage_form')} disabled={isUpdating} placeholder="e.g. Tablet" /></label>
+            <label className="form-field"><span>Unit</span><input {...medicineForm.register('unit')} disabled={isUpdating} placeholder="e.g. Tablet" /></label>
+            <label className="form-field"><span>Status</span><select {...medicineForm.register('status')} disabled={isUpdating}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
+            <label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Description</span><textarea {...medicineForm.register('description')} disabled={isUpdating} rows={3} /></label>
           </div>
         </form>
       </Modal>
 
-      <Modal footer={<><button className="btn-secondary" onClick={() => { setModalMode('detail'); setSelectedBatch(null); }} type="button">Cancel</button><button className="btn-primary" disabled={editBatchMutation.isPending} form="edit-batch-form" type="submit">{editBatchMutation.isPending ? 'Saving...' : 'Save Changes'}</button></>} icon="ph-pencil-simple" onClose={() => { setModalMode('detail'); setSelectedBatch(null); }} open={modalMode === 'edit-batch'} title={`Edit Batch ${selectedBatch?.batch_number}`}>
-        <form id="edit-batch-form" onSubmit={(event) => void editBatchForm.handleSubmit((values) => editBatchMutation.mutate(values))(event)}>
+      <Modal footer={<><button className="btn-secondary" onClick={() => { setModalMode('detail'); setSelectedBatch(null); }} type="button">Cancel</button><button className="btn-primary" disabled={isUpdating} form="edit-batch-form" type="submit">{isUpdating ? 'Saving...' : 'Save Changes'}</button></>} icon="ph-pencil-simple" onClose={() => { setModalMode('detail'); setSelectedBatch(null); }} open={modalMode === 'edit-batch'} title={`Edit Batch ${selectedBatch?.batch_number}`}>
+        <form id="edit-batch-form" onSubmit={(event) => void editBatchForm.handleSubmit(async (values) => {
+    await actions.editBatch({
+      batchId: selectedBatch!.id,
+      payload: {
+        branch_id: activeBranchId,
+        expiry_date: values.expiry_date,
+        unit_price: values.unit_price,
+        barcode: values.barcode.trim() || null,
+        reason: values.reason.trim(),
+      }
+    });
+    setModalMode('detail');
+    setSelectedBatch(null);
+    editBatchForm.reset();
+  })(event)}>
           <div className="form-grid-2">
             <label className="form-field"><span>Expiry Date <span className="required">*</span></span><input {...editBatchForm.register('expiry_date')} type="date" />{editBatchForm.formState.errors.expiry_date ? <small className="field-error">{editBatchForm.formState.errors.expiry_date.message}</small> : null}</label>
             <label className="form-field"><span>Unit Price <span className="required">*</span></span><input {...editBatchForm.register('unit_price', { valueAsNumber: true })} min={0} step={0.01} type="number" />{editBatchForm.formState.errors.unit_price ? <small className="field-error">{editBatchForm.formState.errors.unit_price.message}</small> : null}</label>

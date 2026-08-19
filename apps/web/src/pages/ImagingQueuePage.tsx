@@ -1,6 +1,14 @@
-import { imagingApi } from '../api/imaging';
 import { DiagnosticQueue } from '../components/diagnostics/DiagnosticQueue';
+import { useImagingQueueFeature } from '../hooks/imaging/useImagingQueueFeature';
 
 export function ImagingQueuePage() {
-  return <DiagnosticQueue module="imaging" statuses={['SUBMITTED', 'RECEIVED', 'IN_PROGRESS', 'REPORT_ENTERED', 'VERIFIED', 'COMPLETED']} list={imagingApi.list} summary={imagingApi.summary} />;
+  const feature = useImagingQueueFeature();
+
+  return (
+    <DiagnosticQueue
+      module="imaging"
+      statuses={['SUBMITTED', 'RECEIVED', 'IN_PROGRESS', 'REPORT_ENTERED', 'VERIFIED', 'COMPLETED']}
+      {...feature}
+    />
+  );
 }

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useUpdateGeneralSettings,
+  useUpdateHospitalSettings,
+  useUpdateLocalizationSettings,
+  useUpdateUserPreferences,
+  useResetSettings,
+} from '../hooks/settings/useSettings';
 import { ApiError } from '../api/api-error';
 import { hasPermission } from '../auth/access-control';
 import { useAuth } from '../auth/useAuth';
@@ -56,9 +63,6 @@ const futureDescriptions: Partial<Record<TabId, string>> = {
   backup: 'Backup jobs, storage, and restore operations are planned for a future phase.',
 };
 
-const required = (value: string, message: string) => (value.trim() ? '' : message);
-const inRange = (value: number, min: number, max: number, message: string) =>
-  Number.isInteger(value) && value >= min && value <= max ? '' : message;
 
 const detailsToErrors = (error: ApiError): FieldErrors => {
   if (!Array.isArray(error.details)) return {};
@@ -92,6 +96,13 @@ export function SystemSettingsPage() {
   const logoObjectUrl = useRef<string | null>(null);
   const [toast, setToast] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+
+  const updateGeneralSettings = useUpdateGeneralSettings();
+  const updateHospitalSettings = useUpdateHospitalSettings();
+  const updateLocalizationSettings = useUpdateLocalizationSettings();
+  const updateUserPreferences = useUpdateUserPreferences();
+  const resetSettings = useResetSettings();
+
 
   const showMessage = useCallback((message: string, tone: 'success' | 'error' = 'success') => {
     setToast(message);
@@ -169,85 +180,80 @@ export function SystemSettingsPage() {
     }
   };
 
-  const updateGeneral = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const updateGeneral = async (payload: GeneralSettings) => {
     if (!settings) return;
-    const nextErrors = {
-      applicationName: required(settings.general.applicationName, 'Application Name is required.'),
-      sessionTimeoutMinutes: inRange(settings.general.sessionTimeoutMinutes, 5, 480, 'Enter a value from 5 to 480.'),
-    };
-    if (Object.values(nextErrors).some(Boolean)) return setErrors(nextErrors);
-    void mutate(async () => {
-      const { version: _version, ...payload } = settings.general;
-      void _version;
-      const general = await settingsApi.updateGeneral(payload);
+    setBusy(true);
+    setErrors({});
+    try {
+      const { version, ...data } = payload;
+      void version;
+      const general = await updateGeneralSettings.mutateAsync(data);
       setSettings({ ...settings, general });
-      showMessage('General settings saved.');
-    });
+    } catch (error) {
+      handleMutationError(error);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const updateHospital = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const updateHospital = async (payload: HospitalSettings) => {
     if (!settings) return;
-    const { hospital } = settings;
-    const nextErrors: FieldErrors = {
-      hospitalName: required(hospital.hospitalName, 'Hospital Name is required.'),
-      registrationNumber: required(hospital.registrationNumber, 'Registration Number is required.'),
-      phone: /^\+?[0-9\s().-]{7,20}$/.test(hospital.phone) ? '' : 'Enter a valid phone number.',
-      email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hospital.email) ? '' : 'Enter a valid email address.',
-      website: !hospital.website || URL.canParse(hospital.website) ? '' : 'Enter a valid website URL.',
-      bedCapacity: inRange(hospital.bedCapacity, 0, 100000, 'Enter a bed capacity from 0 to 100000.'),
-      address: required(hospital.address, 'Address is required.'),
-    };
-    if (Object.values(nextErrors).some(Boolean)) return setErrors(nextErrors);
-    void mutate(async () => {
-      const { logoBlobName: _logo, logoContentType: _contentType, ...payload } = hospital;
-      void _logo;
-      void _contentType;
-      const updated = await settingsApi.updateHospital(payload);
+    setBusy(true);
+    setErrors({});
+    try {
+      const { logoBlobName, logoContentType, ...data } = payload;
+      void logoBlobName;
+      void logoContentType;
+      const updated = await updateHospitalSettings.mutateAsync(data);
       setSettings({ ...settings, hospital: updated });
-      showMessage('Hospital information saved.');
-    });
+    } catch (error) {
+      handleMutationError(error);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const updateLocalization = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const updateLocalization = async (payload: LocalizationSettings) => {
     if (!settings) return;
-    const nextErrors = { currencySymbol: required(settings.localization.currencySymbol, 'Currency Symbol is required.') };
-    if (Object.values(nextErrors).some(Boolean)) return setErrors(nextErrors);
-    void mutate(async () => {
-      const localization = await settingsApi.updateLocalization(settings.localization);
+    setBusy(true);
+    setErrors({});
+    try {
+      const localization = await updateLocalizationSettings.mutateAsync(payload);
       setSettings({ ...settings, localization });
-      showMessage('Localization settings saved.');
-    });
+    } catch (error) {
+      handleMutationError(error);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const updatePreferences = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const updatePreferences = async (payload: UserPreferenceSettings) => {
     if (!settings) return;
-    const value = settings.userPreferences;
-    const nextErrors = {
-      passwordMinLength: inRange(value.passwordMinLength, 6, 32, 'Enter a value from 6 to 32.'),
-      passwordExpiryDays: inRange(value.passwordExpiryDays, 0, 3650, 'Enter a value from 0 to 3650.'),
-      maxFailedLoginAttempts: inRange(value.maxFailedLoginAttempts, 1, 20, 'Enter a value from 1 to 20.'),
-    };
-    if (Object.values(nextErrors).some(Boolean)) return setErrors(nextErrors);
-    void mutate(async () => {
-      const userPreferences = await settingsApi.updateUserPreferences(value);
+    setBusy(true);
+    setErrors({});
+    try {
+      const userPreferences = await updateUserPreferences.mutateAsync(payload);
       setSettings({ ...settings, userPreferences });
-      showMessage('User preferences saved.');
-    });
+    } catch (error) {
+      handleMutationError(error);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const reset = <T,>(section: 'general' | 'hospital' | 'localization' | 'userPreferences', key: keyof SystemSettings) => {
+  const reset = (section: 'general' | 'hospital' | 'localization' | 'userPreferences', key: keyof SystemSettings) => {
     if (!settings) return;
-    void mutate(async () => {
-      const value = await settingsApi.reset<T>(section);
-      setSettings({ ...settings, [key]: value });
-      if (section === 'hospital') {
-        replaceLogoUrl(null);
-      }
-      showMessage('Settings reset to default.');
+    setBusy(true);
+    setErrors({});
+    resetSettings.mutate(section, {
+      onSuccess: (value) => {
+        setSettings({ ...settings, [key]: value });
+        if (section === 'hospital') {
+          replaceLogoUrl(null);
+        }
+      },
+      onError: handleMutationError,
+      onSettled: () => setBusy(false),
     });
   };
 
@@ -265,11 +271,11 @@ export function SystemSettingsPage() {
 
   const renderPanel = () => {
     if (!settings) return null;
-    const common = { busy, canEdit, errors };
-    if (activeTab === 'general') return <GeneralSettingsForm {...common} value={settings.general} onChange={(general) => setSettings({ ...settings, general })} onSubmit={updateGeneral} onReset={() => reset<GeneralSettings>('general', 'general')} />;
-    if (activeTab === 'hospital') return <HospitalSettingsForm {...common} value={settings.hospital} logoUrl={logoUrl} onChange={(hospital) => setSettings({ ...settings, hospital })} onLogo={uploadLogo} onSubmit={updateHospital} onReset={() => reset<HospitalSettings>('hospital', 'hospital')} />;
-    if (activeTab === 'localization') return <LocalizationSettingsForm {...common} value={settings.localization} onChange={(localization) => setSettings({ ...settings, localization })} onSubmit={updateLocalization} onReset={() => reset<LocalizationSettings>('localization', 'localization')} />;
-    if (activeTab === 'preferences') return <UserPreferencesForm {...common} value={settings.userPreferences} onChange={(userPreferences) => setSettings({ ...settings, userPreferences })} onSubmit={updatePreferences} onReset={() => reset<UserPreferenceSettings>('userPreferences', 'userPreferences')} />;
+    const common = { busy, canEdit, serverErrors: errors };
+    if (activeTab === 'general') return <GeneralSettingsForm {...common} value={settings.general} onSubmit={(data) => void updateGeneral(data)} onReset={() => reset('general', 'general')} />;
+    if (activeTab === 'hospital') return <HospitalSettingsForm {...common} value={settings.hospital} logoUrl={logoUrl} onLogo={uploadLogo} onSubmit={(data) => void updateHospital(data)} onReset={() => reset('hospital', 'hospital')} />;
+    if (activeTab === 'localization') return <LocalizationSettingsForm {...common} value={settings.localization} onSubmit={(data) => void updateLocalization(data)} onReset={() => reset('localization', 'localization')} />;
+    if (activeTab === 'preferences') return <UserPreferencesForm {...common} value={settings.userPreferences} onSubmit={(data) => void updatePreferences(data)} onReset={() => reset('userPreferences', 'userPreferences')} />;
     if (activeTab === 'audit') return <AuditLogPanel onMessage={showMessage} onTotalChange={setAuditTotal} />;
 
     const tab = tabs.find((item) => item.id === activeTab)!;

@@ -16,26 +16,18 @@ export function useOpdDashboard() {
   start.setDate(now.getDate() - 6);
   const weekStart = toInputDate(start);
 
-  const { data: todayResponse, isLoading: todayLoading, error: todayError } = useOpdVisits({
-    date_from: today,
-    date_to: today,
-    limit: 100,
-    sortBy: 'check_in_time',
-    sortOrder: 'asc',
-  });
-
   const { data: weekResponse, isLoading: weekLoading, error: weekError } = useOpdVisits({
     date_from: weekStart,
     date_to: today,
-    limit: 100,
+    limit: 500,
     sortBy: 'check_in_time',
     sortOrder: 'asc',
   });
 
-  const visits = todayResponse?.data ?? [];
   const weekVisits = weekResponse?.data ?? [];
-  const loading = todayLoading || weekLoading;
-  const loadError = todayError || weekError;
+  const visits = useMemo(() => weekVisits.filter(v => v.visit_date.startsWith(today)), [weekVisits, today]);
+  const loading = weekLoading;
+  const loadError = weekError;
 
   const trend = useMemo(() => {
     const todayDate = new Date(`${today}T00:00:00`);

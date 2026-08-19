@@ -34,10 +34,10 @@ interface OpdPrescriptionTabProps {
 }
 
 export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSaving, canEdit }: OpdPrescriptionTabProps) {
-  const { register, control, handleSubmit, reset, watch, setValue, formState: { errors, isDirty } } = useForm<PrescriptionForm>({
+  const { register, control, handleSubmit, reset, formState: { isDirty } } = useForm<PrescriptionForm>({
     resolver: zodResolver(prescriptionSchema),
     defaultValues: {
-      items: prescription?.items?.map((i: any) => ({
+      items: prescription?.items?.map((i) => ({
         local_id: i.id,
         medicine_name: i.medicine_name,
         strength: i.strength ?? '',
@@ -120,11 +120,23 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
               fields.map((field, index) => (
                 <tr key={field.local_id}>
                   <td>
-                    <input
-                      className="inline-input"
-                      readOnly={!canEdit}
-                      {...register(`items.${index}.medicine_name`)}
-                    />
+                    {canEdit ? (
+                      <select
+                        className="inline-input"
+                        {...register(`items.${index}.medicine_name`)}
+                      >
+                        <option value="">Select Medicine</option>
+                        {masterMedicines.map(m => (
+                          <option key={m.id} value={m.name}>{m.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        className="inline-input"
+                        readOnly
+                        {...register(`items.${index}.medicine_name`)}
+                      />
+                    )}
                   </td>
                   <td>
                     <input
@@ -180,7 +192,7 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
         <div style={{ padding: '1rem' }}>
           <button
             className="doc-btn"
-            onClick={() => append({ local_id: Date.now().toString(), medicine_name: 'New Medicine', dosage: '1 tab', route: 'Oral', frequency: 'OD', duration: '5 days' })}
+            onClick={() => append({ local_id: Date.now().toString(), medicine_name: '', dosage: '', route: 'Oral', frequency: '', duration: '', quantity: '', instructions: '' })}
             type="button"
           >
             <i className="ph ph-plus" /> Add Medication

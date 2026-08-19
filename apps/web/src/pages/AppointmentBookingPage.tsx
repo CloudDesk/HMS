@@ -126,12 +126,7 @@ export function AppointmentBookingPage() {
     setStep(2);
   };
 
-  const configuredMaxPatients = selectedDoctor?.availability.find((a) => {
-    const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-    const dateParts = appointmentDate.split('-');
-    const dateObj = dateParts.length === 3 ? new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2])) : new Date(appointmentDate);
-    return a.day_of_week === dayNames[dateObj.getDay()];
-  })?.max_patients_per_slot ?? slotsData?.max_patients_per_slot ?? 2;
+  const configuredMaxPatients = 1;
 
   const slotOptions = useMemo(() => {
     if (!slotsData) return [];
@@ -146,7 +141,7 @@ export function AppointmentBookingPage() {
 
     return slotsData.slots.map(slot => {
       const isPast = isSlotInPast(appointmentDate, slot.start_time);
-      const maxCapacity = slot.max_patients_per_slot ?? configuredMaxPatients;
+      const maxCapacity = configuredMaxPatients;
       const bookedCount = bookedCountMap[slot.start_time] || 0;
       const remainingSlots = Math.max(0, maxCapacity - bookedCount);
       const isAvailable = remainingSlots > 0 && !isPast;

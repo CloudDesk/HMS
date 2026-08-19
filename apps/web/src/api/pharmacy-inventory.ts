@@ -156,12 +156,12 @@ export const pharmacyInventoryApi = {
   },
   batches(medicineId: string, params: BatchListParams) {
     return apiClient.request<Page<MedicineBatch>>(
-      `/pharmacy/medicine-inventory/${encodeURIComponent(medicineId)}/batches${queryString(params as any)}`,
+      `/pharmacy/medicine-inventory/${encodeURIComponent(medicineId)}/batches${queryString(params as Record<string, unknown>)}`,
     );
   },
   allBatches(params: BatchListParams) {
     return apiClient.request<Page<MedicineBatch>>(
-      `/pharmacy/medicine-inventory/batches${queryString(params as any)}`,
+      `/pharmacy/medicine-inventory/batches${queryString(params as Record<string, unknown>)}`,
     );
   },
   movements(params: MovementListParams) {

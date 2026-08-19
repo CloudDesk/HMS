@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { type ApiDoctorAvailabilityDay } from '../api/doctors';
 import {
   type ApiClinicalOrderPriority,
 } from '../api/opd';
@@ -143,22 +142,7 @@ export function OpdVisitPage() {
   }, Boolean(referralDoctorId && referralDate));
   const referralSlots = useMemo(() => {
     if (!referralSlotsQuery.data) return [];
-    const selectedDoctor = doctors.find((doctor) => doctor.id === referralDoctorId);
-    const dayNames: ApiDoctorAvailabilityDay[] = [
-      'SUNDAY',
-      'MONDAY',
-      'TUESDAY',
-      'WEDNESDAY',
-      'THURSDAY',
-      'FRIDAY',
-      'SATURDAY',
-    ];
-    const dateParts = referralDate.split('-');
-    const date = dateParts.length === 3
-      ? new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]))
-      : new Date(referralDate);
-    const availability = selectedDoctor?.availability.find((item) => item.day_of_week === dayNames[date.getDay()]);
-    const configuredMax = availability?.max_patients_per_slot ?? referralSlotsQuery.data.max_patients_per_slot ?? 2;
+    const configuredMax = 1;
     const bookedCounts: Record<string, number> = {};
     (referralAppointmentsQuery.data?.data ?? []).forEach((appointment) => {
       if (appointment.status !== 'CANCELLED') {
@@ -166,7 +150,7 @@ export function OpdVisitPage() {
       }
     });
     return referralSlotsQuery.data.slots.map((slot) => {
-      const remainingSlots = Math.max(0, (slot.max_patients_per_slot ?? configuredMax) - (bookedCounts[slot.start_time] ?? 0));
+      const remainingSlots = Math.max(0, configuredMax - (bookedCounts[slot.start_time] ?? 0));
       return {
         startTime: slot.start_time,
         endTime: slot.end_time,
@@ -174,7 +158,7 @@ export function OpdVisitPage() {
         isAvailable: remainingSlots > 0,
       };
     });
-  }, [doctors, referralAppointmentsQuery.data?.data, referralDate, referralDoctorId, referralSlotsQuery.data]);
+  }, [referralAppointmentsQuery.data?.data, referralSlotsQuery.data]);
   const referralSlotLoading = referralSlotsQuery.isLoading || referralAppointmentsQuery.isLoading;
   const handleBookReferralAppointment = async () => {
     if (!canEditReferral || !canBookAppointments) return;
@@ -244,7 +228,7 @@ export function OpdVisitPage() {
         strength: medicine.strength ?? undefined,
         dosage_form: medicine.dosage_form ?? undefined,
         unit: inventory?.medicine.unit ?? medicine.unit ?? 'units',
-        available_quantity: inventory?.available_quantity ?? 120,
+        available_quantity: inventory?.available_quantity ?? 0,
       };
     });
   }, [workspace.inventory, workspace.medicines]);
@@ -571,7 +555,7 @@ export function OpdVisitPage() {
                 <span className="divider">|</span>
                 <span>{visit.doctor_name}</span>
                 <span className="divider">|</span>
-                <span>10:00 AM</span>
+                <span>{new Date(visit.check_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 <span className="divider">|</span>
                 <span>{visit.visit_number}</span>
               </div>
@@ -669,10 +653,7 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
                       <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
@@ -799,10 +780,7 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
                       <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
@@ -919,10 +897,7 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
                       <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
@@ -1089,10 +1064,7 @@ export function OpdVisitPage() {
                   ) : null}
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
                       <button className="doc-btn" disabled={!canEditReferral || workspace.referral?.status === 'SUBMITTED' || workspace.isSavingReferral} onClick={saveReferralDraft} type="button">
                         Save Draft
@@ -1146,10 +1118,7 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
                       <button className="doc-btn" disabled={!canEditFollowUp || workspace.followUp?.status === 'SCHEDULED' || workspace.isSavingFollowUp} onClick={saveFollowUpDraft} type="button">
                         Save Draft
@@ -1316,7 +1285,7 @@ export function OpdVisitPage() {
                   </div>
                   <div className="opd-summary-row">
                     <span>Blood Group</span>
-                    <strong>{visit ? 'O+' : 'Not available in visit record'}</strong>
+                    <strong>'O+'</strong>
                   </div>
                   <div className="opd-summary-row">
                     <span>Allergies</span>

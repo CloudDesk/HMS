@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useCreateService, useUpdateService, useUpdateServiceStatus, useDeleteService } from '../hooks/services/useServices';
 import { ApiError } from '../api/api-error';
 import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
@@ -6,7 +10,6 @@ import {
   servicesApi,
   type ApiServiceStatus,
   type ApiServiceType,
-  type CreateServicePayload,
   type ServiceListResponse,
   type ServiceResponse,
   type ServiceSummary,
@@ -26,29 +29,22 @@ type SortColumn = 'code' | 'name' | 'standard_price' | 'created_at';
 type SortDirection = 'asc' | 'desc';
 type ModalMode = 'create' | 'edit' | 'view';
 
-type ServiceFormState = {
-  code: string;
-  name: string;
-  service_type: ApiServiceType;
-  branch_id: string;
-  department_id: string;
-  category: string;
-  description: string;
-  standard_price: string;
-  status: ApiServiceStatus;
-};
-
-const emptyForm: ServiceFormState = {
-  code: '',
-  name: '',
-  service_type: 'GENERAL',
-  branch_id: '',
-  department_id: '',
-  category: '',
-  description: '',
-  standard_price: '',
-  status: 'ACTIVE',
-};
+const serviceSchema = z.object({
+  code: z.string().min(1, 'Service code is required.'),
+  name: z.string().min(1, 'Service name is required.'),
+  service_type: z.enum(['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE']),
+  // branch_id is UI-only (filters dept options); not sent to API
+  branch_id: z.string().optional(),
+  department_id: z.string().min(1, 'Department is required.'),
+  category: z.string().optional(),
+  description: z.string().optional(),
+  standard_price: z.string().refine(
+    (val) => val !== '' && !Number.isNaN(parseFloat(val)) && parseFloat(val) >= 0,
+    { message: 'Standard price must be a non-negative number.' }
+  ),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+});
+type ServiceFormData = z.infer<typeof serviceSchema>;
 
 const serviceTypeLabels: Record<ApiServiceType, string> = {
   GENERAL: 'General Service',
@@ -245,8 +241,23 @@ export function ServiceCataloguePage() {
   // Modals
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [activeSvc, setActiveSvc] = useState<ServiceResponse | null>(null);
-  const [form, setForm] = useState<ServiceFormState>(emptyForm);
   const [formError, setFormError] = useState('');
+
+  const svcForm = useForm<ServiceFormData>({
+    resolver: zodResolver(serviceSchema),
+    defaultValues: {
+      code: '', name: '', service_type: 'GENERAL', branch_id: '',
+      department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE'
+    }
+  });
+
+  // Watch branch_id to drive the department filter (UI-only, not in API payload)
+  const watchedBranchId = svcForm.watch('branch_id');
+
+  const createService = useCreateService();
+  const updateService = useUpdateService();
+  const updateServiceStatus = useUpdateServiceStatus();
+  const deleteService = useDeleteService();
   const [deleteTarget, setDeleteTarget] = useState<ServiceResponse | null>(null);
 
   // UI Status
@@ -266,8 +277,8 @@ export function ServiceCataloguePage() {
 
   // ── Derived: filter departments by selected branch ─────────────────────────
   const formDepartmentOptions = useMemo(
-    () => (form.branch_id ? departments.filter((department) => department.branch_id === form.branch_id) : departments),
-    [departments, form.branch_id],
+    () => (watchedBranchId ? departments.filter((department) => department.branch_id === watchedBranchId) : departments),
+    [departments, watchedBranchId],
   );
 
   // ── Loaders ────────────────────────────────────────────────────────────────
@@ -361,7 +372,7 @@ export function ServiceCataloguePage() {
     setFormError('');
     if (svc) {
       const department = departments.find((item) => item.id === svc.department_id);
-      setForm({
+      svcForm.reset({
         code: svc.code,
         name: svc.name,
         service_type: svc.service_type,
@@ -373,7 +384,10 @@ export function ServiceCataloguePage() {
         status: svc.status,
       });
     } else {
-      setForm(emptyForm);
+      svcForm.reset({
+        code: '', name: '', service_type: 'GENERAL', branch_id: '',
+        department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE'
+      });
     }
   };
 
@@ -389,43 +403,28 @@ export function ServiceCataloguePage() {
   }, [locationSearch]);
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.code.trim()) { setFormError('Service code is required.'); return; }
-    if (!form.name.trim()) { setFormError('Service name is required.'); return; }
-    if (!form.department_id) { setFormError('Department is required.'); return; }
-
-    const price = parseFloat(form.standard_price);
-    if (Number.isNaN(price) || price < 0) { setFormError('Standard price must be a non-negative number.'); return; }
-
+  const handleSave = svcForm.handleSubmit(async (values) => {
     setSubmitting(true);
     setFormError('');
 
     try {
+      const price = parseFloat(values.standard_price);
+      const payload = {
+        code: values.code.trim(),
+        name: values.name.trim(),
+        service_type: values.service_type,
+        department_id: values.department_id,
+        standard_price: price,
+        category: values.category?.trim() || null,
+        description: values.description?.trim() || null,
+        status: values.status,
+      };
+
       if (modalMode === 'create') {
-        const payload: CreateServicePayload = {
-          code: form.code.trim(),
-          name: form.name.trim(),
-          service_type: form.service_type,
-          department_id: form.department_id,
-          standard_price: price,
-          category: form.category.trim() || null,
-          description: form.description.trim() || null,
-          status: form.status,
-        };
-        await servicesApi.create(payload);
+        await createService.mutateAsync(payload);
         showToast('Service created successfully.');
       } else if (activeSvc) {
-        await servicesApi.update(activeSvc.id, {
-          code: form.code.trim(),
-          name: form.name.trim(),
-          service_type: form.service_type,
-          department_id: form.department_id,
-          standard_price: price,
-          category: form.category.trim() || null,
-          description: form.description.trim() || null,
-          status: form.status,
-        });
+        await updateService.mutateAsync({ id: activeSvc.id, payload });
         showToast('Service updated successfully.');
       }
       closeModal();
@@ -435,13 +434,13 @@ export function ServiceCataloguePage() {
     } finally {
       setSubmitting(false);
     }
-  };
+  });
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setSubmitting(true);
     try {
-      await servicesApi.delete(deleteTarget.id);
+      await deleteService.mutateAsync(deleteTarget.id);
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
       if (services.length === 1 && currentPage > 1) {
@@ -459,8 +458,8 @@ export function ServiceCataloguePage() {
   const updateStatus = async (service: ServiceResponse) => {
     setSubmitting(true);
     try {
-      const next = service.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-      await servicesApi.updateStatus(service.id, next);
+      const next: ApiServiceStatus = service.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      await updateServiceStatus.mutateAsync({ id: service.id, status: next });
       showToast(`${service.name} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
       await loadServices();
     } catch (error) {
@@ -867,36 +866,33 @@ export function ServiceCataloguePage() {
                 <span>Service Code <span className="required">*</span></span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  required
-                  value={form.code}
+                  aria-invalid={Boolean(svcForm.formState.errors.code)}
+                  {...svcForm.register('code')}
                 />
+                {svcForm.formState.errors.code ? <small className="field-error">{svcForm.formState.errors.code.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Service Name <span className="required">*</span></span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                  value={form.name}
+                  aria-invalid={Boolean(svcForm.formState.errors.name)}
+                  {...svcForm.register('name')}
                 />
+                {svcForm.formState.errors.name ? <small className="field-error">{svcForm.formState.errors.name.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Category</span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
                   placeholder="e.g. Diagnostics"
-                  value={form.category}
+                  {...svcForm.register('category')}
                 />
               </label>
               <label className="form-field">
                 <span>Service Type <span className="required">*</span></span>
                 <select
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, service_type: e.target.value as ApiServiceType })}
-                  required
-                  value={form.service_type}
+                  {...svcForm.register('service_type')}
                 >
                   {Object.entries(serviceTypeLabels).map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
@@ -911,10 +907,11 @@ export function ServiceCataloguePage() {
                 <span>Branch</span>
                 <select
                   disabled={submitting}
+                  {...svcForm.register('branch_id')}
                   onChange={(e) => {
-                    setForm({ ...form, branch_id: e.target.value, department_id: '' });
+                    void svcForm.setValue('branch_id', e.target.value);
+                    void svcForm.setValue('department_id', '');
                   }}
-                  value={form.branch_id}
                 >
                   <option value="">Select Branch</option>
                   {branches.map((b) => (
@@ -926,22 +923,21 @@ export function ServiceCataloguePage() {
                 <span>Department <span className="required">*</span></span>
                 <select
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, department_id: e.target.value })}
-                  required
-                  value={form.department_id}
+                  aria-invalid={Boolean(svcForm.formState.errors.department_id)}
+                  {...svcForm.register('department_id')}
                 >
                   <option value="">Select Department</option>
                   {formDepartmentOptions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+                {svcForm.formState.errors.department_id ? <small className="field-error">{svcForm.formState.errors.department_id.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Status</span>
                 <select
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, status: e.target.value as ApiServiceStatus })}
-                  value={form.status}
+                  {...svcForm.register('status')}
                 >
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
@@ -956,13 +952,13 @@ export function ServiceCataloguePage() {
                 <input
                   disabled={submitting}
                   min="0"
-                  onChange={(e) => setForm({ ...form, standard_price: e.target.value })}
                   placeholder="0.00"
-                  required
                   step="0.01"
                   type="number"
-                  value={form.standard_price}
+                  aria-invalid={Boolean(svcForm.formState.errors.standard_price)}
+                  {...svcForm.register('standard_price')}
                 />
+                {svcForm.formState.errors.standard_price ? <small className="field-error">{svcForm.formState.errors.standard_price.message}</small> : null}
               </label>
             </div>
 
@@ -972,9 +968,8 @@ export function ServiceCataloguePage() {
                 <span>Description</span>
                 <textarea
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
                   rows={3}
-                  value={form.description}
+                  {...svcForm.register('description')}
                 />
               </label>
             </div>

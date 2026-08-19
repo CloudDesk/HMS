@@ -1,4 +1,7 @@
-import { useRef, type ChangeEvent, type FormEvent } from 'react';
+import { useRef, useEffect, type ChangeEvent } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import type {
   GeneralSettings,
   HospitalSettings,
@@ -9,12 +12,56 @@ import { SettingsField, SettingsToggle } from './SettingsControls';
 
 export type FieldErrors = Record<string, string>;
 
+const generalSchema = z.object({
+  applicationName: z.string().min(1, 'Application Name is required.'),
+  version: z.string(),
+  defaultLanguage: z.enum(['en', 'sw']),
+  dateFormat: z.enum(['DD MMM YYYY', 'YYYY-MM-DD', 'MM/DD/YYYY']),
+  timeFormat: z.enum(['12-hour', '24-hour']),
+  sessionTimeoutMinutes: z.number().int().min(5, 'Enter a value from 5 to 480.').max(480, 'Enter a value from 5 to 480.'),
+  maintenanceMode: z.boolean(),
+  darkMode: z.boolean(),
+  auditLogging: z.boolean(),
+  multiBranchMode: z.boolean(),
+});
+
+const hospitalSchema = z.object({
+  hospitalName: z.string().min(1, 'Hospital Name is required.'),
+  registrationNumber: z.string().min(1, 'Registration Number is required.'),
+  hospitalType: z.enum(['General', 'Teaching', 'Specialist']),
+  phone: z.string().regex(/^\+?[0-9\s().-]{7,20}$/, 'Enter a valid phone number.'),
+  email: z.string().email('Enter a valid email address.'),
+  website: z.string().url('Enter a valid website URL.').or(z.literal('')).nullable(),
+  bedCapacity: z.number().int().min(0, 'Enter a bed capacity from 0 to 100000.').max(100000, 'Enter a bed capacity from 0 to 100000.'),
+  address: z.string().min(1, 'Address is required.'),
+  logoBlobName: z.string().nullable(),
+  logoContentType: z.string().nullable(),
+});
+
+const localizationSchema = z.object({
+  country: z.enum(['Kenya', 'Uganda', 'Tanzania', 'Nigeria']),
+  timezone: z.enum(['Africa/Nairobi', 'Africa/Lagos', 'Africa/Cairo']),
+  currency: z.enum(['KES', 'UGX', 'USD']),
+  currencySymbol: z.string().min(1, 'Currency Symbol is required.'),
+  numberFormat: z.enum(['1,000.00', '1.000,00']),
+  firstDayOfWeek: z.enum(['Monday', 'Sunday']),
+});
+
+const userPreferencesSchema = z.object({
+  defaultRole: z.enum(['Nurse', 'Receptionist', 'Doctor']),
+  passwordMinLength: z.number().int().min(6, 'Enter a value from 6 to 32.').max(32, 'Enter a value from 6 to 32.'),
+  passwordExpiryDays: z.number().int().min(0, 'Enter a value from 0 to 3650.').max(3650, 'Enter a value from 0 to 3650.'),
+  maxFailedLoginAttempts: z.number().int().min(1, 'Enter a value from 1 to 20.').max(20, 'Enter a value from 1 to 20.'),
+  requireStrongPasswords: z.boolean(),
+  forcePasswordChangeOnFirstLogin: z.boolean(),
+  allowUserSelfRegistration: z.boolean(),
+});
+
+
 type FormActions = {
   busy: boolean;
   canEdit: boolean;
-  errors: FieldErrors;
   onReset: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
 function FormFooter({ busy, canEdit, onReset }: Pick<FormActions, 'busy' | 'canEdit' | 'onReset'>) {
@@ -32,15 +79,30 @@ function FormFooter({ busy, canEdit, onReset }: Pick<FormActions, 'busy' | 'canE
 
 type GeneralFormProps = FormActions & {
   value: GeneralSettings;
-  onChange: (value: GeneralSettings) => void;
+  onSubmit: (data: GeneralSettings) => void;
+  serverErrors?: FieldErrors;
 };
 
-export function GeneralSettingsForm({ value, onChange, ...actions }: GeneralFormProps) {
-  const set = <K extends keyof GeneralSettings>(key: K, next: GeneralSettings[K]) =>
-    onChange({ ...value, [key]: next });
+export function GeneralSettingsForm({ value, onSubmit, serverErrors, ...actions }: GeneralFormProps) {
+  const form = useForm<GeneralSettings>({
+    resolver: zodResolver(generalSchema),
+    defaultValues: value,
+  });
+
+  useEffect(() => {
+    form.reset(value);
+  }, [value, form]);
+
+  useEffect(() => {
+    if (serverErrors) {
+      Object.entries(serverErrors).forEach(([field, message]) => {
+        form.setError(field as Parameters<typeof form.setError>[0], { type: 'server', message });
+      });
+    }
+  }, [serverErrors, form]);
 
   return (
-    <form className="ss-tab-panel active" onSubmit={actions.onSubmit}>
+    <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="ss-panel-header">
         <div className="ss-panel-title"><i className="ph ph-info" aria-hidden="true" /> General Settings</div>
         <p className="ss-panel-desc">Core application-wide configurations.</p>
@@ -48,35 +110,43 @@ export function GeneralSettingsForm({ value, onChange, ...actions }: GeneralForm
       <div className="ss-form-body">
         <div className="ss-section-label">Application</div>
         <div className="ss-form-grid">
-          <SettingsField error={actions.errors.applicationName} label="Application Name">
-            <input disabled={!actions.canEdit} onChange={(event) => set('applicationName', event.target.value)} value={value.applicationName} />
+          <SettingsField error={form.formState.errors.applicationName?.message} label="Application Name">
+            <input disabled={!actions.canEdit} {...form.register('applicationName')} />
           </SettingsField>
-          <SettingsField label="Version"><input readOnly value={value.version} /></SettingsField>
+          <SettingsField label="Version"><input readOnly {...form.register('version')} /></SettingsField>
           <SettingsField label="Default Language">
-            <select disabled={!actions.canEdit} onChange={(event) => set('defaultLanguage', event.target.value as GeneralSettings['defaultLanguage'])} value={value.defaultLanguage}>
+            <select disabled={!actions.canEdit} {...form.register('defaultLanguage')}>
               <option value="en">English (EN)</option><option value="sw">Swahili (SW)</option>
             </select>
           </SettingsField>
           <SettingsField label="Date Format">
-            <select disabled={!actions.canEdit} onChange={(event) => set('dateFormat', event.target.value as GeneralSettings['dateFormat'])} value={value.dateFormat}>
+            <select disabled={!actions.canEdit} {...form.register('dateFormat')}>
               <option>DD MMM YYYY</option><option>YYYY-MM-DD</option><option>MM/DD/YYYY</option>
             </select>
           </SettingsField>
           <SettingsField label="Time Format">
-            <select disabled={!actions.canEdit} onChange={(event) => set('timeFormat', event.target.value as GeneralSettings['timeFormat'])} value={value.timeFormat}>
+            <select disabled={!actions.canEdit} {...form.register('timeFormat')}>
               <option value="12-hour">12-hour (AM/PM)</option><option value="24-hour">24-hour</option>
             </select>
           </SettingsField>
-          <SettingsField error={actions.errors.sessionTimeoutMinutes} label="Session Timeout (mins)">
-            <input disabled={!actions.canEdit} max={480} min={5} onChange={(event) => set('sessionTimeoutMinutes', Number(event.target.value))} type="number" value={value.sessionTimeoutMinutes} />
+          <SettingsField error={form.formState.errors.sessionTimeoutMinutes?.message} label="Session Timeout (mins)">
+            <input disabled={!actions.canEdit} max={480} min={5} type="number" {...form.register('sessionTimeoutMinutes', { valueAsNumber: true })} />
           </SettingsField>
         </div>
         <div className="ss-section-label">Feature Toggles</div>
         <div className="ss-toggle-list">
-          <SettingsToggle checked={value.maintenanceMode} description="Show maintenance page to all users" disabled={!actions.canEdit} label="Maintenance Mode" onChange={(checked) => set('maintenanceMode', checked)} />
-          <SettingsToggle checked={value.darkMode} description="Apply dark theme to all users" disabled={!actions.canEdit} label="Dark Mode (Global)" onChange={(checked) => set('darkMode', checked)} />
-          <SettingsToggle checked={value.auditLogging} description="Log all user actions" disabled={!actions.canEdit} label="Enable Audit Logging" onChange={(checked) => set('auditLogging', checked)} />
-          <SettingsToggle checked={value.multiBranchMode} description="Allow multiple branch management" disabled={!actions.canEdit} label="Multi-Branch Mode" onChange={(checked) => set('multiBranchMode', checked)} />
+          <Controller name="maintenanceMode" control={form.control} render={({ field }) => (
+            <SettingsToggle checked={field.value} description="Show maintenance page to all users" disabled={!actions.canEdit} label="Maintenance Mode" onChange={field.onChange} />
+          )} />
+          <Controller name="darkMode" control={form.control} render={({ field }) => (
+            <SettingsToggle checked={field.value} description="Apply dark theme to all users" disabled={!actions.canEdit} label="Dark Mode (Global)" onChange={field.onChange} />
+          )} />
+          <Controller name="auditLogging" control={form.control} render={({ field }) => (
+            <SettingsToggle checked={field.value} description="Log all user actions" disabled={!actions.canEdit} label="Enable Audit Logging" onChange={field.onChange} />
+          )} />
+          <Controller name="multiBranchMode" control={form.control} render={({ field }) => (
+            <SettingsToggle checked={field.value} description="Allow multiple branch management" disabled={!actions.canEdit} label="Multi-Branch Mode" onChange={field.onChange} />
+          )} />
         </div>
       </div>
       <FormFooter {...actions} />
@@ -87,13 +157,30 @@ export function GeneralSettingsForm({ value, onChange, ...actions }: GeneralForm
 type HospitalFormProps = FormActions & {
   value: HospitalSettings;
   logoUrl: string | null;
-  onChange: (value: HospitalSettings) => void;
+  onSubmit: (data: HospitalSettings) => void;
   onLogo: (file: File) => void;
+  serverErrors?: FieldErrors;
 };
 
-export function HospitalSettingsForm({ value, logoUrl, onChange, onLogo, ...actions }: HospitalFormProps) {
+export function HospitalSettingsForm({ value, logoUrl, onSubmit, onLogo, serverErrors, ...actions }: HospitalFormProps) {
+  const form = useForm<HospitalSettings>({
+    resolver: zodResolver(hospitalSchema),
+    defaultValues: value,
+  });
+
+  useEffect(() => {
+    form.reset(value);
+  }, [value, form]);
+
+  useEffect(() => {
+    if (serverErrors) {
+      Object.entries(serverErrors).forEach(([field, message]) => {
+        form.setError(field as Parameters<typeof form.setError>[0], { type: 'server', message });
+      });
+    }
+  }, [serverErrors, form]);
+
   const fileInput = useRef<HTMLInputElement>(null);
-  const set = <K extends keyof HospitalSettings>(key: K, next: HospitalSettings[K]) => onChange({ ...value, [key]: next });
   const selectLogo = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) onLogo(file);
@@ -101,7 +188,7 @@ export function HospitalSettingsForm({ value, logoUrl, onChange, onLogo, ...acti
   };
 
   return (
-    <form className="ss-tab-panel active" onSubmit={actions.onSubmit}>
+    <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="ss-panel-header">
         <div className="ss-panel-title"><i className="ph ph-hospital" aria-hidden="true" /> Hospital Information</div>
         <p className="ss-panel-desc">Configure your hospital&apos;s identity and contact details.</p>
@@ -109,14 +196,14 @@ export function HospitalSettingsForm({ value, logoUrl, onChange, onLogo, ...acti
       <div className="ss-form-body">
         <div className="ss-section-label">Identity</div>
         <div className="ss-form-grid">
-          <SettingsField error={actions.errors.hospitalName} fullWidth label="Hospital Name"><input disabled={!actions.canEdit} onChange={(e) => set('hospitalName', e.target.value)} value={value.hospitalName} /></SettingsField>
-          <SettingsField error={actions.errors.registrationNumber} label="Registration Number"><input disabled={!actions.canEdit} onChange={(e) => set('registrationNumber', e.target.value)} value={value.registrationNumber} /></SettingsField>
-          <SettingsField label="Hospital Type"><select disabled={!actions.canEdit} onChange={(e) => set('hospitalType', e.target.value as HospitalSettings['hospitalType'])} value={value.hospitalType}><option>General</option><option value="Teaching">Teaching Hospital</option><option>Specialist</option></select></SettingsField>
-          <SettingsField error={actions.errors.phone} label="Phone"><input disabled={!actions.canEdit} onChange={(e) => set('phone', e.target.value)} value={value.phone} /></SettingsField>
-          <SettingsField error={actions.errors.email} label="Email"><input disabled={!actions.canEdit} onChange={(e) => set('email', e.target.value)} type="email" value={value.email} /></SettingsField>
-          <SettingsField error={actions.errors.website} label="Website"><input disabled={!actions.canEdit} onChange={(e) => set('website', e.target.value || null)} type="url" value={value.website ?? ''} /></SettingsField>
-          <SettingsField error={actions.errors.bedCapacity} label="Bed Capacity"><input disabled={!actions.canEdit} min={0} max={100000} onChange={(e) => set('bedCapacity', Number(e.target.value))} type="number" value={value.bedCapacity} /></SettingsField>
-          <SettingsField error={actions.errors.address} fullWidth label="Address"><textarea disabled={!actions.canEdit} onChange={(e) => set('address', e.target.value)} rows={2} value={value.address} /></SettingsField>
+          <SettingsField error={form.formState.errors.hospitalName?.message} fullWidth label="Hospital Name"><input disabled={!actions.canEdit} {...form.register('hospitalName')} /></SettingsField>
+          <SettingsField error={form.formState.errors.registrationNumber?.message} label="Registration Number"><input disabled={!actions.canEdit} {...form.register('registrationNumber')} /></SettingsField>
+          <SettingsField label="Hospital Type"><select disabled={!actions.canEdit} {...form.register('hospitalType')}><option>General</option><option value="Teaching">Teaching Hospital</option><option>Specialist</option></select></SettingsField>
+          <SettingsField error={form.formState.errors.phone?.message} label="Phone"><input disabled={!actions.canEdit} {...form.register('phone')} /></SettingsField>
+          <SettingsField error={form.formState.errors.email?.message} label="Email"><input disabled={!actions.canEdit} type="email" {...form.register('email')} /></SettingsField>
+          <SettingsField error={form.formState.errors.website?.message} label="Website"><input disabled={!actions.canEdit} type="url" {...form.register('website')} /></SettingsField>
+          <SettingsField error={form.formState.errors.bedCapacity?.message} label="Bed Capacity"><input disabled={!actions.canEdit} min={0} max={100000} type="number" {...form.register('bedCapacity', { valueAsNumber: true })} /></SettingsField>
+          <SettingsField error={form.formState.errors.address?.message} fullWidth label="Address"><textarea disabled={!actions.canEdit} rows={2} {...form.register('address')} /></SettingsField>
         </div>
         <div className="ss-section-label">Logo &amp; Branding</div>
         <div className="ss-logo-upload">
@@ -135,42 +222,80 @@ export function HospitalSettingsForm({ value, logoUrl, onChange, onLogo, ...acti
   );
 }
 
-type LocalizationFormProps = FormActions & { value: LocalizationSettings; onChange: (value: LocalizationSettings) => void };
+type LocalizationFormProps = FormActions & { value: LocalizationSettings; onSubmit: (data: LocalizationSettings) => void; serverErrors?: FieldErrors; };
 
-export function LocalizationSettingsForm({ value, onChange, ...actions }: LocalizationFormProps) {
-  const set = <K extends keyof LocalizationSettings>(key: K, next: LocalizationSettings[K]) => onChange({ ...value, [key]: next });
+export function LocalizationSettingsForm({ value, onSubmit, serverErrors, ...actions }: LocalizationFormProps) {
+  const form = useForm<LocalizationSettings>({
+    resolver: zodResolver(localizationSchema),
+    defaultValues: value,
+  });
+
+  useEffect(() => {
+    form.reset(value);
+  }, [value, form]);
+
+  useEffect(() => {
+    if (serverErrors) {
+      Object.entries(serverErrors).forEach(([field, message]) => {
+        form.setError(field as Parameters<typeof form.setError>[0], { type: 'server', message });
+      });
+    }
+  }, [serverErrors, form]);
+
   return (
-    <form className="ss-tab-panel active" onSubmit={actions.onSubmit}>
+    <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="ss-panel-header"><div className="ss-panel-title"><i className="ph ph-globe" aria-hidden="true" /> Localization</div><p className="ss-panel-desc">Regional and language settings.</p></div>
       <div className="ss-form-body"><div className="ss-form-grid">
-        <SettingsField label="Country"><select disabled={!actions.canEdit} onChange={(e) => set('country', e.target.value as LocalizationSettings['country'])} value={value.country}><option>Kenya</option><option>Uganda</option><option>Tanzania</option><option>Nigeria</option></select></SettingsField>
-        <SettingsField label="Timezone"><select disabled={!actions.canEdit} onChange={(e) => set('timezone', e.target.value as LocalizationSettings['timezone'])} value={value.timezone}><option value="Africa/Nairobi">Africa/Nairobi (EAT, UTC+3)</option><option>Africa/Lagos</option><option>Africa/Cairo</option></select></SettingsField>
-        <SettingsField label="Currency"><select disabled={!actions.canEdit} onChange={(e) => set('currency', e.target.value as LocalizationSettings['currency'])} value={value.currency}><option value="KES">KES — Kenyan Shilling</option><option value="UGX">UGX — Ugandan Shilling</option><option value="USD">USD — US Dollar</option></select></SettingsField>
-        <SettingsField error={actions.errors.currencySymbol} label="Currency Symbol"><input disabled={!actions.canEdit} maxLength={8} onChange={(e) => set('currencySymbol', e.target.value)} value={value.currencySymbol} /></SettingsField>
-        <SettingsField label="Number Format"><select disabled={!actions.canEdit} onChange={(e) => set('numberFormat', e.target.value as LocalizationSettings['numberFormat'])} value={value.numberFormat}><option>1,000.00</option><option>1.000,00</option></select></SettingsField>
-        <SettingsField label="First Day of Week"><select disabled={!actions.canEdit} onChange={(e) => set('firstDayOfWeek', e.target.value as LocalizationSettings['firstDayOfWeek'])} value={value.firstDayOfWeek}><option>Monday</option><option>Sunday</option></select></SettingsField>
+        <SettingsField label="Country"><select disabled={!actions.canEdit} {...form.register('country')}><option>Kenya</option><option>Uganda</option><option>Tanzania</option><option>Nigeria</option></select></SettingsField>
+        <SettingsField label="Timezone"><select disabled={!actions.canEdit} {...form.register('timezone')}><option value="Africa/Nairobi">Africa/Nairobi (EAT, UTC+3)</option><option>Africa/Lagos</option><option>Africa/Cairo</option></select></SettingsField>
+        <SettingsField label="Currency"><select disabled={!actions.canEdit} {...form.register('currency')}><option value="KES">KES — Kenyan Shilling</option><option value="UGX">UGX — Ugandan Shilling</option><option value="USD">USD — US Dollar</option></select></SettingsField>
+        <SettingsField error={form.formState.errors.currencySymbol?.message} label="Currency Symbol"><input disabled={!actions.canEdit} maxLength={8} {...form.register('currencySymbol')} /></SettingsField>
+        <SettingsField label="Number Format"><select disabled={!actions.canEdit} {...form.register('numberFormat')}><option>1,000.00</option><option>1.000,00</option></select></SettingsField>
+        <SettingsField label="First Day of Week"><select disabled={!actions.canEdit} {...form.register('firstDayOfWeek')}><option>Monday</option><option>Sunday</option></select></SettingsField>
       </div></div>
       <FormFooter {...actions} />
     </form>
   );
 }
 
-type PreferencesFormProps = FormActions & { value: UserPreferenceSettings; onChange: (value: UserPreferenceSettings) => void };
+type PreferencesFormProps = FormActions & { value: UserPreferenceSettings; onSubmit: (data: UserPreferenceSettings) => void; serverErrors?: FieldErrors; };
 
-export function UserPreferencesForm({ value, onChange, ...actions }: PreferencesFormProps) {
-  const set = <K extends keyof UserPreferenceSettings>(key: K, next: UserPreferenceSettings[K]) => onChange({ ...value, [key]: next });
+export function UserPreferencesForm({ value, onSubmit, serverErrors, ...actions }: PreferencesFormProps) {
+  const form = useForm<UserPreferenceSettings>({
+    resolver: zodResolver(userPreferencesSchema),
+    defaultValues: value,
+  });
+
+  useEffect(() => {
+    form.reset(value);
+  }, [value, form]);
+
+  useEffect(() => {
+    if (serverErrors) {
+      Object.entries(serverErrors).forEach(([field, message]) => {
+        form.setError(field as Parameters<typeof form.setError>[0], { type: 'server', message });
+      });
+    }
+  }, [serverErrors, form]);
+
   return (
-    <form className="ss-tab-panel active" onSubmit={actions.onSubmit}>
+    <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="ss-panel-header"><div className="ss-panel-title"><i className="ph ph-user-gear" aria-hidden="true" /> User Preferences</div><p className="ss-panel-desc">Default settings applied to new user accounts.</p></div>
       <div className="ss-form-body"><div className="ss-form-grid">
-        <SettingsField label="Default Role for New Users"><select disabled={!actions.canEdit} onChange={(e) => set('defaultRole', e.target.value as UserPreferenceSettings['defaultRole'])} value={value.defaultRole}><option>Receptionist</option><option>Nurse</option><option>Doctor</option></select></SettingsField>
-        <SettingsField error={actions.errors.passwordMinLength} label="Password Min Length"><input disabled={!actions.canEdit} min={6} max={32} onChange={(e) => set('passwordMinLength', Number(e.target.value))} type="number" value={value.passwordMinLength} /></SettingsField>
-        <SettingsField error={actions.errors.passwordExpiryDays} label="Password Expiry (days)"><input disabled={!actions.canEdit} min={0} max={3650} onChange={(e) => set('passwordExpiryDays', Number(e.target.value))} type="number" value={value.passwordExpiryDays} /></SettingsField>
-        <SettingsField error={actions.errors.maxFailedLoginAttempts} label="Max Failed Login Attempts"><input disabled={!actions.canEdit} min={1} max={20} onChange={(e) => set('maxFailedLoginAttempts', Number(e.target.value))} type="number" value={value.maxFailedLoginAttempts} /></SettingsField>
+        <SettingsField label="Default Role for New Users"><select disabled={!actions.canEdit} {...form.register('defaultRole')}><option>Receptionist</option><option>Nurse</option><option>Doctor</option></select></SettingsField>
+        <SettingsField error={form.formState.errors.passwordMinLength?.message} label="Password Min Length"><input disabled={!actions.canEdit} min={6} max={32} type="number" {...form.register('passwordMinLength', { valueAsNumber: true })} /></SettingsField>
+        <SettingsField error={form.formState.errors.passwordExpiryDays?.message} label="Password Expiry (days)"><input disabled={!actions.canEdit} min={0} max={3650} type="number" {...form.register('passwordExpiryDays', { valueAsNumber: true })} /></SettingsField>
+        <SettingsField error={form.formState.errors.maxFailedLoginAttempts?.message} label="Max Failed Login Attempts"><input disabled={!actions.canEdit} min={1} max={20} type="number" {...form.register('maxFailedLoginAttempts', { valueAsNumber: true })} /></SettingsField>
       </div><div className="ss-toggle-list">
-        <SettingsToggle checked={value.requireStrongPasswords} description="Min 8 chars, uppercase, number, symbol" disabled={!actions.canEdit} label="Require Strong Passwords" onChange={(checked) => set('requireStrongPasswords', checked)} />
-        <SettingsToggle checked={value.forcePasswordChangeOnFirstLogin} description="Users must change password on first access" disabled={!actions.canEdit} label="Force Password Change on First Login" onChange={(checked) => set('forcePasswordChangeOnFirstLogin', checked)} />
-        <SettingsToggle checked={value.allowUserSelfRegistration} description="Allow staff to self-register accounts" disabled={!actions.canEdit} label="Allow User Self Registration" onChange={(checked) => set('allowUserSelfRegistration', checked)} />
+        <Controller name="requireStrongPasswords" control={form.control} render={({ field }) => (
+          <SettingsToggle checked={field.value} description="Min 8 chars, uppercase, number, symbol" disabled={!actions.canEdit} label="Require Strong Passwords" onChange={field.onChange} />
+        )} />
+        <Controller name="forcePasswordChangeOnFirstLogin" control={form.control} render={({ field }) => (
+          <SettingsToggle checked={field.value} description="Users must change password on first access" disabled={!actions.canEdit} label="Force Password Change on First Login" onChange={field.onChange} />
+        )} />
+        <Controller name="allowUserSelfRegistration" control={form.control} render={({ field }) => (
+          <SettingsToggle checked={field.value} description="Allow staff to self-register accounts" disabled={!actions.canEdit} label="Allow User Self Registration" onChange={field.onChange} />
+        )} />
       </div></div>
       <FormFooter {...actions} />
     </form>

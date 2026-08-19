@@ -1,49 +1,28 @@
-import { useCallback, useEffect, useState } from 'react';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
-import { useAuth } from '../auth/useAuth';
+import { useDoctorProfile } from '../hooks/doctors/useDoctorProfile';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { formatDate, getPatientErrorMessage } from './patient-utils';
-
-const doctorInitials = (doctor: DoctorResponse) =>
-  `${doctor.first_name.charAt(0)}${doctor.last_name.charAt(0)}`.toUpperCase();
+import { formatDate } from './patient-utils';
+import { doctorInitials } from './doctor-workflow-utils';
 
 export function DoctorProfilePage() {
-  const { user } = useAuth();
   const { search } = useAppLocation();
   const doctorId = new URLSearchParams(search).get('id');
-  const [doctor, setDoctor] = useState<DoctorResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const profile = useDoctorProfile(doctorId);
+  const doctor = profile.doctor;
 
-  const loadDoctor = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setDoctor(await (doctorId ? doctorsApi.getById(doctorId) : doctorsApi.getCurrent()));
-    } catch (loadError) {
-      setDoctor(null);
-      setError(getPatientErrorMessage(loadError));
-    } finally {
-      setLoading(false);
-    }
-  }, [doctorId]);
-
-  useEffect(() => {
-    void loadDoctor();
-  }, [loadDoctor]);
-
-  if (loading) {
+  if (profile.isLoading) {
     return <div className="doctor-page"><section className="doc-card um-state-cell">Loading doctor profile...</section></div>;
   }
 
-  if (error || !doctor) {
+  if (profile.error || !doctor) {
     return (
       <div className="doctor-page">
         <section className="doc-card doctor-empty-state">
           <i className="ph ph-warning-circle" aria-hidden="true" />
           <h3>Doctor profile unavailable</h3>
-          <p>{error || 'No doctor profile is mapped to this user.'}</p>
-          <button className="doc-btn" onClick={() => void loadDoctor()} type="button">Retry</button>
+          <p>{profile.error || 'No doctor profile is mapped to this user.'}</p>
+          {profile.canRetry ? (
+            <button className="doc-btn" onClick={() => void profile.retry()} type="button">Retry</button>
+          ) : null}
         </section>
       </div>
     );
@@ -57,12 +36,16 @@ export function DoctorProfilePage() {
           <p>Practitioner identity, assignment, contact, and recurring working schedule.</p>
         </div>
         <div className="doctor-page-actions">
-          <button className="doc-btn" onClick={() => navigate(`/doctors/schedule?doctor_id=${doctor.id}`)} type="button">
-            <i className="ph ph-calendar-check" aria-hidden="true" /> Schedule
-          </button>
-          <button className="doc-btn primary" onClick={() => navigate(`/doctors/availability?doctor_id=${doctor.id}`)} type="button">
-            <i className="ph ph-clock" aria-hidden="true" /> Availability
-          </button>
+          {profile.canViewSchedule ? (
+            <button className="doc-btn" onClick={() => navigate(`/doctors/schedule?doctor_id=${doctor.id}`)} type="button">
+              <i className="ph ph-calendar-check" aria-hidden="true" /> Schedule
+            </button>
+          ) : null}
+          {profile.canViewAvailability ? (
+            <button className="doc-btn primary" onClick={() => navigate(`/doctors/availability?doctor_id=${doctor.id}`)} type="button">
+              <i className="ph ph-clock" aria-hidden="true" /> Availability
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -91,7 +74,7 @@ export function DoctorProfilePage() {
             <div className="doc-metric"><span>Consultation room</span><strong>{doctor.consultation_room || 'Not assigned'}</strong></div>
             <div className="doc-metric"><span>Branch assignment</span><strong>{doctor.branch_id}</strong></div>
             <div className="doc-metric"><span>Department assignment</span><strong>{doctor.department_id}</strong></div>
-            <div className="doc-metric"><span>User mapping</span><strong>{doctor.user_id ? user?.id === doctor.user_id ? 'Current user account' : 'Linked account' : 'Not mapped'}</strong></div>
+            <div className="doc-metric"><span>User mapping</span><strong>{doctor.user_id ? profile.userId === doctor.user_id ? 'Current user account' : 'Linked account' : 'Not mapped'}</strong></div>
           </div>
         </section>
         <section className="doc-card">

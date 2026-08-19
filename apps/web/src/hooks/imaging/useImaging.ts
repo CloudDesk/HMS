@@ -38,7 +38,7 @@ export function useImagingSummary(branchId?: string, enabled = true) {
 export function useImagingOrderDetails(id: string | null, enabled = true) {
   return useQuery({
     queryKey: id ? imagingKeys.detail(id) : imagingKeys.details(),
-    queryFn: () => imagingApi.get(id!),
+    queryFn: () => imagingApi.get(id as string),
     enabled: enabled && Boolean(id),
   });
 }
@@ -46,7 +46,7 @@ export function useImagingOrderDetails(id: string | null, enabled = true) {
 export function useImagingReport(id: string | null, enabled = true) {
   return useQuery({
     queryKey: id ? imagingKeys.report(id) : imagingKeys.reports(),
-    queryFn: () => imagingApi.getReport(id!),
+    queryFn: () => imagingApi.getReport(id as string),
     enabled: enabled && Boolean(id),
   });
 }
@@ -57,9 +57,12 @@ export function useUpdateImagingStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: Exclude<ImagingStatus, 'SUBMITTED' | 'REPORT_ENTERED'> }) =>
       imagingApi.updateStatus(id, status),
-    onSuccess: async () => {
+    onSuccess: async (_, { id }) => {
       toast.success('Imaging order status updated.');
-      await queryClient.invalidateQueries({ queryKey: imagingKeys.all });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.report(id) });
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)),
   });
@@ -71,9 +74,12 @@ export function useEnterImagingReport() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ImagingReportPayload }) =>
       imagingApi.enterReport(id, payload),
-    onSuccess: async () => {
+    onSuccess: async (_, { id }) => {
       toast.success('Imaging report entered successfully.');
-      await queryClient.invalidateQueries({ queryKey: imagingKeys.all });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.report(id) });
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)),
   });
@@ -85,9 +91,12 @@ export function useUpdateImagingReport() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ImagingReportPayload }) =>
       imagingApi.updateReport(id, payload),
-    onSuccess: async () => {
+    onSuccess: async (_, { id }) => {
       toast.success('Imaging report updated successfully.');
-      await queryClient.invalidateQueries({ queryKey: imagingKeys.all });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: imagingKeys.report(id) });
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)),
   });

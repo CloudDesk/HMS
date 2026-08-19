@@ -40,8 +40,15 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/doctors': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/directory': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/profile': [{ module: 'Doctors', screen: 'Doctor Directory' }],
-  '/doctors/availability': [{ module: 'Doctors', screen: 'Doctor Availability' }],
-  '/doctors/schedule': [{ module: 'Doctors', screen: 'Doctor Availability' }],
+  '/doctors/availability': [
+    { module: 'Doctors', screen: 'Doctor Directory' },
+    { module: 'Doctors', screen: 'Doctor Availability' },
+  ],
+  '/doctors/schedule': [
+    { module: 'Doctors', screen: 'Doctor Directory' },
+    { module: 'Doctors', screen: 'Doctor Availability' },
+    { module: 'Appointments', screen: 'Appointment Records' },
+  ],
   '/doctors/performance': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/appointments': [{ module: 'Appointments', screen: 'Appointment Records' }],
   '/appointments/book': [{ module: 'Appointments', screen: 'Appointment Booking' }],

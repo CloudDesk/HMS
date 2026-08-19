@@ -19,10 +19,11 @@ export const getMedicineErrorMessage = (error: unknown) => {
   return 'Unable to complete the medicine request.';
 };
 
-export function useMedicinesList(params: MedicineListParams) {
+export function useMedicinesList(params: MedicineListParams, enabled = true) {
   return useQuery({
     queryKey: ['medicines', 'list', params],
     queryFn: () => medicinesApi.list(params),
+    enabled,
   });
 }
 
