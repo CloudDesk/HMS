@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+﻿import { useMemo, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -81,7 +81,7 @@ export function OpdQueuePage() {
 
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
-  
+
   const [filters, setFilters] = useState<OpdQueueFilters>({
     search: initialParams.get('search') ?? '',
     department_id: initialParams.get('department_id') ?? '',
@@ -186,7 +186,7 @@ export function OpdQueuePage() {
   const activeVisits = sortedVisits.filter(isActiveVisit);
   const currentVisit = sortedVisits.find((visit) => visit.status === 'IN_CONSULTATION') ?? null;
   const nextVisit = sortedVisits.find((visit) => visit.status !== 'IN_CONSULTATION' && isActiveVisit(visit)) ?? null;
-  
+
   const currentIndex = currentVisit ? sortedVisits.findIndex((v) => v.id === currentVisit.id) : -1;
   const nextIndex = nextVisit ? sortedVisits.findIndex((v) => v.id === nextVisit.id) : -1;
   const pendingAppointments = appointments.filter(
@@ -296,7 +296,7 @@ export function OpdQueuePage() {
             <p>Coordinate check-in, active visits and consultation readiness</p> */}
           </div>
           <div className="opd-page-actions">
-            <button className="doc-btn" onClick={loadQueue} type="button">
+            <button className="doc-btn" onClick={() => window.location.reload()} type="button">
               <i className="ph ph-arrow-clockwise" aria-hidden="true" />
               Refresh Queue
             </button>
@@ -695,7 +695,7 @@ export function OpdQueuePage() {
             </button>
           </div>
         </form>
-      </Modal> */}
+      </Modal>
 
       <Modal
         footer={
@@ -747,7 +747,7 @@ export function OpdQueuePage() {
               {vitalsErrors.pulse_bpm && <span className="form-error">{vitalsErrors.pulse_bpm.message}</span>}
             </div>
             <div className="form-group">
-              <label htmlFor="temp">Temperature (°C)</label>
+              <label htmlFor="temp">Temperature (Â°C)</label>
               <input
                 id="temp"
                 placeholder="36.8"
@@ -758,7 +758,7 @@ export function OpdQueuePage() {
               {vitalsErrors.temperature_c && <span className="form-error">{vitalsErrors.temperature_c.message}</span>}
             </div>
             <div className="form-group">
-              <label htmlFor="spo2">SpO₂ (%)</label>
+              <label htmlFor="spo2">SpOâ‚‚ (%)</label>
               <input
                 id="spo2"
                 placeholder="98"

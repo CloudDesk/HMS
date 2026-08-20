@@ -1,4 +1,4 @@
-import { Types, type PipelineStage } from 'mongoose';
+import { Types, type ClientSession, type PipelineStage } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   OpdPrescriptionModel,

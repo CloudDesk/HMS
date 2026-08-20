@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { type BillingInvoice } from '../api/billing';
 import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
@@ -60,7 +60,7 @@ const calculateAge = (dob: string) => {
 // removed toForm
 
 
-// ── EMR helper functions (mirrored from PatientEmrTimelinePage) ──────────────
+// â”€â”€ EMR helper functions (mirrored from PatientEmrTimelinePage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => {
   if (eventType === 'REGISTRATION') return 'ph ph-stethoscope';
@@ -91,7 +91,7 @@ function EmptyRecords({ message }: { message: string }) {
   return <div className="patient-empty-inline">{message}</div>;
 }
 
-// ── EMR Timeline Tab (inline, Option B) ─────────────────────────────────────
+// â”€â”€ EMR Timeline Tab (inline, Option B) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type EmrTabProps = {
   patientId: string;
@@ -144,7 +144,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
           <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset
         </button>
         <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '0.83rem', alignSelf: 'center' }}>
-          {loading ? 'Loading…' : `${meta.total} events`}
+          {loading ? 'Loadingâ€¦' : `${meta.total} events`}
         </span>
       </div>
 
@@ -154,7 +154,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
       ) : loadError ? (
         <div className="um-state-cell" role="alert">
           {loadError}
-          
+
         </div>
       ) : timeline.length === 0 ? (
         <EmptyRecords message="No EMR events recorded for this patient." />
@@ -182,7 +182,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
                       </div>
                     </div>
                     <span className={`doc-status ${statusBadge.class}`}>
-                      • {statusBadge.label}
+                      â€¢ {statusBadge.label}
                     </span>
                   </div>
                   <div className="emr-card-body-grid">
@@ -219,7 +219,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
       {meta.totalPages > 1 ? (
         <div className="um-pagination" style={{ marginTop: '1.5rem' }}>
           <span>
-            Showing {timeline.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+            Showing {timeline.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}â€“
             {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} events
           </span>
           <div className="um-page-controls">
@@ -298,7 +298,7 @@ const getFileIconClass = (fileName: string): string => {
   return 'ph ph-file-text';
 };
 
-// ── Main Patient Workspace ───────────────────────────────────────────────────
+// â”€â”€ Main Patient Workspace â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function PatientProfilePage() {
   const { search } = useAppLocation();
@@ -440,7 +440,7 @@ export function PatientProfilePage() {
     const dob = formatDate(p.date_of_birth);
     const registered = formatDate(p.created_at);
     const statusColor = p.status === 'ACTIVE' ? '#16a34a' : p.status === 'DECEASED' ? '#6b7280' : '#dc2626';
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>Patient Card — ${fullName}</title>
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>Patient Card â€” ${fullName}</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
@@ -481,7 +481,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 <div class="card-body">
 <div class="info-grid">
 <div class="info-item"><div class="label">Date of Birth</div><div class="value">${dob}</div></div>
-<div class="info-item"><div class="label">Age / Gender</div><div class="value">${age} yrs · ${p.gender.charAt(0)+p.gender.slice(1).toLowerCase()}</div></div>
+<div class="info-item"><div class="label">Age / Gender</div><div class="value">${age} yrs Â· ${p.gender.charAt(0)+p.gender.slice(1).toLowerCase()}</div></div>
 <div class="info-item"><div class="label">Phone</div><div class="value">${p.phone||'Not recorded'}</div></div>
 <div class="info-item"><div class="label">Status</div><div class="value"><span class="status-dot" style="background:${statusColor}"></span>${p.status}</div></div>
 <div class="info-item"><div class="label">Registered</div><div class="value">${registered}</div></div>
@@ -492,7 +492,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 </div>
 <div class="card-footer"><span class="footer-text">This card is non-transferable</span><span class="footer-text">Printed: ${new Date().toLocaleDateString()}</span></div>
 </div>
-<button class="print-btn no-print" onclick="window.print()">🖨️ Print Card</button>
+<button class="print-btn no-print" onclick="window.print()">ðŸ–¨ï¸ Print Card</button>
 </div><script>window.onload=()=>window.print();</script></body></html>`;
     const win = window.open('', '_blank', 'width=480,height=700,scrollbars=no,toolbar=no,menubar=no');
     if (win) { win.document.write(html); win.document.close(); }
@@ -570,32 +570,32 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <h2>{patientFullName(patient)}</h2>
                 <span className="profile-mrn-badge">MRN-{patient.patient_number}</span>
                 <span className={`doc-status ${patient.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
-                  • {patient.status}
+                  â€¢ {patient.status}
                 </span>
               </div>
               <div className="profile-hero-meta">
                 <span><i className="ph ph-user" /> {patient.gender}</span>
-                <span className="divider">•</span>
+                <span className="divider">â€¢</span>
                 <span><i className="ph ph-cake" /> {calculateAge(patient.date_of_birth)} ({formatDate(patient.date_of_birth)})</span>
-                <span className="divider">•</span>
+                <span className="divider">â€¢</span>
                 <span><i className="ph ph-phone" /> {patient.phone || 'Phone not recorded'}</span>
-                <span className="divider">•</span>
+                <span className="divider">â€¢</span>
                 <span><i className="ph ph-envelope" /> {patient.email || 'Email not recorded'}</span>
-                <span className="divider">•</span>
+                <span className="divider">â€¢</span>
                 <span><i className="ph ph-map-pin" /> {[patient.address.line1, patient.address.city, patient.address.country].filter(Boolean).join(', ') || 'Address not recorded'}</span>
-                <span className="divider">•</span>
+                <span className="divider">â€¢</span>
                 <span><i className="ph ph-drop" /> Blood: {patient.blood_group || 'Not recorded'}</span>
-                <span className="divider">•</span>
+                <span className="divider">â€¢</span>
                 <span><i className="ph ph-clock" /> Registered {formatDate(patient.created_at)}</span>
               </div>
             </div>
           </div>
 
           <div className="profile-hero-actions">
-            <button className="doc-btn" onClick={() => { reset({ firstName: patient.first_name, lastName: patient.last_name, dateOfBirth: patient.date_of_birth.slice(0, 10), phone: patient.phone ?? '', email: patient.email ?? '', status: patient.status, gender: patient.gender, bloodGroup: patient.blood_group ?? '', notes: patient.notes ?? '' }); setEditOpen(true); }} type="button">
+            <button className="doc-btn" onClick={() => { reset({ firstName: patient.first_name ?? '', lastName: patient.last_name, dateOfBirth: patient.date_of_birth.slice(0, 10), phone: patient.phone ?? '', email: patient.email ?? '', status: patient.status, gender: patient.gender, bloodGroup: patient.blood_group ?? '', notes: patient.notes ?? '' }); setEditOpen(true); }} type="button">
               <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
             </button>
-            {/* Register Visit — temporarily disabled */}
+            {/* Register Visit â€” temporarily disabled */}
             {/* <button className="doc-btn" onClick={() => navigate(`/opd/visit?patient_id=${encodeURIComponent(patient.id)}`)} type="button">
               <i className="ph ph-clipboard-text" aria-hidden="true" /> Register Visit
             </button> */}
@@ -626,7 +626,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
         {/* Tab Contents */}
         <section className="doc-card" style={{ marginTop: '1.25rem', overflow: 'hidden', padding: 0 }}>
-          {/* ── Overview ──────────────────────────────────────────────────── */}
+          {/* â”€â”€ Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Overview' ? (
             <div className="profile-6card-grid">
               {/* Card 1: Personal Information */}
@@ -674,7 +674,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                           <strong>{item.medicine_name}</strong>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.dosage} - {item.frequency} ({item.duration})</div>
                         </div>
-                        <span className={`doc-status ${pStatus === 'SUBMITTED' || pStatus === 'DRAFT' ? 'active' : pStatus === 'DISPENSED' ? 'success' : 'neutral'}`}>• {pStatus.charAt(0).toUpperCase() + pStatus.slice(1).toLowerCase()}</span>
+                        <span className={`doc-status ${pStatus === 'SUBMITTED' || pStatus === 'DRAFT' ? 'active' : pStatus === 'DISPENSED' ? 'success' : 'neutral'}`}>â€¢ {pStatus.charAt(0).toUpperCase() + pStatus.slice(1).toLowerCase()}</span>
                       </div>
                     ))}
                   </div>
@@ -690,7 +690,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                     {timeline.slice(0, 3).map((event) => (
                       <div key={event.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem' }}>
-                        <span>{formatDate(event.occurred_at)} • {event.title}</span>
+                        <span>{formatDate(event.occurred_at)} â€¢ {event.title}</span>
                         <strong style={{ color: '#2563eb' }}>Consultation</strong>
                       </div>
                     ))}
@@ -735,7 +735,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timeline || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={timelinePageInfo.page} setCurrentPage={(p: number) => setTimelineMeta({ page: p })} />
           ) : null}
 
-          {/* ── Medical History ──────────────────────────────────────────── */}
+          {/* â”€â”€ Medical History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Medical History' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -747,10 +747,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <label>To</label>
                   <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, to: e.target.value })); setTimelineMeta({ page: 1 }); }} />
                 </div>
-                <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta(prev => ({ ...prev, page: 1 })); }}>
+                <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta({ page: 1 }); }}>
                   Reset
                 </button>
-                {timelineLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
+                {loadingTimeline && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
               {timeline.length === 0 ? (
                 <EmptyRecords message="No medical history events recorded for this patient." />
@@ -794,7 +794,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* ── Visits ───────────────────────────────────────────────────── */}
+          {/* â”€â”€ Visits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Visits' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -806,10 +806,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <label>To</label>
                   <input type="date" value={visitsFilters.date_to} onChange={(e) => { setVisitsFilters((prev: typeof visitsFilters) => ({ ...prev, date_to: e.target.value })); setVisitsMeta({ page: 1 }); }} />
                 </div>
-                <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta(prev => ({ ...prev, page: 1 })); }}>
+                <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta({ page: 1 }); }}>
                   Reset
                 </button>
-                {visitsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
+                {loadingVisits && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
               {visitsData.length === 0 ? (
                 <EmptyRecords message="No OPD visit records found for this patient." />
@@ -855,7 +855,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* ── Appointments ─────────────────────────────────────────────── */}
+          {/* â”€â”€ Appointments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Appointments' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -876,10 +876,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                     ))}
                   </select>
                 </div>
-                <button className="doc-btn" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }}>
+                <button className="doc-btn" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta({ page: 1 }); }}>
                   Reset
                 </button>
-                {appointmentsLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
+                {loadingAppointments && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
               {appointments.length === 0 ? (
                 <EmptyRecords message="No appointments recorded for this patient." />
@@ -925,7 +925,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* ── Prescriptions ────────────────────────────────────────────── */}
+          {/* â”€â”€ Prescriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Prescriptions' ? (
             prescriptions.length === 0 ? (
               <EmptyRecords message="No prescription records found for this patient." />
@@ -960,7 +960,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* ── Lab Results ──────────────────────────────────────────────── */}
+          {/* â”€â”€ Lab Results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Lab Results' ? (
             labOrders.length === 0 ? (
               <EmptyRecords message="No laboratory test results found for this patient." />
@@ -991,7 +991,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* ── Imaging ──────────────────────────────────────────────────── */}
+          {/* â”€â”€ Imaging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Imaging' ? (
             imagingOrders.length === 0 ? (
               <EmptyRecords message="No radiology / imaging records found for this patient." />
@@ -1022,7 +1022,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* ── Documents ────────────────────────────────────────────────── */}
+          {/* â”€â”€ Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Documents' ? (
             <>
               <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
@@ -1055,7 +1055,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </>
           ) : null}
 
-          {/* ── Billing ──────────────────────────────────────────────────── */}
+          {/* â”€â”€ Billing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Billing' ? (
             billingInvoices.length === 0 ? (
               <EmptyRecords message="No billing statements or invoices found for this patient." />
@@ -1071,8 +1071,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                         <td><strong>{inv.invoice_number}</strong></td>
                         <td>{formatDate(inv.invoice_date || inv.created_at)}</td>
                         <td>{inv.items.map((i: { service_name: string }) => i.service_name).join(', ') || 'OPD Services'}</td>
-                        <td>₹{inv.total_amount.toLocaleString()}</td>
-                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>₹{inv.balance_amount.toLocaleString()}</strong></td>
+                        <td>â‚¹{inv.total_amount.toLocaleString()}</td>
+                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>â‚¹{inv.balance_amount.toLocaleString()}</strong></td>
                         <td><span className="doc-status active">{inv.status}</span></td>
                         <td style={{ textAlign: 'center' }}>
                           <button className="doc-btn small" onClick={() => setViewingInvoice(inv)} title="View Invoice" type="button">
@@ -1087,7 +1087,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* ── Consent ──────────────────────────────────────────────────── */}
+          {/* â”€â”€ Consent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {activeTab === 'Consent' ? (
             <>
               <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
@@ -1242,7 +1242,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   {([
                     ['Date of Birth', formatDate(patient.date_of_birth)],
-                    ['Age / Gender', `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} yrs · ${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()}`],
+                    ['Age / Gender', `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} yrs Â· ${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()}`],
                     ['Phone', patient.phone || 'Not recorded'],
                     ['Status', patient.status],
                     ['Registered', formatDate(patient.created_at)],
@@ -1400,12 +1400,3 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
     </>
   );
 }
-
-
-
-
-
-
-
-
-

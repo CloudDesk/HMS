@@ -1,16 +1,16 @@
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
+import { branchesApi, type BranchResponse } from '../api/branches';
 import {
+  patientsApi,
   type ApiPatientGender,
   type PatientResponse,
   type SavePatientPayload,
 } from '../api/patients';
+import { useAuth } from '../auth/useAuth';
 import { Toast } from '../components/ui/Toast';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, patientFullName } from './patient-utils';
-import { usePatientRegistrationFeature } from '../hooks/patients/usePatientRegistrationFeature';
 
 type PatientFormState = {
   firstName: string;
@@ -79,34 +79,11 @@ const nullable = (value: string) => {
   return trimmed ? trimmed : null;
 };
 
-const patientRegistrationSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  middleName: z.string().optional(),
-  lastName: z.string().min(1, 'Last name is required'),
-  dateOfBirth: z.string().min(1, 'Date of birth is required'),
-  gender: z.enum(['UNKNOWN', 'MALE', 'FEMALE', 'OTHER']),
-  phone: z.string().optional().refine(val => {
-    if (!val || !val.trim()) return true;
-    const cleaned = val.replace(/[\s\-()]/g, '');
-    return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
-  }, 'Please enter a valid African phone number (e.g. +233 24 123 4567)'),
-  email: z.string().email('Invalid email').or(z.literal('')),
-  registrationBranchId: z.string().optional(),
-  addressLine1: z.string().optional(),
-  addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  country: z.string().optional(),
-  postalCode: z.string().optional(),
-  emergencyName: z.string().optional(),
-  emergencyRelationship: z.string().optional(),
-  emergencyPhone: z.string().optional(),
-  bloodGroup: z.string().optional(),
-  notes: z.string().optional(),
-  consent: z.boolean().refine(val => val === true, { message: 'Patient consent is required before registration' })
-});
-
-type PatientFormState = z.infer<typeof patientRegistrationSchema>;
+const isValidAfricanPhone = (phone: string): boolean => {
+  if (!phone || !phone.trim()) return true;
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+  return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
+};
 
 const toPatientPayload = (form: PatientFormState): SavePatientPayload => ({
   first_name: nullable(form.firstName),
@@ -135,10 +112,6 @@ const toPatientPayload = (form: PatientFormState): SavePatientPayload => ({
   notes: nullable(form.notes),
 });
 
-type DuplicateDetails = {
-  duplicates?: PatientResponse[];
-};
-
 const hasDuplicateDetails = (details: unknown): details is DuplicateDetails =>
   typeof details === 'object' && details !== null && 'duplicates' in details;
 
@@ -146,6 +119,7 @@ const getDuplicatePatients = (error: unknown) => {
   if (!(error instanceof ApiError) || error.status !== 409 || !hasDuplicateDetails(error.details)) {
     return [];
   }
+
   return Array.isArray(error.details.duplicates) ? error.details.duplicates : [];
 };
 
@@ -172,38 +146,36 @@ function RegistrationSection({ children, description, number, title }: Registrat
 }
 
 export function PatientRegistrationPage() {
-  const form = useForm<PatientFormState>({
-    resolver: zodResolver(patientRegistrationSchema),
-    defaultValues: {
-      firstName: '',
-      lastName: '',
-      middleName: '',
-      dateOfBirth: '',
-      gender: 'UNKNOWN',
-      phone: '',
-      email: '',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      country: '',
-      postalCode: '',
-      emergencyName: '',
-      emergencyRelationship: '',
-      emergencyPhone: '',
-      bloodGroup: '',
-      notes: '',
-      consent: false,
-    }
-  });
+  const { user } = useAuth();
+  const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
+  const [, setBranches] = useState<BranchResponse[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState('');
+  const [duplicatePatients, setDuplicatePatients] = useState<PatientResponse[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
-  const {
-    state: { formError, duplicatePatients, toastMessage, toastVisible, toastTone },
-    actions: { setFormError, setDuplicatePatients, setToastMessage, setToastVisible, setToastTone },
-    mutations: { createPatient, submitting },
-  } = usePatientRegistrationFeature(form);
-
-  const { register, handleSubmit, formState: { errors } } = form;
+  useEffect(() => {
+    branchesApi
+      .list({ status: 'ACTIVE', limit: 100 })
+      .then((res) => {
+        setBranches(res.data);
+        const activeId = localStorage.getItem('activeBranchId');
+        const userBranchId = user?.branches?.[0]?.id;
+        const targetBranchId = activeId || userBranchId;
+        const matchedBranch = targetBranchId ? res.data.find((b) => b.id === targetBranchId) : undefined;
+        const defaultBranch = matchedBranch ? matchedBranch.id : (res.data[0]?.id || '');
+        if (defaultBranch) {
+          setForm((prev) => ({
+            ...prev,
+            registrationBranchId: defaultBranch,
+          }));
+        }
+      })
+      .catch(() => null);
+  }, [user]);
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -234,12 +206,23 @@ export function PatientRegistrationPage() {
     return errs;
   };
 
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const saveMode = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value;
+    const errors = validateForm();
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setFormError('Please fill in all required fields highlighted below.');
+      return;
+    }
+
+    setSubmitting(true);
     setFormError('');
     setDuplicatePatients([]);
 
     try {
-      const patient = await createPatient(toPatientPayload(data));
-      // Toast handles success in hook, but we need custom message here possibly or just rely on hook
+      const patient = await patientsApi.create(toPatientPayload(form));
       showToast(`Patient ${patient.patient_number} registered successfully.`);
       if (saveMode === 'continue') {
         navigate(`/patients/documents?id=${encodeURIComponent(patient.id)}`);
@@ -253,11 +236,9 @@ export function PatientRegistrationPage() {
         setFormError(getPatientErrorMessage(error));
       }
       showToast(getPatientErrorMessage(error), 'error');
+    } finally {
+      setSubmitting(false);
     }
-  };
-
-  const onInvalid = () => {
-    setFormError('Please fill in all required fields highlighted below.');
   };
 
   const firstDuplicate = duplicatePatients[0];
@@ -274,6 +255,7 @@ export function PatientRegistrationPage() {
     <>
       <div className="patient-content">
         <div className="patient-page-header">
+
           <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
             <i className="ph ph-arrow-left" aria-hidden="true" /> Back
           </button>
@@ -287,7 +269,7 @@ export function PatientRegistrationPage() {
                 <strong>{duplicatePatients.length > 0 ? 'Patient already exists' : 'Registration needs attention'}</strong>
                 <p>
                   {duplicatePatients.length > 0 && firstDuplicate
-                    ? `${patientFullName(firstDuplicate)} · ${firstDuplicate.patient_number} · ${firstDuplicate.phone || 'No phone'}`
+                    ? `${patientFullName(firstDuplicate)} Â· ${firstDuplicate.patient_number} Â· ${firstDuplicate.phone || 'No phone'}`
                     : formError}
                 </p>
               </div>
@@ -308,28 +290,32 @@ export function PatientRegistrationPage() {
             </div>
           )}
 
-          <form id="patient-registration-form" onSubmit={handleSubmit(onSubmit, onInvalid)}>
+          <form id="patient-registration-form" onSubmit={handleSubmit}>
             <RegistrationSection
               description="Identity, demographic and communication details"
               number={1}
               title="Personal Information"
             >
-              <div className={`doc-field ${errors.firstName ? 'has-error' : ''}`}>
+              <div className={`doc-field ${fieldErrors.firstName ? 'has-error' : ''}`}>
                 <label htmlFor="patient-first-name">
                   First Name
                 </label>
                 <input
                   disabled={submitting}
                   id="patient-first-name"
+                  onChange={(event) => {
+                    setForm({ ...form, firstName: event.target.value });
+                    if (fieldErrors.firstName) setFieldErrors({ ...fieldErrors, firstName: undefined });
+                  }}
                   type="text"
-                  {...register('firstName')}
+                  value={form.firstName}
                 />
-                {errors.firstName && (
+                {fieldErrors.firstName ? (
                   <span className="field-error-msg">
                     <i className="ph ph-warning-circle" aria-hidden="true" />
-                    {errors.firstName.message}
+                    {fieldErrors.firstName}
                   </span>
-                )}
+                ) : null}
               </div>
 
               <div className="doc-field">
@@ -337,27 +323,32 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-middle-name"
+                  onChange={(event) => setForm({ ...form, middleName: event.target.value })}
                   type="text"
-                  {...register('middleName')}
+                  value={form.middleName}
                 />
               </div>
 
-              <div className={`doc-field ${errors.lastName ? 'has-error' : ''}`}>
+              <div className={`doc-field ${fieldErrors.lastName ? 'has-error' : ''}`}>
                 <label htmlFor="patient-last-name">
                   Last Name <span className="required-asterisk">*</span>
                 </label>
                 <input
                   disabled={submitting}
                   id="patient-last-name"
+                  onChange={(event) => {
+                    setForm({ ...form, lastName: event.target.value });
+                    if (fieldErrors.lastName) setFieldErrors({ ...fieldErrors, lastName: undefined });
+                  }}
                   type="text"
-                  {...register('lastName')}
+                  value={form.lastName}
                 />
-                {errors.lastName && (
+                {fieldErrors.lastName ? (
                   <span className="field-error-msg">
                     <i className="ph ph-warning-circle" aria-hidden="true" />
-                    {errors.lastName.message}
+                    {fieldErrors.lastName}
                   </span>
-                )}
+                ) : null}
               </div>
 
               <div className="doc-field">
@@ -367,7 +358,8 @@ export function PatientRegistrationPage() {
                 <select
                   disabled={submitting}
                   id="patient-gender"
-                  {...register('gender')}
+                  onChange={(event) => setForm({ ...form, gender: event.target.value as ApiPatientGender })}
+                  value={form.gender}
                 >
                   <option value="UNKNOWN">Unknown</option>
                   <option value="MALE">Male</option>
@@ -376,24 +368,28 @@ export function PatientRegistrationPage() {
                 </select>
               </div>
 
-              <div className={`doc-field ${errors.dateOfBirth ? 'has-error' : ''}`}>
+              <div className={`doc-field ${fieldErrors.dateOfBirth ? 'has-error' : ''}`}>
                 <label htmlFor="patient-dob">
                   Date of Birth <span className="required-asterisk">*</span>
                 </label>
                 <input
                   disabled={submitting}
                   id="patient-dob"
+                  onChange={(event) => {
+                    setForm({ ...form, dateOfBirth: event.target.value });
+                    if (fieldErrors.dateOfBirth) setFieldErrors({ ...fieldErrors, dateOfBirth: undefined });
+                  }}
                   type="date"
-                  {...register('dateOfBirth')}
+                  value={form.dateOfBirth}
                 />
-                {errors.dateOfBirth && (
+                {fieldErrors.dateOfBirth ? (
                   <span className="field-error-msg">
                     <i className="ph ph-warning-circle" aria-hidden="true" />
-                    {errors.dateOfBirth.message}
+                    {fieldErrors.dateOfBirth}
                   </span>
-                )}
+                ) : null}
               </div>
-              
+
               <div className={`doc-field ${fieldErrors.parentGuardian ? 'has-error' : ''}`}>
                 <label htmlFor="patient-parent-guardian">
                   Parent/Guardian Name
@@ -417,38 +413,39 @@ export function PatientRegistrationPage() {
                 ) : null}
               </div>
 
-              <div className={`doc-field ${errors.phone ? 'has-error' : ''}`}>
+              <div className={`doc-field ${fieldErrors.phone ? 'has-error' : ''}`}>
                 <label htmlFor="patient-phone">Phone</label>
                 <input
                   disabled={submitting}
                   id="patient-phone"
+                  onChange={(event) => {
+                    setForm({ ...form, phone: event.target.value });
+                    if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: undefined });
+                  }}
                   placeholder="e.g. +233 24 123 4567"
                   type="tel"
-                  {...register('phone')}
+                  value={form.phone}
                 />
-                {errors.phone && (
+                {fieldErrors.phone ? (
                   <span className="field-error-msg">
                     <i className="ph ph-warning-circle" aria-hidden="true" />
-                    {errors.phone.message}
+                    {fieldErrors.phone}
                   </span>
-                )}
+                ) : null}
               </div>
 
-              <div className={`doc-field ${errors.email ? 'has-error' : ''}`}>
+              <div className="doc-field">
                 <label htmlFor="patient-email">Email</label>
                 <input
                   disabled={submitting}
                   id="patient-email"
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
                   type="email"
-                  {...register('email')}
+                  value={form.email}
                 />
-                {errors.email && (
-                  <span className="field-error-msg">
-                    <i className="ph ph-warning-circle" aria-hidden="true" />
-                    {errors.email.message}
-                  </span>
-                )}
               </div>
+
+
             </RegistrationSection>
 
             <RegistrationSection description="Residential and postal address" number={2} title="Contact Information">
@@ -457,8 +454,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-address-line1"
+                  onChange={(event) => setForm({ ...form, addressLine1: event.target.value })}
                   type="text"
-                  {...register('addressLine1')}
+                  value={form.addressLine1}
                 />
               </div>
               <div className="doc-field">
@@ -466,8 +464,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-address-line2"
+                  onChange={(event) => setForm({ ...form, addressLine2: event.target.value })}
                   type="text"
-                  {...register('addressLine2')}
+                  value={form.addressLine2}
                 />
               </div>
               <div className="doc-field">
@@ -475,8 +474,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-city"
+                  onChange={(event) => setForm({ ...form, city: event.target.value })}
                   type="text"
-                  {...register('city')}
+                  value={form.city}
                 />
               </div>
               <div className="doc-field">
@@ -484,8 +484,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-state"
+                  onChange={(event) => setForm({ ...form, state: event.target.value })}
                   type="text"
-                  {...register('state')}
+                  value={form.state}
                 />
               </div>
               <div className="doc-field">
@@ -493,8 +494,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-country"
+                  onChange={(event) => setForm({ ...form, country: event.target.value })}
                   type="text"
-                  {...register('country')}
+                  value={form.country}
                 />
               </div>
               <div className="doc-field">
@@ -502,8 +504,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-postal-code"
+                  onChange={(event) => setForm({ ...form, postalCode: event.target.value })}
                   type="text"
-                  {...register('postalCode')}
+                  value={form.postalCode}
                 />
               </div>
             </RegistrationSection>
@@ -518,8 +521,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="emergency-name"
+                  onChange={(event) => setForm({ ...form, emergencyName: event.target.value })}
                   type="text"
-                  {...register('emergencyName')}
+                  value={form.emergencyName}
                 />
               </div>
               <div className="doc-field">
@@ -527,8 +531,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="emergency-relationship"
+                  onChange={(event) => setForm({ ...form, emergencyRelationship: event.target.value })}
                   type="text"
-                  {...register('emergencyRelationship')}
+                  value={form.emergencyRelationship}
                 />
               </div>
               <div className="doc-field">
@@ -536,8 +541,9 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="emergency-phone"
+                  onChange={(event) => setForm({ ...form, emergencyPhone: event.target.value })}
                   type="tel"
-                  {...register('emergencyPhone')}
+                  value={form.emergencyPhone}
                 />
               </div>
             </RegistrationSection>
@@ -552,9 +558,10 @@ export function PatientRegistrationPage() {
                 <input
                   disabled={submitting}
                   id="patient-blood-group"
+                  onChange={(event) => setForm({ ...form, bloodGroup: event.target.value })}
                   placeholder="Example: O+"
                   type="text"
-                  {...register('bloodGroup')}
+                  value={form.bloodGroup}
                 />
               </div>
               <div className="doc-field full">
@@ -562,16 +569,21 @@ export function PatientRegistrationPage() {
                 <textarea
                   disabled={submitting}
                   id="patient-notes"
+                  onChange={(event) => setForm({ ...form, notes: event.target.value })}
                   rows={4}
-                  {...register('notes')}
+                  value={form.notes}
                 />
               </div>
               <div className="doc-field full">
                 <label className="patient-consent-check full">
                   <input
+                    checked={form.consent}
                     disabled={submitting}
+                    onChange={(event) => {
+                      setForm({ ...form, consent: event.target.checked });
+                      if (fieldErrors.consent) setFieldErrors({ ...fieldErrors, consent: undefined });
+                    }}
                     type="checkbox"
-                    {...register('consent')}
                   />
                   <span>
                     <strong>
@@ -580,12 +592,12 @@ export function PatientRegistrationPage() {
                     <small>The patient has consented to registration, care coordination and processing of health information.</small>
                   </span>
                 </label>
-                {errors.consent && (
+                {fieldErrors.consent ? (
                   <span className="field-error-msg" style={{ marginTop: '0.2rem' }}>
                     <i className="ph ph-warning-circle" aria-hidden="true" />
-                    {errors.consent.message}
+                    {fieldErrors.consent}
                   </span>
-                )}
+                ) : null}
               </div>
             </RegistrationSection>
 

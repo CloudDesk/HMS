@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
   type DoctorScheduleAppointment as AppointmentResponse,
   type DoctorScheduleAppointmentStatus as ApiAppointmentStatus,
@@ -139,7 +139,7 @@ const scheduleEventClass = (appointment: AppointmentResponse) => {
   return '';
 };
 
-const getRelativeDateLabel = (dateStr: string, view: ViewMode) => {
+const getRelativeDateLabel = (dateStr: string, view: DoctorScheduleViewMode) => {
   if (view === 'month') {
     return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(parseScheduleDate(dateStr));
   }
@@ -150,12 +150,12 @@ const getRelativeDateLabel = (dateStr: string, view: ViewMode) => {
     const endStr = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(end);
     return `${startStr} - ${endStr}`;
   }
-  
+
   const selected = parseScheduleDate(dateStr);
   const today = parseScheduleDate(todayInputValue());
   const diffTime = selected.getTime() - today.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays === 0) return 'Today';
   if (diffDays === -1) return 'Yesterday';
   if (diffDays === 1) return 'Tomorrow';

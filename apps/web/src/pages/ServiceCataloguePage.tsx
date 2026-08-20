@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,7 +18,7 @@ import { useServiceCatalogueFeature, type SortColumn, type SortDirection } from 
 
 import { useCurrencyFormatter } from '../api/useSettings';
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ModalMode = 'create' | 'edit' | 'view';
 
@@ -46,7 +46,7 @@ const serviceTypeLabels: Record<ApiServiceType, string> = {
 };
 
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
@@ -62,13 +62,13 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const formatDate = (value: string | null): string => {
-  if (!value) return '—';
+  if (!value) return 'â€”';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return 'â€”';
   return new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
 };
 
-// ─── Sub-components ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SortableHeader({
   column,
@@ -174,7 +174,7 @@ function ServicesByDepartment({
   );
 }
 
-// ─── Main Page Component ────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function ServiceCataloguePage() {
   const formatPrice = useCurrencyFormatter();
@@ -219,16 +219,15 @@ export function ServiceCataloguePage() {
   };
 
   const formDepartmentOptions = useMemo(
-    () => (watchedBranchId ? departments.filter((department) => department.branch_id === watchedBranchId) : departments),
+    () => (watchedBranchId ? departments.filter((department) => department.branch_ids.includes(watchedBranchId)) : departments),
     [departments, watchedBranchId],
   );
 
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
   const getBranchForDept = (deptId: string) => {
     const dept = departments.find((d) => d.id === deptId);
-    if (!dept) return '—';
-    const branch = branches.find((b) => b.id === dept.branch_id);
-    return branch?.name ?? dept.branch_id;
+    if (!dept) return 'â€”';
+    const branchNames = dept.branch_ids.map(id => branches.find(b => b.id === id)?.name).filter(Boolean); return branchNames.length ? branchNames.join(', ') : '-';
   };
 
   const openModal = (mode: ModalMode, svc: ServiceResponse | null = null) => {
@@ -241,7 +240,7 @@ export function ServiceCataloguePage() {
         code: svc.code,
         name: svc.name,
         service_type: svc.service_type,
-        branch_id: dept?.branch_id || '',
+        branch_id: dept?.branch_ids?.[0] || '',
         department_id: svc.department_id,
         category: svc.category || '',
         description: svc.description || '',
@@ -340,7 +339,7 @@ export function ServiceCataloguePage() {
   const showingLabel =
     loadError || services.length === 0
       ? 'No services found'
-      : `Showing ${(safePage - 1) * pageSize + 1}–${(safePage - 1) * pageSize + services.length} of ${meta.total} services`;
+      : `Showing ${(safePage - 1) * pageSize + 1}â€“${(safePage - 1) * pageSize + services.length} of ${meta.total} services`;
 
   const modalTitle =
     modalMode === 'create'
@@ -354,7 +353,7 @@ export function ServiceCataloguePage() {
   return (
     <>
       <div className="um-grid">
-        {/* ── KPI Cards ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ KPI Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="um-kpi-row" aria-label="Service KPIs">
           <div className="kpi-card">
             <div className="kpi-icon blue">
@@ -362,7 +361,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Total Services</span>
-              <span className="kpi-value">{loading ? '—' : summary.total}</span>
+              <span className="kpi-value">{loading ? 'â€”' : summary.total}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -371,7 +370,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Active</span>
-              <span className="kpi-value">{loading ? '—' : summary.active}</span>
+              <span className="kpi-value">{loading ? 'â€”' : summary.active}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -380,7 +379,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Inactive</span>
-              <span className="kpi-value">{loading ? '—' : summary.inactive}</span>
+              <span className="kpi-value">{loading ? 'â€”' : summary.inactive}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -389,7 +388,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Departments Covered</span>
-              <span className="kpi-value">{loading ? '—' : summary.departmentsCovered}</span>
+              <span className="kpi-value">{loading ? 'â€”' : summary.departmentsCovered}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -398,12 +397,12 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Added This Month</span>
-              <span className="kpi-value">{loading ? '—' : summary.addedThisMonth}</span>
+              <span className="kpi-value">{loading ? 'â€”' : summary.addedThisMonth}</span>
             </div>
           </div>
         </div>
 
-        {/* ── Body ───────────────────────────────────────────────────────── */}
+        {/* â”€â”€ Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="um-body">
           {/* Table section */}
           <div className="um-table-section card">
@@ -636,7 +635,7 @@ export function ServiceCataloguePage() {
             </div>
           </div>
 
-          {/* ── Right Analytics Panel ────────────────────────────────────── */}
+          {/* â”€â”€ Right Analytics Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="um-right-panel">
             <div className="card um-chart-card">
               <div className="card-header">
@@ -664,7 +663,7 @@ export function ServiceCataloguePage() {
         </div>
       </div>
 
-      {/* ── Create / Edit Modal ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Create / Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <Modal
         footer={
           modalMode === 'view' ? (
@@ -833,7 +832,7 @@ export function ServiceCataloguePage() {
         ) : null}
       </Modal>
 
-      {/* ── Delete Confirm ──────────────────────────────────────────────────── */}
+      {/* â”€â”€ Delete Confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <ConfirmDialog
         confirmLabel={submitting ? 'Deleting...' : 'Delete Service'}
         message={

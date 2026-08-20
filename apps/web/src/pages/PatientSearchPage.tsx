@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -100,7 +100,7 @@ export function PatientSearchPage() {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Patient Card â€” ${fullName}</title>
+  <title>Patient Card Ã¢â‚¬â€ ${fullName}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -139,7 +139,7 @@ export function PatientSearchPage() {
     </div>
     <div class="body-grid">
       <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-value">${dob}</span></div>
-      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs Â· ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
+      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs Ã‚Â· ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
       <div class="info-item"><span class="info-label">Phone</span><span class="info-value">${p.phone || 'Not recorded'}</span></div>
       <div class="info-item"><span class="info-label">Status</span><span class="info-value status-val">${p.status}</span></div>
       <div class="info-item"><span class="info-label">Registered</span><span class="info-value">${registered}</span></div>
@@ -166,15 +166,12 @@ export function PatientSearchPage() {
 
   const openEditModal = (patient: PatientResponse) => {
     reset({
-  firstName: patient.first_name ?? '',
-  lastName: patient.last_name ?? '',
-  dateOfBirth: patient.date_of_birth?.slice(0, 10) ?? '',
-  gender: patient.gender,
-  phone: patient.phone ?? '',
-  email: patient.email ?? '',
-  status: patient.status,
-  notes: patient.notes ?? '',
-});
+      phone: patient.phone ?? '',
+      email: patient.email ?? '',
+      status: patient.status,
+      notes: patient.notes ?? '',
+    });
+    setEditingPatient(patient);
     setActiveMenuId(null);
   };
 
@@ -522,7 +519,7 @@ export function PatientSearchPage() {
                               patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
                             }`}
                           >
-                            â€¢ {patient.status}
+                            Ã¢â‚¬Â¢ {patient.status}
                           </span>
                         </td>
                       ) : null}
@@ -619,7 +616,7 @@ export function PatientSearchPage() {
                   <label htmlFor="search-edit-first">
                     First name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
                   </label>
-                  <input disabled id="search-edit-first" readOnly value={editingPatient.first_name} />
+                  <input disabled id="search-edit-first" readOnly value={editingPatient.first_name ?? ''} />
                 </div>
                 <div className="form-group locked">
                   <label htmlFor="search-edit-last">
@@ -701,7 +698,7 @@ export function PatientSearchPage() {
         ) : null}
       </Modal>
 
-      {/* Print Patient Card â€” preview modal */}
+      {/* Print Patient Card Ã¢â‚¬â€ preview modal */}
       {cardPatient ? (
         <Modal onClose={() => setCardPatient(null)} open={Boolean(cardPatient)} size="default" title="Patient ID Card">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
@@ -731,7 +728,7 @@ export function PatientSearchPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   {([
                     ['Date of Birth', formatDate(cardPatient.date_of_birth)],
-                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs Â· ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
+                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs Ã‚Â· ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
                     ['Phone', cardPatient.phone || 'Not recorded'],
                     ['Status', cardPatient.status],
                     ['Registered', formatDate(cardPatient.created_at)],

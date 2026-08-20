@@ -1,4 +1,4 @@
-import { zodResolver } from '@hookform/resolvers/zod';
+﻿import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -281,13 +281,7 @@ export function DoctorDirectoryPage() {
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<DoctorResponse | null>(null);
-  const [form, setForm] = useState<DoctorFormState>(emptyForm());
-  const [formError, setFormError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-  const [showPassword, setShowPassword] = useState(false);
+
 
   const directoryFilters = useMemo(
     () => ({
@@ -330,7 +324,7 @@ export function DoctorDirectoryPage() {
     () =>
       directory.departments.filter(
         (department) =>
-          (!form.branchId || department.branch_id === form.branchId) &&
+          (!form.branchId || department.branch_ids.includes(form.branchId)) &&
           department.isClinical,
       ),
     [directory.departments, form.branchId],
@@ -339,7 +333,7 @@ export function DoctorDirectoryPage() {
     () =>
       directory.departments.filter(
         (department) =>
-          (!branchFilter || department.branch_id === branchFilter) &&
+          (!branchFilter || department.branch_ids.includes(branchFilter)) &&
           department.isClinical,
       ),
     [branchFilter, directory.departments],
@@ -804,28 +798,20 @@ export function DoctorDirectoryPage() {
                   </div>
                   {form.createLoginAccount ? (
                     <div className="form-grid doctor-account-fields">
-                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" onChange={(event) => setForm({ ...form, employeeCode: event.target.value })} required value={form.employeeCode} /></div>
-                      <div className="form-group"><label htmlFor="doctor-username">Username <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-username" onChange={(event) => setForm({ ...form, username: event.target.value })} required value={form.username} /></div>
-                      <div className="form-group"><label htmlFor="doctor-login-email">Login email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" onChange={(event) => setForm({ ...form, loginEmail: event.target.value })} required type="email" value={form.loginEmail} /></div>
-                      
+                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" {...register('employeeCode')} required /><br />{errors.employeeCode ? <small className="field-error">{errors.employeeCode.message}</small> : null}</div>
+                      <div className="form-group"><label htmlFor="doctor-username">Username <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-username" {...register('username')} required /></div>
+                      <div className="form-group"><label htmlFor="doctor-login-email">Login email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" {...register('loginEmail')} required type="email" /></div>
+
                       <div className="form-group">
                         <label htmlFor="doctor-temporary-password">password <span className="required-asterisk">*</span></label>
-                        <div style={{ position: 'relative' }}>
-                          <input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" onChange={(event) => setForm({ ...form, temporaryPassword: event.target.value })} required type={showPassword ? 'text' : 'password'} value={form.temporaryPassword} style={{ width: '100%', paddingRight: '2rem' }} />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                            <i className={showPassword ? "ph ph-eye-slash" : "ph ph-eye"} aria-hidden="true" />
-                          </button>
-                        </div>
+                        <input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" {...register('temporaryPassword')} required type="password" style={{ width: '100%' }} />
+                        {errors.temporaryPassword ? <small className="field-error">{errors.temporaryPassword.message}</small> : null}
                       </div>
 
                       <div className="form-group">
                         <label htmlFor="doctor-confirm-password">Confirm password <span className="required-asterisk">*</span></label>
-                        <div style={{ position: 'relative' }}>
-                          <input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" onChange={(event) => setForm({ ...form, confirmTemporaryPassword: event.target.value })} required type={showPassword ? 'text' : 'password'} value={form.confirmTemporaryPassword} style={{ width: '100%', paddingRight: '2rem' }} />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                            <i className={showPassword ? "ph ph-eye-slash" : "ph ph-eye"} aria-hidden="true" />
-                          </button>
-                        </div>
+                        <input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" {...register('confirmTemporaryPassword')} required type="password" style={{ width: '100%' }} />
+                        {errors.confirmTemporaryPassword ? <small className="field-error">{errors.confirmTemporaryPassword.message}</small> : null}
                       </div>
                       <div className="doctor-account-role"><span>Assigned role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
                     </div>

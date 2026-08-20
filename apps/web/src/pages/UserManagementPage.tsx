@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -1019,7 +1019,7 @@ export function UserManagementPage() {
                 <select  {...userForm.register('departmentId')}>
                   <option value="">Select department</option>
                   {departmentOptions
-                    .filter((department) => !userForm.watch('branchId') || department.branch_id === userForm.watch('branchId'))
+                    .filter((department) => !userForm.watch('branchId') || department.branch_ids.includes( userForm.watch('branchId')))
                     .map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                 </select>
                 {userForm.formState.errors.departmentId ? <small className="field-error">{userForm.formState.errors.departmentId.message}</small> : null}

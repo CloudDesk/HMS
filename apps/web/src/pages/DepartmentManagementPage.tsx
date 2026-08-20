@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -20,7 +20,7 @@ type ModalMode = 'create' | 'edit' | 'view';
 const departmentSchema = z.object({
   code: z.string().min(1, 'Department code is required.'),
   name: z.string().min(1, 'Department name is required.'),
-  branch_id: z.string().min(1, 'Branch is required.'),
+  branch_ids: z.array(z.string()).min(1, 'At least one branch is required.'),
   description: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
   isClinical: z.boolean(),
@@ -51,7 +51,7 @@ const formatDateTime = (value: string | null) => {
   }).format(date);
 };
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SortableHeader({
   column,
@@ -288,7 +288,7 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
   );
 }
 
-// ─── Main Page Component ───────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function DepartmentManagementPage() {
   const feature = useDepartmentManagementFeature();
@@ -312,7 +312,7 @@ export function DepartmentManagementPage() {
   const deptForm = useForm<DepartmentFormData>({
     resolver: zodResolver(departmentSchema),
     defaultValues: {
-      code: '', name: '', branch_id: '', description: '', status: 'ACTIVE', isClinical: false
+      code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false
     }
   });
 
@@ -343,7 +343,7 @@ export function DepartmentManagementPage() {
       });
     } else {
       deptForm.reset({
-        code: '', name: '', branch_id: '', description: '', status: 'ACTIVE', isClinical: false
+        code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false
       });
     }
   };
@@ -368,7 +368,7 @@ export function DepartmentManagementPage() {
       const payload = {
         code: values.code.trim(),
         name: values.name.trim(),
-        branch_id: values.branch_id,
+        branch_ids: values.branch_ids,
         description: values.description?.trim() || null,
         status: values.status,
         isClinical: values.isClinical,
@@ -432,7 +432,7 @@ export function DepartmentManagementPage() {
   const showingLabel =
     loadError || departments.length === 0
       ? 'No departments found'
-      : `Showing ${(safePage - 1) * pageSize + 1}–${(safePage - 1) * pageSize + departments.length} of ${meta.total} departments`;
+      : `Showing ${(safePage - 1) * pageSize + 1}â€“${(safePage - 1) * pageSize + departments.length} of ${meta.total} departments`;
 
   const modalTitle =
     modalMode === 'create'
@@ -446,7 +446,7 @@ export function DepartmentManagementPage() {
   return (
     <>
       <div className="um-grid">
-        {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
+        {/* â”€â”€ KPI Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="um-kpi-row" aria-label="Department KPIs">
           <div className="kpi-card">
             <div className="kpi-icon blue">
@@ -495,7 +495,7 @@ export function DepartmentManagementPage() {
           </div>
         </div>
 
-        {/* ── Body (Table + Right Panel) ────────────────────────────────────── */}
+        {/* â”€â”€ Body (Table + Right Panel) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="um-body">
           {/* Table Section */}
           <div className="um-table-section card">
@@ -645,11 +645,11 @@ export function DepartmentManagementPage() {
                         <td>
                           {dept.isClinical ? (
                             <span className="status-badge status-active">
-                              <span style={{ marginRight: '4px' }}>🟢</span> Clinical
+                              <span style={{ marginRight: '4px' }}>ðŸŸ¢</span> Clinical
                             </span>
                           ) : (
                             <span className="status-badge" style={{ background: '#f3f4f6', color: '#374151' }}>
-                              <span style={{ marginRight: '4px' }}>⚪</span> Non Clinical
+                              <span style={{ marginRight: '4px' }}>âšª</span> Non Clinical
                             </span>
                           )}
                         </td>
@@ -735,7 +735,7 @@ export function DepartmentManagementPage() {
             </div>
           </div>
 
-          {/* ── Right Analytics Panel ─────────────────────────────────────── */}
+          {/* â”€â”€ Right Analytics Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="um-right-panel">
             {/* Status Donut */}
             <div className="card um-chart-card">
@@ -765,7 +765,7 @@ export function DepartmentManagementPage() {
         </div>
       </div>
 
-      {/* ── Modal ─────────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <Modal
         footer={
           modalMode === 'view' ? (
@@ -928,7 +928,7 @@ export function DepartmentManagementPage() {
         ) : null}
       </Modal>
 
-      {/* ── Delete Confirm ────────────────────────────────────────────────── */}
+      {/* â”€â”€ Delete Confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <ConfirmDialog
         confirmLabel={submitting ? 'Deleting...' : 'Delete Department'}
         message={

@@ -1,18 +1,17 @@
-import { zodResolver } from '@hookform/resolvers/zod';
+﻿import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useAuth } from '../auth/useAuth';
 import { useAdmissionsConfiguration } from '../hooks/useAdmissionsConfiguration';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import type { BedStatus, WardStatus } from '../api/admissions-configuration';
+import type { Bed, BedStatus, WardStatus } from '../api/admissions-configuration';
 import { branchesApi } from '../api/branches';
 
 const wardSchema = z.object({ name: z.string().trim().min(1, 'Ward name is required').max(100), ward_type: z.string().trim().min(1, 'Ward type is required').max(100), floor: z.string().trim().min(1, 'Floor is required').max(50), description: z.string().trim().max(500) });
-const bedSchema = z.object({ ward_id: z.string().min(1, 'Ward is required'), bed_number: z.string().trim().min(1, 'Bed number is required').max(50), bed_category: z.string().trim().min(1, 'Bed category is required').max(100), room_number: z.string().trim().max(50) });
 type ActionTarget = { kind: 'ward' | 'bed'; id: string; label: string; status: string } | null;
 
 const statusTone = (status: string) => status === 'AVAILABLE' || status === 'ACTIVE' ? 'green' as const : status === 'OCCUPIED' ? 'red' as const : status === 'RESERVED' ? 'orange' as const : status === 'UNDER_MAINTENANCE' || status === 'INACTIVE' ? 'gray' as const : 'purple' as const;
@@ -32,20 +31,20 @@ export function BedManagementPage() {
   const branches = isSuperAdmin ? (allBranchesQuery.data?.data ?? []) : assignedBranches;
   const [branchId, setBranchId] = useState('');
   useEffect(() => { if (!branchId && branches[0]?.id) setBranchId(branches[0].id); }, [branchId, branches]);
-  
+
   const [search, setSearch] = useState('');
   const [bedStatus, setBedStatus] = useState<BedStatus | ''>('');
   const [tab, setTab] = useState<'overview' | 'allocation'>('overview');
   const [actionTarget, setActionTarget] = useState<ActionTarget>(null);
-  
-  const [selectedBed, setSelectedBed] = useState<any>(null);
+
+  const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
 
   const config = useAdmissionsConfiguration(branchId, search, bedStatus || undefined);
   const wardForm = useForm<z.infer<typeof wardSchema>>({ resolver: zodResolver(wardSchema), defaultValues: { name: '', ward_type: '', floor: '', description: '' } });
-  const bedForm = useForm<z.infer<typeof bedSchema>>({ resolver: zodResolver(bedSchema), defaultValues: { ward_id: '', bed_number: '', bed_category: '', room_number: '' } });
+  // const bedForm...
 
   const createWard = async (values: z.infer<typeof wardSchema>) => { try { await config.createWard.mutateAsync({ branch_id: branchId, ...values, description: values.description || null }); wardForm.reset(); toast.success('Ward created successfully.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create ward.'); } };
-  const createBed = async (values: z.infer<typeof bedSchema>) => { try { await config.createBed.mutateAsync({ branch_id: branchId, ...values, room_number: values.room_number || null }); bedForm.reset({ ward_id: values.ward_id, bed_number: '', bed_category: '', room_number: '' }); toast.success('Bed created successfully.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create bed.'); } };
+  // const createBed = async (values: z.infer<typeof bedSchema>) => { try { await config.createBed.mutateAsync({ branch_id: branchId, ...values, room_number: values.room_number || null }); bedForm.reset({ ward_id: values.ward_id, bed_number: '', bed_category: '', room_number: '' }); toast.success('Bed created successfully.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create bed.'); } };
   const confirmStatus = async () => { if (!actionTarget) return; try { if (actionTarget.kind === 'ward') { const next: WardStatus = actionTarget.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'; await config.wardStatus.mutateAsync({ id: actionTarget.id, body: { branch_id: branchId, status: next } }); toast.success(`${actionTarget.label} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`); } else { const next: BedStatus = actionTarget.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE'; await config.bedStatus.mutateAsync({ id: actionTarget.id, body: { branch_id: branchId, status: next } }); toast.success(`${actionTarget.label} ${next === 'AVAILABLE' ? 'activated' : 'deactivated'}.`); } setActionTarget(null); } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to change status.'); } };
 
   const summary = config.summaryQuery.data ?? { total: 0, available: 0, occupied: 0, reserved: 0, blocked: 0, under_maintenance: 0, inactive: 0 };
@@ -63,21 +62,21 @@ export function BedManagementPage() {
         <select aria-label="Branch" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
           {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
         </select>
-        <button className="btn-secondary compact">🖨 Print Bed List</button>
+        <button className="btn-secondary compact">ðŸ–¨ Print Bed List</button>
         <button className="btn-primary compact">+ Select Patient</button>
       </div>
     </div>
-    
+
     {!branchId && isSuperAdmin && allBranchesQuery.isLoading && <div className="admin-dashboard-state"><strong>Loading authorized branches</strong><span>Fetching active branches available to the administrator.</span></div>}
     {!branchId && isSuperAdmin && allBranchesQuery.isError && <div className="admin-dashboard-state admin-dashboard-state--error"><strong>Unable to load branches</strong><span>Refresh the page or verify Administration branch permissions.</span></div>}
     {!branchId && isSuperAdmin && allBranchesQuery.isSuccess && branches.length === 0 && <div className="admin-dashboard-state admin-dashboard-state--error"><strong>No active branches</strong><span>Create or activate a branch before managing wards and beds.</span></div>}
     {!branchId && !isSuperAdmin && <div className="admin-dashboard-state admin-dashboard-state--error"><strong>No authorized branch</strong><span>Assign this user to a branch before managing wards and beds.</span></div>}
-    
+
     {branchId && <>
       <section className="kpi-grid enhanced">
         <div className="kpi-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#eff6ff', color: '#2563eb' }}>🛏</div>
+            <div className="kpi-icon" style={{ backgroundColor: '#eff6ff', color: '#2563eb' }}>ðŸ›</div>
             <span className="kpi-title">Total Beds</span>
           </div>
           <strong className="kpi-value">{summary.total}</strong>
@@ -85,7 +84,7 @@ export function BedManagementPage() {
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
           <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#d1fae5', color: '#059669' }}>✓</div>
+            <div className="kpi-icon" style={{ backgroundColor: '#d1fae5', color: '#059669' }}>âœ“</div>
             <span className="kpi-title">Available Beds</span>
           </div>
           <strong className="kpi-value">{summary.available}</strong>
@@ -93,7 +92,7 @@ export function BedManagementPage() {
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #ef4444' }}>
           <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#fee2e2', color: '#dc2626' }}>👤</div>
+            <div className="kpi-icon" style={{ backgroundColor: '#fee2e2', color: '#dc2626' }}>ðŸ‘¤</div>
             <span className="kpi-title">Occupied Beds</span>
           </div>
           <strong className="kpi-value">{summary.occupied}</strong>
@@ -101,7 +100,7 @@ export function BedManagementPage() {
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#fef3c7', color: '#d97706' }}>🔖</div>
+            <div className="kpi-icon" style={{ backgroundColor: '#fef3c7', color: '#d97706' }}>ðŸ”–</div>
             <span className="kpi-title">Reserved Beds</span>
           </div>
           <strong className="kpi-value">{summary.reserved}</strong>
@@ -139,7 +138,7 @@ export function BedManagementPage() {
                 <h3 style={{ margin: 0, fontSize: '1rem' }}>Ward Overview</h3>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Live visual bed state</span>
               </div>
-              
+
               {busy ? (
                 <p className="empty-state">Loading bed states...</p>
               ) : beds.length === 0 ? (
@@ -150,15 +149,15 @@ export function BedManagementPage() {
                     const isOccupied = bed.status === 'OCCUPIED';
                     const isSelected = selectedBed?.id === bed.id;
                     return (
-                      <div 
-                        key={bed.id} 
+                      <div
+                        key={bed.id}
                         className={`bed-card status-${bed.status}`}
                         onClick={() => setSelectedBed(bed)}
                         style={{ border: isSelected ? '2px solid var(--primary-color)' : '' }}
                       >
                         <div className="bed-number">{bed.bed_number}</div>
-                        <div className="ward-name">{bed.ward_name} · {bed.bed_category}</div>
-                        
+                        <div className="ward-name">{bed.ward_name} Â· {bed.bed_category}</div>
+
                         <div className="bed-patient" style={{ color: isOccupied ? 'var(--text-color)' : 'var(--text-muted)' }}>
                           {isOccupied ? mockPatientName(bed.id) : bed.status}
                         </div>
@@ -210,7 +209,7 @@ export function BedManagementPage() {
             <button className="active" type="button">Wards Setup</button>
             <button type="button">Beds Setup</button>
           </div>
-          
+
           <form className="inline-form" onSubmit={wardForm.handleSubmit(createWard)}>
             <input placeholder="Ward name" {...wardForm.register('name')} />
             <input placeholder="Ward type" {...wardForm.register('ward_type')} />
@@ -219,7 +218,7 @@ export function BedManagementPage() {
             <button className="btn-primary" type="submit" disabled={config.createWard.isPending}>Add ward</button>
           </form>
           <p className="form-error">{wardForm.formState.errors.name?.message}</p>
-          
+
           <div className="table-scroll">
             <table className="data-table">
               <thead>
