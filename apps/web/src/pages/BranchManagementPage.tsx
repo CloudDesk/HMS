@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { ApiError } from '../api/api-error';
 import {
-  branchesApi,
   type ApiBranchStatus,
-  type BranchListResponse,
   type BranchResponse,
-  type BranchSummary,
   type SaveBranchPayload,
   type UpdateBranchPayload,
 } from '../api/branches';
@@ -14,40 +14,28 @@ import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
-import { hasPermission } from '../auth/access-control';
-import { useAuth } from '../auth/useAuth';
 
-type SortColumn = 'code' | 'name' | 'created_at';
-type SortDirection = 'asc' | 'desc';
+import { useBranchManagementFeature, type SortColumn } from '../hooks/branches/useBranchManagementFeature';
+
 type ModalMode = 'create' | 'edit' | 'view';
 
-type BranchFormState = {
-  code: string;
-  name: string;
-  shortName: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  country: string;
-  postalCode: string;
-  status: ApiBranchStatus;
-};
 
-const emptyForm: BranchFormState = {
-  code: '',
-  name: '',
-  shortName: '',
-  email: '',
-  phone: '',
-  address: '',
-  city: '',
-  state: '',
-  country: '',
-  postalCode: '',
-  status: 'ACTIVE',
-};
+const branchSchema = z.object({
+  code: z.string().min(1, 'Code is required'),
+  name: z.string().min(1, 'Name is required'),
+  shortName: z.string().optional(),
+  email: z.string().email('Valid email required').optional().or(z.literal('')),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  postalCode: z.string().optional(),
+  status: z.enum(['active', 'inactive', 'archived'])
+});
+type BranchFormData = z.infer<typeof branchSchema>;
+
+
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -74,47 +62,32 @@ const formatDateTime = (value: string | null) => {
 };
 
 export function BranchManagementPage() {
-  const { user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {
-    module: 'Administration', screen: 'Branches', action,
-  });
-  const canCreate = can('Create');
-  const canEdit = can('Edit');
-  const canDelete = can('Delete');
-  const canExport = can('Export');
+  const feature = useBranchManagementFeature();
+  const { state, data, status, rbac, actions, mutations } = feature;
+  const { query, statusFilter, sortColumn, sortDirection, currentPage, setQuery, setStatusFilter, setCurrentPage } = state;
+  const { branches, meta, summary } = data;
+  const { isFetching: loading, isMutating: submitting, loadError, forbidden } = status;
+  const { canCreate, canEdit, canDelete, canExport } = rbac;
+  const { handleSort, resetFilters, handleExport } = actions;
+
+  const search = query;
+  const setSearch = setQuery;
   const { search: locationSearch } = useAppLocation();
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
-  const [summary, setSummary] = useState<BranchSummary>({ total: 0, active: 0, inactive: 0, assignedUsers: 0, cities: 0 });
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ApiBranchStatus | ''>('');
-
-  // Pagination & Sorting
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
-  const [meta, setMeta] = useState<BranchListResponse['meta']>({
-    limit: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  });
 
   // Modals
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [activeBranch, setActiveBranch] = useState<BranchResponse | null>(null);
-  const [form, setForm] = useState<BranchFormState>(emptyForm);
+  const branchForm = useForm<BranchFormData>({
+    resolver: zodResolver(branchSchema),
+    defaultValues: {
+      code: '', name: '', shortName: '', email: '', phone: '', address: '',
+      city: '', state: '', country: '', postalCode: '', status: 'active'
+    }
+  });
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BranchResponse | null>(null);
 
   // Status
-  const [loadError, setLoadError] = useState('');
-  const [forbidden, setForbidden] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
@@ -126,81 +99,23 @@ export function BranchManagementPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const loadBranches = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      const [res, totals] = await Promise.all([branchesApi.list({
-        search: search.trim() || undefined,
-        status: (statusFilter as ApiBranchStatus) || undefined,
-        page: currentPage,
-        limit: pageSize,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortColumn ? sortDirection : undefined,
-      }), branchesApi.summary()]);
-
-      setBranches(res.data);
-      setMeta(res.meta);
-      setSummary(totals);
-      setForbidden(false);
-
-      if (currentPage > res.meta.totalPages) {
-        setCurrentPage(res.meta.totalPages);
-      }
-    } catch (error) {
-      setBranches([]);
-      setMeta({ limit: pageSize, page: currentPage, total: 0, totalPages: 1 });
-      setLoadError(getErrorMessage(error));
-      if (error instanceof ApiError && error.status === 403) setForbidden(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter, currentPage, pageSize, sortColumn, sortDirection]);
-
-  useEffect(() => {
-    void loadBranches();
-  }, [loadBranches]);
-
-  const handleSort = (column: SortColumn) => {
-    setSortColumn((current) => {
-      if (current === column) {
-        setSortDirection((dir) => (dir === 'asc' ? 'desc' : 'asc'));
-        return current;
-      }
-      setSortDirection('asc');
-      return column;
-    });
-    setCurrentPage(1);
-  };
-
-  const resetFilters = () => {
-    setSearch('');
-    setStatusFilter('');
-    setCurrentPage(1);
-  };
-
   const openModal = (mode: ModalMode, branch: BranchResponse | null = null) => {
     setModalMode(mode);
     setActiveBranch(branch);
     setFormError('');
-    if (branch) {
-      setForm({
-        code: branch.code,
-        name: branch.name,
-        shortName: branch.short_name || '',
-        email: branch.email || '',
-        phone: branch.phone || '',
-        address: branch.address || '',
-        city: branch.city || '',
-        state: branch.state || '',
-        country: branch.country || '',
-        postalCode: branch.postal_code || '',
-        status: branch.status,
-      });
-    } else {
-      setForm(emptyForm);
-    }
+    branchForm.reset({
+      code: branch?.code ?? '',
+      name: branch?.name ?? '',
+      shortName: branch?.short_name ?? '',
+      email: branch?.email ?? '',
+      phone: branch?.phone ?? '',
+      address: branch?.address ?? '',
+      city: branch?.city ?? '',
+      state: branch?.state ?? '',
+      country: branch?.country ?? '',
+      postalCode: branch?.postal_code ?? '',
+      status: (branch?.status?.toLowerCase() as BranchFormData['status']) ?? 'active',
+    });
   };
 
   const closeModal = () => {
@@ -214,95 +129,71 @@ export function BranchManagementPage() {
     if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openModal('create');
   }, [locationSearch]);
 
-  const handleSave = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!form.code.trim()) { setFormError('Code is required'); return; }
-    if (!form.name.trim()) { setFormError('Name is required'); return; }
-
-    setSubmitting(true);
+  const handleSave = async (data: BranchFormData) => {
     setFormError('');
 
     try {
       const payload: UpdateBranchPayload = {
-        address: form.address.trim() || null,
-        code: form.code.trim(),
-        country: form.country.trim() || null,
-        email: form.email.trim() || null,
-        name: form.name.trim(),
-        phone: form.phone.trim() || null,
-        postal_code: form.postalCode.trim() || null,
-        short_name: form.shortName.trim() || null,
-        city: form.city.trim() || null,
-        state: form.state.trim() || null,
-        status: form.status,
+        code: data.code,
+        name: data.name,
+        short_name: data.shortName || undefined,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        address: data.address || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        country: data.country || undefined,
+        postal_code: data.postalCode || undefined,
+        status: data.status.toUpperCase() as ApiBranchStatus,
       };
 
       if (modalMode === 'create') {
-        await branchesApi.create({ ...payload, status: form.status } as SaveBranchPayload);
+        await mutations.createBranch.mutateAsync(payload as SaveBranchPayload);
         showToast('Branch created successfully.');
       } else if (activeBranch) {
-        await branchesApi.update(activeBranch.id, payload);
+        await mutations.updateBranch.mutateAsync({ id: activeBranch.id, payload });
         showToast('Branch updated successfully.');
       }
 
       closeModal();
-      await loadBranches();
     } catch (error) {
       setFormError(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    setSubmitting(true);
     try {
-      await branchesApi.delete(deleteTarget.id);
+      await mutations.deleteBranch.mutateAsync(deleteTarget.id);
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
       if (branches.length === 1 && currentPage > 1) {
         setCurrentPage((page) => page - 1);
-      } else {
-        await loadBranches();
       }
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const updateStatus = async (branch: BranchResponse) => {
-    setSubmitting(true);
     try {
       const next = branch.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-      await branchesApi.updateStatus(branch.id, next);
+      await mutations.updateBranchStatus.mutateAsync({ id: branch.id, status: next });
       showToast(`${branch.name} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
-      await loadBranches();
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  const exportBranches = async () => {
-    setSubmitting(true);
+  const handleExportClick = async () => {
     try {
-      const blob = await branchesApi.export({
-        search: search.trim() || undefined,
-        status: statusFilter || undefined,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortDirection,
-      });
-      downloadBlob(blob, 'hms-branches.csv');
-      showToast('All filtered branches exported.');
+      const blob = await handleExport();
+      if (blob) {
+        downloadBlob(blob, 'hms-branches.csv');
+        showToast('All filtered branches exported.');
+      }
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -341,8 +232,8 @@ export function BranchManagementPage() {
                 <button className="um-add-btn" disabled={forbidden || !canCreate} onClick={() => openModal('create')} type="button">
                   <i className="ph ph-plus" aria-hidden="true" /> Add Branch
                 </button>
-                <button className="btn-secondary admin-table-action" disabled={forbidden || !canExport || submitting} onClick={() => void exportBranches()} type="button"><i className="ph ph-download-simple" /> Export CSV</button>
-                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadBranches()} type="button"><i className="ph ph-arrows-clockwise" /> Refresh</button>
+                <button className="btn-secondary admin-table-action" disabled={forbidden || !canExport || submitting} onClick={() => void handleExportClick()} type="button"><i className="ph ph-download-simple" /> Export CSV</button>
+                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void resetFilters()} type="button"><i className="ph ph-arrows-clockwise" /> Refresh</button>
               </div>
 
               <div className="um-toolbar-row2">
@@ -396,7 +287,7 @@ export function BranchManagementPage() {
                         <i className="ph ph-warning" aria-hidden="true" />
                         {loadError}
                         <div>
-                          <button className="secondary-action mt-4" onClick={loadBranches}>Retry</button>
+                          <button className="secondary-action mt-4" onClick={() => void resetFilters()}>Retry</button>
                         </div>
                       </td>
                     </tr>
@@ -525,7 +416,7 @@ export function BranchManagementPage() {
               <label className="form-field full-width"><span>Address</span><input readOnly value={activeBranch.address || '-'} /></label>
             </div>
           ) : (
-          <form className="modal-form" id="branch-management-form" onSubmit={handleSave}>
+          <form className="modal-form" id="branch-management-form" onSubmit={(e) => { e.stopPropagation(); void branchForm.handleSubmit(handleSave)(e); }}>
             {formError && (
               <div className="form-error-banner" role="alert">
                 <i className="ph ph-warning-circle" aria-hidden="true" />
@@ -540,10 +431,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-code"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  required
-                  type="text"
-                  value={form.code}
+                    {...branchForm.register('code')}
                 />
               </div>
 
@@ -552,10 +440,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-name"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                  type="text"
-                  value={form.name}
+                    {...branchForm.register('name')}
                 />
               </div>
 
@@ -564,9 +449,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-short-name"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, shortName: e.target.value })}
-                  type="text"
-                  value={form.shortName}
+                    {...branchForm.register('shortName')}
                 />
               </div>
 
@@ -575,9 +458,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-email"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  type="email"
-                  value={form.email}
+                    {...branchForm.register('email')}
                 />
               </div>
 
@@ -586,9 +467,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-phone"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  type="tel"
-                  value={form.phone}
+                    {...branchForm.register('phone')}
                 />
               </div>
 
@@ -597,9 +476,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-city"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  type="text"
-                  value={form.city}
+                    {...branchForm.register('city')}
                 />
               </div>
 
@@ -608,9 +485,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-state"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, state: e.target.value })}
-                  type="text"
-                  value={form.state}
+                    {...branchForm.register('state')}
                 />
               </div>
 
@@ -619,9 +494,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-postal-code"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
-                  type="text"
-                  value={form.postalCode}
+                    {...branchForm.register('postalCode')}
                 />
               </div>
 
@@ -630,9 +503,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-country"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, country: e.target.value })}
-                  type="text"
-                  value={form.country}
+                    {...branchForm.register('country')}
                 />
               </div>
 
@@ -641,9 +512,7 @@ export function BranchManagementPage() {
                 <select
                   id="branch-status"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, status: e.target.value as ApiBranchStatus })}
-                  required
-                  value={form.status}
+                    {...branchForm.register('status')}
                 >
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
@@ -655,9 +524,7 @@ export function BranchManagementPage() {
                 <input
                   id="branch-address"
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  type="text"
-                  value={form.address}
+                    {...branchForm.register('address')}
                 />
               </div>
             </div>

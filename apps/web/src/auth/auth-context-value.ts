@@ -9,6 +9,7 @@ export type AuthContextValue = {
   authError: string | null;
   login: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshCurrentUser: () => Promise<void>;
   clearAuthError: () => void;
 };
 

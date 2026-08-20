@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import {
-  patientsApi,
   type ApiPatientGender,
   type ApiPatientStatus,
   type PatientResponse,
 } from '../api/patients';
+import { usePatientSearchFeature } from '../hooks/patients/usePatientSearchFeature';
 import { Modal } from '../components/ui/Modal';
-import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { patientInitials } from './opd-utils';
-import { formatDate, getPatientErrorMessage, patientFullName } from './patient-utils';
+import { formatDate, patientFullName } from './patient-utils';
 
-type SortColumn = 'patient_number' | 'first_name' | 'last_name' | 'created_at';
-type SortDirection = 'asc' | 'desc';
 
 type ColumnVisibility = {
   gender: boolean;
@@ -32,19 +32,23 @@ const defaultColumns: ColumnVisibility = {
   status: true,
 };
 
+const updatePatientSchema = z.object({
+  phone: z.string().optional(),
+  email: z.string().email('Invalid email format').or(z.literal('')),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'DECEASED']),
+  notes: z.string().optional(),
+});
+type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
+
 export function PatientSearchPage() {
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
-  const [patients, setPatients] = useState<PatientResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
 
   // Toggle for Advanced Filters
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // 5 Basic Filter Fields
+  // 5 Basic Filter Fields (Input state)
   const [mrnInput, setMrnInput] = useState(initialParams.get('mrn') ?? '');
   const [nameInput, setNameInput] = useState(initialParams.get('search') ?? '');
   const [mobileInput, setMobileInput] = useState('');
@@ -55,46 +59,34 @@ export function PatientSearchPage() {
     (initialParams.get('status') as ApiPatientStatus | null) ?? '',
   );
 
-  // 5 Advanced Filter Fields
+  // 5 Advanced Filter Fields (Input state)
   const [nationalIdInput, setNationalIdInput] = useState('');
   const [dobInput, setDobInput] = useState('');
   const [bloodGroupFilter, setBloodGroupFilter] = useState('');
   const [patientTypeFilter, setPatientTypeFilter] = useState('');
   const [regDateInput, setRegDateInput] = useState('');
 
+  // Applied Filters State (triggers query)
+  const [appliedFilters, setAppliedFilters] = useState({
+    searchTerms: [mrnInput, nameInput].filter(Boolean).join(' '),
+    status: statusFilter,
+    gender: genderFilter,
+  });
+
   // Column Selector Dropdown state
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [columns, setColumns] = useState<ColumnVisibility>(defaultColumns);
 
   // Actions context menu state
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-
+  const [, setActiveMenuId] = useState<string | null>(null);
   // Edit Patient Modal State
   const [editingPatient, setEditingPatient] = useState<PatientResponse | null>(null);
-  const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
-    dateOfBirth: '',
-    gender: 'MALE' as ApiPatientGender,
-    phone: '',
-    email: '',
-    bloodGroup: '',
-    status: 'ACTIVE' as ApiPatientStatus,
-    notes: '',
-  });
-  const [editSubmitting, setEditSubmitting] = useState(false);
-  const [editFormError, setEditFormError] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
 
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 3000);
-  };
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UpdatePatientForm>({
+    resolver: zodResolver(updatePatientSchema),
+  });
+
 
   const printPatientCard = (p: PatientResponse) => {
     const fullName = patientFullName(p);
@@ -108,7 +100,7 @@ export function PatientSearchPage() {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Patient Card — ${fullName}</title>
+  <title>Patient Card â€” ${fullName}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -147,7 +139,7 @@ export function PatientSearchPage() {
     </div>
     <div class="body-grid">
       <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-value">${dob}</span></div>
-      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs · ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
+      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs Â· ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
       <div class="info-item"><span class="info-label">Phone</span><span class="info-value">${p.phone || 'Not recorded'}</span></div>
       <div class="info-item"><span class="info-label">Status</span><span class="info-value status-val">${p.status}</span></div>
       <div class="info-item"><span class="info-label">Registered</span><span class="info-value">${registered}</span></div>
@@ -173,80 +165,47 @@ export function PatientSearchPage() {
   };
 
   const openEditModal = (patient: PatientResponse) => {
-    setEditingPatient(patient);
-    setEditForm({
-      firstName: patient.first_name ?? '',
-      lastName: patient.last_name,
-      dateOfBirth: patient.date_of_birth.slice(0, 10),
-      gender: patient.gender,
-      phone: patient.phone ?? '',
-      email: patient.email ?? '',
-      bloodGroup: patient.blood_group ?? '',
-      status: patient.status,
-      notes: patient.notes ?? '',
-    });
-    setEditFormError('');
+    reset({
+  firstName: patient.first_name ?? '',
+  lastName: patient.last_name ?? '',
+  dateOfBirth: patient.date_of_birth?.slice(0, 10) ?? '',
+  gender: patient.gender,
+  phone: patient.phone ?? '',
+  email: patient.email ?? '',
+  status: patient.status,
+  notes: patient.notes ?? '',
+});
     setActiveMenuId(null);
   };
 
-  const handleSaveEditPatient = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmitEdit = async (data: UpdatePatientForm) => {
     if (!editingPatient) return;
-
-    setEditSubmitting(true);
-    setEditFormError('');
-
     try {
-      await patientsApi.update(editingPatient.id, {
-        phone: editForm.phone.trim() || null,
-        email: editForm.email.trim() || null,
-        status: editForm.status,
-        notes: editForm.notes.trim() || null,
+      await updatePatient({
+        id: editingPatient.id,
+        payload: {
+          phone: data.phone?.trim() || null,
+          email: data.email?.trim() || null,
+          status: data.status,
+          notes: data.notes?.trim() || null,
+        },
       });
       setEditingPatient(null);
-      showToast(`${editingPatient.first_name} ${editingPatient.last_name} updated successfully.`);
-      await loadPatients();
-    } catch (error) {
-      setEditFormError(getPatientErrorMessage(error));
-      showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setEditSubmitting(false);
+    } catch {
+      // Error is handled in the mutation by toast
     }
   };
 
-  const [sortColumn] = useState<SortColumn | null>('created_at');
-  const [sortDirection] = useState<SortDirection>('desc');
+  const { state: { patients, meta, loading, loadError }, mutations: { updatePatient } } = usePatientSearchFeature({ appliedFilters, currentPage });
 
-  const loadPatients = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      const searchTerms = [mrnInput, nameInput, mobileInput, nationalIdInput].filter(Boolean).join(' ');
-      const res = await patientsApi.list({
-        search: searchTerms.trim() || undefined,
-        status: statusFilter || undefined,
-        gender: genderFilter || undefined,
-        page: currentPage,
-        limit: 10,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortColumn ? sortDirection : undefined,
-      });
-      setPatients(res.data);
-      setMeta(res.meta);
-    } catch (error) {
-      setPatients([]);
-      setMeta({ limit: 10, page: currentPage, total: 0, totalPages: 1 });
-      showToast(getPatientErrorMessage(error), 'error');
-      setLoadError(getPatientErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, genderFilter, mobileInput, mrnInput, nameInput, nationalIdInput, sortColumn, sortDirection, statusFilter]);
-
-  useEffect(() => {
-    void loadPatients();
-  }, [loadPatients]);
+  const handleApplyFilters = () => {
+    setCurrentPage(1);
+    setAppliedFilters({
+      searchTerms: [mrnInput, nameInput, mobileInput, nationalIdInput].filter(Boolean).join(' ').trim(),
+      status: statusFilter,
+      gender: genderFilter,
+    });
+  };
 
   const handleResetFilters = () => {
     setMrnInput('');
@@ -260,6 +219,7 @@ export function PatientSearchPage() {
     setRegDateInput('');
     setStatusFilter('');
     setCurrentPage(1);
+    setAppliedFilters({ searchTerms: '', status: '', gender: '' });
   };
 
   const exportCsv = () => {
@@ -292,8 +252,7 @@ export function PatientSearchPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setCurrentPage(1);
-            void loadPatients();
+            handleApplyFilters();
           }}
         >
           {/* 5 Basic Filters Row */}
@@ -522,7 +481,7 @@ export function PatientSearchPage() {
               ) : loadError ? (
                 <tr>
                   <td className="um-state-cell" colSpan={11}>
-                    {loadError}
+                    Failed to load patient directory.
                   </td>
                 </tr>
               ) : patients.length === 0 ? (
@@ -537,7 +496,7 @@ export function PatientSearchPage() {
                   const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
 
                   return (
-                    <tr 
+                    <tr
                       key={patient.id}
                       onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
                       style={{ cursor: 'pointer' }}
@@ -563,7 +522,7 @@ export function PatientSearchPage() {
                               patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
                             }`}
                           >
-                            • {patient.status}
+                            â€¢ {patient.status}
                           </span>
                         </td>
                       ) : null}
@@ -587,9 +546,9 @@ export function PatientSearchPage() {
                           >
                             <i className="ph ph-calendar-plus" aria-hidden="true" />
                           </button>
-                          <button 
-                            className="doc-btn" 
-                            onClick={() => setCardPatient(patient)} 
+                          <button
+                            className="doc-btn"
+                            onClick={() => setCardPatient(patient)}
                             type="button"
                             title="View Patient Card"
                             style={{ padding: '0.3rem 0.5rem' }}
@@ -639,9 +598,7 @@ export function PatientSearchPage() {
       {/* Edit Patient Modal */}
       <Modal onClose={() => setEditingPatient(null)} open={Boolean(editingPatient)} size="large" title="Edit Patient">
         {editingPatient ? (
-          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSaveEditPatient}>
-            {editFormError ? <div className="form-error-banner" role="alert">{editFormError}</div> : null}
-
+          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSubmit(onSubmitEdit)}>
             <div className="locked-notice-banner">
               <i className="ph ph-lock-key" aria-hidden="true" />
               <span>
@@ -662,25 +619,25 @@ export function PatientSearchPage() {
                   <label htmlFor="search-edit-first">
                     First name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
                   </label>
-                  <input disabled id="search-edit-first" readOnly value={editForm.firstName} />
+                  <input disabled id="search-edit-first" readOnly value={editingPatient.first_name} />
                 </div>
                 <div className="form-group locked">
                   <label htmlFor="search-edit-last">
                     Last name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
                   </label>
-                  <input disabled id="search-edit-last" readOnly value={editForm.lastName} />
+                  <input disabled id="search-edit-last" readOnly value={editingPatient.last_name} />
                 </div>
                 <div className="form-group locked">
                   <label htmlFor="search-edit-dob">
                     Date of birth <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
                   </label>
-                  <input disabled id="search-edit-dob" readOnly type="date" value={editForm.dateOfBirth} />
+                  <input disabled id="search-edit-dob" readOnly type="date" value={editingPatient.date_of_birth.slice(0, 10)} />
                 </div>
                 <div className="form-group locked">
                   <label htmlFor="search-edit-gender">
                     Gender <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
                   </label>
-                  <select disabled id="search-edit-gender" value={editForm.gender}>
+                  <select disabled id="search-edit-gender" value={editingPatient.gender}>
                     <option value="UNKNOWN">Unknown</option>
                     <option value="MALE">Male</option>
                     <option value="FEMALE">Female</option>
@@ -691,7 +648,7 @@ export function PatientSearchPage() {
                   <label htmlFor="search-edit-blood">
                     Blood group <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
                   </label>
-                  <input disabled id="search-edit-blood" readOnly value={editForm.bloodGroup || 'Not recorded'} />
+                  <input disabled id="search-edit-blood" readOnly value={editingPatient.blood_group || 'Not recorded'} />
                 </div>
               </div>
             </section>
@@ -707,40 +664,44 @@ export function PatientSearchPage() {
               <div className="form-grid">
                 <div className="form-group">
                   <label htmlFor="search-edit-phone">Phone</label>
-                  <input disabled={editSubmitting} id="search-edit-phone" onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} value={editForm.phone} />
+                  <input disabled={isSubmitting} id="search-edit-phone" {...register('phone')} />
+                  {errors.phone && <span className="field-error">{errors.phone.message}</span>}
                 </div>
                 <div className="form-group">
                   <label htmlFor="search-edit-email">Email</label>
-                  <input disabled={editSubmitting} id="search-edit-email" onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} type="email" value={editForm.email} />
+                  <input disabled={isSubmitting} id="search-edit-email" type="email" {...register('email')} />
+                  {errors.email && <span className="field-error">{errors.email.message}</span>}
                 </div>
                 <div className="form-group">
                   <label htmlFor="search-edit-status">Status</label>
-                  <select disabled={editSubmitting} id="search-edit-status" onChange={(event) => setEditForm({ ...editForm, status: event.target.value as ApiPatientStatus })} value={editForm.status}>
+                  <select disabled={isSubmitting} id="search-edit-status" {...register('status')}>
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
                     <option value="DECEASED">Deceased</option>
                   </select>
+                  {errors.status && <span className="field-error">{errors.status.message}</span>}
                 </div>
                 <div className="form-group full-width">
                   <label htmlFor="search-edit-notes">Registration Notes</label>
-                  <textarea disabled={editSubmitting} id="search-edit-notes" onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })} rows={3} value={editForm.notes} />
+                  <textarea disabled={isSubmitting} id="search-edit-notes" rows={3} {...register('notes')} />
+                  {errors.notes && <span className="field-error">{errors.notes.message}</span>}
                 </div>
               </div>
             </section>
 
             <div className="modal-actions">
-              <button className="secondary-action" disabled={editSubmitting} onClick={() => setEditingPatient(null)} type="button">
+              <button className="secondary-action" disabled={isSubmitting} onClick={() => setEditingPatient(null)} type="button">
                 Cancel
               </button>
-              <button className="primary-action" disabled={editSubmitting} type="submit">
-                {editSubmitting ? 'Saving...' : 'Save Profile'}
+              <button className="primary-action" disabled={isSubmitting} type="submit">
+                {isSubmitting ? 'Saving...' : 'Save Profile'}
               </button>
             </div>
           </form>
         ) : null}
       </Modal>
 
-      {/* Print Patient Card — preview modal */}
+      {/* Print Patient Card â€” preview modal */}
       {cardPatient ? (
         <Modal onClose={() => setCardPatient(null)} open={Boolean(cardPatient)} size="default" title="Patient ID Card">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
@@ -770,7 +731,7 @@ export function PatientSearchPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   {([
                     ['Date of Birth', formatDate(cardPatient.date_of_birth)],
-                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs · ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
+                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs Â· ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
                     ['Phone', cardPatient.phone || 'Not recorded'],
                     ['Status', cardPatient.status],
                     ['Registered', formatDate(cardPatient.created_at)],
@@ -812,8 +773,6 @@ export function PatientSearchPage() {
           </div>
         </Modal>
       ) : null}
-
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </div>
   );
 }

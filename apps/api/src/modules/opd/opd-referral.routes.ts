@@ -11,7 +11,7 @@ export const registerOpdReferralRoutes = async (app: FastifyInstance, services: 
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/referral', {
     preHandler: requirePermission(services, 'OPD', 'OPD Referral', 'View'),
     schema: { params: referralVisitParamsSchema },
-  }, async (request) => ok(await services.opdReferrals.getByVisit(request.params.visitId)));
+  }, async (request) => ok(await services.opdReferrals.getByVisit(request.params.visitId, request.user!.id)));
 
   app.put<{ Params: VisitParams; Body: SaveOpdReferralDTO }>('/api/opd/visits/:visitId/referral', {
     preHandler: requirePermission(services, 'OPD', 'OPD Referral', 'Edit'),

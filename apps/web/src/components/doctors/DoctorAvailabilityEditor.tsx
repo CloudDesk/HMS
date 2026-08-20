@@ -4,7 +4,7 @@ import type {
   SaveDoctorAvailabilityPayload,
 } from '../../api/doctors';
 
-export type WorkingBlockForm = { start_time: string; end_time: string; slot_duration_minutes: number; max_patients_per_slot?: number };
+export type WorkingBlockForm = { start_time: string; end_time: string; slot_duration_minutes: number };
 export type AvailabilityDayForm = SaveDoctorAvailabilityPayload['availability'][number];
 
 const toMinutes = (time: string) => {

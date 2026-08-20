@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, useRef, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useDepartmentManagementFeature, type SortColumn, type SortDirection } from '../hooks/departments/useDepartmentManagementFeature';
 import { ApiError } from '../api/api-error';
-import { branchesApi, type BranchResponse } from '../api/branches';
+import { type BranchResponse } from '../api/branches';
 import {
-  departmentsApi,
   type ApiDepartmentStatus,
-  type DepartmentListResponse,
   type DepartmentResponse,
-  type DepartmentSummary,
-  type SaveDepartmentPayload,
 } from '../api/departments';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
@@ -15,27 +15,17 @@ import { Toast } from '../components/ui/Toast';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 
-type SortColumn = 'code' | 'name' | 'created_at';
-type SortDirection = 'asc' | 'desc';
 type ModalMode = 'create' | 'edit' | 'view';
 
-type DepartmentFormState = {
-  code: string;
-  name: string;
-  branch_ids: string[];
-  description: string;
-  status: ApiDepartmentStatus;
-  isClinical: boolean;
-};
-
-const emptyForm: DepartmentFormState = {
-  code: '',
-  name: '',
-  branch_ids: [],
-  description: '',
-  status: 'ACTIVE',
-  isClinical: false,
-};
+const departmentSchema = z.object({
+  code: z.string().min(1, 'Department code is required.'),
+  name: z.string().min(1, 'Department name is required.'),
+  branch_id: z.string().min(1, 'Branch is required.'),
+  description: z.string().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+  isClinical: z.boolean(),
+});
+type DepartmentFormData = z.infer<typeof departmentSchema>;
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -192,15 +182,15 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
 
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
-      <div 
+      <div
         onClick={() => !disabled && setOpen(!open)}
-        style={{ 
-          border: '1px solid var(--border-color)', 
-          padding: '6px', 
-          borderRadius: '4px', 
-          cursor: disabled ? 'not-allowed' : 'pointer', 
-          display: 'flex', 
-          flexWrap: 'wrap', 
+        style={{
+          border: '1px solid var(--border-color)',
+          padding: '6px',
+          borderRadius: '4px',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          display: 'flex',
+          flexWrap: 'wrap',
           gap: '6px',
           minHeight: '42px',
           alignItems: 'center',
@@ -214,13 +204,13 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
             const b = branches.find(br => br.id === id);
             if (!b) return null;
             return (
-              <span 
-                key={id} 
-                style={{ 
-                  background: 'var(--primary-color, #2563eb)', 
-                  color: '#fff', 
-                  padding: '2px 8px', 
-                  borderRadius: '16px', 
+              <span
+                key={id}
+                style={{
+                  background: 'var(--primary-color, #2563eb)',
+                  color: '#fff',
+                  padding: '2px 8px',
+                  borderRadius: '16px',
                   fontSize: '0.75rem',
                   display: 'flex',
                   alignItems: 'center',
@@ -229,7 +219,7 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
                 }}
               >
                 {b.name}
-                <button 
+                <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -244,18 +234,18 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
           })
         )}
       </div>
-      
+
       {open && (
-        <div style={{ 
-          position: 'absolute', 
-          top: '100%', 
-          left: 0, 
-          right: 0, 
-          background: '#fff', 
-          border: '1px solid var(--border-color)', 
-          zIndex: 10, 
-          maxHeight: '220px', 
-          overflowY: 'auto', 
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          background: '#fff',
+          border: '1px solid var(--border-color)',
+          zIndex: 10,
+          maxHeight: '220px',
+          overflowY: 'auto',
           boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
           borderRadius: '4px',
           marginTop: '4px'
@@ -263,30 +253,30 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
           {branches.map(b => {
             const isSelected = selectedIds.includes(b.id);
             return (
-              <label 
-                key={b.id} 
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  padding: '8px 12px', 
-                  cursor: 'pointer', 
-                  borderBottom: '1px solid #f3f4f6', 
+              <label
+                key={b.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid #f3f4f6',
                   margin: 0,
                   backgroundColor: isSelected ? '#eff6ff' : 'transparent',
                   fontWeight: 'normal',
                   fontSize: '0.9rem'
                 }}
               >
-                <input 
-                  type="checkbox" 
-                  checked={isSelected} 
+                <input
+                  type="checkbox"
+                  checked={isSelected}
                   onChange={(e) => {
-                    const newIds = e.target.checked 
-                      ? [...selectedIds, b.id] 
+                    const newIds = e.target.checked
+                      ? [...selectedIds, b.id]
                       : selectedIds.filter(id => id !== b.id);
                     onChange(newIds);
-                  }} 
-                  style={{ marginRight: '12px', width: '16px', height: '16px' }} 
+                  }}
+                  style={{ marginRight: '12px', width: '16px', height: '16px' }}
                 />
                 {b.name}
               </label>
@@ -301,39 +291,32 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
 // ─── Main Page Component ───────────────────────────────────────────────────────
 
 export function DepartmentManagementPage() {
+  const feature = useDepartmentManagementFeature();
+  const { state, data, status, rbac, actions, mutations } = feature;
+  const { query, branchFilter, statusFilter, sortColumn, sortDirection, currentPage, pageSize, setQuery, setBranchFilter, setStatusFilter, setCurrentPage, setPageSize } = state;
+  const { departments, meta, summary, branches } = data;
+  const { isFetching: loading, isMutating: submitting, loadError } = status;
+  const { canCreate } = rbac;
+  const { handleSort, resetFilters, handleExport } = actions;
+
+  const search = query;
+  const setSearch = setQuery;
   const { search: locationSearch } = useAppLocation();
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
-  const [summary, setSummary] = useState<DepartmentSummary>({ total: 0, active: 0, inactive: 0, addedThisMonth: 0, branchesCovered: 0 });
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ApiDepartmentStatus | ''>('');
-
-  // Pagination & Sorting
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [meta, setMeta] = useState<DepartmentListResponse['meta']>({
-    limit: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  });
 
   // Modals
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [activeDept, setActiveDept] = useState<DepartmentResponse | null>(null);
-  const [form, setForm] = useState<DepartmentFormState>(emptyForm);
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DepartmentResponse | null>(null);
 
+  const deptForm = useForm<DepartmentFormData>({
+    resolver: zodResolver(departmentSchema),
+    defaultValues: {
+      code: '', name: '', branch_id: '', description: '', status: 'ACTIVE', isClinical: false
+    }
+  });
+
   // Status
-  const [loadError, setLoadError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
@@ -345,78 +328,12 @@ export function DepartmentManagementPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  const loadBranches = useCallback(async () => {
-    try {
-      const res = await branchesApi.list({ limit: 100, status: 'ACTIVE' });
-      setBranches(res.data);
-    } catch (e) {
-      console.error('Failed to load branches', e);
-    }
-  }, []);
-
-  const loadDepartments = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      const [res, totals] = await Promise.all([departmentsApi.list({
-        search: search.trim() || undefined,
-        branch_id: branchFilter || undefined,
-        status: (statusFilter as ApiDepartmentStatus) || undefined,
-        page: currentPage,
-        limit: pageSize,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortColumn ? sortDirection : undefined,
-      }), departmentsApi.summary()]);
-
-      setDepartments(res.data);
-      setMeta(res.meta);
-      setSummary(totals);
-    } catch (error) {
-      setDepartments([]);
-      setMeta({ limit: pageSize, page: currentPage, total: 0, totalPages: 1 });
-      setLoadError(getErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [search, branchFilter, statusFilter, currentPage, pageSize, sortColumn, sortDirection]);
-
-  useEffect(() => {
-    void loadBranches();
-  }, [loadBranches]);
-
-  useEffect(() => {
-    void loadDepartments();
-  }, [loadDepartments]);
-
-  // ── Derived KPI values ─────────────────────────────────────────────────────
-  // ── Sort / filter helpers ──────────────────────────────────────────────────
-  const handleSort = (column: SortColumn) => {
-    setSortColumn((current) => {
-      if (current === column) {
-        setSortDirection((dir) => (dir === 'asc' ? 'desc' : 'asc'));
-        return current;
-      }
-      setSortDirection('asc');
-      return column;
-    });
-    setCurrentPage(1);
-  };
-
-  const resetFilters = () => {
-    setSearch('');
-    setBranchFilter('');
-    setStatusFilter('');
-    setCurrentPage(1);
-  };
-
-  // ── Modal helpers ──────────────────────────────────────────────────────────
   const openModal = (mode: ModalMode, dept: DepartmentResponse | null = null) => {
     setModalMode(mode);
     setActiveDept(dept);
     setFormError('');
     if (dept) {
-      setForm({
+      deptForm.reset({
         code: dept.code,
         name: dept.name,
         branch_ids: dept.branch_ids,
@@ -425,7 +342,9 @@ export function DepartmentManagementPage() {
         isClinical: dept.isClinical,
       });
     } else {
-      setForm(emptyForm);
+      deptForm.reset({
+        code: '', name: '', branch_id: '', description: '', status: 'ACTIVE', isClinical: false
+      });
     }
   };
 
@@ -434,98 +353,77 @@ export function DepartmentManagementPage() {
     setModalMode(null);
     setActiveDept(null);
     setFormError('');
+    deptForm.reset();
   };
 
   useEffect(() => {
-    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openModal('create');
-  }, [locationSearch]);
+    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode && canCreate) {
+      openModal('create');
+    }
+  }, [locationSearch, canCreate, modalMode]);
 
-  // ── CRUD handlers ──────────────────────────────────────────────────────────
-  const handleSave = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!form.code.trim()) { setFormError('Code is required.'); return; }
-    if (!form.name.trim()) { setFormError('Name is required.'); return; }
-    if (form.branch_ids.length === 0) { setFormError('At least one branch is required.'); return; }
-
-    setSubmitting(true);
+  const handleSave = deptForm.handleSubmit(async (values) => {
     setFormError('');
-
     try {
-      const payload: SaveDepartmentPayload = {
-        code: form.code.trim(),
-        name: form.name.trim(),
-        branch_ids: form.branch_ids,
-        description: form.description.trim() || null,
-        status: form.status,
-        isClinical: form.isClinical,
+      const payload = {
+        code: values.code.trim(),
+        name: values.name.trim(),
+        branch_id: values.branch_id,
+        description: values.description?.trim() || null,
+        status: values.status,
+        isClinical: values.isClinical,
       };
 
       if (modalMode === 'create') {
-        await departmentsApi.create(payload);
+        await mutations.createDepartment.mutateAsync(payload);
         showToast('Department created successfully.');
       } else if (activeDept) {
-        await departmentsApi.update(activeDept.id, payload);
+        await mutations.updateDepartment.mutateAsync({ id: activeDept.id, payload });
         showToast('Department updated successfully.');
       }
 
       closeModal();
-      await loadDepartments();
     } catch (error) {
       setFormError(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
     }
-  };
+  });
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    setSubmitting(true);
     try {
-      await departmentsApi.delete(deleteTarget.id);
+      await mutations.deleteDepartment.mutateAsync(deleteTarget.id);
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
-      await loadDepartments();
+      if (departments.length === 1 && currentPage > 1) {
+        setCurrentPage((page) => page - 1);
+      }
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const updateStatus = async (department: DepartmentResponse) => {
-    setSubmitting(true);
     try {
-      const next = department.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-      await departmentsApi.updateStatus(department.id, next);
+      const next: ApiDepartmentStatus = department.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      await mutations.updateDepartmentStatus.mutateAsync({ id: department.id, status: next });
       showToast(`${department.name} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
-      await loadDepartments();
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const exportDepartments = async () => {
-    setSubmitting(true);
     try {
-      const blob = await departmentsApi.export({
-        branch_id: branchFilter || undefined,
-        search: search.trim() || undefined,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortDirection,
-        status: statusFilter || undefined,
-      });
-      downloadBlob(blob, 'hms-departments.csv');
-      showToast('All filtered departments exported.');
+      const blob = await handleExport();
+      if (blob) {
+        downloadBlob(blob, 'hms-departments.csv');
+        showToast('All filtered departments exported.');
+      }
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  // ── Derived pagination ─────────────────────────────────────────────────────
   const totalPages = Math.max(meta.totalPages, 1);
   const safePage = Math.min(currentPage, totalPages);
 
@@ -623,7 +521,7 @@ export function DepartmentManagementPage() {
                 <button className="btn-secondary admin-table-action" disabled={submitting} onClick={() => void exportDepartments()} type="button">
                   <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
                 </button>
-                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadDepartments()} type="button">
+                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void resetFilters()} /* Refresh */ type="button">
                   <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
                 </button>
               </div>
@@ -703,7 +601,7 @@ export function DepartmentManagementPage() {
                         {loadError}
                         <button
                           className="secondary-action"
-                          onClick={() => void loadDepartments()}
+                          onClick={() => void resetFilters()} /* Refresh */
                           style={{ marginLeft: '1rem' }}
                           type="button"
                         >
@@ -909,19 +807,19 @@ export function DepartmentManagementPage() {
                 <span>Department Code <span className="required">*</span></span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  required
-                  value={form.code}
+                  aria-invalid={Boolean(deptForm.formState.errors.code)}
+                  {...deptForm.register('code')}
                 />
+                {deptForm.formState.errors.code ? <small className="field-error">{deptForm.formState.errors.code.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Department Name <span className="required">*</span></span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                  value={form.name}
+                  aria-invalid={Boolean(deptForm.formState.errors.name)}
+                  {...deptForm.register('name')}
                 />
+                {deptForm.formState.errors.name ? <small className="field-error">{deptForm.formState.errors.name.message}</small> : null}
               </label>
             </div>
 
@@ -929,39 +827,55 @@ export function DepartmentManagementPage() {
             <div className="form-grid-3">
               <label className="form-field">
                 <span>Branch <span className="required">*</span></span>
-                <BranchMultiSelect 
-                  branches={branches} 
-                  selectedIds={form.branch_ids} 
-                  onChange={(newIds) => setForm({ ...form, branch_ids: newIds })} 
-                  disabled={submitting} 
+                <BranchMultiSelect
+                  branches={branches}
+                  selectedIds={deptForm.watch('branch_ids')}
+                  onChange={(newIds) => {
+                    deptForm.setValue('branch_ids', newIds, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    });
+                  }}
+                  disabled={submitting}
                 />
+
+                {deptForm.formState.errors.branch_ids ? (
+                  <small className="field-error">
+                    {deptForm.formState.errors.branch_ids.message}
+                  </small>
+                ) : null}
               </label>
               {modalMode === 'edit' && (
                 <label className="form-field">
                   <span>Status</span>
                   <select
                     disabled={submitting}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as ApiDepartmentStatus })}
-                    value={form.status}
+                    {...deptForm.register('status')}
                   >
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
-                    </select>
-                  </label>
-                )}
-                <label className="form-field um-checkbox-field">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
-                    <input
-                      type="checkbox"
-                      disabled={submitting}
-                      checked={form.isClinical}
-                      onChange={(e) => setForm({ ...form, isClinical: e.target.checked })}
-                      style={{ width: 'auto' }}
-                    />
-                    <span>Is Clinical Department?</span>
-                  </div>
+                  </select>
                 </label>
-              </div>
+              )}
+              <label className="form-field um-checkbox-field">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+                  <Controller
+                    name="isClinical"
+                    control={deptForm.control}
+                    render={({ field }) => (
+                      <input
+                        type="checkbox"
+                        disabled={submitting}
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        style={{ width: 'auto' }}
+                      />
+                    )}
+                  />
+                  <span>Is Clinical Department?</span>
+                </div>
+              </label>
+            </div>
 
             <div className="form-section-title">Additional Information</div>
             <div className="form-grid-3">
@@ -969,9 +883,8 @@ export function DepartmentManagementPage() {
                 <span>Description</span>
                 <textarea
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
                   rows={3}
-                  value={form.description}
+                  {...deptForm.register('description')}
                 />
               </label>
             </div>

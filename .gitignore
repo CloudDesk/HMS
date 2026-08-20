@@ -23,3 +23,7 @@ docs/
 apps/api/storage/
 recovered_git_diff.txt
 recovered_part1.txt
+*.py
+*.py
+*.py
+clean_user.py

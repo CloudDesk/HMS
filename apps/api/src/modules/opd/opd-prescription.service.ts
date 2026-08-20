@@ -17,13 +17,13 @@ export class OpdPrescriptionService {
     private readonly patientRepository: PatientRepository,
   ) {}
 
-  async getByVisit(visitId: string) {
-    await this.getVisit(visitId);
+  async getByVisit(visitId: string, userId: string) {
+    await this.getVisit(visitId, userId);
     return this.repository.getByVisit(visitId);
   }
 
   async saveDraft(visitId: string, data: SaveOpdPrescriptionDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisit(visitId);
@@ -37,7 +37,7 @@ export class OpdPrescriptionService {
   }
 
   async submit(visitId: string, data: SaveOpdPrescriptionDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisit(visitId);
@@ -84,23 +84,25 @@ export class OpdPrescriptionService {
     return prescription;
   }
 
-  async list(params: import('./opd-prescription.types.js').ListPrescriptionsParams) {
-    return this.repository.list(params);
+  async list(params: import('./opd-prescription.types.js').ListPrescriptionsParams, userId: string) {
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    return this.repository.list(params, scope);
   }
 
   async updateStatus(id: string, status: import('./opd-prescription.types.js').OpdPrescriptionStatus, userId: string) {
-    if (status === 'DISPENSED' || status === 'CANCELLED') {
-      throw new AppError('Prescription dispensing status is managed by the pharmacy workflow', 409, 'PRESCRIPTION_STATUS_MANAGED_BY_WORKFLOW');
-    }
+    const prescription = await this.repository.getById(id);
+    if (!prescription) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
+    await this.getVisit(prescription.visit_id, userId);
     return this.repository.updateStatus(id, status, userId);
   }
 
-  private async getVisit(visitId: string) {
+  private async getVisit(visitId: string, userId: string) {
     if (!Types.ObjectId.isValid(visitId)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
 
-    const visit = await this.visitRepository.getById(visitId);
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    const visit = await this.visitRepository.getById(visitId, scope);
     if (!visit) {
       throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
     }

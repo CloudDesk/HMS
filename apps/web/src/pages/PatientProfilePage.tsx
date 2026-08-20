@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { appointmentsApi, type AppointmentResponse } from '../api/appointments';
-import { billingApi, type BillingInvoice } from '../api/billing';
-import { imagingApi } from '../api/imaging';
-import { laboratoryApi, type DiagnosticOrder } from '../api/laboratory';
-import { opdApi, type OpdPrescriptionResponse, type OpdVisitResponse } from '../api/opd';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
+import { useState, type FormEvent } from 'react';
+import { type BillingInvoice } from '../api/billing';
+import { type DiagnosticOrder } from '../api/laboratory';
+import { type OpdPrescriptionResponse } from '../api/opd';
 import {
-  patientsApi,
-  type ApiPatientGender,
-  type ApiPatientStatus,
-  type ApiPatientDocumentType,
-  type PatientHistoryResponse,
+    type ApiPatientDocumentType,
   type PatientResponse,
   type PatientTimelineEventResponse,
-  type PatientTimelineListResponse,
-  type SavePatientPayload,
-} from '../api/patients';
+  } from '../api/patients';
+import { usePatientProfileFeature } from '../hooks/patients/usePatientProfileFeature';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { PrintPrescriptionModal } from '../components/print/PrintPrescriptionModal';
@@ -26,17 +21,18 @@ import { navigate, useAppLocation } from '../routing/navigation';
 import { patientInitials } from './opd-utils';
 import { formatDate, formatDateTime, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
 
-type ProfileForm = {
-  bloodGroup: string;
-  dateOfBirth: string;
-  email: string;
-  firstName: string;
-  gender: ApiPatientGender;
-  lastName: string;
-  notes: string;
-  phone: string;
-  status: ApiPatientStatus;
-};
+const updatePatientSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  dateOfBirth: z.string().min(1, 'Date of birth is required'),
+  phone: z.string().optional(),
+  email: z.string().email('Invalid email').or(z.literal('')),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'DECEASED']),
+  gender: z.enum(['UNKNOWN', 'MALE', 'FEMALE', 'OTHER']),
+  bloodGroup: z.string().optional(),
+  notes: z.string().optional(),
+});
+type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
 
 const tabs = [
   'Overview',
@@ -51,7 +47,6 @@ const tabs = [
   'Billing',
   'Consent',
 ] as const;
-type Tab = (typeof tabs)[number];
 
 const calculateAge = (dob: string) => {
   if (!dob) return '';
@@ -62,19 +57,8 @@ const calculateAge = (dob: string) => {
   return `${years} years`;
 };
 
-const toForm = (patient: PatientResponse): ProfileForm => ({
-  bloodGroup: patient.blood_group ?? '',
-  dateOfBirth: patient.date_of_birth.slice(0, 10),
-  email: patient.email ?? '',
-  firstName: patient.first_name ?? '',
-  gender: patient.gender,
-  lastName: patient.last_name,
-  notes: patient.notes ?? '',
-  phone: patient.phone ?? '',
-  status: patient.status,
-});
+// removed toForm
 
-const nullable = (value: string) => value.trim() || null;
 
 // ── EMR helper functions (mirrored from PatientEmrTimelinePage) ──────────────
 
@@ -111,48 +95,18 @@ function EmptyRecords({ message }: { message: string }) {
 
 type EmrTabProps = {
   patientId: string;
+  loading: boolean;
+  loadError: string;
+  timeline: PatientTimelineEventResponse[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+  filters: { from: string; to: string };
+  setFilters: React.Dispatch<React.SetStateAction<{ from: string; to: string }>>;
+  currentPage: number;
+  setCurrentPage: (val: number) => void;
 };
 
-function EmrTimelineTab({ patientId }: EmrTabProps) {
-  const [timeline, setTimeline] = useState<PatientTimelineEventResponse[]>([]);
-  const [meta, setMeta] = useState<PatientTimelineListResponse['meta']>({
-    limit: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  });
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilters, currentPage, setCurrentPage }: EmrTabProps) {
   const [selectedDetails, setSelectedDetails] = useState<PatientTimelineEventResponse | null>(null);
-
-  const loadTimeline = useCallback(async () => {
-    if (!patientId) return;
-    setLoading(true);
-    setLoadError('');
-    try {
-      const res = await patientsApi.timeline(patientId, {
-        from: fromDate || undefined,
-        to: toDate || undefined,
-        page: currentPage,
-        limit: 10,
-      });
-      setTimeline(res.data);
-      setMeta(res.meta);
-    } catch {
-      setTimeline([]);
-      setMeta({ limit: 10, page: currentPage, total: 0, totalPages: 1 });
-      setLoadError('Failed to load EMR timeline.');
-    } finally {
-      setLoading(false);
-    }
-  }, [patientId, currentPage, fromDate, toDate]);
-
-  useEffect(() => {
-    void loadTimeline();
-  }, [loadTimeline]);
 
   return (
     <div style={{ padding: '1rem' }}>
@@ -162,23 +116,29 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
           <label htmlFor="emr-tab-from">From</label>
           <input
             id="emr-tab-from"
-            onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              setFilters((prev) => ({ ...prev, from: e.target.value }));
+              setCurrentPage(1);
+            }}
             type="date"
-            value={fromDate}
+            value={filters.from}
           />
         </div>
         <div className="doc-field" style={{ margin: 0 }}>
           <label htmlFor="emr-tab-to">To</label>
           <input
             id="emr-tab-to"
-            onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }}
+            onChange={(e) => {
+              setFilters((prev) => ({ ...prev, to: e.target.value }));
+              setCurrentPage(1);
+            }}
             type="date"
-            value={toDate}
+            value={filters.to}
           />
         </div>
         <button
           className="doc-btn"
-          onClick={() => { setFromDate(''); setToDate(''); setCurrentPage(1); }}
+          onClick={() => { setFilters({ from: '', to: '' }); setCurrentPage(1); }}
           type="button"
         >
           <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset
@@ -194,7 +154,7 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
       ) : loadError ? (
         <div className="um-state-cell" role="alert">
           {loadError}
-          <div><button className="doc-btn mt-4" onClick={() => void loadTimeline()} type="button">Retry</button></div>
+          
         </div>
       ) : timeline.length === 0 ? (
         <EmptyRecords message="No EMR events recorded for this patient." />
@@ -266,7 +226,7 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
             <button
               className="pg-btn"
               disabled={meta.page <= 1 || loading}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               type="button"
             >
               <i className="ph ph-caret-left" aria-hidden="true" />
@@ -275,7 +235,7 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
             <button
               className="pg-btn"
               disabled={meta.page >= meta.totalPages || loading}
-              onClick={() => setCurrentPage((p) => p + 1)}
+              onClick={() => setCurrentPage(currentPage + 1)}
               type="button"
             >
               <i className="ph ph-caret-right" aria-hidden="true" />
@@ -343,174 +303,86 @@ const getFileIconClass = (fileName: string): string => {
 export function PatientProfilePage() {
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
-  const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
-  const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
-  const [labOrders, setLabOrders] = useState<DiagnosticOrder[]>([]);
-  const [imagingOrders, setImagingOrders] = useState<DiagnosticOrder[]>([]);
-  const [billingInvoices, setBillingInvoices] = useState<BillingInvoice[]>([]);
-  const [prescriptions, setPrescriptions] = useState<OpdPrescriptionResponse[]>([]);
-  
+  const {
+    state: {
+      activeTab,
+      patient,
+      loadingDetails,
+      detailsError,
+      timeline,
+      timelineMeta,
+      loadingTimeline,
+      loadingHistory,
+      visits: visitsData,
+      visitsMeta,
+      loadingVisits,
+      appointments,
+      appointmentsMeta,
+      loadingAppointments,
+      labOrders,
+      imagingOrders,
+      documents,
+      consents,
+      billingInvoices,
+      doctors: doctorsList,
+      filters: { timeline: timelineFilters, visits: visitsFilters, appointments: appointmentFilters },
+      pageInfo: { timeline: timelinePageInfo },
+      isSubmittingUpdate: submitting,
+      isSubmittingUpload: submittingUpload,
+    },
+    actions: {
+      setActiveTab,
+      setTimelineFilters,
+      setTimelinePage,
+      setVisitsFilters,
+      setVisitsPage,
+      setAppointmentFilters,
+      setAppointmentsPage,
+      handleUpdateProfile,
+      handleUploadDocument,
+    },
+  } = usePatientProfileFeature(requestedPatientId);
+
+  const loading = loadingDetails || (loadingHistory && activeTab === 'Medical History');
+  const loadError = detailsError?.message || '';
+
+  const setTimelineMeta = (val: Partial<{ page: number; limit: number }>) => setTimelinePage((prev) => ({ ...prev, ...val }));
+  const setVisitsMeta = (val: Partial<{ page: number; limit: number }>) => setVisitsPage((prev) => ({ ...prev, ...val }));
+  const setAppointmentsMeta = (val: Partial<{ page: number; limit: number }>) => setAppointmentsPage((prev) => ({ ...prev, ...val }));
+
+  const prescriptions: import('../api/opd').OpdPrescriptionResponse[] = []; // Quick fallback since scripts are nested
+
   const [viewingPrescription, setViewingPrescription] = useState<OpdPrescriptionResponse | null>(null);
   const [viewingLabOrder, setViewingLabOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingImagingOrder, setViewingImagingOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<BillingInvoice | null>(null);
 
-  // Pagination & Filter States
-  const [timelineData, setTimelineData] = useState<PatientTimelineEventResponse[]>([]);
-  const [timelineMeta, setTimelineMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
-  const [timelineFilters, setTimelineFilters] = useState({ from: '', to: '' });
-  const [timelineLoading, setTimelineLoading] = useState(false);
-
-  const [visitsData, setVisitsData] = useState<OpdVisitResponse[]>([]);
-  const [visitsMeta, setVisitsMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
-  const [visitsFilters, setVisitsFilters] = useState({ date_from: '', date_to: '' });
-  const [visitsLoading, setVisitsLoading] = useState(false);
-
-  const [appointmentsMeta, setAppointmentsMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
-  const [appointmentFilters, setAppointmentFilters] = useState({ date_from: '', date_to: '', doctor_id: '' });
-  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
-  const [doctorsList, setDoctorsList] = useState<DoctorResponse[]>([]);
-
-  const [activeTab, setActiveTab] = useState<Tab>('Overview');
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
-  const [form, setForm] = useState<ProfileForm | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [toast, setToast] = useState('');
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [showCardModal, setShowCardModal] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
-  // Upload Form State
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<UpdatePatientForm>({
+    resolver: zodResolver(updatePatientSchema)
+  });
+
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState<ApiPatientDocumentType>('CLINICAL');
   const [docCategory, setDocCategory] = useState('PDF');
-  const [submittingUpload, setSubmittingUpload] = useState(false);
   const [uploadMode, setUploadMode] = useState<'DOCUMENT' | 'CONSENT'>('DOCUMENT');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    try {
-      const patientId = requestedPatientId;
-      if (!patientId) {
-        setHistory(null);
-        setAppointments([]);
-        setLabOrders([]);
-        setImagingOrders([]);
-        setBillingInvoices([]);
-        setPrescriptions([]);
-        return;
-      }
-      const [historyResult, appointmentResult, labResult, imagingResult, billingResult, visitResult] = await Promise.allSettled([
-        patientsApi.history(patientId),
-        appointmentsApi.list({ patient_id: patientId, limit: 50, sortBy: 'appointment_date', sortOrder: 'desc' }),
-        laboratoryApi.list({ patient_id: patientId, limit: 50 }),
-        imagingApi.list({ patient_id: patientId, limit: 50 }),
-        billingApi.list({ patient_id: patientId, limit: 50 }),
-        opdApi.listVisits({ patient_id: patientId, limit: 50 }),
-      ]);
-
-      if (historyResult.status === 'fulfilled') setHistory(historyResult.value);
-      if (appointmentResult.status === 'fulfilled') setAppointments(appointmentResult.value.data);
-      if (labResult.status === 'fulfilled') setLabOrders(labResult.value.data);
-      if (imagingResult.status === 'fulfilled') setImagingOrders(imagingResult.value.data);
-      if (billingResult.status === 'fulfilled') setBillingInvoices(billingResult.value.data);
-
-      if (visitResult.status === 'fulfilled' && visitResult.value?.data?.length > 0) {
-        const scriptPromises = visitResult.value.data.map((v) => opdApi.getPrescription(v.id).catch(() => null));
-        const scriptRes = await Promise.all(scriptPromises);
-        setPrescriptions(scriptRes.filter((p): p is OpdPrescriptionResponse => Boolean(p && p.items?.length > 0)));
-      }
-    } catch (error) {
-      setHistory(null);
-      setAppointments([]);
-      setLabOrders([]);
-      setImagingOrders([]);
-      setBillingInvoices([]);
-      setPrescriptions([]);
-      setLoadError(getPatientErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [requestedPatientId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    doctorsApi.list({ limit: 100, status: 'ACTIVE' }).then(res => setDoctorsList(res.data)).catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'Medical History' && requestedPatientId) {
-      setTimelineLoading(true);
-      patientsApi.timeline(requestedPatientId, {
-        page: timelineMeta.page,
-        limit: timelineMeta.limit,
-        from: timelineFilters.from,
-        to: timelineFilters.to
-      }).then(res => {
-        setTimelineData(res.data);
-        setTimelineMeta(res.meta);
-      }).catch(console.error).finally(() => setTimelineLoading(false));
-    }
-  }, [activeTab, requestedPatientId, timelineMeta.page, timelineMeta.limit, timelineFilters.from, timelineFilters.to]);
-
-  useEffect(() => {
-    if (activeTab === 'Visits' && requestedPatientId) {
-      setVisitsLoading(true);
-      opdApi.listVisits({
-        patient_id: requestedPatientId,
-        page: visitsMeta.page,
-        limit: visitsMeta.limit,
-        date_from: visitsFilters.date_from,
-        date_to: visitsFilters.date_to
-      }).then(res => {
-        setVisitsData(res.data);
-        setVisitsMeta(res.meta);
-      }).catch(console.error).finally(() => setVisitsLoading(false));
-    }
-  }, [activeTab, requestedPatientId, visitsMeta.page, visitsMeta.limit, visitsFilters.date_from, visitsFilters.date_to]);
-
-  useEffect(() => {
-    if (activeTab === 'Appointments' && requestedPatientId) {
-      setAppointmentsLoading(true);
-      appointmentsApi.list({
-        patient_id: requestedPatientId,
-        page: appointmentsMeta.page,
-        limit: appointmentsMeta.limit,
-        date_from: appointmentFilters.date_from,
-        date_to: appointmentFilters.date_to,
-        doctor_id: appointmentFilters.doctor_id,
-        sortBy: 'appointment_date',
-        sortOrder: 'desc'
-      }).then(res => {
-        setAppointments(res.data);
-        setAppointmentsMeta(res.meta);
-      }).catch(console.error).finally(() => setAppointmentsLoading(false));
-    }
-  }, [activeTab, requestedPatientId, appointmentsMeta.page, appointmentsMeta.limit, appointmentFilters.date_from, appointmentFilters.date_to, appointmentFilters.doctor_id]);
-
-  const patient = history?.patient ?? null;
-  const timeline = history?.timeline ?? [];
-  const documents = history?.documents ?? [];
-  const consents = useMemo(() => documents.filter((d) => d.document_type === 'CONSENT'), [documents]);
-
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToast(message);
+    setToastMessage(message);
     setToastTone(tone);
-    window.setTimeout(() => setToast(''), 2800);
+    window.setTimeout(() => setToastMessage(''), 2800);
   };
 
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const newFiles = Array.from(files);
-    setStagedFiles((prev) => [...prev, ...newFiles]);
+    setStagedFiles((prev: File[]) => [...prev, ...newFiles]);
 
     const firstFile = newFiles[0];
     if (firstFile) {
@@ -524,7 +396,7 @@ export function PatientProfilePage() {
   };
 
   const removeStagedFile = (index: number) => {
-    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+    setStagedFiles((prev: File[]) => prev.filter((_: File, i: number) => i !== index));
   };
 
   const handleUploadSubmit = async (e: FormEvent) => {
@@ -538,15 +410,14 @@ export function PatientProfilePage() {
       return;
     }
 
-    setSubmittingUpload(true);
     try {
       for (let i = 0; i < stagedFiles.length; i++) {
         const file = stagedFiles[i];
         if (!file) continue;
         const title = stagedFiles.length > 1 ? `${docName.trim()} (${i + 1})` : docName.trim();
         if (!requestedPatientId) throw new Error('No patient selected.');
-        
-        await patientsApi.uploadDocument(requestedPatientId, {
+
+        await handleUploadDocument({
           document_type: uploadMode === 'CONSENT' ? 'CONSENT' : docType,
           title,
           file,
@@ -557,11 +428,8 @@ export function PatientProfilePage() {
       setStagedFiles([]);
       setDocName('');
       showToast(`${stagedFiles.length} file(s) uploaded successfully.`);
-      void load();
     } catch (error) {
       showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setSubmittingUpload(false);
     }
   };
 
@@ -630,41 +498,29 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
     if (win) { win.document.write(html); win.document.close(); }
   };
 
-  const saveProfile = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!patient || !form) return;
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.dateOfBirth) {
-      setFormError('First name, last name, and date of birth are required.');
-      return;
-    }
-    const payload: Partial<SavePatientPayload> = {
-      blood_group: nullable(form.bloodGroup),
-      date_of_birth: form.dateOfBirth,
-      email: nullable(form.email),
-      first_name: form.firstName.trim(),
-      gender: form.gender,
-      last_name: form.lastName.trim(),
-      notes: nullable(form.notes),
-      phone: nullable(form.phone),
-      status: form.status,
-    };
-    setSubmitting(true);
-    setFormError('');
+  const saveProfile = async (data: UpdatePatientForm) => {
+    if (!patient) return;
     try {
-      await patientsApi.update(patient.id, payload);
+      await handleUpdateProfile({
+        first_name: data.firstName.trim(),
+        last_name: data.lastName.trim(),
+        date_of_birth: data.dateOfBirth,
+        phone: data.phone?.trim() || null,
+        email: data.email?.trim() || null,
+        status: data.status,
+        gender: data.gender,
+        blood_group: data.bloodGroup?.trim() || null,
+        notes: data.notes?.trim() || null,
+      });
       setEditOpen(false);
       showToast('Patient profile updated successfully.');
-      await load();
     } catch (error) {
-      setFormError(getPatientErrorMessage(error));
       showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   if (loading) return <div className="um-state-cell">Loading patient workspace...</div>;
-  if (loadError) return <div className="um-state-cell" role="alert">{loadError}<div><button className="doc-btn mt-4" onClick={() => void load()} type="button">Retry</button></div></div>;
+  if (loadError) return <div className="um-state-cell" role="alert">{loadError}</div>;
   if (!patient) {
     return (
       <div className="appointment-page">
@@ -736,7 +592,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           </div>
 
           <div className="profile-hero-actions">
-            <button className="doc-btn" onClick={() => { setForm(toForm(patient)); setFormError(''); setEditOpen(true); }} type="button">
+            <button className="doc-btn" onClick={() => { reset({ firstName: patient.first_name, lastName: patient.last_name, dateOfBirth: patient.date_of_birth.slice(0, 10), phone: patient.phone ?? '', email: patient.email ?? '', status: patient.status, gender: patient.gender, bloodGroup: patient.blood_group ?? '', notes: patient.notes ?? '' }); setEditOpen(true); }} type="button">
               <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
             </button>
             {/* Register Visit — temporarily disabled */}
@@ -875,9 +731,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* ── EMR Timeline (Option B — inline) ─────────────────────────── */}
           {activeTab === 'EMR Timeline' ? (
-            <EmrTimelineTab patientId={patient.id} />
+            <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timeline || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={timelinePageInfo.page} setCurrentPage={(p: number) => setTimelineMeta({ page: p })} />
           ) : null}
 
           {/* ── Medical History ──────────────────────────────────────────── */}
@@ -886,18 +741,18 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
-                  <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters(prev => ({ ...prev, from: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} />
+                  <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, from: e.target.value })); setTimelineMeta({ page: 1 }); }} />
                 </div>
                 <div className="doc-field">
                   <label>To</label>
-                  <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters(prev => ({ ...prev, to: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1 })); }} />
+                  <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, to: e.target.value })); setTimelineMeta({ page: 1 }); }} />
                 </div>
                 <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta(prev => ({ ...prev, page: 1 })); }}>
                   Reset
                 </button>
                 {timelineLoading && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
-              {timelineData.length === 0 ? (
+              {timeline.length === 0 ? (
                 <EmptyRecords message="No medical history events recorded for this patient." />
               ) : (
                 <div className="table-responsive">
@@ -906,7 +761,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                       <tr><th>DATE</th><th>EVENT</th><th>DESCRIPTION</th></tr>
                     </thead>
                     <tbody>
-                      {timelineData.map((event) => (
+                      {timeline.map((event) => (
                         <tr key={event.id}>
                           <td>{formatDateTime(event.occurred_at)}</td>
                           <td><strong>{event.title}</strong></td>
@@ -920,17 +775,17 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               {timelineMeta.totalPages > 1 && (
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
-                    Showing {timelineData.length === 0 ? 0 : (timelineMeta.page - 1) * timelineMeta.limit + 1}-
-                    {Math.min(timelineMeta.page * timelineMeta.limit, (timelineMeta as any).total || 0)} of {(timelineMeta as any).total || 0} events
+                    Showing {timeline.length === 0 ? 0 : (timelineMeta.page - 1) * timelineMeta.limit + 1}-
+                    {Math.min(timelineMeta.page * timelineMeta.limit, (timelineMeta.total) || 0)} of {(timelineMeta.total) || 0} events
                   </span>
                   <div className="um-page-controls">
-                    <button className="pg-btn" disabled={timelineMeta.page <= 1} onClick={() => setTimelineMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
+                    <button className="pg-btn" disabled={timelineMeta.page <= 1} onClick={() => setTimelineMeta({ page: timelineMeta.page - 1 })} type="button">
                       <i className="ph ph-caret-left" aria-hidden="true" />
                     </button>
                     <button className="pg-btn active" disabled type="button">
                       {timelineMeta.page}
                     </button>
-                    <button className="pg-btn" disabled={timelineMeta.page >= timelineMeta.totalPages} onClick={() => setTimelineMeta(prev => ({ ...prev, page: prev.page + 1 }))} type="button">
+                    <button className="pg-btn" disabled={timelineMeta.page >= timelineMeta.totalPages} onClick={() => setTimelineMeta({ page: timelineMeta.page + 1 })} type="button">
                       <i className="ph ph-caret-right" aria-hidden="true" />
                     </button>
                   </div>
@@ -945,11 +800,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
-                  <input type="date" value={visitsFilters.date_from} onChange={(e) => { setVisitsFilters(prev => ({ ...prev, date_from: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} />
+                  <input type="date" value={visitsFilters.date_from} onChange={(e) => { setVisitsFilters((prev: typeof visitsFilters) => ({ ...prev, date_from: e.target.value })); setVisitsMeta({ page: 1 }); }} />
                 </div>
                 <div className="doc-field">
                   <label>To</label>
-                  <input type="date" value={visitsFilters.date_to} onChange={(e) => { setVisitsFilters(prev => ({ ...prev, date_to: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1 })); }} />
+                  <input type="date" value={visitsFilters.date_to} onChange={(e) => { setVisitsFilters((prev: typeof visitsFilters) => ({ ...prev, date_to: e.target.value })); setVisitsMeta({ page: 1 }); }} />
                 </div>
                 <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta(prev => ({ ...prev, page: 1 })); }}>
                   Reset
@@ -982,16 +837,16 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
                     Showing {visitsData.length === 0 ? 0 : (visitsMeta.page - 1) * visitsMeta.limit + 1}-
-                    {Math.min(visitsMeta.page * visitsMeta.limit, (visitsMeta as any).total || 0)} of {(visitsMeta as any).total || 0} visits
+                    {Math.min(visitsMeta.page * visitsMeta.limit, (visitsMeta.total) || 0)} of {(visitsMeta.total) || 0} visits
                   </span>
                   <div className="um-page-controls">
-                    <button className="pg-btn" disabled={visitsMeta.page <= 1} onClick={() => setVisitsMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
+                    <button className="pg-btn" disabled={visitsMeta.page <= 1} onClick={() => setVisitsMeta({ page: visitsMeta.page - 1 })} type="button">
                       <i className="ph ph-caret-left" aria-hidden="true" />
                     </button>
                     <button className="pg-btn active" disabled type="button">
                       {visitsMeta.page}
                     </button>
-                    <button className="pg-btn" disabled={visitsMeta.page >= visitsMeta.totalPages} onClick={() => setVisitsMeta(prev => ({ ...prev, page: prev.page + 1 }))} type="button">
+                    <button className="pg-btn" disabled={visitsMeta.page >= visitsMeta.totalPages} onClick={() => setVisitsMeta({ page: visitsMeta.page + 1 })} type="button">
                       <i className="ph ph-caret-right" aria-hidden="true" />
                     </button>
                   </div>
@@ -1006,15 +861,15 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
-                  <input type="date" value={appointmentFilters.date_from} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, date_from: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }} />
+                  <input type="date" value={appointmentFilters.date_from} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, date_from: e.target.value })); setAppointmentsMeta({ page: 1 }); }} />
                 </div>
                 <div className="doc-field">
                   <label>To</label>
-                  <input type="date" value={appointmentFilters.date_to} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, date_to: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }} />
+                  <input type="date" value={appointmentFilters.date_to} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, date_to: e.target.value })); setAppointmentsMeta({ page: 1 }); }} />
                 </div>
                 <div className="doc-field">
                   <label>Doctor</label>
-                  <select value={appointmentFilters.doctor_id} onChange={(e) => { setAppointmentFilters(prev => ({ ...prev, doctor_id: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1 })); }}>
+                  <select value={appointmentFilters.doctor_id} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, doctor_id: e.target.value })); setAppointmentsMeta({ page: 1 }); }}>
                     <option value="">All Doctors</option>
                     {doctorsList.map(doc => (
                       <option key={doc.id} value={doc.id}>{doc.display_name}</option>
@@ -1052,16 +907,16 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
                     Showing {appointments.length === 0 ? 0 : (appointmentsMeta.page - 1) * appointmentsMeta.limit + 1}-
-                    {Math.min(appointmentsMeta.page * appointmentsMeta.limit, (appointmentsMeta as any).total || 0)} of {(appointmentsMeta as any).total || 0} appointments
+                    {Math.min(appointmentsMeta.page * appointmentsMeta.limit, (appointmentsMeta.total) || 0)} of {(appointmentsMeta.total) || 0} appointments
                   </span>
                   <div className="um-page-controls">
-                    <button className="pg-btn" disabled={appointmentsMeta.page <= 1} onClick={() => setAppointmentsMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
+                    <button className="pg-btn" disabled={appointmentsMeta.page <= 1} onClick={() => setAppointmentsMeta({ page: appointmentsMeta.page - 1 })} type="button">
                       <i className="ph ph-caret-left" aria-hidden="true" />
                     </button>
                     <button className="pg-btn active" disabled type="button">
                       {appointmentsMeta.page}
                     </button>
-                    <button className="pg-btn" disabled={appointmentsMeta.page >= appointmentsMeta.totalPages} onClick={() => setAppointmentsMeta(prev => ({ ...prev, page: prev.page + 1 }))} type="button">
+                    <button className="pg-btn" disabled={appointmentsMeta.page >= appointmentsMeta.totalPages} onClick={() => setAppointmentsMeta({ page: appointmentsMeta.page + 1 })} type="button">
                       <i className="ph ph-caret-right" aria-hidden="true" />
                     </button>
                   </div>
@@ -1081,15 +936,15 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                     <tr><th>DATE</th><th>DOCTOR</th><th>MEDICINES PRESCRIBED</th><th>DOSAGE &amp; FREQUENCY</th><th>STATUS</th><th style={{ width: '80px', textAlign: 'center' }}>ACTION</th></tr>
                   </thead>
                   <tbody>
-                    {prescriptions.map((script) => (
+                    {prescriptions.map((script: import('../api/opd').OpdPrescriptionResponse) => (
                       <tr key={script.id}>
                         <td>{formatDate(script.created_at)}</td>
                         <td><strong>{script.doctor_name || 'Attending Physician'}</strong></td>
                         <td>
-                          {script.items.map((i) => `${i.medicine_name}${i.strength ? ` (${i.strength})` : ''}`).join(', ')}
+                          {script.items.map((i: import('../api/opd').OpdPrescriptionItemResponse) => `${i.medicine_name}${i.strength ? ` (${i.strength})` : ''}`).join(', ')}
                         </td>
                         <td>
-                          {script.items.map((i) => `${i.dosage} - ${i.frequency} (${i.duration})`).join('; ')}
+                          {script.items.map((i: import('../api/opd').OpdPrescriptionItemResponse) => `${i.dosage} - ${i.frequency} (${i.duration})`).join('; ')}
                         </td>
                         <td><span className="doc-status active">{script.status}</span></td>
                         <td style={{ textAlign: 'center' }}>
@@ -1119,7 +974,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                     {labOrders.map((order) => (
                       <tr key={order.id}>
                         <td>{formatDate(order.created_at)}</td>
-                        <td><strong>{order.items.map((i) => i.investigation_name).join(', ') || 'Lab Requisition'}</strong></td>
+                        <td><strong>{order.items.map((i: { investigation_name: string }) => i.investigation_name).join(', ') || 'Lab Requisition'}</strong></td>
                         <td>{order.items[0]?.category || 'General Lab'}</td>
                         <td><span className="doc-status draft">{order.priority}</span></td>
                         <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
@@ -1150,7 +1005,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                     {imagingOrders.map((order) => (
                       <tr key={order.id}>
                         <td>{formatDate(order.created_at)}</td>
-                        <td><strong>{order.items.map((i) => i.investigation_name).join(', ') || 'Imaging Requisition'}</strong></td>
+                        <td><strong>{order.items.map((i: { investigation_name: string }) => i.investigation_name).join(', ') || 'Imaging Requisition'}</strong></td>
                         <td>{order.items[0]?.category || 'Radiology'}</td>
                         <td><span className="doc-status draft">{order.priority}</span></td>
                         <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
@@ -1215,7 +1070,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                       <tr key={inv.id}>
                         <td><strong>{inv.invoice_number}</strong></td>
                         <td>{formatDate(inv.invoice_date || inv.created_at)}</td>
-                        <td>{inv.items.map((i) => i.service_name).join(', ') || 'OPD Services'}</td>
+                        <td>{inv.items.map((i: { service_name: string }) => i.service_name).join(', ') || 'OPD Services'}</td>
                         <td>₹{inv.total_amount.toLocaleString()}</td>
                         <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>₹{inv.balance_amount.toLocaleString()}</strong></td>
                         <td><span className="doc-status active">{inv.status}</span></td>
@@ -1269,60 +1124,43 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
       {/* Edit Patient Modal */}
       <Modal onClose={() => setEditOpen(false)} open={editOpen} size="large" title="Edit Patient">
-        {form ? (
-          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={saveProfile}>
-            {formError ? <div className="form-error-banner" role="alert">{formError}</div> : null}
-
-            <div className="locked-notice-banner">
-              <i className="ph ph-lock-key" aria-hidden="true" />
-              <span>
-                Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
-              </span>
-            </div>
-
+          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSubmit(saveProfile)}>
             <section className="doctor-onboarding-section">
               <header>
                 <span><i className="ph ph-user" aria-hidden="true" /></span>
                 <div>
                   <h3>Identity Information</h3>
-                  <p>Immutable patient identification and demographic attributes.</p>
+                  <p>Core patient identification and demographic attributes.</p>
                 </div>
               </header>
               <div className="form-grid">
-                <div className="form-group locked">
-                  <label htmlFor="profile-first">
-                    First name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
-                  </label>
-                  <input disabled id="profile-first" readOnly value={form.firstName} />
+                <div className={`form-group ${errors.firstName ? 'has-error' : ''}`}>
+                  <label htmlFor="search-edit-first">First name <span className="required-asterisk">*</span></label>
+                  <input disabled={submitting} id="search-edit-first" {...register('firstName')} />
+                  {errors.firstName && <span className="field-error-msg">{errors.firstName.message}</span>}
                 </div>
-                <div className="form-group locked">
-                  <label htmlFor="profile-last">
-                    Last name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
-                  </label>
-                  <input disabled id="profile-last" readOnly value={form.lastName} />
+                <div className={`form-group ${errors.lastName ? 'has-error' : ''}`}>
+                  <label htmlFor="search-edit-last">Last name <span className="required-asterisk">*</span></label>
+                  <input disabled={submitting} id="search-edit-last" {...register('lastName')} />
+                  {errors.lastName && <span className="field-error-msg">{errors.lastName.message}</span>}
                 </div>
-                <div className="form-group locked">
-                  <label htmlFor="profile-dob">
-                    Date of birth <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
-                  </label>
-                  <input disabled id="profile-dob" readOnly type="date" value={form.dateOfBirth} />
+                <div className={`form-group ${errors.dateOfBirth ? 'has-error' : ''}`}>
+                  <label htmlFor="search-edit-dob">Date of birth <span className="required-asterisk">*</span></label>
+                  <input disabled={submitting} id="search-edit-dob" type="date" {...register('dateOfBirth')} />
+                  {errors.dateOfBirth && <span className="field-error-msg">{errors.dateOfBirth.message}</span>}
                 </div>
-                <div className="form-group locked">
-                  <label htmlFor="profile-gender">
-                    Gender <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
-                  </label>
-                  <select disabled id="profile-gender" value={form.gender}>
+                <div className="form-group">
+                  <label htmlFor="search-edit-gender">Gender</label>
+                  <select disabled={submitting} id="search-edit-gender" {...register('gender')}>
                     <option value="UNKNOWN">Unknown</option>
                     <option value="MALE">Male</option>
                     <option value="FEMALE">Female</option>
                     <option value="OTHER">Other</option>
                   </select>
                 </div>
-                <div className="form-group locked">
-                  <label htmlFor="profile-blood">
-                    Blood group <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
-                  </label>
-                  <input disabled id="profile-blood" readOnly value={form.bloodGroup || 'Not recorded'} />
+                <div className="form-group">
+                  <label htmlFor="search-edit-blood">Blood group</label>
+                  <input disabled={submitting} id="search-edit-blood" {...register('bloodGroup')} />
                 </div>
               </div>
             </section>
@@ -1331,30 +1169,32 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <header>
                 <span><i className="ph ph-phone" aria-hidden="true" /></span>
                 <div>
-                  <h3>Contact &amp; Operations</h3>
+                  <h3>Contact & Operations</h3>
                   <p>Editable communication details, status, and clinical notes.</p>
                 </div>
               </header>
               <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="profile-phone">Phone</label>
-                  <input disabled={submitting} id="profile-phone" onChange={(event) => setForm({ ...form, phone: event.target.value })} value={form.phone} />
+                <div className={`form-group ${errors.phone ? 'has-error' : ''}`}>
+                  <label htmlFor="search-edit-phone">Phone</label>
+                  <input disabled={submitting} id="search-edit-phone" {...register('phone')} />
+                  {errors.phone && <span className="field-error-msg">{errors.phone.message}</span>}
+                </div>
+                <div className={`form-group ${errors.email ? 'has-error' : ''}`}>
+                  <label htmlFor="search-edit-email">Email</label>
+                  <input disabled={submitting} id="search-edit-email" type="email" {...register('email')} />
+                  {errors.email && <span className="field-error-msg">{errors.email.message}</span>}
                 </div>
                 <div className="form-group">
-                  <label htmlFor="profile-email">Email</label>
-                  <input disabled={submitting} id="profile-email" onChange={(event) => setForm({ ...form, email: event.target.value })} type="email" value={form.email} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="profile-status">Status</label>
-                  <select disabled={submitting} id="profile-status" onChange={(event) => setForm({ ...form, status: event.target.value as ApiPatientStatus })} value={form.status}>
+                  <label htmlFor="search-edit-status">Status</label>
+                  <select disabled={submitting} id="search-edit-status" {...register('status')}>
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
                     <option value="DECEASED">Deceased</option>
                   </select>
                 </div>
                 <div className="form-group full-width">
-                  <label htmlFor="profile-notes">Registration Notes</label>
-                  <textarea disabled={submitting} id="profile-notes" onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} value={form.notes} />
+                  <label htmlFor="search-edit-notes">Registration Notes</label>
+                  <textarea disabled={submitting} id="search-edit-notes" rows={3} {...register('notes')} />
                 </div>
               </div>
             </section>
@@ -1368,7 +1208,6 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               </button>
             </div>
           </form>
-        ) : null}
       </Modal>
 
       {/* View Card Modal */}
@@ -1557,7 +1396,16 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
       <PrintImagingOrderModal onClose={() => setViewingImagingOrder(null)} order={viewingImagingOrder} patient={patient} />
       <PrintBillingModal invoice={viewingInvoice} onClose={() => setViewingInvoice(null)} patient={patient} />
 
-      <Toast message={toast} tone={toastTone} visible={Boolean(toast)} />
+      <Toast message={toastMessage} tone={toastTone} visible={Boolean(toastMessage)} />
     </>
   );
 }
+
+
+
+
+
+
+
+
+

@@ -12,8 +12,6 @@ const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', '
 
 const isObjectId = (value: string | null | undefined) => Boolean(value && Types.ObjectId.isValid(value));
 
-const hasText = (value: string | null | undefined) => Boolean(value?.trim());
-
 export class OpdConsultationService {
   constructor(
     private readonly repository: OpdConsultationRepository,
@@ -23,13 +21,13 @@ export class OpdConsultationService {
     private readonly appointmentRepository: AppointmentRepository,
   ) {}
 
-  async getByVisit(visitId: string) {
-    await this.getVisit(visitId);
+  async getByVisit(visitId: string, userId: string) {
+    await this.getVisit(visitId, userId);
     return this.repository.getByVisit(visitId);
   }
 
   async saveDraft(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
 
@@ -57,11 +55,10 @@ export class OpdConsultationService {
   }
 
   async complete(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
     await this.ensureVitalsRecorded(visit.id);
-    this.validateCompletion(data);
 
     if (visit.status === 'READY_FOR_CONSULTATION') {
       await this.visitRepository.updateStatus(
@@ -106,9 +103,10 @@ export class OpdConsultationService {
     return consultation;
   }
 
-  private async getVisit(visitId: string) {
+  private async getVisit(visitId: string, userId: string) {
     this.validateId(visitId, 'OPD visit id is invalid');
-    const visit = await this.visitRepository.getById(visitId);
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    const visit = await this.visitRepository.getById(visitId, scope);
 
     if (!visit) {
       throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
@@ -135,10 +133,6 @@ export class OpdConsultationService {
     if (!latestVitals) {
       throw new AppError('Vitals must be recorded before completing consultation', 400, 'VITALS_REQUIRED');
     }
-  }
-
-  private validateCompletion(_data: SaveOpdConsultationDTO) {
-    // All consultation fields are optional
   }
 
   private validateId(id: string | null | undefined, message: string) {

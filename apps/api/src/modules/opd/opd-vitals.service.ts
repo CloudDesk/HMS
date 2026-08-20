@@ -23,18 +23,18 @@ export class OpdVitalsService {
     private readonly patientRepository: PatientRepository,
   ) {}
 
-  async listByVisit(visitId: string, query: OpdVitalsListQuery) {
-    await this.getVisit(visitId);
+  async listByVisit(visitId: string, query: OpdVitalsListQuery, userId: string) {
+    await this.getVisit(visitId, userId);
     return this.repository.listByVisit(visitId, query);
   }
 
-  async getLatestByVisit(visitId: string) {
-    await this.getVisit(visitId);
+  async getLatestByVisit(visitId: string, userId?: string) {
+    await this.getVisit(visitId, userId);
     return this.repository.getLatestByVisit(visitId);
   }
 
   async create(visitId: string, data: CreateOpdVitalsDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     this.validateVitals(data);
 
@@ -71,9 +71,10 @@ export class OpdVitalsService {
     return vitals;
   }
 
-  private async getVisit(visitId: string) {
+  private async getVisit(visitId: string, userId?: string) {
     this.validateId(visitId, 'OPD visit id is invalid');
-    const visit = await this.visitRepository.getById(visitId);
+    const scope = userId ? await this.visitRepository.resolveBranchScope(userId) : undefined;
+    const visit = await this.visitRepository.getById(visitId, scope);
 
     if (!visit) {
       throw new AppError('OPD visit not found', 404, 'NOT_FOUND');

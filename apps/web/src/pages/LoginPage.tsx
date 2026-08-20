@@ -1,9 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { ApiError } from '../api/api-error';
-import { appConfig } from '../config';
+
 import { SessionExpiredNotice } from '../components/SessionExpiredNotice';
 import { useAuth } from '../auth/useAuth';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { useAppLocation } from '../routing/navigation';
 
 export function LoginPage() {
   const { status, authError, clearAuthError, login } = useAuth();
@@ -16,12 +16,6 @@ export function LoginPage() {
 
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const showExpiredNotice = status === 'session-expired' || query.get('reason') === 'session-expired';
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [status]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -15,7 +15,11 @@ export const registerOpdClinicalOrderRoutes = async (app: FastifyInstance, servi
       schema: { params: clinicalOrderParamsSchema },
     },
     async (request) =>
-      ok(await services.opdClinicalOrders.getByVisitAndType(request.params.visitId, request.params.orderType)),
+      ok(await services.opdClinicalOrders.getByVisitAndType(
+        request.params.visitId,
+        request.params.orderType,
+        request.user!.id,
+      )),
   );
 
   app.put<{ Params: ClinicalOrderParams; Body: SaveOpdClinicalOrderDTO }>(

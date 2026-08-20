@@ -1,54 +1,43 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { ApiError } from '../api/api-error';
-import { branchesApi, type BranchResponse } from '../api/branches';
-import { departmentsApi, type DepartmentResponse } from '../api/departments';
+import { type DepartmentResponse } from '../api/departments';
 import {
-  servicesApi,
   type ApiServiceStatus,
   type ApiServiceType,
-  type CreateServicePayload,
-  type ServiceListResponse,
   type ServiceResponse,
-  type ServiceSummary,
 } from '../api/services';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
-import { hasPermission } from '../auth/access-control';
-import { useAuth } from '../auth/useAuth';
+import { useServiceCatalogueFeature, type SortColumn, type SortDirection } from '../hooks/services/useServiceCatalogueFeature';
+
 import { useCurrencyFormatter } from '../api/useSettings';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type SortColumn = 'code' | 'name' | 'standard_price' | 'created_at';
-type SortDirection = 'asc' | 'desc';
 type ModalMode = 'create' | 'edit' | 'view';
 
-type ServiceFormState = {
-  code: string;
-  name: string;
-  service_type: ApiServiceType;
-  branch_id: string;
-  department_id: string;
-  category: string;
-  description: string;
-  standard_price: string;
-  status: ApiServiceStatus;
-};
-
-const emptyForm: ServiceFormState = {
-  code: '',
-  name: '',
-  service_type: 'GENERAL',
-  branch_id: '',
-  department_id: '',
-  category: '',
-  description: '',
-  standard_price: '',
-  status: 'ACTIVE',
-};
+const serviceSchema = z.object({
+  code: z.string().min(1, 'Service code is required.'),
+  name: z.string().min(1, 'Service name is required.'),
+  service_type: z.enum(['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE']),
+  // branch_id is UI-only (filters dept options); not sent to API
+  branch_id: z.string().optional(),
+  department_id: z.string().min(1, 'Department is required.'),
+  category: z.string().optional(),
+  description: z.string().optional(),
+  standard_price: z.string().refine(
+    (val) => val !== '' && !Number.isNaN(parseFloat(val)) && parseFloat(val) >= 0,
+    { message: 'Standard price must be a non-negative number.' }
+  ),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+});
+type ServiceFormData = z.infer<typeof serviceSchema>;
 
 const serviceTypeLabels: Record<ApiServiceType, string> = {
   GENERAL: 'General Service',
@@ -56,18 +45,6 @@ const serviceTypeLabels: Record<ApiServiceType, string> = {
   IMAGING_SERVICE: 'Imaging / Scan',
 };
 
-type LookupPage<T> = {
-  data: T[];
-  meta: { totalPages: number };
-};
-
-const loadAllLookupPages = async <T,>(loadPage: (page: number) => Promise<LookupPage<T>>) => {
-  const firstPage = await loadPage(1);
-  const remainingPages = await Promise.all(
-    Array.from({ length: firstPage.meta.totalPages - 1 }, (_, index) => loadPage(index + 2)),
-  );
-  return [firstPage, ...remainingPages].flatMap((response) => response.data);
-};
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -201,179 +178,81 @@ function ServicesByDepartment({
 
 export function ServiceCataloguePage() {
   const formatPrice = useCurrencyFormatter();
-  const { user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {
-    module: 'Administration', screen: 'Services', action,
-  });
-  const canCreate = can('Create');
-  const canEdit = can('Edit');
-  const canDelete = can('Delete');
-  const canExport = can('Export');
+  const feature = useServiceCatalogueFeature();
+  const { state, data, status, rbac, actions, mutations } = feature;
+  const { query, deptFilter, statusFilter, typeFilter, sortColumn, sortDirection, currentPage, pageSize, setQuery, setDeptFilter, setStatusFilter, setTypeFilter, setCurrentPage, setPageSize } = state;
+  const { services, meta, summary, branches, departments } = data;
+  const { isFetching: loading, isMutating: submitting, loadError, forbidden } = status;
+  const { canCreate, canEdit, canDelete, canExport } = rbac;
+  const { handleSort, resetFilters, handleExport } = actions;
+
+  const search = query;
+  const setSearch = setQuery;
   const { search: locationSearch } = useAppLocation();
-  // Data
-  const [services, setServices] = useState<ServiceResponse[]>([]);
-  const [summary, setSummary] = useState<ServiceSummary>({
-    total: 0,
-    active: 0,
-    inactive: 0,
-    addedThisMonth: 0,
-    departmentsCovered: 0,
-    byType: { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0 },
-  });
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [lookupsLoading, setLookupsLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ApiServiceStatus | ''>('');
-  const [typeFilter, setTypeFilter] = useState<ApiServiceType | ''>('');
-
-  // Pagination & Sorting
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [meta, setMeta] = useState<ServiceListResponse['meta']>({
-    limit: 10, page: 1, total: 0, totalPages: 1,
-  });
 
   // Modals
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [activeSvc, setActiveSvc] = useState<ServiceResponse | null>(null);
-  const [form, setForm] = useState<ServiceFormState>(emptyForm);
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ServiceResponse | null>(null);
 
-  // UI Status
-  const [loadError, setLoadError] = useState('');
-  const [lookupError, setLookupError] = useState('');
-  const [forbidden, setForbidden] = useState(false);
+  const svcForm = useForm<ServiceFormData>({
+    resolver: zodResolver(serviceSchema),
+    defaultValues: {
+      code: '', name: '', service_type: 'GENERAL', branch_id: '',
+      department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE'
+    }
+  });
+
+  const watchedBranchId = svcForm.watch('branch_id');
+
+  // Status
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const showToast = (msg: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(msg);
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
     setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  // ── Derived: filter departments by selected branch ─────────────────────────
   const formDepartmentOptions = useMemo(
-    () => (form.branch_id ? departments.filter((department) => department.branch_ids.includes(form.branch_id)) : departments),
-    [departments, form.branch_id],
+    () => (watchedBranchId ? departments.filter((department) => department.branch_id === watchedBranchId) : departments),
+    [departments, watchedBranchId],
   );
 
-  // ── Loaders ────────────────────────────────────────────────────────────────
-
-  const loadLookups = useCallback(async () => {
-    setLookupsLoading(true);
-    setLookupError('');
-    try {
-      const [availableBranches, availableDepartments] = await Promise.all([
-        loadAllLookupPages((page) =>
-          branchesApi.list({ limit: 100, page, sortBy: 'name', sortOrder: 'asc' }),
-        ),
-        loadAllLookupPages((page) =>
-          departmentsApi.list({ limit: 100, page, sortBy: 'name', sortOrder: 'asc' }),
-        ),
-      ]);
-      setBranches(availableBranches);
-      setDepartments(availableDepartments);
-    } catch (error) {
-      setBranches([]);
-      setDepartments([]);
-      setLookupError(getErrorMessage(error));
-    } finally {
-      setLookupsLoading(false);
-    }
-  }, []);
-
-  const loadServices = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    try {
-      const deptId = deptFilter || undefined;
-
-      const [res, totals] = await Promise.all([servicesApi.list({
-        search: search.trim() || undefined,
-        status: statusFilter || undefined,
-        department_id: deptId,
-        service_type: typeFilter || undefined,
-        page: currentPage,
-        limit: pageSize,
-        sortBy: sortColumn ?? undefined,
-        sortOrder: sortColumn ? sortDirection : undefined,
-      }), servicesApi.summary()]);
-      setServices(res.data);
-      setMeta(res.meta);
-      setSummary(totals);
-      setForbidden(false);
-
-      if (currentPage > res.meta.totalPages) {
-        setCurrentPage(res.meta.totalPages);
-      }
-    } catch (error) {
-      setServices([]);
-      setMeta({ limit: pageSize, page: currentPage, total: 0, totalPages: 1 });
-      setLoadError(getErrorMessage(error));
-      if (error instanceof ApiError && error.status === 403) setForbidden(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter, typeFilter, deptFilter, currentPage, pageSize, sortColumn, sortDirection]);
-
-  useEffect(() => { void loadLookups(); }, [loadLookups]);
-  useEffect(() => { void loadServices(); }, [loadServices]);
-
-  // ── KPI values ─────────────────────────────────────────────────────────────
-  // ── Sort / filter ──────────────────────────────────────────────────────────
-  const handleSort = (column: SortColumn) => {
-    setSortColumn((cur) => {
-      if (cur === column) {
-        setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-        return cur;
-      }
-      setSortDirection('asc');
-      return column;
-    });
-    setCurrentPage(1);
+  const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
+  const getBranchForDept = (deptId: string) => {
+    const dept = departments.find((d) => d.id === deptId);
+    if (!dept) return '—';
+    const branch = branches.find((b) => b.id === dept.branch_id);
+    return branch?.name ?? dept.branch_id;
   };
 
-  const resetFilters = () => {
-    setSearch('');
-    setDeptFilter('');
-    setStatusFilter('');
-    setTypeFilter('');
-    setCurrentPage(1);
-  };
-
-  // ── Modals ─────────────────────────────────────────────────────────────────
   const openModal = (mode: ModalMode, svc: ServiceResponse | null = null) => {
     setModalMode(mode);
     setActiveSvc(svc);
     setFormError('');
     if (svc) {
-      const department = departments.find((item) => item.id === svc.department_id);
-      setForm({
+      const dept = departments.find((d) => d.id === svc.department_id);
+      svcForm.reset({
         code: svc.code,
         name: svc.name,
         service_type: svc.service_type,
-        branch_id: department?.branch_ids[0] ?? '',
+        branch_id: dept?.branch_id || '',
         department_id: svc.department_id,
-        category: svc.category ?? '',
-        description: svc.description ?? '',
-        standard_price: String(svc.standard_price),
+        category: svc.category || '',
+        description: svc.description || '',
+        standard_price: svc.standard_price !== null ? String(svc.standard_price) : '',
         status: svc.status,
       });
     } else {
-      setForm(emptyForm);
+      svcForm.reset({
+        code: '', name: '', service_type: 'GENERAL', branch_id: '',
+        department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE'
+      });
     }
   };
 
@@ -382,123 +261,79 @@ export function ServiceCataloguePage() {
     setModalMode(null);
     setActiveSvc(null);
     setFormError('');
+    svcForm.reset();
   };
 
   useEffect(() => {
-    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) openModal('create');
-  }, [locationSearch]);
+    if (new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode && canCreate) {
+      openModal('create');
+    }
+  }, [locationSearch, canCreate, modalMode]);
 
-  // ── CRUD ───────────────────────────────────────────────────────────────────
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.code.trim()) { setFormError('Service code is required.'); return; }
-    if (!form.name.trim()) { setFormError('Service name is required.'); return; }
-    if (!form.department_id) { setFormError('Department is required.'); return; }
-
-    const price = parseFloat(form.standard_price);
-    if (Number.isNaN(price) || price < 0) { setFormError('Standard price must be a non-negative number.'); return; }
-
-    setSubmitting(true);
+  const handleSave = svcForm.handleSubmit(async (values) => {
     setFormError('');
-
     try {
+      const price = parseFloat(values.standard_price);
+      const payload = {
+        code: values.code.trim(),
+        name: values.name.trim(),
+        service_type: values.service_type,
+        department_id: values.department_id,
+        category: values.category?.trim() || null,
+        description: values.description?.trim() || null,
+        standard_price: price,
+        status: values.status,
+      };
+
       if (modalMode === 'create') {
-        const payload: CreateServicePayload = {
-          code: form.code.trim(),
-          name: form.name.trim(),
-          service_type: form.service_type,
-          department_id: form.department_id,
-          standard_price: price,
-          category: form.category.trim() || null,
-          description: form.description.trim() || null,
-          status: form.status,
-        };
-        await servicesApi.create(payload);
+        await mutations.createService.mutateAsync(payload);
         showToast('Service created successfully.');
       } else if (activeSvc) {
-        await servicesApi.update(activeSvc.id, {
-          code: form.code.trim(),
-          name: form.name.trim(),
-          service_type: form.service_type,
-          department_id: form.department_id,
-          standard_price: price,
-          category: form.category.trim() || null,
-          description: form.description.trim() || null,
-          status: form.status,
-        });
+        await mutations.updateService.mutateAsync({ id: activeSvc.id, payload });
         showToast('Service updated successfully.');
       }
       closeModal();
-      await loadServices();
     } catch (error) {
       setFormError(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
     }
-  };
+  });
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    setSubmitting(true);
     try {
-      await servicesApi.delete(deleteTarget.id);
+      await mutations.deleteService.mutateAsync(deleteTarget.id);
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
       if (services.length === 1 && currentPage > 1) {
         setCurrentPage((page) => page - 1);
-      } else {
-        await loadServices();
       }
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const updateStatus = async (service: ServiceResponse) => {
-    setSubmitting(true);
     try {
-      const next = service.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-      await servicesApi.updateStatus(service.id, next);
+      const next: ApiServiceStatus = service.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      await mutations.updateServiceStatus.mutateAsync({ id: service.id, status: next });
       showToast(`${service.name} ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
-      await loadServices();
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const exportServices = async () => {
-    setSubmitting(true);
     try {
-      const blob = await servicesApi.export({
-        department_id: deptFilter || undefined,
-        search: search.trim() || undefined,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortDirection,
-        status: statusFilter || undefined,
-        service_type: typeFilter || undefined,
-      });
-      downloadBlob(blob, 'hms-services.csv');
-      showToast('All filtered services exported.');
+      const blob = await handleExport();
+      if (blob) {
+        downloadBlob(blob, 'hms-services.csv');
+        showToast('All filtered services exported.');
+      }
     } catch (error) {
       showToast(getErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  // ── Lookups ────────────────────────────────────────────────────────────────
-  const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
-  const getBranchForDept = (deptId: string) => {
-    const dept = departments.find((d) => d.id === deptId);
-    if (!dept) return '—';
-    return dept.branch_ids.map(id => branches.find(b => b.id === id)?.name).filter(Boolean).join(', ') || '-';
-  };
-
-  // ── Pagination ─────────────────────────────────────────────────────────────
   const totalPages = Math.max(meta.totalPages, 1);
   const safePage = Math.min(currentPage, totalPages);
 
@@ -516,7 +351,6 @@ export function ServiceCataloguePage() {
           ? `${activeSvc.name} Details`
           : 'Service';
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="um-grid">
@@ -587,7 +421,7 @@ export function ServiceCataloguePage() {
                 </div>
                 <button
                   className="um-add-btn"
-                  disabled={forbidden || !canCreate || lookupsLoading}
+                  disabled={forbidden || !canCreate || loading}
                   onClick={() => openModal('create')}
                   type="button"
                 >
@@ -596,7 +430,7 @@ export function ServiceCataloguePage() {
                 <button className="btn-secondary admin-table-action" disabled={forbidden || !canExport || submitting} onClick={() => void exportServices()} type="button">
                   <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
                 </button>
-                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void loadServices()} type="button">
+                <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => void resetFilters()} /* Refresh */ type="button">
                   <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
                 </button>
               </div>
@@ -645,8 +479,8 @@ export function ServiceCataloguePage() {
               </div>
             </div>
 
-            {lookupError ? (
-              <div className="auth-alert auth-alert--error" role="alert">{lookupError}</div>
+            {loadError ? (
+              <div className="auth-alert auth-alert--error" role="alert">{loadError}</div>
             ) : null}
 
             {/* Table */}
@@ -679,7 +513,7 @@ export function ServiceCataloguePage() {
                         {loadError}
                         <button
                           className="secondary-action"
-                          onClick={() => void loadServices()}
+                          onClick={() => void resetFilters()} /* Refresh */
                           style={{ marginLeft: '1rem' }}
                           type="button"
                         >
@@ -867,36 +701,33 @@ export function ServiceCataloguePage() {
                 <span>Service Code <span className="required">*</span></span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  required
-                  value={form.code}
+                  aria-invalid={Boolean(svcForm.formState.errors.code)}
+                  {...svcForm.register('code')}
                 />
+                {svcForm.formState.errors.code ? <small className="field-error">{svcForm.formState.errors.code.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Service Name <span className="required">*</span></span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                  value={form.name}
+                  aria-invalid={Boolean(svcForm.formState.errors.name)}
+                  {...svcForm.register('name')}
                 />
+                {svcForm.formState.errors.name ? <small className="field-error">{svcForm.formState.errors.name.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Category</span>
                 <input
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
                   placeholder="e.g. Diagnostics"
-                  value={form.category}
+                  {...svcForm.register('category')}
                 />
               </label>
               <label className="form-field">
                 <span>Service Type <span className="required">*</span></span>
                 <select
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, service_type: e.target.value as ApiServiceType })}
-                  required
-                  value={form.service_type}
+                  {...svcForm.register('service_type')}
                 >
                   {Object.entries(serviceTypeLabels).map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
@@ -911,10 +742,11 @@ export function ServiceCataloguePage() {
                 <span>Branch</span>
                 <select
                   disabled={submitting}
+                  {...svcForm.register('branch_id')}
                   onChange={(e) => {
-                    setForm({ ...form, branch_id: e.target.value, department_id: '' });
+                    void svcForm.setValue('branch_id', e.target.value);
+                    void svcForm.setValue('department_id', '');
                   }}
-                  value={form.branch_id}
                 >
                   <option value="">Select Branch</option>
                   {branches.map((b) => (
@@ -926,22 +758,21 @@ export function ServiceCataloguePage() {
                 <span>Department <span className="required">*</span></span>
                 <select
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, department_id: e.target.value })}
-                  required
-                  value={form.department_id}
+                  aria-invalid={Boolean(svcForm.formState.errors.department_id)}
+                  {...svcForm.register('department_id')}
                 >
                   <option value="">Select Department</option>
                   {formDepartmentOptions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+                {svcForm.formState.errors.department_id ? <small className="field-error">{svcForm.formState.errors.department_id.message}</small> : null}
               </label>
               <label className="form-field">
                 <span>Status</span>
                 <select
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, status: e.target.value as ApiServiceStatus })}
-                  value={form.status}
+                  {...svcForm.register('status')}
                 >
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
@@ -956,13 +787,13 @@ export function ServiceCataloguePage() {
                 <input
                   disabled={submitting}
                   min="0"
-                  onChange={(e) => setForm({ ...form, standard_price: e.target.value })}
                   placeholder="0.00"
-                  required
                   step="0.01"
                   type="number"
-                  value={form.standard_price}
+                  aria-invalid={Boolean(svcForm.formState.errors.standard_price)}
+                  {...svcForm.register('standard_price')}
                 />
+                {svcForm.formState.errors.standard_price ? <small className="field-error">{svcForm.formState.errors.standard_price.message}</small> : null}
               </label>
             </div>
 
@@ -972,9 +803,8 @@ export function ServiceCataloguePage() {
                 <span>Description</span>
                 <textarea
                   disabled={submitting}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
                   rows={3}
-                  value={form.description}
+                  {...svcForm.register('description')}
                 />
               </label>
             </div>

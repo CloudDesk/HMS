@@ -26,13 +26,13 @@ export class OpdReferralService {
     private readonly userRepository: UserRepository,
   ) {}
 
-  async getByVisit(visitId: string) {
-    await this.getVisit(visitId);
+  async getByVisit(visitId: string, userId: string) {
+    await this.getVisit(visitId, userId);
     return this.repository.getByVisit(visitId);
   }
 
   async saveDraft(visitId: string, data: SaveOpdReferralDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisit(visitId);
@@ -47,7 +47,7 @@ export class OpdReferralService {
   }
 
   async submit(visitId: string, data: SaveOpdReferralDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     const consultation = await this.getConsultation(visitId);
     if (consultation.status !== 'COMPLETED') {
@@ -141,9 +141,10 @@ export class OpdReferralService {
     return doctor;
   }
 
-  private async getVisit(visitId: string) {
+  private async getVisit(visitId: string, userId: string) {
     if (!Types.ObjectId.isValid(visitId)) throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
-    const visit = await this.visitRepository.getById(visitId);
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    const visit = await this.visitRepository.getById(visitId, scope);
     if (!visit) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
     return visit;
   }

@@ -18,56 +18,11 @@ import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { getPatientErrorMessage, calculateAge } from './patient-utils';
 import {
-  getOpdErrorMessage,
   opdVisitStatusLabels,
   opdVisitTypeLabels,
   patientInitials,
   visitStatusClass,
 } from './opd-utils';
-
-type VitalsFormState = {
-  blood_pressure_systolic: string;
-  blood_pressure_diastolic: string;
-  weight_kg: string;
-  height_cm: string;
-  temperature_c: string;
-  pulse_bpm: string;
-  respiratory_rate_per_min: string;
-  oxygen_saturation_percent: string;
-  notes: string;
-};
-
-type ConsultationFormState = {
-  chief_complaint: string;
-  history_present_illness: string;
-  past_history: string;
-  family_history: string;
-  allergies: string;
-  physical_examination: string;
-  assessment: string;
-  treatment_plan: string;
-  doctor_notes: string;
-};
-
-type MedicationFormState = {
-  medicine_name: string;
-  strength: string;
-  dosage: string;
-  route: string;
-  frequency: string;
-  duration: string;
-  quantity: string;
-  instructions: string;
-};
-
-type PrescriptionItemFormState = MedicationFormState & { local_id: string };
-
-type PrescriptionFormState = {
-  items: PrescriptionItemFormState[];
-  follow_up_date: string;
-  doctor_instructions: string;
-  patient_instructions: string;
-};
 
 const WORKSPACE_TABS = [
   { id: '1', label: '1 Consultation', name: 'Consultation' },
@@ -79,77 +34,52 @@ const WORKSPACE_TABS = [
   { id: '7', label: '7 Follow-up', name: 'Follow-up' },
 ] as const;
 
-const emptyVitalsForm: VitalsFormState = {
-  blood_pressure_systolic: '',
-  blood_pressure_diastolic: '',
-  weight_kg: '',
-  height_cm: '',
-  temperature_c: '',
-  pulse_bpm: '',
-  respiratory_rate_per_min: '',
-  oxygen_saturation_percent: '',
-  notes: '',
+const nullableNumber = (value: string | undefined): number | null => {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 };
-
-const emptyConsultationForm: ConsultationFormState = {
-  allergies: '', assessment: '', chief_complaint: '', doctor_notes: '', family_history: '',
-  history_present_illness: '', past_history: '', physical_examination: '', treatment_plan: '',
-};
-
-const emptyMedicationForm: MedicationFormState = {
-  medicine_name: '',
-  strength: '',
-  dosage: '', route: '', frequency: '', duration: '', quantity: '', instructions: '',
-};
-
-const emptyPrescriptionForm: PrescriptionFormState = {
-  items: [],
-  follow_up_date: '',
-  doctor_instructions: '', patient_instructions: '',
-};
-
-const consultationFormFromRecord = (consultation: OpdConsultationResponse | null): ConsultationFormState => ({
-  allergies: consultation?.allergies ?? emptyConsultationForm.allergies,
-  assessment: consultation?.assessment ?? emptyConsultationForm.assessment,
-  chief_complaint: consultation?.chief_complaint ?? emptyConsultationForm.chief_complaint,
-  doctor_notes: consultation?.doctor_notes ?? emptyConsultationForm.doctor_notes,
-  family_history: consultation?.family_history ?? emptyConsultationForm.family_history,
-  history_present_illness: consultation?.history_present_illness ?? emptyConsultationForm.history_present_illness,
-  past_history: consultation?.past_history ?? emptyConsultationForm.past_history,
-  physical_examination: consultation?.physical_examination ?? emptyConsultationForm.physical_examination,
-  treatment_plan: consultation?.treatment_plan ?? emptyConsultationForm.treatment_plan,
-});
-
-const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null | undefined): PrescriptionFormState => ({
-  items: (prescription?.items ?? []).map((item) => ({
-    local_id: item.id,
-    medicine_name: item.medicine_name,
-    strength: item.strength ?? '',
-    dosage: item.dosage,
-    route: item.route,
-    frequency: item.frequency,
-    duration: item.duration,
-    quantity: item.quantity?.toString() ?? '',
-    instructions: item.instructions ?? '',
-  })),
-  follow_up_date: prescription?.follow_up_date?.slice(0, 10) ?? '',
-  doctor_instructions: prescription?.doctor_instructions ?? '',
-  patient_instructions: prescription?.patient_instructions ?? '',
-});
 
 export function OpdVisitPage() {
-  const { search } = useAppLocation();
-  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
-  const visitIdParam = searchParams.get('id') ?? '';
-  const initialTabParam = searchParams.get('tab') ?? 'Consultation';
+  const {
+    state: {
+      activeVisitId,
+      activeTab,
+      recentVisits,
+      workspace,
+      referralSpecialty,
+      referralDoctorId,
+      referralDate,
+      referralTimeSlot,
+      referralReason,
+      uniqueSpecialties,
+      filteredReferralDoctors,
+      referralSlots,
+      referralSlotLoading,
+    },
+    actions: {
+      setReferralSpecialty,
+      setReferralDoctorId,
+      setReferralDate,
+      setReferralTimeSlot,
+      setReferralReason,
+      handleBookReferralAppointment,
+      handleTabChange,
+      handleVisitChange,
+    }
+  } = useOpdVisitFeature();
 
-  // Active visit and selection state
-  const [activeVisitId, setActiveVisitId] = useState(visitIdParam);
-  const [recentVisits, setRecentVisits] = useState<OpdVisitResponse[]>([]);
-  const [visit, setVisit] = useState<OpdVisitResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [updating, setUpdating] = useState('');
+  const {
+    canEditConsultation,
+    canEditPrescription,
+    canEditClinicalOrders,
+    canEditReferral,
+    canEditFollowUp,
+    canBookAppointments,
+    canCreateDocuments,
+    canDeleteDocuments,
+    canCreateVitals,
+  } = workspace;
 
   // Active Workspace Tab state (1 Consultation to 9 Documents)
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -172,16 +102,13 @@ export function OpdVisitPage() {
   const [primaryDiagnosis, setPrimaryDiagnosis] = useState('');
   const [secondaryDiagnosis, setSecondaryDiagnosis] = useState('');
 
-  const [prescriptionForm, setPrescriptionForm] = useState<PrescriptionFormState>(emptyPrescriptionForm);
-  const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
-
   // Documents state (Tab 9)
-  const [documents, setDocuments] = useState<PatientDocumentResponse[]>([]);
+  const documents = workspace.documents;
   const [uploadFileType, setUploadFileType] = useState('Consultation Document');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
+  const doctors = workspace.doctors;
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
@@ -345,236 +272,146 @@ export function OpdVisitPage() {
   const [services, setServices] = useState<ServiceResponse[]>([]);
 
   const labTestServices = useMemo(
-    () => services.filter((s) => s.service_type === 'LAB_TEST'),
+    () => services.filter((service) => service.service_type === 'LAB_TEST'),
     [services],
   );
 
   const imagingServices = useMemo(
-    () => services.filter((s) => s.service_type === 'IMAGING_SERVICE'),
+    () => services.filter((service) => service.service_type === 'IMAGING_SERVICE'),
     [services],
   );
-
-  const selectedMasterMed = useMemo(
-    () => masterMedicines.find((m) => m.name === medicationForm.medicine_name) ?? null,
-    [masterMedicines, medicationForm.medicine_name],
-  );
-
   const [labOrders, setLabOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
-  const [labPriority, setLabPriority] = useState<any>('ROUTINE');
+  const [labPriority, setLabPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
   const [selectedLabTest, setSelectedLabTest] = useState('');
 
   const [imagingOrders, setImagingOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
-  const [imagingPriority, setImagingPriority] = useState<any>('ROUTINE');
+  const [imagingPriority, setImagingPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
   const [selectedImagingTest, setSelectedImagingTest] = useState('');
 
-  // Load patient clinical sub-resources
-  const loadClinicalData = useCallback(async () => {
-    if (!activeVisitId) return;
-
-    try {
-      const [vitalsRes, consultRes, prescriptionRes, docRes, medRes, invRes, servRes, labOrderRes, imagingOrderRes] =
-        await Promise.allSettled([
-          opdApi.getLatestVitals(activeVisitId),
-          opdApi.getConsultation(activeVisitId),
-          opdApi.getPrescription(activeVisitId),
-          doctorsApi.list({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
-          medicinesApi.list({ status: 'ACTIVE', limit: 100 }),
-          pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 } as any).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
-          servicesApi.list({ status: 'ACTIVE', limit: 100 }),
-          opdApi.getClinicalOrder(activeVisitId, 'LABORATORY'),
-          opdApi.getClinicalOrder(activeVisitId, 'IMAGING'),
-        ]);
-
-      if (labOrderRes.status === 'fulfilled' && labOrderRes.value?.items?.length) {
-        setLabOrders(labOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, local_id: i.id || `lab-${Date.now()}-${Math.random()}` })));
-        if (labOrderRes.value.priority) setLabPriority(labOrderRes.value.priority);
-      }
-      if (imagingOrderRes.status === 'fulfilled' && imagingOrderRes.value?.items?.length) {
-        setImagingOrders(imagingOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, local_id: i.id || `img-${Date.now()}-${Math.random()}` })));
-        if (imagingOrderRes.value.priority) setImagingPriority(imagingOrderRes.value.priority);
-      }
-
-      if (servRes.status === 'fulfilled' && servRes.value?.data) {
-        setServices(servRes.value.data);
-      }
-
-      if (medRes.status === 'fulfilled' && medRes.value?.data) {
-        const invMapId: Record<string, { available: number; unit?: string }> = {};
-        const invMapName: Record<string, { available: number; unit?: string }> = {};
-        if (invRes.status === 'fulfilled' && invRes.value?.data) {
-          invRes.value.data.forEach((item: any) => {
-            const info = { available: item.available_quantity, unit: item.unit || item.packaging_unit };
-            if (item.medicine_id) invMapId[item.medicine_id] = info;
-            if (item.medicine_name) invMapName[item.medicine_name] = info;
-          });
-        }
-
-        const combined = medRes.value.data.map((m) => {
-          const invMatch = invMapId[m.id] || invMapName[m.name];
-          return {
-            id: m.id,
-            name: m.name,
-            generic_name: m.generic_name,
-            strength: m.strength,
-            dosage_form: m.dosage_form,
-            unit: invMatch?.unit || m.unit || 'units',
-            available_quantity: invMatch?.available ?? 120,
-          };
-        });
-        setMasterMedicines(combined);
-      }
-
-      if (vitalsRes.status === 'fulfilled' && vitalsRes.value) {
-        setVitalsForm({
-          blood_pressure_systolic: vitalsRes.value.blood_pressure_systolic?.toString() ?? '',
-          blood_pressure_diastolic: vitalsRes.value.blood_pressure_diastolic?.toString() ?? '',
-          weight_kg: vitalsRes.value.weight_kg?.toString() ?? '',
-          height_cm: vitalsRes.value.height_cm?.toString() ?? '',
-          temperature_c: vitalsRes.value.temperature_c?.toString() ?? '',
-          pulse_bpm: vitalsRes.value.pulse_bpm?.toString() ?? '',
-          respiratory_rate_per_min: vitalsRes.value.respiratory_rate_per_min?.toString() ?? '',
-          oxygen_saturation_percent: vitalsRes.value.oxygen_saturation_percent?.toString() ?? '',
-          notes: vitalsRes.value.notes ?? '',
-        });
-      }
-      if (consultRes.status === 'fulfilled' && consultRes.value) {
-        setConsultation(consultRes.value);
-        setConsultationForm(consultationFormFromRecord(consultRes.value));
-      }
-      if (prescriptionRes.status === 'fulfilled' && prescriptionRes.value) {
-        setPrescriptionForm(prescriptionFormFromRecord(prescriptionRes.value));
-      }
-      if (docRes.status === 'fulfilled') setDoctors(docRes.value.data);
-    } catch (error) {
-      showToast(getOpdErrorMessage(error), 'error');
-    }
-  }, [activeVisitId]);
+  useEffect(() => {
+    if (!workspace.labOrder) return;
+    setLabOrders(workspace.labOrder.items.map((item) => ({
+      id: item.service_id,
+      name: item.investigation_name,
+      local_id: item.id,
+    })));
+    setLabPriority(workspace.labOrder.priority);
+  }, [workspace.labOrder]);
 
   useEffect(() => {
-    void loadClinicalData();
-  }, [loadClinicalData]);
-
-  const loadDocuments = useCallback(async () => {
-    if (!visit) {
-      setDocuments([]);
-      return;
-    }
-    try {
-      const response = await patientsApi.documents(visit.patient_id, { visit_id: visit.id, limit: 100 });
-      setDocuments(response.data);
-    } catch (error) {
-      setDocuments([]);
-      showToast(getPatientErrorMessage(error), 'error');
-    }
-  }, [visit]);
-
-  useEffect(() => {
-    void loadDocuments();
-  }, [loadDocuments]);
+    if (!workspace.imagingOrder) return;
+    setImagingOrders(workspace.imagingOrder.items.map((item) => ({
+      id: item.service_id,
+      name: item.investigation_name,
+      local_id: item.id,
+    })));
+    setImagingPriority(workspace.imagingOrder.priority);
+  }, [workspace.imagingOrder]);
 
   // Action Handlers
-  const saveConsultationDraft = async () => {
-    if (!visit) return;
-    setUpdating('consultation-draft');
-    try {
-      const payload: SaveOpdConsultationPayload = {
-        allergies: consultationForm.allergies.trim() || null,
-        assessment: consultationForm.assessment.trim() || null,
-        chief_complaint: consultationForm.chief_complaint.trim() || null,
-        doctor_notes: consultationForm.doctor_notes.trim() || null,
-        family_history: consultationForm.family_history.trim() || null,
-        history_present_illness: consultationForm.history_present_illness.trim() || null,
-        past_history: consultationForm.past_history.trim() || null,
-        physical_examination: consultationForm.physical_examination.trim() || null,
-        treatment_plan: consultationForm.treatment_plan.trim() || null,
-      };
-      const response = await opdApi.saveConsultationDraft(visit.id, payload);
-      setConsultation(response);
-      showToast('Consultation draft saved.');
-    } catch (error) {
-      showToast(getOpdErrorMessage(error), 'error');
-    } finally {
-      setUpdating('');
-    }
+  const saveConsultationDraft = (data: ConsultationForm) => {
+    if (!visit || !canEditConsultation) return;
+    workspace.mutations.saveConsultationDraft({ visitId: visit.id, payload: data });
   };
 
-  const [consultationFieldErrors, setConsultationFieldErrors] = useState<Record<string, string>>({});
+  const completeConsultation = (data: ConsultationForm) => {
+    if (!visit || !canEditConsultation) return;
+    workspace.mutations.completeConsultation({ visitId: visit.id, payload: data });
+  };
 
-  const completeConsultation = async () => {
-    if (!visit) return;
-    setConsultationFieldErrors({});
-    setUpdating('consultation-complete');
-    try {
-      const payload: SaveOpdConsultationPayload = {
-        allergies: consultationForm.allergies.trim() || null,
-        assessment: consultationForm.assessment.trim() || null,
-        chief_complaint: consultationForm.chief_complaint.trim() || null,
-        doctor_notes: consultationForm.doctor_notes.trim() || null,
-        family_history: consultationForm.family_history.trim() || null,
-        history_present_illness: consultationForm.history_present_illness.trim() || null,
-        past_history: consultationForm.past_history.trim() || null,
-        physical_examination: consultationForm.physical_examination.trim() || null,
-        treatment_plan: consultationForm.treatment_plan.trim() || null,
-      };
-      // The payload will be sent when completing the consultation at the end of this function
-      // Save & Submit Prescriptions if items present
-      if (prescriptionForm.items.length > 0) {
-        await opdApi
-          .submitPrescription(visit.id, {
-            items: prescriptionForm.items.map((i) => ({
-              medicine_name: i.medicine_name,
-              strength: i.strength || null,
-              dosage: i.dosage,
-              route: i.route || 'ORAL',
-              frequency: i.frequency,
-              duration: i.duration,
-              quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
-              instructions: i.instructions || null,
-            })),
-            follow_up_date: prescriptionForm.follow_up_date || null,
-            doctor_instructions: prescriptionForm.doctor_instructions || null,
-            patient_instructions: prescriptionForm.patient_instructions || null,
-          })
-          .catch(() => null);
-      }
+  const saveLoadedConsultation = () => {
+    if (!visit || !canEditConsultation || !workspace.consultation) return;
+    const consultation = workspace.consultation;
+    workspace.mutations.saveConsultationDraft({
+      visitId: visit.id,
+      payload: {
+        chief_complaint: consultation.chief_complaint,
+        history_present_illness: consultation.history_present_illness,
+        past_history: consultation.past_history,
+        family_history: consultation.family_history,
+        allergies: consultation.allergies,
+        physical_examination: consultation.physical_examination,
+        assessment: consultation.assessment,
+        treatment_plan: consultation.treatment_plan,
+        doctor_notes: consultation.doctor_notes,
+      },
+    });
+  };
 
-      // Save & Submit Lab Clinical Orders if selected
-      const pendingLabName = selectedLabTest || (document.getElementById('lab-test-name') as HTMLSelectElement | null)?.value || '';
-      const matchedPendingLab = pendingLabName ? labTestServices.find((s) => s.name === pendingLabName) : undefined;
-      
-      const allLabItems = [...labOrders.map(o => ({
-        service_id: o.id,
-        investigation_name: o.name,
-        category: labTestServices.find(s => s.id === o.id)?.category || 'General Lab',
-      }))];
-      
-      if (matchedPendingLab && !allLabItems.find(i => i.service_id === matchedPendingLab.id)) {
-        allLabItems.push({
-          service_id: matchedPendingLab.id,
-          investigation_name: pendingLabName,
-          category: matchedPendingLab.category || 'General Lab',
-        });
-      }
+  const completeLoadedConsultation = () => {
+    if (!visit || !canEditConsultation || !workspace.consultation) return;
+    const consultation = workspace.consultation;
+    workspace.mutations.completeConsultation({
+      visitId: visit.id,
+      payload: {
+        chief_complaint: consultation.chief_complaint,
+        history_present_illness: consultation.history_present_illness,
+        past_history: consultation.past_history,
+        family_history: consultation.family_history,
+        allergies: consultation.allergies,
+        physical_examination: consultation.physical_examination,
+        assessment: consultation.assessment,
+        treatment_plan: consultation.treatment_plan,
+        doctor_notes: consultation.doctor_notes,
+      },
+    });
+  };
 
-      if (allLabItems.length > 0) {
-        await opdApi
-          .submitClinicalOrder(visit.id, 'LABORATORY', {
-            priority: labPriority || 'ROUTINE',
-            specimen_type: 'Not Specified',
-            items: allLabItems,
-          })
-          .catch(() => null);
-      }
+  const saveReferralDraft = () => {
+    if (!visit || !canEditReferral) return;
+    const selectedDoctor = doctors.find((doctor) => doctor.id === referralDoctorId);
+    workspace.mutations.saveReferralDraft({
+      visitId: visit.id,
+      payload: {
+        referral_type: 'INTERNAL',
+        specialty: referralSpecialty || selectedDoctor?.specialization || null,
+        priority: 'ROUTINE',
+        referred_doctor_id: referralDoctorId || null,
+        referred_doctor_name: selectedDoctor?.display_name ?? null,
+        reason: referralReason.trim() || null,
+        clinical_summary: workspace.consultation?.assessment ?? null,
+        appointment_date: referralDate || null,
+        appointment_start_time: referralTimeSlot || null,
+        appointment_duration_minutes: referralTimeSlot ? 30 : null,
+      },
+    });
+  };
 
-      // Save & Submit Imaging Clinical Orders if selected
-      const pendingImagingName = selectedImagingTest || (document.getElementById('imaging-test-name') as HTMLSelectElement | null)?.value || '';
-      const matchedPendingImaging = pendingImagingName ? imagingServices.find((s) => s.name === pendingImagingName) : undefined;
+  const saveFollowUpDraft = () => {
+    if (!visit || !canEditFollowUp) return;
+    workspace.mutations.saveFollowUpDraft({
+      visitId: visit.id,
+      payload: {
+        follow_up_type: 'CLINICAL_REVIEW',
+        next_visit_date: followUpDate || null,
+        assigned_doctor_id: followUpDoctorId || null,
+        reason: visit.reason,
+        reminder_type: 'NONE',
+      },
+    });
+  };
 
-      const allImagingItems = [...imagingOrders.map(o => ({
-        service_id: o.id,
-        investigation_name: o.name,
-        category: imagingServices.find(s => s.id === o.id)?.category || 'Radiology',
-      }))];
+  const savePrescription = (data: PrescriptionForm) => {
+    if (!visit || !canEditPrescription) return;
+    workspace.mutations.submitPrescription({
+      visitId: visit.id,
+      payload: {
+        items: data.items.map((item) => ({
+          medicine_name: item.medicine_name,
+          strength: item.strength || null,
+          dosage: item.dosage,
+          route: item.route,
+          frequency: item.frequency,
+          duration: item.duration,
+          quantity: nullableNumber(item.quantity),
+          instructions: item.instructions || null,
+        })),
+        follow_up_date: data.follow_up_date || null,
+        doctor_instructions: data.doctor_instructions || null,
+        patient_instructions: data.patient_instructions || null,
+      },
+    });
+  };
 
       if (matchedPendingImaging && !allImagingItems.find(i => i.service_id === matchedPendingImaging.id)) {
         allImagingItems.push({
@@ -660,33 +497,33 @@ export function OpdVisitPage() {
 
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateDocuments) return;
     if (!selectedFile || !visit) {
       showToast('Please choose a file to upload.', 'error');
       return;
     }
-    setUpdating('document-upload');
     try {
-      const document = await patientsApi.uploadDocument(visit.patient_id, {
-        document_type: uploadFileType === 'Identification' ? 'IDENTITY' : 'CLINICAL',
-        title: uploadFileType,
-        description: `OPD visit ${visit.visit_number} attachment`,
-        visit_id: visit.id,
-        file: selectedFile,
+      const document = await workspace.mutations.uploadDocument({
+        id: visit.patient_id,
+        payload: {
+          document_type: uploadFileType === 'Identification' ? 'IDENTITY' : 'CLINICAL',
+          title: uploadFileType,
+          description: `OPD visit ${visit.visit_number} attachment`,
+          visit_id: visit.id,
+          file: selectedFile,
+        },
       });
-      setDocuments((current) => [document, ...current]);
       setSelectedFile(null);
       showToast(`${document.file_name} uploaded successfully.`);
     } catch (error) {
       showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setUpdating('');
     }
   };
 
   const viewDocument = async (document: PatientDocumentResponse) => {
     if (!visit) return;
     try {
-      const download = await patientsApi.downloadDocument(visit.patient_id, document.id);
+      const download = await workspace.mutations.downloadDocument({ patientId: visit.patient_id, docId: document.id });
       const url = URL.createObjectURL(download.blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -698,7 +535,7 @@ export function OpdVisitPage() {
   const downloadDocument = async (document: PatientDocumentResponse) => {
     if (!visit) return;
     try {
-      const download = await patientsApi.downloadDocument(visit.patient_id, document.id);
+      const download = await workspace.mutations.downloadDocument({ patientId: visit.patient_id, docId: document.id });
       const url = URL.createObjectURL(download.blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -711,10 +548,9 @@ export function OpdVisitPage() {
   };
 
   const deleteDocument = async (document: PatientDocumentResponse) => {
-    if (!visit || !window.confirm(`Delete ${document.title}?`)) return;
+    if (!visit || !canDeleteDocuments || !window.confirm(`Delete ${document.title}?`)) return;
     try {
-      await patientsApi.deleteDocument(visit.patient_id, document.id);
-      setDocuments((current) => current.filter((item) => item.id !== document.id));
+      await workspace.mutations.deleteDocument({ id: visit.patient_id, documentId: document.id });
       showToast(`${document.title} deleted.`);
     } catch (error) {
       showToast(getPatientErrorMessage(error), 'error');
@@ -750,21 +586,23 @@ export function OpdVisitPage() {
   const isTabCompleted = (tabName: string): boolean => {
     switch (tabName) {
       case 'Consultation':
-        return Boolean(consultationForm.chief_complaint.trim());
+        return Boolean(workspace.consultation?.chief_complaint?.trim());
       case 'Vitals':
-        return Boolean(vitalsForm.blood_pressure_systolic.trim() || vitalsForm.pulse_bpm.trim());
+        return workspace.vitals?.blood_pressure_systolic != null || workspace.vitals?.pulse_bpm != null;
       case 'Diagnosis':
         return Boolean(primaryDiagnosis.trim());
       case 'Prescription':
-        return prescriptionForm.items.length > 0;
+        return Boolean(workspace.prescription?.items.length);
       case 'Orders & Labs':
         return false;
       case 'Procedure':
-        return Boolean(consultationForm.treatment_plan.trim());
+        return Boolean(workspace.consultation?.treatment_plan?.trim());
+      case 'Referral':
+        return Boolean(workspace.referral?.specialty || workspace.referral?.reason);
       case 'Follow-up':
-        return Boolean(prescriptionForm.follow_up_date);
+        return Boolean(workspace.followUp?.next_visit_date);
       case 'Notes':
-        return Boolean(consultationForm.doctor_notes.trim());
+        return Boolean(workspace.consultation?.doctor_notes?.trim());
       case 'Documents':
         return documents.length > 0;
       default:
@@ -789,8 +627,7 @@ export function OpdVisitPage() {
               <select
                 id="active-visit-select"
                 onChange={(e) => {
-                  setActiveVisitId(e.target.value);
-                  navigate(`/opd/consultation?id=${e.target.value}`);
+                  handleVisitChange(e.target.value);
                 }}
                 value={activeVisitId}
               >
@@ -802,16 +639,10 @@ export function OpdVisitPage() {
               </select>
             </label>
           ) : null}
-          <button className="doc-btn" disabled={loading} onClick={loadVisit} type="button">
-            <i className="ph ph-arrow-clockwise" aria-hidden="true" />
-            Refresh
-          </button>
         </div>
       </section>
 
       <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
-
-      {loadError ? <div className="form-error-banner">{loadError}</div> : null}
 
       {loading ? (
         <section className="doc-card">
@@ -850,7 +681,7 @@ export function OpdVisitPage() {
                 <span className="divider">|</span>
                 <span>{visit.doctor_name}</span>
                 <span className="divider">|</span>
-                <span>10:00 AM</span>
+                <span>{new Date(visit.check_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 <span className="divider">|</span>
                 <span>{visit.visit_number}</span>
               </div>
@@ -888,7 +719,7 @@ export function OpdVisitPage() {
                       className={`opd-workspace-tab ${activeTab === tab.name ? 'active' : ''} ${completed ? 'completed' : ''}`}
                       key={tab.id}
                       onClick={() => {
-                        setActiveTab(tab.name);
+                        handleTabChange(tab.name);
                         navigate(`/opd/consultation?id=${visit.id}&tab=${encodeURIComponent(tab.name)}`, { replace: true });
                       }}
                       role="tab"
@@ -1062,15 +893,12 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Prescription')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Prescription')} type="button">
                         Next: Prescription
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
@@ -1265,7 +1093,6 @@ export function OpdVisitPage() {
                   </div>
                 </article>
               ) : null}
-
               {/* TAB 4: LAB ORDERS */}
               {activeTab === 'Lab Orders' ? (
                 <article className="doc-card opd-tab-card">
@@ -1290,13 +1117,15 @@ export function OpdVisitPage() {
                       </label>
                       <label className="doc-field" htmlFor="lab-priority">
                         <span>Priority</span>
-                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value)} value={labPriority}>
+                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value as ApiClinicalOrderPriority)} value={labPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="EMERGENCY">Emergency</option>
+                          <option value="URGENT">Urgent</option>
+                          <option value="STAT">Stat</option>
                         </select>
                       </label>
                       <button
                         className="doc-btn primary add-medication"
+                        disabled={!canEditClinicalOrders}
                         onClick={() => {
                           if (!selectedLabTest.trim()) return;
                           const matchedLab = labTestServices.find(s => s.name === selectedLabTest);
@@ -1339,6 +1168,7 @@ export function OpdVisitPage() {
                                 <td>
                                   <button
                                     className="btn-icon"
+                                    disabled={!canEditClinicalOrders}
                                     onClick={() => setLabOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
                                     title="Remove test"
                                     type="button"
@@ -1356,15 +1186,12 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Imaging Orders')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Imaging Orders')} type="button">
                         Next: Imaging Orders
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
@@ -1407,13 +1234,15 @@ export function OpdVisitPage() {
                       </label>
                       <label className="doc-field" htmlFor="imaging-priority">
                         <span>Priority</span>
-                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value)} value={imagingPriority}>
+                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value as ApiClinicalOrderPriority)} value={imagingPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="EMERGENCY">Emergency</option>
+                          <option value="URGENT">Urgent</option>
+                          <option value="STAT">Stat</option>
                         </select>
                       </label>
                       <button
                         className="doc-btn primary add-medication"
+                        disabled={!canEditClinicalOrders}
                         onClick={() => {
                           if (!selectedImagingTest.trim()) return;
                           const matchedImg = imagingServices.find(s => s.name === selectedImagingTest);
@@ -1456,6 +1285,7 @@ export function OpdVisitPage() {
                                 <td>
                                   <button
                                     className="btn-icon"
+                                    disabled={!canEditClinicalOrders}
                                     onClick={() => setImagingOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
                                     title="Remove scan"
                                     type="button"
@@ -1473,15 +1303,12 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Referral')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Referral')} type="button">
                         Next: Referral
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
@@ -1580,15 +1407,12 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditReferral || workspace.referral?.status === 'SUBMITTED' || workspace.isSavingReferral} onClick={saveReferralDraft} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Follow-up')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Follow-up')} type="button">
                         Next: Follow-up
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
@@ -1620,11 +1444,11 @@ export function OpdVisitPage() {
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="fu-date">
                         <span>Follow-up Date</span>
-                        <input id="fu-date" type="date" />
+                        <input id="fu-date" onChange={(event) => setFollowUpDate(event.target.value)} type="date" value={followUpDate} />
                       </label>
                       <label className="doc-field" htmlFor="fu-doctor">
                         <span>Doctor</span>
-                        <select id="fu-doctor">
+                        <select id="fu-doctor" onChange={(event) => setFollowUpDoctorId(event.target.value)} value={followUpDoctorId}>
                           <option value="">Select Doctor</option>
                           {doctors.map((d) => (
                             <option key={d.id} value={d.id}>
@@ -1637,12 +1461,9 @@ export function OpdVisitPage() {
                   </section>
 
                   <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
+                    
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={!canEditFollowUp || workspace.followUp?.status === 'SCHEDULED' || workspace.isSavingFollowUp} onClick={saveFollowUpDraft} type="button">
                         Save Draft
                       </button>
                       <button
@@ -1654,47 +1475,6 @@ export function OpdVisitPage() {
                       >
                         <i className="ph ph-check-circle" aria-hidden="true" />
                         Complete Consultation
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ) : null}
-
-              {/* TAB 8: NOTES */}
-              {activeTab === 'Notes' ? (
-                <article className="doc-card opd-tab-card">
-                  <section className="opd-form-section">
-                    <div className="opd-form-section-head">
-                      <div>
-                        <h3>Encounter Notes &amp; Observations</h3>
-                        <p>Internal clinical notes and observations</p>
-                      </div>
-                    </div>
-                    <div className="doc-form-grid two">
-                      <label className="doc-field full" htmlFor="notes-text">
-                        <span>Doctor Clinical Notes</span>
-                        <textarea
-                          id="notes-text"
-                          onChange={(e) => setConsultationForm((c) => ({ ...c, doctor_notes: e.target.value }))}
-                          rows={6}
-                          value={consultationForm.doctor_notes}
-                        />
-                      </label>
-                    </div>
-                  </section>
-
-                  <div className="opd-sticky-actions">
-                    <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
-                      Auto-save enabled
-                    </span>
-                    <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
-                        Save Notes Draft
-                      </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Documents')} type="button">
-                        Next: Documents
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -1720,6 +1500,7 @@ export function OpdVisitPage() {
                             <input
                               id="document-file-input"
                               accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx"
+                              disabled={!canCreateDocuments}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 setSelectedFile(file ?? null);
@@ -1732,6 +1513,7 @@ export function OpdVisitPage() {
                           <label htmlFor="document-type-select">Document Type</label>
                           <select
                             id="document-type-select"
+                            disabled={!canCreateDocuments}
                             onChange={(e) => setUploadFileType(e.target.value)}
                             value={uploadFileType}
                           >
@@ -1744,9 +1526,9 @@ export function OpdVisitPage() {
                           </select>
                         </div>
                         <div className="opd-upload-btn-wrap">
-                          <button className="doc-btn primary upload-btn" disabled={updating === 'document-upload'} type="submit">
+                          <button className="doc-btn primary upload-btn" disabled={!canCreateDocuments || workspace.isUploadingDocument} type="submit">
                             <i className="ph ph-upload-simple" aria-hidden="true" />
-                            {updating === 'document-upload' ? 'Uploading...' : 'Upload'}
+                            {workspace.isUploadingDocument ? 'Uploading...' : 'Upload'}
                           </button>
                         </div>
                       </div>
@@ -1793,15 +1575,17 @@ export function OpdVisitPage() {
                             >
                               <i className="ph ph-download-simple" aria-hidden="true" />
                             </button>
-                            <button
-                              aria-label={`Delete ${doc.title}`}
-                              className="doc-icon-action"
-                              onClick={() => void deleteDocument(doc)}
-                              title="Delete Document"
-                              type="button"
-                            >
-                              <i className="ph ph-trash" aria-hidden="true" />
-                            </button>
+                            {canDeleteDocuments ? (
+                              <button
+                                aria-label={`Delete ${doc.title}`}
+                                className="doc-icon-action"
+                                onClick={() => void deleteDocument(doc)}
+                                title="Delete Document"
+                                type="button"
+                              >
+                                <i className="ph ph-trash" aria-hidden="true" />
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       ))}
@@ -1825,30 +1609,30 @@ export function OpdVisitPage() {
                   <div className="opd-summary-row">
                     <span>Blood Pressure</span>
                     <strong>
-                      {vitalsForm.blood_pressure_systolic && vitalsForm.blood_pressure_diastolic
-                        ? `${vitalsForm.blood_pressure_systolic}/${vitalsForm.blood_pressure_diastolic} mmHg`
+                      {workspace.vitals?.blood_pressure_systolic && workspace.vitals.blood_pressure_diastolic
+                        ? `${workspace.vitals.blood_pressure_systolic}/${workspace.vitals.blood_pressure_diastolic} mmHg`
                         : 'Not recorded'}
                     </strong>
                   </div>
                   <div className="opd-summary-row">
                     <span>Pulse</span>
-                    <strong>{vitalsForm.pulse_bpm ? `${vitalsForm.pulse_bpm} bpm` : 'Not recorded'}</strong>
+                    <strong>{workspace.vitals?.pulse_bpm ? `${workspace.vitals.pulse_bpm} bpm` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">
                     <span>Temperature</span>
-                    <strong>{vitalsForm.temperature_c ? `${vitalsForm.temperature_c} °C` : 'Not recorded'}</strong>
+                    <strong>{workspace.vitals?.temperature_c ? `${workspace.vitals.temperature_c} °C` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">
                     <span>SpO₂</span>
-                    <strong>{vitalsForm.oxygen_saturation_percent ? `${vitalsForm.oxygen_saturation_percent}%` : 'Not recorded'}</strong>
+                    <strong>{workspace.vitals?.oxygen_saturation_percent ? `${workspace.vitals.oxygen_saturation_percent}%` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">
                     <span>Blood Group</span>
-                    <strong>{visit ? 'O+' : 'Not available in visit record'}</strong>
+                    <strong>'O+'</strong>
                   </div>
                   <div className="opd-summary-row">
                     <span>Allergies</span>
-                    <strong style={{ color: '#dc2626' }}>{consultationForm.allergies || 'None recorded'}</strong>
+                    <strong style={{ color: '#dc2626' }}>{workspace.consultation?.allergies || 'None recorded'}</strong>
                   </div>
                 </div>
               </div>
@@ -1861,10 +1645,10 @@ export function OpdVisitPage() {
                   </div>
                 </div>
                 <div className="opd-summary-list">
-                  {prescriptionForm.items.length === 0 ? (
+                  {!workspace.prescription?.items.length ? (
                     <div className="opd-summary-empty-text">No medications recorded for this visit.</div>
-                  ) : prescriptionForm.items.map((item) => (
-                    <div className="opd-medication-chip-item" key={item.local_id}>
+                  ) : workspace.prescription.items.map((item) => (
+                    <div className="opd-medication-chip-item" key={item.id}>
                       <div><strong>{item.medicine_name}</strong><span>{[item.strength, item.dosage, item.frequency].filter(Boolean).join(' ')}</span></div>
                     </div>
                   ))}
@@ -1898,8 +1682,8 @@ export function OpdVisitPage() {
                     <h3>Clinical Alerts</h3>
                   </div>
                 </div>
-                {consultationForm.allergies ? (
-                  <div className="opd-clinical-alert warning"><i className="ph ph-warning-circle" aria-hidden="true" /><div><strong>Allergy Alert</strong><span>{consultationForm.allergies}</span></div></div>
+                {workspace.consultation?.allergies ? (
+                  <div className="opd-clinical-alert warning"><i className="ph ph-warning-circle" aria-hidden="true" /><div><strong>Allergy Alert</strong><span>{workspace.consultation.allergies}</span></div></div>
                 ) : <div className="opd-summary-empty-text">No clinical alerts recorded.</div>}
               </div>
             </aside>
@@ -1907,127 +1691,14 @@ export function OpdVisitPage() {
         </>
       )}
 
-      {/* Record Patient Vitals Modal */}
-      <Modal onClose={() => setVitalsModalOpen(false)} open={vitalsModalOpen} size="large" title="Record Patient Vitals">
-        <form className="modal-form" onSubmit={handleSaveVitalsModal}>
-          <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-sys">
-                Blood Pressure (Systolic) <span className="required-asterisk">*</span>
-              </label>
-              <input
-                id="modal-vitals-sys"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, blood_pressure_systolic: e.target.value })}
-                placeholder="120"
-                required
-                type="number"
-                value={vitalsForm.blood_pressure_systolic}
-              />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-dia">
-                Blood Pressure (Diastolic) <span className="required-asterisk">*</span>
-              </label>
-              <input
-                id="modal-vitals-dia"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, blood_pressure_diastolic: e.target.value })}
-                placeholder="80"
-                required
-                type="number"
-                value={vitalsForm.blood_pressure_diastolic}
-              />
-            </div>
-          </div>
-
-          <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-pulse">Pulse (bpm)</label>
-              <input
-                id="modal-vitals-pulse"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, pulse_bpm: e.target.value })}
-                placeholder="72"
-                type="number"
-                value={vitalsForm.pulse_bpm}
-              />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-temp">Temperature (°C)</label>
-              <input
-                id="modal-vitals-temp"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, temperature_c: e.target.value })}
-                placeholder="36.6"
-                step="0.1"
-                type="number"
-                value={vitalsForm.temperature_c}
-              />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-spo2">SpO₂ (%)</label>
-              <input
-                id="modal-vitals-spo2"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, oxygen_saturation_percent: e.target.value })}
-                placeholder="98"
-                type="number"
-                value={vitalsForm.oxygen_saturation_percent}
-              />
-            </div>
-          </div>
-
-          <div className="doc-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-rr">Respiratory Rate (/min)</label>
-              <input
-                id="modal-vitals-rr"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, respiratory_rate_per_min: e.target.value })}
-                placeholder="16"
-                type="number"
-                value={vitalsForm.respiratory_rate_per_min}
-              />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-weight">Weight (kg)</label>
-              <input
-                id="modal-vitals-weight"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, weight_kg: e.target.value })}
-                placeholder="70"
-                type="number"
-                value={vitalsForm.weight_kg}
-              />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="modal-vitals-height">Height (cm)</label>
-              <input
-                id="modal-vitals-height"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, height_cm: e.target.value })}
-                placeholder="170"
-                type="number"
-                value={vitalsForm.height_cm}
-              />
-            </div>
-          </div>
-
-          <div className="doc-field" style={{ marginBottom: '1.25rem' }}>
-            <label htmlFor="modal-vitals-notes">Vitals Notes</label>
-            <textarea
-              id="modal-vitals-notes"
-              onChange={(e) => setVitalsForm({ ...vitalsForm, notes: e.target.value })}
-              placeholder="Observation notes during vitals check"
-              rows={2}
-              value={vitalsForm.notes}
-            />
-          </div>
-
-          <div className="modal-actions">
-            <button className="doc-btn" onClick={() => setVitalsModalOpen(false)} type="button">
-              Cancel
-            </button>
-            <button className="doc-btn primary" disabled={updating === 'vitals'} type="submit">
-              {updating === 'vitals' ? 'Saving Vitals...' : 'Save Vitals'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
+      <OpdVitalsModal
+        initialData={workspace.vitals}
+        isSaving={workspace.isCreatingVitals}
+        onClose={() => setVitalsModalOpen(false)}
+        onSave={saveVitals}
+        open={vitalsModalOpen}
+        visit={visit}
+      />
       <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </div>
   );

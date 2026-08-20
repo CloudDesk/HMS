@@ -74,3 +74,33 @@ export const todayInputValue = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
+
+export const toInputDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+export const parseInputDate = (value: string) => {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? new Date(`${todayInputValue()}T00:00:00`) : date;
+};
+
+export const startOfWeek = (value: string) => {
+  const date = parseInputDate(value);
+  date.setDate(date.getDate() - date.getDay());
+  return date;
+};
+
+export const endOfWeek = (value: string) => {
+  const date = startOfWeek(value);
+  date.setDate(date.getDate() + 6);
+  return date;
+};
+
+export const startOfMonth = (value: string) => {
+  const date = parseInputDate(value);
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+};
+
+export const endOfMonth = (value: string) => {
+  const date = parseInputDate(value);
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+};

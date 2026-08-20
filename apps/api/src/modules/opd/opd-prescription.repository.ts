@@ -1,4 +1,4 @@
-import { Types, type ClientSession } from 'mongoose';
+import { Types, type PipelineStage } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import {
   OpdPrescriptionModel,
@@ -12,6 +12,7 @@ import type {
 } from './opd-prescription.types.js';
 import type { OpdConsultation } from './opd-consultation.types.js';
 import type { OpdVisit } from './opd-visit.types.js';
+import { OpdVisitModel } from './opd-visit.model.js';
 
 type OpdPrescriptionLean = OpdPrescriptionFields & { _id: Types.ObjectId };
 
@@ -74,6 +75,15 @@ const toItemFields = (item: SaveOpdPrescriptionItemDTO) => ({
 });
 
 export class OpdPrescriptionRepository {
+  async getById(id: string): Promise<OpdPrescription | null> {
+    const record = await OpdPrescriptionModel.findOne({
+      _id: objectId(id),
+      deletedAt: null,
+    }).lean<OpdPrescriptionLean>();
+
+    return record ? toPrescription(record) : null;
+  }
+
   async getByVisit(visitId: string): Promise<OpdPrescription | null> {
     const record = await OpdPrescriptionModel.findOne({
       visitId: objectId(visitId),
@@ -116,7 +126,10 @@ export class OpdPrescriptionRepository {
 
     return toPrescription(record);
   }
-  async list(params: import('./opd-prescription.types.js').ListPrescriptionsParams): Promise<{ data: OpdPrescription[]; total: number }> {
+  async list(
+    params: import('./opd-prescription.types.js').ListPrescriptionsParams,
+    branchIds?: string[],
+  ): Promise<{ data: OpdPrescription[]; total: number }> {
     const { status, limit = 50, skip = 0, search, sortBy = 'createdAt', sortOrder = 'desc' } = params;
     const filter: any = { deletedAt: null };
 
@@ -135,20 +148,48 @@ export class OpdPrescriptionRepository {
       ];
     }
 
-    const sortConfig: any = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+    const sortConfig = { [sortBy]: sortOrder === 'asc' ? 1 : -1 } as Record<string, 1 | -1>;
+    const scopePipeline: PipelineStage[] = branchIds
+      ? [
+          {
+            $lookup: {
+              from: OpdVisitModel.collection.name,
+              localField: 'visitId',
+              foreignField: '_id',
+              pipeline: [
+                {
+                  $match: {
+                    branchId: { $in: branchIds.map(objectId) },
+                    deletedAt: null,
+                  },
+                },
+              ],
+              as: 'scopedVisit',
+            },
+          },
+          { $match: { 'scopedVisit.0': { $exists: true } } },
+          { $unset: 'scopedVisit' },
+        ]
+      : [];
 
-    const [records, total] = await Promise.all([
-      OpdPrescriptionModel.find(filter)
-        .sort(sortConfig)
-        .skip(skip)
-        .limit(limit)
-        .lean<OpdPrescriptionLean[]>(),
-      OpdPrescriptionModel.countDocuments(filter),
+    const [records, countRows] = await Promise.all([
+      OpdPrescriptionModel.aggregate<OpdPrescriptionLean>([
+        { $match: filter },
+        ...scopePipeline,
+        { $sort: sortConfig },
+        { $skip: skip },
+        { $limit: limit },
+      ]),
+      OpdPrescriptionModel.aggregate<{ total: number }>([
+        { $match: filter },
+        ...scopePipeline,
+        { $count: 'total' },
+      ]),
     ]);
 
     return {
       data: records.map(toPrescription),
-      total,
+      total: countRows[0]?.total ?? 0,
     };
   }
 

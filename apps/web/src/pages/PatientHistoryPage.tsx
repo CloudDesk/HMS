@@ -1,15 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  patientsApi,
-  type PatientDocumentResponse,
-  type PatientHistoryResponse,
-  type PatientTimelineEventResponse,
-} from '../api/patients';
+import { type PatientDocumentResponse, type PatientTimelineEventResponse } from '../api/patients';
+
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
   formatDate,
   formatDateTime,
-  getPatientErrorMessage,
   getPatientIdFromSearch,
   patientFullName,
 } from './patient-utils';
@@ -34,31 +28,16 @@ function NoPatientSelected() {
   );
 }
 
+import { usePatientHistoryFeature } from '../hooks/patients/usePatientHistoryFeature';
+
 export function PatientHistoryPage() {
   const { search } = useAppLocation();
-  const patientId = getPatientIdFromSearch(search);
-  const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
-  const [loading, setLoading] = useState(Boolean(patientId));
-  const [loadError, setLoadError] = useState('');
+  const rawPatientId = getPatientIdFromSearch(search);
 
-  const loadHistory = useCallback(async () => {
-    if (!patientId) return;
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      setHistory(await patientsApi.history(patientId));
-    } catch (error) {
-      setHistory(null);
-      setLoadError(getPatientErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [patientId]);
-
-  useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+  const {
+    state: { history, loading, loadError, patientId },
+    actions: { retry },
+  } = usePatientHistoryFeature(rawPatientId);
 
   if (!patientId) {
     return <NoPatientSelected />;
@@ -87,7 +66,7 @@ export function PatientHistoryPage() {
           <button className="secondary-action" onClick={() => navigate(`/patients/emr?id=${encodeURIComponent(patientId)}`)} type="button">
             EMR Timeline
           </button>
-          <button className="secondary-action" onClick={loadHistory} type="button">
+          <button className="secondary-action" onClick={() => {}} type="button">
             Refresh
           </button>
         </div>
@@ -102,7 +81,7 @@ export function PatientHistoryPage() {
           <div className="um-state-cell">
             {loadError}
             <div>
-              <button className="secondary-action mt-4" onClick={loadHistory} type="button">
+              <button className="secondary-action mt-4" onClick={() => retry()} type="button">
                 Retry
               </button>
             </div>
@@ -202,3 +181,5 @@ export function PatientHistoryPage() {
     </div>
   );
 }
+
+
