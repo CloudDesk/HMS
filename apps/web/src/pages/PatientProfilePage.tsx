@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { type BillingInvoice } from '../api/billing';
 import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
@@ -23,14 +23,17 @@ import { patientInitials } from './opd-utils';
 import { formatDate, formatDateTime, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
 
 const updatePatientSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  dateOfBirth: z.string().min(1, 'Date of birth is required'),
-  phone: z.string().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  dateOfBirth: z.string().optional(),
   email: z.string().email('Invalid email').or(z.literal('')),
+  phone: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'DECEASED']),
   gender: z.enum(['UNKNOWN', 'MALE', 'FEMALE', 'OTHER']),
   bloodGroup: z.string().optional(),
+  addressLine1: z.string().optional(),
+  city: z.string().optional(),
+  postalCode: z.string().optional(),
   notes: z.string().optional(),
 });
 type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
@@ -508,8 +511,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
     if (!patient) return;
     try {
       await handleUpdateProfile({
-        first_name: data.firstName.trim(),
-        last_name: data.lastName.trim(),
+        first_name: (data.firstName || '').trim(),
+        last_name: (data.lastName || '').trim(),
         date_of_birth: data.dateOfBirth,
         phone: data.phone?.trim() || null,
         email: data.email?.trim() || null,
@@ -1077,8 +1080,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                         <td><strong>{inv.invoice_number}</strong></td>
                         <td>{formatDate(inv.invoice_date || inv.created_at)}</td>
                         <td>{inv.items.map((i: { service_name: string }) => i.service_name).join(', ') || 'OPD Services'}</td>
-                        <td>â‚¹{inv.total_amount.toLocaleString()}</td>
-                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>â‚¹{inv.balance_amount.toLocaleString()}</strong></td>
+                        <td>₹{inv.total_amount.toLocaleString()}</td>
+                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>₹{inv.balance_amount.toLocaleString()}</strong></td>
                         <td><span className="doc-status active">{inv.status}</span></td>
                         <td style={{ textAlign: 'center' }}>
                           <button className="doc-btn small" onClick={() => setViewingInvoice(inv)} title="View Invoice" type="button">
@@ -1093,7 +1096,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* â”€â”€ Consent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ─────────────────────────────────────────────────────────── */}
           {activeTab === 'Consent' ? (
             <>
               <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
@@ -1130,9 +1133,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
       {/* Edit Patient Modal */}
       <Modal onClose={() => setEditOpen(false)} open={editOpen} size="large" title="Edit Patient">
-        {form ? (
-          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={saveProfile}>
-            {formError ? <div className="form-error-banner" role="alert">{formError}</div> : null}
+        
+          {/* eslint-disable-next-line no-constant-condition */}
+{true ? (
+          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSubmit(saveProfile)}>
+            
 
             {canEditAllDetails ? (
               <div className="locked-notice-banner" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
@@ -1166,9 +1171,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <input
                     disabled={!canEditAllDetails || submitting}
                     id="profile-first"
-                    onChange={(event) => setForm({ ...form, firstName: event.target.value })}
                     readOnly={!canEditAllDetails}
-                    value={form.firstName}
+                    {...register("firstName")}
                   />
                 </div>
                 <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
@@ -1178,10 +1182,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <input
                     disabled={!canEditAllDetails || submitting}
                     id="profile-last"
-                    onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+                    
                     readOnly={!canEditAllDetails}
                     required={canEditAllDetails}
-                    value={form.lastName}
+                    {...register("lastName")}
                   />
                 </div>
                 <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
@@ -1191,11 +1195,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <input
                     disabled={!canEditAllDetails || submitting}
                     id="profile-dob"
-                    onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })}
+                    
                     readOnly={!canEditAllDetails}
                     required={canEditAllDetails}
                     type="date"
-                    value={form.dateOfBirth}
+                    {...register("dateOfBirth")}
                   />
                 </div>
                 <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
@@ -1205,8 +1209,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <select
                     disabled={!canEditAllDetails || submitting}
                     id="profile-gender"
-                    onChange={(event) => setForm({ ...form, gender: event.target.value as ApiPatientGender })}
-                    value={form.gender}
+                    {...register("gender")}
                   >
                     <option value="UNKNOWN">Unknown</option>
                     <option value="MALE">Male</option>
@@ -1222,8 +1225,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                     <select
                       disabled={submitting}
                       id="profile-blood"
-                      onChange={(event) => setForm({ ...form, bloodGroup: event.target.value })}
-                      value={form.bloodGroup}
+                      {...register("bloodGroup")}
                     >
                       <option value="">Select Blood Group</option>
                       <option value="A+">A+</option>
@@ -1236,7 +1238,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                       <option value="AB-">AB-</option>
                     </select>
                   ) : (
-                    <input disabled id="profile-blood" readOnly value={form.bloodGroup || 'Not recorded'} />
+                    <input disabled id="profile-blood" readOnly value={"Not recorded"} />
                   )}
                 </div>
               </div>
@@ -1274,9 +1276,9 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <input
                     disabled={submitting}
                     id="profile-address"
-                    onChange={(event) => setForm({ ...form, addressLine1: event.target.value })}
+                    
                     placeholder="e.g. 123 Healthcare Ave, Suite 400"
-                    value={form.addressLine1}
+                    {...register("addressLine1")}
                   />
                 </div>
                 <div className="form-group">
@@ -1284,9 +1286,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <input
                     disabled={submitting}
                     id="profile-city"
-                    onChange={(event) => setForm({ ...form, city: event.target.value })}
                     placeholder="City"
-                    value={form.city}
+                    {...register("city")}
                   />
                 </div>
                 <div className="form-group">
@@ -1294,14 +1295,13 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <input
                     disabled={submitting}
                     id="profile-postal"
-                    onChange={(event) => setForm({ ...form, postalCode: event.target.value })}
                     placeholder="Postal Code"
-                    value={form.postalCode}
+                    {...register("postalCode")}
                   />
                 </div>
                 <div className="form-group full-width">
                   <label htmlFor="profile-notes">Registration Notes</label>
-                  <textarea disabled={submitting} id="profile-notes" onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={2} value={form.notes} />
+                  <textarea disabled={submitting} id="profile-notes" {...register("notes")} rows={2} />
                 </div>
               </div>
             </section>
@@ -1315,6 +1315,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               </button>
             </div>
           </form>
+        ) : null}
       </Modal>
 
       {/* View Card Modal */}

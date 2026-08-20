@@ -135,10 +135,12 @@ export function OpdQueuePage() {
   };
 
   const {
-    register: registerVitals,
+    
     handleSubmit: handleVitalsSubmit,
     reset: resetVitals,
-    formState: { errors: vitalsErrors }
+    watch: watchVitals,
+    setValue: setValueVitals,
+    formState: { errors: actionErrors, isSubmitting: vitalsSubmitting }
   } = useForm<VitalsForm>({
     resolver: zodResolver(vitalsSchema),
     defaultValues: {
@@ -298,8 +300,8 @@ export function OpdQueuePage() {
     }
   };
 
-  const bmiObj = calculateBmi(vitalsForm.weight_kg, vitalsForm.height_cm);
-  const mapVal = calculateMap(vitalsForm.blood_pressure_systolic, vitalsForm.blood_pressure_diastolic);
+  const bmiObj = calculateBmi(watchVitals('weight_kg') || '', watchVitals('height_cm') || '');
+  const mapVal = calculateMap(watchVitals('blood_pressure_systolic') || '', watchVitals('blood_pressure_diastolic') || '');
 
   return (
     <>
@@ -718,7 +720,7 @@ export function OpdQueuePage() {
             <button className="secondary-action" onClick={() => setVitalsModalOpen(false)} type="button">
               Cancel
             </button>
-            <button className="primary-action" disabled={vitalsSubmitting} onClick={saveVitals} type="button">
+            <button className="primary-action" disabled={vitalsSubmitting} onClick={handleVitalsSubmit(onVitalsSubmit)} type="button">
               {vitalsSubmitting ? 'Saving Vitals...' : 'Save Vitals Record'}
             </button>
           </>
@@ -729,8 +731,8 @@ export function OpdQueuePage() {
         size="large"
         title="Record Clinical Vitals"
       >
-        <form className="clinical-vitals-modal-body" onSubmit={saveVitals}>
-          {vitalsError ? <div className="form-error-banner" role="alert">{vitalsError}</div> : null}
+        <form className="clinical-vitals-modal-body" onSubmit={handleVitalsSubmit(onVitalsSubmit)}>
+          {actionError ? <div className="form-error-banner" role="alert">{actionError}</div> : null}
 
           {/* Clinical Patient Header Strip */}
           {vitalsVisit ? (
@@ -772,14 +774,14 @@ export function OpdQueuePage() {
               max={300}
               min={40}
               normalRange="90 – 120 mmHg"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, blood_pressure_systolic: val })}
+              onChange={(val) => setValueVitals('blood_pressure_systolic', val)}
               placeholder="120"
-              statusLabel={evaluateSystolicBp(vitalsForm.blood_pressure_systolic)?.label}
-              statusTone={evaluateSystolicBp(vitalsForm.blood_pressure_systolic)?.tone}
+              statusLabel={evaluateSystolicBp((watchVitals('blood_pressure_systolic') || ''))?.label}
+              statusTone={evaluateSystolicBp((watchVitals('blood_pressure_systolic') || ''))?.tone}
               step={1}
               themeColor="red"
               unit="mmHg"
-              value={vitalsForm.blood_pressure_systolic}
+              value={(watchVitals('blood_pressure_systolic') || '')}
             />
 
             <ClinicalVitalCard
@@ -790,14 +792,14 @@ export function OpdQueuePage() {
               max={200}
               min={30}
               normalRange="60 – 80 mmHg"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, blood_pressure_diastolic: val })}
+              onChange={(val) => setValueVitals('blood_pressure_diastolic', val)}
               placeholder="80"
-              statusLabel={evaluateDiastolicBp(vitalsForm.blood_pressure_diastolic)?.label}
-              statusTone={evaluateDiastolicBp(vitalsForm.blood_pressure_diastolic)?.tone}
+              statusLabel={evaluateDiastolicBp((watchVitals('blood_pressure_diastolic') || ''))?.label}
+              statusTone={evaluateDiastolicBp((watchVitals('blood_pressure_diastolic') || ''))?.tone}
               step={1}
               themeColor="rose"
               unit="mmHg"
-              value={vitalsForm.blood_pressure_diastolic}
+              value={(watchVitals('blood_pressure_diastolic') || '')}
             />
 
             <ClinicalVitalCard
@@ -808,14 +810,14 @@ export function OpdQueuePage() {
               max={250}
               min={30}
               normalRange="60 – 100 bpm"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, pulse_bpm: val })}
+              onChange={(val) => setValueVitals('pulse_bpm', val)}
               placeholder="72"
-              statusLabel={evaluatePulse(vitalsForm.pulse_bpm)?.label}
-              statusTone={evaluatePulse(vitalsForm.pulse_bpm)?.tone}
+              statusLabel={evaluatePulse((watchVitals('pulse_bpm') || ''))?.label}
+              statusTone={evaluatePulse((watchVitals('pulse_bpm') || ''))?.tone}
               step={1}
               themeColor="rose"
               unit="bpm"
-              value={vitalsForm.pulse_bpm}
+              value={(watchVitals('pulse_bpm') || '')}
             />
 
             <ClinicalVitalCard
@@ -826,14 +828,14 @@ export function OpdQueuePage() {
               max={45}
               min={30}
               normalRange="36.5 – 37.5 °C"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, temperature_c: val })}
+              onChange={(val) => setValueVitals('temperature_c', val)}
               placeholder="36.8"
-              statusLabel={evaluateTemperature(vitalsForm.temperature_c)?.label}
-              statusTone={evaluateTemperature(vitalsForm.temperature_c)?.tone}
+              statusLabel={evaluateTemperature((watchVitals('temperature_c') || ''))?.label}
+              statusTone={evaluateTemperature((watchVitals('temperature_c') || ''))?.tone}
               step={0.1}
               themeColor="amber"
               unit="°C"
-              value={vitalsForm.temperature_c}
+              value={(watchVitals('temperature_c') || '')}
             />
 
             <ClinicalVitalCard
@@ -844,14 +846,14 @@ export function OpdQueuePage() {
               max={100}
               min={50}
               normalRange="95 – 100 %"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, oxygen_saturation_percent: val })}
+              onChange={(val) => setValueVitals('oxygen_saturation_percent', val)}
               placeholder="98"
-              statusLabel={evaluateSpo2(vitalsForm.oxygen_saturation_percent)?.label}
-              statusTone={evaluateSpo2(vitalsForm.oxygen_saturation_percent)?.tone}
+              statusLabel={evaluateSpo2((watchVitals('oxygen_saturation_percent') || ''))?.label}
+              statusTone={evaluateSpo2((watchVitals('oxygen_saturation_percent') || ''))?.tone}
               step={1}
               themeColor="sky"
               unit="%"
-              value={vitalsForm.oxygen_saturation_percent}
+              value={(watchVitals('oxygen_saturation_percent') || '')}
             />
 
             <ClinicalVitalCard
@@ -862,14 +864,14 @@ export function OpdQueuePage() {
               max={60}
               min={6}
               normalRange="12 – 20 breaths/min"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, respiratory_rate_per_min: val })}
+              onChange={(val) => setValueVitals('respiratory_rate_per_min', val)}
               placeholder="16"
-              statusLabel={evaluateRespiratoryRate(vitalsForm.respiratory_rate_per_min)?.label}
-              statusTone={evaluateRespiratoryRate(vitalsForm.respiratory_rate_per_min)?.tone}
+              statusLabel={evaluateRespiratoryRate((watchVitals('respiratory_rate_per_min') || ''))?.label}
+              statusTone={evaluateRespiratoryRate((watchVitals('respiratory_rate_per_min') || ''))?.tone}
               step={1}
               themeColor="teal"
               unit="/min"
-              value={vitalsForm.respiratory_rate_per_min}
+              value={(watchVitals('respiratory_rate_per_min') || '')}
             />
 
             <ClinicalVitalCard
@@ -880,12 +882,12 @@ export function OpdQueuePage() {
               max={400}
               min={1}
               normalRange="Adult kg"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, weight_kg: val })}
+              onChange={(val) => setValueVitals('weight_kg', val)}
               placeholder="70"
               step={0.5}
               themeColor="violet"
               unit="kg"
-              value={vitalsForm.weight_kg}
+              value={(watchVitals('weight_kg') || '')}
             />
 
             <ClinicalVitalCard
@@ -896,12 +898,12 @@ export function OpdQueuePage() {
               max={260}
               min={30}
               normalRange="Adult cm"
-              onChange={(val) => setVitalsForm({ ...vitalsForm, height_cm: val })}
+              onChange={(val) => setValueVitals('height_cm', val)}
               placeholder="170"
               step={1}
               themeColor="indigo"
               unit="cm"
-              value={vitalsForm.height_cm}
+              value={(watchVitals('height_cm') || '')}
             />
           </div>
 

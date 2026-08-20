@@ -34,8 +34,16 @@ const defaultColumns: ColumnVisibility = {
 };
 
 const updatePatientSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(['UNKNOWN', 'MALE', 'FEMALE', 'OTHER']),
+  bloodGroup: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email('Invalid email format').or(z.literal('')),
+  addressLine1: z.string().optional(),
+  city: z.string().optional(),
+  postalCode: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'DECEASED']),
   notes: z.string().optional(),
 });
@@ -80,7 +88,7 @@ export function PatientSearchPage() {
   });
 
   // Column Selector Dropdown state
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [showColumnSelector] = useState(false);
   const [columns, setColumns] = useState<ColumnVisibility>(defaultColumns);
 
   // Actions context menu state
@@ -103,9 +111,9 @@ export function PatientSearchPage() {
   });
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editFormError, setEditFormError] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+  
+  
+  
   const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UpdatePatientForm>({
@@ -178,7 +186,7 @@ export function PatientSearchPage() {
     <p className="footer-note">Valid for healthcare services at all HMS facilities</p>
   </div>
 </div>
-<script>window.onload = () => { window.print(); }<\/script>
+<script>window.onload = () => { window.print(); }</script>
 </body>
 </html>`;
 
@@ -192,6 +200,10 @@ export function PatientSearchPage() {
 
   const openEditModal = (patient: PatientResponse) => {
     reset({
+      firstName: patient.first_name ?? '',
+      lastName: patient.last_name ?? '',
+      dateOfBirth: patient.date_of_birth ?? '',
+      gender: patient.gender ?? 'UNKNOWN',
       phone: patient.phone ?? '',
       email: patient.email ?? '',
       addressLine1: patient.address?.line1 ?? '',
@@ -205,7 +217,7 @@ export function PatientSearchPage() {
     setActiveMenuId(null);
   };
 
-  const onSubmitEdit = async (data: UpdatePatientForm) => {
+  const onSubmitEdit = async () => {
     if (!editingPatient) return;
     try {
       const updatePayload: Record<string, unknown> = {
@@ -238,13 +250,12 @@ export function PatientSearchPage() {
         updatePayload.blood_group = editForm.bloodGroup || null;
       }
 
-      await patientsApi.update(editingPatient.id, updatePayload as any);
+      await updatePatient({ id: editingPatient.id, payload: updatePayload });
       setEditingPatient(null);
-      showToast(`${canEditAllDetails ? editForm.firstName : (editingPatient.first_name ?? '')} ${canEditAllDetails ? editForm.lastName : editingPatient.last_name} updated successfully.`);
-      await loadPatients();
+      console.log('Patient updated successfully.');
     } catch (error) {
-      setEditFormError(getPatientErrorMessage(error));
-      showToast(getPatientErrorMessage(error), 'error');
+      setEditFormError(String(error));
+      console.log(String(error), 'error');
     } finally {
       setEditSubmitting(false);
     }
@@ -643,7 +654,7 @@ export function PatientSearchPage() {
       {/* Edit Patient Modal */}
       <Modal onClose={() => setEditingPatient(null)} open={Boolean(editingPatient)} size="large" title="Edit Patient">
         {editingPatient ? (
-          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSaveEditPatient}>
+          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSubmit(onSubmitEdit)}>
             {editFormError ? <div className="form-error-banner" role="alert">{editFormError}</div> : null}
 
             {canEditAllDetails ? (

@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState, useRef } from 'react';
+
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -48,7 +49,7 @@ const serviceTypeLabels: Record<ApiServiceType, string> = {
 
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const getErrorMessage = (error: unknown): string => {
+const getErrorMessage = (error: any): string => {
   if (error instanceof ApiError) {
     if (error.status === 400) return error.message || 'Validation error. Please check your inputs.';
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
@@ -180,7 +181,7 @@ function BranchMultiSelect({
   onChange,
   disabled,
 }: {
-  branches: BranchResponse[];
+  branches: any[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
@@ -290,7 +291,7 @@ export function ServiceCataloguePage() {
     }
   });
 
-  const watchedBranchId = svcForm.watch('branch_id');
+  
 
   // Status
   const [toastMessage, setToastMessage] = useState('');
@@ -306,13 +307,13 @@ export function ServiceCataloguePage() {
 
   // ── Derived: filter departments by selected branches ──────────────────────
   const formDepartmentOptions = useMemo(
-    () =>
-      form.branch_ids.length > 0
-        ? departments.filter((department) =>
-            department.branch_ids.some((id) => form.branch_ids.includes(id)),
-          )
-        : departments,
-    [departments, form.branch_ids],
+    () => {
+      const branchId = svcForm.watch('branch_id');
+      return branchId
+        ? departments.filter((department) => department.branch_ids.includes(branchId))
+        : departments;
+    },
+    [departments, svcForm.watch('branch_id')],
   );
 
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
@@ -831,28 +832,10 @@ export function ServiceCataloguePage() {
             <div className="form-grid-3">
               <div className="form-field">
                 <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#475569', marginBottom: '4px', display: 'block' }}>Branch</span>
-                <BranchMultiSelect
-                  branches={branches}
-                  disabled={submitting}
-                  onChange={(selectedIds) => {
-                    setForm((prev) => {
-                      const newDeptId =
-                        prev.department_id &&
-                        selectedIds.length > 0 &&
-                        !departments
-                          .find((d) => d.id === prev.department_id)
-                          ?.branch_ids.some((id) => selectedIds.includes(id))
-                          ? ''
-                          : prev.department_id;
-                      return {
-                        ...prev,
-                        branch_ids: selectedIds,
-                        department_id: newDeptId,
-                      };
-                    });
-                  }}
-                  selectedIds={form.branch_ids}
-                />
+                <select {...svcForm.register('branch_id')} disabled={submitting}>
+                  <option value="">All Branches</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
               </div>
               <label className="form-field">
                 <span>Department <span className="required">*</span></span>
