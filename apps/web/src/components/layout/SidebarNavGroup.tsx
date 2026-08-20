@@ -19,6 +19,21 @@ export function SidebarNavGroup({ module, activeKey, activeHref }: SidebarNavGro
     }
   }, [isActive]);
 
+  const singleLink = module.links.length === 1 ? module.links[0] : undefined;
+  if (singleLink) {
+    const isLinkActive = singleLink.href === activeHref || isActive;
+    return (
+      <NavLink
+        className={`nav-item${isLinkActive ? ' active' : ''}`}
+        href={singleLink.href}
+        data-sidebar-module={module.key}
+      >
+        <i className={`ph ${module.icon}`} aria-hidden="true" />
+        <span>{module.label}</span>
+      </NavLink>
+    );
+  }
+
   return (
     <div className={`nav-group${expanded ? ' expanded' : ''}`} data-sidebar-module={module.key}>
       <button

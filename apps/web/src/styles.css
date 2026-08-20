@@ -1793,42 +1793,99 @@ p {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
   overflow-y: auto;
-  padding: 1.5rem 2rem;
+  padding: 1.25rem 1.75rem;
+}
+
+.um-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.um-top-title-area {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.um-page-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.um-page-subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.um-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.um-add-btn-top {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 0 1.25rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+  transition: all 0.2s ease;
+}
+
+.um-add-btn-top:hover {
+  background: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
 .um-kpi-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .kpi-card {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   min-width: 0;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #ffffff;
-  padding: 1.1rem 1.25rem;
+  padding: 0.65rem 0.85rem;
   transition: box-shadow 0.2s;
 }
 
 .kpi-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
 .kpi-icon {
-  width: 46px;
-  height: 46px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  font-size: 1.4rem;
+  border-radius: 8px;
+  font-size: 1.15rem;
 }
 
 .kpi-icon.blue {
@@ -1865,28 +1922,46 @@ p {
 
 .kpi-label {
   color: #64748b;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 500;
 }
 
 .kpi-value {
   color: #0f172a;
-  font-size: 1.6rem;
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1;
 }
 
 .um-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 1rem;
   align-items: start;
   min-height: 0;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .um-kpi-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .um-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .um-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .um-table-section {
   overflow: hidden;
   padding: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .um-toolbar {
@@ -1894,7 +1969,7 @@ p {
   flex-direction: column;
   gap: 0.75rem;
   border-bottom: 1px solid #e2e8f0;
-  padding: 1rem 1.5rem;
+  padding: 0.85rem 1.25rem;
 }
 
 .um-toolbar-row1 {
@@ -2051,22 +2126,22 @@ p {
 
 .um-table-section .data-table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 720px;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   white-space: normal;
 }
 
 .um-table-section .branch-data-table {
-  min-width: 760px;
+  min-width: 720px;
 }
 
 .um-table-section .data-table th {
-  padding: 0.85rem 1rem;
+  padding: 0.65rem 0.85rem;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
   color: #475569;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   text-align: left;
   user-select: none;
@@ -2089,7 +2164,7 @@ p {
 
 .um-table-section .data-table td {
   border-bottom: 1px solid #f1f5f9;
-  padding: 0.85rem 1rem;
+  padding: 0.65rem 0.85rem;
   color: #334155;
   vertical-align: middle;
 }
@@ -10170,3 +10245,654 @@ textarea.has-error {
   height: 2px;
   background-color: var(--primary-color);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Professional Multi-Select Component
+────────────────────────────────────────────────────────────────────────────── */
+.hms-multi-select {
+  position: relative;
+  width: 100%;
+}
+
+.hms-multi-select-trigger {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 4px 34px 4px 8px;
+  border-radius: 8px;
+  min-height: 38px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.hms-multi-select-trigger:hover:not(.disabled) {
+  border-color: #94a3b8;
+}
+
+.hms-multi-select-trigger.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.hms-multi-select-trigger.disabled {
+  background: #f8fafc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.hms-multi-select-placeholder {
+  color: #94a3b8;
+  font-size: 0.84rem;
+  user-select: none;
+  padding-left: 2px;
+}
+
+.hms-multi-select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 0.85rem;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.hms-multi-select-chevron.open {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.hms-multi-select-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 2px 7px 2px 9px;
+  line-height: 1.25;
+}
+
+.hms-multi-select-tag-close {
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: 2px;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  transition: all 0.15s;
+}
+
+.hms-multi-select-tag-close:hover {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.hms-multi-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 4px;
+}
+
+.hms-multi-select-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: #334155;
+  transition: background 0.15s ease;
+  user-select: none;
+  margin-bottom: 2px;
+}
+
+.hms-multi-select-item:hover {
+  background: #f1f5f9;
+}
+
+.hms-multi-select-item.selected {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.hms-multi-select-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #2563eb;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Vital Stepper Input Component
+────────────────────────────────────────────────────────────────────────────── */
+.vital-stepper-container {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+  height: 38px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.vital-stepper-container:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.vital-stepper-btn {
+  width: 36px;
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+  padding: 0;
+}
+
+.vital-stepper-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.vital-stepper-btn:active:not(:disabled) {
+  background: #dbeafe;
+}
+
+.vital-stepper-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vital-stepper-input {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  text-align: center;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 0 4px !important;
+  background: transparent !important;
+  -moz-appearance: textfield;
+}
+
+.vital-stepper-input::-webkit-outer-spin-button,
+.vital-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Compact Patient Search & Directory Layout
+────────────────────────────────────────────────────────────────────────────── */
+.patient-search-card-compact {
+  padding: 0.85rem 1.25rem !important;
+  margin-bottom: 0.85rem !important;
+  border-radius: 12px !important;
+}
+
+.patient-search-top-grid {
+  display: grid;
+  grid-template-columns: minmax(130px, 1.2fr) minmax(140px, 1.4fr) minmax(120px, 1.1fr) minmax(110px, 1fr) minmax(110px, 1fr) auto;
+  gap: 0.65rem;
+  align-items: flex-end;
+}
+
+.patient-search-compact-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.patient-search-compact-field label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.patient-search-compact-field input,
+.patient-search-compact-field select {
+  height: 36px !important;
+  padding: 0 0.65rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 6px !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.patient-search-compact-field input:focus,
+.patient-search-compact-field select:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1) !important;
+}
+
+.patient-search-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 1px;
+}
+
+.patient-search-btn-search {
+  height: 36px;
+  padding: 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.patient-search-btn-search:hover {
+  background: #1d4ed8;
+}
+
+.patient-search-btn-secondary {
+  height: 36px;
+  padding: 0 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.patient-search-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+@media (max-width: 1200px) {
+  .patient-search-top-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .patient-search-top-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Clinical Health Vitals Grid & Cards UI
+────────────────────────────────────────────────────────────────────────────── */
+.clinical-vitals-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.clinical-vitals-patient-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  padding: 0.75rem 1.15rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.clinical-vitals-patient-info {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.clinical-vitals-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  flex-shrink: 0;
+}
+
+.clinical-vitals-patient-meta h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.clinical-vitals-patient-meta span {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.clinical-vitals-summary-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.clinical-vital-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.clinical-vital-summary-pill.success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.clinical-vital-summary-pill.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.clinical-vital-summary-pill.alert {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.clinical-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .clinical-vitals-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.clinical-vital-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  position: relative;
+}
+
+.clinical-vital-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.clinical-vital-card:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.clinical-vital-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.clinical-vital-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.clinical-vital-icon-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.clinical-vital-icon-badge.red { background: #fee2e2; color: #dc2626; }
+.clinical-vital-icon-badge.rose { background: #ffe4e6; color: #e11d48; }
+.clinical-vital-icon-badge.amber { background: #fef3c7; color: #d97706; }
+.clinical-vital-icon-badge.sky { background: #e0f2fe; color: #0284c7; }
+.clinical-vital-icon-badge.teal { background: #ccfbf1; color: #0d9488; }
+.clinical-vital-icon-badge.indigo { background: #e0e7ff; color: #4338ca; }
+.clinical-vital-icon-badge.violet { background: #ede9fe; color: #7c3aed; }
+
+.clinical-vital-labels {
+  display: flex;
+  flex-direction: column;
+}
+
+.clinical-vital-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+.clinical-vital-range {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.clinical-vital-status-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.clinical-vital-status-tag.normal { background: #dcfce7; color: #15803d; }
+.clinical-vital-status-tag.warning { background: #fef9c3; color: #a16207; }
+.clinical-vital-status-tag.alert { background: #fee2e2; color: #b91c1c; }
+.clinical-vital-status-tag.info { background: #e0f2fe; color: #0369a1; }
+.clinical-vital-status-tag.neutral { background: #f1f5f9; color: #64748b; }
+
+.clinical-vital-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.clinical-vital-stepper {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  height: 38px;
+  transition: all 0.15s ease;
+}
+
+.clinical-vital-stepper:focus-within {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.clinical-vital-btn {
+  width: 36px;
+  background: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.clinical-vital-btn.dec { border-right: 1px solid #e2e8f0; }
+.clinical-vital-btn.inc { border-left: 1px solid #e2e8f0; }
+
+.clinical-vital-btn:hover:not(:disabled) {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.clinical-vital-btn:active:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.clinical-vital-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clinical-vital-field-value {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 0 4px;
+  font-family: inherit;
+  -moz-appearance: textfield;
+}
+
+.clinical-vital-field-value::-webkit-outer-spin-button,
+.clinical-vital-field-value::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.clinical-vital-unit-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  min-width: 48px;
+  text-align: center;
+}
+
+.clinical-derived-metrics-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 0.75rem 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.clinical-derived-metric-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.clinical-derived-metric-item i {
+  font-size: 1.35rem;
+  color: #16a34a;
+}
+
+.clinical-derived-metric-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.clinical-derived-metric-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.clinical-derived-metric-value {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #14532d;
+}
+
+

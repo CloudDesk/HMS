@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
 import { branchesApi, type BranchResponse } from '../api/branches';
 import { departmentsApi, type DepartmentResponse } from '../api/departments';
@@ -30,7 +30,7 @@ type ServiceFormState = {
   code: string;
   name: string;
   service_type: ApiServiceType;
-  branch_id: string;
+  branch_ids: string[];
   department_id: string;
   category: string;
   description: string;
@@ -42,7 +42,7 @@ const emptyForm: ServiceFormState = {
   code: '',
   name: '',
   service_type: 'GENERAL',
-  branch_id: '',
+  branch_ids: [],
   department_id: '',
   category: '',
   description: '',
@@ -197,6 +197,92 @@ function ServicesByDepartment({
   );
 }
 
+function BranchMultiSelect({
+  branches,
+  selectedIds,
+  onChange,
+  disabled,
+}: {
+  branches: BranchResponse[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="hms-multi-select" ref={containerRef}>
+      <div
+        className={`hms-multi-select-trigger${open ? ' active' : ''}${disabled ? ' disabled' : ''}`}
+        onClick={() => !disabled && setOpen(!open)}
+      >
+        {selectedIds.length === 0 ? (
+          <span className="hms-multi-select-placeholder">Select branches...</span>
+        ) : (
+          selectedIds.map((id) => {
+            const b = branches.find((br) => br.id === id);
+            if (!b) return null;
+            return (
+              <span className="hms-multi-select-tag" key={id}>
+                {b.name}
+                <button
+                  aria-label={`Remove ${b.name}`}
+                  className="hms-multi-select-tag-close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!disabled) onChange(selectedIds.filter((sid) => sid !== id));
+                  }}
+                  type="button"
+                >
+                  <i className="ph ph-x" aria-hidden="true" />
+                </button>
+              </span>
+            );
+          })
+        )}
+        <i className={`ph ph-caret-down hms-multi-select-chevron${open ? ' open' : ''}`} aria-hidden="true" />
+      </div>
+
+      {open && (
+        <div className="hms-multi-select-dropdown">
+          {branches.map((b) => {
+            const isSelected = selectedIds.includes(b.id);
+            return (
+              <label
+                className={`hms-multi-select-item${isSelected ? ' selected' : ''}`}
+                key={b.id}
+              >
+                <input
+                  checked={isSelected}
+                  onChange={(e) => {
+                    const newIds = e.target.checked
+                      ? [...selectedIds, b.id]
+                      : selectedIds.filter((id) => id !== b.id);
+                    onChange(newIds);
+                  }}
+                  type="checkbox"
+                />
+                <span>{b.name}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page Component ────────────────────────────────────────────────────────
 
 export function ServiceCataloguePage() {
@@ -264,10 +350,15 @@ export function ServiceCataloguePage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
-  // ── Derived: filter departments by selected branch ─────────────────────────
+  // ── Derived: filter departments by selected branches ──────────────────────
   const formDepartmentOptions = useMemo(
-    () => (form.branch_id ? departments.filter((department) => department.branch_ids.includes(form.branch_id)) : departments),
-    [departments, form.branch_id],
+    () =>
+      form.branch_ids.length > 0
+        ? departments.filter((department) =>
+            department.branch_ids.some((id) => form.branch_ids.includes(id)),
+          )
+        : departments,
+    [departments, form.branch_ids],
   );
 
   // ── Loaders ────────────────────────────────────────────────────────────────
@@ -365,7 +456,7 @@ export function ServiceCataloguePage() {
         code: svc.code,
         name: svc.name,
         service_type: svc.service_type,
-        branch_id: department?.branch_ids[0] ?? '',
+        branch_ids: department?.branch_ids ?? [],
         department_id: svc.department_id,
         category: svc.category ?? '',
         description: svc.description ?? '',
@@ -907,21 +998,31 @@ export function ServiceCataloguePage() {
 
             <div className="form-section-title">Organisation</div>
             <div className="form-grid-3">
-              <label className="form-field">
-                <span>Branch</span>
-                <select
+              <div className="form-field">
+                <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#475569', marginBottom: '4px', display: 'block' }}>Branch</span>
+                <BranchMultiSelect
+                  branches={branches}
                   disabled={submitting}
-                  onChange={(e) => {
-                    setForm({ ...form, branch_id: e.target.value, department_id: '' });
+                  onChange={(selectedIds) => {
+                    setForm((prev) => {
+                      const newDeptId =
+                        prev.department_id &&
+                        selectedIds.length > 0 &&
+                        !departments
+                          .find((d) => d.id === prev.department_id)
+                          ?.branch_ids.some((id) => selectedIds.includes(id))
+                          ? ''
+                          : prev.department_id;
+                      return {
+                        ...prev,
+                        branch_ids: selectedIds,
+                        department_id: newDeptId,
+                      };
+                    });
                   }}
-                  value={form.branch_id}
-                >
-                  <option value="">Select Branch</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-              </label>
+                  selectedIds={form.branch_ids}
+                />
+              </div>
               <label className="form-field">
                 <span>Department <span className="required">*</span></span>
                 <select

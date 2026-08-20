@@ -6,6 +6,17 @@ import { opdApi, type ApiOpdVisitPriority, type ApiOpdVisitStatus, type OpdVisit
 import { patientsApi, type PatientResponse } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import {
+  ClinicalVitalCard,
+  calculateBmi,
+  calculateMap,
+  evaluateDiastolicBp,
+  evaluatePulse,
+  evaluateRespiratoryRate,
+  evaluateSpo2,
+  evaluateSystolicBp,
+  evaluateTemperature,
+} from '../components/ui/ClinicalVitalCard';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
   formatVisitDateTime,
@@ -323,6 +334,9 @@ export function OpdQueuePage() {
       setUpdating('');
     }
   };
+
+  const bmiObj = calculateBmi(vitalsForm.weight_kg, vitalsForm.height_cm);
+  const mapVal = calculateMap(vitalsForm.blood_pressure_systolic, vitalsForm.blood_pressure_diastolic);
 
   return (
     <>
@@ -724,7 +738,7 @@ export function OpdQueuePage() {
         </form>
       </Modal> */}
 
-      {/* Record Patient Vitals Modal */}
+      {/* Record Vitals Modal */}
       <Modal
         footer={
           <>
@@ -732,100 +746,215 @@ export function OpdQueuePage() {
               Cancel
             </button>
             <button className="primary-action" disabled={vitalsSubmitting} onClick={saveVitals} type="button">
-              {vitalsSubmitting ? 'Saving...' : 'Save Vitals'}
+              {vitalsSubmitting ? 'Saving Vitals...' : 'Save Vitals Record'}
             </button>
           </>
         }
         icon="ph-heartbeat"
         onClose={() => setVitalsModalOpen(false)}
         open={vitalsModalOpen}
-        title={`Record Vitals - ${vitalsVisit?.patient_name ?? ''}`}
+        size="large"
+        title="Record Clinical Vitals"
       >
-        <form onSubmit={saveVitals}>
-          {vitalsError ? <div className="form-error-banner">{vitalsError}</div> : null}
-          <div className="walk-in-form-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-            <div className="form-group">
-              <label htmlFor="sys-bp">Systolic BP (mmHg)</label>
-              <input
-                id="sys-bp"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, blood_pressure_systolic: e.target.value })}
-                placeholder="120"
-                type="number"
-                value={vitalsForm.blood_pressure_systolic}
-              />
+        <form className="clinical-vitals-modal-body" onSubmit={saveVitals}>
+          {vitalsError ? <div className="form-error-banner" role="alert">{vitalsError}</div> : null}
+
+          {/* Clinical Patient Header Strip */}
+          {vitalsVisit ? (
+            <div className="clinical-vitals-patient-strip">
+              <div className="clinical-vitals-patient-info">
+                <div className="clinical-vitals-avatar">
+                  {patientInitials(vitalsVisit.patient_name || 'Patient')}
+                </div>
+                <div className="clinical-vitals-patient-meta">
+                  <h4>{vitalsVisit.patient_name}</h4>
+                  <span>Visit No: <strong>{vitalsVisit.visit_number || 'OPD'}</strong> • Priority: {vitalsVisit.priority}</span>
+                </div>
+              </div>
+              <div className="clinical-vitals-summary-chips">
+                <span className="clinical-vital-summary-pill">
+                  <i className="ph ph-stethoscope" /> OPD Triage
+                </span>
+                {mapVal !== null ? (
+                  <span className="clinical-vital-summary-pill success">
+                    <i className="ph ph-heartbeat" /> MAP: {mapVal} mmHg
+                  </span>
+                ) : null}
+                {bmiObj ? (
+                  <span className={`clinical-vital-summary-pill ${bmiObj.tone}`}>
+                    <i className="ph ph-scales" /> BMI: {bmiObj.bmi} ({bmiObj.category})
+                  </span>
+                ) : null}
+              </div>
             </div>
-            <div className="form-group">
-              <label htmlFor="dia-bp">Diastolic BP (mmHg)</label>
-              <input
-                id="dia-bp"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, blood_pressure_diastolic: e.target.value })}
-                placeholder="80"
-                type="number"
-                value={vitalsForm.blood_pressure_diastolic}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="pulse">Pulse Rate (bpm)</label>
-              <input
-                id="pulse"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, pulse_bpm: e.target.value })}
-                placeholder="72"
-                type="number"
-                value={vitalsForm.pulse_bpm}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="temp">Temperature (°C)</label>
-              <input
-                id="temp"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, temperature_c: e.target.value })}
-                placeholder="36.8"
-                step="0.1"
-                type="number"
-                value={vitalsForm.temperature_c}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="spo2">SpO₂ (%)</label>
-              <input
-                id="spo2"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, oxygen_saturation_percent: e.target.value })}
-                placeholder="98"
-                type="number"
-                value={vitalsForm.oxygen_saturation_percent}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="resp">Resp. Rate (min)</label>
-              <input
-                id="resp"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, respiratory_rate_per_min: e.target.value })}
-                placeholder="16"
-                type="number"
-                value={vitalsForm.respiratory_rate_per_min}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="weight">Weight (kg)</label>
-              <input
-                id="weight"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, weight_kg: e.target.value })}
-                placeholder="70"
-                type="number"
-                value={vitalsForm.weight_kg}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="height">Height (cm)</label>
-              <input
-                id="height"
-                onChange={(e) => setVitalsForm({ ...vitalsForm, height_cm: e.target.value })}
-                placeholder="170"
-                type="number"
-                value={vitalsForm.height_cm}
-              />
-            </div>
+          ) : null}
+
+          {/* Clinical Vital Cards Grid */}
+          <div className="clinical-vitals-grid">
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-heartbeat"
+              id="sys-bp"
+              label="Systolic Blood Pressure"
+              max={300}
+              min={40}
+              normalRange="90 – 120 mmHg"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, blood_pressure_systolic: val })}
+              placeholder="120"
+              statusLabel={evaluateSystolicBp(vitalsForm.blood_pressure_systolic)?.label}
+              statusTone={evaluateSystolicBp(vitalsForm.blood_pressure_systolic)?.tone}
+              step={1}
+              themeColor="red"
+              unit="mmHg"
+              value={vitalsForm.blood_pressure_systolic}
+            />
+
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-heart-straight"
+              id="dia-bp"
+              label="Diastolic Blood Pressure"
+              max={200}
+              min={30}
+              normalRange="60 – 80 mmHg"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, blood_pressure_diastolic: val })}
+              placeholder="80"
+              statusLabel={evaluateDiastolicBp(vitalsForm.blood_pressure_diastolic)?.label}
+              statusTone={evaluateDiastolicBp(vitalsForm.blood_pressure_diastolic)?.tone}
+              step={1}
+              themeColor="rose"
+              unit="mmHg"
+              value={vitalsForm.blood_pressure_diastolic}
+            />
+
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-heart"
+              id="pulse"
+              label="Heart / Pulse Rate"
+              max={250}
+              min={30}
+              normalRange="60 – 100 bpm"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, pulse_bpm: val })}
+              placeholder="72"
+              statusLabel={evaluatePulse(vitalsForm.pulse_bpm)?.label}
+              statusTone={evaluatePulse(vitalsForm.pulse_bpm)?.tone}
+              step={1}
+              themeColor="rose"
+              unit="bpm"
+              value={vitalsForm.pulse_bpm}
+            />
+
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-thermometer-simple"
+              id="temp"
+              label="Body Temperature"
+              max={45}
+              min={30}
+              normalRange="36.5 – 37.5 °C"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, temperature_c: val })}
+              placeholder="36.8"
+              statusLabel={evaluateTemperature(vitalsForm.temperature_c)?.label}
+              statusTone={evaluateTemperature(vitalsForm.temperature_c)?.tone}
+              step={0.1}
+              themeColor="amber"
+              unit="°C"
+              value={vitalsForm.temperature_c}
+            />
+
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-drop"
+              id="spo2"
+              label="Oxygen Saturation (SpO₂)"
+              max={100}
+              min={50}
+              normalRange="95 – 100 %"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, oxygen_saturation_percent: val })}
+              placeholder="98"
+              statusLabel={evaluateSpo2(vitalsForm.oxygen_saturation_percent)?.label}
+              statusTone={evaluateSpo2(vitalsForm.oxygen_saturation_percent)?.tone}
+              step={1}
+              themeColor="sky"
+              unit="%"
+              value={vitalsForm.oxygen_saturation_percent}
+            />
+
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-wind"
+              id="resp"
+              label="Respiratory Rate"
+              max={60}
+              min={6}
+              normalRange="12 – 20 breaths/min"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, respiratory_rate_per_min: val })}
+              placeholder="16"
+              statusLabel={evaluateRespiratoryRate(vitalsForm.respiratory_rate_per_min)?.label}
+              statusTone={evaluateRespiratoryRate(vitalsForm.respiratory_rate_per_min)?.tone}
+              step={1}
+              themeColor="teal"
+              unit="/min"
+              value={vitalsForm.respiratory_rate_per_min}
+            />
+
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-scales"
+              id="weight"
+              label="Body Weight"
+              max={400}
+              min={1}
+              normalRange="Adult kg"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, weight_kg: val })}
+              placeholder="70"
+              step={0.5}
+              themeColor="violet"
+              unit="kg"
+              value={vitalsForm.weight_kg}
+            />
+
+            <ClinicalVitalCard
+              disabled={vitalsSubmitting}
+              icon="ph-arrows-out-line-vertical"
+              id="height"
+              label="Body Height"
+              max={260}
+              min={30}
+              normalRange="Adult cm"
+              onChange={(val) => setVitalsForm({ ...vitalsForm, height_cm: val })}
+              placeholder="170"
+              step={1}
+              themeColor="indigo"
+              unit="cm"
+              value={vitalsForm.height_cm}
+            />
           </div>
+
+          {/* Derived Clinical Health Summary (BMI & MAP) */}
+          {(bmiObj || mapVal !== null) ? (
+            <div className="clinical-derived-metrics-card">
+              {bmiObj ? (
+                <div className="clinical-derived-metric-item">
+                  <i className="ph ph-scales" />
+                  <div className="clinical-derived-metric-text">
+                    <span className="clinical-derived-metric-label">Body Mass Index (BMI)</span>
+                    <span className="clinical-derived-metric-value">{bmiObj.bmi} kg/m² • {bmiObj.category}</span>
+                  </div>
+                </div>
+              ) : null}
+              {mapVal !== null ? (
+                <div className="clinical-derived-metric-item">
+                  <i className="ph ph-heartbeat" />
+                  <div className="clinical-derived-metric-text">
+                    <span className="clinical-derived-metric-label">Mean Arterial Pressure (MAP)</span>
+                    <span className="clinical-derived-metric-value">{mapVal} mmHg (Normal: 70–105 mmHg)</span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </form>
       </Modal>
 

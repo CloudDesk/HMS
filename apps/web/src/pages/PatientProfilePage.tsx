@@ -23,6 +23,7 @@ import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
 import { PrintImagingOrderModal } from '../components/print/PrintImagingOrderModal';
 import { PrintBillingModal } from '../components/print/PrintBillingModal';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
 import { formatDate, formatDateTime, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
 
@@ -33,6 +34,9 @@ type ProfileForm = {
   firstName: string;
   gender: ApiPatientGender;
   lastName: string;
+  addressLine1: string;
+  city: string;
+  postalCode: string;
   notes: string;
   phone: string;
   status: ApiPatientStatus;
@@ -69,6 +73,9 @@ const toForm = (patient: PatientResponse): ProfileForm => ({
   firstName: patient.first_name ?? '',
   gender: patient.gender,
   lastName: patient.last_name,
+  addressLine1: patient.address?.line1 ?? '',
+  city: patient.address?.city ?? '',
+  postalCode: patient.address?.postal_code ?? '',
   notes: patient.notes ?? '',
   phone: patient.phone ?? '',
   status: patient.status,
@@ -222,7 +229,7 @@ function EmrTimelineTab({ patientId }: EmrTabProps) {
                       </div>
                     </div>
                     <span className={`doc-status ${statusBadge.class}`}>
-                      • {statusBadge.label}
+                      {statusBadge.label}
                     </span>
                   </div>
                   <div className="emr-card-body-grid">
@@ -341,6 +348,11 @@ const getFileIconClass = (fileName: string): string => {
 // ── Main Patient Workspace ───────────────────────────────────────────────────
 
 export function PatientProfilePage() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
+  const canEditAllDetails = isSuperAdmin || isAdmin;
+
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
   const [history, setHistory] = useState<PatientHistoryResponse | null>(null);
@@ -644,6 +656,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
       first_name: form.firstName.trim(),
       gender: form.gender,
       last_name: form.lastName.trim(),
+      address: {
+        line1: nullable(form.addressLine1),
+        city: nullable(form.city),
+        postal_code: nullable(form.postalCode),
+      },
       notes: nullable(form.notes),
       phone: nullable(form.phone),
       status: form.status,
@@ -714,7 +731,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <h2>{patientFullName(patient)}</h2>
                 <span className="profile-mrn-badge">MRN-{patient.patient_number}</span>
                 <span className={`doc-status ${patient.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
-                  • {patient.status}
+                  {patient.status}
                 </span>
               </div>
               <div className="profile-hero-meta">
@@ -818,7 +835,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                           <strong>{item.medicine_name}</strong>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.dosage} - {item.frequency} ({item.duration})</div>
                         </div>
-                        <span className={`doc-status ${pStatus === 'SUBMITTED' || pStatus === 'DRAFT' ? 'active' : pStatus === 'DISPENSED' ? 'success' : 'neutral'}`}>• {pStatus.charAt(0).toUpperCase() + pStatus.slice(1).toLowerCase()}</span>
+                        <span className={`doc-status ${pStatus === 'SUBMITTED' || pStatus === 'DRAFT' ? 'active' : pStatus === 'DISPENSED' ? 'success' : 'neutral'}`}>{pStatus.charAt(0).toUpperCase() + pStatus.slice(1).toLowerCase()}</span>
                       </div>
                     ))}
                   </div>
@@ -1273,56 +1290,110 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           <form className="modal-form patient-form doctor-onboarding-form" onSubmit={saveProfile}>
             {formError ? <div className="form-error-banner" role="alert">{formError}</div> : null}
 
-            <div className="locked-notice-banner">
-              <i className="ph ph-lock-key" aria-hidden="true" />
-              <span>
-                Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
-              </span>
-            </div>
+            {canEditAllDetails ? (
+              <div className="locked-notice-banner" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
+                <i className="ph ph-shield-check" aria-hidden="true" style={{ color: '#16a34a' }} />
+                <span>
+                  Administrator Access: You have full permissions to edit patient identity attributes, demographics, address, and status.
+                </span>
+              </div>
+            ) : (
+              <div className="locked-notice-banner">
+                <i className="ph ph-lock-key" aria-hidden="true" />
+                <span>
+                  Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
+                </span>
+              </div>
+            )}
 
             <section className="doctor-onboarding-section">
               <header>
                 <span><i className="ph ph-user" aria-hidden="true" /></span>
                 <div>
                   <h3>Identity Information</h3>
-                  <p>Immutable patient identification and demographic attributes.</p>
+                  <p>{canEditAllDetails ? 'Patient identification and demographic attributes.' : 'Immutable patient identification and demographic attributes.'}</p>
                 </div>
               </header>
               <div className="form-grid">
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="profile-first">
-                    First name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    First name {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="profile-first" readOnly value={form.firstName} />
+                  <input
+                    disabled={!canEditAllDetails || submitting}
+                    id="profile-first"
+                    onChange={(event) => setForm({ ...form, firstName: event.target.value })}
+                    readOnly={!canEditAllDetails}
+                    value={form.firstName}
+                  />
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="profile-last">
-                    Last name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Last name {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="profile-last" readOnly value={form.lastName} />
+                  <input
+                    disabled={!canEditAllDetails || submitting}
+                    id="profile-last"
+                    onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+                    readOnly={!canEditAllDetails}
+                    required={canEditAllDetails}
+                    value={form.lastName}
+                  />
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="profile-dob">
-                    Date of birth <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Date of birth {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="profile-dob" readOnly type="date" value={form.dateOfBirth} />
+                  <input
+                    disabled={!canEditAllDetails || submitting}
+                    id="profile-dob"
+                    onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })}
+                    readOnly={!canEditAllDetails}
+                    required={canEditAllDetails}
+                    type="date"
+                    value={form.dateOfBirth}
+                  />
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="profile-gender">
-                    Gender <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Gender {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <select disabled id="profile-gender" value={form.gender}>
+                  <select
+                    disabled={!canEditAllDetails || submitting}
+                    id="profile-gender"
+                    onChange={(event) => setForm({ ...form, gender: event.target.value as ApiPatientGender })}
+                    value={form.gender}
+                  >
                     <option value="UNKNOWN">Unknown</option>
                     <option value="MALE">Male</option>
                     <option value="FEMALE">Female</option>
                     <option value="OTHER">Other</option>
                   </select>
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="profile-blood">
-                    Blood group <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Blood group {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="profile-blood" readOnly value={form.bloodGroup || 'Not recorded'} />
+                  {canEditAllDetails ? (
+                    <select
+                      disabled={submitting}
+                      id="profile-blood"
+                      onChange={(event) => setForm({ ...form, bloodGroup: event.target.value })}
+                      value={form.bloodGroup}
+                    >
+                      <option value="">Select Blood Group</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  ) : (
+                    <input disabled id="profile-blood" readOnly value={form.bloodGroup || 'Not recorded'} />
+                  )}
                 </div>
               </div>
             </section>
@@ -1331,8 +1402,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <header>
                 <span><i className="ph ph-phone" aria-hidden="true" /></span>
                 <div>
-                  <h3>Contact &amp; Operations</h3>
-                  <p>Editable communication details, status, and clinical notes.</p>
+                  <h3>Contact &amp; Address Details</h3>
+                  <p>Editable communication details, physical address, status, and clinical notes.</p>
                 </div>
               </header>
               <div className="form-grid">
@@ -1353,8 +1424,38 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   </select>
                 </div>
                 <div className="form-group full-width">
+                  <label htmlFor="profile-address">Address / Street</label>
+                  <input
+                    disabled={submitting}
+                    id="profile-address"
+                    onChange={(event) => setForm({ ...form, addressLine1: event.target.value })}
+                    placeholder="e.g. 123 Healthcare Ave, Suite 400"
+                    value={form.addressLine1}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="profile-city">City</label>
+                  <input
+                    disabled={submitting}
+                    id="profile-city"
+                    onChange={(event) => setForm({ ...form, city: event.target.value })}
+                    placeholder="City"
+                    value={form.city}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="profile-postal">Postal Code</label>
+                  <input
+                    disabled={submitting}
+                    id="profile-postal"
+                    onChange={(event) => setForm({ ...form, postalCode: event.target.value })}
+                    placeholder="Postal Code"
+                    value={form.postalCode}
+                  />
+                </div>
+                <div className="form-group full-width">
                   <label htmlFor="profile-notes">Registration Notes</label>
-                  <textarea disabled={submitting} id="profile-notes" onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} value={form.notes} />
+                  <textarea disabled={submitting} id="profile-notes" onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={2} value={form.notes} />
                 </div>
               </div>
             </section>

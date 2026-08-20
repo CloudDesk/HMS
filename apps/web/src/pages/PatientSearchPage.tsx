@@ -8,6 +8,7 @@ import {
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
 import { formatDate, getPatientErrorMessage, patientFullName } from './patient-utils';
 
@@ -33,6 +34,11 @@ const defaultColumns: ColumnVisibility = {
 };
 
 export function PatientSearchPage() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
+  const canEditAllDetails = isSuperAdmin || isAdmin;
+
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
   const [patients, setPatients] = useState<PatientResponse[]>([]);
@@ -78,6 +84,9 @@ export function PatientSearchPage() {
     gender: 'MALE' as ApiPatientGender,
     phone: '',
     email: '',
+    addressLine1: '',
+    city: '',
+    postalCode: '',
     bloodGroup: '',
     status: 'ACTIVE' as ApiPatientStatus,
     notes: '',
@@ -102,65 +111,66 @@ export function PatientSearchPage() {
     const age = new Date().getFullYear() - new Date(p.date_of_birth).getFullYear();
     const dob = formatDate(p.date_of_birth);
     const registered = formatDate(p.created_at);
-    const statusColor = p.status === 'ACTIVE' ? '#16a34a' : p.status === 'DECEASED' ? '#6b7280' : '#dc2626';
 
     const html = `<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Patient Card — ${fullName}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .card { width: 85mm; height: 54mm; background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; position: relative; display: flex; flex-direction: column; }
-    .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 12px 16px; color: white; display: flex; align-items: center; justify-content: space-between; }
-    .header-left { display: flex; align-items: center; gap: 10px; }
-    .avatar { width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; }
-    .name-block { display: flex; flex-direction: column; gap: 2px; }
-    .name { font-size: 14px; font-weight: 800; line-height: 1.1; }
-    .mrn { font-size: 9px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; align-self: flex-start; }
-    .logo-mark { width: 24px; height: 24px; background: rgba(255,255,255,0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; }
-    .body-grid { padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; flex: 1; }
-    .info-item { display: flex; flex-direction: column; gap: 2px; }
-    .info-label { font-size: 7px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; }
-    .info-value { font-size: 10px; font-weight: 600; color: #0f172a; }
-    .status-val { color: ${statusColor}; }
-    .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 6px 16px; display: flex; justify-content: space-between; font-size: 7px; color: #64748b; font-weight: 500; }
-    @media print {
-      @page { size: 85mm 54mm; margin: 0; }
-      body { background: white; }
-      .card { box-shadow: none; border: none; border-radius: 0; width: 100vw; height: 100vh; }
-    }
-  </style>
+<meta charset="utf-8"/>
+<title>Patient ID Card - ${fullName}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f1f5f9; }
+  .card { width: 340px; background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); overflow: hidden; border: 1px solid #e2e8f0; }
+  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 20px; color: #fff; position: relative; }
+  .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .logo { width: 32px; height: 32px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+  .title { font-size: 13px; font-weight: 700; }
+  .subtitle { font-size: 10px; opacity: 0.8; }
+  .tag { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; }
+  .hero { display: flex; align-items: center; gap: 14px; }
+  .avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 3px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; }
+  .hero-info h2 { font-size: 17px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; }
+  .mrn-pill { font-size: 10px; background: rgba(255,255,255,0.25); padding: 2px 7px; border-radius: 4px; font-weight: 700; letter-spacing: 0.5px; }
+  .body { padding: 18px 20px; }
+  .field-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 11px; }
+  .field-row .label { color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; }
+  .field-row .val { color: #0f172a; font-weight: 700; text-align: right; }
+  .barcode-strip { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+  .barcode-text { font-family: monospace; font-size: 11px; font-weight: 700; color: #475569; letter-spacing: 2px; }
+  .footer-note { font-size: 9px; color: #94a3b8; text-align: center; margin-top: 10px; }
+  @media print { body { background: #fff; } .card { box-shadow: none; } }
+</style>
 </head>
 <body>
-  <div class="card">
-    <div class="header">
-      <div class="header-left">
-        <div class="avatar">${initials}</div>
-        <div class="name-block">
-          <div class="name">${fullName}</div>
-          <div class="mrn">MRN-${p.patient_number}</div>
-        </div>
+<div className="card">
+  <div className="header">
+    <div className="brand">
+      <div className="logo">H</div>
+      <div><div className="title">HMS Enterprise</div><div className="subtitle">Hospital Management System</div></div>
+    </div>
+    <span className="tag">Patient ID</span>
+    <div className="hero">
+      <div className="avatar">${initials}</div>
+      <div className="hero-info">
+        <h2>${fullName}</h2>
+        <span className="mrn-pill">${p.patient_number}</span>
       </div>
-      <div class="logo-mark">H</div>
-    </div>
-    <div class="body-grid">
-      <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-value">${dob}</span></div>
-      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs · ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
-      <div class="info-item"><span class="info-label">Phone</span><span class="info-value">${p.phone || 'Not recorded'}</span></div>
-      <div class="info-item"><span class="info-label">Status</span><span class="info-value status-val">${p.status}</span></div>
-      <div class="info-item"><span class="info-label">Registered</span><span class="info-value">${registered}</span></div>
-      <div class="info-item"><span class="info-label">Blood Group</span><span class="info-value">${p.blood_group || 'N/A'}</span></div>
-    </div>
-    <div class="footer">
-      <span>HMS Enterprise</span>
-      <span>Non-transferable</span>
     </div>
   </div>
-  <script>
-    window.onload = () => { window.print(); };
-  </script>
+  <div className="body">
+    <div className="field-row"><span className="label">Date of Birth</span><span className="val">${dob} (${age} yrs)</span></div>
+    <div className="field-row"><span className="label">Gender</span><span className="val">${p.gender}</span></div>
+    <div className="field-row"><span className="label">Phone</span><span className="val">${p.phone || 'Not recorded'}</span></div>
+    <div className="field-row"><span className="label">Blood Group</span><span className="val">${p.blood_group || 'Not recorded'}</span></div>
+    <div className="field-row"><span className="label">Registered</span><span className="val">${registered}</span></div>
+    <div className="barcode-strip">
+      <span className="barcode-text">||||| | |||| ||| ||||</span>
+      <span className="barcode-text">${p.patient_number}</span>
+    </div>
+    <p className="footer-note">Valid for healthcare services at all HMS facilities</p>
+  </div>
+</div>
+<script>window.onload = () => { window.print(); }<\/script>
 </body>
 </html>`;
 
@@ -181,6 +191,9 @@ export function PatientSearchPage() {
       gender: patient.gender,
       phone: patient.phone ?? '',
       email: patient.email ?? '',
+      addressLine1: patient.address?.line1 ?? '',
+      city: patient.address?.city ?? '',
+      postalCode: patient.address?.postal_code ?? '',
       bloodGroup: patient.blood_group ?? '',
       status: patient.status,
       notes: patient.notes ?? '',
@@ -197,14 +210,39 @@ export function PatientSearchPage() {
     setEditFormError('');
 
     try {
-      await patientsApi.update(editingPatient.id, {
+      const updatePayload: Record<string, unknown> = {
         phone: editForm.phone.trim() || null,
         email: editForm.email.trim() || null,
         status: editForm.status,
         notes: editForm.notes.trim() || null,
-      });
+        address: {
+          line1: editForm.addressLine1.trim() || null,
+          city: editForm.city.trim() || null,
+          postal_code: editForm.postalCode.trim() || null,
+        },
+      };
+
+      if (canEditAllDetails) {
+        if (!editForm.lastName.trim()) {
+          setEditFormError('Last name is required.');
+          setEditSubmitting(false);
+          return;
+        }
+        if (!editForm.dateOfBirth) {
+          setEditFormError('Date of birth is required.');
+          setEditSubmitting(false);
+          return;
+        }
+        updatePayload.first_name = editForm.firstName.trim() || null;
+        updatePayload.last_name = editForm.lastName.trim();
+        updatePayload.date_of_birth = editForm.dateOfBirth;
+        updatePayload.gender = editForm.gender;
+        updatePayload.blood_group = editForm.bloodGroup || null;
+      }
+
+      await patientsApi.update(editingPatient.id, updatePayload as any);
       setEditingPatient(null);
-      showToast(`${editingPatient.first_name} ${editingPatient.last_name} updated successfully.`);
+      showToast(`${canEditAllDetails ? editForm.firstName : (editingPatient.first_name ?? '')} ${canEditAllDetails ? editForm.lastName : editingPatient.last_name} updated successfully.`);
       await loadPatients();
     } catch (error) {
       setEditFormError(getPatientErrorMessage(error));
@@ -287,8 +325,8 @@ export function PatientSearchPage() {
 
   return (
     <div className="appointment-page full-height-layout" onClick={() => setActiveMenuId(null)}>
-      {/* Patient Search Form Card (Compact 5 Basic Filters + Advanced Toggle) */}
-      <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
+      {/* Patient Search Form Card (Compact Streamlined Toolbar) */}
+      <section className="doc-card patient-search-card-compact">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -296,19 +334,19 @@ export function PatientSearchPage() {
             void loadPatients();
           }}
         >
-          {/* 5 Basic Filters Row */}
-          <div className="doc-form-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            <div className="doc-field">
+          {/* Main Search & Filters Row with Inline Actions */}
+          <div className="patient-search-top-grid">
+            <div className="patient-search-compact-field">
               <label htmlFor="search-mrn">MRN / Patient ID</label>
               <input
                 id="search-mrn"
                 onChange={(e) => setMrnInput(e.target.value)}
-                placeholder="Enter MRN or patient ID"
+                placeholder="Enter MRN or ID"
                 type="text"
                 value={mrnInput}
               />
             </div>
-            <div className="doc-field">
+            <div className="patient-search-compact-field">
               <label htmlFor="search-name">Patient Name</label>
               <input
                 id="search-name"
@@ -318,7 +356,7 @@ export function PatientSearchPage() {
                 value={nameInput}
               />
             </div>
-            <div className="doc-field">
+            <div className="patient-search-compact-field">
               <label htmlFor="search-mobile">Mobile Number</label>
               <input
                 id="search-mobile"
@@ -328,7 +366,7 @@ export function PatientSearchPage() {
                 value={mobileInput}
               />
             </div>
-            <div className="doc-field">
+            <div className="patient-search-compact-field">
               <label htmlFor="search-gender">Gender</label>
               <select
                 id="search-gender"
@@ -341,7 +379,7 @@ export function PatientSearchPage() {
                 <option value="OTHER">Other</option>
               </select>
             </div>
-            <div className="doc-field">
+            <div className="patient-search-compact-field">
               <label htmlFor="search-status">Status</label>
               <select
                 id="search-status"
@@ -353,12 +391,37 @@ export function PatientSearchPage() {
                 <option value="INACTIVE">Inactive</option>
               </select>
             </div>
+
+            <div className="patient-search-actions-group">
+              <button
+                className="patient-search-btn-secondary"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                title={showAdvancedFilters ? 'Hide Advanced Filters' : 'Show Advanced Filters'}
+                type="button"
+              >
+                <i className="ph ph-funnel" aria-hidden="true" />
+                {showAdvancedFilters ? 'Less' : 'Filters'}
+              </button>
+              <button
+                className="patient-search-btn-secondary"
+                onClick={handleResetFilters}
+                title="Reset Filters"
+                type="button"
+              >
+                <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" />
+                Reset
+              </button>
+              <button className="patient-search-btn-search" type="submit">
+                <i className="ph ph-magnifying-glass" aria-hidden="true" />
+                Search
+              </button>
+            </div>
           </div>
 
-          {/* Expanded 5 Advanced Filters Row */}
+          {/* Expanded Advanced Filters Row */}
           {showAdvancedFilters ? (
-            <div className="doc-form-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-              <div className="doc-field">
+            <div className="doc-form-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.65rem', marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid #f1f5f9' }}>
+              <div className="patient-search-compact-field">
                 <label htmlFor="search-natid">National ID / Passport</label>
                 <input
                   id="search-natid"
@@ -368,7 +431,7 @@ export function PatientSearchPage() {
                   value={nationalIdInput}
                 />
               </div>
-              <div className="doc-field">
+              <div className="patient-search-compact-field">
                 <label htmlFor="search-dob">Date of Birth</label>
                 <input
                   id="search-dob"
@@ -377,7 +440,7 @@ export function PatientSearchPage() {
                   value={dobInput}
                 />
               </div>
-              <div className="doc-field">
+              <div className="patient-search-compact-field">
                 <label htmlFor="search-blood">Blood Group</label>
                 <select
                   id="search-blood"
@@ -394,7 +457,7 @@ export function PatientSearchPage() {
                   <option value="AB+">AB+</option>
                 </select>
               </div>
-              <div className="doc-field">
+              <div className="patient-search-compact-field">
                 <label htmlFor="search-type">Patient Type</label>
                 <select
                   id="search-type"
@@ -407,7 +470,7 @@ export function PatientSearchPage() {
                   <option value="Self-Pay">Self-Pay</option>
                 </select>
               </div>
-              <div className="doc-field">
+              <div className="patient-search-compact-field">
                 <label htmlFor="search-regdate">Registration Date</label>
                 <input
                   id="search-regdate"
@@ -418,29 +481,6 @@ export function PatientSearchPage() {
               </div>
             </div>
           ) : null}
-
-          {/* Form Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <button
-              className="doc-btn"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              type="button"
-            >
-              <i className="ph ph-funnel" aria-hidden="true" />
-              {showAdvancedFilters ? 'Hide Advanced Filters' : 'Advanced Filters'}
-            </button>
-
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button className="doc-btn" onClick={handleResetFilters} type="button">
-                <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" />
-                Reset Filters
-              </button>
-              <button className="doc-btn primary" type="submit">
-                <i className="ph ph-magnifying-glass" aria-hidden="true" />
-                Search
-              </button>
-            </div>
-          </div>
         </form>
       </section>
 
@@ -468,17 +508,6 @@ export function PatientSearchPage() {
               Export
             </button>
             <div style={{ position: 'relative' }}>
-              <button
-                className="doc-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowColumnSelector(!showColumnSelector);
-                }}
-                type="button"
-              >
-                <i className="ph ph-columns" aria-hidden="true" />
-                Columns
-              </button>
               {showColumnSelector ? (
                 <div className="column-selector-dropdown" onClick={(e) => e.stopPropagation()}>
                   {Object.entries(columns).map(([col, val]) => (
@@ -563,7 +592,7 @@ export function PatientSearchPage() {
                               patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
                             }`}
                           >
-                            • {patient.status}
+                            {patient.status}
                           </span>
                         </td>
                       ) : null}
@@ -642,56 +671,110 @@ export function PatientSearchPage() {
           <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSaveEditPatient}>
             {editFormError ? <div className="form-error-banner" role="alert">{editFormError}</div> : null}
 
-            <div className="locked-notice-banner">
-              <i className="ph ph-lock-key" aria-hidden="true" />
-              <span>
-                Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
-              </span>
-            </div>
+            {canEditAllDetails ? (
+              <div className="locked-notice-banner" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
+                <i className="ph ph-shield-check" aria-hidden="true" style={{ color: '#16a34a' }} />
+                <span>
+                  Administrator Access: You have full permissions to edit patient identity attributes, demographics, address, and status.
+                </span>
+              </div>
+            ) : (
+              <div className="locked-notice-banner">
+                <i className="ph ph-lock-key" aria-hidden="true" />
+                <span>
+                  Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
+                </span>
+              </div>
+            )}
 
             <section className="doctor-onboarding-section">
               <header>
                 <span><i className="ph ph-user" aria-hidden="true" /></span>
                 <div>
                   <h3>Identity Information</h3>
-                  <p>Immutable patient identification and demographic attributes.</p>
+                  <p>{canEditAllDetails ? 'Patient identification and demographic attributes.' : 'Immutable patient identification and demographic attributes.'}</p>
                 </div>
               </header>
               <div className="form-grid">
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="search-edit-first">
-                    First name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    First name {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="search-edit-first" readOnly value={editForm.firstName} />
+                  <input
+                    disabled={!canEditAllDetails || editSubmitting}
+                    id="search-edit-first"
+                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                    readOnly={!canEditAllDetails}
+                    value={editForm.firstName}
+                  />
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="search-edit-last">
-                    Last name <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Last name {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="search-edit-last" readOnly value={editForm.lastName} />
+                  <input
+                    disabled={!canEditAllDetails || editSubmitting}
+                    id="search-edit-last"
+                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                    readOnly={!canEditAllDetails}
+                    required={canEditAllDetails}
+                    value={editForm.lastName}
+                  />
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="search-edit-dob">
-                    Date of birth <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Date of birth {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="search-edit-dob" readOnly type="date" value={editForm.dateOfBirth} />
+                  <input
+                    disabled={!canEditAllDetails || editSubmitting}
+                    id="search-edit-dob"
+                    onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                    readOnly={!canEditAllDetails}
+                    required={canEditAllDetails}
+                    type="date"
+                    value={editForm.dateOfBirth}
+                  />
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="search-edit-gender">
-                    Gender <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Gender {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <select disabled id="search-edit-gender" value={editForm.gender}>
+                  <select
+                    disabled={!canEditAllDetails || editSubmitting}
+                    id="search-edit-gender"
+                    onChange={(e) => setEditForm({ ...editForm, gender: e.target.value as ApiPatientGender })}
+                    value={editForm.gender}
+                  >
                     <option value="UNKNOWN">Unknown</option>
                     <option value="MALE">Male</option>
                     <option value="FEMALE">Female</option>
                     <option value="OTHER">Other</option>
                   </select>
                 </div>
-                <div className="form-group locked">
+                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
                   <label htmlFor="search-edit-blood">
-                    Blood group <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>
+                    Blood group {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
                   </label>
-                  <input disabled id="search-edit-blood" readOnly value={editForm.bloodGroup || 'Not recorded'} />
+                  {canEditAllDetails ? (
+                    <select
+                      disabled={editSubmitting}
+                      id="search-edit-blood"
+                      onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
+                      value={editForm.bloodGroup}
+                    >
+                      <option value="">Select Blood Group</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  ) : (
+                    <input disabled id="search-edit-blood" readOnly value={editForm.bloodGroup || 'Not recorded'} />
+                  )}
                 </div>
               </div>
             </section>
@@ -700,8 +783,8 @@ export function PatientSearchPage() {
               <header>
                 <span><i className="ph ph-phone" aria-hidden="true" /></span>
                 <div>
-                  <h3>Contact & Operations</h3>
-                  <p>Editable communication details, status, and clinical notes.</p>
+                  <h3>Contact &amp; Address Details</h3>
+                  <p>Editable communication details, physical address, status, and clinical notes.</p>
                 </div>
               </header>
               <div className="form-grid">
@@ -722,8 +805,38 @@ export function PatientSearchPage() {
                   </select>
                 </div>
                 <div className="form-group full-width">
+                  <label htmlFor="search-edit-address">Address / Street</label>
+                  <input
+                    disabled={editSubmitting}
+                    id="search-edit-address"
+                    onChange={(event) => setEditForm({ ...editForm, addressLine1: event.target.value })}
+                    placeholder="e.g. 123 Healthcare Ave, Suite 400"
+                    value={editForm.addressLine1}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="search-edit-city">City</label>
+                  <input
+                    disabled={editSubmitting}
+                    id="search-edit-city"
+                    onChange={(event) => setEditForm({ ...editForm, city: event.target.value })}
+                    placeholder="City"
+                    value={editForm.city}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="search-edit-postal">Postal Code</label>
+                  <input
+                    disabled={editSubmitting}
+                    id="search-edit-postal"
+                    onChange={(event) => setEditForm({ ...editForm, postalCode: event.target.value })}
+                    placeholder="Postal Code"
+                    value={editForm.postalCode}
+                  />
+                </div>
+                <div className="form-group full-width">
                   <label htmlFor="search-edit-notes">Registration Notes</label>
-                  <textarea disabled={editSubmitting} id="search-edit-notes" onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })} rows={3} value={editForm.notes} />
+                  <textarea disabled={editSubmitting} id="search-edit-notes" onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })} rows={2} value={editForm.notes} />
                 </div>
               </div>
             </section>

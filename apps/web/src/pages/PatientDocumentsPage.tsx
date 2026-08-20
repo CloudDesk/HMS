@@ -372,7 +372,7 @@ export function PatientDocumentsPage() {
               <h3>{patient ? patientFullName(patient) : 'No patient selected'}</h3>
               <span className="opd-mrn-chip">{patient?.patient_number || 'No MRN'}</span>
               <span className={`doc-status ${patient?.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
-                • {patient?.status || 'Active'}
+                {patient?.status || 'Active'}
               </span>
             </div>
             <div className="opd-patient-meta-line">
@@ -522,7 +522,7 @@ export function PatientDocumentsPage() {
                             doc.status === 'Verified' ? 'verified' : doc.status === 'Pending' ? 'pending' : 'rejected'
                           }`}
                         >
-                          • {doc.status}
+                          {doc.status}
                         </span>
                       </td>
                       <td className="align-right">

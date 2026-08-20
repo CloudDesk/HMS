@@ -633,7 +633,7 @@ export function AppointmentCalendarPage() {
                     </span>
                     <span>{appointmentVisitTypeLabels[selectedAppointment.visit_type]}</span>
                     <span className="doc-status active">
-                      • {appointmentStatusLabels[selectedAppointment.status]}
+                      {appointmentStatusLabels[selectedAppointment.status]}
                     </span>
                   </div>
                 </div>

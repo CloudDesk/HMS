@@ -34,6 +34,7 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/billing/history': [{ module: 'Billing', screen: 'Invoices' }],
   '/administration/branches': [{ module: 'Administration', screen: 'Branches' }],
   '/administration/settings': [{ module: 'Administration', screen: 'Settings' }],
+  '/patients': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/search': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/register': [{ module: 'Patients', screen: 'Patient Records', action: 'Create' }],
   '/patients/profile': [{ module: 'Patients', screen: 'Patient Records' }],

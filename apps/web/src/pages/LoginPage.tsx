@@ -65,7 +65,6 @@ export function LoginPage() {
 
       <section className="auth-panel" aria-labelledby="login-title">
         <div className="auth-panel__header">
-          <p className="eyebrow">Staff sign in</p>
           <h2 id="login-title">Welcome back</h2>
         </div>
 

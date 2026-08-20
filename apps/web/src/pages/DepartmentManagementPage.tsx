@@ -191,104 +191,58 @@ function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { bran
   }, []);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
-      <div 
+    <div className="hms-multi-select" ref={containerRef}>
+      <div
+        className={`hms-multi-select-trigger${open ? ' active' : ''}${disabled ? ' disabled' : ''}`}
         onClick={() => !disabled && setOpen(!open)}
-        style={{ 
-          border: '1px solid var(--border-color)', 
-          padding: '6px', 
-          borderRadius: '4px', 
-          cursor: disabled ? 'not-allowed' : 'pointer', 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: '6px',
-          minHeight: '42px',
-          alignItems: 'center',
-          backgroundColor: disabled ? '#f3f4f6' : '#fff'
-        }}
       >
         {selectedIds.length === 0 ? (
-          <span style={{ color: '#9ca3af', fontSize: '0.9rem', paddingLeft: '4px' }}>Select branches...</span>
+          <span className="hms-multi-select-placeholder">Select branches...</span>
         ) : (
-          selectedIds.map(id => {
-            const b = branches.find(br => br.id === id);
+          selectedIds.map((id) => {
+            const b = branches.find((br) => br.id === id);
             if (!b) return null;
             return (
-              <span 
-                key={id} 
-                style={{ 
-                  background: 'var(--primary-color, #2563eb)', 
-                  color: '#fff', 
-                  padding: '2px 8px', 
-                  borderRadius: '16px', 
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  lineHeight: '1.2'
-                }}
-              >
+              <span className="hms-multi-select-tag" key={id}>
                 {b.name}
-                <button 
-                  type="button"
+                <button
+                  aria-label={`Remove ${b.name}`}
+                  className="hms-multi-select-tag-close"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!disabled) onChange(selectedIds.filter(sid => sid !== id));
+                    if (!disabled) onChange(selectedIds.filter((sid) => sid !== id));
                   }}
-                  style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: '1.2rem', lineHeight: 1 }}
+                  type="button"
                 >
-                  &times;
+                  <i className="ph ph-x" aria-hidden="true" />
                 </button>
               </span>
             );
           })
         )}
+        <i className={`ph ph-caret-down hms-multi-select-chevron${open ? ' open' : ''}`} aria-hidden="true" />
       </div>
-      
+
       {open && (
-        <div style={{ 
-          position: 'absolute', 
-          top: '100%', 
-          left: 0, 
-          right: 0, 
-          background: '#fff', 
-          border: '1px solid var(--border-color)', 
-          zIndex: 10, 
-          maxHeight: '220px', 
-          overflowY: 'auto', 
-          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-          borderRadius: '4px',
-          marginTop: '4px'
-        }}>
-          {branches.map(b => {
+        <div className="hms-multi-select-dropdown">
+          {branches.map((b) => {
             const isSelected = selectedIds.includes(b.id);
             return (
-              <label 
-                key={b.id} 
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  padding: '8px 12px', 
-                  cursor: 'pointer', 
-                  borderBottom: '1px solid #f3f4f6', 
-                  margin: 0,
-                  backgroundColor: isSelected ? '#eff6ff' : 'transparent',
-                  fontWeight: 'normal',
-                  fontSize: '0.9rem'
-                }}
+              <label
+                className={`hms-multi-select-item${isSelected ? ' selected' : ''}`}
+                key={b.id}
               >
-                <input 
-                  type="checkbox" 
-                  checked={isSelected} 
+                <input
+                  checked={isSelected}
                   onChange={(e) => {
-                    const newIds = e.target.checked 
-                      ? [...selectedIds, b.id] 
-                      : selectedIds.filter(id => id !== b.id);
+                    const newIds = e.target.checked
+                      ? [...selectedIds, b.id]
+                      : selectedIds.filter((id) => id !== b.id);
                     onChange(newIds);
-                  }} 
-                  style={{ marginRight: '12px', width: '16px', height: '16px' }} 
+                  }}
+                  type="checkbox"
                 />
-                {b.name}
+                <span>{b.name}</span>
               </label>
             );
           })}

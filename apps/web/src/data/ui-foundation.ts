@@ -16,8 +16,7 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Patients',
     icon: 'ph-users',
     links: [
-      { href: '/patients/register', label: 'Register Patient' },
-      { href: '/patients/search', label: 'Search Patients' },
+      { href: '/patients/search', label: 'Patients' },
     ],
   },
   {

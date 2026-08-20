@@ -129,9 +129,9 @@ export function AppRouter() {
     title = 'Administration Dashboard';
     breadcrumbs = ['Home', 'Administration', 'Dashboard'];
     content = <AdministrationDashboardPage />;
-  } else if (pathname === '/patients/search') {
-    title = 'Patient Search';
-    breadcrumbs = ['Home', 'Patients', title];
+  } else if (pathname === '/patients' || pathname === '/patients/search') {
+    title = 'Patients';
+    breadcrumbs = ['Home', 'Patients'];
     content = <PatientSearchPage />;
   } else if (pathname === '/patients/register') {
     title = 'Register Patient';
