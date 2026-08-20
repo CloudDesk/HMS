@@ -54,9 +54,16 @@ export const tokenStorage = {
   },
 
   isRefreshTokenExpired(bufferMs = 15_000) {
-    const expiresAt = Number(getSessionValue(refreshExpiresAtKey));
+    const storedExpiry = getSessionValue(refreshExpiresAtKey);
+    if (!storedExpiry) {
+      // Older sessions may not have client-side expiry metadata. The opaque
+      // refresh token is still validated authoritatively by the API.
+      return !getSessionValue(refreshTokenKey);
+    }
 
-    return !expiresAt || expiresAt - bufferMs <= now();
+    const expiresAt = Number(storedExpiry);
+
+    return !Number.isFinite(expiresAt) || expiresAt - bufferMs <= now();
   },
 
   clear() {

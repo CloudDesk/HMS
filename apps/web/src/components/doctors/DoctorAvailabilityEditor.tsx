@@ -1,10 +1,10 @@
-import type {
+﻿import type {
   ApiDoctorAvailabilityDay,
   DoctorResponse,
   SaveDoctorAvailabilityPayload,
 } from '../../api/doctors';
 
-export type WorkingBlockForm = { start_time: string; end_time: string; slot_duration_minutes: number; max_patients_per_slot?: number };
+export type WorkingBlockForm = { start_time: string; end_time: string; slot_duration_minutes: number };
 export type AvailabilityDayForm = SaveDoctorAvailabilityPayload['availability'][number];
 
 const toMinutes = (time: string) => {
@@ -30,7 +30,6 @@ const unavailableDay = (day: ApiDoctorAvailabilityDay): AvailabilityDayForm => (
   day_of_week: day,
   is_available: false,
   working_blocks: [],
-  max_patients_per_slot: 1,
 });
 
 export const createDefaultDoctorAvailability = (): AvailabilityDayForm[] =>
@@ -40,10 +39,9 @@ export const createDefaultDoctorAvailability = (): AvailabilityDayForm[] =>
       day_of_week: day,
       is_available: true,
       working_blocks: [
-        { start_time: '08:00', end_time: '12:30', slot_duration_minutes: 30, max_patients_per_slot: 1 },
-        { start_time: '13:30', end_time: '17:00', slot_duration_minutes: 30, max_patients_per_slot: 1 },
+        { start_time: '08:00', end_time: '12:30', slot_duration_minutes: 30},
+        { start_time: '13:30', end_time: '17:00', slot_duration_minutes: 30},
       ],
-      max_patients_per_slot: 1,
     };
   });
 
@@ -58,9 +56,9 @@ export const doctorAvailabilityToForm = (doctor: DoctorResponse): AvailabilityDa
             start_time: block.start_time,
             end_time: block.end_time,
             slot_duration_minutes: block.slot_duration_minutes || 30,
-            max_patients_per_slot: (block as any).max_patients_per_slot ?? value.max_patients_per_slot ?? 1,
+
           })),
-          max_patients_per_slot: value.max_patients_per_slot ?? 1,
+
         }
       : unavailableDay(day);
   });
@@ -118,7 +116,7 @@ export function DoctorAvailabilityEditor({
                     working_blocks: event.target.checked
                       ? day.working_blocks.length > 0
                         ? day.working_blocks
-                        : [{ start_time: '09:00', end_time: '17:00', slot_duration_minutes: 30, max_patients_per_slot: 1 }]
+                        : [{ start_time: '09:00', end_time: '17:00', slot_duration_minutes: 30}]
                       : [],
                   })
                 }
@@ -160,22 +158,7 @@ export function DoctorAvailabilityEditor({
                           value={block.end_time}
                         />
                       </label>
-                      <label className="doc-field">
-                        <span>Max Patients</span>
-                        <input
-                          disabled={disabled}
-                          max={100}
-                          min={1}
-                          onChange={(event) => {
-                            const totalPatients = Math.max(1, Number(event.target.value) || 1);
-                            const perSlot = Math.max(1, Math.ceil(totalPatients / Math.max(1, fullSlots)));
-                            updateBlock(day.day_of_week, index, { max_patients_per_slot: perSlot });
-                          }}
-                          style={{ width: '70px', textAlign: 'center' }}
-                          type="number"
-                          value={(block.max_patients_per_slot ?? day.max_patients_per_slot ?? 1) * Math.max(1, fullSlots)}
-                        />
-                      </label>
+
                       <label className="doc-field">
                         <span>Duration (min)</span>
                         <select
@@ -229,7 +212,7 @@ export function DoctorAvailabilityEditor({
                   disabled={disabled || day.working_blocks.length >= 8}
                   onClick={() =>
                     updateDay(day.day_of_week, {
-                      working_blocks: [...day.working_blocks, { start_time: '17:00', end_time: '18:00', slot_duration_minutes: 30, max_patients_per_slot: 1 }],
+                      working_blocks: [...day.working_blocks, { start_time: '17:00', end_time: '18:00', slot_duration_minutes: 30}],
                     })
                   }
                   type="button"

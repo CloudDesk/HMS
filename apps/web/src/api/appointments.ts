@@ -10,6 +10,12 @@ export type ApiAppointmentStatus =
   | 'SKIPPED'
   | 'COMPLETED';
 
+export const isApiAppointmentStatus = (value: unknown): value is ApiAppointmentStatus => {
+  return typeof value === 'string' && [
+    'SCHEDULED', 'CONFIRMED', 'CHECKED_IN', 'CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'
+  ].includes(value);
+};
+
 export type ApiAppointmentVisitType =
   | 'NEW_CONSULTATION'
   | 'FOLLOW_UP'
@@ -128,4 +134,8 @@ export const appointmentsApi = {
       method: 'PATCH',
     });
   },
+};
+
+export const isApiAppointmentPriority = (value: unknown): value is ApiAppointmentPriority => {
+  return typeof value === 'string' && ['ROUTINE', 'URGENT', 'EMERGENCY'].includes(value);
 };

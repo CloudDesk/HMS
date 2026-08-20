@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { appointmentsApi, type AppointmentResponse } from '../api/appointments';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
-import { useAuth } from '../auth/useAuth';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { Modal } from '../components/ui/Modal';
-import { Toast } from '../components/ui/Toast';
+import {
+  type DoctorDashboardAppointment as AppointmentResponse,
+  useDoctorDashboard,
+} from '../hooks/doctors/useDoctorDashboard';
 import { navigate } from '../routing/navigation';
-import { getAppointmentErrorMessage, todayInputValue } from './appointment-utils';
+import { todayInputValue } from './appointment-utils';
 import {
   appointmentStatusText,
-  buildTodayRange,
   patientInitialsFromName,
   statusTone,
   visitTypeText,
@@ -18,6 +20,13 @@ type ChartPoint = {
   label: string;
   value: number;
 };
+
+const consultationSchema = z.object({
+  appointmentId: z.string().min(1, 'Select an appointment.'),
+  clinicalNotes: z.string(),
+});
+
+type ConsultationFormValues = z.infer<typeof consultationSchema>;
 
 const buildTrend = (appointments: AppointmentResponse[]): ChartPoint[] => {
   const today = new Date(`${todayInputValue()}T00:00:00`);
@@ -98,139 +107,54 @@ function DonutChart({ appointments }: { appointments: AppointmentResponse[] }) {
 }
 
 export function DoctorDashboardPage() {
-  const { user } = useAuth();
-  const isDoctorUser = user?.roles.some((role) => role.code === 'DOCTOR' || role.name.toLowerCase() === 'doctor') ?? false;
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [selectedDoctorId, setSelectedDoctorId] = useState('');
-  const [todayAppointments, setTodayAppointments] = useState<AppointmentResponse[]>([]);
-  const [weekAppointments, setWeekAppointments] = useState<AppointmentResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const dashboard = useDoctorDashboard();
   const [modalOpen, setModalOpen] = useState(false);
-  const [consultationAppointmentId, setConsultationAppointmentId] = useState('');
-  const [clinicalNotes, setClinicalNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-
-  const selectedDoctor = doctors.find((doctor) => doctor.id === selectedDoctorId) ?? null;
-  const startableAppointments = todayAppointments.filter((appointment) =>
+  const consultationForm = useForm<ConsultationFormValues>({
+    resolver: zodResolver(consultationSchema),
+    defaultValues: { appointmentId: '', clinicalNotes: '' },
+  });
+  const consultationAppointmentId = consultationForm.watch('appointmentId');
+  const startableAppointments = dashboard.todayAppointments.filter((appointment) =>
     ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(appointment.status),
   );
   const selectedAppointment =
-    todayAppointments.find((appointment) => appointment.id === consultationAppointmentId) ?? startableAppointments[0] ?? null;
-  const trend = useMemo(() => buildTrend(weekAppointments), [weekAppointments]);
-
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 2800);
-  };
-
-  const loadDoctors = useCallback(async () => {
-    const data = isDoctorUser
-      ? [await doctorsApi.getCurrent()]
-      : (await doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' })).data;
-    setDoctors(data);
-    setSelectedDoctorId((current) => (isDoctorUser ? data[0]?.id ?? '' : current || data[0]?.id || ''));
-  }, [isDoctorUser]);
-
-  const loadAppointments = useCallback(async () => {
-    if (!selectedDoctorId) {
-      setTodayAppointments([]);
-      setWeekAppointments([]);
-      return;
-    }
-
-    const today = buildTodayRange();
-    const weekStart = new Date(`${todayInputValue()}T00:00:00`);
-    weekStart.setDate(weekStart.getDate() - 6);
-    const weekFrom = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(
-      weekStart.getDate(),
-    ).padStart(2, '0')}`;
-    const [todayResponse, weekResponse] = await Promise.all([
-      appointmentsApi.list({
-        doctor_id: selectedDoctorId,
-        date_from: today.date_from,
-        date_to: today.date_to,
-        limit: 100,
-        sortBy: 'start_time',
-        sortOrder: 'asc',
-      }),
-      appointmentsApi.list({
-        doctor_id: selectedDoctorId,
-        date_from: weekFrom,
-        date_to: today.date_to,
-        limit: 100,
-        sortBy: 'appointment_date',
-        sortOrder: 'asc',
-      }),
-    ]);
-    setTodayAppointments(todayResponse.data);
-    setWeekAppointments(weekResponse.data);
-  }, [selectedDoctorId]);
-
-  useEffect(() => {
-    setLoading(true);
-    setLoadError('');
-    void loadDoctors()
-      .catch((error) => {
-        setDoctors([]);
-        setLoadError(getAppointmentErrorMessage(error));
-      })
-      .finally(() => setLoading(false));
-  }, [loadDoctors]);
-
-  useEffect(() => {
-    if (!selectedDoctorId) return;
-    setLoading(true);
-    setLoadError('');
-    void loadAppointments()
-      .catch((error) => {
-        setTodayAppointments([]);
-        setWeekAppointments([]);
-        setLoadError(getAppointmentErrorMessage(error));
-      })
-      .finally(() => setLoading(false));
-  }, [loadAppointments, selectedDoctorId]);
-
-  useEffect(() => {
-    setConsultationAppointmentId(startableAppointments[0]?.id ?? '');
-  }, [todayAppointments]);
+    dashboard.todayAppointments.find(
+      (appointment) => appointment.id === consultationAppointmentId,
+    ) ?? null;
+  const trend = useMemo(
+    () => buildTrend(dashboard.weekAppointments),
+    [dashboard.weekAppointments],
+  );
 
   const openStartConsultation = () => {
-    if (startableAppointments.length === 0) {
-      showToast('No active appointment is available to start consultation.', 'error');
+    if (!dashboard.canEditAppointments || startableAppointments.length === 0) {
       return;
     }
+    consultationForm.reset({
+      appointmentId: startableAppointments[0]?.id ?? '',
+      clinicalNotes: '',
+    });
     setModalOpen(true);
   };
 
-  const startConsultation = async (event: FormEvent) => {
-    event.preventDefault();
-    const appointment = selectedAppointment;
+  const startConsultation = async (values: ConsultationFormValues) => {
+    const appointment = startableAppointments.find(
+      (candidate) => candidate.id === values.appointmentId,
+    );
     if (!appointment) return;
 
-    setSubmitting(true);
-    try {
-      await appointmentsApi.updateStatus(appointment.id, {
-        status: 'CHECKED_IN',
-        notes: clinicalNotes.trim() || appointment.notes,
-      });
-      showToast('Appointment marked ready for OPD consultation.');
+    const succeeded = await dashboard.startConsultation(
+      appointment,
+      values.clinicalNotes,
+    );
+    if (succeeded) {
       setModalOpen(false);
-      await loadAppointments();
-    } catch (error) {
-      showToast(getAppointmentErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
+      consultationForm.reset();
     }
   };
 
   const kpis = [
-    ['ph-calendar-check', 'blue', "Today's Appointments", todayAppointments.length, `${startableAppointments.length} active`],
+    ['ph-calendar-check', 'blue', "Today's Appointments", dashboard.todayAppointments.length, `${startableAppointments.length} active`],
     [
       'ph-check-circle',
       'green',
@@ -242,14 +166,14 @@ export function DoctorDashboardPage() {
       'ph-hourglass-medium',
       'orange',
       'Waiting Patients',
-      todayAppointments.filter((appointment) => ['SCHEDULED', 'CONFIRMED'].includes(appointment.status)).length,
+      dashboard.todayAppointments.filter((appointment) => ['SCHEDULED', 'CONFIRMED'].includes(appointment.status)).length,
       'Requires attention',
     ],
     [
       'ph-arrow-counter-clockwise',
       'purple',
       'Follow-up Patients',
-      todayAppointments.filter((appointment) => appointment.visit_type === 'FOLLOW_UP').length,
+      dashboard.todayAppointments.filter((appointment) => appointment.visit_type === 'FOLLOW_UP').length,
       'Scheduled today',
     ],
     ['ph-file-text', 'red', 'Pending Reports', 0, 'Pending OPD integration'],
@@ -269,20 +193,25 @@ export function DoctorDashboardPage() {
               <i className="ph ph-calendar-check" aria-hidden="true" />
               Today's Appointments
             </button>
-            <button className="doc-btn primary" style={{ cursor: 'default' }} type="button">
+            <button
+              className="doc-btn primary"
+              disabled={!dashboard.canEditAppointments || startableAppointments.length === 0}
+              onClick={openStartConsultation}
+              type="button"
+            >
               <i className="ph ph-stethoscope" aria-hidden="true" />
               Start Consultation
             </button>
           </div>
         </section>
 
-        {loadError ? (
+        {dashboard.errorMessage ? (
           <div className="form-error-banner" role="alert">
             <i className="ph ph-warning-circle" aria-hidden="true" />
-            <span>{loadError}</span>
+            <span>{dashboard.errorMessage}</span>
           </div>
         ) : null}
-        {loading ? <div className="doc-muted-note">Loading live doctor metrics...</div> : null}
+        {dashboard.isLoading ? <div className="doc-muted-note">Loading live doctor metrics...</div> : null}
 
             <section className="doc-kpi-grid">
               {kpis.map(([icon, tone, label, value, copy]) => (
@@ -316,7 +245,7 @@ export function DoctorDashboardPage() {
                     <p>Today's active appointment mix</p>
                   </div>
                 </div>
-                <DonutChart appointments={todayAppointments} />
+                <DonutChart appointments={dashboard.todayAppointments} />
               </article>
             </section>
 
@@ -327,17 +256,17 @@ export function DoctorDashboardPage() {
                     <h3>Upcoming Appointments</h3>
                     <p>Next patients in your clinical queue</p>
                   </div>
-                  <button className="doc-btn" style={{ cursor: 'default' }} type="button">
+                  <button className="doc-btn" onClick={() => navigate('/doctors/schedule')} type="button">
                     View Schedule
                   </button>
                 </div>
                 <div className="doc-appointment-list">
-                  {todayAppointments.length === 0 ? (
+                  {dashboard.todayAppointments.length === 0 ? (
                     <div className="um-state-cell">
-                      No appointments scheduled{selectedDoctor ? ` for ${selectedDoctor.display_name}` : ''} today.
+                      No appointments scheduled{dashboard.selectedDoctor ? ` for ${dashboard.selectedDoctor.display_name}` : ''} today.
                     </div>
                   ) : (
-                    todayAppointments.slice(0, 6).map((appointment) => (
+                    dashboard.todayAppointments.slice(0, 6).map((appointment) => (
                       <div className="doc-appointment-item" key={appointment.id}>
                         <span className="doc-time">{appointment.start_time}</span>
                         <span className="doc-avatar">{patientInitialsFromName(appointment.patient_name)}</span>
@@ -363,14 +292,19 @@ export function DoctorDashboardPage() {
                   </div>
                 </div>
                 <div className="doc-quick-actions">
-                  <button className="doc-quick-action" style={{ cursor: 'default' }} type="button">
+                  <button
+                    className="doc-quick-action"
+                    disabled={!dashboard.canEditAppointments || startableAppointments.length === 0}
+                    onClick={openStartConsultation}
+                    type="button"
+                  >
                     <i className="ph ph-stethoscope" aria-hidden="true" />
                     <span>
                       <strong>Start Consultation</strong>
                       <span>Begin the next patient encounter</span>
                     </span>
                   </button>
-                  <button className="doc-quick-action" style={{ cursor: 'default' }} type="button">
+                  <button className="doc-quick-action" onClick={() => navigate('/doctors/schedule')} type="button">
                     <i className="ph ph-calendar-check" aria-hidden="true" />
                     <span>
                       <strong>View Today's Schedule</strong>
@@ -390,14 +324,13 @@ export function DoctorDashboardPage() {
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Start Consultation">
-        <form className="modal-form patient-form" onSubmit={startConsultation}>
+        <form className="modal-form patient-form" onSubmit={consultationForm.handleSubmit(startConsultation)}>
           <div className="form-grid">
             <div className="form-group full-width">
               <label htmlFor="consultation-appointment">Patient Appointment</label>
               <select
                 id="consultation-appointment"
-                onChange={(event) => setConsultationAppointmentId(event.target.value)}
-                value={consultationAppointmentId}
+                {...consultationForm.register('appointmentId')}
               >
                 {startableAppointments.map((appointment) => (
                   <option key={appointment.id} value={appointment.id}>
@@ -408,7 +341,7 @@ export function DoctorDashboardPage() {
             </div>
             <div className="form-group">
               <label htmlFor="consultation-room">Consultation Room</label>
-              <input id="consultation-room" readOnly value={selectedDoctor?.consultation_room ?? 'Not assigned'} />
+              <input id="consultation-room" readOnly value={dashboard.selectedDoctor?.consultation_room ?? 'Not assigned'} />
             </div>
             <div className="form-group">
               <label htmlFor="consultation-visit">Visit Type</label>
@@ -418,26 +351,23 @@ export function DoctorDashboardPage() {
               <label htmlFor="consultation-notes">Initial Clinical Notes</label>
               <textarea
                 id="consultation-notes"
-                onChange={(event) => setClinicalNotes(event.target.value)}
+                {...consultationForm.register('clinicalNotes')}
                 placeholder="Document presenting complaint and initial observations..."
                 rows={4}
-                value={clinicalNotes}
               />
             </div>
           </div>
           <p className="doc-muted-note">OPD consultation workspace integration will be handled in the OPD phase.</p>
           <div className="modal-actions">
-            <button className="secondary-action" disabled={submitting} onClick={() => setModalOpen(false)} type="button">
+            <button className="secondary-action" disabled={dashboard.isUpdatingStatus} onClick={() => setModalOpen(false)} type="button">
               Cancel
             </button>
-            <button className="primary-action" disabled={submitting || !selectedAppointment} type="submit">
-              {submitting ? 'Starting...' : 'Start Consultation'}
+            <button className="primary-action" disabled={dashboard.isUpdatingStatus || !selectedAppointment} type="submit">
+              {dashboard.isUpdatingStatus ? 'Starting...' : 'Start Consultation'}
             </button>
           </div>
         </form>
       </Modal>
-
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

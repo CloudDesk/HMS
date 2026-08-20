@@ -19,13 +19,13 @@ export class OpdClinicalOrderService {
     private readonly serviceRepository: ServiceRepository,
   ) {}
 
-  async getByVisitAndType(visitId: string, orderType: ClinicalOrderType) {
-    await this.getVisit(visitId);
+  async getByVisitAndType(visitId: string, orderType: ClinicalOrderType, userId: string) {
+    await this.getVisit(visitId, userId);
     return this.repository.getByVisitAndType(visitId, orderType);
   }
 
   async saveDraft(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
@@ -40,7 +40,7 @@ export class OpdClinicalOrderService {
   }
 
   async submit(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
-    const visit = await this.getVisit(visitId);
+    const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
@@ -90,11 +90,12 @@ export class OpdClinicalOrderService {
     return order;
   }
 
-  private async getVisit(visitId: string) {
+  private async getVisit(visitId: string, userId: string) {
     if (!Types.ObjectId.isValid(visitId)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
-    const visit = await this.visitRepository.getById(visitId);
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    const visit = await this.visitRepository.getById(visitId, scope);
     if (!visit) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
     return visit;
   }

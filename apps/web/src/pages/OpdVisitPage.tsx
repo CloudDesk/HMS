@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { appointmentsApi } from '../api/appointments';
 import { billingApi, type SaveBillingInvoiceItem } from '../api/billing';
-import { doctorsApi, type ApiDoctorAvailabilityDay, type DoctorResponse } from '../api/doctors';
+import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { medicinesApi } from '../api/medicines';
 import {
   opdApi,
+  type ApiClinicalOrderPriority,
   type OpdConsultationResponse,
   type OpdPrescriptionResponse,
   type OpdVisitResponse,
@@ -235,8 +235,8 @@ export function OpdVisitPage() {
       setReferralReason('');
       setReferralDoctorId('');
       setReferralSpecialty('');
-    } catch (err) {
-      showToast(getOpdErrorMessage(err), 'error');
+    } catch (error) {
+      showToast(getOpdErrorMessage(error), 'error');
     } finally {
       setReferralBooking(false);
     }
@@ -324,8 +324,8 @@ export function OpdVisitPage() {
       try {
         const patientData = await patientsApi.getById(response.patient_id);
         setPatient(patientData);
-      } catch (err) {
-        console.error('Failed to load patient data:', err);
+      } catch {
+        // patient data load failed â€” continue without patient details
         setPatient(null);
       }
     } catch (error) {
@@ -371,11 +371,11 @@ export function OpdVisitPage() {
   );
 
   const [labOrders, setLabOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
-  const [labPriority, setLabPriority] = useState<any>('ROUTINE');
+  const [labPriority, setLabPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
   const [selectedLabTest, setSelectedLabTest] = useState('');
 
   const [imagingOrders, setImagingOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
-  const [imagingPriority, setImagingPriority] = useState<any>('ROUTINE');
+  const [imagingPriority, setImagingPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
   const [selectedImagingTest, setSelectedImagingTest] = useState('');
 
   // Load patient clinical sub-resources
@@ -390,7 +390,7 @@ export function OpdVisitPage() {
           opdApi.getPrescription(activeVisitId),
           doctorsApi.list({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
           medicinesApi.list({ status: 'ACTIVE', limit: 100 }),
-          pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 } as any).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
+          pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 }).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
           servicesApi.list({ status: 'ACTIVE', limit: 100 }),
           opdApi.getClinicalOrder(activeVisitId, 'LABORATORY'),
           opdApi.getClinicalOrder(activeVisitId, 'IMAGING'),
@@ -413,10 +413,10 @@ export function OpdVisitPage() {
         const invMapId: Record<string, { available: number; unit?: string }> = {};
         const invMapName: Record<string, { available: number; unit?: string }> = {};
         if (invRes.status === 'fulfilled' && invRes.value?.data) {
-          invRes.value.data.forEach((item: any) => {
-            const info = { available: item.available_quantity, unit: item.unit || item.packaging_unit };
-            if (item.medicine_id) invMapId[item.medicine_id] = info;
-            if (item.medicine_name) invMapName[item.medicine_name] = info;
+          invRes.value.data.forEach((item) => {
+            const info = { available: item.available_quantity, unit: item.medicine?.name };
+            invMapId[item.medicine_id] = info;
+            if (item.medicine?.name) invMapName[item.medicine.name] = info;
           });
         }
 
@@ -509,11 +509,8 @@ export function OpdVisitPage() {
     }
   };
 
-  const [consultationFieldErrors, setConsultationFieldErrors] = useState<Record<string, string>>({});
-
   const completeConsultation = async () => {
     if (!visit) return;
-    setConsultationFieldErrors({});
     setUpdating('consultation-complete');
     try {
       const payload: SaveOpdConsultationPayload = {
@@ -552,13 +549,13 @@ export function OpdVisitPage() {
       // Save & Submit Lab Clinical Orders if selected
       const pendingLabName = selectedLabTest || (document.getElementById('lab-test-name') as HTMLSelectElement | null)?.value || '';
       const matchedPendingLab = pendingLabName ? labTestServices.find((s) => s.name === pendingLabName) : undefined;
-      
+
       const allLabItems = [...labOrders.map(o => ({
         service_id: o.id,
         investigation_name: o.name,
         category: labTestServices.find(s => s.id === o.id)?.category || 'General Lab',
       }))];
-      
+
       if (matchedPendingLab && !allLabItems.find(i => i.service_id === matchedPendingLab.id)) {
         allLabItems.push({
           service_id: matchedPendingLab.id,
@@ -652,10 +649,10 @@ export function OpdVisitPage() {
 
       const response = await opdApi.completeConsultation(visit.id, payload);
       setConsultation(response);
-      
+
       // Update the overall visit status to COMPLETED now that consultation is closed
       await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED', notes: 'Consultation completed.' });
-      
+
       await loadVisit();
       await loadClinicalData();
       showToast('Consultation completed successfully & billing invoice generated.');
@@ -753,7 +750,7 @@ export function OpdVisitPage() {
         }
       });
       showToast('Receptionist notified to call the next patient.');
-    } catch (err) {
+    } catch {
       showToast('Failed to notify receptionist.', 'error');
     }
   };
@@ -853,7 +850,7 @@ export function OpdVisitPage() {
                 </span>
               </div>
               <div className="opd-patient-meta-line">
-                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} • ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
+                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} â€¢ ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
                 <span className="divider">|</span>
                 <span>{opdVisitTypeLabels[visit.visit_type]}</span>
                 <span className="divider">|</span>
@@ -1129,7 +1126,7 @@ export function OpdVisitPage() {
                           <option value="">Select Medicine from Master Data</option>
                           {masterMedicines.map((med) => (
                             <option key={med.id} value={med.name}>
-                              {med.name} {med.strength ? `(${med.strength})` : ''} — Stock: {med.available_quantity} {med.unit || 'units'}
+                              {med.name} {med.strength ? `(${med.strength})` : ''} â€” Stock: {med.available_quantity} {med.unit || 'units'}
                             </option>
                           ))}
                         </select>
@@ -1301,9 +1298,10 @@ export function OpdVisitPage() {
                       </label>
                       <label className="doc-field" htmlFor="lab-priority">
                         <span>Priority</span>
-                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value)} value={labPriority}>
+                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value as ApiClinicalOrderPriority)} value={labPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="EMERGENCY">Emergency</option>
+                          <option value="URGENT">Urgent</option>
+                          <option value="STAT">Stat</option>
                         </select>
                       </label>
                       <button
@@ -1418,9 +1416,10 @@ export function OpdVisitPage() {
                       </label>
                       <label className="doc-field" htmlFor="imaging-priority">
                         <span>Priority</span>
-                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value)} value={imagingPriority}>
+                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value as ApiClinicalOrderPriority)} value={imagingPriority}>
                           <option value="ROUTINE">Routine</option>
-                          <option value="EMERGENCY">Emergency</option>
+                          <option value="URGENT">Urgent</option>
+                          <option value="STAT">Stat</option>
                         </select>
                       </label>
                       <button
@@ -1556,7 +1555,7 @@ export function OpdVisitPage() {
                           </option>
                           {filteredReferralDoctors.map((doc) => (
                             <option key={doc.id} value={doc.id}>
-                              {doc.display_name} — {doc.specialization} ({doc.consultation_room || 'OPD Room'})
+                              {doc.display_name} â€” {doc.specialization} ({doc.consultation_room || 'OPD Room'})
                             </option>
                           ))}
                         </select>
@@ -1782,7 +1781,7 @@ export function OpdVisitPage() {
                           <div className="opd-document-details">
                             <strong>{doc.title}</strong>
                             <span>
-                              {doc.document_type} • {new Date(doc.created_at).toLocaleDateString()}
+                              {doc.document_type} â€¢ {new Date(doc.created_at).toLocaleDateString()}
                             </span>
                           </div>
                           <div className="opd-document-actions">
@@ -1847,10 +1846,10 @@ export function OpdVisitPage() {
                   </div>
                   <div className="opd-summary-row">
                     <span>Temperature</span>
-                    <strong>{vitalsForm.temperature_c ? `${vitalsForm.temperature_c} °C` : 'Not recorded'}</strong>
+                    <strong>{vitalsForm.temperature_c ? `${vitalsForm.temperature_c} Â°C` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">
-                    <span>SpO₂</span>
+                    <span>SpOâ‚‚</span>
                     <strong>{vitalsForm.oxygen_saturation_percent ? `${vitalsForm.oxygen_saturation_percent}%` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">
@@ -2153,4 +2152,3 @@ export function OpdVisitPage() {
     </div>
   );
 }
-

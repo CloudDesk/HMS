@@ -1,6 +1,14 @@
-import { laboratoryApi } from '../api/laboratory';
 import { DiagnosticQueue } from '../components/diagnostics/DiagnosticQueue';
+import { useLaboratoryQueueFeature } from '../hooks/laboratory/useLaboratoryQueueFeature';
 
 export function LaboratoryQueuePage() {
-  return <DiagnosticQueue module="laboratory" statuses={['SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'RESULT_ENTERED', 'VERIFIED', 'COMPLETED']} list={laboratoryApi.list} summary={laboratoryApi.summary} />;
+  const feature = useLaboratoryQueueFeature();
+
+  return (
+    <DiagnosticQueue
+      module="laboratory"
+      statuses={['SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'RESULT_ENTERED', 'VERIFIED', 'COMPLETED']}
+      {...feature}
+    />
+  );
 }

@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+﻿import { apiClient } from './client';
 
 export type ApiNotificationType = 'REFERRAL' | 'CALL_NEXT_PATIENT' | 'GENERAL';
 
@@ -22,7 +22,7 @@ export type ListNotificationsQuery = {
 };
 
 export const notificationsApi = {
-  listMe: async (query?: ListNotificationsQuery): Promise<{ data: NotificationResponse[]; meta: any }> => {
+  listMe: async (query?: ListNotificationsQuery): Promise<{ data: NotificationResponse[]; meta: unknown }> => {
     const searchParams = new URLSearchParams();
     if (query) {
       Object.entries(query).forEach(([key, value]) => {
@@ -32,7 +32,7 @@ export const notificationsApi = {
     const qs = searchParams.toString();
     return apiClient.request(`/notifications/me${qs ? `?${qs}` : ''}`);
   },
-  
+
   markAsRead: async (id: string): Promise<NotificationResponse> => {
     return apiClient.request(`/notifications/${encodeURIComponent(id)}/read`, {
       method: 'PATCH',

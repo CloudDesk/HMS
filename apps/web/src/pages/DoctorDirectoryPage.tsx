@@ -1,57 +1,147 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { branchesApi, type BranchResponse } from '../api/branches';
-import { departmentsApi, type DepartmentResponse } from '../api/departments';
+﻿import { zodResolver } from '@hookform/resolvers/zod';
+import { useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import {
-  doctorsApi,
   type ApiDoctorStatus,
   type CreateDoctorPayload,
-  type DoctorListResponse,
   type DoctorResponse,
-  type DoctorUserOption,
   type SaveDoctorPayload,
 } from '../api/doctors';
-import { useAuth } from '../auth/useAuth';
 import {
   DoctorAvailabilityEditor,
   createDefaultDoctorAvailability,
   doctorAvailabilityToForm,
-  type AvailabilityDayForm,
 } from '../components/doctors/DoctorAvailabilityEditor';
 import { Modal } from '../components/ui/Modal';
-import { Toast } from '../components/ui/Toast';
+import {
+  useDoctorDirectory,
+  type DoctorDirectorySortColumn,
+  type DoctorDirectorySortDirection,
+} from '../hooks/doctors/useDoctorDirectory';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { downloadBlob } from '../utils/download';
-import { formatDate, getPatientErrorMessage } from './patient-utils';
+import { formatDate } from './patient-utils';
 
-type SortColumn = 'doctor_number' | 'display_name' | 'specialization' | 'created_at';
-type SortDirection = 'asc' | 'desc';
+const doctorStatuses = ['ACTIVE', 'INACTIVE', 'ON_LEAVE'] as const;
+const availabilityDays = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const;
 
-type DoctorFormState = {
-  firstName: string;
-  lastName: string;
-  specialization: string;
-  qualification: string;
-  registrationNumber: string;
-  experienceYears: string;
-  branchId: string;
-  departmentId: string;
-  consultationRoom: string;
-  phone: string;
-  email: string;
-  userId: string;
-  createLoginAccount: boolean;
-  employeeCode: string;
-  username: string;
-  loginEmail: string;
-  temporaryPassword: string;
-  confirmTemporaryPassword: string;
-  availability: AvailabilityDayForm[];
-  status: ApiDoctorStatus;
-  statusReason: string;
-  notes: string;
-};
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const timeSchema = z.string().regex(timePattern, 'Enter a valid time in HH:mm format.');
 
-const emptyForm = (): DoctorFormState => ({
+const workingBlockSchema = z.object({
+  start_time: timeSchema,
+  end_time: timeSchema,
+  slot_duration_minutes: z.number().int().min(5).max(240),
+});
+
+const availabilityDaySchema = z.object({
+  day_of_week: z.enum(availabilityDays),
+  is_available: z.boolean(),
+  working_blocks: z.array(workingBlockSchema).max(8),
+});
+
+const doctorFormSchema = z
+  .object({
+    mode: z.enum(['create', 'edit']),
+    originalStatus: z.enum(doctorStatuses),
+    firstName: z.string().trim().min(1, 'First name, last name, and specialization are required.'),
+    lastName: z.string().trim().min(1, 'First name, last name, and specialization are required.'),
+    specialization: z.string().trim().min(1, 'First name, last name, and specialization are required.'),
+    qualification: z.string(),
+    registrationNumber: z.string(),
+    experienceYears: z
+      .string()
+      .refine(
+        (value) =>
+          value === '' ||
+          (Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 80),
+        'Experience years must be a whole number between 0 and 80.',
+      ),
+    branchId: z.string().min(1, 'Branch and department are required.'),
+    departmentId: z.string().min(1, 'Branch and department are required.'),
+    consultationRoom: z.string(),
+    phone: z.string(),
+    email: z.union([z.literal(''), z.string().trim().email('Enter a valid clinical email address.')]),
+    userId: z.string(),
+    createLoginAccount: z.boolean(),
+    employeeCode: z.string(),
+    username: z.string(),
+    loginEmail: z.union([z.literal(''), z.string().trim().email('Enter a valid login email address.')]),
+    temporaryPassword: z.string(),
+    confirmTemporaryPassword: z.string(),
+    availability: z.array(availabilityDaySchema).length(7),
+    status: z.enum(doctorStatuses),
+    statusReason: z.string().max(500, 'Status reason cannot exceed 500 characters.'),
+    notes: z.string(),
+  })
+  .superRefine((form, context) => {
+    if (
+      form.mode === 'edit' &&
+      form.status !== form.originalStatus &&
+      form.statusReason.trim().length < 3
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Status change reason must contain at least 3 characters.',
+        path: ['statusReason'],
+      });
+    }
+
+    if (
+      form.mode === 'create' &&
+      form.availability.some(
+        (day) => day.is_available && day.working_blocks.length === 0,
+      )
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Every available day must contain at least one working block.',
+        path: ['availability'],
+      });
+    }
+
+    if (form.mode === 'create' && form.createLoginAccount) {
+      if (
+        !form.employeeCode.trim() ||
+        !form.username.trim() ||
+        !form.loginEmail.trim()
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Employee code, username, and login email are required for account creation.',
+          path: ['employeeCode'],
+        });
+      }
+      if (!form.temporaryPassword) {
+        context.addIssue({
+          code: 'custom',
+          message: 'A temporary password is required for account creation.',
+          path: ['temporaryPassword'],
+        });
+      } else if (form.temporaryPassword !== form.confirmTemporaryPassword) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Temporary password and confirmation do not match.',
+          path: ['confirmTemporaryPassword'],
+        });
+      }
+    }
+  });
+
+type DoctorFormValues = z.infer<typeof doctorFormSchema>;
+
+const emptyForm = (): DoctorFormValues => ({
+  mode: 'create',
+  originalStatus: 'ACTIVE',
   firstName: '',
   lastName: '',
   specialization: '',
@@ -76,18 +166,16 @@ const emptyForm = (): DoctorFormState => ({
   notes: '',
 });
 
-const nullable = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-};
-
-const toForm = (doctor: DoctorResponse): DoctorFormState => ({
+const toForm = (doctor: DoctorResponse): DoctorFormValues => ({
+  mode: 'edit',
+  originalStatus: doctor.status,
   firstName: doctor.first_name,
   lastName: doctor.last_name,
   specialization: doctor.specialization,
   qualification: doctor.qualification ?? '',
   registrationNumber: doctor.registration_number ?? '',
-  experienceYears: doctor.experience_years === null ? '' : String(doctor.experience_years),
+  experienceYears:
+    doctor.experience_years === null ? '' : String(doctor.experience_years),
   branchId: doctor.branch_id,
   departmentId: doctor.department_id,
   consultationRoom: doctor.consultation_room ?? '',
@@ -106,7 +194,12 @@ const toForm = (doctor: DoctorResponse): DoctorFormState => ({
   notes: doctor.notes ?? '',
 });
 
-const toPayload = (form: DoctorFormState): SaveDoctorPayload => ({
+const nullable = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const toPayload = (form: DoctorFormValues): SaveDoctorPayload => ({
   first_name: form.firstName.trim(),
   last_name: form.lastName.trim(),
   specialization: form.specialization.trim(),
@@ -122,7 +215,7 @@ const toPayload = (form: DoctorFormState): SaveDoctorPayload => ({
   notes: nullable(form.notes),
 });
 
-const toCreatePayload = (form: DoctorFormState): CreateDoctorPayload => ({
+const toCreatePayload = (form: DoctorFormValues): CreateDoctorPayload => ({
   ...toPayload(form),
   availability: form.availability,
   account_access: form.createLoginAccount
@@ -136,6 +229,24 @@ const toCreatePayload = (form: DoctorFormState): CreateDoctorPayload => ({
     : { create_login_account: false },
 });
 
+const parseDoctorStatus = (value: string | null): ApiDoctorStatus | '' =>
+  doctorStatuses.find((status) => status === value) ?? '';
+
+const parsePositivePage = (value: string | null): number => {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+};
+
+const sortableColumns: DoctorDirectorySortColumn[] = [
+  'doctor_number',
+  'display_name',
+  'specialization',
+  'created_at',
+];
+
+const parseSortColumn = (value: string | null): DoctorDirectorySortColumn | null =>
+  sortableColumns.find((column) => column === value) ?? null;
+
 const statusClass = (status: ApiDoctorStatus) => {
   if (status === 'ACTIVE') return 'status-active';
   if (status === 'ON_LEAVE') return 'status-warning';
@@ -146,154 +257,127 @@ const doctorInitials = (doctor: DoctorResponse) =>
   `${doctor.first_name.charAt(0)}${doctor.last_name.charAt(0)}`.toUpperCase();
 
 export function DoctorDirectoryPage() {
-  const { user } = useAuth();
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
-  const [userOptions, setUserOptions] = useState<DoctorUserOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modalLookupLoading, setModalLookupLoading] = useState(false);
-  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState(initialParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState<ApiDoctorStatus | ''>(
-    (initialParams.get('status') as ApiDoctorStatus | null) ?? '',
+    parseDoctorStatus(initialParams.get('status')),
   );
-  const [branchFilter, setBranchFilter] = useState(initialParams.get('branch_id') ?? '');
-  const [departmentFilter, setDepartmentFilter] = useState(initialParams.get('department_id') ?? '');
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(
-    (initialParams.get('sortBy') as SortColumn | null) ?? null,
+  const [branchFilter, setBranchFilter] = useState(
+    initialParams.get('branch_id') ?? '',
   );
-  const [sortDirection, setSortDirection] = useState<SortDirection>(
-    initialParams.get('sortOrder') === 'asc' ? 'asc' : 'desc',
+  const [departmentFilter, setDepartmentFilter] = useState(
+    initialParams.get('department_id') ?? '',
   );
-  const [currentPage, setCurrentPage] = useState(Number(initialParams.get('page')) || 1);
-  const [meta, setMeta] = useState<DoctorListResponse['meta']>({
-    limit: 10,
-    page: 1,
-    total: 0,
-    totalPages: 1,
-  });
+  const [sortColumn, setSortColumn] = useState<DoctorDirectorySortColumn | null>(
+    parseSortColumn(initialParams.get('sortBy')),
+  );
+  const [sortDirection, setSortDirection] =
+    useState<DoctorDirectorySortDirection>(
+      initialParams.get('sortOrder') === 'asc' ? 'asc' : 'desc',
+    );
+  const [currentPage, setCurrentPage] = useState(
+    parsePositivePage(initialParams.get('page')),
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<DoctorResponse | null>(null);
-  const [form, setForm] = useState<DoctorFormState>(emptyForm());
-  const [formError, setFormError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-  const [showPassword, setShowPassword] = useState(false);
 
-  const lookupsLoadedRef = useRef(false);
 
-  const canProvisionLogin = useMemo(
-    () =>
-      Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN')) ||
-      Boolean(
-        user?.permissions.some(
-          (permission) =>
-            permission.module === 'Doctors' &&
-            permission.screen === 'Doctor Directory' &&
-            permission.action === 'Provision Login',
-        ),
-      ),
-    [user],
+  const directoryFilters = useMemo(
+    () => ({
+      search,
+      status: statusFilter,
+      branchId: branchFilter,
+      departmentId: departmentFilter,
+      page: currentPage,
+      sortColumn,
+      sortDirection,
+    }),
+    [
+      branchFilter,
+      currentPage,
+      departmentFilter,
+      search,
+      sortColumn,
+      sortDirection,
+      statusFilter,
+    ],
   );
+  const directory = useDoctorDirectory(directoryFilters, editingDoctor?.id ?? null);
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<DoctorFormValues>({
+    resolver: zodResolver(doctorFormSchema),
+    defaultValues: emptyForm(),
+  });
 
+  const form = watch();
+  const submitting = isSubmitting || directory.isSaving;
   const departmentsForForm = useMemo(
-    () => departments.filter((department) => (!form.branchId || department.branch_ids.includes(form.branchId)) && department.isClinical),
-    [departments, form.branchId],
+    () =>
+      directory.departments.filter(
+        (department) =>
+          (!form.branchId || department.branch_ids.includes(form.branchId)) &&
+          department.isClinical,
+      ),
+    [directory.departments, form.branchId],
   );
-
   const departmentsForFilter = useMemo(
-    () => departments.filter((department) => (!branchFilter || department.branch_ids.includes(branchFilter)) && department.isClinical),
-    [branchFilter, departments],
+    () =>
+      directory.departments.filter(
+        (department) =>
+          (!branchFilter || department.branch_ids.includes(branchFilter)) &&
+          department.isClinical,
+      ),
+    [branchFilter, directory.departments],
   );
 
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 2800);
-  };
+  const formError =
+    errors.root?.message ??
+    errors.firstName?.message ??
+    errors.lastName?.message ??
+    errors.specialization?.message ??
+    errors.branchId?.message ??
+    errors.departmentId?.message ??
+    errors.experienceYears?.message ??
+    errors.email?.message ??
+    errors.statusReason?.message ??
+    errors.availability?.message ??
+    errors.employeeCode?.message ??
+    errors.loginEmail?.message ??
+    errors.temporaryPassword?.message ??
+    errors.confirmTemporaryPassword?.message ??
+    directory.mappingOptionsError;
 
-  // Fetch modal lookups ON-DEMAND when modal opens
-  const ensureModalLookups = useCallback(async () => {
-    if (lookupsLoadedRef.current) return;
-    setModalLookupLoading(true);
-    try {
-      const [branchResponse, departmentResponse, userResponse] = await Promise.all([
-        branchesApi.list({ status: 'ACTIVE', limit: 100 }),
-        departmentsApi.list({ status: 'ACTIVE', limit: 100 }),
-        doctorsApi.userOptions(),
-      ]);
-      setBranches(branchResponse.data);
-      setDepartments(departmentResponse.data);
-      setUserOptions(userResponse);
-      lookupsLoadedRef.current = true;
-    } catch (error) {
-      showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setModalLookupLoading(false);
-    }
-  }, []);
-
-  // Fetch only table doctors data (1 single request on mount/filter)
-  const loadDoctors = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      const response = await doctorsApi.list({
-        search: search.trim() || undefined,
-        status: statusFilter || undefined,
-        branch_id: branchFilter || undefined,
-        department_id: departmentFilter || undefined,
-        page: currentPage,
-        limit: 10,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortColumn ? sortDirection : undefined,
-      });
-      setDoctors(response.data);
-      setMeta(response.meta);
-    } catch (error) {
-      setDoctors([]);
-      setMeta({ limit: 10, page: currentPage, total: 0, totalPages: 1 });
-      setLoadError(getPatientErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [branchFilter, currentPage, departmentFilter, search, sortColumn, sortDirection, statusFilter]);
-
-  useEffect(() => {
-    void loadDoctors();
-  }, [loadDoctors]);
-
-  const openCreate = async () => {
+  const openCreate = () => {
+    if (!directory.canCreate) return;
     setEditingDoctor(null);
-    setForm(emptyForm());
-    setFormError('');
+    reset(emptyForm());
     setModalOpen(true);
-    await ensureModalLookups();
   };
 
-  const openEdit = async (doctor: DoctorResponse) => {
+  const openEdit = (doctor: DoctorResponse) => {
+    if (!directory.canEdit) return;
     setEditingDoctor(doctor);
-    setForm(toForm(doctor));
-    setFormError('');
+    reset(toForm(doctor));
     setModalOpen(true);
-    await ensureModalLookups();
   };
 
-  const closeModal = () => {
-    if (submitting) return;
+  const closeModal = (force = false) => {
+    if (submitting && !force) return;
     setModalOpen(false);
     setEditingDoctor(null);
-    setFormError('');
+    reset(emptyForm());
   };
 
-  const handleSort = (column: SortColumn) => {
+  const handleSort = (column: DoctorDirectorySortColumn) => {
     setSortColumn((current) => {
       if (current === column) {
         setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'));
@@ -305,95 +389,34 @@ export function DoctorDirectoryPage() {
     setCurrentPage(1);
   };
 
-  const handleSave = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.specialization.trim()) {
-      setFormError('First name, last name, and specialization are required.');
-      return;
-    }
-
-    if (!form.branchId || !form.departmentId) {
-      setFormError('Branch and department are required.');
-      return;
-    }
-
-    if (editingDoctor && form.status !== editingDoctor.status && !form.statusReason.trim()) {
-      setFormError('A reason is required when changing doctor status.');
-      return;
-    }
-
-    if (!editingDoctor && form.availability.some((day) => day.is_available && day.working_blocks.length === 0)) {
-      setFormError('Every available day must contain at least one working block.');
-      return;
-    }
-
-    if (!editingDoctor && form.createLoginAccount) {
-      if (!canProvisionLogin) {
-        setFormError('You do not have permission to provision a doctor login account.');
-        return;
-      }
-      if (!form.employeeCode.trim() || !form.username.trim() || !form.loginEmail.trim()) {
-        setFormError('Employee code, username, and login email are required for account creation.');
-        return;
-      }
-      if (!form.temporaryPassword) {
-        setFormError('A temporary password is required for account creation.');
-        return;
-      }
-      if (form.temporaryPassword !== form.confirmTemporaryPassword) {
-        setFormError('Temporary password and confirmation do not match.');
-        return;
-      }
-    }
-
-    setSubmitting(true);
-    setFormError('');
-
+  const handleSave = handleSubmit(async (values) => {
     try {
       if (editingDoctor) {
-        const { status, ...details } = toPayload(form);
-        await doctorsApi.update(editingDoctor.id, details);
-        if (status && status !== editingDoctor.status) {
-          await doctorsApi.updateStatus(editingDoctor.id, status, form.statusReason.trim());
-        }
-        if ((form.userId || null) !== editingDoctor.user_id) {
-          await doctorsApi.mapUser(editingDoctor.id, form.userId || null);
-        }
-        showToast('Doctor updated successfully.');
+        const { status, ...details } = toPayload(values);
+        await directory.saveDoctor({
+          mode: 'edit',
+          doctor: editingDoctor,
+          payload: details,
+          status: status ?? editingDoctor.status,
+          statusReason: values.statusReason.trim(),
+          userId: values.userId || null,
+        });
       } else {
-        const result = await doctorsApi.create(toCreatePayload(form));
-        showToast(
-          result.account.created
-            ? `Doctor and login account ${result.account.username ?? ''} created successfully.`
-            : 'Doctor created successfully without a login account.',
-        );
+        await directory.saveDoctor({
+          mode: 'create',
+          payload: toCreatePayload(values),
+        });
       }
-      closeModal();
-      await loadDoctors();
+      closeModal(true);
     } catch (error) {
-      setFormError(getPatientErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const exportDoctors = async () => {
-    try {
-      const blob = await doctorsApi.export({
-        search: search.trim() || undefined,
-        status: statusFilter || undefined,
-        branch_id: branchFilter || undefined,
-        department_id: departmentFilter || undefined,
-        sortBy: sortColumn || undefined,
-        sortOrder: sortColumn ? sortDirection : undefined,
+      setError('root', {
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to save the doctor record.',
       });
-      downloadBlob(blob, 'hms-doctors.csv');
-      showToast('Doctor export downloaded.');
-    } catch (error) {
-      showToast(getPatientErrorMessage(error), 'error');
     }
-  };
+  });
 
   const resetFilters = () => {
     setSearch('');
@@ -414,14 +437,23 @@ export function DoctorDirectoryPage() {
             <p>Maintain practitioner profiles, branch context, departments, and OPD setup.</p>
           </div>
           <div className="doctor-page-actions">
-            <button className="doc-btn" onClick={() => void exportDoctors()} type="button">
-              <i className="ph ph-download-simple" aria-hidden="true" />
-              Export CSV
-            </button>
-            <button className="doc-btn primary" onClick={() => void openCreate()} type="button">
-              <i className="ph ph-plus" aria-hidden="true" />
-              Add Doctor
-            </button>
+            {directory.canExport ? (
+              <button
+                className="doc-btn"
+                disabled={directory.isExporting}
+                onClick={() => void directory.exportDoctors()}
+                type="button"
+              >
+                <i className="ph ph-download-simple" aria-hidden="true" />
+                {directory.isExporting ? 'Exporting...' : 'Export CSV'}
+              </button>
+            ) : null}
+            {directory.canCreate ? (
+              <button className="doc-btn primary" onClick={openCreate} type="button">
+                <i className="ph ph-plus" aria-hidden="true" />
+                Add Doctor
+              </button>
+            ) : null}
           </div>
         </section>
 
@@ -443,6 +475,7 @@ export function DoctorDirectoryPage() {
           <div className="doc-field">
             <label htmlFor="doctor-branch-filter">Branch</label>
             <select
+              disabled={!directory.canViewBranches}
               id="doctor-branch-filter"
               onChange={(event) => {
                 setBranchFilter(event.target.value);
@@ -452,16 +485,15 @@ export function DoctorDirectoryPage() {
               value={branchFilter}
             >
               <option value="">All branches</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
+              {directory.branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
               ))}
             </select>
           </div>
           <div className="doc-field">
             <label htmlFor="doctor-department-filter">Department</label>
             <select
+              disabled={!directory.canViewDepartments}
               id="doctor-department-filter"
               onChange={(event) => {
                 setDepartmentFilter(event.target.value);
@@ -471,9 +503,7 @@ export function DoctorDirectoryPage() {
             >
               <option value="">All departments</option>
               {departmentsForFilter.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
+                <option key={department.id} value={department.id}>{department.name}</option>
               ))}
             </select>
           </div>
@@ -482,7 +512,7 @@ export function DoctorDirectoryPage() {
             <select
               id="doctor-status-filter"
               onChange={(event) => {
-                setStatusFilter(event.target.value as ApiDoctorStatus | '');
+                setStatusFilter(parseDoctorStatus(event.target.value));
                 setCurrentPage(1);
               }}
               value={statusFilter}
@@ -494,9 +524,7 @@ export function DoctorDirectoryPage() {
             </select>
           </div>
           {(search || statusFilter || branchFilter || departmentFilter || sortColumn) && (
-            <button className="doc-btn" onClick={resetFilters} type="button">
-              Reset
-            </button>
+            <button className="doc-btn" onClick={resetFilters} type="button">Reset</button>
           )}
         </section>
 
@@ -504,7 +532,7 @@ export function DoctorDirectoryPage() {
           <div className="doc-card-header">
             <div>
               <h3>Doctor Directory</h3>
-              <p>{loading ? 'Loading doctors...' : `${meta.total} doctor records found`}</p>
+              <p>{directory.isLoading ? 'Loading doctors...' : `${directory.meta.total} doctor records found`}</p>
             </div>
           </div>
           <div className="doc-table-wrap">
@@ -522,82 +550,54 @@ export function DoctorDirectoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {directory.isLoading ? (
+                  <tr><td className="um-state-cell" colSpan={8}>Loading doctors...</td></tr>
+                ) : directory.loadError ? (
                   <tr>
                     <td className="um-state-cell" colSpan={8}>
-                      Loading doctors...
-                    </td>
-                  </tr>
-                ) : loadError ? (
-                  <tr>
-                    <td className="um-state-cell" colSpan={8}>
-                      {loadError}
+                      {directory.loadError}
                       <div>
-                        <button className="doc-btn mt-4" onClick={loadDoctors} type="button">
-                          Retry
-                        </button>
+                        <button className="doc-btn mt-4" onClick={() => void directory.retry()} type="button">Retry</button>
                       </div>
                     </td>
                   </tr>
-                ) : doctors.length === 0 ? (
-                  <tr>
-                    <td className="um-state-cell" colSpan={8}>
-                      No doctor records found.
-                    </td>
-                  </tr>
+                ) : directory.doctors.length === 0 ? (
+                  <tr><td className="um-state-cell" colSpan={8}>No doctor records found.</td></tr>
                 ) : (
-                  doctors.map((doctor) => (
+                  directory.doctors.map((doctor) => (
                     <tr key={doctor.id}>
                       <td>
                         <div className="doc-person">
                           <span className="doc-avatar">{doctorInitials(doctor)}</span>
-                          <div>
-                            <strong>{doctor.display_name}</strong>
-                            <span>{doctor.doctor_number}</span>
-                          </div>
+                          <div><strong>{doctor.display_name}</strong><span>{doctor.doctor_number}</span></div>
                         </div>
                       </td>
                       <td>{doctor.specialization}</td>
-                      <td>{departments.find((department) => department.id === doctor.department_id)?.name ?? '-'}</td>
-                      <td>{branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-'}</td>
-                      <td>
-                        <strong>{doctor.phone || '-'}</strong>
-                        <br />
-                        <small>{doctor.email || 'No email recorded'}</small>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${statusClass(doctor.status)}`}>{doctor.status.replace('_', ' ')}</span>
-                      </td>
+                      <td>{directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-'}</td>
+                      <td>{directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-'}</td>
+                      <td><strong>{doctor.phone || '-'}</strong><br /><small>{doctor.email || 'No email recorded'}</small></td>
+                      <td><span className={`status-badge ${statusClass(doctor.status)}`}>{doctor.status.replace('_', ' ')}</span></td>
                       <td>{formatDate(doctor.created_at)}</td>
                       <td>
                         <div className="doc-actions">
-                          <button className="doc-action" onClick={() => void openEdit(doctor)} title="Edit doctor" type="button">
-                            <i className="ph ph-pencil-simple" aria-hidden="true" />
-                          </button>
-                          <button
-                            className="doc-action"
-                            onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)}
-                            title="View doctor profile"
-                            type="button"
-                          >
+                          {directory.canEdit ? (
+                            <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" type="button">
+                              <i className="ph ph-pencil-simple" aria-hidden="true" />
+                            </button>
+                          ) : null}
+                          <button className="doc-action" onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)} title="View doctor profile" type="button">
                             <i className="ph ph-user-circle" aria-hidden="true" />
                           </button>
-                          <button
-                            className="doc-action"
-                            onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)}
-                            title="View schedule"
-                            type="button"
-                          >
-                            <i className="ph ph-calendar-check" aria-hidden="true" />
-                          </button>
-                          <button
-                            className="doc-action"
-                            onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)}
-                            title="Manage availability"
-                            type="button"
-                          >
-                            <i className="ph ph-clock" aria-hidden="true" />
-                          </button>
+                          {directory.canViewSchedule ? (
+                            <button className="doc-action" onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)} title="View schedule" type="button">
+                              <i className="ph ph-calendar-check" aria-hidden="true" />
+                            </button>
+                          ) : null}
+                          {directory.canViewAvailability ? (
+                            <button className="doc-action" onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)} title="Manage availability" type="button">
+                              <i className="ph ph-clock" aria-hidden="true" />
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -609,27 +609,15 @@ export function DoctorDirectoryPage() {
 
           <div className="um-pagination">
             <span>
-              Showing {doctors.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
-              {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} doctors
+              Showing {directory.doctors.length === 0 ? 0 : (directory.meta.page - 1) * directory.meta.limit + 1}-
+              {Math.min(directory.meta.page * directory.meta.limit, directory.meta.total)} of {directory.meta.total} doctors
             </span>
             <div className="um-page-controls">
-              <button
-                className="pg-btn"
-                disabled={meta.page <= 1 || loading}
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                type="button"
-              >
+              <button className="pg-btn" disabled={directory.meta.page <= 1 || directory.isLoading} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} type="button">
                 <i className="ph ph-caret-left" aria-hidden="true" />
               </button>
-              <button className="pg-btn active" disabled type="button">
-                {meta.page}
-              </button>
-              <button
-                className="pg-btn"
-                disabled={meta.page >= meta.totalPages || loading}
-                onClick={() => setCurrentPage((page) => page + 1)}
-                type="button"
-              >
+              <button className="pg-btn active" disabled type="button">{directory.meta.page}</button>
+              <button className="pg-btn" disabled={directory.meta.page >= directory.meta.totalPages || directory.isLoading} onClick={() => setCurrentPage((page) => page + 1)} type="button">
                 <i className="ph ph-caret-right" aria-hidden="true" />
               </button>
             </div>
@@ -637,22 +625,19 @@ export function DoctorDirectoryPage() {
         </section>
       </div>
 
-      <Modal
-        open={modalOpen}
-        onClose={closeModal}
-        size="large"
-        title={editingDoctor ? 'Edit Doctor' : 'Onboard Doctor'}
-      >
+      <Modal open={modalOpen} onClose={() => closeModal()} size="large" title={editingDoctor ? 'Edit Doctor' : 'Onboard Doctor'}>
         <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSave}>
-          {formError && (
+          <input {...register('mode')} type="hidden" />
+          <input {...register('originalStatus')} type="hidden" />
+          {formError ? (
             <div className="form-error-banner" role="alert">
               <i className="ph ph-warning-circle" aria-hidden="true" />
               <span>{formError}</span>
             </div>
-          )}
+          ) : null}
 
-          {modalLookupLoading ? (
-            <div className="um-state-cell">Loading onboarding branch and department options...</div>
+          {directory.isMappingOptionsLoading ? (
+            <div className="um-state-cell">Loading user mapping options...</div>
           ) : (
             <>
               <section className="doctor-onboarding-section">
@@ -666,69 +651,87 @@ export function DoctorDirectoryPage() {
                       First name <span className="required-asterisk">*</span>
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
-                    <input disabled={submitting || Boolean(editingDoctor)} id="doctor-first-name" onChange={(event) => setForm({ ...form, firstName: event.target.value })} required value={form.firstName} />
+                    {editingDoctor ? <input {...register('firstName')} type="hidden" /> : null}
+                    <input
+                      {...(!editingDoctor ? register('firstName') : {})}
+                      disabled={submitting || Boolean(editingDoctor)}
+                      id="doctor-first-name"
+                      value={editingDoctor ? form.firstName : undefined}
+                    />
                   </div>
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-last-name">
                       Last name <span className="required-asterisk">*</span>
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
-                    <input disabled={submitting || Boolean(editingDoctor)} id="doctor-last-name" onChange={(event) => setForm({ ...form, lastName: event.target.value })} required value={form.lastName} />
+                    {editingDoctor ? <input {...register('lastName')} type="hidden" /> : null}
+                    <input
+                      {...(!editingDoctor ? register('lastName') : {})}
+                      disabled={submitting || Boolean(editingDoctor)}
+                      id="doctor-last-name"
+                      value={editingDoctor ? form.lastName : undefined}
+                    />
                   </div>
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-registration-number">
                       Registration number
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
-                    <input disabled={submitting || Boolean(editingDoctor)} id="doctor-registration-number" onChange={(event) => setForm({ ...form, registrationNumber: event.target.value })} value={form.registrationNumber} />
+                    {editingDoctor ? <input {...register('registrationNumber')} type="hidden" /> : null}
+                    <input
+                      {...(!editingDoctor ? register('registrationNumber') : {})}
+                      disabled={submitting || Boolean(editingDoctor)}
+                      id="doctor-registration-number"
+                      value={editingDoctor ? form.registrationNumber : undefined}
+                    />
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-qualification">Qualification</label>
-                    <input disabled={submitting} id="doctor-qualification" onChange={(event) => setForm({ ...form, qualification: event.target.value })} value={form.qualification} />
+                    <input {...register('qualification')} disabled={submitting} id="doctor-qualification" />
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-experience">Experience years</label>
-                    <input disabled={submitting} id="doctor-experience" max="80" min="0" onChange={(event) => setForm({ ...form, experienceYears: event.target.value })} type="number" value={form.experienceYears} />
+                    <input {...register('experienceYears')} disabled={submitting} id="doctor-experience" max="80" min="0" type="number" />
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-specialization">
-                      Specialization <span className="required-asterisk">*</span>
-                    </label>
-                    <input disabled={submitting} id="doctor-specialization" onChange={(event) => setForm({ ...form, specialization: event.target.value })} required value={form.specialization} />
+                    <label htmlFor="doctor-specialization">Specialization <span className="required-asterisk">*</span></label>
+                    <input {...register('specialization')} disabled={submitting} id="doctor-specialization" />
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-branch">
-                      Branch <span className="required-asterisk">*</span>
-                    </label>
-                    <select disabled={submitting} id="doctor-branch" onChange={(event) => setForm({ ...form, branchId: event.target.value, departmentId: '' })} required value={form.branchId}>
+                    <label htmlFor="doctor-branch">Branch <span className="required-asterisk">*</span></label>
+                    <select
+                      {...register('branchId', {
+                        onChange: () => setValue('departmentId', '', { shouldDirty: true }),
+                      })}
+                      disabled={submitting}
+                      id="doctor-branch"
+                    >
                       <option value="">Select branch</option>
-                      {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                      {directory.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-department">
-                      Department <span className="required-asterisk">*</span>
-                    </label>
-                    <select disabled={submitting || !form.branchId} id="doctor-department" onChange={(event) => setForm({ ...form, departmentId: event.target.value })} required value={form.departmentId}>
+                    <label htmlFor="doctor-department">Department <span className="required-asterisk">*</span></label>
+                    <select {...register('departmentId')} disabled={submitting || !form.branchId} id="doctor-department">
                       <option value="">Select department</option>
                       {departmentsForForm.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-room">Consultation room</label>
-                    <input disabled={submitting} id="doctor-room" onChange={(event) => setForm({ ...form, consultationRoom: event.target.value })} value={form.consultationRoom} />
+                    <input {...register('consultationRoom')} disabled={submitting} id="doctor-room" />
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-phone">Phone</label>
-                    <input disabled={submitting} id="doctor-phone" onChange={(event) => setForm({ ...form, phone: event.target.value })} type="tel" value={form.phone} />
+                    <input {...register('phone')} disabled={submitting} id="doctor-phone" type="tel" />
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-email">Clinical email</label>
-                    <input disabled={submitting} id="doctor-email" onChange={(event) => setForm({ ...form, email: event.target.value })} type="email" value={form.email} />
+                    <input {...register('email')} disabled={submitting} id="doctor-email" type="email" />
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-status">Status</label>
-                    <select disabled={submitting} id="doctor-status" onChange={(event) => setForm({ ...form, status: event.target.value as ApiDoctorStatus })} value={form.status}>
+                    <select {...register('status')} disabled={submitting} id="doctor-status">
                       <option value="ACTIVE">Active</option>
                       <option value="ON_LEAVE">On leave</option>
                       <option value="INACTIVE">Inactive</option>
@@ -736,20 +739,31 @@ export function DoctorDirectoryPage() {
                   </div>
                   {editingDoctor && form.status !== editingDoctor.status ? (
                     <div className="form-group full-width">
-                      <label htmlFor="doctor-status-reason">
-                        Status change reason <span className="required-asterisk">*</span>
-                      </label>
-                      <input disabled={submitting} id="doctor-status-reason" onChange={(event) => setForm({ ...form, statusReason: event.target.value })} required value={form.statusReason} />
+                      <label htmlFor="doctor-status-reason">Status change reason <span className="required-asterisk">*</span></label>
+                      <input {...register('statusReason')} disabled={submitting} id="doctor-status-reason" />
                     </div>
                   ) : null}
-                  <div className="form-group full-width"><label htmlFor="doctor-notes">Notes</label><textarea disabled={submitting} id="doctor-notes" onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} value={form.notes} /></div>
+                  <div className="form-group full-width">
+                    <label htmlFor="doctor-notes">Notes</label>
+                    <textarea {...register('notes')} disabled={submitting} id="doctor-notes" rows={3} />
+                  </div>
                 </div>
               </section>
 
               {!editingDoctor ? (
                 <section className="doctor-onboarding-section">
                   <header><span><i className="ph ph-calendar-dots" aria-hidden="true" /></span><div><h3>Availability</h3><p>Initialize recurring working blocks and appointment slot duration.</p></div></header>
-                  <DoctorAvailabilityEditor disabled={submitting} onChange={(availability) => setForm({ ...form, availability })} value={form.availability} />
+                  <Controller
+                    control={control}
+                    name="availability"
+                    render={({ field }) => (
+                      <DoctorAvailabilityEditor
+                        disabled={submitting}
+                        onChange={field.onChange}
+                        value={field.value}
+                      />
+                    )}
+                  />
                 </section>
               ) : null}
 
@@ -757,59 +771,81 @@ export function DoctorDirectoryPage() {
                 <section className="doctor-onboarding-section">
                   <header><span><i className="ph ph-key" aria-hidden="true" /></span><div><h3>Account Access</h3><p>Optionally provision a secure login with the fixed DOCTOR role.</p></div></header>
                   <div className="doctor-account-toggle">
-                    <div><strong>Create Login Account: {form.createLoginAccount ? 'Yes' : 'No'}</strong><p>{canProvisionLogin ? 'Creates and links the User account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p></div>
-                    <label className="doctor-switch"><input checked={form.createLoginAccount} disabled={submitting || !canProvisionLogin} onChange={(event) => setForm({ ...form, createLoginAccount: event.target.checked, loginEmail: event.target.checked ? form.loginEmail || form.email : form.loginEmail })} type="checkbox" /><span /></label>
+                    <div>
+                      <strong>Create Login Account: {form.createLoginAccount ? 'Yes' : 'No'}</strong>
+                      <p>{directory.canProvisionLogin ? 'Creates and links the User account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p>
+                    </div>
+                    <Controller
+                      control={control}
+                      name="createLoginAccount"
+                      render={({ field }) => (
+                        <label className="doctor-switch">
+                          <input
+                            checked={field.value}
+                            disabled={submitting || !directory.canProvisionLogin}
+                            onChange={(event) => {
+                              field.onChange(event.target.checked);
+                              if (event.target.checked && !form.loginEmail) {
+                                setValue('loginEmail', form.email, { shouldDirty: true });
+                              }
+                            }}
+                            type="checkbox"
+                          />
+                          <span />
+                        </label>
+                      )}
+                    />
                   </div>
                   {form.createLoginAccount ? (
                     <div className="form-grid doctor-account-fields">
-                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" onChange={(event) => setForm({ ...form, employeeCode: event.target.value })} required value={form.employeeCode} /></div>
-                      <div className="form-group"><label htmlFor="doctor-username">Username <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-username" onChange={(event) => setForm({ ...form, username: event.target.value })} required value={form.username} /></div>
-                      <div className="form-group"><label htmlFor="doctor-login-email">Login email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" onChange={(event) => setForm({ ...form, loginEmail: event.target.value })} required type="email" value={form.loginEmail} /></div>
-                      
+                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" {...register('employeeCode')} required /><br />{errors.employeeCode ? <small className="field-error">{errors.employeeCode.message}</small> : null}</div>
+                      <div className="form-group"><label htmlFor="doctor-username">Username <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-username" {...register('username')} required /></div>
+                      <div className="form-group"><label htmlFor="doctor-login-email">Login email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" {...register('loginEmail')} required type="email" /></div>
+
                       <div className="form-group">
                         <label htmlFor="doctor-temporary-password">password <span className="required-asterisk">*</span></label>
-                        <div style={{ position: 'relative' }}>
-                          <input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" onChange={(event) => setForm({ ...form, temporaryPassword: event.target.value })} required type={showPassword ? 'text' : 'password'} value={form.temporaryPassword} style={{ width: '100%', paddingRight: '2rem' }} />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                            <i className={showPassword ? "ph ph-eye-slash" : "ph ph-eye"} aria-hidden="true" />
-                          </button>
-                        </div>
+                        <input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" {...register('temporaryPassword')} required type="password" style={{ width: '100%' }} />
+                        {errors.temporaryPassword ? <small className="field-error">{errors.temporaryPassword.message}</small> : null}
                       </div>
 
                       <div className="form-group">
                         <label htmlFor="doctor-confirm-password">Confirm password <span className="required-asterisk">*</span></label>
-                        <div style={{ position: 'relative' }}>
-                          <input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" onChange={(event) => setForm({ ...form, confirmTemporaryPassword: event.target.value })} required type={showPassword ? 'text' : 'password'} value={form.confirmTemporaryPassword} style={{ width: '100%', paddingRight: '2rem' }} />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                            <i className={showPassword ? "ph ph-eye-slash" : "ph ph-eye"} aria-hidden="true" />
-                          </button>
-                        </div>
+                        <input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" {...register('confirmTemporaryPassword')} required type="password" style={{ width: '100%' }} />
+                        {errors.confirmTemporaryPassword ? <small className="field-error">{errors.confirmTemporaryPassword.message}</small> : null}
                       </div>
                       <div className="doctor-account-role"><span>Assigned role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
                     </div>
-                  ) : <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The Doctor will be created without system login access. An authorized administrator can map a legacy account later.</span></div>}
+                  ) : (
+                    <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The Doctor will be created without system login access. An authorized administrator can map a legacy account later.</span></div>
+                  )}
                 </section>
-              ) : (
+              ) : directory.canProvisionLogin ? (
                 <section className="doctor-onboarding-section">
                   <header><span><i className="ph ph-link" aria-hidden="true" /></span><div><h3>Legacy User Mapping</h3><p>Retained for explicit remediation of Doctor records created before onboarding integration.</p></div></header>
-                  <div className="form-grid"><div className="form-group full-width"><label htmlFor="doctor-user">Linked user account</label><select disabled={submitting} id="doctor-user" onChange={(event) => setForm({ ...form, userId: event.target.value })} value={form.userId}><option value="">No linked user</option>{userOptions.filter((option) => !option.mapped_doctor_id || option.mapped_doctor_id === editingDoctor.id).map((option) => <option key={option.id} value={option.id}>{option.full_name} ({option.username})</option>)}</select></div></div>
+                  <div className="form-grid">
+                    <div className="form-group full-width">
+                      <label htmlFor="doctor-user">Linked user account</label>
+                      <select {...register('userId')} disabled={submitting} id="doctor-user">
+                        <option value="">No linked user</option>
+                        {directory.userOptions
+                          .filter((option) => !option.mapped_doctor_id || option.mapped_doctor_id === editingDoctor.id)
+                          .map((option) => <option key={option.id} value={option.id}>{option.full_name} ({option.username})</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </section>
-              )}
+              ) : null}
             </>
           )}
 
           <div className="modal-actions">
-            <button className="secondary-action" disabled={submitting} onClick={closeModal} type="button">
-              Cancel
-            </button>
+            <button className="secondary-action" disabled={submitting} onClick={() => closeModal()} type="button">Cancel</button>
             <button className="primary-action" disabled={submitting} type="submit">
               {submitting ? 'Saving...' : 'Save Doctor'}
             </button>
           </div>
         </form>
       </Modal>
-
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
   );
 }

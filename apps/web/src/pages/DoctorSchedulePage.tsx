@@ -1,23 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
-  appointmentsApi,
-  type ApiAppointmentStatus,
-  type ApiAppointmentVisitType,
-  type AppointmentResponse,
-} from '../api/appointments';
-import { departmentsApi, type DepartmentResponse } from '../api/departments';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
-import { useAuth } from '../auth/useAuth';
+  type DoctorScheduleAppointment as AppointmentResponse,
+  type DoctorScheduleAppointmentStatus as ApiAppointmentStatus,
+  type DoctorScheduleAppointmentVisitType as ApiAppointmentVisitType,
+  type DoctorScheduleViewMode,
+  useDoctorSchedule,
+} from '../hooks/doctors/useDoctorSchedule';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
   appointmentStatusLabels,
   appointmentVisitTypeLabels,
-  getAppointmentErrorMessage,
   todayInputValue,
 } from './appointment-utils';
 import { statusTone, toDisplayDate, visitTypeText } from './doctor-workflow-utils';
-
-type ViewMode = 'day' | 'week' | 'month';
 
 const scheduleTimes = Array.from({ length: 22 }).map((_, index) => {
   const totalMinutes = 8 * 60 + index * 30;
@@ -30,6 +25,14 @@ const calendarTimes = Array.from({ length: 11 }).map((_, index) => `${String(ind
 
 const toInputDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const parseScheduleDateParam = (value: string | null) => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return todayInputValue();
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+    ? value
+    : todayInputValue();
+};
 
 const parseScheduleDate = (value: string) => {
   const date = new Date(`${value}T00:00:00`);
@@ -60,7 +63,7 @@ const endOfMonth = (value: string) => {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 };
 
-const buildScheduleRange = (mode: ViewMode, selectedDate: string) => {
+const buildScheduleRange = (mode: DoctorScheduleViewMode, selectedDate: string) => {
   if (mode === 'day') {
     return { from: selectedDate, to: selectedDate };
   }
@@ -71,6 +74,33 @@ const buildScheduleRange = (mode: ViewMode, selectedDate: string) => {
 
   return { from: toInputDate(startOfWeek(selectedDate)), to: toInputDate(endOfWeek(selectedDate)) };
 };
+
+const scheduleViewModes: DoctorScheduleViewMode[] = ['day', 'week', 'month'];
+const appointmentStatuses: ApiAppointmentStatus[] = [
+  'SCHEDULED',
+  'CONFIRMED',
+  'CHECKED_IN',
+  'CANCELLED',
+  'RESCHEDULED',
+  'NO_SHOW',
+  'SKIPPED',
+  'COMPLETED',
+];
+const appointmentVisitTypes: ApiAppointmentVisitType[] = [
+  'NEW_CONSULTATION',
+  'FOLLOW_UP',
+  'PROCEDURE',
+  'EMERGENCY',
+];
+
+const parseViewMode = (value: string | null): DoctorScheduleViewMode =>
+  scheduleViewModes.find((mode) => mode === value) ?? 'day';
+
+const parseAppointmentStatus = (value: string | null): ApiAppointmentStatus | '' =>
+  appointmentStatuses.find((status) => status === value) ?? '';
+
+const parseVisitType = (value: string | null): ApiAppointmentVisitType | '' =>
+  appointmentVisitTypes.find((visitType) => visitType === value) ?? '';
 
 const buildWeekDays = (selectedDate: string) => {
   const weekStart = startOfWeek(selectedDate);
@@ -109,7 +139,7 @@ const scheduleEventClass = (appointment: AppointmentResponse) => {
   return '';
 };
 
-const getRelativeDateLabel = (dateStr: string, view: ViewMode) => {
+const getRelativeDateLabel = (dateStr: string, view: DoctorScheduleViewMode) => {
   if (view === 'month') {
     return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(parseScheduleDate(dateStr));
   }
@@ -120,12 +150,12 @@ const getRelativeDateLabel = (dateStr: string, view: ViewMode) => {
     const endStr = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(end);
     return `${startStr} - ${endStr}`;
   }
-  
+
   const selected = parseScheduleDate(dateStr);
   const today = parseScheduleDate(todayInputValue());
   const diffTime = selected.getTime() - today.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays === 0) return 'Today';
   if (diffDays === -1) return 'Yesterday';
   if (diffDays === 1) return 'Tomorrow';
@@ -133,109 +163,46 @@ const getRelativeDateLabel = (dateStr: string, view: ViewMode) => {
 };
 
 export function DoctorSchedulePage() {
-  const { user } = useAuth();
-  const isDoctorUser = user?.roles.some((role) => role.code === 'DOCTOR' || role.name.toLowerCase() === 'doctor') ?? false;
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
-  const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
-  const [selectedDoctorId, setSelectedDoctorId] = useState(initialParams.get('doctor_id') ?? '');
   const [departmentFilter, setDepartmentFilter] = useState(initialParams.get('department_id') ?? '');
-  const [visitTypeFilter, setVisitTypeFilter] = useState<ApiAppointmentVisitType | ''>(
-    (initialParams.get('visit_type') as ApiAppointmentVisitType | null) ?? '',
+  const [visitTypeFilter, setVisitTypeFilter] = useState<ApiAppointmentVisitType | ''>(() =>
+    parseVisitType(initialParams.get('visit_type')),
   );
-  const [statusFilter, setStatusFilter] = useState<ApiAppointmentStatus | ''>(
-    (initialParams.get('status') as ApiAppointmentStatus | null) ?? '',
+  const [statusFilter, setStatusFilter] = useState<ApiAppointmentStatus | ''>(() =>
+    parseAppointmentStatus(initialParams.get('status')),
   );
-  const [scheduleDate, setScheduleDate] = useState(initialParams.get('date') ?? todayInputValue());
-  const [viewMode, setViewMode] = useState<ViewMode>((initialParams.get('view') as ViewMode | null) ?? 'day');
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const [scheduleDate, setScheduleDate] = useState(() =>
+    parseScheduleDateParam(initialParams.get('date')),
+  );
+  const [viewMode, setViewMode] = useState<DoctorScheduleViewMode>(() =>
+    parseViewMode(initialParams.get('view')),
+  );
 
   const scheduleRange = useMemo(() => buildScheduleRange(viewMode, scheduleDate), [scheduleDate, viewMode]);
   const weekDays = useMemo(() => buildWeekDays(scheduleDate), [scheduleDate]);
   const monthDays = useMemo(() => buildMonthDays(scheduleDate), [scheduleDate]);
-  const selectedDoctor = doctors.find((doctor) => doctor.id === selectedDoctorId) ?? null;
+  const schedule = useDoctorSchedule({
+    initialDoctorId: initialParams.get('doctor_id') ?? '',
+    departmentId: departmentFilter,
+    visitType: visitTypeFilter,
+    status: statusFilter,
+    scheduleDate,
+    viewMode,
+    dateFrom: scheduleRange.from,
+    dateTo: scheduleRange.to,
+    today: todayInputValue(),
+  });
+  const selectedDoctor =
+    schedule.doctors.find((doctor) => doctor.id === schedule.selectedDoctorId) ?? null;
   const appointmentByStart = useMemo(
     () =>
-      appointments.reduce<Record<string, AppointmentResponse>>((result, appointment) => {
+      schedule.appointments.reduce<Record<string, AppointmentResponse>>((result, appointment) => {
         result[appointment.start_time] = appointment;
         return result;
       }, {}),
-    [appointments],
+    [schedule.appointments],
   );
-
-  const loadLookups = useCallback(async () => {
-    const [doctorResult, departmentResponse] = await Promise.all([
-      isDoctorUser
-        ? doctorsApi.getCurrent().then((doctor) => ({ data: [doctor] }))
-        : doctorsApi.list({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
-      departmentsApi.list({ status: 'ACTIVE', limit: 100 }),
-    ]);
-    setDoctors(doctorResult.data);
-    setDepartments(departmentResponse.data);
-    setSelectedDoctorId((current) => (isDoctorUser ? doctorResult.data[0]?.id ?? '' : current || doctorResult.data[0]?.id || ''));
-  }, [isDoctorUser]);
-
-  const loadAppointments = useCallback(async () => {
-    if (!selectedDoctorId) {
-      setAppointments([]);
-      return;
-    }
-
-    const response = await appointmentsApi.list({
-      doctor_id: selectedDoctorId,
-      department_id: departmentFilter || undefined,
-      status: statusFilter || undefined,
-      date_from: scheduleRange.from,
-      date_to: scheduleRange.to,
-      limit: 100,
-      sortBy: 'start_time',
-      sortOrder: 'asc',
-    });
-
-    setAppointments(
-      response.data.filter((appointment) => !visitTypeFilter || appointment.visit_type === visitTypeFilter),
-    );
-  }, [departmentFilter, scheduleRange.from, scheduleRange.to, selectedDoctorId, statusFilter, visitTypeFilter]);
-
-  useEffect(() => {
-    setLoading(true);
-    setLoadError('');
-    void loadLookups()
-      .catch((error) => {
-        setLoadError(getAppointmentErrorMessage(error));
-      })
-      .finally(() => setLoading(false));
-  }, [loadLookups]);
-
-  useEffect(() => {
-    if (!selectedDoctorId) return;
-    const params = new URLSearchParams();
-    params.set('doctor_id', selectedDoctorId);
-    if (departmentFilter) params.set('department_id', departmentFilter);
-    if (visitTypeFilter) params.set('visit_type', visitTypeFilter);
-    if (statusFilter) params.set('status', statusFilter);
-    if (scheduleDate !== todayInputValue()) params.set('date', scheduleDate);
-    if (viewMode !== 'day') params.set('view', viewMode);
-    const nextUrl = `/doctors/schedule?${params.toString()}`;
-    if (window.location.pathname + window.location.search !== nextUrl) {
-      navigate(nextUrl, { replace: true });
-    }
-  }, [departmentFilter, scheduleDate, selectedDoctorId, statusFilter, viewMode, visitTypeFilter]);
-
-  useEffect(() => {
-    if (!selectedDoctorId) return;
-    setLoading(true);
-    setLoadError('');
-    void loadAppointments()
-      .catch((error) => {
-        setAppointments([]);
-        setLoadError(getAppointmentErrorMessage(error));
-      })
-      .finally(() => setLoading(false));
-  }, [loadAppointments, selectedDoctorId]);
 
   const moveDate = (offset: number) => {
     const next = new Date(`${scheduleDate}T00:00:00`);
@@ -246,7 +213,7 @@ export function DoctorSchedulePage() {
   };
 
   const appointmentsFor = (day: string, slot?: string) =>
-    appointments.filter((appointment) => {
+    schedule.appointments.filter((appointment) => {
       const sameDay = appointmentDateKey(appointment) === day;
       return sameDay && (!slot || appointment.start_time.startsWith(slot.slice(0, 2)));
     });
@@ -264,16 +231,18 @@ export function DoctorSchedulePage() {
               <i className="ph ph-printer" aria-hidden="true" />
               Print Schedule
             </button>
-            <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
-              <i className="ph ph-plus" aria-hidden="true" />
-              Add Schedule
-            </button>
+            {schedule.canBookAppointments ? (
+              <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
+                <i className="ph ph-plus" aria-hidden="true" />
+                Add Schedule
+              </button>
+            ) : null}
           </div>
         </section>
 
         <section className="doc-toolbar">
           <div className="doc-segmented">
-            {(['day', 'week', 'month'] as const).map((mode) => (
+            {scheduleViewModes.map((mode) => (
               <button
                 className={viewMode === mode ? 'active' : ''}
                 key={mode}
@@ -286,8 +255,8 @@ export function DoctorSchedulePage() {
           </div>
           <div className="doc-field grow">
             <label htmlFor="schedule-doctor">Doctor</label>
-            <select disabled={isDoctorUser} id="schedule-doctor" onChange={(event) => setSelectedDoctorId(event.target.value)} value={selectedDoctorId}>
-              {doctors.map((doctor) => (
+            <select disabled={schedule.isDoctor} id="schedule-doctor" onChange={(event) => schedule.setSelectedDoctorId(event.target.value)} value={schedule.selectedDoctorId}>
+              {schedule.doctors.map((doctor) => (
                 <option key={doctor.id} value={doctor.id}>
                   {doctor.display_name}
                 </option>
@@ -297,12 +266,13 @@ export function DoctorSchedulePage() {
           <div className="doc-field">
             <label htmlFor="schedule-department">Department</label>
             <select
+              disabled={!schedule.canViewDepartments}
               id="schedule-department"
               onChange={(event) => setDepartmentFilter(event.target.value)}
               value={departmentFilter}
             >
               <option value="">All Departments</option>
-              {departments.map((department) => (
+              {schedule.departments.map((department) => (
                 <option key={department.id} value={department.id}>
                   {department.name}
                 </option>
@@ -313,7 +283,7 @@ export function DoctorSchedulePage() {
             <label htmlFor="schedule-type">Appointment Type</label>
             <select
               id="schedule-type"
-              onChange={(event) => setVisitTypeFilter(event.target.value as ApiAppointmentVisitType | '')}
+              onChange={(event) => setVisitTypeFilter(parseVisitType(event.target.value))}
               value={visitTypeFilter}
             >
               <option value="">All</option>
@@ -328,7 +298,7 @@ export function DoctorSchedulePage() {
             <label htmlFor="schedule-status">Status</label>
             <select
               id="schedule-status"
-              onChange={(event) => setStatusFilter(event.target.value as ApiAppointmentStatus | '')}
+              onChange={(event) => setStatusFilter(parseAppointmentStatus(event.target.value))}
               value={statusFilter}
             >
               <option value="">All</option>
@@ -366,11 +336,11 @@ export function DoctorSchedulePage() {
             </div>
           </div>
 
-          {loading ? (
+          {schedule.isLoading ? (
             <div className="um-state-cell">Loading doctor schedule...</div>
-          ) : loadError ? (
-            <div className="um-state-cell">{loadError}</div>
-          ) : doctors.length === 0 ? (
+          ) : schedule.error ? (
+            <div className="um-state-cell">{schedule.error}</div>
+          ) : schedule.doctors.length === 0 ? (
             <div className="um-state-cell">No active doctors are available for schedule review.</div>
           ) : viewMode === 'day' ? (
             <div className="doctor-schedule-grid">

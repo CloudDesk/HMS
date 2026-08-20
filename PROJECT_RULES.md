@@ -521,3 +521,176 @@ Before marking work complete:
 Follow the existing HMS implementation first.
 
 If a new requirement conflicts with this file, ask for clarification before changing architecture, database strategy, RBAC behavior, API contracts, or major UI patterns.
+
+Frontend Architecture, TypeScript & Zod Rules
+Architecture Rules
+Follow the existing project architecture, folder structure, naming conventions, API contracts, and implementation patterns.
+Reuse existing hooks, services, components, schemas, utilities, and types.
+Do not introduce a new architecture or pattern unless explicitly requested.
+Do not duplicate existing logic or infrastructure.
+Keep business logic out of React components.
+Pages/components must not directly call API services.
+Pages/components must not directly call apiClient.
+Pages/components must not directly call fetch().
+Pages/components must not own server-state fetching or mutations.
+Follow:
+Page / Component
+→ Feature Hook
+→ Domain Feature Hook
+→ Domain Service
+→ API Client
+→ Backend
+Domain Hooks must communicate only with their own domain services.
+Do not put another domain's business logic inside a Domain Hook.
+Cross-domain workflows must belong in Feature Hooks.
+Use existing architectural patterns instead of creating parallel patterns.
+TanStack Query Rules
+Use TanStack Query for server state.
+Do not manually manage server state when TanStack Query should be used.
+Avoid API fetching through useEffect().
+Use stable hierarchical query-key factories.
+Reuse existing query-key conventions.
+Use targeted cache invalidation.
+Never use broad/global invalidateQueries() without a specific target.
+Invalidate only queries affected by a mutation.
+Use enabled conditions for permissions, IDs, modes, dependencies, and required context.
+Do not trigger API requests that are not required or authorized.
+Avoid duplicate API requests.
+Avoid eager requests.
+Avoid unnecessary refetching.
+Avoid multiple hooks requesting the same data unnecessarily.
+RBAC & Data Scope Rules
+Every query and mutation must respect the required permissions.
+UI actions must be permission-gated.
+Backend authorization remains authoritative.
+Never trust permission, role, branch, department, organization, or user identifiers received from the frontend.
+Preserve existing authorization behavior.
+Preserve existing branch-level scope.
+Preserve existing department-level scope.
+Preserve existing user-level scope.
+Preserve existing organization/hospital-level scope where applicable.
+Do not trigger requests that the authenticated user cannot access.
+Explicitly handle cross-domain permission dependencies.
+TypeScript Rules
+Use strict TypeScript.
+Do not use any.
+Do not use as any.
+Do not introduce unsafe type assertions.
+Avoid unnecessary as assertions.
+Avoid unnecessary non-null assertions (!).
+Do not use @ts-ignore.
+Do not use @ts-expect-error to bypass type problems.
+Reuse existing API and domain types.
+Do not create duplicate type definitions.
+Keep API/service/domain types aligned with the actual backend contract.
+Strongly type query parameters.
+Strongly type URL parameters.
+Strongly type request payloads.
+Strongly type response types.
+Strongly type mutation results.
+Strongly type hook return values.
+Strongly type IDs, dates, enums, select values, and external inputs.
+Validate external inputs before using them.
+Avoid broad Record<string, ...> casts when a typed object can be used.
+Feature Hooks must expose meaningful typed contracts when their return shape is complex.
+Do not assume frontend types are correct; verify them against the actual API/backend contract.
+Zod & Form Rules
+Use React Hook Form + Zod for applicable forms.
+Define Zod schemas from the actual business/API contract.
+Zod validation must match backend validation rules.
+Validate required and optional fields correctly.
+Validate string lengths.
+Validate formats.
+Validate enum values.
+Validate numeric ranges.
+Validate date/time formats.
+Validate arrays and array item counts.
+Validate conditional fields.
+Do not weaken validation merely to make TypeScript compile.
+Do not add frontend-only fields to API payloads.
+Do not remove backend-supported fields without verifying the contract.
+Derive typed RHF form values from the Zod schema.
+Keep API errors distinguishable from validation errors.
+Backend validation remains authoritative.
+Frontend Zod validation is the first line of validation.
+Before duplicating complex business rules in the frontend, verify whether equivalent backend validation already exists.
+Pay particular attention to complex rules such as overlapping schedules, duplicate entries, scope restrictions, and state transitions.
+API Contract Rules
+Keep frontend API types aligned with the actual backend contract.
+Keep request payloads aligned with the backend.
+Keep response types aligned with the backend.
+Keep query parameters aligned with the backend.
+Keep path parameters aligned with the backend.
+Keep mutation results aligned with the backend.
+Keep enum values aligned with the backend.
+Keep required/optional fields aligned with the backend.
+Keep Zod schemas aligned with the backend contract.
+Do not modify backend APIs merely to accommodate an incorrect frontend implementation unless explicitly requested.
+Do not invent frontend-only API fields.
+Do not remove API-supported fields without verifying the backend contract.
+Code Quality Rules
+Reuse existing implementations wherever possible.
+Do not duplicate hooks.
+Do not duplicate services.
+Do not duplicate components.
+Do not duplicate types.
+Do not duplicate utilities.
+Do not duplicate business logic.
+Do not introduce unnecessary abstractions.
+Do not introduce unnecessary architectural layers.
+Do not leave dead code.
+Do not leave unused variables or imports.
+Do not leave dead form state.
+Do not leave empty catch blocks.
+Do not suppress TypeScript errors instead of fixing the underlying issue.
+Preserve existing backend contracts.
+Preserve existing business behavior unless a real defect requires change.
+API Efficiency Rules
+Avoid duplicate requests.
+Avoid unnecessary API calls.
+Avoid eager requests.
+Use request gating where appropriate.
+Do not request data the user cannot access.
+Do not fetch data that is not required by the current workflow.
+Reuse already available server state where appropriate.
+Keep API payloads appropriately scoped.
+Use pagination for list data where required.
+Avoid loading unnecessary records or fields.
+UI State Rules
+
+Every page that performs server operations should properly handle:
+
+Loading state
+Empty state
+Error state
+Success feedback
+
+Use the project's existing patterns for:
+
+Notifications
+Tables
+Forms
+Dialogs
+Drawers
+Filters
+Pagination
+Tabs
+Permission-gated actions
+External Input Rules
+
+Validate external input before use.
+
+This includes:
+
+URL parameters
+Query parameters
+Route parameters
+Form values
+Select values
+IDs
+Dates
+Enum-like values
+API input
+User-provided values
+
+Do not assume external values are valid merely because TypeScript allows them.

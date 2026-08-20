@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
 import { branchesApi, type BranchResponse } from '../api/branches';
 import {
@@ -81,7 +81,7 @@ const nullable = (value: string) => {
 
 const isValidAfricanPhone = (phone: string): boolean => {
   if (!phone || !phone.trim()) return true;
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  const cleaned = phone.replace(/[\s\-()]/g, '');
   return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
 };
 
@@ -148,7 +148,7 @@ function RegistrationSection({ children, description, number, title }: Registrat
 export function PatientRegistrationPage() {
   const { user } = useAuth();
   const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
+  const [, setBranches] = useState<BranchResponse[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState('');
   const [duplicatePatients, setDuplicatePatients] = useState<PatientResponse[]>([]);
@@ -269,7 +269,7 @@ export function PatientRegistrationPage() {
                 <strong>{duplicatePatients.length > 0 ? 'Patient already exists' : 'Registration needs attention'}</strong>
                 <p>
                   {duplicatePatients.length > 0 && firstDuplicate
-                    ? `${patientFullName(firstDuplicate)} · ${firstDuplicate.patient_number} · ${firstDuplicate.phone || 'No phone'}`
+                    ? `${patientFullName(firstDuplicate)} Â· ${firstDuplicate.patient_number} Â· ${firstDuplicate.phone || 'No phone'}`
                     : formError}
                 </p>
               </div>
@@ -389,7 +389,7 @@ export function PatientRegistrationPage() {
                   </span>
                 ) : null}
               </div>
-              
+
               <div className={`doc-field ${fieldErrors.parentGuardian ? 'has-error' : ''}`}>
                 <label htmlFor="patient-parent-guardian">
                   Parent/Guardian Name

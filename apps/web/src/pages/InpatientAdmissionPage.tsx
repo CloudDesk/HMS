@@ -1,4 +1,4 @@
-import { zodResolver } from '@hookform/resolvers/zod';
+﻿import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useInpatientAdmissions } from '../hooks/useInpatientAdmissions';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Modal } from '../components/ui/Modal';
+import type { InpatientAdmission } from '../api/inpatient-admissions';
 
 const schema = z.object({
   patient_id: z.string().min(1, 'Select a patient'),
@@ -29,7 +30,7 @@ export function InpatientAdmissionPage() {
   const [branchId, setBranchId] = useState('');
   const [patientSearch, setPatientSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedRequest, setSelectedRequest] = useState<InpatientAdmission | null>(null);
 
   const data = useInpatientAdmissions(branchId, patientSearch);
 
@@ -74,7 +75,7 @@ export function InpatientAdmissionPage() {
   // KPIs
   const pendingCount = admissionsList.filter(a => a.status === 'DRAFT').length; // Mocking PENDING
   const approvedCount = admissionsList.filter(a => a.status === 'ADMITTED').length; // Mocking Approved
-  
+
   return (
     <div className="page-shell">
       <div className="page-heading">
@@ -97,7 +98,7 @@ export function InpatientAdmissionPage() {
       <section className="kpi-grid enhanced">
         <div className="kpi-card" style={{ borderLeft: '4px solid #f59e0b' }}>
           <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#fef3c7', color: '#d97706' }}>⌛</div>
+            <div className="kpi-icon" style={{ backgroundColor: '#fef3c7', color: '#d97706' }}>âŒ›</div>
             <span className="kpi-title">Pending</span>
           </div>
           <strong className="kpi-value">{pendingCount}</strong>
@@ -105,7 +106,7 @@ export function InpatientAdmissionPage() {
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
           <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#d1fae5', color: '#059669' }}>✓</div>
+            <div className="kpi-icon" style={{ backgroundColor: '#d1fae5', color: '#059669' }}>âœ“</div>
             <span className="kpi-title">Approved Today</span>
           </div>
           <strong className="kpi-value">{approvedCount}</strong>
@@ -113,7 +114,7 @@ export function InpatientAdmissionPage() {
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #ef4444' }}>
           <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#fee2e2', color: '#dc2626' }}>✕</div>
+            <div className="kpi-icon" style={{ backgroundColor: '#fee2e2', color: '#dc2626' }}>âœ•</div>
             <span className="kpi-title">Rejected Today</span>
           </div>
           <strong className="kpi-value">0</strong>
@@ -167,8 +168,8 @@ export function InpatientAdmissionPage() {
                   <tr><td colSpan={8} className="empty-state">No admission requests found.</td></tr>
                 ) : (
                   admissionsList.map((item) => (
-                    <tr 
-                      key={item.id} 
+                    <tr
+                      key={item.id}
                       onClick={() => setSelectedRequest(item)}
                       style={{ cursor: 'pointer', backgroundColor: selectedRequest?.id === item.id ? '#f3f4f6' : 'transparent' }}
                     >
@@ -210,7 +211,7 @@ export function InpatientAdmissionPage() {
                 <span>{selectedRequest.patient_number}</span>
               </div>
             </div>
-            
+
             <div style={{ textAlign: 'center', margin: '-1rem 0 1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               {selectedRequest.admission_number}
             </div>
@@ -239,7 +240,7 @@ export function InpatientAdmissionPage() {
             <div>
               <strong style={{ fontSize: '0.85rem', color: 'var(--text-color)' }}>Clinical Summary</strong>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.4 }}>
-                Patient requires immediate admission for monitoring and further clinical evaluation. 
+                Patient requires immediate admission for monitoring and further clinical evaluation.
                 Currently assigned to {selectedRequest.ward_name} / Bed {selectedRequest.bed_number}.
               </p>
             </div>
