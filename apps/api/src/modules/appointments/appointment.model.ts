@@ -20,6 +20,10 @@ export type AppointmentFields = {
   status: AppointmentStatus;
   reason?: string | null;
   notes?: string | null;
+  activeSlotKey?: string | null;
+  rescheduledFromId?: Types.ObjectId | null;
+  rescheduledToId?: Types.ObjectId | null;
+  rescheduledAt?: Date | null;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -57,6 +61,10 @@ const appointmentSchema = new Schema<AppointmentFields>(
     },
     reason: { type: String, default: null },
     notes: { type: String, default: null },
+    activeSlotKey: { type: String, default: null },
+    rescheduledFromId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
+    rescheduledToId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
+    rescheduledAt: { type: Date, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -68,6 +76,10 @@ const appointmentSchema = new Schema<AppointmentFields>(
 );
 
 appointmentSchema.index({ doctorId: 1, appointmentDate: 1, startTime: 1 });
+appointmentSchema.index(
+  { activeSlotKey: 1 },
+  { unique: true, partialFilterExpression: { activeSlotKey: { $type: 'string' } } },
+);
 appointmentSchema.index({ patientId: 1, appointmentDate: -1 });
 appointmentSchema.index({ status: 1, appointmentDate: 1 });
 appointmentSchema.index({ branchId: 1, departmentId: 1, appointmentDate: 1 });

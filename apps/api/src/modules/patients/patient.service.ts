@@ -11,23 +11,20 @@ import type {
   PatientDocumentListQuery,
   PatientListQuery,
   PatientTimelineListQuery,
+  ReviewPatientDocumentDTO,
   UpdatePatientDTO,
   UploadPatientDocumentDTO,
 } from './patient.types.js';
+import { allocatePatientNumber } from './patient-number.service.js';
 
 const isValidDate = (value: string) => {
   const date = new Date(value);
   return !Number.isNaN(date.getTime());
 };
 
-const createPatientNumber = (sequence: number) => {
-  const year = new Date().getFullYear();
-  return `HMS-${year}-${String(sequence + 1).padStart(6, '0')}`;
-};
-
 const isValidAfricanPhone = (phone: string): boolean => {
   if (!phone || !phone.trim()) return true;
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  const cleaned = phone.replace(/[\s()-]/g, '');
   return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
 };
 
@@ -75,8 +72,7 @@ export class PatientService {
       });
     }
 
-    const sequence = await this.repository.nextPatientSequence();
-    const patient = await this.repository.create(createPatientNumber(sequence), scopedData, userId);
+    const patient = await this.repository.create(await allocatePatientNumber(), scopedData, userId);
 
     await this.repository.addTimelineEvent(
       patient.id,
@@ -144,6 +140,92 @@ export class PatientService {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
     return this.repository.listDocuments(id, query);
+  }
+
+  async listDocumentsForPortal(patientId: string, query: PatientDocumentListQuery = {}) {
+    if (query.visit_id && !Types.ObjectId.isValid(query.visit_id)) {
+      throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
+    }
+    return this.repository.listDocuments(patientId, query);
+  }
+
+  async uploadDocumentForPortal(patientId: string, data: UploadPatientDocumentDTO, userId: string) {
+    this.validateDocumentUpload(data);
+    const { storageKey } = await this.documentStorage.uploadPatientDocument({
+      patientId,
+      fileName: data.file_name,
+      mimeType: data.mime_type,
+      data: data.data,
+    });
+    try {
+      const document = await this.repository.createDocument(patientId, {
+        document_type: data.document_type,
+        title: data.title,
+        file_name: data.file_name,
+        mime_type: data.mime_type,
+        file_size_bytes: data.file_size_bytes,
+        storage_key: storageKey,
+        description: data.description,
+        source: data.source,
+        review_status: data.review_status,
+        document_date: data.document_date,
+        provider_name: data.provider_name,
+      }, userId);
+      await this.repository.addTimelineEvent(patientId, {
+        event_type: 'DOCUMENT_ADDED',
+        title: 'Patient-supplied document added',
+        description: `${document.title} was uploaded and is pending clinical review.`,
+      }, userId);
+      return document;
+    } catch (error) {
+      await this.documentStorage.deleteIfExists(storageKey);
+      throw error;
+    }
+  }
+
+  async downloadDocumentForPortal(patientId: string, documentId: string) {
+    const document = await this.getActiveDocument(patientId, documentId);
+    const storedFile = await this.documentStorage.download(document.storage_key);
+    return { document, data: storedFile.data, contentType: storedFile.contentType ?? document.mime_type };
+  }
+
+  async reviewDocument(
+    patientId: string,
+    documentId: string,
+    data: ReviewPatientDocumentDTO,
+    userId: string,
+  ) {
+    await this.getById(patientId, userId);
+    const document = await this.getActiveDocument(patientId, documentId);
+    if (document.source === 'HOSPITAL' || document.review_status === 'NOT_REQUIRED') {
+      throw new AppError('Hospital-uploaded documents do not require review', 400, 'DOCUMENT_REVIEW_NOT_REQUIRED');
+    }
+    if (document.review_status !== 'PENDING') {
+      throw new AppError('This document has already been reviewed', 409, 'DOCUMENT_ALREADY_REVIEWED');
+    }
+    const reviewNotes = data.review_notes?.trim() || null;
+    if (data.review_status === 'REJECTED' && !reviewNotes) {
+      throw new AppError('A rejection reason is required', 400, 'REVIEW_REASON_REQUIRED');
+    }
+
+    const reviewed = await this.repository.reviewDocument(
+      patientId,
+      documentId,
+      data.review_status,
+      reviewNotes,
+      userId,
+    );
+    if (!reviewed) {
+      throw new AppError('Document is no longer awaiting review', 409, 'DOCUMENT_ALREADY_REVIEWED');
+    }
+    await this.repository.addTimelineEvent(patientId, {
+      event_type: 'DOCUMENT_REVIEWED',
+      title: data.review_status === 'VERIFIED' ? 'Document verified' : 'Document rejected',
+      description: reviewNotes
+        ? `${reviewed.title}: ${reviewNotes}`
+        : `${reviewed.title} was verified by hospital staff.`,
+    }, userId);
+    return reviewed;
   }
 
   async createDocument(id: string, data: CreatePatientDocumentDTO, userId: string) {
@@ -296,6 +378,10 @@ export class PatientService {
 
     if (!env.upload.patientDocumentAllowedMimeTypes.includes(data.mime_type)) {
       throw new AppError('Document file type is not allowed', 400, 'INVALID_FILE_TYPE');
+    }
+
+    if (data.document_date && !isValidDate(data.document_date)) {
+      throw new AppError('Document date is invalid', 400, 'VALIDATION_ERROR');
     }
 
     if (data.document_type === 'CONSENT') {

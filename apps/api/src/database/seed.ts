@@ -121,6 +121,18 @@ const roleDefinitions: RoleDefinition[] = [
     permissionCodes: administratorPermissionCodes,
   },
   {
+    code: 'PATIENT',
+    name: 'Patient',
+    description: 'Self-service access to the patient portal and the linked patient record only',
+    permissionCodes: [],
+  },
+  {
+    code: 'GUARDIAN',
+    name: 'Parent / Guardian',
+    description: 'Self-service access to verified dependent patient records',
+    permissionCodes: [],
+  },
+  {
     code: 'RECEPTIONIST',
     name: 'Receptionist',
     description: 'Patient registration, appointments, visit registration, and referral coordination',

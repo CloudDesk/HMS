@@ -13,6 +13,7 @@ const mapUser = (user: any): AuthUserRecord => ({
   username: user.username,
   email: user.email ?? null,
   fullName: user.fullName ?? user.username, // Provide fallback for auth mappings
+  patientId: user.patientId?.toString() ?? null,
   passwordHash: user.passwordHash,
   status: user.status as AuthUserStatus,
   failedLoginAttempts: user.failedLoginAttempts ?? 0,
@@ -82,11 +83,14 @@ export class AuthRepository {
 
   async findUserByIdentifier(identifier: string) {
     const normalizedIdentifier = identifier.trim().toLowerCase();
-    const searchRegex = new RegExp(`^${normalizedIdentifier}$`, 'i');
+    const escapedIdentifier = normalizedIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const searchRegex = new RegExp(`^${escapedIdentifier}$`, 'i');
+    const normalizedPhone = identifier.trim().replace(/\D/g, '');
+    const phoneCandidates = [identifier.trim(), normalizedPhone, `+${normalizedPhone}`];
     
     const user = await UserModel.findOne({
       deletedAt: null,
-      $or: [{ username: searchRegex }, { email: searchRegex }]
+      $or: [{ username: searchRegex }, { email: searchRegex }, { phone: { $in: phoneCandidates } }]
     }).lean();
 
     return user ? mapUser(user) : null;

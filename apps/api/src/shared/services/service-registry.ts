@@ -48,6 +48,8 @@ import { SettingsRepository } from '../../modules/settings/settings.repository.j
 import { SettingsService } from '../../modules/settings/settings.service.js';
 import { AdministrationDashboardRepository } from '../../modules/administration-dashboard/administration-dashboard.repository.js';
 import { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
+import { PatientPortalRepository } from '../../modules/patient-portal/patient-portal.repository.js';
+import { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
 import { PatientDocumentStorageService } from '../storage/patient-document-storage.service.js';
 import type { ServiceRegistry } from '../types/service-registry.js';
 
@@ -84,6 +86,15 @@ export const createServiceRegistry = (): ServiceRegistry => {
     doctorRepository,
     opdVisitRepository,
   );
+  const doctorService = new DoctorService(
+    doctorRepository,
+    branchRepository,
+    departmentRepository,
+    userRepository,
+    userService,
+    appointmentRepository,
+  );
+  const patientService = new PatientService(patientRepository, patientDocumentStorageService);
 
   return {
     database: {
@@ -96,15 +107,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     permissions: new PermissionService(permissionRepository),
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
-    patients: new PatientService(patientRepository, patientDocumentStorageService),
-doctors: new DoctorService(
-  doctorRepository,
-  branchRepository,
-  departmentRepository,
-  userRepository,
-  userService,
-  appointmentRepository,
-),
+    patients: patientService,
+doctors: doctorService,
 
 appointments: appointmentService,
 
@@ -167,5 +171,6 @@ opdVisits: new OpdVisitService(
       pharmacyInventoryRepository,
     ),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
+    patientPortal: new PatientPortalService(new PatientPortalRepository(), userService, appointmentService, doctorService, patientService),
   };
 };

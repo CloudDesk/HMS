@@ -100,6 +100,7 @@ export const env = {
     failedLoginLimit: parseInteger(process.env.AUTH_FAILED_LOGIN_LIMIT, 5),
     lockoutMinutes: parseInteger(process.env.AUTH_LOCKOUT_MINUTES, 15),
     passwordResetTtlMinutes: parseInteger(process.env.AUTH_PASSWORD_RESET_TTL_MINUTES, 30),
+    patientPortalDemoOtp: process.env.PATIENT_PORTAL_DEMO_OTP ?? '1234',
     passwordPolicy: {
       minLength: parseInteger(process.env.AUTH_PASSWORD_MIN_LENGTH, 8),
       requireUppercase: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_UPPERCASE, true),
@@ -107,6 +108,16 @@ export const env = {
       requireNumber: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_NUMBER, true),
       requireSymbol: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_SYMBOL, false),
     },
+  },
+  patientPortal: {
+    rescheduleAllowedStatuses: parseCsv(
+      process.env.PATIENT_PORTAL_RESCHEDULE_ALLOWED_STATUSES,
+      ['SCHEDULED', 'CONFIRMED', 'NO_SHOW', 'SKIPPED'],
+    ),
+    rescheduleMinimumHours: parseInteger(
+      process.env.PATIENT_PORTAL_RESCHEDULE_MINIMUM_HOURS,
+      2,
+    ),
   },
 } as const;
 

@@ -38,6 +38,16 @@ export const patientDocumentIdParamsSchema = {
   },
 } as const;
 
+export const reviewPatientDocumentBodySchema = {
+  type: 'object',
+  required: ['review_status'],
+  additionalProperties: false,
+  properties: {
+    review_status: { type: 'string', enum: ['VERIFIED', 'REJECTED'] },
+    review_notes: { type: ['string', 'null'], maxLength: 500 },
+  },
+} as const;
+
 export const listPatientsQuerySchema = {
   type: 'object',
   additionalProperties: false,
@@ -72,7 +82,7 @@ export const listPatientTimelineQuerySchema = {
   properties: {
     event_type: {
       type: 'string',
-      enum: ['REGISTRATION', 'PROFILE_UPDATED', 'DOCUMENT_ADDED', 'DOCUMENT_DELETED', 'CONSENT_ADDED'],
+      enum: ['REGISTRATION', 'PROFILE_UPDATED', 'DOCUMENT_ADDED', 'DOCUMENT_DELETED', 'DOCUMENT_REVIEWED', 'CONSENT_ADDED'],
     },
     from: { type: 'string', minLength: 1 },
     to: { type: 'string', minLength: 1 },

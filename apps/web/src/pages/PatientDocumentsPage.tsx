@@ -31,7 +31,7 @@ const toDocumentRecord = (document: PatientDocumentResponse): PatientDocumentRec
   category: detectCategoryFromFileName(document.file_name),
   uploadedBy: document.uploaded_by_name ?? 'Unknown user',
   uploadedDate: formatDate(document.created_at),
-  status: 'Verified',
+  status: document.review_status === 'REJECTED' ? 'Rejected' : document.review_status === 'PENDING' ? 'Pending' : 'Verified',
   fileName: document.file_name,
   createdAt: document.created_at,
 });

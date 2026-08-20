@@ -71,6 +71,8 @@ export type UpdatePatientDTO = Partial<Omit<CreatePatientDTO, 'status'>> & {
 
 export type PatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
 export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
+export type PatientDocumentSource = 'HOSPITAL' | 'PATIENT' | 'GUARDIAN';
+export type PatientDocumentReviewStatus = 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export type PatientDocument = {
   id: string;
@@ -87,6 +89,14 @@ export type PatientDocument = {
   signed_at: Date | null;
   valid_until: Date | null;
   signed_by_name: string | null;
+  source: PatientDocumentSource;
+  review_status: PatientDocumentReviewStatus;
+  reviewed_by: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: Date | null;
+  review_notes: string | null;
+  document_date: Date | null;
+  provider_name: string | null;
   status: 'ACTIVE' | 'DELETED';
   uploaded_by: string | null;
   uploaded_by_name: string | null;
@@ -107,6 +117,10 @@ export type CreatePatientDocumentDTO = {
   signed_at?: string | null;
   valid_until?: string | null;
   signed_by_name?: string | null;
+  source?: PatientDocumentSource;
+  review_status?: PatientDocumentReviewStatus;
+  document_date?: string | null;
+  provider_name?: string | null;
 };
 
 export type PatientDocumentListQuery = {
@@ -120,11 +134,17 @@ export type UploadPatientDocumentDTO = Omit<CreatePatientDocumentDTO, 'storage_k
   data: Buffer;
 };
 
+export type ReviewPatientDocumentDTO = {
+  review_status: 'VERIFIED' | 'REJECTED';
+  review_notes?: string | null;
+};
+
 export type PatientTimelineEventType =
   | 'REGISTRATION'
   | 'PROFILE_UPDATED'
   | 'DOCUMENT_ADDED'
   | 'DOCUMENT_DELETED'
+  | 'DOCUMENT_REVIEWED'
   | 'CONSENT_ADDED'
   | 'OPD_VISIT_CREATED'
   | 'OPD_VISIT_STATUS_UPDATED'

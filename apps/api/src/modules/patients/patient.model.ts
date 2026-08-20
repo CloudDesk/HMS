@@ -97,6 +97,13 @@ export type PatientDocumentMetadataFields = {
   signedAt?: Date | null;
   validUntil?: Date | null;
   signedByName?: string | null;
+  source: 'HOSPITAL' | 'PATIENT' | 'GUARDIAN';
+  reviewStatus: 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+  reviewedBy?: Types.ObjectId | null;
+  reviewedAt?: Date | null;
+  reviewNotes?: string | null;
+  documentDate?: Date | null;
+  providerName?: string | null;
   status: 'ACTIVE' | 'DELETED';
   uploadedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -124,6 +131,13 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
     signedAt: { type: Date, default: null },
     validUntil: { type: Date, default: null },
     signedByName: { type: String, default: null },
+    source: { type: String, enum: ['HOSPITAL', 'PATIENT', 'GUARDIAN'], default: 'HOSPITAL', required: true },
+    reviewStatus: { type: String, enum: ['NOT_REQUIRED', 'PENDING', 'VERIFIED', 'REJECTED'], default: 'NOT_REQUIRED', required: true },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    reviewedAt: { type: Date, default: null },
+    reviewNotes: { type: String, default: null },
+    documentDate: { type: Date, default: null },
+    providerName: { type: String, default: null },
     status: { type: String, enum: ['ACTIVE', 'DELETED'], default: 'ACTIVE', required: true },
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -137,6 +151,7 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
 patientDocumentSchema.index({ patientId: 1, status: 1 });
 patientDocumentSchema.index({ patientId: 1, visitId: 1, status: 1, createdAt: -1 });
 patientDocumentSchema.index({ documentType: 1 });
+patientDocumentSchema.index({ reviewStatus: 1, source: 1, createdAt: -1 });
 
 export type PatientTimelineEventFields = {
   patientId: Types.ObjectId;
@@ -159,6 +174,7 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
         'PROFILE_UPDATED',
         'DOCUMENT_ADDED',
         'DOCUMENT_DELETED',
+        'DOCUMENT_REVIEWED',
         'CONSENT_ADDED',
         'OPD_VISIT_CREATED',
         'OPD_VISIT_STATUS_UPDATED',

@@ -210,6 +210,32 @@ export class OpdVisitRepository {
     return visit ? toVisit(visit) : undefined;
   }
 
+  async markSkippedBySystem(id: string) {
+    const visit = await OpdVisitModel.findOneAndUpdate(
+      {
+        _id: id,
+        deletedAt: null,
+        status: { $in: ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION'] },
+      },
+      { $set: { status: 'SKIPPED' } },
+      { new: true, lean: true },
+    ).lean<OpdVisitLean>();
+    if (!visit) return undefined;
+    const result = toVisit(visit);
+    await AuditLogModel.create({
+      eventType: 'opd.visit.status.reconciled',
+      metadataJson: {
+        appointmentId: result.appointment_id,
+        patientId: result.patient_id,
+        source: 'system_overdue_reconciliation',
+        toStatus: result.status,
+        visitId: result.id,
+        visitNumber: result.visit_number,
+      },
+    });
+    return result;
+  }
+
   async auditStatusTransition(visit: OpdVisit, previousStatus: OpdVisit['status'], actorUserId: string) {
     await AuditLogModel.create({
       actorUserId,

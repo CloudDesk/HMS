@@ -11,14 +11,17 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @hms/api\" \"npm run dev -w @hms/web\"",
+    "dev": "concurrently -n api,web,patient -c cyan,magenta,green \"npm run dev -w @hms/api\" \"npm run dev -w @hms/web\" \"npm run dev -w @hms/patient-web\"",
     "dev:api": "npm run dev --workspace=@hms/api",
     "dev:web": "npm run dev --workspace=@hms/web",
+    "dev:patient": "npm run dev --workspace=@hms/patient-web",
     "build": "npm run build --workspaces --if-present",
     "build:api": "npm run build --workspace=@hms/api",
     "build:web": "npm run build --workspace=@hms/web",
+    "build:patient": "npm run build --workspace=@hms/patient-web",
     "start:api": "npm run start --workspace=@hms/api",
     "preview:web": "npm run preview --workspace=@hms/web",
+    "preview:patient": "npm run preview --workspace=@hms/patient-web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write .",

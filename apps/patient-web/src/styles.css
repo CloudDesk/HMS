@@ -1,0 +1,377 @@
+@import '../../web/src/styles.css';
+
+html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,calc(100vw - 2rem))}
+.patient-login-input select{min-width:0;flex:1;border:0;outline:0;padding:.75rem;background:transparent;color:#10233f;font:inherit;font-weight:500}
+
+/* Patient-facing HMS theme: aligned with the admin workspace */
+:root{
+  --patient-primary:#2563eb;
+  --patient-primary-hover:#1d4ed8;
+  --patient-navy:#0f172a;
+  --patient-navy-soft:#172554;
+  --patient-blue-soft:#eff6ff;
+  --patient-surface:#ffffff;
+  --patient-canvas:#f8fafc;
+  --patient-border:#e2e8f0;
+  --patient-text:#0f172a;
+  --patient-muted:#64748b;
+}
+
+.patient-login-page{background:var(--patient-canvas);color:var(--patient-text)}
+.patient-login-brand{background:linear-gradient(145deg,var(--patient-navy) 0%,#111f3d 58%,var(--patient-navy-soft) 100%)}
+.patient-login-logo{border-color:rgba(147,197,253,.28);background:rgba(37,99,235,.18);color:#fff}
+.patient-login-brand .patient-login-kicker{color:#93c5fd}
+.patient-login-brand__inner>p:not(.patient-login-kicker){color:#cbd5e1}
+.patient-login-brand ul{color:#f8fafc}
+.patient-login-brand li i{color:#60a5fa}
+.patient-login-panel{background:var(--patient-surface)}
+.patient-login-kicker{color:var(--patient-primary)}
+.patient-login-form-wrap h2{color:var(--patient-text)}
+.patient-login-subtitle{color:var(--patient-muted)}
+.patient-login-form>label{color:#334155}
+.patient-login-input{border-color:#cbd5e1;border-radius:8px}
+.patient-login-input:focus-within{border-color:var(--patient-primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.patient-login-input>i{color:#64748b}
+.patient-login-input input,.patient-login-input select{color:var(--patient-text)}
+.patient-login-submit{border-radius:8px;background:var(--patient-primary);box-shadow:0 8px 20px rgba(37,99,235,.2)}
+.patient-login-submit:hover{background:var(--patient-primary-hover)}
+.patient-login-help{border-color:#dbeafe;background:#f8fbff;color:#475569}
+.patient-login-help i,.patient-login-mobile-mark{color:var(--patient-primary)}
+.patient-staff-link:hover{color:var(--patient-primary)}
+
+.hospital-site{background:var(--patient-surface);color:var(--patient-text)}
+.hospital-header{border-bottom-color:var(--patient-border);background:rgba(255,255,255,.97)}
+.hospital-header{grid-template-columns:auto 1fr minmax(190px,240px) auto;gap:1.25rem}
+.hospital-logo{color:var(--patient-text)}
+.hospital-logo>span,.hospital-footer-brand>span{border-radius:8px;background:var(--patient-primary)}
+.hospital-logo small{color:var(--patient-muted)}
+.hospital-header nav a{color:#475569}
+.hospital-header nav a:hover{color:var(--patient-primary)}
+.hospital-staff-link{color:#475569}
+.hospital-signin{border-color:var(--patient-primary);background:var(--patient-primary)}
+.hospital-signin:hover{border-color:var(--patient-primary-hover);background:var(--patient-primary-hover)}
+.hospital-global-search{position:relative;z-index:90;width:100%}
+.hospital-global-search>form{height:40px;display:flex;align-items:center;gap:7px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
+.hospital-global-search>form:focus-within{border-color:var(--patient-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.hospital-global-search>form>i{color:#64748b;font-size:.9rem}
+.hospital-global-search input{min-width:0;flex:1;padding:0;border:0;outline:0;background:transparent;color:var(--patient-text);font-size:.68rem}
+.hospital-global-search>form>button{width:24px;height:24px;display:grid;place-items:center;padding:0;border:0;background:transparent;color:#64748b;cursor:pointer}
+.hospital-global-results{position:absolute;top:calc(100% + 8px);right:0;width:390px;max-height:min(620px,calc(100vh - 100px));overflow-y:auto;border:1px solid var(--patient-border);border-radius:10px;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.18)}
+.hospital-global-results__heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--patient-border);background:#f8fafc}
+.hospital-global-results__heading strong{font-size:.73rem}
+.hospital-global-results__heading span{color:var(--patient-muted);font-size:.61rem}
+.hospital-global-results section{padding:7px;border-bottom:1px solid var(--patient-border)}
+.hospital-global-results section:last-of-type{border-bottom:0}
+.hospital-global-results h3{margin:5px 7px;color:var(--patient-primary);font-size:.58rem;letter-spacing:.08em;text-transform:uppercase}
+.hospital-global-results section>button{width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) 16px;align-items:center;gap:9px;padding:8px;border:0;border-radius:7px;background:#fff;color:#334155;text-align:left;cursor:pointer}
+.hospital-global-results section>button:hover,.hospital-global-results section>button:focus-visible{outline:0;background:var(--patient-blue-soft)}
+.hospital-global-results section>button>i:first-child{width:32px;height:32px;display:grid;place-items:center;border-radius:7px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:1rem}
+.hospital-global-results section>button>span{min-width:0;display:grid;gap:2px}
+.hospital-global-results section>button strong,.hospital-global-results section>button small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hospital-global-results section>button strong{color:var(--patient-text);font-size:.69rem}
+.hospital-global-results section>button small{color:var(--patient-muted);font-size:.59rem}
+.hospital-global-results section>button>i:last-child{color:#94a3b8;font-size:.7rem}
+.hospital-global-results__empty{padding:28px 16px;color:var(--patient-muted);font-size:.68rem;text-align:center}
+.hospital-hero{background:linear-gradient(120deg,#eff6ff 0%,#f8fafc 58%,#eef2ff 100%)}
+.hospital-eyebrow,.hospital-section header p,.hospital-portal-cta p{color:var(--patient-primary)}
+.hospital-hero h1{color:var(--patient-text)}
+.hospital-hero-copy>p:not(.hospital-eyebrow){color:var(--patient-muted)}
+.hospital-hero-actions button{border-color:var(--patient-primary);background:var(--patient-primary)}
+.hospital-hero-actions button:hover{border-color:var(--patient-primary-hover);background:var(--patient-primary-hover)}
+.hospital-hero-actions button+button{border-color:#cbd5e1;background:#fff;color:#334155}
+.hospital-hero-actions button+button:hover{border-color:#94a3b8;background:#f8fafc;color:var(--patient-text)}
+.hospital-trust-row{border-top-color:#dbe3ee}
+.hospital-trust-row i{color:var(--patient-primary)}
+.hospital-care-card{border-color:var(--patient-border);border-radius:12px;box-shadow:0 18px 45px rgba(15,23,42,.1)}
+.hospital-care-card-icon{border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary)}
+.hospital-care-card>p{color:var(--patient-primary)}
+.hospital-care-card h2{color:var(--patient-text)}
+.hospital-care-location{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:9px 10px;border:1px solid #bfdbfe;border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary)}
+.hospital-care-location select{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--patient-text);font:inherit;font-size:.7rem;font-weight:750;cursor:pointer}
+.hospital-care-options button{border-top-color:var(--patient-border);color:#1e293b}
+.hospital-care-options button>i:first-child{border-radius:7px;background:var(--patient-blue-soft);color:var(--patient-primary)}
+.hospital-care-all{border-color:#bfdbfe;background:var(--patient-blue-soft);color:#1d4ed8}
+.hospital-facts{background:var(--patient-border)}
+.hospital-facts i{color:var(--patient-primary)}
+.hospital-section-tinted{background:var(--patient-canvas)}
+.hospital-section header h2{color:var(--patient-text)}
+.hospital-section>header>button.active{border-color:var(--patient-primary);color:var(--patient-primary)}
+.hospital-section-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.hospital-catalogue-search{min-width:300px;display:flex;align-items:center;padding:3px;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
+.hospital-catalogue-search:focus-within{border-color:var(--patient-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.hospital-catalogue-search>i{margin-left:8px;color:#64748b}
+.hospital-catalogue-search input{min-width:0;flex:1;padding:8px;border:0;outline:0;background:transparent;color:var(--patient-text);font-size:.7rem}
+.hospital-catalogue-search button,.hospital-section-actions>button{padding:8px 11px;border:1px solid var(--patient-primary);border-radius:6px;background:var(--patient-primary);color:#fff;font-size:.67rem;font-weight:800;cursor:pointer}
+.hospital-section-actions>button{border-color:#cbd5e1;background:#fff;color:#475569}
+.hospital-section-actions>button.active{border-color:var(--patient-primary);color:var(--patient-primary)}
+.hospital-department-grid article,.hospital-service-grid article,.hospital-doctor-grid article{border-color:var(--patient-border);border-radius:10px}
+.hospital-department-grid article:hover,.hospital-department-grid article.selected{border-color:#93c5fd;box-shadow:0 10px 28px rgba(37,99,235,.09)}
+.hospital-department-grid article>span,.hospital-service-grid article>span{border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary)}
+.hospital-department-grid small,.hospital-service-grid small,.hospital-doctor-main>small,.hospital-department-grid button{color:var(--patient-primary)}
+.hospital-department-grid h3,.hospital-service-grid h3,.hospital-doctor-grid h3{color:var(--patient-text)}
+.hospital-doctors-header form{border-color:#cbd5e1}
+.hospital-doctors-header form button,.hospital-doctor-grid article>button{background:var(--patient-primary)}
+.hospital-doctor-avatar{border-color:#dbeafe;background:#bfdbfe;color:#1d4ed8}
+.hospital-doctor-main dl div{background:var(--patient-canvas)}
+.hospital-available-days span{background:var(--patient-blue-soft);color:#1d4ed8}
+.hospital-doctor-grid article>button{border-color:var(--patient-primary)}
+.hospital-section-state button{border-color:#bfdbfe;color:var(--patient-primary)}
+.hospital-portal-cta{border:1px solid #1e3a8a;border-radius:12px;background:var(--patient-navy)}
+.hospital-portal-cta>div>span{border-radius:8px;background:var(--patient-primary)}
+.hospital-portal-cta p{color:#93c5fd}
+.hospital-site footer{background:var(--patient-navy)}
+
+/* Header catalogue menus */
+.hospital-nav-item{position:relative;height:76px;display:flex;align-items:center}
+.hospital-header nav>a{height:76px;display:flex;align-items:center}
+.hospital-header .hospital-nav-trigger,.hospital-header nav>a{font-family:inherit;font-size:.78rem;font-weight:700;line-height:1}
+.hospital-nav-trigger{height:100%;display:flex;align-items:center;gap:5px;padding:0;border:0;background:transparent;color:#475569;cursor:pointer}
+.hospital-nav-trigger>i{font-size:.7rem;transition:transform .16s ease}
+.hospital-nav-item.open .hospital-nav-trigger{color:var(--patient-primary)}
+.hospital-nav-item.open .hospital-nav-trigger>i{transform:rotate(180deg)}
+.hospital-nav-dropdown{position:absolute;top:calc(100% - 5px);left:50%;z-index:80;width:310px;max-width:calc(100vw - 32px);overflow:hidden;border:1px solid var(--patient-border);border-radius:10px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.16);opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-6px);transition:opacity .16s ease,transform .16s ease,visibility .16s ease}
+.hospital-nav-item.open .hospital-nav-dropdown{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0)}
+.hospital-nav-dropdown__heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--patient-border);background:#f8fafc}
+.hospital-nav-dropdown__heading span{color:var(--patient-text);font-size:.73rem;font-weight:800}
+.hospital-nav-dropdown__heading small{color:var(--patient-muted);font-size:.61rem}
+.hospital-nav-dropdown__list{max-height:330px;overflow-y:auto;padding:6px}
+.hospital-nav-dropdown__list>button{width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) 16px;align-items:center;gap:9px;padding:8px;border:0;border-radius:7px;background:#fff;color:#334155;text-align:left;cursor:pointer}
+.hospital-nav-dropdown__list>button:hover,.hospital-nav-dropdown__list>button:focus-visible{outline:0;background:var(--patient-blue-soft)}
+.hospital-nav-dropdown__list>button>i:first-child{width:32px;height:32px;display:grid;place-items:center;border-radius:7px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:1rem}
+.hospital-nav-dropdown__list>button>span{min-width:0;display:grid;gap:2px}
+.hospital-nav-dropdown__list>button strong{overflow:hidden;color:var(--patient-text);font-size:.69rem;text-overflow:ellipsis;white-space:nowrap}
+.hospital-nav-dropdown__list>button small{overflow:hidden;color:var(--patient-muted);font-size:.59rem;text-overflow:ellipsis;white-space:nowrap}
+.hospital-nav-dropdown__list>button>i:last-child{color:#94a3b8;font-size:.7rem}
+.hospital-nav-dropdown__state{padding:22px 12px;color:var(--patient-muted);font-size:.68rem;text-align:center}
+.hospital-nav-dropdown__all{width:100%;padding:10px 14px;border:0;border-top:1px solid var(--patient-border);background:#f8fafc;color:var(--patient-primary);font-size:.66rem;font-weight:800;cursor:pointer}
+.hospital-nav-dropdown__all:hover,.hospital-nav-dropdown__all:focus-visible{outline:0;background:var(--patient-blue-soft)}
+
+.hospital-branch-select{height:42px;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;column-gap:7px;padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#475569}
+.hospital-branch-select>i{grid-row:1/3;color:var(--patient-primary);font-size:1rem}
+.hospital-branch-select>span{font-size:.52rem;font-weight:800;line-height:1;text-transform:uppercase;letter-spacing:.06em}
+.hospital-branch-select select{max-width:130px;padding:0;border:0;outline:0;background:transparent;color:var(--patient-text);font:inherit;font-size:.66rem;font-weight:700;cursor:pointer}
+.hospital-location-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.hospital-location-grid article{min-height:220px;display:grid;grid-template-columns:42px 1fr;grid-template-rows:1fr auto;gap:14px;padding:22px;border:1px solid var(--patient-border);border-radius:10px;background:#fff}
+.hospital-location-grid article.selected,.hospital-location-grid article:hover{border-color:#93c5fd;box-shadow:0 10px 28px rgba(37,99,235,.09)}
+.hospital-location-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:1.2rem}
+.hospital-location-grid article>div:nth-child(2){display:flex;min-width:0;flex-direction:column;align-items:flex-start}
+.hospital-location-grid small{color:var(--patient-primary);font-size:.62rem;font-weight:800;letter-spacing:.06em}
+.hospital-location-grid h3{margin:4px 0 8px;color:var(--patient-text);font-size:1rem}
+.hospital-location-grid p{margin:0 0 12px;color:var(--patient-muted);font-size:.72rem;line-height:1.55}
+.hospital-location-grid article>div:nth-child(2) a{margin-top:5px;color:#475569;font-size:.68rem;text-decoration:none}
+.hospital-location-grid article>div:nth-child(2) a i{color:var(--patient-primary)}
+.hospital-location-hours{margin-bottom:5px;color:#475569;font-size:.66rem}
+.hospital-location-hours i{color:var(--patient-primary)}
+.hospital-location-actions{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:14px;border-top:1px solid var(--patient-border)}
+.hospital-location-actions button,.hospital-location-actions a{border:0;background:transparent;color:var(--patient-primary);font:inherit;font-size:.68rem;font-weight:800;text-decoration:none;cursor:pointer}
+
+/* Signed-in patient portal uses the same HMS workspace theme */
+.patient-portal,.patient-portal-state{background:#f1f5f9;color:var(--patient-text)}
+.patient-portal-header{border-bottom-color:var(--patient-border);background:rgba(255,255,255,.98);box-shadow:0 1px 8px rgba(15,23,42,.05)}
+.patient-portal-brand>span{border-radius:8px;background:var(--patient-primary)}
+.patient-portal-brand strong{color:var(--patient-text)}
+.patient-portal-brand small,.patient-portal-account small{color:var(--patient-muted)}
+.patient-portal-nav button{color:#64748b}
+.patient-portal-nav button:hover,.patient-portal-nav button.active{color:var(--patient-primary)}
+.patient-portal-nav button.active:after{background:var(--patient-primary)}
+.patient-portal-account{border-left-color:var(--patient-border)}
+.patient-portal-account>button{border-radius:8px;background:#f1f5f9;color:#475569}
+.patient-portal-account>button:hover{background:var(--patient-blue-soft);color:var(--patient-primary)}
+.patient-avatar{background:#dbeafe;color:#1d4ed8}
+.portal-dependent-toolbar{border-color:var(--patient-border);border-radius:8px;box-shadow:0 1px 2px rgba(15,23,42,.02)}
+.portal-dependent-toolbar label span{color:#64748b}
+.portal-dependent-toolbar select{border-color:#cbd5e1;border-radius:7px;color:var(--patient-text)}
+.portal-dependent-toolbar select:focus{border-color:var(--patient-primary);outline:0;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.portal-dependent-toolbar button,.portal-book-action{border-radius:7px;background:var(--patient-primary)}
+.portal-dependent-toolbar button:hover,.portal-book-action:hover{background:var(--patient-primary-hover)}
+.portal-dependent-actions{display:flex;align-items:center;gap:8px}
+.portal-dependent-toolbar .portal-dependent-actions button.secondary{border:1px solid #bfdbfe;background:#fff;color:var(--patient-primary)}
+.portal-dependent-toolbar .portal-dependent-actions button.secondary:hover{background:var(--patient-blue-soft)}
+.portal-welcome p,.portal-page-section>header p,.portal-panel header p{color:var(--patient-primary)}
+.portal-welcome h1,.portal-page-section>header h1{color:var(--patient-text)}
+.portal-welcome>div>span,.portal-page-section>header span{color:var(--patient-muted)}
+.portal-privacy{border-color:#bfdbfe;border-radius:8px;background:#f8fbff}
+.portal-privacy>i{color:var(--patient-primary)}
+.portal-privacy span{color:#334155!important}
+.portal-summary-grid article,.portal-panel,.portal-list-panel,.portal-profile-card{border-color:var(--patient-border);border-radius:9px;box-shadow:0 1px 2px rgba(15,23,42,.02)}
+.portal-summary-grid small{color:var(--patient-muted)}
+.portal-summary-grid strong,.portal-panel header h2,.portal-profile-head h2,.portal-list-main h3{color:var(--patient-text)}
+.portal-summary-grid button,.portal-panel header button{color:var(--patient-primary)}
+.portal-appointment-card{border-color:#dbeafe;border-radius:8px;background:#f8fbff}
+.portal-date-tile{border-radius:7px;background:var(--patient-primary)}
+.portal-quick-grid button{border-bottom-color:var(--patient-border);color:#334155}
+.portal-quick-grid button:hover{background:#f8fafc}
+.portal-quick-grid button>i:first-child,.portal-list-icon,.portal-result>div>i{border-radius:7px;background:var(--patient-blue-soft);color:var(--patient-primary)}
+.portal-list-row,.portal-result,.portal-panel>header,.portal-profile-head,.portal-profile-grid,.portal-profile-grid>div{border-color:var(--patient-border)}
+.portal-result dl{background:#f8fafc}
+.portal-record-count{min-width:28px;height:28px;display:grid;place-items:center;border-radius:999px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:.68rem;font-weight:800}
+.portal-result>.portal-medication-items{display:grid;align-items:stretch;gap:8px;margin-top:12px}
+.portal-medication-item{display:grid;gap:5px;padding:10px 12px;border:1px solid var(--patient-border);border-radius:8px;background:#f8fafc}
+.portal-medication-item>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.portal-medication-item>div>span{flex:none;color:var(--patient-primary);font-size:.62rem;font-weight:800}
+.portal-medication-item p{margin:0;color:#475569;font-size:.68rem;line-height:1.45}
+.portal-medication-item>small{color:var(--patient-muted);font-size:.64rem;line-height:1.45}
+.portal-purchase dl{display:grid;grid-template-columns:1fr 1fr}
+.portal-purchase dl>div{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.portal-purchase>p{display:flex;align-items:center;gap:5px}
+.portal-profile-note{background:var(--patient-blue-soft);color:#475569}
+.portal-profile-note i{color:var(--patient-primary)}
+.portal-page-section:has(.portal-profile-card){display:grid;gap:16px}.portal-page-section:has(.portal-profile-card)>header{margin-bottom:0}.portal-guardian-card{overflow:hidden;border:1px solid var(--patient-border);border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.02)}.portal-guardian-card>header{display:flex;align-items:center;gap:13px;padding:17px 20px;border-bottom:1px solid var(--patient-border)}.portal-guardian-card>header>span:first-child{display:grid;width:42px;height:42px;place-items:center;flex:none;border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:1.25rem}.portal-guardian-card>header>div{display:grid;gap:2px}.portal-guardian-card>header p{margin:0;color:var(--patient-primary);font-size:.61rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.portal-guardian-card>header h2{margin:0;color:var(--patient-text);font-size:.95rem}.portal-guardian-card>header small{color:var(--patient-muted);font-size:.65rem}.portal-relationship-badge{margin-left:auto;border-radius:999px;background:#eef2ff;padding:5px 9px;color:#4338ca;font-size:.6rem;font-weight:800}.portal-guardian-grid{display:grid;grid-template-columns:repeat(3,1fr)}.portal-guardian-grid>div{display:grid;gap:5px;min-height:68px;padding:15px 20px;border-right:1px solid var(--patient-border);border-bottom:1px solid var(--patient-border)}.portal-guardian-grid>div:nth-child(3n){border-right:0}.portal-guardian-grid small{color:var(--patient-muted);font-size:.64rem}.portal-guardian-grid strong{color:var(--patient-text);font-size:.75rem;overflow-wrap:anywhere}.portal-guardian-grid .guardian-consent-verified{color:#15803d}.portal-guardian-card>footer{display:flex;align-items:center;gap:8px;padding:13px 20px;color:#475569;font-size:.66rem}.portal-guardian-card>footer i{color:var(--patient-primary);font-size:1rem}.portal-patient-card-modal{display:grid;justify-items:center;gap:18px;padding:20px}.portal-patient-id-card{width:min(340px,100%);overflow:hidden;border:1px solid #dbe3ee;border-radius:14px;background:#fff;box-shadow:0 8px 28px rgba(15,23,42,.12)}.portal-id-card-head{position:relative;padding:19px 20px 23px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff}.portal-id-card-brand{display:flex;align-items:center;gap:8px;margin-bottom:16px}.portal-id-card-brand>span{display:grid;width:32px;height:32px;place-items:center;border-radius:8px;background:rgba(255,255,255,.2);font-size:.68rem;font-weight:800}.portal-id-card-brand>div{display:grid}.portal-id-card-brand strong{font-size:.73rem}.portal-id-card-brand small{color:rgba(255,255,255,.7);font-size:.56rem}.portal-id-card-type{position:absolute;top:16px;right:16px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:rgba(255,255,255,.15);padding:3px 8px;font-size:.52rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.portal-id-card-person{display:flex;align-items:center;gap:14px}.portal-id-card-person>div{display:grid;width:60px;height:60px;place-items:center;flex:none;border:3px solid rgba(255,255,255,.5);border-radius:50%;background:rgba(255,255,255,.2);font-size:1.3rem;font-weight:800}.portal-id-card-person>span{display:grid;gap:5px}.portal-id-card-person strong{font-size:1.05rem}.portal-id-card-person small{width:max-content;border-radius:999px;background:rgba(255,255,255,.18);padding:2px 9px;color:#fff;font-size:.6rem;font-weight:700}.portal-id-card-body{padding:17px 20px}.portal-id-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.portal-id-card-grid>div{display:grid;gap:2px}.portal-id-card-grid small,.portal-id-card-barcode small{color:#94a3b8;font-size:.52rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}.portal-id-card-grid strong{color:#0f172a;font-size:.7rem}.portal-id-card-grid strong.active{color:#16a34a}.portal-id-card-barcode{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;padding:10px 13px;border-top:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}.portal-id-card-barcode>div:first-child{display:grid;gap:3px}.portal-id-card-barcode>div:first-child>span{display:flex;height:28px;align-items:flex-end;gap:2px}.portal-id-card-barcode i{display:block;border-radius:1px;background:#1e293b}.portal-id-card-barcode>div:last-child{display:grid;gap:2px;text-align:right}.portal-id-card-barcode>div:last-child strong{font-size:.68rem}.portal-patient-id-card>footer{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #e2e8f0;background:#f8fafc;padding:9px 20px;color:#94a3b8;font-size:.5rem}.portal-patient-card-actions{display:flex;gap:8px}.portal-patient-card-actions button{display:inline-flex;width:112px;height:36px;align-items:center;justify-content:center;gap:6px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;font-size:.68rem;font-weight:800;cursor:pointer}.portal-patient-card-actions button.primary{border-color:var(--patient-primary);background:var(--patient-primary);color:#fff}.portal-guardian-edit-section{background:#fbfdff!important}.patient-modal-panel .portal-guardian-edit-section input[readonly]{border-color:#dbe3ee;background:#f1f5f9;color:#64748b;cursor:not-allowed}.portal-guardian-consent-field{display:flex;align-items:center;gap:10px;min-height:48px;border:1px solid #bbf7d0;border-radius:7px;background:#f0fdf4;padding:10px 12px;color:#166534}.portal-guardian-consent-field>i{font-size:1.2rem}.portal-guardian-consent-field>span{display:grid;gap:2px}.portal-guardian-consent-field strong{font-size:.7rem}.portal-guardian-consent-field small{color:#15803d!important;font-size:.62rem!important}
+.patient-portal-state button{border-radius:7px;background:var(--patient-primary)}
+.portal-spinner{border-color:#dbeafe;border-top-color:var(--patient-primary)}
+.patient-portal-mobile-nav{border-top-color:var(--patient-border)}
+.patient-portal-mobile-nav button.active{color:var(--patient-primary)}
+
+.portal-account-type label.active{border-color:var(--patient-primary);background:var(--patient-blue-soft);color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.08)}
+.portal-registration-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 18px}
+.portal-registration-modes--two{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+.portal-section-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.portal-book-action.secondary{border:1px solid var(--patient-primary);background:#fff;color:var(--patient-primary);box-shadow:none}
+.portal-documents-page{display:grid;gap:18px}.portal-documents-title-row{display:flex;align-items:center;gap:14px;margin:5px 0 7px}.portal-documents-title-row h1{margin:0}.portal-documents-title-row .portal-book-action{min-height:36px;padding:0 14px}.portal-document-guidance{display:flex;align-items:flex-start;gap:12px;border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;padding:14px 16px;color:#334155}.portal-document-guidance>i{color:var(--patient-primary);font-size:1.25rem;margin-top:1px}.portal-document-guidance div{display:grid;gap:3px}.portal-document-guidance strong{font-size:.82rem}.portal-document-guidance span{color:var(--patient-muted);font-size:.72rem}
+.portal-document-upload{border:1px solid var(--patient-border);border-radius:10px;background:#fff;padding:18px;box-shadow:0 1px 2px rgba(15,23,42,.03)}.portal-document-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:15px}.portal-document-form-grid label:not(.portal-document-drop){display:grid;gap:6px;color:var(--patient-text);font-size:.72rem;font-weight:700}.portal-document-form-grid input,.portal-document-form-grid select,.portal-document-form-grid textarea{width:100%;border:1px solid #cbd5e1;border-radius:7px;background:#fff;padding:10px 12px;color:var(--patient-text);font:inherit}.portal-document-form-grid textarea{resize:vertical}.portal-document-form-grid .wide{grid-column:1/-1}.portal-document-drop{display:flex;min-height:128px;flex-direction:column;align-items:center;justify-content:center;gap:5px;border:1px dashed #93c5fd;border-radius:9px;background:#f8fbff;color:var(--patient-muted);cursor:pointer;text-align:center}.portal-document-drop:hover{background:#eff6ff}.portal-document-drop input{position:absolute;width:1px;height:1px;opacity:0}.portal-document-drop i{color:var(--patient-primary);font-size:1.8rem}.portal-document-drop strong{color:var(--patient-text);font-size:.8rem}.portal-document-drop span{font-size:.68rem}.portal-document-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:16px}.portal-document-actions button{min-height:38px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;padding:0 16px;color:#475569;font-weight:700}.portal-document-actions button[type=submit]{border-color:var(--patient-primary);background:var(--patient-primary);color:#fff}.portal-document-actions button:disabled{cursor:not-allowed;opacity:.6}
+.portal-document-list{display:grid;gap:10px}.portal-document-list>article{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;border:1px solid var(--patient-border);border-radius:9px;background:#fff;padding:16px}.portal-document-icon{display:grid;width:44px;height:44px;place-items:center;border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:1.25rem}.portal-document-main{min-width:0;display:grid;gap:4px}.portal-document-main>div{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.portal-document-main h3{margin:0;color:var(--patient-text);font-size:.88rem}.portal-document-main p,.portal-document-main small,.portal-document-main>span{margin:0;color:var(--patient-muted);font-size:.68rem}.portal-document-main>span{margin-top:3px;color:#475569}.portal-document-status{border-radius:999px;padding:3px 8px;background:#f1f5f9;color:#475569;font-size:.58rem;font-weight:800;text-transform:uppercase}.portal-document-status.pending{background:#fff7ed;color:#c2410c}.portal-document-status.verified{background:#ecfdf5;color:#047857}.portal-document-status.rejected{background:#fef2f2;color:#b91c1c}.portal-document-row-actions{display:flex;align-items:center;gap:8px}.portal-document-row-actions button{display:flex;min-height:36px;align-items:center;justify-content:center;gap:6px;border:1px solid #bfdbfe;border-radius:7px;background:#fff;padding:0 12px;color:var(--patient-primary);font-size:.68rem;font-weight:800;cursor:pointer}.portal-document-row-actions button:hover{background:var(--patient-blue-soft)}.portal-document-row-actions button.icon-only{width:36px;padding:0}
+@media(max-width:760px){.portal-section-actions{width:100%}.portal-section-actions .portal-book-action{flex:1}.portal-documents-title-row{align-items:flex-start;flex-direction:column}.portal-document-form-grid{grid-template-columns:1fr}.portal-document-form-grid .wide{grid-column:auto}.portal-document-list>article{grid-template-columns:auto 1fr}.portal-document-row-actions{grid-column:2;justify-self:end}.portal-document-guidance{margin-top:0}}
+@media(max-width:760px){.portal-guardian-card>header{align-items:flex-start;padding:15px}.portal-relationship-badge{margin-left:0}.portal-guardian-grid{grid-template-columns:1fr}.portal-guardian-grid>div{min-height:0;padding:13px 15px;border-right:0}.portal-guardian-card>footer{align-items:flex-start;padding:13px 15px}.portal-patient-card-modal{padding:15px 12px}.portal-id-card-head{padding:17px}.portal-id-card-body{padding:15px 17px}}
+
+@media print{body *{visibility:hidden!important}.portal-patient-id-card,.portal-patient-id-card *{visibility:visible!important}.portal-patient-id-card{position:fixed;top:20mm;left:50%;width:90mm;transform:translateX(-50%);box-shadow:none}}
+
+.portal-appointments-page{display:grid;gap:16px}.portal-appointments-page>header{margin-bottom:0}.portal-appointment-toolbar{display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap}.portal-appointment-tabs{display:flex;gap:5px;border:1px solid var(--patient-border);border-radius:8px;background:#fff;padding:4px}.portal-appointment-tabs button{min-height:34px;border:0;border-radius:6px;background:transparent;padding:0 14px;color:#64748b;font-size:.7rem;font-weight:800;cursor:pointer}.portal-appointment-tabs button.active{background:var(--patient-blue-soft);color:var(--patient-primary)}.portal-appointment-filter{display:grid;gap:5px;color:#64748b;font-size:.62rem;font-weight:800}.portal-appointment-filter select{min-width:180px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;padding:9px 11px;color:var(--patient-text);font:inherit}.portal-list-end{display:grid;justify-items:end;gap:5px}.portal-reschedule-action{min-height:31px;border:1px solid #bfdbfe;border-radius:7px;background:#fff;padding:0 11px;color:var(--patient-primary);font-size:.63rem;font-weight:800;cursor:pointer}.portal-reschedule-action:hover{background:var(--patient-blue-soft)}.portal-history-note{max-width:210px;color:#64748b;font-size:.58rem;text-align:right}.portal-appointment-pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding-top:2px}.portal-appointment-pagination span{color:#64748b;font-size:.66rem}.portal-appointment-pagination button{min-height:33px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;padding:0 12px;color:#475569;font-size:.64rem;font-weight:800;cursor:pointer}.portal-appointment-pagination button:disabled{cursor:not-allowed;opacity:.45}.portal-status.no_show,.portal-status.skipped{background:#fff7ed;color:#c2410c}.portal-status.rescheduled{background:#eef2ff;color:#4338ca}.portal-reschedule-current{display:grid;gap:5px;margin-bottom:14px;border:1px solid #dbeafe;border-radius:8px;background:#f8fbff;padding:12px 14px}.portal-reschedule-current small{color:#64748b;font-size:.62rem}.portal-reschedule-current strong{color:var(--patient-text);font-size:.78rem}.portal-reschedule-current span{color:#475569;font-size:.67rem}
+@media(max-width:760px){.portal-appointment-toolbar{align-items:stretch;flex-direction:column}.portal-appointment-tabs{width:100%}.portal-appointment-tabs button{flex:1}.portal-appointment-filter select{width:100%}.portal-list-end{justify-items:start}.portal-history-note{text-align:left}.portal-appointment-pagination{justify-content:center}}
+
+.portal-billing-page{display:grid;gap:18px}.portal-billing-page>header{margin-bottom:0}.portal-billing-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.portal-billing-summary article{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:2px 12px;border:1px solid var(--patient-border);border-radius:10px;background:#fff;padding:16px}.portal-billing-summary article>i{grid-row:1/3;display:grid;width:38px;height:38px;place-items:center;border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:1.1rem}.portal-billing-summary span{color:var(--patient-muted);font-size:.66rem}.portal-billing-summary strong{color:var(--patient-text);font-size:1.05rem}.portal-billing-summary article.settled{border-color:#bbf7d0;background:#f7fef9}.portal-billing-summary article.settled>i{background:#dcfce7;color:#15803d}.portal-billing-summary article.settled strong{color:#15803d}.portal-billing-summary article.has-balance{border-color:#fed7aa;background:#fffaf5}.portal-billing-summary article.has-balance>i{background:#ffedd5;color:#c2410c}.portal-billing-summary article.has-balance strong{color:#c2410c}.portal-billing-list{display:grid;gap:12px}.portal-billing-card{border:1px solid var(--patient-border);border-radius:10px;background:#fff;overflow:hidden}.portal-billing-card-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:15px 17px;border-bottom:1px solid var(--patient-border)}.portal-billing-card-head h2{margin:0 0 3px;color:var(--patient-text);font-size:.85rem}.portal-billing-card-head div>span{color:var(--patient-muted);font-size:.64rem}.portal-billing-amounts{display:grid;grid-template-columns:repeat(3,1fr);padding:15px 17px}.portal-billing-amounts>div{display:grid;gap:5px;padding:0 18px;border-right:1px solid var(--patient-border)}.portal-billing-amounts>div:first-child{padding-left:0}.portal-billing-amounts>div:last-child{padding-right:0;border-right:0}.portal-billing-amounts span{color:var(--patient-muted);font-size:.63rem}.portal-billing-amounts strong{color:var(--patient-text);font-size:.92rem}.portal-billing-amounts .paid strong{color:#15803d}.portal-billing-amounts .due strong{color:#c2410c}.portal-payment-progress{height:4px;margin:0 17px;border-radius:999px;background:#e2e8f0;overflow:hidden}.portal-payment-progress>span{display:block;height:100%;border-radius:inherit;background:#22c55e}.portal-billing-card footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 17px}.portal-billing-card footer small{color:var(--patient-muted);font-size:.64rem}.portal-billing-card footer button{display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--patient-primary);font-size:.67rem;font-weight:800;cursor:pointer}.portal-invoice-details{display:grid;gap:16px;padding:18px 20px 20px}.portal-invoice-details>header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.portal-invoice-details header small,.portal-invoice-details header span:not(.portal-status){color:var(--patient-muted);font-size:.65rem}.portal-invoice-details h2{margin:4px 0;color:var(--patient-text);font-size:1.05rem}.portal-invoice-details dl{display:grid;grid-template-columns:repeat(3,1fr);margin:0;border:1px solid var(--patient-border);border-radius:9px;overflow:hidden}.portal-invoice-details dl>div{display:grid;gap:5px;padding:14px;border-right:1px solid var(--patient-border)}.portal-invoice-details dl>div:last-child{border-right:0}.portal-invoice-details dt{color:var(--patient-muted);font-size:.63rem}.portal-invoice-details dd{margin:0;color:var(--patient-text);font-size:.9rem;font-weight:800}.portal-invoice-details .paid dd{color:#15803d}.portal-invoice-details .due dd{color:#c2410c}.portal-invoice-message{display:flex;align-items:center;gap:9px;border:1px solid #bbf7d0;border-radius:8px;background:#f0fdf4;padding:12px;color:#166534;font-size:.7rem}.portal-invoice-message.due{border-color:#fed7aa;background:#fff7ed;color:#9a3412}.portal-invoice-message i{font-size:1.15rem}
+.portal-invoice-patient{display:grid;grid-template-columns:auto 1fr 1fr;align-items:center;gap:12px;border:1px solid var(--patient-border);border-radius:8px;background:#f8fafc;padding:13px 14px}.portal-invoice-patient>i{color:var(--patient-primary);font-size:1.5rem}.portal-invoice-patient>div{display:grid;gap:3px}.portal-invoice-patient small{color:var(--patient-muted);font-size:.61rem}.portal-invoice-patient strong{color:var(--patient-text);font-size:.72rem}.portal-invoice-table-wrap{overflow-x:auto;border:1px solid var(--patient-border);border-radius:8px}.portal-invoice-table{width:100%;border-collapse:collapse;font-size:.68rem}.portal-invoice-table th{padding:11px 14px;background:#f8fafc;color:#64748b;font-size:.58rem;letter-spacing:.04em;text-align:left;text-transform:uppercase}.portal-invoice-table th:nth-last-child(-n+3),.portal-invoice-table td:nth-last-child(-n+3){text-align:right}.portal-invoice-table td{padding:12px 14px;border-top:1px solid var(--patient-border);color:#475569}.portal-invoice-table td strong{color:var(--patient-text)}.portal-invoice-financials{display:flex;justify-content:flex-end;padding-top:2px}.portal-invoice-financials dl{width:min(100%,560px)}.portal-invoice-payments{display:grid;gap:0;border:1px solid var(--patient-border);border-radius:8px;overflow:hidden}.portal-invoice-payments h3{margin:0;padding:11px 13px;background:#f8fafc;color:var(--patient-text);font-size:.72rem}.portal-invoice-payments>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border-top:1px solid var(--patient-border);font-size:.68rem}.portal-invoice-payments>div>span{display:grid;gap:2px}.portal-invoice-payments small{color:var(--patient-muted);font-size:.6rem}.portal-invoice-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:2px}.portal-invoice-actions button{display:inline-flex;width:126px;height:36px;align-items:center;justify-content:center;gap:6px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;padding:0 12px;color:#475569;font-size:.68rem;font-weight:800;line-height:1;cursor:pointer}.portal-invoice-actions button:hover{border-color:#93c5fd;background:#f8fbff}.portal-invoice-actions .portal-invoice-download{border-color:var(--patient-primary);background:var(--patient-primary);color:#fff}.portal-invoice-actions .portal-invoice-download:hover{border-color:#1d4ed8;background:#1d4ed8}.portal-invoice-details>.portal-empty button{margin-top:8px;border:1px solid #bfdbfe;border-radius:7px;background:#fff;padding:8px 12px;color:var(--patient-primary);font-weight:700}
+@media(max-width:760px){.portal-billing-summary{grid-template-columns:1fr}.portal-billing-amounts,.portal-invoice-details dl{grid-template-columns:1fr}.portal-billing-amounts>div,.portal-invoice-details dl>div{padding:10px;border-right:0;border-bottom:1px solid var(--patient-border)}.portal-billing-amounts>div:last-child,.portal-invoice-details dl>div:last-child{border-bottom:0}.portal-billing-card footer{align-items:flex-start;flex-direction:column}.portal-invoice-details{gap:14px;padding:15px 14px 18px}.portal-invoice-patient{grid-template-columns:auto 1fr}.portal-invoice-patient>div:last-child{grid-column:2}.portal-invoice-actions{justify-content:stretch}.portal-invoice-actions button{width:auto;flex:1}}
+.portal-registration-modes>button{display:flex;min-width:0;align-items:center;gap:8px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;text-align:left;cursor:pointer}
+.portal-registration-modes>button.active{border-color:var(--patient-primary);background:var(--patient-blue-soft);box-shadow:0 0 0 2px rgba(37,99,235,.08)}
+.portal-registration-modes i{color:var(--patient-primary);font-size:1rem}.portal-registration-modes span{min-width:0;display:grid;gap:2px}.portal-registration-modes strong{font-size:.66rem}.portal-registration-modes small{color:var(--patient-muted);font-size:.55rem;line-height:1.25}
+.patient-login-registration-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:15px}.patient-login-registration-options>span{grid-column:1/-1;color:var(--patient-muted);font-size:.64rem}.patient-login-registration-options>button{display:grid;gap:2px;padding:9px;border:1px solid #dbe3ee;border-radius:7px;background:#fff;color:#334155;text-align:left;cursor:pointer}.patient-login-registration-options>button:hover{border-color:#93c5fd;background:var(--patient-blue-soft)}.patient-login-registration-options strong{font-size:.61rem}.patient-login-registration-options small{color:var(--patient-muted);font-size:.53rem}
+.portal-form-divider{display:grid;gap:2px;margin-top:5px;padding-top:12px;border-top:1px solid var(--patient-border)}.portal-form-divider strong{font-size:.72rem}.portal-form-divider small{color:var(--patient-muted);font-size:.6rem}
+.patient-inline-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}.patient-inline-fields label{display:grid;gap:5px;color:#334155;font-size:.65rem;font-weight:700}.patient-inline-fields input{min-width:0;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
+.portal-consent{display:flex!important;align-items:flex-start!important;gap:8px!important;color:#475569!important;font-size:.62rem!important;line-height:1.4}.portal-consent input{width:15px!important;height:15px!important;flex:none!important;margin-top:2px!important}
+.portal-onboarding-choice{display:flex;gap:8px;padding:14px 16px 0}.portal-onboarding-choice button{padding:8px 11px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;font-size:.65rem;font-weight:800;cursor:pointer}.portal-onboarding-choice button.active{border-color:var(--patient-primary);background:var(--patient-blue-soft);color:var(--patient-primary)}
+.patient-signup-prompt button{color:var(--patient-primary)}
+.portal-onboarding-intro>span{border-radius:9px;background:var(--patient-blue-soft);color:var(--patient-primary)}
+.portal-onboarding-intro p{color:var(--patient-primary)}
+.portal-onboarding-intro h1{color:var(--patient-text)}
+.portal-onboarding-card{border-color:var(--patient-border);border-radius:9px}
+.portal-form-section{border-bottom-color:var(--patient-border)}
+.portal-form-section-title>span{background:var(--patient-primary)}
+.portal-form-grid input,.portal-form-grid select,.portal-form-grid textarea{border-color:#cbd5e1;color:var(--patient-text)}
+.portal-form-grid input:focus,.portal-form-grid select:focus,.portal-form-grid textarea:focus{border-color:var(--patient-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.portal-form-note{display:flex;align-items:flex-start;gap:7px;margin:12px 0 0;color:var(--patient-muted);font-size:.65rem;line-height:1.45}
+.portal-form-note i{color:var(--patient-primary);font-size:.9rem}
+.portal-profile-grid strong{overflow-wrap:anywhere}
+.portal-form-actions{background:#f8fafc}
+.portal-form-actions button.primary{border-color:var(--patient-primary);background:var(--patient-primary)}
+.portal-form-actions button.primary:hover{border-color:var(--patient-primary-hover);background:var(--patient-primary-hover)}
+.portal-slot-grid button.selected{border-color:var(--patient-primary);background:var(--patient-blue-soft);color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.1)}
+.portal-date-options{margin-bottom:4px}
+
+/* Patient portal dialogs */
+.patient-modal-overlay{
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  overflow:hidden;
+  background:rgba(15,23,42,.58);
+  backdrop-filter:blur(3px);
+}
+.patient-modal-panel{
+  position:relative;
+  width:min(620px,calc(100vw - 48px));
+  max-height:min(88dvh,800px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border:1px solid var(--patient-border);
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 24px 64px rgba(15,23,42,.28);
+}
+.patient-modal-panel.modal-panel--large{width:min(900px,calc(100vw - 48px))}
+.patient-modal-header{
+  position:relative;
+  min-height:72px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex:none;
+  padding:14px 18px;
+  border-bottom:1px solid var(--patient-border);
+  border-radius:0;
+  background:#fff;
+  text-align:left;
+}
+.patient-modal-header>div{display:flex;align-items:center;gap:12px;min-width:0}
+.patient-modal-header>div>span{width:40px;height:40px;display:grid;place-items:center;flex:none;border-radius:8px;background:var(--patient-blue-soft);color:var(--patient-primary);font-size:1.2rem}
+.patient-modal-header h2{margin:0;color:var(--patient-text);font-size:1.25rem;line-height:1.25;letter-spacing:-.015em}
+.patient-modal-header>button{width:36px;height:36px;display:grid;place-items:center;flex:none;border:1px solid var(--patient-border);border-radius:7px;background:#fff;color:#475569;font-size:1rem;cursor:pointer}
+.patient-modal-header>button:hover{border-color:#bfdbfe;background:var(--patient-blue-soft);color:var(--patient-primary)}
+.patient-modal-header>button:focus-visible{outline:3px solid rgba(37,99,235,.18);outline-offset:2px}
+.patient-modal-body{flex:1 1 auto!important;min-height:0;overflow-y:auto!important;padding:0!important;overscroll-behavior:contain;background:#fff}
+.patient-modal-body::-webkit-scrollbar{width:9px}
+.patient-modal-body::-webkit-scrollbar-thumb{border:2px solid #fff;border-radius:999px;background:#cbd5e1}
+.patient-modal-panel .portal-booking-form>section,.patient-modal-panel .portal-form-section{padding:20px 24px;border-bottom:1px solid var(--patient-border);background:#fff}
+.patient-modal-panel .portal-form-section-title{margin-bottom:14px}
+.patient-modal-panel .portal-form-section-title>span{width:30px;height:30px;flex:none;border-radius:8px;background:var(--patient-primary)}
+.patient-modal-panel .portal-form-section-title strong{color:var(--patient-text);font-size:.82rem}
+.patient-modal-panel .portal-form-section-title small{margin-top:2px;color:var(--patient-muted);line-height:1.4}
+.patient-modal-panel .portal-form-grid{gap:14px 16px}
+.patient-modal-panel .portal-form-grid label{color:#334155}
+.patient-modal-panel .portal-form-grid input,.patient-modal-panel .portal-form-grid select,.patient-modal-panel .portal-form-grid textarea{border-color:#cbd5e1;border-radius:7px;background:#fff}
+.patient-modal-panel .portal-slot-area>p{border:1px solid #dbeafe;background:#f8fbff;color:#475569}
+.patient-modal-panel .auth-alert{margin:16px 24px 0}
+.patient-modal-panel .portal-form-actions{
+  position:sticky;
+  z-index:5;
+  bottom:0;
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin:0;
+  padding:10px 18px;
+  border-top:1px solid var(--patient-border);
+  background:#f8fafc;
+  box-shadow:0 -8px 20px rgba(15,23,42,.04);
+}
+.patient-modal-panel .portal-form-actions button{
+  width:auto;
+  min-height:36px;
+  flex:0 0 auto;
+  padding:7px 12px;
+  border-radius:6px;
+  font-size:.74rem;
+  font-weight:750;
+  line-height:1;
+}
+.patient-modal-panel .portal-form-actions button.primary{box-shadow:0 4px 10px rgba(37,99,235,.16)}
+
+@media(max-width:1100px){
+  .hospital-header{grid-template-columns:auto minmax(190px,1fr) auto}
+  .hospital-global-search{max-width:360px;justify-self:end}
+}
+
+@media(max-width:760px){
+  .hospital-header{grid-template-columns:auto minmax(110px,1fr) auto;gap:.45rem}
+  .hospital-global-search{max-width:none}
+  .hospital-global-search>form{height:38px}
+  .hospital-global-results{position:fixed;top:66px;right:8px;left:8px;width:auto;max-height:calc(100vh - 82px)}
+  .hospital-section-actions{width:100%;align-items:stretch;flex-direction:column}
+  .hospital-catalogue-search{width:100%;min-width:0}
+  .hospital-section-actions>button{align-self:flex-end}
+  .hospital-branch-select{display:none}
+  .hospital-location-grid{grid-template-columns:1fr}
+  .portal-dependent-actions{width:100%;align-items:stretch;flex-direction:column}
+  .portal-dependent-actions button{width:100%}
+  .patient-modal-overlay{align-items:flex-end;padding:0;background:rgba(15,23,42,.62)}
+  .patient-modal-panel,.patient-modal-panel.modal-panel--large{width:100%;max-height:94dvh;border-radius:14px 14px 0 0}
+  .patient-modal-header{min-height:64px;padding:12px 14px}
+  .patient-modal-header h2{font-size:1.08rem}
+  .patient-modal-panel .portal-booking-form>section,.patient-modal-panel .portal-form-section{padding:18px 16px}
+  .patient-modal-panel .portal-form-actions{padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+  .patient-modal-panel .portal-form-actions button{min-height:38px;flex:0 0 auto;font-size:.76rem}
+}

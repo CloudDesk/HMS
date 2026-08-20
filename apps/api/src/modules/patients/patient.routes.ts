@@ -11,6 +11,7 @@ import {
   listPatientsQuerySchema,
   patientDocumentIdParamsSchema,
   patientIdParamsSchema,
+  reviewPatientDocumentBodySchema,
   updatePatientBodySchema,
 } from './patient.schemas.js';
 import type {
@@ -19,6 +20,7 @@ import type {
   PatientConsentStatus,
   PatientListQuery,
   PatientTimelineListQuery,
+  ReviewPatientDocumentDTO,
   UpdatePatientDTO,
 } from './patient.types.js';
 
@@ -280,6 +282,23 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         .header('content-disposition', `attachment; filename="${safeDownloadFileName(download.document.file_name)}"`)
         .send(download.data);
     },
+  );
+
+  app.patch<{ Params: PatientDocumentIdParams; Body: ReviewPatientDocumentDTO }>(
+    '/api/patients/:id/documents/:documentId/review',
+    {
+      preHandler: requirePermission(services, 'Patients', 'Patient Documents', 'Edit'),
+      schema: {
+        params: patientDocumentIdParamsSchema,
+        body: reviewPatientDocumentBodySchema,
+      },
+    },
+    async (request) => ok(await services.patients.reviewDocument(
+      request.params.id,
+      request.params.documentId,
+      request.body,
+      request.user!.id,
+    )),
   );
 
   app.delete<{ Params: PatientDocumentIdParams }>(

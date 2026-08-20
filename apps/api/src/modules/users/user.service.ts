@@ -1,4 +1,5 @@
 import { env } from '../../config/env.js';
+import { randomUUID } from 'node:crypto';
 import { AppError } from '../../shared/errors/app-error.js';
 import { hashPassword, verifyPassword } from '../../shared/security/hash.js';
 import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
@@ -11,6 +12,8 @@ import type {
   RequestMetadata,
   UserListQuery,
   ProvisionDoctorAccountInput,
+  ProvisionPatientAccountInput,
+  RegisterPortalAccountInput,
   UserRecord,
   UserResponse,
   UserStatus,
@@ -55,6 +58,12 @@ type ResetPasswordInput = {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^\+?[0-9\s().-]{7,20}$/;
+
+const normalizePhone = (value: string) => {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  return trimmed.startsWith('+') ? `+${digits}` : digits;
+};
 
 const normalizeText = (value: string) => value.trim();
 
@@ -211,6 +220,99 @@ export class UserService {
     }, session);
 
     return user;
+  }
+
+  async provisionPatientAccount(
+    input: ProvisionPatientAccountInput,
+    actorUserId: string,
+    metadata: RequestMetadata,
+  ) {
+    const patientRole = await this.roleRepository.findActiveByCode('PATIENT');
+    if (!patientRole) {
+      throw new AppError('Active PATIENT role is required for patient portal provisioning', 409, 'PATIENT_ROLE_NOT_CONFIGURED');
+    }
+
+    const username = normalizeText(input.username);
+    const email = normalizeOptionalText(input.email);
+    const fullName = normalizeText(input.fullName);
+    const employeeCode = normalizeText(input.patientNumber);
+    const phone = normalizeOptionalText(input.phone);
+
+    if (!email || !emailPattern.test(email)) {
+      throw new AppError('A valid patient email is required', 400, 'PATIENT_LOGIN_EMAIL_REQUIRED');
+    }
+    if (!username || !fullName) {
+      throw new AppError('Username and patient name are required', 400, 'PATIENT_ACCOUNT_DETAILS_REQUIRED');
+    }
+    if (await this.repository.findByPatientId(input.patientId)) {
+      throw new AppError('This patient already has a portal account', 409, 'PATIENT_ACCOUNT_EXISTS');
+    }
+
+    assertPasswordPolicy(input.password);
+    await this.assertUniqueFields({ username, email, employeeCode });
+
+    const user = await this.repository.create({
+      employeeCode,
+      username,
+      email,
+      fullName,
+      phone,
+      jobTitle: 'Patient',
+      employeeType: 'Patient',
+      status: 'active',
+      passwordHash: await hashPassword(input.password),
+      actorUserId,
+      roleIds: [patientRole.id],
+      patientId: input.patientId,
+    });
+    await this.repository.replaceAssignments(
+      user.id,
+      input.branchId ? [{ id: input.branchId, isPrimary: true }] : [],
+      [],
+      [patientRole.id],
+    );
+    await this.audit('patient.portal_account.created', actorUserId, user.id, metadata, {
+      patientId: input.patientId,
+    });
+
+    return { id: user.id, username: user.username, email: user.email, status: user.status };
+  }
+
+  async registerPortalAccount(input: RegisterPortalAccountInput, metadata: RequestMetadata) {
+    const role = await this.roleRepository.findActiveByCode(input.accountType);
+    if (!role) {
+      throw new AppError(`Active ${input.accountType} role is required for portal registration`, 409, 'PORTAL_ROLE_NOT_CONFIGURED');
+    }
+
+    const fullName = normalizeText(input.fullName);
+    const email = normalizeText(input.email).toLowerCase();
+    const phone = normalizePhone(input.phone);
+    if (!fullName) throw new AppError('Full name is required', 400, 'FULL_NAME_REQUIRED');
+    if (!emailPattern.test(email)) throw new AppError('Email format is invalid', 400, 'INVALID_EMAIL');
+    if (!phonePattern.test(input.phone) || phone.length < 7) throw new AppError('Mobile number is invalid', 400, 'INVALID_PHONE');
+    assertPasswordPolicy(input.password);
+    await this.assertUniqueFields({ username: email, email, phone });
+
+    const user = await this.repository.create({
+      employeeCode: `PORTAL-${randomUUID()}`,
+      username: email,
+      email,
+      fullName,
+      phone,
+      jobTitle: input.accountType === 'GUARDIAN' ? 'Patient Guardian' : 'Patient',
+      employeeType: input.accountType === 'GUARDIAN' ? 'Guardian' : 'Patient',
+      status: 'active',
+      passwordHash: await hashPassword(input.password),
+      roleIds: [role.id],
+    });
+    await this.repository.replaceAssignments(user.id, [], [], [role.id]);
+    await this.repository.audit('patient_portal.account.registered', {
+      ...metadata,
+      actorUserId: user.id,
+      subjectUserId: user.id,
+      metadata: { accountType: input.accountType },
+    });
+    return { id: user.id, username: user.username, email: user.email, phone: user.phone, accountType: input.accountType };
   }
 
   async update(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
@@ -464,6 +566,7 @@ export class UserService {
       updatedBy: user.updatedBy,
       deletedBy: user.deletedBy,
       roleIds: user.roleIds,
+      patientId: user.patientId,
       branches: assignments.branchesByUserId.get(user.id) ?? [],
       departments: assignments.departmentsByUserId.get(user.id) ?? [],
       roles: assignments.rolesByUserId.get(user.id) ?? [],
@@ -610,6 +713,7 @@ export class UserService {
   private async assertUniqueFields(input: {
     username?: string;
     email?: string | null;
+    phone?: string | null;
     employeeCode?: string | null;
     excludeUserId?: string;
   }, session?: ClientSession) {
@@ -629,6 +733,10 @@ export class UserService {
 
     if (input.employeeCode && duplicate.employeeCode === input.employeeCode) {
       throw new AppError('Employee code already exists', 409, 'DUPLICATE_EMPLOYEE_CODE');
+    }
+
+    if (input.phone && duplicate.phone === input.phone) {
+      throw new AppError('Mobile number already exists', 409, 'DUPLICATE_PHONE');
     }
   }
 

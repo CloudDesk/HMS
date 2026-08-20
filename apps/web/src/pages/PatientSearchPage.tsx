@@ -140,7 +140,7 @@ export function PatientSearchPage() {
         <div class="avatar">${initials}</div>
         <div class="name-block">
           <div class="name">${fullName}</div>
-          <div class="mrn">MRN-${p.patient_number}</div>
+          <div class="mrn">${p.patient_number}</div>
         </div>
       </div>
       <div class="logo-mark">H</div>
@@ -761,7 +761,7 @@ export function PatientSearchPage() {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(cardPatient)}</div>
-                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>MRN-{cardPatient.patient_number}</span>
+                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>{cardPatient.patient_number}</span>
                   </div>
                 </div>
               </div>

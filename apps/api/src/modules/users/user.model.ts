@@ -18,6 +18,7 @@ export interface IUser extends Document {
   hireDate?: Date;
   profilePhotoUrl?: string;
   address?: string;
+  patientId?: Types.ObjectId | null;
 
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -47,6 +48,7 @@ const userSchema = new Schema<IUser>(
     hireDate: { type: Date },
     profilePhotoUrl: { type: String },
     address: { type: String },
+    patientId: { type: Schema.Types.ObjectId, ref: 'Patient', default: null },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -71,5 +73,9 @@ userSchema.index({ branchIds: 1, deletedAt: 1 });
 userSchema.index({ departmentIds: 1, deletedAt: 1 });
 userSchema.index({ roleIds: 1, deletedAt: 1 });
 userSchema.index({ employeeCode: 1 }, { unique: true, sparse: true });
+userSchema.index(
+  { patientId: 1 },
+  { unique: true, partialFilterExpression: { patientId: { $type: 'objectId' } } },
+);
 
 export const UserModel = mongoose.model<IUser>('User', userSchema);

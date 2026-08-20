@@ -23,6 +23,7 @@ import type { ImagingService } from '../../modules/imaging/imaging.service.js';
 import type { BillingService } from '../../modules/billing/billing.service.js';
 import type { SettingsService } from '../../modules/settings/settings.service.js';
 import type { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
+import type { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -52,4 +53,5 @@ export type ServiceRegistry = {
   imaging: ImagingService;
   billing: BillingService;
   settings: SettingsService;
+  patientPortal: PatientPortalService;
 };

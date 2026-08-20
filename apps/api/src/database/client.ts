@@ -5,9 +5,11 @@ import { env } from '../config/env.js';
 let isConnected = false;
 
 export const connectDatabase = async () => {
-  if (isConnected) {
+  if (isConnected && mongoose.connection.readyState === 1) {
     return;
   }
+
+  isConnected = false;
 
   try {
     if (env.database.dnsServers.length > 0) {
@@ -20,19 +22,16 @@ export const connectDatabase = async () => {
     });
 
     isConnected = mongoose.connection.readyState === 1;
-    console.log('MongoDB connected successfully');
   } catch (error) {
-    console.error('Failed to connect to MongoDB', error);
-    process.exit(1);
+    throw error;
   }
 };
 
 export const closeDatabase = async () => {
-  if (!isConnected) {
+  if (!isConnected && mongoose.connection.readyState === 0) {
     return;
   }
 
   await mongoose.connection.close();
   isConnected = false;
-  console.log('MongoDB connection closed');
 };

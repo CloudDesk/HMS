@@ -21,6 +21,11 @@ type LoginInput = {
   password: string;
 };
 
+type PatientOtpLoginInput = {
+  phone: string;
+  otp: string;
+};
+
 type RefreshInput = {
   refreshToken: string;
 };
@@ -52,6 +57,7 @@ const toAuthUser = (user: AuthUserRecord): AuthenticatedUser => ({
   fullName: user.fullName,
   email: user.email,
   status: user.status,
+  patientId: user.patientId,
 });
 
 const isLocked = (user: AuthUserRecord) =>
@@ -134,6 +140,62 @@ export class AuthService {
       user: await this.publicUser(freshUser),
       tokens,
     };
+  }
+
+  isPatientDemoOtp(otp: string) {
+    return otp === env.auth.patientPortalDemoOtp;
+  }
+
+  async loginPatientWithOtp(input: PatientOtpLoginInput, metadata: RequestMetadata) {
+    const invalidCredentials = () => new AppError(
+      'Invalid mobile number or verification code',
+      401,
+      'INVALID_CREDENTIALS',
+    );
+    const user = await this.repository.findUserByIdentifier(input.phone);
+
+    if (!user || input.otp !== env.auth.patientPortalDemoOtp) {
+      await this.repository.audit('auth.patient_otp.failed', {
+        ...metadata,
+        subjectUserId: user?.id,
+        metadata: { reason: user ? 'invalid_otp' : 'unknown_phone' },
+      });
+      throw invalidCredentials();
+    }
+
+    if (user.status === 'inactive' || isLocked(user)) {
+      await this.repository.audit('auth.patient_otp.denied', {
+        ...metadata,
+        subjectUserId: user.id,
+        metadata: { reason: user.status === 'inactive' ? 'inactive_user' : 'locked_user' },
+      });
+      throw invalidCredentials();
+    }
+
+    const publicUser = await this.publicUser(user);
+    const isPatientPortalUser = Boolean(
+      user.patientId || publicUser.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'),
+    );
+    if (!isPatientPortalUser) {
+      await this.repository.audit('auth.patient_otp.denied', {
+        ...metadata,
+        subjectUserId: user.id,
+        metadata: { reason: 'not_patient_portal_user' },
+      });
+      throw invalidCredentials();
+    }
+
+    await this.repository.clearFailedLogin(user.id);
+    const freshUser = (await this.repository.findUserById(user.id)) ?? user;
+    const tokens = await this.issueTokenPair(freshUser);
+
+    await this.repository.audit('auth.patient_otp.succeeded', {
+      ...metadata,
+      actorUserId: user.id,
+      subjectUserId: user.id,
+    });
+
+    return { user: await this.publicUser(freshUser), tokens };
   }
 
   async refresh(input: RefreshInput, metadata: RequestMetadata) {

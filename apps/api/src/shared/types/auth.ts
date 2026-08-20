@@ -4,4 +4,5 @@ export type AuthenticatedUser = {
   fullName: string;
   email: string | null;
   status: 'active' | 'inactive' | 'locked';
+  patientId: string | null;
 };

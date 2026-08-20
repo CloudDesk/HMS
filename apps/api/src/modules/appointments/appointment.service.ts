@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { env } from '../../config/env.js';
 import type { Doctor, DoctorAvailabilityDay } from '../doctors/doctor.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
@@ -10,6 +11,7 @@ import type {
   Appointment,
   AppointmentListQuery,
   CreateAppointmentDTO,
+  PortalRescheduleAppointmentDTO,
   UpdateAppointmentDTO,
   UpdateAppointmentStatusDTO,
 } from './appointment.types.js';
@@ -67,9 +69,20 @@ const parseDateOnly = (value: string) => {
   return date;
 };
 
-const todayUtc = () => {
+const todayDateOnly = () => {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+};
+
+const appointmentStart = (appointment: Appointment) => {
+  const [hours = 0, minutes = 0] = appointment.start_time.split(':').map(Number);
+  return new Date(
+    appointment.appointment_date.getUTCFullYear(),
+    appointment.appointment_date.getUTCMonth(),
+    appointment.appointment_date.getUTCDate(),
+    hours,
+    minutes,
+  );
 };
 
 const createAppointmentNumber = (sequence: number) => {
@@ -89,6 +102,7 @@ export class AppointmentService {
   ) {}
 
   async list(query: AppointmentListQuery, userId?: string) {
+    await this.reconcilePastAppointments();
     this.validateListQuery(query);
     const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
     return this.repository.list(this.normalizeListDates(query), scope);
@@ -106,13 +120,118 @@ export class AppointmentService {
   }
 
   async create(data: CreateAppointmentDTO, userId: string) {
+    return this.createInternal(data, userId, true);
+  }
+
+  async createForPortal(data: CreateAppointmentDTO, userId: string) {
+    return this.createInternal(data, userId, false);
+  }
+
+  async getForPortal(id: string) {
+    this.validateId(id, 'Appointment id is invalid');
+    const appointment = await this.repository.getById(id);
+    if (!appointment) throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+    return appointment;
+  }
+
+  getPortalRescheduleEligibility(appointment: Appointment) {
+    if (!env.patientPortal.rescheduleAllowedStatuses.includes(appointment.status)) {
+      return {
+        eligible: false,
+        reason: `Appointments with status ${appointment.status.toLowerCase().replaceAll('_', ' ')} cannot be rescheduled.`,
+        minimum_notice_hours: env.patientPortal.rescheduleMinimumHours,
+      };
+    }
+    if (['NO_SHOW', 'SKIPPED'].includes(appointment.status)) {
+      return { eligible: true, reason: null, minimum_notice_hours: env.patientPortal.rescheduleMinimumHours };
+    }
+    if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
+      return {
+        eligible: false,
+        reason: appointment.status === 'CHECKED_IN'
+          ? 'Checked-in appointments must be completed by hospital staff.'
+          : `Appointments with status ${appointment.status.toLowerCase().replaceAll('_', ' ')} cannot be rescheduled.`,
+        minimum_notice_hours: env.patientPortal.rescheduleMinimumHours,
+      };
+    }
+    const remainingHours = (appointmentStart(appointment).getTime() - Date.now()) / 3_600_000;
+    if (remainingHours < env.patientPortal.rescheduleMinimumHours) {
+      return {
+        eligible: false,
+        reason: `Appointments can be rescheduled at least ${env.patientPortal.rescheduleMinimumHours} hours before the start time.`,
+        minimum_notice_hours: env.patientPortal.rescheduleMinimumHours,
+      };
+    }
+    return { eligible: true, reason: null, minimum_notice_hours: env.patientPortal.rescheduleMinimumHours };
+  }
+
+  async rescheduleForPortal(id: string, data: PortalRescheduleAppointmentDTO, userId: string) {
+    const original = await this.getForPortal(id);
+    const eligibility = this.getPortalRescheduleEligibility(original);
+    if (!eligibility.eligible) {
+      throw new AppError(eligibility.reason ?? 'Appointment cannot be rescheduled', 409, 'RESCHEDULE_NOT_ALLOWED');
+    }
     const appointmentDate = this.validateAppointmentDate(data.appointment_date);
     const endTime = this.validateAppointmentWindow(data.start_time, data.duration_minutes);
+    this.validateAppointmentStart(appointmentDate, data.start_time);
+    const doctor = await this.getActiveDoctor(data.doctor_id);
+    await this.validateDoctorAvailability(doctor, appointmentDate, data.start_time, endTime, data.duration_minutes);
+    await this.validateDoctorConflict(doctor.id, appointmentDate, data.start_time, endTime, original.id);
+    await this.validatePatientConflict(original.patient_id, appointmentDate, data.start_time, endTime, original.id);
+    const sequence = await this.repository.nextAppointmentSequence();
+    return this.repository.rescheduleAtomically(original, {
+      patient_id: original.patient_id,
+      doctor_id: doctor.id,
+      start_time: data.start_time,
+      duration_minutes: data.duration_minutes,
+      visit_type: original.visit_type,
+      priority: original.priority,
+      reason: original.reason,
+      notes: null,
+      appointmentNumber: createAppointmentNumber(sequence),
+      patientNumber: original.patient_number,
+      patientName: original.patient_name,
+      doctorName: doctor.display_name,
+      doctorSpecialization: doctor.specialization,
+      branchId: doctor.branch_id,
+      departmentId: doctor.department_id,
+      appointmentDate,
+      endTime,
+    }, userId);
+  }
+
+  async reconcilePastAppointments(patientId?: string) {
+    const appointments = await this.repository.listPastOpen(patientId);
+    for (const appointment of appointments) {
+      const visit = await this.opdVisitRepository.findByAppointmentId(appointment.id);
+      let nextStatus: Appointment['status'];
+      if (visit?.status === 'COMPLETED') nextStatus = 'COMPLETED';
+      else if (visit?.status === 'NO_SHOW') nextStatus = 'NO_SHOW';
+      else if (visit?.status === 'IN_CONSULTATION') continue;
+      else if (visit && ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'SKIPPED', 'CANCELLED'].includes(visit.status)) {
+        if (visit.status !== 'SKIPPED' && visit.status !== 'CANCELLED') {
+          await this.opdVisitRepository.markSkippedBySystem(visit.id);
+        }
+        nextStatus = 'SKIPPED';
+      } else {
+        nextStatus = 'NO_SHOW';
+      }
+      const updated = await this.repository.updateStatusBySystem(appointment.id, nextStatus);
+      if (updated && updated.status !== appointment.status) {
+        await this.repository.auditSystemStatusTransition(updated, appointment.status);
+      }
+    }
+  }
+
+  private async createInternal(data: CreateAppointmentDTO, userId: string, enforceBranchScope: boolean) {
+    const appointmentDate = this.validateAppointmentDate(data.appointment_date);
+    const endTime = this.validateAppointmentWindow(data.start_time, data.duration_minutes);
+    this.validateAppointmentStart(appointmentDate, data.start_time);
     const [patient, doctor] = await Promise.all([
       this.getActivePatient(data.patient_id),
       this.getActiveDoctor(data.doctor_id),
     ]);
-    await this.repository.resolveBranchScope(userId, doctor.branch_id);
+    if (enforceBranchScope) await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
     await this.validateDoctorAvailability(doctor, appointmentDate, data.start_time, endTime, data.duration_minutes);
     await this.validateDoctorConflict(doctor.id, appointmentDate, data.start_time, endTime);
@@ -287,7 +406,7 @@ export class AppointmentService {
       throw new AppError('Appointment date is invalid', 400, 'VALIDATION_ERROR');
     }
 
-    if (appointmentDate < todayUtc()) {
+    if (appointmentDate < todayDateOnly()) {
       throw new AppError('Appointment date cannot be in the past', 400, 'PAST_APPOINTMENT_DATE');
     }
 
@@ -309,6 +428,20 @@ export class AppointmentService {
     }
 
     return toTime(endMinutes);
+  }
+
+  private validateAppointmentStart(appointmentDate: Date, startTime: string) {
+    const [hours = 0, minutes = 0] = startTime.split(':').map(Number);
+    const start = new Date(
+      appointmentDate.getUTCFullYear(),
+      appointmentDate.getUTCMonth(),
+      appointmentDate.getUTCDate(),
+      hours,
+      minutes,
+    );
+    if (start.getTime() <= Date.now()) {
+      throw new AppError('Appointment start time must be in the future', 400, 'PAST_APPOINTMENT_TIME');
+    }
   }
 
   private async validateDoctorAvailability(

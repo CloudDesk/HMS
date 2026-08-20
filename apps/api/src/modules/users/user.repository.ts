@@ -36,6 +36,7 @@ const mapUser = (user: any): UserRecord => ({
   updatedBy: user.updatedBy?.toString() ?? null,
   deletedBy: user.deletedBy?.toString() ?? null,
   roleIds: (user.roleIds ?? []).map((id: unknown) => String(id)),
+  patientId: user.patientId?.toString() ?? null,
 });
 
 export class UserRepository {
@@ -49,9 +50,15 @@ export class UserRepository {
     return user?.passwordHash ?? null;
   }
 
+  async findByPatientId(patientId: string) {
+    const user = await UserModel.findOne({ patientId, deletedAt: null }).lean();
+    return user ? mapUser(user) : null;
+  }
+
   async findByUniqueFields(fields: {
     username?: string;
     email?: string | null;
+    phone?: string | null;
     employeeCode?: string | null;
     excludeUserId?: string;
   }, session?: ClientSession) {
@@ -70,6 +77,9 @@ export class UserRepository {
     }
     if (fields.employeeCode) {
       orConditions.push({ employeeCode: fields.employeeCode });
+    }
+    if (fields.phone) {
+      orConditions.push({ phone: fields.phone });
     }
 
     if (orConditions.length > 0) {
@@ -148,8 +158,9 @@ export class UserRepository {
     address?: string | null;
     status: UserStatus;
     passwordHash: string;
-    actorUserId: string;
+    actorUserId?: string;
     roleIds: string[];
+    patientId?: string | null;
   }, session?: ClientSession) {
     const [user] = await UserModel.create([{
       employeeCode: input.employeeCode,
@@ -165,6 +176,7 @@ export class UserRepository {
       status: input.status,
       passwordHash: input.passwordHash,
       roleIds: input.roleIds,
+      patientId: input.patientId,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
     } as any], session ? { session } : {});
