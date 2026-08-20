@@ -4,6 +4,7 @@ import { SessionExpiredNotice } from '../components/SessionExpiredNotice';
 import { useAuth } from '../auth/useAuth';
 import { appConfig } from '../config';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { authApi } from '../auth/auth-api';
 
 const VERIFIED_MOBILE_KEY = 'hms_patient_verified_mobile';
 
@@ -15,6 +16,15 @@ export function PatientLoginPage() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCountdown]);
   const requestedPath = new URLSearchParams(search).get('return');
   const safeReturnPath = requestedPath?.startsWith('/') && !requestedPath.startsWith('//') ? requestedPath : null;
 
@@ -30,11 +40,39 @@ export function PatientLoginPage() {
     navigate(`/signup?${params.toString()}`);
   };
 
+  const handleResend = async () => {
+    if (resendCountdown > 0 || submitting) return;
+    setError(null);
+    clearAuthError();
+    setSubmitting(true);
+    try {
+      const res = await authApi.requestOtp(phone.trim());
+      const secondsLeft = Math.max(0, Math.ceil((new Date(res.resendAvailableAt).getTime() - Date.now()) / 1000));
+      setResendCountdown(secondsLeft || 60);
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : 'Could not resend verification code. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); clearAuthError(); setError(null);
     if (step === 'phone') {
-      if (phone.trim().replace(/\D/g, '').length < 7) return setError('Enter a valid mobile number.');
-      setStep('otp'); return;
+      const normalizedPhone = phone.trim().replace(/\D/g, '');
+      if (normalizedPhone.length < 7) return setError('Enter a valid mobile number.');
+      setSubmitting(true);
+      try {
+        const res = await authApi.requestOtp(phone.trim());
+        const secondsLeft = Math.max(0, Math.ceil((new Date(res.resendAvailableAt).getTime() - Date.now()) / 1000));
+        setResendCountdown(secondsLeft || 60);
+        setStep('otp');
+      } catch (requestError) {
+        setError(requestError instanceof ApiError ? requestError.message : 'Could not send verification code. Please try again.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
     }
     if (!/^\d{4}$/.test(otp)) return setError('Enter the 4-digit verification code.');
     setSubmitting(true);
@@ -74,7 +112,20 @@ export function PatientLoginPage() {
         <label><span>Mobile number <span className="required-asterisk">*</span></span><div className="patient-login-input"><i className="ph ph-phone" /><input autoComplete="tel" autoFocus name="phone" inputMode="tel" onChange={(event) => setPhone(event.target.value)} placeholder="Enter mobile number" readOnly={step !== 'phone'} value={phone} /></div></label>
         {step === 'otp' ? <label><span>Verification code <span className="required-asterisk">*</span></span><div className="patient-login-input"><i className="ph ph-shield-check" /><input autoComplete="one-time-code" autoFocus inputMode="numeric" maxLength={4} name="otp" onChange={(event) => setOtp(event.target.value.replace(/\D/g, ''))} placeholder="4-digit code" value={otp} /></div></label> : null}
         <button className="patient-login-submit" disabled={submitting} type="submit">{submitting ? 'Checking…' : step === 'phone' ? 'Continue' : 'Verify and continue'}<i className="ph ph-arrow-right" /></button>
-        {step === 'otp' ? <button className="patient-staff-link" onClick={resetNumber} type="button">Change mobile number</button> : null}
+        {step === 'otp' ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+            <button className="patient-staff-link" onClick={resetNumber} type="button" style={{ margin: 0 }}>Change mobile number</button>
+            <button
+              className="patient-staff-link"
+              disabled={resendCountdown > 0 || submitting}
+              onClick={handleResend}
+              type="button"
+              style={{ margin: 0 }}
+            >
+              {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : 'Resend code'}
+            </button>
+          </div>
+        ) : null}
       </form>
       <div className="patient-login-help"><i className="ph ph-info" /><span>Existing patients are linked automatically when one adult record matches. New patients continue to personal information after verification.</span></div>
       {appConfig.staffWebUrl ? <button className="patient-staff-link" onClick={() => window.location.assign(appConfig.staffWebUrl)} type="button">Staff login <i className="ph ph-arrow-up-right" /></button> : null}

@@ -1,6 +1,5 @@
 import { NavLink } from './NavLink';
 import { BranchSelector } from './BranchSelector';
-import { NotificationsMenu } from './NotificationsMenu';
 import { UserMenu } from './UserMenu';
 
 type TopHeaderProps = {

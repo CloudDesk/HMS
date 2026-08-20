@@ -4,7 +4,6 @@ import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
-import { navigate } from '../routing/navigation';
 import { getAppointmentErrorMessage, todayInputValue } from './appointment-utils';
 import {
   appointmentStatusText,
@@ -200,13 +199,7 @@ export function DoctorDashboardPage() {
     setConsultationAppointmentId(startableAppointments[0]?.id ?? '');
   }, [todayAppointments]);
 
-  const openStartConsultation = () => {
-    if (startableAppointments.length === 0) {
-      showToast('No active appointment is available to start consultation.', 'error');
-      return;
-    }
-    setModalOpen(true);
-  };
+
 
   const startConsultation = async (event: FormEvent) => {
     event.preventDefault();

@@ -187,6 +187,32 @@ html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,ca
 .portal-dependent-actions{display:flex;align-items:center;gap:8px}
 .portal-dependent-toolbar .portal-dependent-actions button.secondary{border:1px solid #bfdbfe;background:#fff;color:var(--patient-primary)}
 .portal-dependent-toolbar .portal-dependent-actions button.secondary:hover{background:var(--patient-blue-soft)}
+
+/* ── Appointment toolbar: status filter aligned with tab switcher ── */
+.portal-appointment-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.1rem}
+.portal-appointment-tabs{display:flex;align-items:center;gap:.3rem;background:#f1f5f9;padding:.25rem;border-radius:9px}
+.portal-appointment-tabs button{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .85rem;border:0;border-radius:7px;background:transparent;color:#64748b;font:inherit;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .15s}
+.portal-appointment-tabs button.active{background:#fff;color:var(--patient-primary);box-shadow:0 1px 4px rgba(15,23,42,.08)}
+.portal-appointment-status-filter{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem .65rem .4rem .75rem;border:1px solid var(--patient-border);border-radius:8px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+.portal-appointment-status-filter span{font-size:.68rem;font-weight:700;color:var(--patient-muted);white-space:nowrap}
+.portal-appointment-status-filter select{border:0;outline:0;background:transparent;color:var(--patient-text);font:inherit;font-size:.75rem;font-weight:700;cursor:pointer;min-width:110px}
+
+/* ── Reschedule modal: current appointment card ── */
+.portal-reschedule-current{display:flex;align-items:flex-start;gap:.85rem;margin-bottom:1.25rem;padding:1rem 1.15rem;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff}
+.portal-reschedule-current>i{flex:none;margin-top:.1rem;font-size:1.3rem;color:var(--patient-primary)}
+.portal-reschedule-current>div{display:grid;gap:.3rem}
+.portal-reschedule-current small{font-size:.62rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--patient-primary)}
+.portal-reschedule-current strong{font-size:.85rem;color:var(--patient-text);line-height:1.4}
+.portal-reschedule-current .apt-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.portal-reschedule-current .apt-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .55rem;border-radius:999px;background:rgba(37,99,235,.08);color:var(--patient-primary);font-size:.65rem;font-weight:700}
+.portal-reschedule-current .apt-number{font-size:.64rem;color:#64748b;font-weight:600}
+
+/* ── Viewing patient switcher: polished card style ── */
+.portal-dependent-toolbar{border-color:var(--patient-border);border-radius:10px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+.portal-dependent-toolbar label{gap:.25rem}
+.portal-dependent-toolbar label span{font-size:.6rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--patient-primary)}
+.portal-dependent-toolbar select{min-width:220px;padding:.5rem .75rem;border:1.5px solid #dbeafe;border-radius:8px;background:#fff;color:var(--patient-text);font-size:.82rem;font-weight:700;box-shadow:0 1px 2px rgba(37,99,235,.04)}
+.portal-dependent-toolbar select:focus{border-color:var(--patient-primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
 .portal-welcome p,.portal-page-section>header p,.portal-panel header p{color:var(--patient-primary)}
 .portal-welcome h1,.portal-page-section>header h1{color:var(--patient-text)}
 .portal-welcome>div>span,.portal-page-section>header span{color:var(--patient-muted)}

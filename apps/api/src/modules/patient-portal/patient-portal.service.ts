@@ -9,6 +9,10 @@ import type { UploadPatientDocumentDTO } from '../patients/patient.types.js';
 import type { RequestMetadata } from '../users/user.types.js';
 import type { UserService } from '../users/user.service.js';
 import { PatientPortalRepository } from './patient-portal.repository.js';
+import { createHash, randomInt } from 'node:crypto';
+import { OtpChallengeModel } from './otp-challenge.model.js';
+import type { SmsService } from '../../shared/services/sms.service.js';
+import { env } from '../../config/env.js';
 
 type ProvisionInput = {
   patientId: string;
@@ -87,6 +91,7 @@ export class PatientPortalService {
     private readonly appointments: AppointmentService,
     private readonly doctors: DoctorService,
     private readonly patients: PatientService,
+    private readonly sms: SmsService,
   ) {}
 
   listPublicBranches(query: { page: number; limit: number; search?: string }) {
@@ -408,6 +413,118 @@ export class PatientPortalService {
     }, actorUserId, metadata);
     await this.repository.ensureAccessGrant(account.id, input.patientId, 'SELF');
     return account;
+  }
+
+  private hashOtp(phone: string, otp: string): string {
+    return createHash('sha256')
+      .update(`${phone}:${otp}`)
+      .digest('hex');
+  }
+
+  async requestOtp(phone: string, metadata: RequestMetadata) {
+    const normalizedPhone = phone.replace(/\D/g, '');
+    if (normalizedPhone.length < 7) {
+      throw new AppError('Enter a valid mobile number.', 400, 'VALIDATION_ERROR');
+    }
+
+    const now = new Date();
+    const latestChallenge = await OtpChallengeModel.findOne({ phone: normalizedPhone }).sort({ createdAt: -1 });
+
+    if (latestChallenge && latestChallenge.resendAvailableAt > now) {
+      throw new AppError('Please wait before requesting another verification code.', 429, 'RESEND_COOLDOWN');
+    }
+
+    // Generate a 4-digit code (padded with zeros if needed)
+    const code = randomInt(1000, 10000).toString();
+    const otpHash = this.hashOtp(normalizedPhone, code);
+
+    const challenge = await OtpChallengeModel.create({
+      phone: normalizedPhone,
+      otpHash,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+      resendAvailableAt: new Date(Date.now() + 60 * 1000), // 60 seconds
+      attempts: 0,
+      verifiedAt: null,
+      ipAddress: metadata.ipAddress ?? null,
+      userAgent: metadata.userAgent ?? null,
+    });
+
+    await this.sms.sendSms(
+      phone.trim(),
+      `Your HMS verification code is: ${code}. It is valid for 5 minutes.`
+    );
+
+    return {
+      success: true,
+      resendAvailableAt: challenge.resendAvailableAt,
+    };
+  }
+
+  async verifyOtp(phone: string, otp: string) {
+    const normalizedPhone = phone.replace(/\D/g, '');
+    
+    // Check dev/demo bypass
+    if (env.auth.patientPortalDemoOtp && otp === env.auth.patientPortalDemoOtp && env.app.environment !== 'prod') {
+      return;
+    }
+
+    const now = new Date();
+    const challenge = await OtpChallengeModel.findOne({
+      phone: normalizedPhone,
+      verifiedAt: null,
+      expiresAt: { $gt: now },
+    }).sort({ createdAt: -1 });
+
+    if (!challenge) {
+      throw new AppError('The verification code is invalid or has expired', 400, 'INVALID_OTP');
+    }
+
+    if (challenge.attempts >= 3) {
+      throw new AppError('Too many failed verification attempts. Please request a new code.', 429, 'MAX_ATTEMPTS_EXCEEDED');
+    }
+
+    const incomingHash = this.hashOtp(normalizedPhone, otp);
+    if (challenge.otpHash !== incomingHash) {
+      challenge.attempts += 1;
+      await challenge.save();
+      throw new AppError('The verification code is invalid', 400, 'INVALID_OTP');
+    }
+
+    challenge.verifiedAt = now;
+    await challenge.save();
+  }
+
+  async verifyAndConsumeOtp(phone: string, otp: string) {
+    const normalizedPhone = phone.replace(/\D/g, '');
+    
+    // Check dev/demo bypass
+    if (env.auth.patientPortalDemoOtp && otp === env.auth.patientPortalDemoOtp && env.app.environment !== 'prod') {
+      return;
+    }
+
+    const now = new Date();
+    // Look for a challenge verified within the last 15 minutes
+    const challenge = await OtpChallengeModel.findOne({
+      phone: normalizedPhone,
+      verifiedAt: { $ne: null, $gt: new Date(Date.now() - 15 * 60 * 1000) },
+      expiresAt: { $gt: now },
+    }).sort({ createdAt: -1 });
+
+    if (!challenge) {
+      // Fallback: try to verify it right now (for direct API calls)
+      await this.verifyOtp(phone, otp);
+      return;
+    }
+
+    // Hash and verify to ensure it matches the verified challenge
+    const incomingHash = this.hashOtp(normalizedPhone, otp);
+    if (challenge.otpHash !== incomingHash) {
+      throw new AppError('The verification code is invalid', 400, 'INVALID_OTP');
+    }
+
+    // Consume it by setting verifiedAt to null or expiresAt to now (we set expiresAt to now so it's invalidated)
+    challenge.expiresAt = now;
+    await challenge.save();
   }
 
   private validateOptionalId(value: string | undefined, message: string) {

@@ -361,12 +361,12 @@ export function PatientProfilePage() {
 
   // Pagination & Filter States
   const [timelineData, setTimelineData] = useState<PatientTimelineEventResponse[]>([]);
-  const [timelineMeta, setTimelineMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
+  const [timelineMeta, setTimelineMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
   const [timelineFilters, setTimelineFilters] = useState({ from: '', to: '' });
   const [timelineLoading, setTimelineLoading] = useState(false);
 
   const [visitsData, setVisitsData] = useState<OpdVisitResponse[]>([]);
-  const [visitsMeta, setVisitsMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
+  const [visitsMeta, setVisitsMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
   const [visitsFilters, setVisitsFilters] = useState({ date_from: '', date_to: '' });
   const [visitsLoading, setVisitsLoading] = useState(false);
 
@@ -993,7 +993,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
                     Showing {timelineData.length === 0 ? 0 : (timelineMeta.page - 1) * timelineMeta.limit + 1}-
-                    {Math.min(timelineMeta.page * timelineMeta.limit, (timelineMeta as any).total || 0)} of {(timelineMeta as any).total || 0} events
+                    {Math.min(timelineMeta.page * timelineMeta.limit, timelineMeta.total || 0)} of {timelineMeta.total || 0} events
                   </span>
                   <div className="um-page-controls">
                     <button className="pg-btn" disabled={timelineMeta.page <= 1} onClick={() => setTimelineMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
@@ -1057,7 +1057,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
                     Showing {visitsData.length === 0 ? 0 : (visitsMeta.page - 1) * visitsMeta.limit + 1}-
-                    {Math.min(visitsMeta.page * visitsMeta.limit, (visitsMeta as any).total || 0)} of {(visitsMeta as any).total || 0} visits
+                    {Math.min(visitsMeta.page * visitsMeta.limit, visitsMeta.total || 0)} of {visitsMeta.total || 0} visits
                   </span>
                   <div className="um-page-controls">
                     <button className="pg-btn" disabled={visitsMeta.page <= 1} onClick={() => setVisitsMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">
@@ -1130,7 +1130,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
                     Showing {appointments.length === 0 ? 0 : (appointmentsMeta.page - 1) * appointmentsMeta.limit + 1}-
-                    {Math.min(appointmentsMeta.page * appointmentsMeta.limit, (appointmentsMeta as any).total || 0)} of {(appointmentsMeta as any).total || 0} appointments
+                    {Math.min(appointmentsMeta.page * appointmentsMeta.limit, appointmentsMeta.total || 0)} of {appointmentsMeta.total || 0} appointments
                   </span>
                   <div className="um-page-controls">
                     <button className="pg-btn" disabled={appointmentsMeta.page <= 1} onClick={() => setAppointmentsMeta(prev => ({ ...prev, page: prev.page - 1 }))} type="button">

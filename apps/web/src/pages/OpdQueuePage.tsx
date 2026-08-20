@@ -8,12 +8,10 @@ import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
-  formatVisitDateTime,
   getOpdErrorMessage,
   isActiveVisit,
   opdVisitPriorityLabels,
   opdVisitStatusLabels,
-  opdVisitTypeLabels,
   patientInitials,
   todayInputValue,
   visitPriorityClass,
@@ -91,7 +89,7 @@ export function OpdQueuePage() {
   });
   const [vitalsSubmitting, setVitalsSubmitting] = useState(false);
   const [vitalsError, setVitalsError] = useState('');
-  const [vitalsFieldErrors, setVitalsFieldErrors] = useState<Record<string, string>>({});
+
 
   const openVitalsModal = (visit: OpdVisitResponse) => {
     setVitalsVisit(visit);
@@ -107,7 +105,6 @@ export function OpdQueuePage() {
       notes: '',
     });
     setVitalsError('');
-    setVitalsFieldErrors({});
     setVitalsModalOpen(true);
   };
 
@@ -115,7 +112,6 @@ export function OpdQueuePage() {
     e.preventDefault();
     if (!vitalsVisit) return;
 
-    setVitalsFieldErrors({});
     setVitalsSubmitting(true);
     setVitalsError('');
     try {

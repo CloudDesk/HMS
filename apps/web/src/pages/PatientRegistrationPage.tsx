@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
-import { branchesApi, type BranchResponse } from '../api/branches';
+import { branchesApi } from '../api/branches';
 import {
   patientsApi,
   type ApiPatientGender,
@@ -78,7 +78,7 @@ const nullable = (value: string) => {
 
 const isValidAfricanPhone = (phone: string): boolean => {
   if (!phone || !phone.trim()) return true;
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  const cleaned = phone.replace(/[\s\-()]/g, '');
   return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
 };
 
@@ -144,7 +144,6 @@ function RegistrationSection({ children, description, number, title }: Registrat
 export function PatientRegistrationPage() {
   const { user } = useAuth();
   const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState('');
   const [duplicatePatients, setDuplicatePatients] = useState<PatientResponse[]>([]);
@@ -157,7 +156,6 @@ export function PatientRegistrationPage() {
     branchesApi
       .list({ status: 'ACTIVE', limit: 100 })
       .then((res) => {
-        setBranches(res.data);
         const activeId = localStorage.getItem('activeBranchId');
         const userBranchId = user?.branches?.[0]?.id;
         const targetBranchId = activeId || userBranchId;

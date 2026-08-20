@@ -22,27 +22,6 @@ import {
 type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
 type SortDirection = 'asc' | 'desc';
 
-const buildDashboardUrl = (
-  search: string,
-  status: ApiAppointmentStatus | '',
-  dateFrom: string,
-  dateTo: string,
-  page: number,
-  sortColumn: SortColumn,
-  sortDirection: SortDirection,
-) => {
-  const params = new URLSearchParams();
-  if (search.trim()) params.set('search', search.trim());
-  if (status) params.set('status', status);
-  if (dateFrom) params.set('date_from', dateFrom);
-  if (dateTo) params.set('date_to', dateTo);
-  if (page > 1) params.set('page', String(page));
-  params.set('sortBy', sortColumn);
-  params.set('sortOrder', sortDirection);
-
-  const query = params.toString();
-  return `/appointments${query ? `?${query}` : ''}`;
-};
 
 const countByStatus = (appointments: AppointmentResponse[], status: ApiAppointmentStatus) =>
   appointments.filter((appointment) => appointment.status === status).length;

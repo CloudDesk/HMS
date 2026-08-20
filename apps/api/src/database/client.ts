@@ -11,20 +11,16 @@ export const connectDatabase = async () => {
 
   isConnected = false;
 
-  try {
-    if (env.database.dnsServers.length > 0) {
-      setServers(env.database.dnsServers);
-    }
-
-    await mongoose.connect(env.database.url, {
-      maxPoolSize: env.database.poolSize,
-      serverSelectionTimeoutMS: env.database.connectTimeoutSeconds * 1000,
-    });
-
-    isConnected = mongoose.connection.readyState === 1;
-  } catch (error) {
-    throw error;
+  if (env.database.dnsServers.length > 0) {
+    setServers(env.database.dnsServers);
   }
+
+  await mongoose.connect(env.database.url, {
+    maxPoolSize: env.database.poolSize,
+    serverSelectionTimeoutMS: env.database.connectTimeoutSeconds * 1000,
+  });
+
+  isConnected = mongoose.connection.readyState === 1;
 };
 
 export const closeDatabase = async () => {

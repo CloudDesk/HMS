@@ -66,8 +66,7 @@ export function PatientSearchPage() {
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [columns, setColumns] = useState<ColumnVisibility>(defaultColumns);
 
-  // Actions context menu state
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
 
   // Edit Patient Modal State
   const [editingPatient, setEditingPatient] = useState<PatientResponse | null>(null);
@@ -186,7 +185,6 @@ export function PatientSearchPage() {
       notes: patient.notes ?? '',
     });
     setEditFormError('');
-    setActiveMenuId(null);
   };
 
   const handleSaveEditPatient = async (e: React.FormEvent) => {
@@ -286,7 +284,7 @@ export function PatientSearchPage() {
   };
 
   return (
-    <div className="appointment-page full-height-layout" onClick={() => setActiveMenuId(null)}>
+    <div className="appointment-page full-height-layout">
       {/* Patient Search Form Card (Compact 5 Basic Filters + Advanced Toggle) */}
       <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
         <form

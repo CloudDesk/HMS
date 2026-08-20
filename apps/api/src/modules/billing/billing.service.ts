@@ -286,7 +286,7 @@ export class BillingService {
 
     const batchIds = pharmacyItems.map((item) => item.service_id);
     const batches = await Promise.all(batchIds.map((id) => this.pharmacyInventoryRepository.getBatchById(id)));
-    const batchById = new Map(batches.map((batch) => batch ? [batch._id.toString(), batch as any] : ['', null]));
+    const batchById = new Map(batches.map((batch) => batch ? [batch._id.toString(), batch as unknown as { unitPrice: number; batchNumber: string; medicine?: { name: string } }] : ['', null]));
     if (batchIds.some((id) => !batchById.get(id))) {
       throw new AppError('Every pharmacy invoice item must reference a valid inventory batch', 409, 'INVALID_PHARMACY_BATCH');
     }

@@ -24,6 +24,7 @@ import type { BillingService } from '../../modules/billing/billing.service.js';
 import type { SettingsService } from '../../modules/settings/settings.service.js';
 import type { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
 import type { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
+import type { SmsService } from '../services/sms.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -54,4 +55,5 @@ export type ServiceRegistry = {
   billing: BillingService;
   settings: SettingsService;
   patientPortal: PatientPortalService;
+  sms: SmsService;
 };

@@ -63,6 +63,17 @@ const existingPatientActivationSchema = otpLoginSchema.extend({
 });
 type ExistingPatientActivationBody = z.infer<typeof existingPatientActivationSchema>;
 
+const requestOtpSchema = z.object({
+  phone: z.string().trim().min(7).max(20),
+});
+type RequestOtpBody = z.infer<typeof requestOtpSchema>;
+
+const verifyOtpSchema = z.object({
+  phone: z.string().trim().min(7).max(20),
+  otp: z.string().regex(/^\d{4}$/),
+});
+type VerifyOtpBody = z.infer<typeof verifyOtpSchema>;
+
 const patientProfileSchema = z.object({
   first_name: z.string().trim().min(1).max(100),
   last_name: z.string().trim().min(1).max(100),
@@ -216,10 +227,23 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     return ok(await services.patientPortal.availableSlots(request.params.id, query.date));
   });
 
+  app.post<{ Body: RequestOtpBody }>('/api/patient-portal/otp/request', async (request) => {
+    const parsed = requestOtpSchema.safeParse(request.body);
+    if (!parsed.success) throw new AppError('Enter a valid mobile number', 400, 'VALIDATION_ERROR');
+    return ok(await services.patientPortal.requestOtp(parsed.data.phone, metadataFromRequest(request)));
+  });
+
+  app.post<{ Body: VerifyOtpBody }>('/api/patient-portal/otp/verify', async (request) => {
+    const parsed = verifyOtpSchema.safeParse(request.body);
+    if (!parsed.success) throw new AppError('Enter a valid mobile number and 4-digit code', 400, 'VALIDATION_ERROR');
+    await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp);
+    return ok({ success: true });
+  });
+
   app.post<{ Body: RegisterBody }>('/api/patient-portal/signup', async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Invalid portal registration details', 400, 'VALIDATION_ERROR');
-    if (!services.auth.isPatientDemoOtp(parsed.data.otp)) throw new AppError('Invalid mobile verification code', 401, 'INVALID_CREDENTIALS');
+    await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp);
     const account = await services.patientPortal.register({
       accountType: parsed.data.account_type,
       fullName: parsed.data.full_name,
@@ -238,36 +262,41 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
   app.post<{ Body: OtpLoginBody }>('/api/patient-portal/login/otp', async (request) => {
     const parsed = otpLoginSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid mobile number and 4-digit code', 400, 'VALIDATION_ERROR');
-    if (services.auth.isPatientDemoOtp(parsed.data.otp)) {
-      const status = await services.patientPortal.getUnlinkedPatientLoginStatus(parsed.data.phone);
-      if (status === 'MINOR_REQUIRES_GUARDIAN') {
-        throw new AppError(
-          'This patient is a minor. A parent or guardian account must be linked before signing in.',
-          409,
-          'MINOR_GUARDIAN_ACCOUNT_REQUIRED',
-        );
-      }
-      if (status === 'ACCOUNT_NOT_LINKED') {
-        await services.patientPortal.activateExistingPatientByPhone(parsed.data.phone, metadataFromRequest(request));
-      }
-      if (status === 'MULTIPLE_PATIENT_MATCHES') {
-        throw new AppError(
-          'More than one patient record uses this mobile number. Contact hospital reception to verify and link the correct record.',
-          409,
-          'MULTIPLE_PATIENT_MATCHES',
-        );
-      }
-      if (status === 'NEW_PATIENT_REQUIRES_REGISTRATION') {
-        throw new AppError('No portal account or patient record matches this number. Register as a new patient first.', 409, 'NEW_PATIENT_REQUIRES_REGISTRATION');
-      }
+    
+    const isDemo = services.auth.isPatientDemoOtp(parsed.data.otp);
+    if (!isDemo) {
+      await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp);
     }
+
+    const status = await services.patientPortal.getUnlinkedPatientLoginStatus(parsed.data.phone);
+    if (status === 'MINOR_REQUIRES_GUARDIAN') {
+      throw new AppError(
+        'This patient is a minor. A parent or guardian account must be linked before signing in.',
+        409,
+        'MINOR_GUARDIAN_ACCOUNT_REQUIRED',
+      );
+    }
+    if (status === 'ACCOUNT_NOT_LINKED') {
+      await services.patientPortal.activateExistingPatientByPhone(parsed.data.phone, metadataFromRequest(request));
+    }
+    if (status === 'MULTIPLE_PATIENT_MATCHES') {
+      throw new AppError(
+        'More than one patient record uses this mobile number. Contact hospital reception to verify and link the correct record.',
+        409,
+        'MULTIPLE_PATIENT_MATCHES',
+      );
+    }
+    if (status === 'NEW_PATIENT_REQUIRES_REGISTRATION') {
+      throw new AppError('No portal account or patient record matches this number. Register as a new patient first.', 409, 'NEW_PATIENT_REQUIRES_REGISTRATION');
+    }
+
     return ok(await services.auth.loginPatientWithOtp(parsed.data, metadataFromRequest(request)));
   });
 
   app.post<{ Body: ExistingPatientActivationBody }>('/api/patient-portal/existing-patient/activate', async (request, reply) => {
     const parsed = existingPatientActivationSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid MRN, registered mobile number, date of birth, email and code', 400, 'VALIDATION_ERROR');
-    if (!services.auth.isPatientDemoOtp(parsed.data.otp)) throw new AppError('Invalid verification code', 401, 'INVALID_CREDENTIALS');
+    await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp);
     const result = await services.patientPortal.activateExistingPatient({
       patientNumber: parsed.data.patient_number, phone: parsed.data.phone,
       dateOfBirth: parsed.data.date_of_birth, email: parsed.data.email,
@@ -278,9 +307,7 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
   app.post<{ Body: GuardianActivationBody }>('/api/patient-portal/guardian-activation', async (request) => {
     const parsed = guardianActivationSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter valid parent or guardian details', 400, 'VALIDATION_ERROR');
-    if (!services.auth.isPatientDemoOtp(parsed.data.otp)) {
-      throw new AppError('Invalid mobile number or verification code', 401, 'INVALID_CREDENTIALS');
-    }
+    await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp);
     await services.patientPortal.activateGuardianForMinor({
       fullName: parsed.data.full_name,
       email: parsed.data.email,

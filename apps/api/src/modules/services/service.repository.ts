@@ -76,6 +76,7 @@ export class ServiceRepository {
   async getActiveClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
       status: 'ACTIVE',
       deletedAt: null,
     }).select('_id name serviceType status').lean();
@@ -84,6 +85,7 @@ export class ServiceRepository {
   async getClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
       deletedAt: null,
     }).select('_id name serviceType status').lean();
   }

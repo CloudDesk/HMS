@@ -99,7 +99,19 @@ export function PortalAppointmentRescheduling({ appointment, onSaved, onCancel }
 
   const mutationMessage = mutation.error instanceof ApiError ? mutation.error.message : mutation.error instanceof Error ? mutation.error.message : null;
   return <form className="portal-booking-form" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-    <div className="portal-reschedule-current"><i className="ph ph-calendar-dots" /><div><small>Current appointment</small><strong>{appointment.doctor_name} · {localDateValue(new Date(appointment.appointment_date))} · {appointment.start_time}–{appointment.end_time}</strong><span>{appointment.appointment_number}</span></div></div>
+    <div className="portal-reschedule-current">
+      <i className="ph ph-calendar-blank" />
+      <div>
+        <small>Current appointment</small>
+        <strong>{appointment.doctor_name}</strong>
+        <div className="apt-meta">
+          <span className="apt-chip"><i className="ph ph-calendar" />{localDateValue(new Date(appointment.appointment_date))}</span>
+          <span className="apt-chip"><i className="ph ph-clock" />{appointment.start_time}–{appointment.end_time}</span>
+          {appointment.branch ? <span className="apt-chip"><i className="ph ph-map-pin" />{appointment.branch.name}</span> : null}
+          <span className="apt-number">{appointment.appointment_number}</span>
+        </div>
+      </div>
+    </div>
     <section><div className="portal-form-section-title"><span>1</span><div><strong>Choose the new care location</strong><small>You may keep the same doctor or choose another available doctor.</small></div></div><div className="portal-form-grid">
       <label><span>Branch <b>*</b></span><select {...form.register('branch_id', { onChange: () => { form.setValue('department_id', ''); form.setValue('doctor_id', ''); form.setValue('appointment_date', ''); } })}><option value="">Select a branch</option>{branches.data?.data.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label><span>Department <b>*</b></span><select disabled={!branchId || departments.isLoading} {...form.register('department_id', { onChange: () => { form.setValue('doctor_id', ''); form.setValue('appointment_date', ''); } })}><option value="">Select a department</option>{departments.data?.data.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>

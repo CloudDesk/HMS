@@ -119,6 +119,11 @@ export const env = {
       2,
     ),
   },
+  sms: {
+    provider: process.env.SMS_GATEWAY_PROVIDER ?? 'MOCK',
+    url: process.env.SMS_GATEWAY_URL ?? '',
+    apiKey: process.env.SMS_GATEWAY_API_KEY ?? '',
+  },
 } as const;
 
 if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {

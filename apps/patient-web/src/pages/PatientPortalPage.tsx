@@ -45,6 +45,12 @@ const label = (value: string) =>
     .join(' ');
 const fullName = (patient: { first_name: string; middle_name: string | null; last_name: string }) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
+const relationshipTag = (relationship: string) => {
+  if (relationship === 'SELF') return 'Self';
+  if (relationship === 'PARENT') return 'My child';
+  if (relationship === 'LEGAL_GUARDIAN') return 'Under my care';
+  return label(relationship);
+};
 const ageOnDate = (value: string) => {
   const birthDate = new Date(value);
   const today = new Date();
@@ -446,12 +452,47 @@ export function PatientPortalPage() {
           ))}
         </nav>
         <div className="patient-portal-account">
-          <div className="patient-avatar">{initials}</div>
-          <div>
-            <strong>
-              {patient.first_name} {patient.last_name}
-            </strong>
-            <small>MRN {patient.patient_number}</small>
+          <div
+            className="patient-portal-profile-trigger"
+            onClick={() => setTab('profile')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTab('profile'); } }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.65rem',
+              cursor: 'pointer',
+            }}
+          >
+            <div className="patient-avatar">{initials}</div>
+            <div style={{ display: 'grid', maxWidth: '160px' }}>
+              <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {patient.first_name} {patient.last_name}
+              </strong>
+              <small>{patient.patient_number}</small>
+              {portalContext.account.type === 'GUARDIAN' && selectedPatientContext ? (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  marginTop: '0.2rem',
+                  padding: '0.1rem 0.45rem',
+                  borderRadius: '999px',
+                  background: 'var(--patient-blue-soft)',
+                  color: 'var(--patient-primary)',
+                  fontSize: '0.6rem',
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%',
+                }}>
+                  <i className="ph ph-eye" style={{ fontSize: '0.7rem', flex: 'none' }} />
+                  {selectedPatientContext.full_name} · {relationshipTag(selectedPatientContext.relationship)}
+                </span>
+              ) : null}
+            </div>
           </div>
           <button
             aria-label="Sign out"
@@ -478,7 +519,7 @@ export function PatientPortalPage() {
               >
                 {portalContext.patients.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.full_name} · {label(item.relationship)}
+                    {item.full_name} · {relationshipTag(item.relationship)}
                   </option>
                 ))}
               </select>
@@ -710,7 +751,21 @@ export function PatientPortalPage() {
                 <button aria-selected={appointmentScope === 'upcoming'} className={appointmentScope === 'upcoming' ? 'active' : ''} onClick={() => { setAppointmentScope('upcoming'); setAppointmentStatus(''); }} role="tab" type="button"><i className="ph ph-calendar-check" /> Upcoming</button>
                 <button aria-selected={appointmentScope === 'past'} className={appointmentScope === 'past' ? 'active' : ''} onClick={() => { setAppointmentScope('past'); setAppointmentStatus(''); }} role="tab" type="button"><i className="ph ph-clock-counter-clockwise" /> Past & history</button>
               </div>
-              <label><span>Status</span><select onChange={(event) => setAppointmentStatus(event.target.value as PortalAppointment['status'] | '')} value={appointmentStatus}><option value="">All statuses</option>{(appointmentScope === 'upcoming' ? ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] : ['COMPLETED', 'NO_SHOW', 'SKIPPED', 'RESCHEDULED', 'CANCELLED']).map((status) => <option key={status} value={status}>{label(status)}</option>)}</select></label>
+              <div className="portal-appointment-status-filter">
+                <span>Status</span>
+                <select
+                  onChange={(event) => setAppointmentStatus(event.target.value as PortalAppointment['status'] | '')}
+                  value={appointmentStatus}
+                >
+                  <option value="">All statuses</option>
+                  {(appointmentScope === 'upcoming'
+                    ? ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN']
+                    : ['COMPLETED', 'NO_SHOW', 'SKIPPED', 'RESCHEDULED', 'CANCELLED']
+                  ).map((status) => (
+                    <option key={status} value={status}>{label(status)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="portal-list-panel">
               {appointmentsQuery.isLoading ? <div className="portal-empty"><div className="portal-spinner" /><strong>Loading appointments…</strong></div> : appointmentsQuery.isError ? <div className="portal-empty"><i className="ph ph-warning-circle" /><strong>Appointments could not be loaded</strong><button onClick={() => void appointmentsQuery.refetch()} type="button">Try again</button></div> : appointmentsQuery.data?.data.length ? (
@@ -1076,7 +1131,7 @@ export function PatientPortalPage() {
                 <div className="patient-avatar large">{initials}</div>
                 <div>
                   <h2>{fullName(patient)}</h2>
-                  <span>MRN {patient.patient_number}</span>
+                  <span>{patient.patient_number}</span>
                 </div>
                 <span className="portal-status confirmed">Active patient</span>
               </div>
@@ -1309,7 +1364,7 @@ export function PatientPortalPage() {
               <div>
                 <small>{invoiceQuery.data.branch?.name || 'HMS Hospital'}</small>
                 <h2>{invoiceQuery.data.invoice_number}</h2>
-                <span>Issued {date(invoiceQuery.data.invoice_date)} · MRN {invoiceQuery.data.patient?.patient_number || '-'}</span>
+                <span>Issued {date(invoiceQuery.data.invoice_date)} · {invoiceQuery.data.patient?.patient_number || '-'}</span>
               </div>
               <span className={`portal-status ${invoiceQuery.data.status.toLowerCase()}`}>
                 {label(invoiceQuery.data.status)}

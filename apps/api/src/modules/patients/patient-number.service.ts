@@ -20,7 +20,7 @@ export const allocatePatientNumber = async () => {
       const counter = await PatientNumberSequenceModel.findOneAndUpdate(
         { key },
         [{ $set: { value: { $add: [{ $ifNull: ['$value', existingMaximum] }, 1] } } }],
-        { upsert: true, new: true },
+        { upsert: true, new: true, updatePipeline: true },
       ).lean();
       return `HMS-${year}-${String(counter!.value).padStart(6, '0')}`;
     } catch (error) {

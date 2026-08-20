@@ -52,6 +52,7 @@ import { PatientPortalRepository } from '../../modules/patient-portal/patient-po
 import { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
 import { PatientDocumentStorageService } from '../storage/patient-document-storage.service.js';
 import type { ServiceRegistry } from '../types/service-registry.js';
+import { createSmsService } from './sms.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -79,6 +80,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
+  const sms = createSmsService();
   const userService = new UserService(userRepository, roleRepository);
   const appointmentService = new AppointmentService(
     appointmentRepository,
@@ -171,6 +173,7 @@ opdVisits: new OpdVisitService(
       pharmacyInventoryRepository,
     ),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
-    patientPortal: new PatientPortalService(new PatientPortalRepository(), userService, appointmentService, doctorService, patientService),
+    patientPortal: new PatientPortalService(new PatientPortalRepository(), userService, appointmentService, doctorService, patientService, sms),
+    sms,
   };
 };
