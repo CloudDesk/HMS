@@ -49,7 +49,7 @@ const serviceTypeLabels: Record<ApiServiceType, string> = {
 
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const getErrorMessage = (error: any): string => {
+const getErrorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
     if (error.status === 400) return error.message || 'Validation error. Please check your inputs.';
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
@@ -181,7 +181,7 @@ function BranchMultiSelect({
   onChange,
   disabled,
 }: {
-  branches: any[];
+  branches: { id: string; name: string }[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
