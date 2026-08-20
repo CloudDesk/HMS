@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { type ApiAppointmentPriority, type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { useState } from 'react';
+import { type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
+import { navigate } from '../routing/navigation';
 import {
   appointmentPriorityClass,
   appointmentPriorityLabels,
@@ -8,14 +8,8 @@ import {
   appointmentStatusLabels,
   todayInputValue,
 } from './appointment-utils';
-import { useAppointmentQueue } from '../hooks/appointments/useAppointmentQueue';
-import { useDepartmentsList } from '../hooks/departments/useDepartments';
-import { useDoctorsList } from '../hooks/doctors/useDoctors';
-import { useBranchesList } from '../hooks/branches/useBranches';
+import { useAppointmentQueueFeature, type QueueStatusFilter, type QueuePriorityFilter } from '../hooks/appointments/useAppointmentQueueFeature';
 import { toast } from 'sonner';
-
-type QueueStatusFilter = ApiAppointmentStatus | '';
-type QueuePriorityFilter = ApiAppointmentPriority | '';
 
 const waitingStatuses = new Set<ApiAppointmentStatus>(['SCHEDULED', 'CONFIRMED', 'SKIPPED']);
 
@@ -52,48 +46,42 @@ const downloadQueue = (appointments: AppointmentResponse[]) => {
 };
 
 export function AppointmentQueuePage() {
-  const { search } = useAppLocation();
-  const initialParams = new URLSearchParams(search);
-  const [departmentFilter, setDepartmentFilter] = useState(initialParams.get('department_id') ?? '');
-  const [doctorFilter, setDoctorFilter] = useState(initialParams.get('doctor_id') ?? '');
-  const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>((initialParams.get('status') as ApiAppointmentStatus | null) ?? '');
-  const [priorityFilter, setPriorityFilter] = useState<QueuePriorityFilter>(
-    (initialParams.get('priority') as ApiAppointmentPriority | null) ?? '',
-  );
-  const [branchFilter, setBranchFilter] = useState(initialParams.get('branch_id') ?? '');
-  const [queueDate, setQueueDate] = useState(initialParams.get('date') ?? todayInputValue());
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completionNote, setCompletionNote] = useState('');
   const [completionError, setCompletionError] = useState('');
 
-  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 });
-  const { data: docData } = useDoctorsList({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100, sortBy: 'name', sortOrder: 'asc' });
-
-  const departments = deptData?.data || [];
-  const doctors = docData?.data || [];
-  const branches = branchData?.data || [];
-
   const {
-    appointments,
-    loading,
-    loadError,
-    opdLoadError,
-    updating,
-    currentAppointment,
-    nextAppointment,
-    handleCallNext,
-    handleSkip,
-    handleNoShow,
-    handleComplete,
-  } = useAppointmentQueue({
-    department_id: departmentFilter || undefined,
-    doctor_id: doctorFilter || undefined,
-    branch_id: branchFilter || undefined,
-    status: statusFilter || undefined,
-    priority: priorityFilter || undefined,
-    date: queueDate,
-  });
+    state: {
+      departmentFilter,
+      doctorFilter,
+      statusFilter,
+      priorityFilter,
+      branchFilter,
+      queueDate,
+      departments,
+      doctors,
+      branches,
+      appointments,
+      loading,
+      loadError,
+      opdLoadError,
+      updating,
+      currentAppointment,
+      nextAppointment,
+    },
+    actions: {
+      setDepartmentFilter,
+      setDoctorFilter,
+      setStatusFilter,
+      setPriorityFilter,
+      setBranchFilter,
+      setQueueDate,
+      handleCallNext,
+      handleSkip,
+      handleNoShow,
+      handleComplete,
+    }
+  } = useAppointmentQueueFeature();
 
   const currentIndex = currentAppointment ? appointments.findIndex((appointment) => appointment.id === currentAppointment.id) : -1;
   const nextIndex = nextAppointment ? appointments.findIndex((appointment) => appointment.id === nextAppointment.id) : -1;
@@ -108,21 +96,6 @@ export function AppointmentQueuePage() {
           .filter((appointment) => waitingStatuses.has(appointment.status))
           .reduce((total, appointment, index) => total + waitMinutes(appointment, index), 0) / waitingCount,
       );
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (departmentFilter) params.set('department_id', departmentFilter);
-    if (doctorFilter) params.set('doctor_id', doctorFilter);
-    if (statusFilter) params.set('status', statusFilter);
-    if (priorityFilter) params.set('priority', priorityFilter);
-    if (branchFilter) params.set('branch_id', branchFilter);
-    if (queueDate !== todayInputValue()) params.set('date', queueDate);
-    const query = params.toString();
-    const nextUrl = `/appointments/queue${query ? `?${query}` : ''}`;
-    if (window.location.pathname + window.location.search !== nextUrl) {
-      navigate(nextUrl, { replace: true });
-    }
-  }, [branchFilter, departmentFilter, doctorFilter, priorityFilter, queueDate, statusFilter]);
 
   const handleRecall = () => {
     if (!currentAppointment) {

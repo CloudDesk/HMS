@@ -1,40 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  type ApiPatientDocumentType,
-  type PatientDocumentResponse,
-} from '../api/patients';
+import { useRef, useState } from 'react';
+import { type ApiPatientDocumentType } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { navigate, useAppLocation } from '../routing/navigation';
-import { formatDate, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
+import { patientFullName } from './patient-utils';
+import { navigate } from '../routing/navigation';
 import { patientInitials } from './opd-utils';
-import { usePatientsList, usePatientDetails, usePatientDocuments, useUploadPatientDocument, useDeletePatientDocument,
-  useDownloadPatientDocument, useReplacePatientDocument } from '../hooks/patients/usePatients';
 import { toast } from 'sonner';
+import { usePatientDocumentsFeature, type PatientDocumentRecord } from '../hooks/patients/usePatientDocumentsFeature';
 
-type PatientDocumentRecord = {
-  id: string;
-  name: string;
-  type: string;
-  category: string;
-  uploadedBy: string;
-  uploadedDate: string;
-  status: 'Verified' | 'Pending' | 'Rejected';
-  fileName: string;
-  createdAt: string;
-};
 
-const toDocumentRecord = (document: PatientDocumentResponse): PatientDocumentRecord => ({
-  id: document.id,
-  name: document.title || document.file_name,
-  type: document.document_type,
-  category: detectCategoryFromFileName(document.file_name),
-  uploadedBy: document.uploaded_by_name ?? 'Unknown user',
-  uploadedDate: formatDate(document.created_at),
-  status: 'Verified',
-  fileName: document.file_name,
-  createdAt: document.created_at,
-});
 
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -42,15 +16,7 @@ const formatFileSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const detectCategoryFromFileName = (fileName: string): string => {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  if (ext === 'pdf') return 'PDF';
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'Image';
-  if (['doc', 'docx'].includes(ext)) return 'Word';
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'Excel';
-  if (['txt', 'rtf'].includes(ext)) return 'Scanned File';
-  return 'PDF';
-};
+
 
 const getFileIconClass = (fileName: string): string => {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -62,37 +28,25 @@ const getFileIconClass = (fileName: string): string => {
 };
 
 export function PatientDocumentsPage() {
-  const { search } = useAppLocation();
-  const searchPatientId = getPatientIdFromSearch(search);
-
-  const { data: listRes } = usePatientsList({ limit: 50 });
-  const patientList = listRes?.data || [];
-
-  let initialTargetId = searchPatientId;
-  if (!initialTargetId && patientList.length > 0 && patientList[0]) {
-    initialTargetId = patientList[0].id;
-  }
-
-  const [activePatientId, setActivePatientId] = useState<string>(initialTargetId || '');
-      
-  // Sync activePatientId with initialTargetId once loaded
-  useEffect(() => {
-    if (!activePatientId && initialTargetId) {
-      setActivePatientId(initialTargetId);
-    }
-  }, [initialTargetId, activePatientId]);
-
-  const { data: patient, isLoading: loadingPatient } = usePatientDetails(activePatientId);
-  const { data: docsRes, isLoading: loadingDocs, isError, error: docsError } = usePatientDocuments(activePatientId, { limit: 100 });
-
-  const documents = (docsRes?.data || []).map(toDocumentRecord);
-  const loading = loadingPatient || loadingDocs;
-  const loadError = isError ? getPatientErrorMessage(docsError) : '';
-
-  const uploadDoc = useUploadPatientDocument();
-  const deleteDoc = useDeletePatientDocument();
-  const downloadDoc = useDownloadPatientDocument();
-  const replaceDoc = useReplacePatientDocument();
+  const {
+    state: {
+      patient,
+      patientList,
+      activePatientId,
+      documents,
+      loading,
+      loadError,
+    },
+    actions: {
+      handlePatientChange,
+      handleDownloadDocument,
+      handleViewDocument,
+      handleDeleteDocument,
+      handleReplaceFile,
+      handleUploadFiles,
+      detectCategoryFromFileName,
+    },
+  } = usePatientDocumentsFeature();
 
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
@@ -153,91 +107,27 @@ export function PatientDocumentsPage() {
     }
 
     setSubmittingUpload(true);
-    let successCount = 0;
     try {
-      for (let i = 0; i < stagedFiles.length; i++) {
-        const file = stagedFiles[i];
-        if (!file) continue;
-
-        const title = stagedFiles.length > 1 ? `${docName.trim()} (${i + 1})` : docName.trim();
-        await uploadDoc.mutateAsync({
-          id: activePatientId,
-          payload: {
-            document_type: docType,
-            title,
-            file,
-          }
-        });
-        successCount++;
-      }
+      await handleUploadFiles(stagedFiles, docName, docType);
       setUploadModalOpen(false);
       setStagedFiles([]);
       setDocName('');
-      toast.success(`${successCount} document(s) uploaded successfully.`);
-    } catch (error) {
-      toast.error(getPatientErrorMessage(error));
     } finally {
       setSubmittingUpload(false);
     }
   };
 
-  const handleViewDocument = async (doc: PatientDocumentRecord) => {
-    if (!activePatientId) return;
-    try {
-      const download = await downloadDoc.mutateAsync({ patientId: activePatientId, docId: doc.id });
-      const url = URL.createObjectURL(download.blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (error) {
-      toast.error(getPatientErrorMessage(error));
-    }
+  const confirmDeleteDocument = async () => {
+    if (!documentToDelete) return;
+    await handleDeleteDocument(documentToDelete);
+    setDocumentToDelete(null);
   };
 
-  const handleDownloadDocument = async (doc: PatientDocumentRecord) => {
-    if (!activePatientId) return;
-    try {
-      const downloadRes = await downloadDoc.mutateAsync({ patientId: activePatientId, docId: doc.id });
-      const url = URL.createObjectURL(downloadRes.blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = downloadRes.fileName ?? doc.fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`Downloaded ${doc.name}`);
-    } catch (error) {
-      toast.error(getPatientErrorMessage(error));
-    }
-  };
-
-  const handleDeleteDocument = () => {
-    if (!activePatientId || !documentToDelete) return;
-    deleteDoc.mutate({ id: activePatientId, documentId: documentToDelete.id }, {
-      onSuccess: () => {
-        toast.success(`${documentToDelete.name} deleted.`);
-        setDocumentToDelete(null);
-      }
-    });
-  };
-
-  const handleReplaceFile = (file: File | undefined) => {
-    if (!file || !activePatientId || !documentToReplace) return;
-    replaceDoc.mutate({
-      id: activePatientId,
-      documentId: documentToReplace.id,
-      payload: {
-        document_type: documentToReplace.type as ApiPatientDocumentType,
-        title: documentToReplace.name,
-        file,
-      }
-    }, {
-      onSuccess: () => {
-        toast.success(`${documentToReplace.name} replaced successfully.`);
-        setDocumentToReplace(null);
-        if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
-      }
-    });
+  const onFileReplace = async (file: File | undefined) => {
+    if (!file || !documentToReplace) return;
+    await handleReplaceFile(documentToReplace, file);
+    setDocumentToReplace(null);
+    if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
   };
 
   const resetFilters = () => {
@@ -278,12 +168,7 @@ export function PatientDocumentsPage() {
               </label>
               <select
                 id="documents-patient-switcher"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setActivePatientId(e.target.value);
-                    navigate(`/patients/documents?id=${encodeURIComponent(e.target.value)}`);
-                  }
-                }}
+                onChange={(e) => handlePatientChange(e.target.value)}
                 style={{ width: '220px', maxWidth: '220px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', padding: '0.4rem 0.6rem' }}
                 title={patient ? `${patientFullName(patient)} - ${patient.patient_number}` : 'Select Patient'}
                 value={activePatientId}
@@ -307,8 +192,7 @@ export function PatientDocumentsPage() {
                       p.patient_number.toLowerCase().includes(query)
                   );
                   if (matched) {
-                    setActivePatientId(matched.id);
-                    navigate(`/patients/documents?id=${encodeURIComponent(matched.id)}`);
+                    handlePatientChange(matched.id);
                   }
                 }}
                 placeholder="Search patient in-page..."
@@ -646,7 +530,7 @@ export function PatientDocumentsPage() {
       <input
         accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx"
         hidden
-        onChange={(event) => void handleReplaceFile(event.target.files?.[0])}
+        onChange={(event) => void onFileReplace(event.target.files?.[0])}
         ref={replaceFileInputRef}
         type="file"
       />
@@ -654,7 +538,7 @@ export function PatientDocumentsPage() {
         confirmLabel="Delete Document"
         message={`Delete ${documentToDelete?.name ?? 'this document'}? The stored backend file will also be removed.`}
         onCancel={() => setDocumentToDelete(null)}
-        onConfirm={() => void handleDeleteDocument()}
+        onConfirm={() => void confirmDeleteDocument()}
         open={Boolean(documentToDelete)}
         title="Delete Patient Document"
       />

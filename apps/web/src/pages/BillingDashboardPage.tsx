@@ -1,51 +1,17 @@
-import { useMemo, useState } from 'react';
-import { useAuth } from '../auth/useAuth';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { navigate } from '../routing/navigation';
 import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
 import { useCurrencyFormatter } from '../api/useSettings';
-import { useBranchesList } from '../hooks/branches/useBranches';
-import { useBillingInvoices, useBillingSummary } from '../hooks/billing/useBilling';
+import { useBillingDashboardFeature } from '../hooks/billing/useBillingDashboardFeature';
 
 export function BillingDashboardPage() {
   const formatBillingMoney = useCurrencyFormatter();
-  const { user } = useAuth();
-  const location = useAppLocation();
-  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const superAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   
-  const branchesQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }, superAdmin);
-  
-  const branches = superAdmin
-    ? (branchesQuery.data?.data ?? []).map((branch) => ({ id: branch.id, name: branch.name }))
-    : (user?.branches ?? []).map((branch) => ({ id: branch.id, name: branch.name }));
-    
-  const requestedBranch = params.get('branch_id') ?? '';
-  const branchId = branches.some((branch) => branch.id === requestedBranch) ? requestedBranch : '';
-  const hasAction = (action: string) => superAdmin || Boolean(user?.permissions.some((permission) =>
-    permission.module.toLowerCase() === 'billing' &&
-    permission.screen.toLowerCase() === 'invoices' &&
-    permission.action.toLowerCase() === action.toLowerCase()));
-
-  const [selectedBranchId, setSelectedBranchId] = useState(branchId);
-  const effectiveBranchId = selectedBranchId || branchId;
-
-  const summaryQuery = useBillingSummary({ branch_id: effectiveBranchId || undefined });
-  
-  const invoicesQuery = useBillingInvoices({ 
-    branch_id: effectiveBranchId || undefined, 
-    page: 1, 
-    limit: 8, 
-    sortBy: 'created_at', 
-    sortOrder: 'desc' 
-  });
-
-  const summary = summaryQuery.data ?? {
-    total_invoices: 0,
-    billed_amount: 0,
-    collected_amount: 0,
-    outstanding_amount: 0,
-    by_status: { DRAFT: 0, PENDING: 0, PARTIALLY_PAID: 0, PAID: 0, CANCELLED: 0 },
-  };
+  const {
+    state: { effectiveBranchId, summary },
+    capabilities: { canCreate },
+    queries: { branches, summaryQuery, invoicesQuery },
+    actions: { setSelectedBranchId },
+  } = useBillingDashboardFeature();
 
   return <div className="billing-page">
     <div className="billing-page-head">
@@ -56,7 +22,7 @@ export function BillingDashboardPage() {
           {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
         </select>
         <button className="btn-secondary" style={{ cursor: 'default' }} type="button"><i className="ph ph-clock-counter-clockwise" /> History</button>
-        {hasAction('Create') ? <button className="btn-primary" style={{ cursor: 'default' }} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}
+        {canCreate ? <button className="btn-primary" style={{ cursor: 'default' }} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}
       </div>
     </div>
 

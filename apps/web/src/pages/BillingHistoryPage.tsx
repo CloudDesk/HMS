@@ -1,64 +1,21 @@
-import { useMemo, useState } from 'react';
-import type { BillingInvoiceListParams, BillingInvoiceStatus } from '../api/billing';
-import { useAuth } from '../auth/useAuth';
+import { type BillingInvoiceStatus } from '../api/billing';
 import { useCurrencyFormatter } from '../api/useSettings';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { navigate } from '../routing/navigation';
 import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
-import { useBranchesList } from '../hooks/branches/useBranches';
-import { usePatientsList } from '../hooks/patients/usePatients';
-import { useBillingInvoices } from '../hooks/billing/useBilling';
+import { useBillingHistoryFeature } from '../hooks/billing/useBillingHistoryFeature';
 
 const statuses: BillingInvoiceStatus[] = ['DRAFT', 'PENDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'];
 
 export function BillingHistoryPage() {
   const formatBillingMoney = useCurrencyFormatter();
-  const { user } = useAuth();
-  const location = useAppLocation();
-  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const superAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const canCreate = superAdmin || Boolean(user?.permissions.some((permission) =>
-    permission.module.toLowerCase() === 'billing' &&
-    permission.screen.toLowerCase() === 'invoices' &&
-    permission.action.toLowerCase() === 'create'));
-  const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
-  const invoiceNumber = params.get('invoice_number') ?? '';
-  const patientId = params.get('patient_id') ?? '';
-  const status = (params.get('status') ?? '') as BillingInvoiceStatus | '';
-  const dateFrom = params.get('date_from') ?? '';
-  const dateTo = params.get('date_to') ?? '';
-  const branchId = params.get('branch_id') ?? '';
-  const [invoiceInput, setInvoiceInput] = useState(invoiceNumber);
-
-  const branchesQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }, superAdmin);
-  const patientsQuery = usePatientsList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'last_name', sortOrder: 'asc' });
   
-  const branches = superAdmin
-    ? (branchesQuery.data?.data ?? []).map((branch) => ({ id: branch.id, name: branch.name }))
-    : (user?.branches ?? []).map((branch) => ({ id: branch.id, name: branch.name }));
+  const {
+    state: { page, patientId, status, dateFrom, dateTo, branchId, invoiceInput, meta },
+    capabilities: { canCreate },
+    queries: { branches, patientsQuery, invoicesQuery },
+    actions: { setInvoiceInput, updateFilters: update, clearFilters },
+  } = useBillingHistoryFeature();
 
-  const queryParams: BillingInvoiceListParams = {
-    invoice_number: invoiceNumber || undefined,
-    patient_id: patientId || undefined,
-    status: status || undefined,
-    date_from: dateFrom || undefined,
-    date_to: dateTo || undefined,
-    branch_id: branchId || undefined,
-    page,
-    limit: 20,
-    sortBy: 'created_at',
-    sortOrder: 'desc',
-  };
-  const invoicesQuery = useBillingInvoices(queryParams);
-
-  const update = (changes: Record<string, string | number | null>) => {
-    const next = new URLSearchParams(location.search);
-    Object.entries(changes).forEach(([key, value]) => {
-      if (value === null || value === '') next.delete(key); else next.set(key, String(value));
-    });
-    navigate(`/billing/history${next.toString() ? `?${next}` : ''}`, { replace: true });
-  };
-
-  const meta = invoicesQuery.data?.meta ?? { total: 0, page, limit: 20, totalPages: 1 };
   return <div className="billing-page">
     <div className="billing-page-head">
       <div><h2>Billing History</h2><p>Search invoices and review payment status</p></div>
@@ -73,7 +30,7 @@ export function BillingHistoryPage() {
         <label><span>From</span><input max={dateTo || undefined} onChange={(event) => update({ date_from: event.target.value, page: 1 })} type="date" value={dateFrom} /></label>
         <label><span>To</span><input min={dateFrom || undefined} onChange={(event) => update({ date_to: event.target.value, page: 1 })} type="date" value={dateTo} /></label>
         <label><span>Branch</span><select onChange={(event) => update({ branch_id: event.target.value, page: 1 })} value={branchId}><option value="">All accessible branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
-        <div className="billing-filter-actions"><button className="btn-primary" type="submit"><i className="ph ph-magnifying-glass" /> Search</button><button className="btn-secondary" onClick={() => { setInvoiceInput(''); navigate('/billing/history', { replace: true }); }} type="button">Clear</button></div>
+        <div className="billing-filter-actions"><button className="btn-primary" type="submit"><i className="ph ph-magnifying-glass" /> Search</button><button className="btn-secondary" onClick={clearFilters} type="button">Clear</button></div>
       </form>
     </section>
 

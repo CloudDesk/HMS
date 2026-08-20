@@ -7,14 +7,12 @@ import {
   type ApiPatientStatus,
   type PatientResponse,
 } from '../api/patients';
-import { usePatientsList, useUpdatePatient } from '../hooks/patients/usePatients';
+import { usePatientSearchFeature } from '../hooks/patients/usePatientSearchFeature';
 import { Modal } from '../components/ui/Modal';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { patientInitials } from './opd-utils';
 import { formatDate, patientFullName } from './patient-utils';
 
-type SortColumn = 'patient_number' | 'first_name' | 'last_name' | 'created_at';
-type SortDirection = 'asc' | 'desc';
 
 type ColumnVisibility = {
   gender: boolean;
@@ -89,7 +87,6 @@ export function PatientSearchPage() {
     resolver: zodResolver(updatePatientSchema),
   });
 
-  const { mutateAsync: updatePatient } = useUpdatePatient();
 
   const printPatientCard = (p: PatientResponse) => {
     const fullName = patientFullName(p);
@@ -103,7 +100,7 @@ export function PatientSearchPage() {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Patient Card — ${fullName}</title>
+  <title>Patient Card â€” ${fullName}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -142,7 +139,7 @@ export function PatientSearchPage() {
     </div>
     <div class="body-grid">
       <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-value">${dob}</span></div>
-      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs · ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
+      <div class="info-item"><span class="info-label">Age / Gender</span><span class="info-value">${age} yrs Â· ${p.gender.charAt(0) + p.gender.slice(1).toLowerCase()}</span></div>
       <div class="info-item"><span class="info-label">Phone</span><span class="info-value">${p.phone || 'Not recorded'}</span></div>
       <div class="info-item"><span class="info-label">Status</span><span class="info-value status-val">${p.status}</span></div>
       <div class="info-item"><span class="info-label">Registered</span><span class="info-value">${registered}</span></div>
@@ -196,21 +193,7 @@ export function PatientSearchPage() {
     }
   };
 
-  const [sortColumn] = useState<SortColumn | null>('created_at');
-  const [sortDirection] = useState<SortDirection>('desc');
-
-  const { data: patientsList, isLoading: loading, error: loadError } = usePatientsList({
-    search: appliedFilters.searchTerms || undefined,
-    status: appliedFilters.status || undefined,
-    gender: appliedFilters.gender || undefined,
-    page: currentPage,
-    limit: 10,
-    sortBy: sortColumn || undefined,
-    sortOrder: sortColumn ? sortDirection : undefined,
-  });
-
-  const patients = patientsList?.data ?? [];
-  const meta = patientsList?.meta ?? { page: 1, limit: 10, total: 0, totalPages: 1 };
+  const { state: { patients, meta, loading, loadError }, mutations: { updatePatient } } = usePatientSearchFeature({ appliedFilters, currentPage });
 
   const handleApplyFilters = () => {
     setCurrentPage(1);
@@ -510,7 +493,7 @@ export function PatientSearchPage() {
                   const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
 
                   return (
-                    <tr 
+                    <tr
                       key={patient.id}
                       onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
                       style={{ cursor: 'pointer' }}
@@ -536,7 +519,7 @@ export function PatientSearchPage() {
                               patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
                             }`}
                           >
-                            • {patient.status}
+                            â€¢ {patient.status}
                           </span>
                         </td>
                       ) : null}
@@ -560,9 +543,9 @@ export function PatientSearchPage() {
                           >
                             <i className="ph ph-calendar-plus" aria-hidden="true" />
                           </button>
-                          <button 
-                            className="doc-btn" 
-                            onClick={() => setCardPatient(patient)} 
+                          <button
+                            className="doc-btn"
+                            onClick={() => setCardPatient(patient)}
                             type="button"
                             title="View Patient Card"
                             style={{ padding: '0.3rem 0.5rem' }}
@@ -715,7 +698,7 @@ export function PatientSearchPage() {
         ) : null}
       </Modal>
 
-      {/* Print Patient Card — preview modal */}
+      {/* Print Patient Card â€” preview modal */}
       {cardPatient ? (
         <Modal onClose={() => setCardPatient(null)} open={Boolean(cardPatient)} size="default" title="Patient ID Card">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
@@ -745,7 +728,7 @@ export function PatientSearchPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   {([
                     ['Date of Birth', formatDate(cardPatient.date_of_birth)],
-                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs · ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
+                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs Â· ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
                     ['Phone', cardPatient.phone || 'Not recorded'],
                     ['Status', cardPatient.status],
                     ['Registered', formatDate(cardPatient.created_at)],

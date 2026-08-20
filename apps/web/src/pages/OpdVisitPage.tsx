@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  type ApiClinicalOrderPriority,
-} from '../api/opd';
+import { type ApiClinicalOrderPriority } from '../api/opd';
 import { type PatientDocumentResponse } from '../api/patients';
-import { hasPermission } from '../auth/access-control';
-import { useAuth } from '../auth/useAuth';
 import { Toast } from '../components/ui/Toast';
 import {
   OpdConsultationTab,
@@ -14,14 +10,10 @@ import {
   type PrescriptionForm,
   type VitalsForm,
 } from '../components/opd';
-import { useOpdWorkspace } from '../hooks/opd/useOpdWorkspace';
-import { useOpdVisits } from '../hooks/opd/useOpd';
-import { useAppointmentsList } from '../hooks/appointments/useAppointments';
-import { useDoctorAvailableSlots } from '../hooks/doctors/useDoctors';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
+import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage } from './patient-utils';
 import {
-  getOpdErrorMessage,
   opdVisitStatusLabels,
   opdVisitTypeLabels,
   patientInitials,
@@ -45,44 +37,48 @@ const nullableNumber = (value: string | undefined): number | null => {
 };
 
 export function OpdVisitPage() {
-  const { user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const can = (module: string, screen: string, action: string) => isSuperAdmin || hasPermission(
-    user?.permissions ?? [],
-    { module, screen, action },
-  );
-  const canEditConsultation = can('OPD', 'OPD Consultation', 'Edit');
-  const canEditPrescription = can('OPD', 'OPD Prescription', 'Edit');
-  const canEditClinicalOrders = can('OPD', 'OPD Clinical Orders', 'Edit');
-  const canEditReferral = can('OPD', 'OPD Referral', 'Edit');
-  const canEditFollowUp = can('OPD', 'OPD Follow-up', 'Edit');
-  const canBookAppointments = can('Appointments', 'Appointment Booking', 'Create');
-  const canCreateDocuments = can('Patients', 'Patient Documents', 'Create');
-  const canDeleteDocuments = can('Patients', 'Patient Documents', 'Delete');
-  const canCreateVitals = can('OPD', 'OPD Vitals', 'Create');
-  const { search } = useAppLocation();
-  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
-  const visitIdParam = searchParams.get('id') ?? '';
-  const initialTabParam = searchParams.get('tab') ?? 'Consultation';
+  const {
+    state: {
+      activeVisitId,
+      activeTab,
+      recentVisits,
+      workspace,
+      referralSpecialty,
+      referralDoctorId,
+      referralDate,
+      referralTimeSlot,
+      referralReason,
+      uniqueSpecialties,
+      filteredReferralDoctors,
+      referralSlots,
+      referralSlotLoading,
+    },
+    actions: {
+      setReferralSpecialty,
+      setReferralDoctorId,
+      setReferralDate,
+      setReferralTimeSlot,
+      setReferralReason,
+      handleBookReferralAppointment,
+      handleTabChange,
+      handleVisitChange,
+    }
+  } = useOpdVisitFeature();
 
-  // Active visit and selection state
-  const [activeVisitId, setActiveVisitId] = useState(visitIdParam);
-  const workspace = useOpdWorkspace(activeVisitId || null);
-  const recentVisitsQuery = useOpdVisits({ limit: 10, sortBy: 'created_at', sortOrder: 'desc' });
-  const recentVisits = recentVisitsQuery.data?.data ?? [];
+  const {
+    canEditConsultation,
+    canEditPrescription,
+    canEditClinicalOrders,
+    canEditReferral,
+    canEditFollowUp,
+    canBookAppointments,
+    canCreateDocuments,
+    canDeleteDocuments,
+    canCreateVitals,
+  } = workspace;
+
   const visit = workspace.visit;
   const loading = workspace.isLoading;
-
-  // Active Workspace Tab state (1 Consultation to 9 Documents)
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    const tabMatch = WORKSPACE_TABS.find(
-      (t) =>
-        t.name.toLowerCase() === initialTabParam.toLowerCase() ||
-        t.id === initialTabParam ||
-        t.label.toLowerCase().includes(initialTabParam.toLowerCase()),
-    );
-    return tabMatch ? tabMatch.name : 'Consultation';
-  });
 
   const [primaryDiagnosis, setPrimaryDiagnosis] = useState('');
   const [secondaryDiagnosis, setSecondaryDiagnosis] = useState('');
@@ -98,23 +94,9 @@ export function OpdVisitPage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
-  // Referral Tab (Tab 6) State
-  const [referralSpecialty, setReferralSpecialty] = useState('');
-  const [referralDoctorId, setReferralDoctorId] = useState('');
-  const [referralDate, setReferralDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [referralTimeSlot, setReferralTimeSlot] = useState('');
-  const [referralReason, setReferralReason] = useState('');
+  // Follow-up Tab
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpDoctorId, setFollowUpDoctorId] = useState('');
-
-  useEffect(() => {
-    if (!workspace.referral) return;
-    setReferralSpecialty(workspace.referral.specialty ?? '');
-    setReferralDoctorId(workspace.referral.referred_doctor_id ?? '');
-    setReferralDate(workspace.referral.appointment_date ?? new Date().toISOString().slice(0, 10));
-    setReferralTimeSlot(workspace.referral.appointment_start_time ?? '');
-    setReferralReason(workspace.referral.reason ?? '');
-  }, [workspace.referral]);
 
   useEffect(() => {
     if (!workspace.followUp) return;
@@ -122,98 +104,12 @@ export function OpdVisitPage() {
     setFollowUpDoctorId(workspace.followUp.assigned_doctor_id ?? '');
   }, [workspace.followUp]);
 
-  // Derive unique specialties from Doctor Directory records
-  const uniqueSpecialties = useMemo(() => {
-    return Array.from(new Set(doctors.map((d) => d.specialization).filter(Boolean))).sort();
-  }, [doctors]);
-
-  // Derive filtered doctors for selected referral specialty
-  const filteredReferralDoctors = useMemo(() => {
-    if (!referralSpecialty) return doctors;
-    return doctors.filter((d) => d.specialization === referralSpecialty);
-  }, [doctors, referralSpecialty]);
-
-  const referralSlotsQuery = useDoctorAvailableSlots(referralDoctorId, referralDate);
-  const referralAppointmentsQuery = useAppointmentsList({
-    doctor_id: referralDoctorId || undefined,
-    date_from: referralDate,
-    date_to: referralDate,
-    limit: 100,
-  }, Boolean(referralDoctorId && referralDate));
-  const referralSlots = useMemo(() => {
-    if (!referralSlotsQuery.data) return [];
-    const configuredMax = 1;
-    const bookedCounts: Record<string, number> = {};
-    (referralAppointmentsQuery.data?.data ?? []).forEach((appointment) => {
-      if (appointment.status !== 'CANCELLED') {
-        bookedCounts[appointment.start_time] = (bookedCounts[appointment.start_time] ?? 0) + 1;
-      }
-    });
-    return referralSlotsQuery.data.slots.map((slot) => {
-      const remainingSlots = Math.max(0, configuredMax - (bookedCounts[slot.start_time] ?? 0));
-      return {
-        startTime: slot.start_time,
-        endTime: slot.end_time,
-        remainingSlots,
-        isAvailable: remainingSlots > 0,
-      };
-    });
-  }, [referralAppointmentsQuery.data?.data, referralSlotsQuery.data]);
-  const referralSlotLoading = referralSlotsQuery.isLoading || referralAppointmentsQuery.isLoading;
-  const handleBookReferralAppointment = async () => {
-    if (!canEditReferral || !canBookAppointments) return;
-    if (!visit || !referralDoctorId || !referralDate || !referralTimeSlot) {
-      showToast('Please select a doctor, date, and available time slot.', 'error');
-      return;
-    }
-    const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
-    try {
-      const reason = referralReason.trim() || `Specialist Referral - ${referralSpecialty || selectedDoc?.specialization}`;
-      const clinicalSummary = [
-        workspace.consultation?.assessment,
-        workspace.consultation?.treatment_plan,
-        workspace.consultation?.doctor_notes,
-      ].filter((value): value is string => Boolean(value?.trim())).join('\n') || reason;
-      await workspace.mutations.submitReferral({
-        visitId: visit.id,
-        payload: {
-          referral_type: 'INTERNAL',
-          specialty: referralSpecialty || selectedDoc?.specialization || null,
-          priority: 'ROUTINE',
-          referred_doctor_id: referralDoctorId,
-          referred_doctor_name: selectedDoc?.display_name ?? null,
-          reason,
-          clinical_summary: clinicalSummary,
-          appointment_date: referralDate,
-          appointment_start_time: referralTimeSlot,
-          appointment_duration_minutes: 30,
-        },
-      });
-      showToast(`Referral appointment booked successfully with ${selectedDoc?.display_name ?? 'Doctor'} on ${referralDate} at ${referralTimeSlot}!`);
-      setReferralTimeSlot('');
-    } catch (err) {
-      showToast(getOpdErrorMessage(err), 'error');
-    }
-  };
-
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
     setToastTone(tone);
     setToastVisible(true);
     window.setTimeout(() => setToastVisible(false), 3200);
   };
-
-  // Sync activeVisitId from URL search param if present
-  useEffect(() => {
-    if (visitIdParam && visitIdParam !== activeVisitId) {
-      setActiveVisitId(visitIdParam);
-    }
-  }, [visitIdParam]);
-
-  useEffect(() => {
-    const firstVisit = recentVisits[0];
-    if (!activeVisitId && firstVisit) setActiveVisitId(firstVisit.id);
-  }, [activeVisitId, recentVisits]);
 
   const services = workspace.services;
   const masterMedicines = useMemo(() => {
@@ -500,8 +396,7 @@ export function OpdVisitPage() {
               <select
                 id="active-visit-select"
                 onChange={(e) => {
-                  setActiveVisitId(e.target.value);
-                  navigate(`/opd/consultation?id=${e.target.value}`);
+                  handleVisitChange(e.target.value);
                 }}
                 value={activeVisitId}
               >
@@ -593,7 +488,7 @@ export function OpdVisitPage() {
                       className={`opd-workspace-tab ${activeTab === tab.name ? 'active' : ''} ${completed ? 'completed' : ''}`}
                       key={tab.id}
                       onClick={() => {
-                        setActiveTab(tab.name);
+                        handleTabChange(tab.name);
                         navigate(`/opd/consultation?id=${visit.id}&tab=${encodeURIComponent(tab.name)}`, { replace: true });
                       }}
                       role="tab"
@@ -658,7 +553,7 @@ export function OpdVisitPage() {
                       <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Prescription')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Prescription')} type="button">
                         Next: Prescription
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
@@ -785,7 +680,7 @@ export function OpdVisitPage() {
                       <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Imaging Orders')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Imaging Orders')} type="button">
                         Next: Imaging Orders
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
@@ -902,7 +797,7 @@ export function OpdVisitPage() {
                       <button className="doc-btn" disabled={!canEditConsultation || !workspace.consultation} onClick={saveLoadedConsultation} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Referral')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Referral')} type="button">
                         Next: Referral
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
@@ -1069,7 +964,7 @@ export function OpdVisitPage() {
                       <button className="doc-btn" disabled={!canEditReferral || workspace.referral?.status === 'SUBMITTED' || workspace.isSavingReferral} onClick={saveReferralDraft} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Follow-up')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleTabChange('Follow-up')} type="button">
                         Next: Follow-up
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>

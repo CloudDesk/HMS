@@ -1,20 +1,18 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { type ApiAppointmentPriority, type ApiAppointmentStatus } from '../../api/appointments';
+import { useAppLocation, navigate } from '../../routing/navigation';
+import { type ApiAppointmentPriority, type ApiAppointmentStatus, isApiAppointmentStatus, isApiAppointmentPriority } from '../../api/appointments';
 import { type OpdVisitResponse } from '../../api/opd';
-import { getAppointmentErrorMessage } from '../../pages/appointment-utils';
+import { getAppointmentErrorMessage, todayInputValue } from '../../pages/appointment-utils';
 import { appointmentsKeys, useAppointmentsList, useUpdateAppointmentStatus } from './useAppointments';
 import { opdKeys, useCreateOpdVisit, useOpdVisits, useUpdateOpdVisitStatus } from '../opd/useOpd';
+import { useDepartmentsList } from '../departments/useDepartments';
+import { useDoctorsList } from '../doctors/useDoctors';
+import { useBranchesList } from '../branches/useBranches';
 
-export type QueueFilters = {
-  department_id?: string;
-  doctor_id?: string;
-  branch_id?: string;
-  status?: ApiAppointmentStatus;
-  priority?: ApiAppointmentPriority;
-  date: string;
-};
+export type QueueStatusFilter = ApiAppointmentStatus | '';
+export type QueuePriorityFilter = ApiAppointmentPriority | '';
 
 const waitingStatuses = new Set<ApiAppointmentStatus>(['SCHEDULED', 'CONFIRMED', 'SKIPPED']);
 
@@ -31,26 +29,69 @@ const queueSort = (left: { status: string; priority: string; start_time: string 
   return toMinutes(left.start_time) - toMinutes(right.start_time);
 };
 
-export function useAppointmentQueue(filters: QueueFilters) {
+export function useAppointmentQueueFeature() {
+  const { search } = useAppLocation();
+  const initialParams = new URLSearchParams(search);
+
+  const [departmentFilter, setDepartmentFilter] = useState(initialParams.get('department_id') ?? '');
+  const [doctorFilter, setDoctorFilter] = useState(initialParams.get('doctor_id') ?? '');
+  
+  const initialStatus = initialParams.get('status');
+  const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>(
+    isApiAppointmentStatus(initialStatus) ? initialStatus : ''
+  );
+  
+  const initialPriority = initialParams.get('priority');
+  const [priorityFilter, setPriorityFilter] = useState<QueuePriorityFilter>(
+    isApiAppointmentPriority(initialPriority) ? initialPriority : ''
+  );
+  
+  const [branchFilter, setBranchFilter] = useState(initialParams.get('branch_id') ?? '');
+  const [queueDate, setQueueDate] = useState(initialParams.get('date') ?? todayInputValue());
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (departmentFilter) params.set('department_id', departmentFilter);
+    if (doctorFilter) params.set('doctor_id', doctorFilter);
+    if (statusFilter) params.set('status', statusFilter);
+    if (priorityFilter) params.set('priority', priorityFilter);
+    if (branchFilter) params.set('branch_id', branchFilter);
+    if (queueDate !== todayInputValue()) params.set('date', queueDate);
+    
+    const query = params.toString();
+    const nextUrl = `/appointments/queue${query ? `?${query}` : ''}`;
+    if (window.location.pathname + window.location.search !== nextUrl) {
+      navigate(nextUrl, { replace: true });
+    }
+  }, [branchFilter, departmentFilter, doctorFilter, priorityFilter, queueDate, statusFilter]);
+
+  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 });
+  const { data: docData } = useDoctorsList({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
+  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100, sortBy: 'name', sortOrder: 'asc' });
+
+  const departments = deptData?.data || [];
+  const doctors = docData?.data || [];
+  const branches = branchData?.data || [];
+
   const queryClient = useQueryClient();
   const appointmentsQuery = useAppointmentsList({
-    date_from: filters.date,
-    date_to: filters.date,
-    department_id: filters.department_id,
-    doctor_id: filters.doctor_id,
-    branch_id: filters.branch_id,
-    status: filters.status,
+    date_from: queueDate,
+    date_to: queueDate,
+    department_id: departmentFilter || undefined,
+    doctor_id: doctorFilter || undefined,
+    branch_id: branchFilter || undefined,
+    status: statusFilter || undefined,
     limit: 100,
     sortBy: 'start_time',
     sortOrder: 'asc',
   });
 
   const opdVisitsQuery = useOpdVisits({
-    date_from: filters.date,
-    date_to: filters.date,
-    department_id: filters.department_id,
-    doctor_id: filters.doctor_id,
-    branch_id: filters.branch_id,
+    date_from: queueDate,
+    date_to: queueDate,
+    department_id: departmentFilter || undefined,
+    doctor_id: doctorFilter || undefined,
+    branch_id: branchFilter || undefined,
     limit: 100,
   });
 
@@ -60,11 +101,11 @@ export function useAppointmentQueue(filters: QueueFilters) {
 
   const appointments = useMemo(() => {
     let list = appointmentsQuery.data?.data || [];
-    if (filters.priority) {
-      list = list.filter((a) => a.priority === filters.priority);
+    if (priorityFilter) {
+      list = list.filter((a) => a.priority === priorityFilter);
     }
     return [...list].sort(queueSort);
-  }, [appointmentsQuery.data?.data, filters.priority]);
+  }, [appointmentsQuery.data?.data, priorityFilter]);
 
   const opdVisits = opdVisitsQuery.data?.data || [];
   
@@ -169,18 +210,37 @@ export function useAppointmentQueue(filters: QueueFilters) {
   };
 
   return {
-    appointments,
-    opdVisits,
-    loading,
-    loadError,
-    opdLoadError,
-    updating,
-    currentAppointment,
-    nextAppointment,
-    visitForAppointment,
-    handleCallNext,
-    handleSkip,
-    handleNoShow,
-    handleComplete,
+    state: {
+      departmentFilter,
+      doctorFilter,
+      statusFilter,
+      priorityFilter,
+      branchFilter,
+      queueDate,
+      departments,
+      doctors,
+      branches,
+      appointments,
+      opdVisits,
+      loading,
+      loadError,
+      opdLoadError,
+      updating,
+      currentAppointment,
+      nextAppointment,
+    },
+    actions: {
+      setDepartmentFilter,
+      setDoctorFilter,
+      setStatusFilter,
+      setPriorityFilter,
+      setBranchFilter,
+      setQueueDate,
+      visitForAppointment,
+      handleCallNext,
+      handleSkip,
+      handleNoShow,
+      handleComplete,
+    }
   };
 }

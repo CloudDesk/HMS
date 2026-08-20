@@ -1,5 +1,5 @@
 import { type PatientDocumentResponse, type PatientTimelineEventResponse } from '../api/patients';
-import { usePatientHistory } from '../hooks/patients/usePatients';
+
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
   formatDate,
@@ -28,12 +28,16 @@ function NoPatientSelected() {
   );
 }
 
+import { usePatientHistoryFeature } from '../hooks/patients/usePatientHistoryFeature';
+
 export function PatientHistoryPage() {
   const { search } = useAppLocation();
-  const patientId = getPatientIdFromSearch(search);
+  const rawPatientId = getPatientIdFromSearch(search);
 
-  const { data: history, isLoading: loading, error } = usePatientHistory(patientId, Boolean(patientId));
-  const loadError = error?.message || '';
+  const {
+    state: { history, loading, loadError, patientId },
+    actions: { retry },
+  } = usePatientHistoryFeature(rawPatientId);
 
   if (!patientId) {
     return <NoPatientSelected />;
@@ -77,7 +81,7 @@ export function PatientHistoryPage() {
           <div className="um-state-cell">
             {loadError}
             <div>
-              <button className="secondary-action mt-4" onClick={() => {}} type="button">
+              <button className="secondary-action mt-4" onClick={() => retry()} type="button">
                 Retry
               </button>
             </div>

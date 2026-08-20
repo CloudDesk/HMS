@@ -1,52 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
-import { useAuth } from '../auth/useAuth';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { navigate } from '../routing/navigation';
 import {
   appointmentStatusLabels,
   appointmentVisitTypeLabels,
   todayInputValue,
+  toInputDate,
+  parseInputDate,
+  startOfWeek,
+  startOfMonth,
+  endOfMonth,
 } from './appointment-utils';
 import { patientInitials } from './opd-utils';
-import { useAppointmentsList, useUpdateAppointment, useUpdateAppointmentStatus } from '../hooks/appointments/useAppointments';
-import { useDepartmentsList } from '../hooks/departments/useDepartments';
-import { useDoctorsList } from '../hooks/doctors/useDoctors';
-import { useBranchesList } from '../hooks/branches/useBranches';
 import { toast } from 'sonner';
-
-type CalendarMode = 'day' | 'week' | 'month';
+import { useAppointmentCalendarFeature } from '../hooks/appointments/useAppointmentCalendarFeature';
 
 const timeSlots = Array.from({ length: 11 }).map((_, index) => `${String(index + 8).padStart(2, '0')}:00`);
-
-const toInputDate = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
-const parseInputDate = (value: string) => {
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? new Date(`${todayInputValue()}T00:00:00`) : date;
-};
-
-const startOfWeek = (value: string) => {
-  const date = parseInputDate(value);
-  date.setDate(date.getDate() - date.getDay());
-  return date;
-};
-
-const endOfWeek = (value: string) => {
-  const date = startOfWeek(value);
-  date.setDate(date.getDate() + 6);
-  return date;
-};
-
-const startOfMonth = (value: string) => {
-  const date = parseInputDate(value);
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-};
-
-const endOfMonth = (value: string) => {
-  const date = parseInputDate(value);
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
-};
 
 const dateKey = (value: string) => toInputDate(parseInputDate(value));
 
@@ -72,18 +41,6 @@ const eventClass = (appointment: AppointmentResponse) => {
   if (appointment.visit_type === 'PROCEDURE') return 'procedure';
   if (appointment.visit_type === 'EMERGENCY') return 'emergency';
   return '';
-};
-
-const buildDateRange = (mode: CalendarMode, selectedDate: string) => {
-  if (mode === 'day') {
-    return { from: selectedDate, to: selectedDate };
-  }
-
-  if (mode === 'month') {
-    return { from: toInputDate(startOfMonth(selectedDate)), to: toInputDate(endOfMonth(selectedDate)) };
-  }
-
-  return { from: toInputDate(startOfWeek(selectedDate)), to: toInputDate(endOfWeek(selectedDate)) };
 };
 
 const buildWeekDays = (selectedDate: string) => {
@@ -132,43 +89,33 @@ const downloadAppointments = (appointments: AppointmentResponse[]) => {
 };
 
 export function AppointmentCalendarPage() {
-  const { user } = useAuth();
-  const { search } = useAppLocation();
-  const initialParams = new URLSearchParams(search);
-  const [mode, setMode] = useState<CalendarMode>((initialParams.get('view') as CalendarMode | null) ?? 'week');
-  const [calendarDate, setCalendarDate] = useState(initialParams.get('date') ?? todayInputValue());
-  const [departmentFilter, setDepartmentFilter] = useState(initialParams.get('department_id') ?? '');
-  const [doctorFilter, setDoctorFilter] = useState(initialParams.get('doctor_id') ?? '');
-  const [statusFilter, setStatusFilter] = useState<ApiAppointmentStatus | ''>(
-    (initialParams.get('status') as ApiAppointmentStatus | null) ?? '',
-  );
-
-  const range = useMemo(() => buildDateRange(mode, calendarDate), [calendarDate, mode]);
-
-  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 });
-  const { data: docData } = useDoctorsList({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100 });
-
-  const departments = deptData?.data || [];
-  const allDoctors = docData?.data || [];
-  const branches = branchData?.data || [];
-
-  const { data: apptData, isLoading: loading, isError, error } = useAppointmentsList({
-    date_from: range.from,
-    date_to: range.to,
-    department_id: departmentFilter || undefined,
-    doctor_id: doctorFilter || undefined,
-    status: statusFilter || undefined,
-    limit: 100,
-    sortBy: 'start_time',
-    sortOrder: 'asc',
-  });
-
-  const appointments = apptData?.data || [];
-  const loadError = isError && error instanceof Error ? error.message : isError ? 'Failed to load' : '';
-
-  const updateAppointment = useUpdateAppointment();
-  const updateStatus = useUpdateAppointmentStatus();
+  const {
+    state: {
+      mode,
+      calendarDate,
+      departmentFilter,
+      doctorFilter,
+      statusFilter,
+      departments,
+      visibleDoctors,
+      branches,
+      appointments,
+      loading,
+      loadError,
+      loggedInDoctor,
+      isUpdatingAppointment,
+      isUpdatingStatus,
+    },
+    actions: {
+      setMode,
+      setCalendarDate,
+      setDepartmentFilter,
+      setDoctorFilter,
+      setStatusFilter,
+      handleUpdateAppointment,
+      handleUpdateStatus,
+    }
+  } = useAppointmentCalendarFeature();
 
   // Drag and Drop State & Active Modal State
   const [draggedAppointmentId, setDraggedAppointmentId] = useState<string | null>(null);
@@ -179,39 +126,8 @@ export function AppointmentCalendarPage() {
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
 
-  const loggedInDoctor = useMemo(
-    () => (user ? allDoctors.find((doctor) => doctor.user_id === user.id) : undefined),
-    [allDoctors, user],
-  );
-
-  const visibleDoctors = useMemo(
-    () => allDoctors.filter((doctor) => !departmentFilter || doctor.department_id === departmentFilter),
-    [departmentFilter, allDoctors],
-  );
   const weekDays = useMemo(() => buildWeekDays(calendarDate), [calendarDate]);
   const monthDays = useMemo(() => buildMonthDays(calendarDate), [calendarDate]);
-
-  useEffect(() => {
-    if (loggedInDoctor && doctorFilter !== loggedInDoctor.id) {
-      setDoctorFilter(loggedInDoctor.id);
-      if (loggedInDoctor.department_id && departmentFilter !== loggedInDoctor.department_id) {
-        setDepartmentFilter(loggedInDoctor.department_id);
-      }
-    }
-  }, [loggedInDoctor, doctorFilter, departmentFilter]);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    params.set('view', mode);
-    if (calendarDate !== todayInputValue()) params.set('date', calendarDate);
-    if (departmentFilter) params.set('department_id', departmentFilter);
-    if (doctorFilter) params.set('doctor_id', doctorFilter);
-    if (statusFilter) params.set('status', statusFilter);
-    const nextUrl = `/appointments/calendar?${params.toString()}`;
-    if (window.location.pathname + window.location.search !== nextUrl) {
-      navigate(nextUrl, { replace: true });
-    }
-  }, [calendarDate, departmentFilter, doctorFilter, mode, statusFilter]);
 
   const appointmentsFor = (day: string, slot?: string) =>
     appointments.filter((appointment) => {
@@ -242,12 +158,9 @@ export function AppointmentCalendarPage() {
     }
 
     try {
-      await updateAppointment.mutateAsync({
-        id: draggedAppointmentId,
-        payload: {
-          appointment_date: targetDate,
-          start_time: newStartTime,
-        },
+      await handleUpdateAppointment(draggedAppointmentId, {
+        appointment_date: targetDate,
+        start_time: newStartTime,
       });
       // success toast is handled by mutation
     } finally {
@@ -256,9 +169,9 @@ export function AppointmentCalendarPage() {
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
-    await updateStatus.mutateAsync({
-      id: appointmentId,
-      payload: { status: 'CANCELLED', notes: 'Cancelled by patient request from calendar view' }
+    await handleUpdateStatus(appointmentId, {
+      status: 'CANCELLED',
+      notes: 'Cancelled by patient request from calendar view'
     });
   };
 
@@ -266,12 +179,9 @@ export function AppointmentCalendarPage() {
     e.preventDefault();
     if (!selectedAppointment || !rescheduleDate || !rescheduleTime) return;
 
-    await updateAppointment.mutateAsync({
-      id: selectedAppointment.id,
-      payload: {
-        appointment_date: rescheduleDate,
-        start_time: rescheduleTime,
-      }
+    await handleUpdateAppointment(selectedAppointment.id, {
+      appointment_date: rescheduleDate,
+      start_time: rescheduleTime,
     });
     setIsRescheduling(false);
   };
@@ -603,7 +513,7 @@ export function AppointmentCalendarPage() {
                     <button className="doc-btn" onClick={() => setIsRescheduling(false)} type="button">
                       Cancel
                     </button>
-                    <button className="doc-btn primary" disabled={updateAppointment.isPending} type="submit">
+                    <button className="doc-btn primary" disabled={isUpdatingAppointment} type="submit">
                       Confirm Reschedule
                     </button>
                   </div>
@@ -621,7 +531,7 @@ export function AppointmentCalendarPage() {
               </button>
               <button
                 className="doc-btn danger-outline"
-                disabled={selectedAppointment.status === 'CANCELLED' || updateStatus.isPending}
+                disabled={selectedAppointment.status === 'CANCELLED' || isUpdatingStatus}
                 onClick={() => void handleCancelAppointment(selectedAppointment.id)}
                 type="button"
               >

@@ -22,6 +22,13 @@ export function useOpdQueue(filters: OpdQueueFilters) {
   const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
   const canAccess = (module: string, screen: string) =>
     isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen });
+  const canAction = (module: string, screen: string, action: string) =>
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
+
+  // Capability flags — owned here so pages never need to traverse permissions
+  const canCreateVisit = canAction('OPD', 'OPD Visits', 'Create');
+  const canEditVisit = canAction('OPD', 'OPD Visits', 'Edit');
+  const canCreateVitals = canAction('OPD', 'OPD Vitals', 'Create');
 
   // Queries
   const { data: visitsData, isLoading: visitsLoading, error: visitsError } = useOpdVisits({
@@ -96,5 +103,9 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     createVisit,
     updateVisitStatus,
     createVitals,
+    // Capability flags
+    canCreateVisit,
+    canEditVisit,
+    canCreateVitals,
   };
 }

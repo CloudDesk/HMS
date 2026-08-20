@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { navigate } from '../routing/navigation';
 import {
   appointmentPriorityClass,
   appointmentPriorityLabels,
@@ -10,17 +10,12 @@ import {
   formatAppointmentDate,
   formatAppointmentTime,
   todayInputValue,
+  toInputDate,
 } from './appointment-utils';
-import { useAppointmentsList, useUpdateAppointmentStatus } from '../hooks/appointments/useAppointments';
-
-type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
-type SortDirection = 'asc' | 'desc';
+import { useAppointmentDashboardFeature } from '../hooks/appointments/useAppointmentDashboardFeature';
 
 const countByStatus = (appointments: AppointmentResponse[], status: ApiAppointmentStatus) =>
   appointments.filter((appointment) => appointment.status === status).length;
-
-const toInputDate = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 const buildTrend = (appointments: AppointmentResponse[], anchorDate: string) => {
   const anchor = new Date(`${anchorDate || todayInputValue()}T00:00:00`);
@@ -36,38 +31,30 @@ const buildTrend = (appointments: AppointmentResponse[], anchorDate: string) => 
 };
 
 export function AppointmentDashboardPage() {
-  const location = useAppLocation();
-  const initialParams = new URLSearchParams(location.search);
-  const [search, setSearch] = useState(initialParams.get('search') ?? '');
-  const [statusFilter, setStatusFilter] = useState<ApiAppointmentStatus | ''>(
-    (initialParams.get('status') as ApiAppointmentStatus | null) ?? '',
-  );
-  const [dateFrom, setDateFrom] = useState(initialParams.get('date_from') ?? todayInputValue());
-  const [dateTo, setDateTo] = useState(initialParams.get('date_to') ?? todayInputValue());
-  const [currentPage, setCurrentPage] = useState(Number(initialParams.get('page')) || 1);
-  const [sortColumn, setSortColumn] = useState<SortColumn>(
-    (initialParams.get('sortBy') as SortColumn | null) ?? 'appointment_date',
-  );
-  const [sortDirection, setSortDirection] = useState<SortDirection>(
-    initialParams.get('sortOrder') === 'desc' ? 'desc' : 'asc',
-  );
-
-  const { data, isLoading: loading, isError, error, refetch } = useAppointmentsList({
-    search: search.trim() || undefined,
-    status: statusFilter || undefined,
-    date_from: dateFrom || undefined,
-    date_to: dateTo || undefined,
-    page: currentPage,
-    limit: 10,
-    sortBy: sortColumn,
-    sortOrder: sortDirection,
-  });
-
-  const updateStatus = useUpdateAppointmentStatus();
-
-  const appointments = data?.data || [];
-  const meta = data?.meta || { limit: 10, page: currentPage, total: 0, totalPages: 1 };
-  const loadError = isError && error instanceof Error ? error.message : isError ? 'Failed to load' : '';
+  const {
+    state: {
+      search,
+      statusFilter,
+      dateFrom,
+      dateTo,
+      meta,
+      appointments,
+      loading,
+      loadError,
+      isUpdatingStatus,
+    },
+    actions: {
+      setSearch,
+      setStatusFilter,
+      setDateFrom,
+      setDateTo,
+      setCurrentPage,
+      handleSort,
+      resetFilters,
+      handleUpdateStatus,
+      refetch,
+    }
+  } = useAppointmentDashboardFeature();
 
   const kpis = useMemo(
     () => [
@@ -112,28 +99,6 @@ export function AppointmentDashboardPage() {
   const upcomingAppointments = appointments.filter((appointment) =>
     ['SCHEDULED', 'CONFIRMED', 'SKIPPED'].includes(appointment.status),
   );
-
-  const handleSort = (column: SortColumn) => {
-    setSortColumn((current) => {
-      if (current === column) {
-        setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'));
-        return current;
-      }
-      setSortDirection('asc');
-      return column;
-    });
-    setCurrentPage(1);
-  };
-
-  const resetFilters = () => {
-    setSearch('');
-    setStatusFilter('');
-    setDateFrom(todayInputValue());
-    setDateTo(todayInputValue());
-    setSortColumn('appointment_date');
-    setSortDirection('asc');
-    setCurrentPage(1);
-  };
 
   return (
     <div className="appointment-page">
@@ -454,8 +419,8 @@ export function AppointmentDashboardPage() {
                         </button>
                         <button
                           className="doc-action"
-                          disabled={updateStatus.isPending || appointment.status === 'CONFIRMED'}
-                          onClick={() => updateStatus.mutate({ id: appointment.id, payload: { status: 'CONFIRMED' } })}
+                          disabled={isUpdatingStatus || appointment.status === 'CONFIRMED'}
+                          onClick={() => handleUpdateStatus(appointment.id, 'CONFIRMED')}
                           title="Confirm appointment"
                           type="button"
                         >
@@ -463,8 +428,8 @@ export function AppointmentDashboardPage() {
                         </button>
                         <button
                           className="doc-action"
-                          disabled={updateStatus.isPending || appointment.status === 'CHECKED_IN'}
-                          onClick={() => updateStatus.mutate({ id: appointment.id, payload: { status: 'CHECKED_IN' } })}
+                          disabled={isUpdatingStatus || appointment.status === 'CHECKED_IN'}
+                          onClick={() => handleUpdateStatus(appointment.id, 'CHECKED_IN')}
                           title="Mark checked in"
                           type="button"
                         >
@@ -472,8 +437,8 @@ export function AppointmentDashboardPage() {
                         </button>
                         <button
                           className="doc-action danger"
-                          disabled={updateStatus.isPending || appointment.status === 'CANCELLED'}
-                          onClick={() => updateStatus.mutate({ id: appointment.id, payload: { status: 'CANCELLED' } })}
+                          disabled={isUpdatingStatus || appointment.status === 'CANCELLED'}
+                          onClick={() => handleUpdateStatus(appointment.id, 'CANCELLED')}
                           title="Cancel appointment"
                           type="button"
                         >

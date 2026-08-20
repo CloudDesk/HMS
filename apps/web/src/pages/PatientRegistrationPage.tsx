@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,12 +7,10 @@ import {
   type PatientResponse,
   type SavePatientPayload,
 } from '../api/patients';
-import { useAuth } from '../auth/useAuth';
 import { Toast } from '../components/ui/Toast';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, patientFullName } from './patient-utils';
-import { useCreatePatient } from '../hooks/patients/usePatients';
-import { useBranchesList } from '../hooks/branches/useBranches';
+import { usePatientRegistrationFeature } from '../hooks/patients/usePatientRegistrationFeature';
 
 const nullable = (value?: string | null) => {
   if (!value) return null;
@@ -113,9 +110,7 @@ function RegistrationSection({ children, description, number, title }: Registrat
 }
 
 export function PatientRegistrationPage() {
-  const { user } = useAuth();
-
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<PatientFormState>({
+  const form = useForm<PatientFormState>({
     resolver: zodResolver(patientRegistrationSchema),
     defaultValues: {
       firstName: '',
@@ -140,28 +135,13 @@ export function PatientRegistrationPage() {
     }
   });
 
-  const { data: branchesRes } = useBranchesList({ status: 'ACTIVE', limit: 100 });
-  const branches = branchesRes?.data || [];
+  const {
+    state: { formError, duplicatePatients, toastMessage, toastVisible, toastTone },
+    actions: { setFormError, setDuplicatePatients, setToastMessage, setToastVisible, setToastTone },
+    mutations: { createPatient, submitting },
+  } = usePatientRegistrationFeature(form);
 
-  useEffect(() => {
-    if (branches.length > 0 && !watch('registrationBranchId')) {
-      const activeId = localStorage.getItem('activeBranchId');
-      const userBranchId = user?.branches?.[0]?.id;
-      const targetBranchId = activeId || userBranchId;
-      const matchedBranch = targetBranchId ? branches.find((b) => b.id === targetBranchId) : undefined;
-      const defaultBranch = matchedBranch ? matchedBranch.id : (branches[0]?.id || '');
-      if (defaultBranch) {
-        setValue('registrationBranchId', defaultBranch);
-      }
-    }
-  }, [branches, user, setValue, watch]);
-
-  const [formError, setFormError] = useState('');
-  const [duplicatePatients, setDuplicatePatients] = useState<PatientResponse[]>([]);
-  const { mutateAsync: createPatient, isPending: submitting } = useCreatePatient();
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+  const { register, handleSubmit, formState: { errors } } = form;
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);

@@ -5,19 +5,10 @@ import {
 } from '../api/patients';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
-import { navigate, useAppLocation } from '../routing/navigation';
-import { formatDate, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
+import { formatDate, patientFullName } from './patient-utils';
 import { patientInitials } from './opd-utils';
-import {
-  usePatientsList,
-  usePatientDetails,
-  usePatientDocuments,
-  useUploadPatientDocument,
-  useDeletePatientDocument,
-  useDownloadPatientDocument,
-  useReplacePatientDocument
-} from '../hooks/patients/usePatients';
 import { toast } from 'sonner';
+import { usePatientConsentFeature } from '../hooks/patients/usePatientConsentFeature';
 
 const statusLabels: Record<ApiPatientConsentStatus, string> = {
   SIGNED: 'Signed',
@@ -29,26 +20,19 @@ const statusLabels: Record<ApiPatientConsentStatus, string> = {
 const fileAccept = '.pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx';
 
 export function PatientConsentPage() {
-  const { search } = useAppLocation();
-  const requestedPatientId = getPatientIdFromSearch(search);
+  const {
+    state: { patient, patients, consents, loading, isSubmitting },
+    actions: {
+      handlePatientChange,
+      handleUpload,
+      handleDownload,
+      handleView,
+      handleDelete,
+      handleReplace,
+    }
+  } = usePatientConsentFeature();
 
-  // Queries
-  const { data: listRes } = usePatientsList({ status: 'ACTIVE', limit: 100 });
-  const patients = listRes?.data || [];
-  const patientId = requestedPatientId || patients[0]?.id || null;
-
-  const { data: patient, isLoading: loadingPatient } = usePatientDetails(patientId);
-  const { data: docsRes, isLoading: loadingDocs } = usePatientDocuments(patientId, { document_type: 'CONSENT', limit: 100 });
-  const consents = docsRes?.data || [];
-  const loading = loadingPatient || loadingDocs;
-
-  // Mutations
-  const uploadDoc = useUploadPatientDocument();
-  const deleteDoc = useDeletePatientDocument();
-  const downloadDoc = useDownloadPatientDocument();
-  const replaceDoc = useReplacePatientDocument();
-
-  // State
+  // Local UI State
   const [uploadOpen, setUploadOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
@@ -62,99 +46,37 @@ export function PatientConsentPage() {
   const [replacing, setReplacing] = useState<PatientDocumentResponse | null>(null);
   const replacementInput = useRef<HTMLInputElement>(null);
 
-  const submitConsent = (event: FormEvent) => {
+  const submitConsent = async (event: FormEvent) => {
     event.preventDefault();
     if (!patient || !file || !title.trim()) {
       toast.error('Patient, consent title, and consent file are required.');
       return;
     }
-
-    uploadDoc.mutate({
-      id: patient.id,
-      payload: {
-        document_type: 'CONSENT',
-        title: title.trim(),
-        description: description.trim() || undefined,
-        consent_status: status,
-        signed_at: signedAt || undefined,
-        valid_until: validUntil || undefined,
-        signed_by_name: signedByName.trim() || undefined,
-        file,
-      }
-    }, {
-      onSuccess: () => {
-        setUploadOpen(false);
-        setFile(null);
-        setTitle('');
-        setDescription('');
-        toast.success('Consent file uploaded successfully.');
-      }
-    });
-  };
-
-  const viewConsent = async (document: PatientDocumentResponse) => {
-    if (!patient) return;
     try {
-      const download = await downloadDoc.mutateAsync({ patientId: patient.id, docId: document.id });
-      const url = URL.createObjectURL(download.blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (error) {
-      toast.error(getPatientErrorMessage(error));
+      await handleUpload(file, title, description, status, signedAt, validUntil, signedByName);
+      setUploadOpen(false);
+      setFile(null);
+      setTitle('');
+      setDescription('');
+    } catch {
+      // Handled in feature hook or silently fails
     }
   };
 
-  const downloadConsent = async (document: PatientDocumentResponse) => {
-    if (!patient) return;
-    try {
-      const download = await downloadDoc.mutateAsync({ patientId: patient.id, docId: document.id });
-      const url = URL.createObjectURL(download.blob);
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = download.fileName ?? document.file_name;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      toast.error(getPatientErrorMessage(error));
-    }
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    await handleDelete(deleting.id);
+    setDeleting(null);
   };
 
-  const handleDeleteConsent = () => {
-    if (!patient || !deleting) return;
-    deleteDoc.mutate({ id: patient.id, documentId: deleting.id }, {
-      onSuccess: () => {
-        toast.success('Consent file deleted.');
-        setDeleting(null);
-      }
-    });
-  };
-
-  const handleReplaceConsent = (replacementFile: File) => {
-    if (!patient || !replacing) return;
-    replaceDoc.mutate({
-      id: patient.id,
-      documentId: replacing.id,
-      payload: {
-        document_type: 'CONSENT',
-        title: replacing.title,
-        description: replacing.description,
-        consent_status: replacing.consent_status ?? 'PENDING',
-        signed_at: replacing.signed_at ?? undefined,
-        valid_until: replacing.valid_until ?? undefined,
-        signed_by_name: replacing.signed_by_name ?? undefined,
-        file: replacementFile,
-      }
-    }, {
-      onSuccess: () => {
-        toast.success('Consent file replaced successfully.');
-        setReplacing(null);
-        if (replacementInput.current) replacementInput.current.value = '';
-      }
-    });
+  const confirmReplace = async (replacementFile: File) => {
+    if (!replacing) return;
+    await handleReplace(replacing, replacementFile);
+    setReplacing(null);
+    if (replacementInput.current) replacementInput.current.value = '';
   };
 
   const count = (target: ApiPatientConsentStatus) => consents.filter((document) => document.consent_status === target).length;
-  const isSubmitting = uploadDoc.isPending || replaceDoc.isPending;
 
   return (
     <>
@@ -164,7 +86,7 @@ export function PatientConsentPage() {
           <div className="appointment-page-actions">
             <select
               aria-label="Switch patient"
-              onChange={(event) => navigate(`/patients/consent?id=${encodeURIComponent(event.target.value)}`)}
+              onChange={(event) => handlePatientChange(event.target.value)}
               value={patient?.id ?? ''}
             >
               <option value="">Select patient</option>
@@ -193,7 +115,7 @@ export function PatientConsentPage() {
           <div className="doc-card-header"><div><h3>Consent Files</h3><p>Only files stored by the backend are shown</p></div></div>
           <div className="table-responsive"><table className="data-table"><thead><tr><th>CONSENT</th><th>FILE</th><th>SIGNED BY</th><th>SIGNED DATE</th><th>VALID UNTIL</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
             {loading ? <tr><td className="um-state-cell" colSpan={7}>Loading consent files...</td></tr> : consents.length === 0 ? <tr><td className="um-state-cell" colSpan={7}>No consent files are stored for this patient.</td></tr> : consents.map((document) => (
-              <tr key={document.id}><td><strong>{document.title}</strong><br /><small>{document.description}</small></td><td>{document.file_name}</td><td>{document.signed_by_name ?? 'Not recorded'}</td><td>{document.signed_at ? formatDate(document.signed_at) : 'Not recorded'}</td><td>{document.valid_until ? formatDate(document.valid_until) : 'No expiry'}</td><td><span className="doc-status active">{document.consent_status ? statusLabels[document.consent_status] : 'Pending'}</span></td><td><div className="table-actions"><button className="doc-icon-action" onClick={() => void viewConsent(document)} title="View" type="button"><i className="ph ph-eye" /></button><button className="doc-icon-action" onClick={() => void downloadConsent(document)} title="Download" type="button"><i className="ph ph-download-simple" /></button><button className="doc-icon-action" disabled={isSubmitting} onClick={() => { setReplacing(document); window.setTimeout(() => replacementInput.current?.click(), 0); }} title="Replace" type="button"><i className="ph ph-arrows-clockwise" /></button><button className="doc-icon-action" onClick={() => setDeleting(document)} title="Delete" type="button"><i className="ph ph-trash" /></button></div></td></tr>
+              <tr key={document.id}><td><strong>{document.title}</strong><br /><small>{document.description}</small></td><td>{document.file_name}</td><td>{document.signed_by_name ?? 'Not recorded'}</td><td>{document.signed_at ? formatDate(document.signed_at) : 'Not recorded'}</td><td>{document.valid_until ? formatDate(document.valid_until) : 'No expiry'}</td><td><span className="doc-status active">{document.consent_status ? statusLabels[document.consent_status] : 'Pending'}</span></td><td><div className="table-actions"><button className="doc-icon-action" onClick={() => void handleView(document)} title="View" type="button"><i className="ph ph-eye" /></button><button className="doc-icon-action" onClick={() => void handleDownload(document)} title="Download" type="button"><i className="ph ph-download-simple" /></button><button className="doc-icon-action" disabled={isSubmitting} onClick={() => { setReplacing(document); window.setTimeout(() => replacementInput.current?.click(), 0); }} title="Replace" type="button"><i className="ph ph-arrows-clockwise" /></button><button className="doc-icon-action" onClick={() => setDeleting(document)} title="Delete" type="button"><i className="ph ph-trash" /></button></div></td></tr>
             ))}
           </tbody></table></div>
         </section>
@@ -208,8 +130,8 @@ export function PatientConsentPage() {
           <div className="modal-actions"><button className="doc-btn" onClick={() => setUploadOpen(false)} type="button">Cancel</button><button className="doc-btn primary" disabled={isSubmitting} type="submit">{isSubmitting ? 'Uploading...' : 'Upload Consent'}</button></div>
         </form>
       </Modal>
-      <ConfirmDialog confirmLabel="Delete Consent" message={`Delete ${deleting?.title ?? 'this consent file'}?`} onCancel={() => setDeleting(null)} onConfirm={() => void handleDeleteConsent()} open={Boolean(deleting)} title="Delete Consent File" />
-      <input accept={fileAccept} hidden onChange={(event) => { const replacementFile = event.target.files?.[0]; if (replacementFile) void handleReplaceConsent(replacementFile); }} ref={replacementInput} type="file" />
+      <ConfirmDialog confirmLabel="Delete Consent" message={`Delete ${deleting?.title ?? 'this consent file'}?`} onCancel={() => setDeleting(null)} onConfirm={() => void confirmDelete()} open={Boolean(deleting)} title="Delete Consent File" />
+      <input accept={fileAccept} hidden onChange={(event) => { const replacementFile = event.target.files?.[0]; if (replacementFile) void confirmReplace(replacementFile); }} ref={replacementInput} type="file" />
     </>
   );
 }

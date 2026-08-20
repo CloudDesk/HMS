@@ -1,7 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { type SaveMedicinePayload } from '../api/medicines';
@@ -118,7 +117,7 @@ export function PharmacyMedicineInventoryPage() {
     isLoading,
     isDetailLoading,
     isUpdating,
-    permissions: { canRegisterBatch, canRecordMovement, canAdjustStock, canConfigureLowStock, canEditBatch },
+    permissions: { canRegisterBatch, canRecordMovement, canAdjustStock, canConfigureLowStock },
     actions
   } = feature;
 

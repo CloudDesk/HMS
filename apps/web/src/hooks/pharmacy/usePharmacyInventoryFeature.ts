@@ -1,6 +1,5 @@
 import { useMemo, useCallback } from 'react';
 import { useAuth } from '../../auth/useAuth';
-import { hasPermission } from '../../auth/access-control';
 import {
   usePharmacyInventoryList,
   usePharmacyInventorySummary,
@@ -25,7 +24,7 @@ export type InventoryFeatureParams = {
   expiryState: ExpiryState | '';
   page: number;
   limit: number;
-  sortBy: string;
+  sortBy: 'medicine_name' | 'available_quantity' | 'next_expiry_date' | 'updated_at';
   sortOrder: 'asc' | 'desc';
   selectedMedicineId: string | null;
   detailTab: 'batches' | 'movements';
@@ -89,7 +88,7 @@ export function usePharmacyInventoryFeature(params: InventoryFeatureParams) {
       expiry_state: params.expiryState || undefined,
       page: params.page,
       limit: params.limit,
-      sortBy: params.sortBy as any,
+      sortBy: params.sortBy,
       sortOrder: params.sortOrder,
     },
     Boolean(activeBranchId)

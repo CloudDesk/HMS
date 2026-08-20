@@ -38,6 +38,19 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
   const canAccess = (module: string, screen: string) =>
     isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen });
+  const canAction = (module: string, screen: string, action: string) =>
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
+
+  // Capability flags — owned here so OpdVisitPage never traverses permissions directly
+  const canEditConsultation = canAction('OPD', 'OPD Consultation', 'Edit');
+  const canEditPrescription = canAction('OPD', 'OPD Prescription', 'Edit');
+  const canEditClinicalOrders = canAction('OPD', 'OPD Clinical Orders', 'Edit');
+  const canEditReferral = canAction('OPD', 'OPD Referral', 'Edit');
+  const canEditFollowUp = canAction('OPD', 'OPD Follow-up', 'Edit');
+  const canBookAppointments = canAction('Appointments', 'Appointment Booking', 'Create');
+  const canCreateDocuments = canAction('Patients', 'Patient Documents', 'Create');
+  const canDeleteDocuments = canAction('Patients', 'Patient Documents', 'Delete');
+  const canCreateVitals = canAction('OPD', 'OPD Vitals', 'Create');
 
   const { data: visitData, isLoading: visitLoading } = useOpdVisit(visitId);
   const { data: vitalsData, isLoading: vitalsLoading } = useOpdLatestVitals(visitId);
@@ -170,5 +183,15 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
       saveReferralDraft,
       submitReferral,
     },
+    // Capability flags — pages consume these instead of traversing permissions
+    canEditConsultation,
+    canEditPrescription,
+    canEditClinicalOrders,
+    canEditReferral,
+    canEditFollowUp,
+    canBookAppointments,
+    canCreateDocuments,
+    canDeleteDocuments,
+    canCreateVitals,
   };
 }

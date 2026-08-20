@@ -76,7 +76,9 @@ export function useCreateBillingInvoice() {
     mutationFn: (payload: CreateBillingInvoicePayload) => billingApi.create(payload),
     onSuccess: async () => {
       toast.success('Invoice draft created.');
-      await queryClient.invalidateQueries({ queryKey: billingKeys.all });
+      // Creating a new invoice affects the list view and summary totals only.
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.summaries() });
     },
     onError: (error) => toast.error(getBillingErrorMessage(error)),
   });
@@ -95,9 +97,12 @@ export function useUpdateBillingInvoice() {
       payload: UpdateBillingInvoicePayload;
       finalize?: boolean;
     }) => billingApi.update(id, { ...payload, ...(finalize ? { status: 'PENDING' } : {}) }),
-    onSuccess: async (_result, { finalize }) => {
+    onSuccess: async (_result, { id, finalize }) => {
       toast.success(finalize ? 'Invoice finalized and ready for payment.' : 'Invoice updated.');
-      await queryClient.invalidateQueries({ queryKey: billingKeys.all });
+      // The specific invoice detail changed; lists and summaries may reflect status/amount changes.
+      await queryClient.invalidateQueries({ queryKey: billingKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.summaries() });
     },
     onError: (error) => toast.error(getBillingErrorMessage(error)),
   });
@@ -108,9 +113,12 @@ export function useCancelBillingInvoice() {
 
   return useMutation({
     mutationFn: (id: string) => billingApi.cancel(id),
-    onSuccess: async () => {
+    onSuccess: async (_result, id) => {
       toast.success('Invoice cancelled.');
-      await queryClient.invalidateQueries({ queryKey: billingKeys.all });
+      // Cancellation changes both the invoice detail and list/summary aggregates.
+      await queryClient.invalidateQueries({ queryKey: billingKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.summaries() });
     },
     onError: (error) => toast.error(getBillingErrorMessage(error)),
   });
@@ -124,7 +132,12 @@ export function useCollectBillingPayment() {
       billingApi.collectPayment(id, payload),
     onSuccess: async (result) => {
       toast.success(result.invoice.status === 'PAID' ? 'Invoice paid in full.' : 'Partial payment collected.');
-      await queryClient.invalidateQueries({ queryKey: billingKeys.all });
+      const id = result.invoice.id;
+      // Payment changes the invoice detail, its payment list, and list/summary aggregates.
+      await queryClient.invalidateQueries({ queryKey: billingKeys.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.paymentList(id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.summaries() });
     },
     onError: (error) => toast.error(getBillingErrorMessage(error)),
   });

@@ -1,6 +1,4 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useAuth } from '../auth/useAuth';
-import { hasPermission } from '../auth/access-control';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -81,14 +79,6 @@ const isPriorityFilter = (val: string | null): val is ApiOpdVisitPriority =>
 
 export function OpdQueuePage() {
 
-  const { user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles?.some((role: { code: string }) => role.code === 'SUPER_ADMIN'));
-  const canAccess = (module: string, screen: string, action: string) =>
-    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
-  const canCreateVisit = canAccess('OPD', 'OPD Visits', 'Create');
-  const canEditVisit = canAccess('OPD', 'OPD Visits', 'Edit');
-  const canCreateVitals = canAccess('OPD', 'OPD Vitals', 'Create');
-
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   
@@ -113,6 +103,9 @@ export function OpdQueuePage() {
     createVisit,
     updateVisitStatus,
     createVitals,
+    canCreateVisit,
+    canEditVisit,
+    canCreateVitals,
   } = useOpdQueue(filters);
 
   const [walkInOpen, setWalkInOpen] = useState(false);

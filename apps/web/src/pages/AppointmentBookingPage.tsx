@@ -12,9 +12,7 @@ import {
   todayInputValue,
 } from './appointment-utils';
 import { patientFullName, patientInitials } from './patient-utils';
-import { useDoctorsList, useDoctorAvailableSlots } from '../hooks/doctors/useDoctors';
-import { usePatientsList, usePatientDetails } from '../hooks/patients/usePatients';
-import { useCreateAppointment, useAppointmentsList } from '../hooks/appointments/useAppointments';
+import { useAppointmentBookingFeature } from '../hooks/appointments/useAppointmentBookingFeature';
 
 type BookingStep = 1 | 2 | 3;
 
@@ -73,23 +71,25 @@ export function AppointmentBookingPage() {
   const visitType = watch('visit_type');
   const priority = watch('priority');
 
-  const { data: initialPatientData } = usePatientDetails(initialPatientId, Boolean(initialPatientId));
-  const { data: patientResultsData, isLoading: patientLoading, refetch: searchPatientsRefetch } = usePatientsList(
-    { search: patientSearch.trim(), status: 'ACTIVE', limit: 10, sortBy: 'created_at', sortOrder: 'desc' },
-    false
-  );
-  
-  const { data: doctorData, isLoading: doctorLoading } = useDoctorsList({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-  const { data: slotsData, isLoading: slotLoading } = useDoctorAvailableSlots(selectedDoctorId, appointmentDate, Boolean(selectedDoctorId && appointmentDate));
-  const { data: existingApptsData, isLoading: existingApptsLoading } = useAppointmentsList(
-    { doctor_id: selectedDoctorId || undefined, date_from: appointmentDate, date_to: appointmentDate, limit: 100 },
-    Boolean(selectedDoctorId && appointmentDate)
-  );
-  
-  const createAppointment = useCreateAppointment();
+  const {
+    state: {
+      initialPatientData,
+      patientResults,
+      patientLoading,
+      doctors,
+      doctorLoading,
+      slotsData,
+      slotLoading,
+      existingApptsData,
+      existingApptsLoading,
+      isSubmitting,
+    },
+    actions: {
+      searchPatientsRefetch,
+      handleCreateAppointment,
+    }
+  } = useAppointmentBookingFeature(initialPatientId, patientSearch, selectedDoctorId, appointmentDate);
 
-  const patientResults = patientResultsData?.data || [];
-  const doctors = doctorData?.data || [];
   const selectedDoctor = useMemo(() => doctors.find((d) => d.id === selectedDoctorId), [doctors, selectedDoctorId]);
   
   const [selectedPatient, setSelectedPatient] = useState<PatientResponse | null>(null);
@@ -179,7 +179,7 @@ export function AppointmentBookingPage() {
 
   const submitBooking = async (data: BookingFormData) => {
     try {
-      await createAppointment.mutateAsync({
+      await handleCreateAppointment({
         ...data,
         duration_minutes: selectedSlotOption?.durationMinutes ?? 30,
         reason: data.reason?.trim() || null,
@@ -506,16 +506,16 @@ export function AppointmentBookingPage() {
             </div>
           </div>
           <div className="appointment-form-actions">
-            <button className="doc-btn" disabled={createAppointment.isPending} onClick={() => setStep(2)} type="button">
+            <button className="doc-btn" disabled={isSubmitting} onClick={() => setStep(2)} type="button">
               Back
             </button>
             <div>
-              <button className="doc-btn" disabled={createAppointment.isPending} onClick={() => navigate('/appointments')} type="button">
+              <button className="doc-btn" disabled={isSubmitting} onClick={() => navigate('/appointments')} type="button">
                 Cancel
               </button>
-              <button className="doc-btn primary" disabled={createAppointment.isPending} onClick={() => handleSubmit(submitBooking)()} type="button">
+              <button className="doc-btn primary" disabled={isSubmitting} onClick={() => handleSubmit(submitBooking)()} type="button">
                 <i className="ph ph-check" aria-hidden="true" />
-                {createAppointment.isPending ? 'Saving...' : 'Confirm Booking'}
+                {isSubmitting ? 'Saving...' : 'Confirm Booking'}
               </button>
             </div>
           </div>

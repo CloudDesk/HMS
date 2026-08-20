@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../components/ui/Modal';
-import { hasPermission } from '../auth/access-control';
-import { useAuth } from '../auth/useAuth';
 import {
   usePrescriptionQueue,
   type ApiOpdPrescriptionStatus,
@@ -13,7 +11,6 @@ const isPrescriptionStatus = (value: string | null): value is ApiOpdPrescription
   value === 'DRAFT' || value === 'SUBMITTED' || value === 'DISPENSED';
 
 export function PrescriptionQueuePage() {
-  const { user } = useAuth();
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   const initialStatus = initialParams.get('status');
@@ -22,17 +19,10 @@ export function PrescriptionQueuePage() {
   );
   const [searchTerm, setSearchTerm] = useState(initialParams.get('search') ?? '');
   const queue = usePrescriptionQueue({ search: searchTerm, status: statusFilter });
+  const { canDispense } = queue;
 
   const [dispenseModalOpen, setDispenseModalOpen] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<OpdPrescriptionResponse | null>(null);
-  const canDispense = Boolean(
-    user?.roles.some((role) => role.code === 'SUPER_ADMIN') ||
-    hasPermission(user?.permissions ?? [], {
-      module: 'Pharmacy',
-      screen: 'Dispensing',
-      action: 'Dispense',
-    }),
-  );
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -73,10 +63,6 @@ export function PrescriptionQueuePage() {
             <div className="kpi-info">
               <span className="kpi-label">Pending Dispensing</span>
               <span className="kpi-value">{loading ? '—' : queue.pendingCount}</span>
-            </div>
-          </div>
-          <div className="kpi-card">
-            <div className="kpi-icon green">
               <i className="ph ph-check-circle" aria-hidden="true" />
             </div>
             <div className="kpi-info">

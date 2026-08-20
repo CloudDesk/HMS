@@ -9,6 +9,8 @@ import {
   usePharmacyPrescriptions,
   useUpdatePharmacyPrescriptionStatus,
 } from '../pharmacy/usePharmacy';
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
 
 export type PrescriptionQueueFilters = {
   search: string;
@@ -18,6 +20,14 @@ export type PrescriptionQueueFilters = {
 export type { ApiOpdPrescriptionStatus, OpdPrescriptionResponse };
 
 export function usePrescriptionQueue(filters: PrescriptionQueueFilters, enabled = true) {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
+  const canDispense = isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Pharmacy',
+    screen: 'Dispensing',
+    action: 'Dispense',
+  });
+
   const params = useMemo(() => ({
     search: filters.search.trim() || undefined,
     status: filters.status || undefined,
@@ -57,5 +67,7 @@ export function usePrescriptionQueue(filters: PrescriptionQueueFilters, enabled 
     refetch: prescriptionsQuery.refetch,
     isUpdating: statusMutation.isPending,
     markAsDispensed,
+    // Capability flags
+    canDispense,
   };
 }

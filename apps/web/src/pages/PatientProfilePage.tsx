@@ -7,8 +7,7 @@ import {
   type PatientResponse,
   type PatientTimelineEventResponse,
   } from '../api/patients';
-import { usePatientProfile, type PatientProfileTab } from '../hooks/patients/usePatientProfile';
-import { useUpdatePatient, useUploadPatientDocument } from '../hooks/patients/usePatients';
+import { usePatientProfileFeature } from '../hooks/patients/usePatientProfileFeature';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -94,8 +93,17 @@ function EmptyRecords({ message }: { message: string }) {
 
 // ── EMR Timeline Tab (inline, Option B) ─────────────────────────────────────
 
-type EmrTabProps = { patientId: string; loading: boolean; loadError: string; timeline: PatientTimelineEventResponse[]; meta: { page: number; limit: number; total: number; totalPages: number }; filters: { from: string; to: string }; /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  setFilters: (val: any) => void; currentPage: number; setCurrentPage: (val: number) => void; };
+type EmrTabProps = {
+  patientId: string;
+  loading: boolean;
+  loadError: string;
+  timeline: PatientTimelineEventResponse[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+  filters: { from: string; to: string };
+  setFilters: React.Dispatch<React.SetStateAction<{ from: string; to: string }>>;
+  currentPage: number;
+  setCurrentPage: (val: number) => void;
+};
 
 function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilters, currentPage, setCurrentPage }: EmrTabProps) {
   const [selectedDetails, setSelectedDetails] = useState<PatientTimelineEventResponse | null>(null);
@@ -108,8 +116,10 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
           <label htmlFor="emr-tab-from">From</label>
           <input
             id="emr-tab-from"
-            onChange={(e) => { setFilters(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-            (prev: any) => ({ ...prev, from: e.target.value })); setCurrentPage(1); }}
+            onChange={(e) => {
+              setFilters((prev) => ({ ...prev, from: e.target.value }));
+              setCurrentPage(1);
+            }}
             type="date"
             value={filters.from}
           />
@@ -118,15 +128,17 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
           <label htmlFor="emr-tab-to">To</label>
           <input
             id="emr-tab-to"
-            onChange={(e) => { setFilters(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-            (prev: any) => ({ ...prev, to: e.target.value })); setCurrentPage(1); }}
+            onChange={(e) => {
+              setFilters((prev) => ({ ...prev, to: e.target.value }));
+              setCurrentPage(1);
+            }}
             type="date"
             value={filters.to}
           />
         </div>
         <button
           className="doc-btn"
-          onClick={() => { setFilters({ from: "", to: "" }); setCurrentPage(1); }}
+          onClick={() => { setFilters({ from: '', to: '' }); setCurrentPage(1); }}
           type="button"
         >
           <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset
@@ -291,61 +303,52 @@ const getFileIconClass = (fileName: string): string => {
 export function PatientProfilePage() {
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
-  const [activeTab, setActiveTab] = useState<PatientProfileTab>('Overview');
-
-  const [timelineFilters, setTimelineFilters] = useState({ from: '', to: '' });
-  const [timelinePageInfo, setTimelinePageInfo] = useState({ page: 1, limit: 10 });
-
-  const [visitsFilters, setVisitsFilters] = useState({ date_from: '', date_to: '' });
-  const [visitsPageInfo, setVisitsPageInfo] = useState({ page: 1, limit: 10 });
-
-  const [appointmentFilters, setAppointmentFilters] = useState({ date_from: '', date_to: '', doctor_id: '' });
-  const [appointmentsPageInfo, setAppointmentsPageInfo] = useState({ page: 1, limit: 10 });
-
   const {
-    patient,
-    loadingDetails,
-    detailsError,
-    timeline: timelineData,
-    timelineMeta: rawTimelineMeta,
-    loadingTimeline,
-    loadingHistory,
-    visits: visitsData,
-    visitsMeta: rawVisitsMeta,
-    loadingVisits,
-    appointments,
-    appointmentsMeta: rawAppointmentsMeta,
-    loadingAppointments,
-    labOrders,
-    imagingOrders,
-    documents,
-    consents,
-    billingInvoices,
-    doctors: doctorsList
-  } = usePatientProfile(requestedPatientId, activeTab, {
-    timeline: { ...timelineFilters, page: timelinePageInfo.page, limit: timelinePageInfo.limit },
-    visits: { ...visitsFilters, page: visitsPageInfo.page, limit: visitsPageInfo.limit },
-    appointments: { ...appointmentFilters, page: appointmentsPageInfo.page, limit: appointmentsPageInfo.limit, sortBy: 'appointment_date', sortOrder: 'desc' },
-    documents: { limit: 50 },
-    lab: { limit: 50 },
-    imaging: { limit: 50 },
-    billing: { limit: 50 },
-  });
+    state: {
+      activeTab,
+      patient,
+      loadingDetails,
+      detailsError,
+      timeline,
+      timelineMeta,
+      loadingTimeline,
+      loadingHistory,
+      visits: visitsData,
+      visitsMeta,
+      loadingVisits,
+      appointments,
+      appointmentsMeta,
+      loadingAppointments,
+      labOrders,
+      imagingOrders,
+      documents,
+      consents,
+      billingInvoices,
+      doctors: doctorsList,
+      filters: { timeline: timelineFilters, visits: visitsFilters, appointments: appointmentFilters },
+      pageInfo: { timeline: timelinePageInfo },
+      isSubmittingUpdate: submitting,
+      isSubmittingUpload: submittingUpload,
+    },
+    actions: {
+      setActiveTab,
+      setTimelineFilters,
+      setTimelinePage,
+      setVisitsFilters,
+      setVisitsPage,
+      setAppointmentFilters,
+      setAppointmentsPage,
+      handleUpdateProfile,
+      handleUploadDocument,
+    },
+  } = usePatientProfileFeature(requestedPatientId);
 
-  const timeline = timelineData;
   const loading = loadingDetails || (loadingHistory && activeTab === 'Medical History');
   const loadError = detailsError?.message || '';
 
-  const timelineMeta = rawTimelineMeta || { page: 1, limit: 10, totalPages: 1, total: 0 };
-  const visitsMeta = rawVisitsMeta || { page: 1, limit: 10, totalPages: 1, total: 0 };
-  const appointmentsMeta = rawAppointmentsMeta || { page: 1, limit: 10, totalPages: 1, total: 0 };
-
-  const setTimelineMeta = (val: Partial<{ page: number; limit: number }>) => setTimelinePageInfo(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-            (prev: any) => ({ ...prev, ...val }));
-  const setVisitsMeta = (val: Partial<{ page: number; limit: number }>) => setVisitsPageInfo(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-            (prev: any) => ({ ...prev, ...val }));
-  const setAppointmentsMeta = (val: Partial<{ page: number; limit: number }>) => setAppointmentsPageInfo(/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-            (prev: any) => ({ ...prev, ...val }));
+  const setTimelineMeta = (val: Partial<{ page: number; limit: number }>) => setTimelinePage((prev) => ({ ...prev, ...val }));
+  const setVisitsMeta = (val: Partial<{ page: number; limit: number }>) => setVisitsPage((prev) => ({ ...prev, ...val }));
+  const setAppointmentsMeta = (val: Partial<{ page: number; limit: number }>) => setAppointmentsPage((prev) => ({ ...prev, ...val }));
 
   const prescriptions: import('../api/opd').OpdPrescriptionResponse[] = []; // Quick fallback since scripts are nested
 
@@ -356,15 +359,12 @@ export function PatientProfilePage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
-  const [toast, setToast] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting: submitting } } = useForm<UpdatePatientForm>({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<UpdatePatientForm>({
     resolver: zodResolver(updatePatientSchema)
   });
-
-  const { mutateAsync: updatePatient } = useUpdatePatient();
-  const { mutateAsync: uploadDocument, isPending: submittingUpload } = useUploadPatientDocument();
 
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -374,9 +374,9 @@ export function PatientProfilePage() {
   const [uploadMode, setUploadMode] = useState<'DOCUMENT' | 'CONSENT'>('DOCUMENT');
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToast(message);
+    setToastMessage(message);
     setToastTone(tone);
-    window.setTimeout(() => setToast(''), 2800);
+    window.setTimeout(() => setToastMessage(''), 2800);
   };
 
   const handleFileSelect = (files: FileList | null) => {
@@ -417,13 +417,10 @@ export function PatientProfilePage() {
         const title = stagedFiles.length > 1 ? `${docName.trim()} (${i + 1})` : docName.trim();
         if (!requestedPatientId) throw new Error('No patient selected.');
 
-        await uploadDocument({
-          id: requestedPatientId,
-          payload: {
-            document_type: uploadMode === 'CONSENT' ? 'CONSENT' : docType,
-            title,
-            file,
-          }
+        await handleUploadDocument({
+          document_type: uploadMode === 'CONSENT' ? 'CONSENT' : docType,
+          title,
+          file,
         });
       }
 
@@ -504,19 +501,16 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
   const saveProfile = async (data: UpdatePatientForm) => {
     if (!patient) return;
     try {
-      await updatePatient({
-        id: patient.id,
-        payload: {
-          first_name: data.firstName.trim(),
-          last_name: data.lastName.trim(),
-          date_of_birth: data.dateOfBirth,
-          phone: data.phone?.trim() || null,
-          email: data.email?.trim() || null,
-          status: data.status,
-          gender: data.gender,
-          blood_group: data.bloodGroup?.trim() || null,
-          notes: data.notes?.trim() || null,
-        }
+      await handleUpdateProfile({
+        first_name: data.firstName.trim(),
+        last_name: data.lastName.trim(),
+        date_of_birth: data.dateOfBirth,
+        phone: data.phone?.trim() || null,
+        email: data.email?.trim() || null,
+        status: data.status,
+        gender: data.gender,
+        blood_group: data.bloodGroup?.trim() || null,
+        notes: data.notes?.trim() || null,
       });
       setEditOpen(false);
       showToast('Patient profile updated successfully.');
@@ -737,9 +731,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* ── EMR Timeline (Option B — inline) ─────────────────────────── */}
           {activeTab === 'EMR Timeline' ? (
-            <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timelineData || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={timelinePageInfo.page} setCurrentPage={(p: number) => setTimelineMeta({ page: p })} />
+            <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timeline || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={timelinePageInfo.page} setCurrentPage={(p: number) => setTimelineMeta({ page: p })} />
           ) : null}
 
           {/* ── Medical History ──────────────────────────────────────────── */}
@@ -748,11 +741,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="emr-filter-row">
                 <div className="doc-field">
                   <label>From</label>
-                  <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters((prev: typeof timelineFilters) => ({ ...prev, from: e.target.value })); setTimelineMeta({ page: 1 }); }} />
+                  <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, from: e.target.value })); setTimelineMeta({ page: 1 }); }} />
                 </div>
                 <div className="doc-field">
                   <label>To</label>
-                  <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters((prev: typeof timelineFilters) => ({ ...prev, to: e.target.value })); setTimelineMeta({ page: 1 }); }} />
+                  <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, to: e.target.value })); setTimelineMeta({ page: 1 }); }} />
                 </div>
                 <div className="doc-field">
                   <label>&nbsp;</label>
@@ -762,7 +755,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 </div>
                 {loadingTimeline && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'flex-end', paddingBottom: '0.5rem' }}>Loading...</span>}
               </div>
-              {timelineData.length === 0 ? (
+              {timeline.length === 0 ? (
                 <EmptyRecords message="No medical history events recorded for this patient." />
               ) : (
                 <div className="table-responsive">
@@ -771,7 +764,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                       <tr><th>DATE</th><th>EVENT</th><th>DESCRIPTION</th></tr>
                     </thead>
                     <tbody>
-                      {timelineData.map((event) => (
+                      {timeline.map((event) => (
                         <tr key={event.id}>
                           <td>{formatDateTime(event.occurred_at)}</td>
                           <td><strong>{event.title}</strong></td>
@@ -785,7 +778,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               {timelineMeta.totalPages > 1 && (
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
-                    Showing {timelineData.length === 0 ? 0 : (timelineMeta.page - 1) * timelineMeta.limit + 1}-
+                    Showing {timeline.length === 0 ? 0 : (timelineMeta.page - 1) * timelineMeta.limit + 1}-
                     {Math.min(timelineMeta.page * timelineMeta.limit, (timelineMeta.total) || 0)} of {(timelineMeta.total) || 0} events
                   </span>
                   <div className="um-page-controls">
@@ -1412,7 +1405,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
       <PrintImagingOrderModal onClose={() => setViewingImagingOrder(null)} order={viewingImagingOrder} patient={patient} />
       <PrintBillingModal invoice={viewingInvoice} onClose={() => setViewingInvoice(null)} patient={patient} />
 
-      <Toast message={toast} tone={toastTone} visible={Boolean(toast)} />
+      <Toast message={toastMessage} tone={toastTone} visible={Boolean(toastMessage)} />
     </>
   );
 }

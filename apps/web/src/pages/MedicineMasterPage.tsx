@@ -1,28 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError } from '../api/api-error';
-import {
-  type ApiMedicineStatus,
-  type MedicineListParams,
-  type MedicineResponse,
-} from '../api/medicines';
-import {
-  getMedicineErrorMessage,
-  useDeleteMedicine,
-  useExportMedicines,
-  useMedicinesList,
-  useMedicinesSummary,
-  useSaveMedicine,
-  useUpdateMedicineStatus,
-} from '../hooks/medicines/useMedicines';
+import { type MedicineResponse } from '../api/medicines';
+import { getMedicineErrorMessage } from '../hooks/medicines/useMedicines';
+import { useMedicineMasterFeature } from '../hooks/pharmacy/useMedicineMasterFeature';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
-import { navigate, useAppLocation } from '../routing/navigation';
 import { downloadBlob } from '../utils/download';
-import { hasPermission } from '../auth/access-control';
-import { useAuth } from '../auth/useAuth';
+import { navigate } from '../routing/navigation';
 
 const medicineFormSchema = z.object({
   code: z.string().trim().min(1, 'Medicine code is required.').max(50),
@@ -57,54 +44,18 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('en', {
 
 
 export function MedicineMasterPage() {
-  const { user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {
-    module: 'Administration', screen: 'Medicines', action,
-  });
-  const canCreate = can('Create');
-  const canEdit = can('Edit');
-  const canDelete = can('Delete');
-  const canExport = can('Export');
-  const location = useAppLocation();
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const search = query.get('search') ?? '';
-  const status = (query.get('status') ?? '') as ApiMedicineStatus | '';
-  const dosageForm = query.get('dosage_form') ?? '';
-  const page = Math.max(1, Number(query.get('page') ?? 1) || 1);
-  const limit = Math.min(100, Math.max(5, Number(query.get('limit') ?? 10) || 10));
-  const sortBy = (query.get('sortBy') ?? 'created_at') as NonNullable<MedicineListParams['sortBy']>;
-  const sortOrder = (query.get('sortOrder') ?? 'desc') as 'asc' | 'desc';
+  const {
+    permissions: { canCreate, canEdit, canDelete, canExport },
+    state: { search, status, dosageForm, page, limit, sortBy, queryAction },
+    actions: { updateQuery, handleExport },
+    queries: { listQuery, summaryQuery },
+    mutations: { saveMutation, statusMutation, deleteMutation },
+    flags: { exporting },
+  } = useMedicineMasterFeature();
+
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [activeMedicine, setActiveMedicine] = useState<MedicineResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MedicineResponse | null>(null);
-
-  const updateQuery = useCallback((updates: Record<string, string | number | null>) => {
-    const next = new URLSearchParams(location.search);
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === '') next.delete(key);
-      else next.set(key, String(value));
-    }
-    const suffix = next.toString();
-    navigate(`/administration/medicines${suffix ? `?${suffix}` : ''}`, { replace: true });
-  }, [location.search]);
-
-  const listParams = useMemo<MedicineListParams>(() => ({
-    search: search.trim() || undefined,
-    status: status || undefined,
-    dosage_form: dosageForm.trim() || undefined,
-    page,
-    limit,
-    sortBy,
-    sortOrder,
-  }), [dosageForm, limit, page, search, sortBy, sortOrder, status]);
-
-  const listQuery = useMedicinesList(listParams);
-  const summaryQuery = useMedicinesSummary();
-  const { exportMedicines, isExporting: exporting } = useExportMedicines();
-  const saveMutation = useSaveMedicine();
-  const statusMutation = useUpdateMedicineStatus();
-  const deleteMutation = useDeleteMedicine();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<MedicineFormValues>({
     defaultValues: emptyForm,
@@ -133,11 +84,11 @@ export function MedicineMasterPage() {
   };
 
   useEffect(() => {
-    if (query.get('action') === 'create' && !modalMode) {
+    if (queryAction === 'create' && !modalMode) {
       openModal('create');
       updateQuery({ action: null });
     }
-  }, [query, modalMode]);
+  }, [queryAction, modalMode, updateQuery]);
 
   const handleSave = (values: MedicineFormValues) => {
     const payload = {
@@ -179,7 +130,7 @@ export function MedicineMasterPage() {
           ].map(([icon, tone, label, value]) => (
             <div className="kpi-card" key={String(label)}>
               <div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} aria-hidden="true" /></div>
-              <div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{summaryQuery.isLoading ? '—' : value}</span></div>
+              <div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{summaryQuery.isLoading ? 'â€”' : value}</span></div>
             </div>
           ))}
         </div>
@@ -189,7 +140,7 @@ export function MedicineMasterPage() {
             <div className="um-toolbar-row1">
               <div className="um-search"><i className="ph ph-magnifying-glass" aria-hidden="true" /><input onChange={(event) => updateQuery({ search: event.target.value, page: 1 })} placeholder="Search code, medicine, or generic name..." type="search" value={search} /></div>
               <button className="um-add-btn" disabled={forbidden || !canCreate} onClick={() => openModal('create')} type="button"><i className="ph ph-plus" aria-hidden="true" /> Add Medicine</button>
-              <button className="btn-secondary admin-table-action" disabled={exporting || forbidden || !canExport} onClick={() => void exportMedicines(listParams, downloadBlob)} type="button"><i className="ph ph-download-simple" aria-hidden="true" /> Export CSV</button>
+              <button className="btn-secondary admin-table-action" disabled={exporting || forbidden || !canExport} onClick={() => handleExport(downloadBlob)} type="button"><i className="ph ph-download-simple" aria-hidden="true" /> Export CSV</button>
               <button className="btn-secondary admin-table-action" disabled={listQuery.isFetching} onClick={() => void listQuery.refetch()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh</button>
             </div>
             <div className="um-toolbar-row2">
@@ -212,7 +163,7 @@ export function MedicineMasterPage() {
                   <tr key={medicine.id}>
                     <td><span className="emp-id">{medicine.code}</span></td>
                     <td><div className="user-cell-info"><span className="user-cell-name">{medicine.name}</span>{medicine.generic_name ? <span className="muted-cell">{medicine.generic_name}</span> : null}</div></td>
-                    <td>{medicine.strength ?? '—'}</td><td>{medicine.dosage_form ?? '—'}</td><td>{medicine.unit ?? '—'}</td>
+                    <td>{medicine.strength ?? 'â€”'}</td><td>{medicine.dosage_form ?? 'â€”'}</td><td>{medicine.unit ?? 'â€”'}</td>
                     <td><span className={`status-badge ${medicine.status === 'ACTIVE' ? 'status-active' : 'status-inactive'}`}>{medicine.status === 'ACTIVE' ? 'Active' : 'Inactive'}</span></td>
                     <td className="muted-cell">{formatDate(medicine.created_at)}</td>
                     <td><div className="action-icons">
@@ -226,7 +177,7 @@ export function MedicineMasterPage() {
               </tbody>
             </table>
           </div>
-          <div className="um-pagination"><div className="um-showing">{meta.total === 0 ? 'No medicines' : `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}`}</div><div className="um-page-size"><span>Rows:</span><select onChange={(event) => updateQuery({ limit: event.target.value, page: 1 })} value={limit}><option value="5">5</option><option value="10">10</option><option value="25">25</option></select></div><div className="um-page-controls"><button className="pg-btn" disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button><span className="pg-btn active">{page}</span><button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button></div></div>
+          <div className="um-pagination"><div className="um-showing">{meta.total === 0 ? 'No medicines' : `Showing ${(meta.page - 1) * meta.limit + 1}â€“${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}`}</div><div className="um-page-size"><span>Rows:</span><select onChange={(event) => updateQuery({ limit: event.target.value, page: 1 })} value={limit}><option value="5">5</option><option value="10">10</option><option value="25">25</option></select></div><div className="um-page-controls"><button className="pg-btn" disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button><span className="pg-btn active">{page}</span><button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button></div></div>
         </div>
       </div>
 
