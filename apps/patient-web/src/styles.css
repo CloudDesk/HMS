@@ -229,6 +229,8 @@ html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,ca
 .portal-summary-grid small{color:var(--patient-muted)}
 .portal-summary-grid strong,.portal-panel header h2,.portal-profile-head h2,.portal-list-main h3{color:var(--patient-text)}
 .portal-summary-grid button,.portal-panel header button{color:var(--patient-primary)}
+.portal-appointment-list{display:flex;flex-direction:column;gap:.85rem;padding:1.25rem}
+.portal-appointment-list .portal-appointment-card{margin:0}
 .portal-appointment-card{border-color:#dbeafe;border-radius:8px;background:#f8fbff}
 .portal-date-tile{border-radius:7px;background:var(--patient-primary)}
 .portal-quick-grid button{border-bottom-color:var(--patient-border);color:#334155}

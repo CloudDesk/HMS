@@ -7,6 +7,7 @@ import { DoctorModel } from '../doctors/doctor.model.js';
 import { ImagingReportModel } from '../imaging/imaging-report.model.js';
 import { LaboratoryResultModel } from '../laboratory/laboratory-result.model.js';
 import { OpdPrescriptionModel } from '../opd/opd-prescription.model.js';
+import { OpdVisitModel } from '../opd/opd-visit.model.js';
 import { PatientModel, PatientTimelineEventModel } from '../patients/patient.model.js';
 import { allocatePatientNumber } from '../patients/patient-number.service.js';
 import { AuditLogModel } from '../auth/auth.model.js';
@@ -16,7 +17,11 @@ import { UserModel } from '../users/user.model.js';
 import { PatientAccessGrantModel, type PatientAccessRelationship } from './patient-access-grant.model.js';
 import { GuardianProfileModel, type GuardianRelationship } from './guardian-profile.model.js';
 
-const objectId = (value: string) => new Types.ObjectId(value);
+const objectId = (value?: string | null) => (value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined);
+const validObjectIds = (values: unknown[]) =>
+  [...new Set(values.map((v) => (v ? String(v) : null)).filter((v): v is string => Boolean(v && Types.ObjectId.isValid(v))))].map(
+    (v) => new Types.ObjectId(v),
+  );
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const pageMeta = (page: number, limit: number, total: number) => ({
   page,
@@ -28,8 +33,7 @@ const pageMeta = (page: number, limit: number, total: number) => ({
 export class PatientPortalRepository {
   async listPublicBranches(query: { page: number; limit: number; search?: string }) {
     const filter: Record<string, unknown> = {
-      deletedAt: null,
-      $or: [{ status: 'ACTIVE' }, { status: 'active' }, { status: { $exists: false } }, { status: null }],
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     };
     if (query.search) {
       const expression = new RegExp(escapeRegex(query.search), 'i');
@@ -65,17 +69,34 @@ export class PatientPortalRepository {
   }
 
   async activeBranchExists(branchId: string) {
+    const validId = objectId(branchId);
+    if (!validId) return false;
     return Boolean(await BranchModel.exists({
-      _id: objectId(branchId),
+      _id: validId,
       deletedAt: null,
-      $or: [{ status: 'ACTIVE' }, { status: 'active' }, { status: { $exists: false } }, { status: null }],
+      $or: [{ status: 'ACTIVE' }, { status: { $exists: false } }, { status: null }],
     }));
   }
 
   async listPublicDepartments(query: { page: number; limit: number; search?: string; branchId?: string }) {
-    const filter: Record<string, unknown> = { status: 'ACTIVE', deletedAt: null, isClinical: true };
-    if (query.branchId) filter.branchId = objectId(query.branchId);
-    if (query.search) filter.name = new RegExp(escapeRegex(query.search), 'i');
+    const nonClinicalRegex = /administration|admin|billing|finance|reception|nursing|pharmacy|imaging|laboratory|lab/i;
+    const baseFilter: Record<string, unknown> = {
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+      name: { $not: nonClinicalRegex },
+      code: { $not: nonClinicalRegex },
+    };
+    const andConditions: Record<string, unknown>[] = [baseFilter];
+    if (query.branchId) {
+      const bId = query.branchId;
+      const validObjId = objectId(bId);
+      const branchConds: Record<string, unknown>[] = [{ branchId: String(bId) }];
+      if (validObjId) branchConds.push({ branchId: validObjId });
+      andConditions.push({ $or: branchConds });
+    }
+    if (query.search) {
+      andConditions.push({ name: new RegExp(escapeRegex(query.search), 'i') });
+    }
+    const filter = andConditions.length > 1 ? { $and: andConditions } : baseFilter;
     const [departments, total] = await Promise.all([
       DepartmentModel.find(filter)
         .select('code name description branchId')
@@ -85,32 +106,36 @@ export class PatientPortalRepository {
         .lean(),
       DepartmentModel.countDocuments(filter),
     ]);
-    const branchIds = [...new Set(departments.map((item) => String(item.branchId)))];
-    const branches = await BranchModel.find({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null })
-      .select('name city')
-      .lean();
+
+    const branchIds = validObjectIds(departments.map((item) => item.branchId));
+    const branches = branchIds.length
+      ? await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city').lean()
+      : [];
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
     return {
-      data: departments.flatMap((department) => {
+      data: departments.map((department) => {
         const branch = branchById.get(String(department.branchId));
-        return branch ? [{
+        return {
           id: String(department._id),
           code: department.code,
           name: department.name,
           description: department.description ?? null,
-          branch: { id: String(branch._id), name: branch.name, city: branch.city ?? null },
-        }] : [];
+          branch: { id: String(department.branchId), name: branch?.name ?? 'Hospital Branch', city: branch?.city ?? null },
+        };
       }),
       meta: pageMeta(query.page, query.limit, total),
     };
   }
 
   async listPublicServices(query: { page: number; limit: number; search?: string; departmentId?: string; branchId?: string }) {
-    const filter: Record<string, unknown> = { status: 'ACTIVE', deletedAt: null };
+    const filter: Record<string, unknown> = {
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+    };
     if (query.departmentId) filter.departmentId = objectId(query.departmentId);
     if (query.branchId) {
       const departmentIds = await DepartmentModel.distinct('_id', {
-        branchId: objectId(query.branchId), status: 'ACTIVE', deletedAt: null,
+        branchId: objectId(query.branchId),
+        deletedAt: null,
       });
       filter.departmentId = query.departmentId
         ? { $in: departmentIds.filter((id) => String(id) === query.departmentId) }
@@ -129,21 +154,21 @@ export class PatientPortalRepository {
         .lean(),
       ServiceModel.countDocuments(filter),
     ]);
-    const departmentIds = [...new Set(services.map((item) => String(item.departmentId)))];
-    const departments = await DepartmentModel.find({ _id: { $in: departmentIds }, status: 'ACTIVE', deletedAt: null })
-      .select('name branchId')
-      .lean();
-    const branchIds = [...new Set(departments.map((department) => String(department.branchId)))];
-    const branches = await BranchModel.find({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null })
-      .select('name city')
-      .lean();
+    const departmentIds = validObjectIds(services.map((item) => item.departmentId));
+    const departments = departmentIds.length
+      ? await DepartmentModel.find({ _id: { $in: departmentIds }, deletedAt: null }).select('name branchId').lean()
+      : [];
+    const branchIds = validObjectIds(departments.map((department) => department.branchId));
+    const branches = branchIds.length
+      ? await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city').lean()
+      : [];
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
     const departmentById = new Map(departments.map((department) => [String(department._id), department]));
     return {
-      data: services.flatMap((service) => {
+      data: services.map((service) => {
         const department = departmentById.get(String(service.departmentId));
         const branch = department ? branchById.get(String(department.branchId)) : null;
-        return department && branch ? [{
+        return {
           id: String(service._id),
           code: service.code,
           name: service.name,
@@ -151,23 +176,39 @@ export class PatientPortalRepository {
           category: service.category ?? null,
           description: service.description ?? null,
           standard_price: service.standardPrice,
-          department: { id: String(service.departmentId), name: department.name },
-          branch: { id: String(branch._id), name: branch.name, city: branch.city ?? null },
-        }] : [];
+          department: { id: String(service.departmentId), name: department?.name ?? 'Clinical Department' },
+          branch: { id: String(branch?._id ?? 'default'), name: branch?.name ?? 'Hospital Branch', city: branch?.city ?? null },
+        };
       }),
       meta: pageMeta(query.page, query.limit, total),
     };
   }
 
   async listPublicDoctors(query: { page: number; limit: number; search?: string; departmentId?: string; branchId?: string }) {
-    const filter: Record<string, unknown> = { status: 'ACTIVE', deletedAt: null };
-    if (query.departmentId) filter.departmentId = objectId(query.departmentId);
-    if (query.branchId) filter.branchId = objectId(query.branchId);
+    const baseFilter: Record<string, unknown> = {
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+    };
+    const andConditions: Record<string, unknown>[] = [baseFilter];
+    if (query.departmentId) {
+      const dId = query.departmentId;
+      const validObjId = objectId(dId);
+      const deptConds: Record<string, unknown>[] = [{ departmentId: String(dId) }];
+      if (validObjId) deptConds.push({ departmentId: validObjId });
+      andConditions.push({ $or: deptConds });
+    }
+    if (query.branchId && !query.departmentId) {
+      const bId = query.branchId;
+      const validObjId = objectId(bId);
+      const branchConds: Record<string, unknown>[] = [{ branchId: String(bId) }];
+      if (validObjId) branchConds.push({ branchId: validObjId });
+      andConditions.push({ $or: branchConds });
+    }
     if (query.search) {
       const expression = new RegExp(escapeRegex(query.search), 'i');
-      filter.$or = [{ displayName: expression }, { specialization: expression }, { qualification: expression }];
+      andConditions.push({ $or: [{ displayName: expression }, { specialization: expression }, { qualification: expression }] });
     }
-    const [doctors, total] = await Promise.all([
+    const filter = andConditions.length > 1 ? { $and: andConditions } : baseFilter;
+    let [doctors, total] = await Promise.all([
       DoctorModel.find(filter)
         .select('displayName specialization qualification experienceYears branchId departmentId consultationRoom availability')
         .sort({ displayName: 1 })
@@ -176,19 +217,32 @@ export class PatientPortalRepository {
         .lean(),
       DoctorModel.countDocuments(filter),
     ]);
-    const branchIds = [...new Set(doctors.map((item) => String(item.branchId)))];
-    const departmentIds = [...new Set(doctors.map((item) => String(item.departmentId)))];
+
+    if (!doctors.length) {
+      [doctors, total] = await Promise.all([
+        DoctorModel.find(baseFilter)
+          .select('displayName specialization qualification experienceYears branchId departmentId consultationRoom availability')
+          .sort({ displayName: 1 })
+          .skip((query.page - 1) * query.limit)
+          .limit(query.limit)
+          .lean(),
+        DoctorModel.countDocuments(baseFilter),
+      ]);
+    }
+
+    const branchIds = validObjectIds(doctors.map((item) => item.branchId));
+    const departmentIds = validObjectIds(doctors.map((item) => item.departmentId));
     const [branches, departments] = await Promise.all([
-      BranchModel.find({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null }).select('name city').lean(),
-      DepartmentModel.find({ _id: { $in: departmentIds }, status: 'ACTIVE', deletedAt: null }).select('name').lean(),
+      branchIds.length ? BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city').lean() : [],
+      departmentIds.length ? DepartmentModel.find({ _id: { $in: departmentIds }, deletedAt: null }).select('name').lean() : [],
     ]);
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
     const departmentById = new Map(departments.map((department) => [String(department._id), department.name]));
     return {
-      data: doctors.flatMap((doctor) => {
+      data: doctors.map((doctor) => {
         const branch = branchById.get(String(doctor.branchId));
         const departmentName = departmentById.get(String(doctor.departmentId));
-        return branch && departmentName ? [{
+        return {
           id: String(doctor._id),
           display_name: doctor.displayName,
           specialization: doctor.specialization,
@@ -196,9 +250,9 @@ export class PatientPortalRepository {
           experience_years: doctor.experienceYears ?? null,
           consultation_room: doctor.consultationRoom ?? null,
           available_days: doctor.availability.filter((item) => item.isAvailable).map((item) => item.dayOfWeek),
-          branch: { id: String(branch._id), name: branch.name, city: branch.city ?? null },
-          department: { id: String(doctor.departmentId), name: departmentName },
-        }] : [];
+          branch: { id: String(doctor.branchId), name: branch?.name ?? 'Hospital Branch', city: branch?.city ?? null },
+          department: { id: String(doctor.departmentId), name: departmentName ?? 'Clinical Department' },
+        };
       }),
       meta: pageMeta(query.page, query.limit, total),
     };
@@ -848,52 +902,120 @@ export class PatientPortalRepository {
     const startOfToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
     const activeStatuses = ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'];
     const historyStatuses = ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'];
-    const conditions: Record<string, unknown>[] = [{ patientId: id, deletedAt: null }];
-    conditions.push(query.scope === 'upcoming'
-      ? { appointmentDate: { $gte: startOfToday }, status: { $in: activeStatuses } }
-      : { $or: [{ appointmentDate: { $lt: startOfToday } }, { status: { $in: historyStatuses } }] });
-    if (query.status) conditions.push({ status: query.status });
-    const filter = { $and: conditions };
-    const sortOrder = query.scope === 'upcoming' ? 1 : -1;
-    const [appointments, total] = await Promise.all([
-      AppointmentModel.find(filter)
-        .sort({ appointmentDate: sortOrder, startTime: sortOrder })
-        .skip((query.page - 1) * query.limit)
-        .limit(query.limit)
-        .lean(),
-      AppointmentModel.countDocuments(filter),
+
+    const [appointments, opdVisits] = await Promise.all([
+      AppointmentModel.find({ patientId: id, deletedAt: null }).lean(),
+      OpdVisitModel.find({ patientId: id, deletedAt: null }).lean(),
     ]);
-    const branchIds = [...new Set(appointments.map((item) => String(item.branchId)))];
-    const branches = await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null })
-      .select('name city address')
-      .lean();
+
+    const linkedAppointmentIds = new Set(opdVisits.map((v) => v.appointmentId ? String(v.appointmentId) : null).filter((v): v is string => Boolean(v)));
+    const opdVisitByAppointmentId = new Map(opdVisits.filter((v) => v.appointmentId).map((v) => [String(v.appointmentId), v]));
+
+    const combinedItems: Array<{
+      id: string;
+      appointment_number: string;
+      patient_id: string;
+      doctor_id: string;
+      doctor_name: string;
+      doctor_specialization: string;
+      department_id: string;
+      branch_id: string;
+      appointment_date: Date;
+      start_time: string;
+      end_time: string;
+      duration_minutes: number;
+      visit_type: string;
+      status: string;
+      reason: string | null;
+      rescheduled_from_id: string | null;
+      rescheduled_to_id: string | null;
+      is_opd_visit: boolean;
+      opd_visit_number: string | null;
+    }> = [];
+
+    appointments.forEach((item) => {
+      const linkedVisit = opdVisitByAppointmentId.get(String(item._id));
+      combinedItems.push({
+        id: String(item._id),
+        appointment_number: item.appointmentNumber,
+        patient_id: String(item.patientId),
+        doctor_id: String(item.doctorId),
+        doctor_name: item.doctorName,
+        doctor_specialization: item.doctorSpecialization,
+        department_id: String(item.departmentId),
+        branch_id: String(item.branchId),
+        appointment_date: item.appointmentDate,
+        start_time: item.startTime,
+        end_time: item.endTime,
+        duration_minutes: item.durationMinutes,
+        visit_type: item.visitType,
+        status: linkedVisit ? (['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CHECKED_IN', 'WAITING_FOR_VITALS'].includes(linkedVisit.status) ? 'CHECKED_IN' : linkedVisit.status) : item.status,
+        reason: item.reason ?? null,
+        rescheduled_from_id: item.rescheduledFromId ? String(item.rescheduledFromId) : null,
+        rescheduled_to_id: item.rescheduledToId ? String(item.rescheduledToId) : null,
+        is_opd_visit: Boolean(linkedVisit),
+        opd_visit_number: linkedVisit?.visitNumber ?? null,
+      });
+    });
+
+    opdVisits.forEach((v) => {
+      if (v.appointmentId && linkedAppointmentIds.has(String(v.appointmentId))) return;
+      const checkInMinutes = v.checkInTime ? new Date(v.checkInTime).getHours() * 60 + new Date(v.checkInTime).getMinutes() : 540;
+      const startTime = `${String(Math.floor(checkInMinutes / 60)).padStart(2, '0')}:${String(checkInMinutes % 60).padStart(2, '0')}`;
+      const endTime = `${String(Math.floor((checkInMinutes + 30) / 60)).padStart(2, '0')}:${String((checkInMinutes + 30) % 60).padStart(2, '0')}`;
+      combinedItems.push({
+        id: String(v._id),
+        appointment_number: v.visitNumber,
+        patient_id: String(v.patientId),
+        doctor_id: String(v.doctorId),
+        doctor_name: v.doctorName,
+        doctor_specialization: v.doctorSpecialization,
+        department_id: String(v.departmentId),
+        branch_id: String(v.branchId),
+        appointment_date: v.visitDate,
+        start_time: startTime,
+        end_time: endTime,
+        duration_minutes: 30,
+        visit_type: v.visitType ?? 'OPD_VISIT',
+        status: ['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CHECKED_IN', 'WAITING_FOR_VITALS'].includes(v.status) ? 'CHECKED_IN' : v.status,
+        reason: v.reason ?? null,
+        rescheduled_from_id: null,
+        rescheduled_to_id: null,
+        is_opd_visit: true,
+        opd_visit_number: v.visitNumber,
+      });
+    });
+
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const filtered = combinedItems.filter((item) => {
+      if (query.status && item.status !== query.status) return false;
+      const dateUtc = new Date(Date.UTC(item.appointment_date.getFullYear(), item.appointment_date.getMonth(), item.appointment_date.getDate()));
+      const isPastDate = dateUtc < startOfToday;
+      const isToday = dateUtc.getTime() === startOfToday.getTime();
+      const isPastTimeToday = isToday && item.end_time <= currentTimeStr;
+      const isPast = isPastDate || isPastTimeToday || historyStatuses.includes(item.status);
+
+      return query.scope === 'upcoming' ? !isPast && activeStatuses.includes(item.status) : isPast;
+    });
+
+    filtered.sort((a, b) => {
+      const diff = new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime();
+      return query.scope === 'upcoming' ? diff : -diff;
+    });
+
+    const total = filtered.length;
+    const paginated = filtered.slice((query.page - 1) * query.limit, query.page * query.limit);
+
+    const branchIds = [...new Set(paginated.map((item) => item.branch_id))];
+    const branches = await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city address').lean();
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
+
     return {
-      data: appointments.map((item) => {
-        const branch = branchById.get(String(item.branchId));
+      data: paginated.map((item) => {
+        const branch = branchById.get(item.branch_id);
         return {
-          id: String(item._id),
-          appointment_number: item.appointmentNumber,
-          patient_id: String(item.patientId),
-          doctor_id: String(item.doctorId),
-          doctor_name: item.doctorName,
-          doctor_specialization: item.doctorSpecialization,
-          department_id: String(item.departmentId),
-          appointment_date: item.appointmentDate,
-          start_time: item.startTime,
-          end_time: item.endTime,
-          duration_minutes: item.durationMinutes,
-          visit_type: item.visitType,
-          status: item.status,
-          reason: item.reason ?? null,
-          rescheduled_from_id: item.rescheduledFromId ? String(item.rescheduledFromId) : null,
-          rescheduled_to_id: item.rescheduledToId ? String(item.rescheduledToId) : null,
-          branch: branch ? {
-            id: String(branch._id),
-            name: branch.name,
-            city: branch.city ?? null,
-            address: branch.address ?? null,
-          } : null,
+          ...item,
+          branch: branch ? { id: String(branch._id), name: branch.name, city: branch.city ?? null, address: branch.address ?? null } : null,
         };
       }),
       meta: pageMeta(query.page, query.limit, total),

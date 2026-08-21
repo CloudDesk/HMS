@@ -61,6 +61,7 @@ type PatientProfileInput = {
   bloodGroup?: string | null;
   address?: { line1?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null };
   preferredBranchId: string;
+  emergencyContact?: { name?: string | null; relationship?: string | null; phone?: string | null };
 };
 
 type UpdatePatientProfileInput = PatientProfileInput & {

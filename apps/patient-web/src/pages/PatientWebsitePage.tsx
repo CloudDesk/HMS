@@ -103,7 +103,15 @@ export function PatientWebsitePage() {
   };
 
   const goHome = () => {
+    setDepartmentSearch('');
+    setServiceSearch('');
+    setDoctorSearch('');
+    setGlobalSearch('');
+    setGlobalQuery('');
+    setGlobalSearchOpen(false);
+    setOpenHeaderMenu(null);
     navigate('/');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const submitDepartmentSearch = (event: FormEvent) => {

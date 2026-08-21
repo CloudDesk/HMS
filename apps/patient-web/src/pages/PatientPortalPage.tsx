@@ -374,7 +374,7 @@ export function PatientPortalPage() {
   const data = query.data;
   const hasSelfProfile = portalContext.patients.some((item) => item.relationship === 'SELF');
   const patient = data.patient;
-  const nextAppointment = [...data.appointments]
+  const upcomingAppointments = [...data.appointments]
     .filter(
       (item) =>
         new Date(item.appointment_date).getTime() >= new Date().setHours(0, 0, 0, 0) &&
@@ -382,7 +382,8 @@ export function PatientPortalPage() {
     )
     .sort(
       (a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime(),
-    )[0];
+    )
+    .slice(0, 3);
   const initials = `${patient.first_name[0] ?? ''}${patient.last_name[0] ?? ''}`.toUpperCase();
   const selectedPatientContext = portalContext.patients.find(
     (item) => item.id === selectedPatientId,
@@ -620,45 +621,64 @@ export function PatientPortalPage() {
               <article className="portal-panel portal-next">
                 <header>
                   <div>
-                    <p>Next appointment</p>
-                    <h2>Your upcoming visit</h2>
+                    <p>Upcoming visits</p>
+                    <h2>Your upcoming appointments</h2>
                   </div>
                   <button onClick={() => setTab('appointments')} type="button">
                     All appointments
                   </button>
                 </header>
-                {nextAppointment ? (
-                  <div className="portal-appointment-card">
-                    <div className="portal-date-tile">
-                      <strong>{new Date(nextAppointment.appointment_date).getDate()}</strong>
-                      <span>
-                        {new Intl.DateTimeFormat('en', { month: 'short' }).format(
-                          new Date(nextAppointment.appointment_date),
-                        )}
-                      </span>
-                    </div>
-                    <div className="portal-appointment-info">
-                      <span className={`portal-status ${nextAppointment.status.toLowerCase()}`}>
-                        {label(nextAppointment.status)}
-                      </span>
-                      <h3>{nextAppointment.doctor_name}</h3>
-                      <p>{nextAppointment.doctor_specialization}</p>
-                      <div>
-                        <span>
-                          <i className="ph ph-clock" /> {nextAppointment.start_time}–
-                          {nextAppointment.end_time}
-                        </span>
-                        <span>
-                          <i className="ph ph-stethoscope" /> {label(nextAppointment.visit_type)}
-                        </span>
-                        {nextAppointment.branch ? (
+                {upcomingAppointments.length > 0 ? (
+                  <div className="portal-appointment-list">
+                    {upcomingAppointments.map((appt) => (
+                      <div key={appt.id} className="portal-appointment-card">
+                        <div className="portal-date-tile">
+                          <strong>{new Date(appt.appointment_date).getDate()}</strong>
                           <span>
-                            <i className="ph ph-map-pin" /> {nextAppointment.branch.name}
-                            {nextAppointment.branch.city ? `, ${nextAppointment.branch.city}` : ''}
+                            {new Intl.DateTimeFormat('en', { month: 'short' }).format(
+                              new Date(appt.appointment_date),
+                            )}
                           </span>
-                        ) : null}
+                        </div>
+                        <div className="portal-appointment-info">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                            <span className="portal-op-visit-badge" style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.2rem',
+                              padding: '0.12rem 0.45rem',
+                              borderRadius: '999px',
+                              background: '#e0f2fe',
+                              color: '#0284c7',
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                            }}>
+                              <i className="ph ph-stethoscope" /> OP Visit
+                            </span>
+                            <span className={`portal-status ${appt.status.toLowerCase()}`}>
+                              {label(appt.status)}
+                            </span>
+                          </div>
+                          <h3>{appt.doctor_name}</h3>
+                          <p>{appt.doctor_specialization}</p>
+                          <div>
+                            <span>
+                              <i className="ph ph-clock" /> {appt.start_time}–
+                              {appt.end_time}
+                            </span>
+                            <span>
+                              <i className="ph ph-stethoscope" /> {label(appt.visit_type)}
+                            </span>
+                            {appt.branch ? (
+                              <span>
+                                <i className="ph ph-map-pin" /> {appt.branch.name}
+                                {appt.branch.city ? `, ${appt.branch.city}` : ''}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 ) : (
                   <Empty
@@ -676,6 +696,14 @@ export function PatientPortalPage() {
                   </div>
                 </header>
                 <div className="portal-quick-grid">
+                  <button onClick={() => { setTab('appointments'); setAppointmentScope('past'); }} type="button">
+                    <i className="ph ph-clock-counter-clockwise" />
+                    <span>
+                      <strong>Past & completed visits</strong>
+                      <small>View completed appointment history</small>
+                    </span>
+                    <i className="ph ph-caret-right" />
+                  </button>
                   <button onClick={() => setTab('results')} type="button">
                     <i className="ph ph-flask" />
                     <span>
@@ -741,18 +769,20 @@ export function PatientPortalPage() {
         {tab === 'appointments' ? (
           <section className="portal-page-section portal-appointments-page">
             <header>
-              <div>
+              <div style={{ width: '100%' }}>
                 <p>My care schedule</p>
-                <h1>Appointments</h1>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '1rem' }}>
+                  <h1 style={{ margin: 0 }}>Appointments</h1>
+                  <button
+                    className="portal-book-action"
+                    onClick={() => setBookingOpen(true)}
+                    type="button"
+                  >
+                    <i className="ph ph-calendar-plus" /> Book appointment
+                  </button>
+                </div>
                 <span>Review upcoming visits and your complete appointment history.</span>
               </div>
-              <button
-                className="portal-book-action"
-                onClick={() => setBookingOpen(true)}
-                type="button"
-              >
-                <i className="ph ph-calendar-plus" /> Book appointment
-              </button>
             </header>
             <div className="portal-appointment-toolbar">
               <div className="portal-appointment-tabs" role="tablist" aria-label="Appointment period">
@@ -783,9 +813,23 @@ export function PatientPortalPage() {
                       <i className="ph ph-calendar-blank" />
                     </div>
                     <div className="portal-list-main">
-                      <div>
-                        <h3>{item.doctor_name}</h3>
-                        <span>{item.doctor_specialization}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0 }}>{item.doctor_name}</h3>
+                        <span className="portal-op-visit-badge" style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '999px',
+                          background: '#e0f2fe',
+                          color: '#0284c7',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          lineHeight: '1.4',
+                        }}>
+                          <i className="ph ph-stethoscope" /> OP Visit
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{item.doctor_specialization}</span>
                       </div>
                       <p>
                         <i className="ph ph-calendar" /> {date(item.appointment_date)} &nbsp;{' '}

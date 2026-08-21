@@ -365,9 +365,13 @@ async auditCreated(appointment: Appointment, actorUserId: string) {
   async listPastOpen(patientId?: string) {
     const now = new Date();
     const startOfToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const appointments = await AppointmentModel.find({
       ...(patientId ? { patientId: toObjectId(patientId) } : {}),
-      appointmentDate: { $lt: startOfToday },
+      $or: [
+        { appointmentDate: { $lt: startOfToday } },
+        { appointmentDate: startOfToday, endTime: { $lte: currentTimeStr } },
+      ],
       status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
       deletedAt: null,
     }).lean<AppointmentLean[]>();
