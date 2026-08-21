@@ -1,5 +1,3 @@
-@import '../../web/src/styles.css';
-
 html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,calc(100vw - 2rem))}
 .patient-login-input select{min-width:0;flex:1;border:0;outline:0;padding:.75rem;background:transparent;color:#10233f;font:inherit;font-weight:500}
 
