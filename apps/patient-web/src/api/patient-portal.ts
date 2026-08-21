@@ -161,6 +161,7 @@ export type PortalPatientInput = {
   gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
   preferred_branch_id: string;
   blood_group?: string | null;
+  emergency_contact?: { name?: string | null; relationship?: string | null; phone?: string | null } | null;
   address?: {
     line1?: string | null;
     city?: string | null;
