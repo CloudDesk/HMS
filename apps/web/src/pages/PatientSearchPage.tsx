@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -199,11 +199,12 @@ export function PatientSearchPage() {
   };
 
   const openEditModal = (patient: PatientResponse) => {
-    reset({
+    setEditingPatient(patient);
+    setEditForm({
       firstName: patient.first_name ?? '',
       lastName: patient.last_name ?? '',
-      dateOfBirth: patient.date_of_birth ?? '',
-      gender: patient.gender ?? 'UNKNOWN',
+      dateOfBirth: patient.date_of_birth ? patient.date_of_birth.slice(0, 10) : '',
+      gender: patient.gender ?? 'MALE',
       phone: patient.phone ?? '',
       email: patient.email ?? '',
       addressLine1: patient.address?.line1 ?? '',
@@ -213,7 +214,7 @@ export function PatientSearchPage() {
       status: patient.status,
       notes: patient.notes ?? '',
     });
-    setEditingPatient(patient);
+    setEditFormError('');
     setActiveMenuId(null);
   };
 
@@ -441,19 +442,6 @@ export function PatientSearchPage() {
                   <option value="O+">O+</option>
                   <option value="O-">O-</option>
                   <option value="AB+">AB+</option>
-                </select>
-              </div>
-              <div className="patient-search-compact-field">
-                <label htmlFor="search-type">Patient Type</label>
-                <select
-                  id="search-type"
-                  onChange={(e) => setPatientTypeFilter(e.target.value)}
-                  value={patientTypeFilter}
-                >
-                  <option value="">All Patient Types</option>
-                  <option value="Insurance">Insurance</option>
-                  <option value="Emergency">Emergency</option>
-                  <option value="Self-Pay">Self-Pay</option>
                 </select>
               </div>
               <div className="patient-search-compact-field">

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
@@ -183,6 +183,8 @@ export function DoctorAvailabilityPage() {
     }
   });
 
+  const [activeTab, setActiveTab] = useState<'schedule' | 'leave'>('schedule');
+
   return (
     <div className="doctor-page">
       <section className="doctor-page-header">
@@ -201,18 +203,20 @@ export function DoctorAvailabilityPage() {
           >
             <i className="ph ph-user-circle" /> Profile
           </button>
-          <button
-            className="doc-btn primary"
-            disabled={
-              saving ||
-              !availability.selectedDoctorId ||
-              !availability.canEdit
-            }
-            onClick={() => void saveAvailability()}
-            type="button"
-          >
-            <i className="ph ph-floppy-disk" /> Save Working Hours
-          </button>
+          {activeTab === 'schedule' ? (
+            <button
+              className="doc-btn primary"
+              disabled={
+                saving ||
+                !availability.selectedDoctorId ||
+                !availability.canEdit
+              }
+              onClick={() => void saveAvailability()}
+              type="button"
+            >
+              <i className="ph ph-floppy-disk" /> Save Working Hours
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -263,37 +267,56 @@ export function DoctorAvailabilityPage() {
         </section>
       ) : (
         <>
-          <section className="doc-card">
-            <div className="doc-card-header">
-              <div>
-                <h3>Recurring Working Hours</h3>
-                <p>Add multiple non-overlapping blocks for each available day.</p>
-              </div>
-            </div>
-            <Controller
-              control={availabilityForm.control}
-              name="availability"
-              render={({ field }) => (
-                <DoctorAvailabilityEditor
-                  disabled={saving || !availability.canEdit}
-                  onChange={field.onChange}
-                  value={field.value}
-                />
-              )}
-            />
-          </section>
+          <div className="tabs-container" style={{ margin: '0.25rem 0 1rem', borderBottom: '1px solid #e2e8f0' }}>
+            <button
+              className={`tab-btn${activeTab === 'schedule' ? ' active' : ''}`}
+              onClick={() => setActiveTab('schedule')}
+              type="button"
+            >
+              <i className="ph ph-clock" style={{ marginRight: '6px' }} />
+              Recurring Working Hours
+            </button>
+            <button
+              className={`tab-btn${activeTab === 'leave' ? ' active' : ''}`}
+              onClick={() => setActiveTab('leave')}
+              type="button"
+            >
+              <i className="ph ph-calendar-x" style={{ marginRight: '6px' }} />
+              Doctor Leave {availability.leaves.length > 0 ? `(${availability.leaves.length})` : ''}
+            </button>
+          </div>
 
-          <div className="doc-grid two doctor-availability-management-grid">
-            <section className="doc-card">
+          {activeTab === 'schedule' ? (
+            <section className="doc-card" style={{ width: '100%' }}>
               <div className="doc-card-header">
                 <div>
-                  <h3>Doctor Leave</h3>
-                  <p>Date ranges block all generated appointment slots.</p>
+                  <h3>Recurring Working Hours</h3>
+                  <p>Add multiple non-overlapping blocks for each available day.</p>
                 </div>
               </div>
-              <form className="doc-form-grid two" onSubmit={submitLeave}>
+              <Controller
+                control={availabilityForm.control}
+                name="availability"
+                render={({ field }) => (
+                  <DoctorAvailabilityEditor
+                    disabled={saving || !availability.canEdit}
+                    onChange={field.onChange}
+                    value={field.value}
+                  />
+                )}
+              />
+            </section>
+          ) : (
+            <section className="doc-card" style={{ width: '100%' }}>
+              <div className="doc-card-header">
+                <div>
+                  <h3>Doctor Leave Management</h3>
+                  <p>Date ranges block all generated appointment slots for this doctor.</p>
+                </div>
+              </div>
+              <form className="doc-form-grid two" onSubmit={submitLeave} style={{ marginBottom: '1.5rem' }}>
                 <label className="doc-field">
-                  <span>From</span>
+                  <span>From Date</span>
                   <input
                     {...leaveForm.register('start_date')}
                     disabled={!availability.canEdit}
@@ -302,7 +325,7 @@ export function DoctorAvailabilityPage() {
                   />
                 </label>
                 <label className="doc-field">
-                  <span>To</span>
+                  <span>To Date</span>
                   <input
                     {...leaveForm.register('end_date')}
                     disabled={!availability.canEdit}
@@ -311,8 +334,9 @@ export function DoctorAvailabilityPage() {
                   />
                 </label>
                 <label className="doc-field full">
-                  <span>Reason</span>
+                  <span>Leave Reason / Clinical Notes</span>
                   <input
+                    placeholder="e.g. Annual Leave, Medical Leave, Conference"
                     {...leaveForm.register('reason')}
                     disabled={!availability.canEdit}
                   />
@@ -323,26 +347,31 @@ export function DoctorAvailabilityPage() {
                     disabled={saving || !availability.canEdit}
                     type="submit"
                   >
-                    <i className="ph ph-plus" /> Add Leave
+                    <i className="ph ph-plus" /> Add Leave Record
                   </button>
                 </div>
               </form>
-              <div className="doc-table-wrap doctor-subtable">
+
+              <div className="doc-table-wrap doctor-subtable" style={{ maxHeight: 'none', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                 <table className="doc-table">
                   <thead>
-                    <tr><th>From</th><th>To</th><th>Reason</th><th>Status</th><th /></tr>
+                    <tr><th>From</th><th>To</th><th>Reason</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th></tr>
                   </thead>
                   <tbody>
                     {availability.leaves.length === 0 ? (
-                      <tr><td className="um-state-cell" colSpan={5}>No leave records.</td></tr>
+                      <tr><td className="um-state-cell" colSpan={5} style={{ padding: '2rem', textAlign: 'center' }}>No leave records.</td></tr>
                     ) : (
                       availability.leaves.map((leave) => (
                         <tr key={leave.id}>
-                          <td>{leave.start_date.slice(0, 10)}</td>
-                          <td>{leave.end_date.slice(0, 10)}</td>
+                          <td><strong>{leave.start_date.slice(0, 10)}</strong></td>
+                          <td><strong>{leave.end_date.slice(0, 10)}</strong></td>
                           <td>{leave.reason}</td>
-                          <td>{leave.status}</td>
                           <td>
+                            <span className={`status-badge ${leave.status === 'ACTIVE' ? 'status-active' : 'status-inactive'}`}>
+                              {leave.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
                             {leave.status === 'ACTIVE' && availability.canEdit ? (
                               <button
                                 className="doc-action danger"
@@ -351,7 +380,7 @@ export function DoctorAvailabilityPage() {
                                 title="Cancel leave"
                                 type="button"
                               >
-                                <i className="ph ph-x" />
+                                <i className="ph ph-x" /> Cancel
                               </button>
                             ) : null}
                           </td>
@@ -362,145 +391,7 @@ export function DoctorAvailabilityPage() {
                 </table>
               </div>
             </section>
-
-            <section className="doc-card">
-              <div className="doc-card-header">
-                <div>
-                  <h3>Availability Exceptions</h3>
-                  <p>Override a single date with closure or custom working blocks.</p>
-                </div>
-              </div>
-              <form className="doc-form-grid two" onSubmit={submitException}>
-                <label className="doc-field">
-                  <span>Date</span>
-                  <input
-                    {...exceptionForm.register('date')}
-                    disabled={!availability.canEdit}
-                    min={todayValue()}
-                    type="date"
-                  />
-                </label>
-                <label className="doc-field">
-                  <span>Availability</span>
-                  <Controller
-                    control={exceptionForm.control}
-                    name="is_available"
-                    render={({ field }) => (
-                      <select
-                        disabled={!availability.canEdit}
-                        onChange={(event) => {
-                          const isAvailable = event.target.value === 'available';
-                          field.onChange(isAvailable);
-                          exceptionForm.setValue(
-                            'working_blocks',
-                            isAvailable
-                              ? exceptionValues.working_blocks.length
-                                ? exceptionValues.working_blocks
-                                : [defaultExceptionBlock()]
-                              : [],
-                            { shouldDirty: true, shouldValidate: true },
-                          );
-                        }}
-                        value={field.value ? 'available' : 'unavailable'}
-                      >
-                        <option value="unavailable">Unavailable</option>
-                        <option value="available">Custom hours</option>
-                      </select>
-                    )}
-                  />
-                </label>
-                {exceptionValues.is_available ? (
-                  <>
-                    <label className="doc-field">
-                      <span>From</span>
-                      <input
-                        disabled={!availability.canEdit}
-                        onChange={(event) =>
-                          exceptionForm.setValue(
-                            'working_blocks',
-                            [{ ...exceptionBlock, start_time: event.target.value }],
-                            { shouldDirty: true, shouldValidate: true },
-                          )
-                        }
-                        type="time"
-                        value={exceptionBlock.start_time}
-                      />
-                    </label>
-                    <label className="doc-field">
-                      <span>To</span>
-                      <input
-                        disabled={!availability.canEdit}
-                        onChange={(event) =>
-                          exceptionForm.setValue(
-                            'working_blocks',
-                            [{ ...exceptionBlock, end_time: event.target.value }],
-                            { shouldDirty: true, shouldValidate: true },
-                          )
-                        }
-                        type="time"
-                        value={exceptionBlock.end_time}
-                      />
-                    </label>
-                  </>
-                ) : null}
-                <label className="doc-field full">
-                  <span>Reason</span>
-                  <input
-                    {...exceptionForm.register('reason')}
-                    disabled={!availability.canEdit}
-                  />
-                </label>
-                <div className="full">
-                  <button
-                    className="doc-btn primary"
-                    disabled={saving || !availability.canEdit}
-                    type="submit"
-                  >
-                    <i className="ph ph-plus" /> Save Exception
-                  </button>
-                </div>
-              </form>
-              <div className="doc-table-wrap doctor-subtable">
-                <table className="doc-table">
-                  <thead>
-                    <tr><th>Date</th><th>Override</th><th>Reason</th><th /></tr>
-                  </thead>
-                  <tbody>
-                    {availability.exceptions.length === 0 ? (
-                      <tr><td className="um-state-cell" colSpan={4}>No dated exceptions.</td></tr>
-                    ) : (
-                      availability.exceptions.map((exception) => (
-                        <tr key={exception.id}>
-                          <td>{exception.date.slice(0, 10)}</td>
-                          <td>
-                            {exception.is_available
-                              ? exception.working_blocks
-                                  .map((block) => `${block.start_time}–${block.end_time}`)
-                                  .join(', ')
-                              : 'Unavailable'}
-                          </td>
-                          <td>{exception.reason}</td>
-                          <td>
-                            {availability.canEdit ? (
-                              <button
-                                className="doc-action danger"
-                                disabled={saving}
-                                onClick={() => void availability.deleteException(exception.id)}
-                                title="Delete exception"
-                                type="button"
-                              >
-                                <i className="ph ph-trash" />
-                              </button>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
+          )}
         </>
       )}
     </div>

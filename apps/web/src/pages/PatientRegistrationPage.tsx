@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
 import { branchesApi, type BranchResponse } from '../api/branches';
 import {
@@ -555,14 +555,22 @@ export function PatientRegistrationPage() {
             >
               <div className="doc-field">
                 <label htmlFor="patient-blood-group">Blood Group</label>
-                <input
+                <select
                   disabled={submitting}
                   id="patient-blood-group"
                   onChange={(event) => setForm({ ...form, bloodGroup: event.target.value })}
-                  placeholder="Example: O+"
-                  type="text"
                   value={form.bloodGroup}
-                />
+                >
+                  <option value="">Select Blood Group</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </select>
               </div>
               <div className="doc-field full">
                 <label htmlFor="patient-notes">Registration Notes</label>

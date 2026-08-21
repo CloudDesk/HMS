@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -175,91 +175,7 @@ function ServicesByDepartment({
   );
 }
 
-function BranchMultiSelect({
-  branches,
-  selectedIds,
-  onChange,
-  disabled,
-}: {
-  branches: { id: string; name: string }[];
-  selectedIds: string[];
-  onChange: (ids: string[]) => void;
-  disabled?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="hms-multi-select" ref={containerRef}>
-      <div
-        className={`hms-multi-select-trigger${open ? ' active' : ''}${disabled ? ' disabled' : ''}`}
-        onClick={() => !disabled && setOpen(!open)}
-      >
-        {selectedIds.length === 0 ? (
-          <span className="hms-multi-select-placeholder">Select branches...</span>
-        ) : (
-          selectedIds.map((id) => {
-            const b = branches.find((br) => br.id === id);
-            if (!b) return null;
-            return (
-              <span className="hms-multi-select-tag" key={id}>
-                {b.name}
-                <button
-                  aria-label={`Remove ${b.name}`}
-                  className="hms-multi-select-tag-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!disabled) onChange(selectedIds.filter((sid) => sid !== id));
-                  }}
-                  type="button"
-                >
-                  <i className="ph ph-x" aria-hidden="true" />
-                </button>
-              </span>
-            );
-          })
-        )}
-        <i className={`ph ph-caret-down hms-multi-select-chevron${open ? ' open' : ''}`} aria-hidden="true" />
-      </div>
-
-      {open && (
-        <div className="hms-multi-select-dropdown">
-          {branches.map((b) => {
-            const isSelected = selectedIds.includes(b.id);
-            return (
-              <label
-                className={`hms-multi-select-item${isSelected ? ' selected' : ''}`}
-                key={b.id}
-              >
-                <input
-                  checked={isSelected}
-                  onChange={(e) => {
-                    const newIds = e.target.checked
-                      ? [...selectedIds, b.id]
-                      : selectedIds.filter((id) => id !== b.id);
-                    onChange(newIds);
-                  }}
-                  type="checkbox"
-                />
-                <span>{b.name}</span>
-              </label>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+import { BranchMultiSelect } from '../components/ui/BranchMultiSelect';
 
 // ─── Main Page Component ────────────────────────────────────────────────────────
 
@@ -293,6 +209,8 @@ export function ServiceCataloguePage() {
 
   
 
+  const [modalBranchIds, setModalBranchIds] = useState<string[]>([]);
+
   // Status
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
@@ -306,20 +224,17 @@ export function ServiceCataloguePage() {
   };
 
   // ── Derived: filter departments by selected branches ──────────────────────
-  const formDepartmentOptions = useMemo(
-    () => {
-      const branchId = svcForm.watch('branch_id');
-      return branchId
-        ? departments.filter((department) => department.branch_ids.includes(branchId))
-        : departments;
-    },
-    [departments, svcForm.watch('branch_id')],
-  );
+  const formDepartmentOptions = useMemo(() => {
+    if (modalBranchIds.length === 0) return departments;
+    return departments.filter((department) =>
+      modalBranchIds.some((bId) => department.branch_ids.includes(bId))
+    );
+  }, [departments, modalBranchIds]);
 
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
   const getBranchForDept = (deptId: string) => {
     const dept = departments.find((d) => d.id === deptId);
-    if (!dept) return 'â€”';
+    if (!dept) return '—';
     const branchNames = dept.branch_ids.map(id => branches.find(b => b.id === id)?.name).filter(Boolean); return branchNames.length ? branchNames.join(', ') : '-';
   };
 
@@ -329,6 +244,7 @@ export function ServiceCataloguePage() {
     setFormError('');
     if (svc) {
       const dept = departments.find((d) => d.id === svc.department_id);
+      setModalBranchIds(dept?.branch_ids || []);
       svcForm.reset({
         code: svc.code,
         name: svc.name,
@@ -341,6 +257,7 @@ export function ServiceCataloguePage() {
         status: svc.status,
       });
     } else {
+      setModalBranchIds([]);
       svcForm.reset({
         code: '', name: '', service_type: 'GENERAL', branch_id: '',
         department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE'
@@ -832,10 +749,21 @@ export function ServiceCataloguePage() {
             <div className="form-grid-3">
               <div className="form-field">
                 <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#475569', marginBottom: '4px', display: 'block' }}>Branch</span>
-                <select {...svcForm.register('branch_id')} disabled={submitting}>
-                  <option value="">All Branches</option>
-                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+                <BranchMultiSelect
+                  branches={branches}
+                  disabled={submitting}
+                  onChange={(newIds) => {
+                    setModalBranchIds(newIds);
+                    if (newIds.length > 0) {
+                      const currentDeptId = svcForm.getValues('department_id');
+                      const currentDept = departments.find((d) => d.id === currentDeptId);
+                      if (currentDept && !newIds.some((bId) => currentDept.branch_ids.includes(bId))) {
+                        svcForm.setValue('department_id', '');
+                      }
+                    }
+                  }}
+                  selectedIds={modalBranchIds}
+                />
               </div>
               <label className="form-field">
                 <span>Department <span className="required">*</span></span>

@@ -501,7 +501,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 </div>
 <div class="card-footer"><span class="footer-text">This card is non-transferable</span><span class="footer-text">Printed: ${new Date().toLocaleDateString()}</span></div>
 </div>
-<button class="print-btn no-print" onclick="window.print()">ðŸ–¨ï¸ Print Card</button>
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print Card</button>
 </div><script>window.onload=()=>window.print();</script></body></html>`;
     const win = window.open('', '_blank', 'width=480,height=700,scrollbars=no,toolbar=no,menubar=no');
     if (win) { win.document.write(html); win.document.close(); }
@@ -519,6 +519,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
         status: data.status,
         gender: data.gender,
         blood_group: data.bloodGroup?.trim() || null,
+        address: {
+          line1: data.addressLine1?.trim() || null,
+          city: data.city?.trim() || null,
+          postal_code: data.postalCode?.trim() || null,
+        },
         notes: data.notes?.trim() || null,
       });
       setEditOpen(false);
@@ -584,27 +589,43 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               </div>
               <div className="profile-hero-meta">
                 <span><i className="ph ph-user" /> {patient.gender}</span>
-                <span className="divider">â€¢</span>
+                <span className="divider">•</span>
                 <span><i className="ph ph-cake" /> {calculateAge(patient.date_of_birth)} ({formatDate(patient.date_of_birth)})</span>
-                <span className="divider">â€¢</span>
+                <span className="divider">•</span>
                 <span><i className="ph ph-phone" /> {patient.phone || 'Phone not recorded'}</span>
-                <span className="divider">â€¢</span>
+                <span className="divider">•</span>
                 <span><i className="ph ph-envelope" /> {patient.email || 'Email not recorded'}</span>
-                <span className="divider">â€¢</span>
+                <span className="divider">•</span>
                 <span><i className="ph ph-map-pin" /> {[patient.address.line1, patient.address.city, patient.address.country].filter(Boolean).join(', ') || 'Address not recorded'}</span>
-                <span className="divider">â€¢</span>
+                <span className="divider">•</span>
                 <span><i className="ph ph-drop" /> Blood: {patient.blood_group || 'Not recorded'}</span>
-                <span className="divider">â€¢</span>
+                <span className="divider">•</span>
                 <span><i className="ph ph-clock" /> Registered {formatDate(patient.created_at)}</span>
               </div>
             </div>
           </div>
 
           <div className="profile-hero-actions">
-            <button className="doc-btn" onClick={() => { reset({ firstName: patient.first_name ?? '', lastName: patient.last_name, dateOfBirth: patient.date_of_birth.slice(0, 10), phone: patient.phone ?? '', email: patient.email ?? '', status: patient.status, gender: patient.gender, bloodGroup: patient.blood_group ?? '', notes: patient.notes ?? '' }); setEditOpen(true); }} type="button">
+            <button className="doc-btn" onClick={() => { 
+                reset({ 
+                  firstName: patient.first_name ?? '', 
+                  lastName: patient.last_name, 
+                  dateOfBirth: patient.date_of_birth.slice(0, 10), 
+                  phone: patient.phone ?? '', 
+                  email: patient.email ?? '', 
+                  status: patient.status, 
+                  gender: patient.gender, 
+                  bloodGroup: patient.blood_group ?? '', 
+                  addressLine1: patient.address?.line1 ?? '',
+                  city: patient.address?.city ?? '',
+                  postalCode: patient.address?.postal_code ?? '',
+                  notes: patient.notes ?? '' 
+                }); 
+                setEditOpen(true); 
+              }} type="button">
               <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
             </button>
-            {/* Register Visit â€” temporarily disabled */}
+            {/* Register Visit — temporarily disabled */}
             {/* <button className="doc-btn" onClick={() => navigate(`/opd/visit?patient_id=${encodeURIComponent(patient.id)}`)} type="button">
               <i className="ph ph-clipboard-text" aria-hidden="true" /> Register Visit
             </button> */}
@@ -1238,7 +1259,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                       <option value="AB-">AB-</option>
                     </select>
                   ) : (
-                    <input disabled id="profile-blood" readOnly value={"Not recorded"} />
+                    <input disabled id="profile-blood" readOnly value={patient?.blood_group || 'Not recorded'} />
                   )}
                 </div>
               </div>

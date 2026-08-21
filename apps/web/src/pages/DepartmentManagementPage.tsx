@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
+import { BranchMultiSelect } from '../components/ui/BranchMultiSelect';
 
 type ModalMode = 'create' | 'edit' | 'view';
 
@@ -166,81 +167,6 @@ function DeptsByBranch({
   );
 }
 
-function BranchMultiSelect({ branches, selectedIds, onChange, disabled }: { branches: BranchResponse[], selectedIds: string[], onChange: (ids: string[]) => void, disabled?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="hms-multi-select" ref={containerRef}>
-      <div
-        className={`hms-multi-select-trigger${open ? ' active' : ''}${disabled ? ' disabled' : ''}`}
-        onClick={() => !disabled && setOpen(!open)}
-      >
-        {selectedIds.length === 0 ? (
-          <span className="hms-multi-select-placeholder">Select branches...</span>
-        ) : (
-          selectedIds.map((id) => {
-            const b = branches.find((br) => br.id === id);
-            if (!b) return null;
-            return (
-              <span className="hms-multi-select-tag" key={id}>
-                {b.name}
-                <button
-                  aria-label={`Remove ${b.name}`}
-                  className="hms-multi-select-tag-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!disabled) onChange(selectedIds.filter((sid) => sid !== id));
-                  }}
-                  type="button"
-                >
-                  <i className="ph ph-x" aria-hidden="true" />
-                </button>
-              </span>
-            );
-          })
-        )}
-        <i className={`ph ph-caret-down hms-multi-select-chevron${open ? ' open' : ''}`} aria-hidden="true" />
-      </div>
-
-      {open && (
-        <div className="hms-multi-select-dropdown">
-          {branches.map((b) => {
-            const isSelected = selectedIds.includes(b.id);
-            return (
-              <label
-                className={`hms-multi-select-item${isSelected ? ' selected' : ''}`}
-                key={b.id}
-              >
-                <input
-                  checked={isSelected}
-                  onChange={(e) => {
-                    const newIds = e.target.checked
-                      ? [...selectedIds, b.id]
-                      : selectedIds.filter((id) => id !== b.id);
-                    onChange(newIds);
-                  }}
-                  type="checkbox"
-                />
-                <span>{b.name}</span>
-              </label>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // â”€â”€â”€ Main Page Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -599,11 +525,11 @@ export function DepartmentManagementPage() {
                         <td>
                           {dept.isClinical ? (
                             <span className="status-badge status-active">
-                              <span style={{ marginRight: '4px' }}>ðŸŸ¢</span> Clinical
+                              <span style={{ marginRight: '4px' }}></span> Clinical
                             </span>
                           ) : (
                             <span className="status-badge" style={{ background: '#f3f4f6', color: '#374151' }}>
-                              <span style={{ marginRight: '4px' }}>âšª</span> Non Clinical
+                              <span style={{ marginRight: '4px' }}></span> Non Clinical
                             </span>
                           )}
                         </td>
