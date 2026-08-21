@@ -107,20 +107,21 @@ export class PatientPortalRepository {
       DepartmentModel.countDocuments(filter),
     ]);
 
-    const branchIds = validObjectIds(departments.map((item) => item.branchId));
+    const branchIds = validObjectIds(departments.map((item) => (item as any).branchId ?? (item as any).branchIds?.[0]));
     const branches = branchIds.length
       ? await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city').lean()
       : [];
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
     return {
       data: departments.map((department) => {
-        const branch = branchById.get(String(department.branchId));
+        const deptBranchId = (department as any).branchId ?? (department as any).branchIds?.[0];
+        const branch = branchById.get(String(deptBranchId));
         return {
           id: String(department._id),
           code: department.code,
           name: department.name,
           description: department.description ?? null,
-          branch: { id: String(department.branchId), name: branch?.name ?? 'Hospital Branch', city: branch?.city ?? null },
+          branch: { id: String(deptBranchId), name: branch?.name ?? 'Hospital Branch', city: branch?.city ?? null },
         };
       }),
       meta: pageMeta(query.page, query.limit, total),
