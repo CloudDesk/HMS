@@ -256,8 +256,8 @@ export function PatientWebsitePage() {
             </select>
           </label>
           {appConfig.staffWebUrl ? <button className="hospital-staff-link" onClick={() => window.location.assign(appConfig.staffWebUrl)} type="button">Staff login</button> : null}
-          <button className="hospital-signin" onClick={() => navigate(status === 'authenticated' ? '/portal' : '/login')} title={status === 'authenticated' ? `Open ${signedInLabel}'s patient record` : 'Patient sign in'} type="button">
-            <i className="ph ph-user-circle" /> {status === 'authenticated' ? signedInLabel : 'Patient sign in'}
+          <button className="hospital-signin" onClick={() => navigate(status === 'authenticated' ? '/portal' : '/login')} title={status === 'authenticated' ? `Open ${signedInLabel}'s patient record` : 'Sign in / Sign up'} type="button">
+            <i className="ph ph-user-circle" /> {status === 'authenticated' ? signedInLabel : 'Sign in / Sign up'}
           </button>
         </div>
       </header>
@@ -543,7 +543,7 @@ export function PatientWebsitePage() {
           <span><i className="ph ph-heartbeat" /></span>
           <div><strong>HMS Healthcare</strong><small>Professional care. Clear communication. Connected records.</small></div>
         </div>
-        <div><strong>Patient access</strong><button onClick={() => navigate('/login')} type="button">Patient sign in</button><button onClick={() => navigate('/signup')} type="button">Create an account</button></div>
+        <div><strong>Patient access</strong><button onClick={() => navigate('/login')} type="button">Sign in / Sign up</button><button onClick={() => navigate('/signup')} type="button">Create an account</button></div>
         <div><strong>Hospital</strong><a href="#locations">Locations</a><a href="#departments">Departments</a><a href="#services">Services</a><a href="#doctors">Doctors</a></div>
         <div><strong>Need assistance?</strong><span>Contact the hospital reception desk for booking or portal support.</span></div>
         <p>© {new Date().getFullYear()} HMS Healthcare. Patient information is handled securely.</p>

@@ -17,22 +17,27 @@ html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,ca
   --patient-muted:#64748b;
 }
 
-.patient-login-page{background:var(--patient-canvas);color:var(--patient-text)}
-.patient-login-brand{background:linear-gradient(145deg,var(--patient-navy) 0%,#111f3d 58%,var(--patient-navy-soft) 100%)}
+.patient-login-page{background:var(--patient-canvas);color:var(--patient-text);min-height:100vh;align-items:start}
+.patient-login-brand{background:linear-gradient(145deg,var(--patient-navy) 0%,#111f3d 58%,var(--patient-navy-soft) 100%);position:sticky;top:0;height:100vh;box-sizing:border-box;align-self:start}
 .patient-login-logo{border-color:rgba(147,197,253,.28);background:rgba(37,99,235,.18);color:#fff}
 .patient-login-brand .patient-login-kicker{color:#93c5fd}
 .patient-login-brand__inner>p:not(.patient-login-kicker){color:#cbd5e1}
 .patient-login-brand ul{color:#f8fafc}
 .patient-login-brand li i{color:#60a5fa}
-.patient-login-panel{background:var(--patient-surface)}
+.patient-login-panel{background:var(--patient-surface);min-height:100vh;overflow-y:auto;align-items:flex-start;padding-top:3rem;padding-bottom:3rem}
 .patient-login-kicker{color:var(--patient-primary)}
 .patient-login-form-wrap h2{color:var(--patient-text)}
 .patient-login-subtitle{color:var(--patient-muted)}
 .patient-login-form>label{color:#334155}
-.patient-login-input{border-color:#cbd5e1;border-radius:8px}
+.patient-login-input{position:relative;border-color:#cbd5e1;border-radius:8px}
 .patient-login-input:focus-within{border-color:var(--patient-primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .patient-login-input>i{color:#64748b}
 .patient-login-input input,.patient-login-input select{color:var(--patient-text)}
+.patient-login-input select,.patient-inline-fields select{width:100%;min-width:0;flex:1;height:47px;padding:0 2.2rem 0 .75rem;border:0!important;outline:0!important;box-shadow:none!important;background:transparent;font:inherit;font-weight:500;cursor:pointer;appearance:none!important;-webkit-appearance:none!important;-moz-appearance:none!important}
+.patient-login-input select::-ms-expand,.patient-inline-fields select::-ms-expand{display:none!important}
+.patient-login-input:has(select):after{content:"";position:absolute;right:14px;top:50%;transform:translateY(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #7890a4;pointer-events:none}
+
+
 .patient-login-submit{border-radius:8px;background:var(--patient-primary);box-shadow:0 8px 20px rgba(37,99,235,.2)}
 .patient-login-submit:hover{background:var(--patient-primary-hover)}
 .patient-login-help{border-color:#dbeafe;background:#f8fbff;color:#475569}
@@ -276,7 +281,9 @@ html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,ca
 .patient-inline-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}.patient-inline-fields label{display:grid;gap:5px;color:#334155;font-size:.65rem;font-weight:700}.patient-inline-fields input{min-width:0;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
 .portal-consent{display:flex!important;align-items:flex-start!important;gap:8px!important;color:#475569!important;font-size:.62rem!important;line-height:1.4}.portal-consent input{width:15px!important;height:15px!important;flex:none!important;margin-top:2px!important}
 .portal-onboarding-choice{display:flex;gap:8px;padding:14px 16px 0}.portal-onboarding-choice button{padding:8px 11px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#475569;font-size:.65rem;font-weight:800;cursor:pointer}.portal-onboarding-choice button.active{border-color:var(--patient-primary);background:var(--patient-blue-soft);color:var(--patient-primary)}
-.patient-signup-prompt button{color:var(--patient-primary)}
+.patient-signup-prompt{display:flex;flex-direction:column;align-items:center;gap:.65rem;margin-top:1.25rem;color:#64748b;font-size:.8rem}
+.patient-signup-prompt button{border:0;background:transparent;color:var(--patient-primary);font:inherit;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px}
+.patient-signup-prompt button:hover{text-decoration:underline;color:var(--patient-primary-hover)}
 .portal-onboarding-intro>span{border-radius:9px;background:var(--patient-blue-soft);color:var(--patient-primary)}
 .portal-onboarding-intro p{color:var(--patient-primary)}
 .portal-onboarding-intro h1{color:var(--patient-text)}

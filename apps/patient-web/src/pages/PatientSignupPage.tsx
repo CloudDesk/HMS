@@ -1,23 +1,44 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError } from '../api/api-error';
-import { patientPortalApi } from '../api/patient-portal';
-import type { PublicBranch } from '../api/patient-portal';
+import { patientPortalApi, type PublicBranch } from '../api/patient-portal';
 import { useAuth } from '../auth/useAuth';
 import { navigate, useAppLocation } from '../routing/navigation';
 
 type RegistrationMode = 'new' | 'guardian';
 type VerifiedMobile = { phone: string; otp: string; mode: RegistrationMode; verifiedAt: number };
 const VERIFIED_MOBILE_KEY = 'hms_patient_verified_mobile';
+
+const publicQueryRecovery = {
+  retry: 5,
+  retryDelay: (attempt: number) => Math.min(1_000 * 2 ** attempt, 8_000),
+  refetchOnMount: 'always' as const,
+  refetchOnReconnect: true,
+  refetchOnWindowFocus: true,
+};
+
 const schema = z.object({
-  full_name: z.string().trim().min(2, 'Enter your full name.'), email: z.string().trim().email('Enter a valid email address.'),
-  relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']), line1: z.string().trim().optional(), city: z.string().trim().optional(),
-  state: z.string().trim().optional(), country: z.string().trim().optional(), postal_code: z.string().trim().optional(),
-  identification_type: z.string().trim().optional(), identification_number: z.string().trim().optional(), legal_consent: z.boolean(),
-  child_first_name: z.string().trim().optional(), child_last_name: z.string().trim().optional(), child_date_of_birth: z.string().optional(),
-  child_gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']), child_blood_group: z.string().optional(), child_preferred_branch_id: z.string().optional(),
+  full_name: z.string().trim().min(2, 'Enter your full name.'),
+  email: z.string().trim().email('Enter a valid email address.'),
+  preferred_branch_id: z.string().trim().optional(),
+  relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']),
+  line1: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  state: z.string().trim().optional(),
+  country: z.string().trim().optional(),
+  postal_code: z.string().trim().optional(),
+  identification_type: z.string().trim().optional(),
+  identification_number: z.string().trim().optional(),
+  legal_consent: z.boolean(),
+  child_first_name: z.string().trim().optional(),
+  child_last_name: z.string().trim().optional(),
+  child_date_of_birth: z.string().optional(),
+  child_gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
+  child_blood_group: z.string().optional(),
+  child_preferred_branch_id: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -34,14 +55,30 @@ export function PatientSignupPage() {
   const guardianRequired = verified?.mode === 'guardian';
   const [mode, setMode] = useState<RegistrationMode>(guardianRequired || params.get('mode') === 'guardian' ? 'guardian' : 'new');
   const [requestError, setRequestError] = useState('');
-  const [branches, setBranches] = useState<PublicBranch[]>([]);
-  const [branchesLoading, setBranchesLoading] = useState(true);
   const registrationStarted = useRef(false);
   const guardianAccountReady = useRef(false);
   const [registrationComplete, setRegistrationComplete] = useState(false);
+
+  const branchesQuery = useQuery({
+    queryKey: ['public-branches'],
+    queryFn: () => patientPortalApi.publicBranches({ limit: 100 }),
+    ...publicQueryRecovery,
+  });
+  const rawBranches = branchesQuery.data;
+  const branches: PublicBranch[] = Array.isArray(rawBranches?.data)
+    ? rawBranches.data
+    : Array.isArray(rawBranches)
+      ? (rawBranches as unknown as PublicBranch[])
+      : [];
+  const branchesLoading = branchesQuery.isLoading;
+
   const { register, handleSubmit, setError, clearErrors, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { full_name: '', email: '', relationship: 'PARENT', line1: '', city: '', state: '', country: '', postal_code: '', identification_type: '', identification_number: '', legal_consent: false, child_first_name: '', child_last_name: '', child_date_of_birth: '', child_gender: 'UNKNOWN', child_blood_group: '', child_preferred_branch_id: '' },
+    defaultValues: {
+      full_name: '', email: '', preferred_branch_id: '', relationship: 'PARENT', line1: '', city: '', state: '', country: '',
+      postal_code: '', identification_type: '', identification_number: '', legal_consent: false, child_first_name: '',
+      child_last_name: '', child_date_of_birth: '', child_gender: 'UNKNOWN', child_blood_group: '', child_preferred_branch_id: '',
+    },
   });
   const requestedPath = params.get('return');
   const safeReturnPath = requestedPath?.startsWith('/') && !requestedPath.startsWith('//') ? requestedPath : null;
@@ -53,18 +90,6 @@ export function PatientSignupPage() {
       navigate(safeReturnPath ?? '/portal', { replace: true });
     }
   }, [registrationComplete, safeReturnPath, status, user]);
-
-  useEffect(() => {
-    let active = true;
-    void patientPortalApi.publicBranches({ limit: 100 }).then((response) => {
-      if (active) setBranches(response.data);
-    }).catch(() => {
-      if (active) setBranches([]);
-    }).finally(() => {
-      if (active) setBranchesLoading(false);
-    });
-    return () => { active = false; };
-  }, []);
 
   const submit = async (values: FormValues) => {
     if (!verified) return;
@@ -135,25 +160,163 @@ export function PatientSignupPage() {
       {guardianRequired ? <div className="patient-login-help"><i className="ph ph-info" /><span>This number matches a minor patient, so an adult parent or guardian account is required.</span></div> : null}
       {requestError ? <div className="auth-alert auth-alert--error" role="alert">{requestError}</div> : null}
       <form autoComplete="off" className="patient-login-form" onSubmit={handleSubmit(submit)} noValidate>
-        <Field error={errors.full_name?.message} icon="ph-user" label={mode === 'guardian' ? 'Parent / guardian full name' : 'Full name'}><input autoComplete="name" {...register('full_name')} /></Field>
-        <Field error={errors.email?.message} icon="ph-envelope" label="Email"><input autoComplete="email" type="email" {...register('email')} /></Field>
-        {mode === 'guardian' ? <><div className="portal-form-divider"><strong>Guardian profile</strong><small>These details belong to the adult, not the child.</small></div>
-          <Field icon="ph-users-three" label="Relationship"><select {...register('relationship')}><option value="PARENT">Parent</option><option value="LEGAL_GUARDIAN">Legal guardian</option></select></Field>
-          <Field icon="ph-map-pin" label="Address"><input placeholder="Address line" {...register('line1')} /></Field>
-          <div className="patient-inline-fields"><label><span>City</span><input {...register('city')} /></label><label><span>State</span><input {...register('state')} /></label></div>
-          <div className="patient-inline-fields"><label><span>Country</span><input {...register('country')} /></label><label><span>Postal code</span><input {...register('postal_code')} /></label></div>
-          <div className="patient-inline-fields"><label><span>ID type</span><input placeholder="National ID / Passport" {...register('identification_type')} /></label><label><span>ID number</span><input {...register('identification_number')} /></label></div>
-          {!guardianRequired ? <><div className="portal-form-divider"><strong>Child patient details</strong><small>These details create the child’s separate HMS patient record and MRN.</small></div>
-            <div className="patient-inline-fields"><label><span>Child’s first name <b>*</b></span><input autoComplete="off" {...register('child_first_name')} />{errors.child_first_name ? <small className="portal-field-error">{errors.child_first_name.message}</small> : null}</label><label><span>Child’s last name <b>*</b></span><input autoComplete="off" {...register('child_last_name')} />{errors.child_last_name ? <small className="portal-field-error">{errors.child_last_name.message}</small> : null}</label></div>
-            <div className="patient-inline-fields"><label><span>Date of birth <b>*</b></span><input type="date" {...register('child_date_of_birth')} />{errors.child_date_of_birth ? <small className="portal-field-error">{errors.child_date_of_birth.message}</small> : null}</label><label><span>Gender <b>*</b></span><select {...register('child_gender')}><option value="UNKNOWN">Prefer not to say</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></select></label></div>
-            <div className="patient-inline-fields"><label><span>Blood group</span><select {...register('child_blood_group')}><option value="">Not known</option>{['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((group) => <option key={group} value={group}>{group}</option>)}</select></label><label><span>Preferred branch <b>*</b></span><select disabled={branchesLoading} {...register('child_preferred_branch_id')}><option value="">{branchesLoading ? 'Loading branches…' : 'Select a branch'}</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.city ? ` · ${branch.city}` : ''}</option>)}</select>{errors.child_preferred_branch_id ? <small className="portal-field-error">{errors.child_preferred_branch_id.message}</small> : null}</label></div>
-            <div className="patient-login-help"><i className="ph ph-map-pin" /><span>The guardian address above will be used as the child’s initial address. It can be updated later from My profile.</span></div>
-          </> : null}
-          <label className="portal-consent"><input type="checkbox" {...register('legal_consent')} /><span>I confirm that I am authorised to manage this patient’s care and consent to linking their medical record.</span></label>{errors.legal_consent ? <small className="portal-field-error">{errors.legal_consent.message}</small> : null}
-        </> : null}
-        <button className="patient-login-submit" disabled={isSubmitting} type="submit">{isSubmitting ? 'Please wait…' : mode === 'guardian' ? 'Create guardian access' : 'Continue to personal information'}<i className="ph ph-arrow-right" /></button>
+        {mode === 'guardian' ? (
+          <>
+            {!guardianRequired ? (
+              <>
+                <div className="portal-form-divider">
+                  <strong>1. Child / Minor patient details</strong>
+                  <small>These details create the child’s separate HMS patient record and MRN.</small>
+                </div>
+                <div className="patient-inline-fields">
+                  <label>
+                    <span>Child’s first name <b>*</b></span>
+                    <div className="patient-login-input"><i className="ph ph-user" /><input autoComplete="off" placeholder="Child's first name" {...register('child_first_name')} /></div>
+                    {errors.child_first_name ? <small className="portal-field-error">{errors.child_first_name.message}</small> : null}
+                  </label>
+                  <label>
+                    <span>Child’s last name <b>*</b></span>
+                    <div className="patient-login-input"><i className="ph ph-user" /><input autoComplete="off" placeholder="Child's last name" {...register('child_last_name')} /></div>
+                    {errors.child_last_name ? <small className="portal-field-error">{errors.child_last_name.message}</small> : null}
+                  </label>
+                </div>
+                <div className="patient-inline-fields">
+                  <label>
+                    <span>Date of birth <b>*</b></span>
+                    <div className="patient-login-input"><i className="ph ph-calendar" /><input type="date" {...register('child_date_of_birth')} /></div>
+                    {errors.child_date_of_birth ? <small className="portal-field-error">{errors.child_date_of_birth.message}</small> : null}
+                  </label>
+                  <label>
+                    <span>Gender <b>*</b></span>
+                    <div className="patient-login-input">
+                      <i className="ph ph-gender-intersex" />
+                      <select {...register('child_gender')}>
+                        <option value="UNKNOWN">Prefer not to say</option>
+                        <option value="MALE">Male</option>
+                        <option value="FEMALE">Female</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                  </label>
+                </div>
+                <div className="patient-inline-fields">
+                  <label>
+                    <span>Blood group</span>
+                    <div className="patient-login-input">
+                      <i className="ph ph-drop" />
+                      <select {...register('child_blood_group')}>
+                        <option value="">Not known</option>
+                        {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((group) => (
+                          <option key={group} value={group}>{group}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </label>
+                  <label>
+                    <span>Preferred branch <b>*</b></span>
+                    <div className="patient-login-input">
+                      <i className="ph ph-buildings" />
+                      <select disabled={branchesLoading} {...register('child_preferred_branch_id')}>
+                        <option value="">{branchesLoading ? 'Loading branches…' : 'Select a branch'}</option>
+                        {branches.map((branch) => (
+                          <option key={branch.id} value={branch.id}>{branch.name}{branch.city ? ` · ${branch.city}` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {errors.child_preferred_branch_id ? <small className="portal-field-error">{errors.child_preferred_branch_id.message}</small> : null}
+                  </label>
+                </div>
+              </>
+            ) : null}
+
+            <div className="portal-form-divider">
+              <strong>{guardianRequired ? 'Guardian profile' : '2. Parent / Guardian details'}</strong>
+              <small>These details belong to the adult managing the child’s care.</small>
+            </div>
+            <Field error={errors.full_name?.message} icon="ph-user" label="Parent / guardian full name">
+              <input autoComplete="name" placeholder="Full name" {...register('full_name')} />
+            </Field>
+
+            <div className="patient-login-help">
+              <i className="ph ph-phone" />
+              <span>
+                <strong>Primary Contact Number (Login Mobile):</strong> {verified.phone}
+                <small style={{ display: 'block', marginTop: '2px', color: '#64748b' }}>Used for guardian login and primary hospital notifications.</small>
+              </span>
+            </div>
+
+            <Field error={errors.email?.message} icon="ph-envelope" label="Email address">
+              <input autoComplete="email" placeholder="Email address" type="email" {...register('email')} />
+            </Field>
+            <Field icon="ph-users-three" label="Relationship to child">
+              <select {...register('relationship')}>
+                <option value="PARENT">Parent</option>
+                <option value="LEGAL_GUARDIAN">Legal guardian</option>
+              </select>
+            </Field>
+
+            <Field icon="ph-map-pin" label="Guardian address">
+              <input placeholder="Address line" {...register('line1')} />
+            </Field>
+            <div className="patient-inline-fields">
+              <label><span>City</span><input placeholder="City" {...register('city')} /></label>
+              <label><span>State</span><input placeholder="State" {...register('state')} /></label>
+            </div>
+            <div className="patient-inline-fields">
+              <label><span>Country</span><input placeholder="Country" {...register('country')} /></label>
+              <label><span>Postal code</span><input placeholder="Postal code" {...register('postal_code')} /></label>
+            </div>
+            <div className="patient-inline-fields">
+              <label><span>ID type</span><input placeholder="National ID / Passport" {...register('identification_type')} /></label>
+              <label><span>ID number</span><input placeholder="ID number" {...register('identification_number')} /></label>
+            </div>
+
+            <label className="portal-consent">
+              <input type="checkbox" {...register('legal_consent')} />
+              <span>I confirm that I am authorised to manage this patient’s care and consent to linking their medical record.</span>
+            </label>
+            {errors.legal_consent ? <small className="portal-field-error">{errors.legal_consent.message}</small> : null}
+          </>
+        ) : (
+          <>
+            <Field error={errors.full_name?.message} icon="ph-user" label="Full name">
+              <input autoComplete="name" placeholder="Full name" {...register('full_name')} />
+            </Field>
+            <div className="patient-login-help">
+              <i className="ph ph-phone" />
+              <span>
+                <strong>Primary Contact Number (Login Mobile):</strong> {verified.phone}
+                <small style={{ display: 'block', marginTop: '2px', color: '#64748b' }}>Used for patient portal login and direct hospital notifications.</small>
+              </span>
+            </div>
+            <Field error={errors.email?.message} icon="ph-envelope" label="Email address">
+              <input autoComplete="email" placeholder="Email address" type="email" {...register('email')} />
+            </Field>
+            <Field error={errors.preferred_branch_id?.message} icon="ph-buildings" label="Preferred branch">
+              <select disabled={branchesLoading} {...register('preferred_branch_id')}>
+                <option value="">{branchesLoading ? 'Loading branches…' : 'Select a branch'}</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}{branch.city ? ` · ${branch.city}` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </>
+        )}
+        <button className="patient-login-submit" disabled={isSubmitting} type="submit">
+          {isSubmitting ? 'Please wait…' : mode === 'guardian' ? 'Create guardian access' : 'Continue to personal information'}
+          <i className="ph ph-arrow-right" />
+        </button>
       </form>
-      <div className="patient-signup-prompt"><button onClick={() => { sessionStorage.removeItem(VERIFIED_MOBILE_KEY); navigate('/login'); }} type="button">Use a different mobile number</button></div>
+      <div className="patient-signup-prompt">
+        <button onClick={() => { sessionStorage.removeItem(VERIFIED_MOBILE_KEY); navigate('/login'); }} type="button">
+          Already registered? <strong style={{ textDecoration: 'underline', marginLeft: '4px' }}>Sign in</strong>
+        </button>
+        <button onClick={() => { sessionStorage.removeItem(VERIFIED_MOBILE_KEY); navigate('/login'); }} type="button">
+          Use a different mobile number
+        </button>
+      </div>
     </div></section>
   </main>;
 }

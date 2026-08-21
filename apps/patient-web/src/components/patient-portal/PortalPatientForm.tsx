@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { z } from 'zod';
 import { ApiError } from '../../api/api-error';
 import { patientPortalApi, type PortalPatientInput } from '../../api/patient-portal';
-import { navigate } from '../../routing/navigation';
 import { PortalLinkDependentForm } from './PortalLinkDependentForm';
 
 const schema = z.object({

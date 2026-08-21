@@ -27,10 +27,15 @@ const pageMeta = (page: number, limit: number, total: number) => ({
 
 export class PatientPortalRepository {
   async listPublicBranches(query: { page: number; limit: number; search?: string }) {
-    const filter: Record<string, unknown> = { status: 'ACTIVE', deletedAt: null };
+    const filter: Record<string, unknown> = {
+      deletedAt: null,
+      $or: [{ status: 'ACTIVE' }, { status: 'active' }, { status: { $exists: false } }, { status: null }],
+    };
     if (query.search) {
       const expression = new RegExp(escapeRegex(query.search), 'i');
-      filter.$or = [{ name: expression }, { city: expression }, { address: expression }];
+      filter.$and = [
+        { $or: [{ name: expression }, { city: expression }, { address: expression }] },
+      ];
     }
     const [branches, total] = await Promise.all([
       BranchModel.find(filter)
@@ -60,7 +65,11 @@ export class PatientPortalRepository {
   }
 
   async activeBranchExists(branchId: string) {
-    return Boolean(await BranchModel.exists({ _id: objectId(branchId), status: 'ACTIVE', deletedAt: null }));
+    return Boolean(await BranchModel.exists({
+      _id: objectId(branchId),
+      deletedAt: null,
+      $or: [{ status: 'ACTIVE' }, { status: 'active' }, { status: { $exists: false } }, { status: null }],
+    }));
   }
 
   async listPublicDepartments(query: { page: number; limit: number; search?: string; branchId?: string }) {
