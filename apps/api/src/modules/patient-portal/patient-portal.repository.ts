@@ -486,12 +486,27 @@ export class PatientPortalRepository {
     relationship: PatientAccessRelationship;
     preferredBranchId: string;
   }) {
-    const duplicate = await PatientModel.exists({
+    const normalizedPhone = input.phone?.replace(/\D/g, '') ?? '';
+    const contactFilters: Record<string, unknown>[] = [];
+    if (input.email?.trim()) {
+      contactFilters.push({ email: new RegExp(`^${escapeRegex(input.email.trim())}$`, 'i') });
+    }
+    if (normalizedPhone) {
+      contactFilters.push({ phone: { $in: [input.phone, normalizedPhone, `+${normalizedPhone}`] } });
+    }
+
+    const duplicateFilter: Record<string, unknown> = {
       deletedAt: null,
-      firstName: new RegExp(`^${input.firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-      lastName: new RegExp(`^${input.lastName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+      firstName: new RegExp(`^${escapeRegex(input.firstName)}$`, 'i'),
+      lastName: new RegExp(`^${escapeRegex(input.lastName)}$`, 'i'),
       dateOfBirth: new Date(input.dateOfBirth),
-    });
+    };
+
+    if (contactFilters.length > 0) {
+      duplicateFilter.$or = contactFilters;
+    }
+
+    const duplicate = await PatientModel.exists(duplicateFilter);
     if (duplicate) return null;
 
     const patientNumber = await allocatePatientNumber();

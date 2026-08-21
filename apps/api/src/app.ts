@@ -19,7 +19,17 @@ export const buildApp = async () => {
   await registerRequestContext(app);
 
   await app.register(cors, {
-    origin: env.cors.origins.includes('*') ? true : env.cors.origins,
+    origin: (origin, cb) => {
+      if (!origin || env.cors.origins.includes('*') || env.app.environment !== 'prod') {
+        cb(null, true);
+        return;
+      }
+      if (env.cors.origins.includes(origin)) {
+        cb(null, true);
+        return;
+      }
+      cb(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
     exposedHeaders: ['content-disposition'],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

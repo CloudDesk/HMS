@@ -127,10 +127,11 @@ html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,ca
 .hospital-header .hospital-nav-trigger,.hospital-header nav>a{font-family:inherit;font-size:.78rem;font-weight:700;line-height:1}
 .hospital-nav-trigger{height:100%;display:flex;align-items:center;gap:5px;padding:0;border:0;background:transparent;color:#475569;cursor:pointer}
 .hospital-nav-trigger>i{font-size:.7rem;transition:transform .16s ease}
-.hospital-nav-item.open .hospital-nav-trigger{color:var(--patient-primary)}
-.hospital-nav-item.open .hospital-nav-trigger>i{transform:rotate(180deg)}
+.hospital-nav-item:hover .hospital-nav-trigger,.hospital-nav-item.open .hospital-nav-trigger{color:var(--patient-primary)}
+.hospital-nav-item:hover .hospital-nav-trigger>i,.hospital-nav-item.open .hospital-nav-trigger>i{transform:rotate(180deg)}
 .hospital-nav-dropdown{position:absolute;top:calc(100% - 5px);left:50%;z-index:80;width:310px;max-width:calc(100vw - 32px);overflow:hidden;border:1px solid var(--patient-border);border-radius:10px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.16);opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-6px);transition:opacity .16s ease,transform .16s ease,visibility .16s ease}
-.hospital-nav-item.open .hospital-nav-dropdown{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0)}
+.hospital-nav-item:hover .hospital-nav-dropdown,.hospital-nav-item.open .hospital-nav-dropdown{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0)}
+
 .hospital-nav-dropdown__heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--patient-border);background:#f8fafc}
 .hospital-nav-dropdown__heading span{color:var(--patient-text);font-size:.73rem;font-weight:800}
 .hospital-nav-dropdown__heading small{color:var(--patient-muted);font-size:.61rem}

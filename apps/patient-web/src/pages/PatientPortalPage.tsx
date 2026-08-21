@@ -341,6 +341,7 @@ export function PatientPortalPage() {
           </div>
           <section className="portal-onboarding-card">
             <PortalPatientForm
+              defaultFullName={portalContext.account.full_name}
               mode={portalContext.account.type === 'GUARDIAN' ? 'DEPENDENT' : 'SELF'}
               onSaved={(patientId) => void patientSaved(patientId)}
             />
@@ -397,7 +398,7 @@ export function PatientPortalPage() {
     .join(', ');
   const emergencyContact = patient.emergency_contact;
   const patientAge = ageOnDate(patient.date_of_birth);
-  const isMinor = patientAge < 18;
+  const isMinor = patientAge < 15;
   const guardianProfile = portalContext.account.guardian_profile;
   const guardianAddress = guardianProfile
     ? [
@@ -466,11 +467,16 @@ export function PatientPortalPage() {
             }}
           >
             <div className="patient-avatar">{initials}</div>
-            <div style={{ display: 'grid', maxWidth: '160px' }}>
+            <div style={{ display: 'grid', maxWidth: '180px' }}>
               <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {patient.first_name} {patient.last_name}
               </strong>
-              <small>{patient.patient_number}</small>
+              <small style={{ color: '#64748b', fontSize: '0.66rem', lineHeight: '1.25' }}>
+                {patientAge} {patientAge === 1 ? 'yr' : 'yrs'}, {label(patient.gender)}
+              </small>
+              <small style={{ color: '#94a3b8', fontSize: '0.62rem', lineHeight: '1.25' }}>
+                {patient.patient_number}
+              </small>
               {portalContext.account.type === 'GUARDIAN' && selectedPatientContext ? (
                 <span style={{
                   display: 'inline-flex',
@@ -548,7 +554,9 @@ export function PatientPortalPage() {
                   }).format(new Date())}
                 </p>
                 <h1>Good day, {patient.first_name}</h1>
-                <span>Here is a clear view of your care and recent records.</span>
+                <span>
+                  Active Record: <strong>{fullName(patient)}</strong> ({patientAge} {patientAge === 1 ? 'yr' : 'yrs'}, {label(patient.gender)}) · MRN: {patient.patient_number}
+                </span>
               </div>
               <div className="portal-privacy">
                 <i className="ph ph-shield-check" />
@@ -1131,7 +1139,7 @@ export function PatientPortalPage() {
                 <div className="patient-avatar large">{initials}</div>
                 <div>
                   <h2>{fullName(patient)}</h2>
-                  <span>{patient.patient_number}</span>
+                  <span>{patient.patient_number} · {patientAge} {patientAge === 1 ? 'yr' : 'yrs'} old · {label(patient.gender)}</span>
                 </div>
                 <span className="portal-status confirmed">Active patient</span>
               </div>
@@ -1310,6 +1318,7 @@ export function PatientPortalPage() {
         title="Add myself as a patient"
       >
         <PortalPatientForm
+          defaultFullName={portalContext.account.full_name}
           mode="SELF"
           onCancel={() => setAddSelfOpen(false)}
           onSaved={(patientId) => void patientSaved(patientId)}

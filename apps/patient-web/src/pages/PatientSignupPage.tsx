@@ -59,7 +59,7 @@ export function PatientSignupPage() {
     void patientPortalApi.publicBranches({ limit: 100 }).then((response) => {
       if (active) setBranches(response.data);
     }).catch(() => {
-      if (active) setRequestError('Hospital branches could not be loaded. Please try again.');
+      if (active) setBranches([]);
     }).finally(() => {
       if (active) setBranchesLoading(false);
     });
@@ -80,8 +80,8 @@ export function PatientSignupPage() {
       if (!values.child_preferred_branch_id) { setError('child_preferred_branch_id', { message: 'Select the child’s preferred branch.' }); childValid = false; }
       if (!childValid) return;
       const adultDate = new Date(values.child_date_of_birth!);
-      adultDate.setFullYear(adultDate.getFullYear() + 18);
-      if (adultDate <= new Date()) { setError('child_date_of_birth', { message: 'Manage a child is only for patients under 18.' }); return; }
+      adultDate.setFullYear(adultDate.getFullYear() + 15);
+      if (adultDate <= new Date()) { setError('child_date_of_birth', { message: 'Manage a child is only for patients under 15.' }); return; }
     }
     registrationStarted.current = true;
     try {

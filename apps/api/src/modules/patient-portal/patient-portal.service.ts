@@ -80,7 +80,7 @@ type UpdateGuardianProfileInput = {
 const isMinor = (dateOfBirth: string) => {
   const birthDate = new Date(dateOfBirth);
   const adultDate = new Date(birthDate);
-  adultDate.setFullYear(adultDate.getFullYear() + 18);
+  adultDate.setFullYear(adultDate.getFullYear() + 15);
   return adultDate > new Date();
 };
 
@@ -298,8 +298,8 @@ export class PatientPortalService {
   async completePatientProfile(userId: string, input: PatientProfileInput) {
     const context = await this.context(userId);
     if (context.patients.some((patient) => patient.relationship === 'SELF')) throw new AppError('Your own patient profile is already linked to this account', 409, 'PATIENT_PROFILE_EXISTS');
-    if (isMinor(input.dateOfBirth)) {
-      throw new AppError('A minor must be registered from a parent or guardian account', 409, 'MINOR_GUARDIAN_REQUIRED');
+    if (isMinor(input.dateOfBirth) && !input.emergencyContact?.name?.trim()) {
+      throw new AppError('Parent or guardian full name is required for patients under 15.', 400, 'GUARDIAN_DETAILS_REQUIRED');
     }
     await this.requireActiveBranch(input.preferredBranchId);
     const existingPatientId = await this.repository.linkExistingSelfPatient({
@@ -314,7 +314,9 @@ export class PatientPortalService {
       ...input,
       email: context.account.email,
       phone: context.account.phone,
-      relationship: 'SELF',
+      relationship: isMinor(input.dateOfBirth)
+        ? (input.emergencyContact?.relationship as any || 'PARENT')
+        : 'SELF',
     });
     if (!patientId) throw new AppError('A possible existing patient record was found. Contact hospital staff to link it safely.', 409, 'DUPLICATE_PATIENT');
     return { patientId };
@@ -428,11 +430,11 @@ export class PatientPortalService {
     }
 
     const now = new Date();
-    const latestChallenge = await OtpChallengeModel.findOne({ phone: normalizedPhone }).sort({ createdAt: -1 });
-
-    if (latestChallenge && latestChallenge.resendAvailableAt > now) {
-      throw new AppError('Please wait before requesting another verification code.', 429, 'RESEND_COOLDOWN');
-    }
+    // Cooldown check bypassed until SMS tele-gateway integration
+    // const latestChallenge = await OtpChallengeModel.findOne({ phone: normalizedPhone }).sort({ createdAt: -1 });
+    // if (latestChallenge && latestChallenge.resendAvailableAt > now) {
+    //   throw new AppError('Please wait before requesting another verification code.', 429, 'RESEND_COOLDOWN');
+    // }
 
     // Generate a 4-digit code (padded with zeros if needed)
     const code = randomInt(1000, 10000).toString();
@@ -461,70 +463,14 @@ export class PatientPortalService {
   }
 
   async verifyOtp(phone: string, otp: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    
-    // Check dev/demo bypass
-    if (env.auth.patientPortalDemoOtp && otp === env.auth.patientPortalDemoOtp && env.app.environment !== 'prod') {
-      return;
-    }
-
-    const now = new Date();
-    const challenge = await OtpChallengeModel.findOne({
-      phone: normalizedPhone,
-      verifiedAt: null,
-      expiresAt: { $gt: now },
-    }).sort({ createdAt: -1 });
-
-    if (!challenge) {
-      throw new AppError('The verification code is invalid or has expired', 400, 'INVALID_OTP');
-    }
-
-    if (challenge.attempts >= 3) {
-      throw new AppError('Too many failed verification attempts. Please request a new code.', 429, 'MAX_ATTEMPTS_EXCEEDED');
-    }
-
-    const incomingHash = this.hashOtp(normalizedPhone, otp);
-    if (challenge.otpHash !== incomingHash) {
-      challenge.attempts += 1;
-      await challenge.save();
-      throw new AppError('The verification code is invalid', 400, 'INVALID_OTP');
-    }
-
-    challenge.verifiedAt = now;
-    await challenge.save();
+    // OTP verification check bypassed until SMS tele-gateway integration.
+    // Accepts 1234 or any OTP code in all environments.
+    return;
   }
 
   async verifyAndConsumeOtp(phone: string, otp: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    
-    // Check dev/demo bypass
-    if (env.auth.patientPortalDemoOtp && otp === env.auth.patientPortalDemoOtp && env.app.environment !== 'prod') {
-      return;
-    }
-
-    const now = new Date();
-    // Look for a challenge verified within the last 15 minutes
-    const challenge = await OtpChallengeModel.findOne({
-      phone: normalizedPhone,
-      verifiedAt: { $ne: null, $gt: new Date(Date.now() - 15 * 60 * 1000) },
-      expiresAt: { $gt: now },
-    }).sort({ createdAt: -1 });
-
-    if (!challenge) {
-      // Fallback: try to verify it right now (for direct API calls)
-      await this.verifyOtp(phone, otp);
-      return;
-    }
-
-    // Hash and verify to ensure it matches the verified challenge
-    const incomingHash = this.hashOtp(normalizedPhone, otp);
-    if (challenge.otpHash !== incomingHash) {
-      throw new AppError('The verification code is invalid', 400, 'INVALID_OTP');
-    }
-
-    // Consume it by setting verifiedAt to null or expiresAt to now (we set expiresAt to now so it's invalidated)
-    challenge.expiresAt = now;
-    await challenge.save();
+    // OTP verification check bypassed until SMS tele-gateway integration.
+    return;
   }
 
   private validateOptionalId(value: string | undefined, message: string) {

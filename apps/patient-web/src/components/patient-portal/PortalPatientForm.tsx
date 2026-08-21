@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { z } from 'zod';
 import { ApiError } from '../../api/api-error';
 import { patientPortalApi, type PortalPatientInput } from '../../api/patient-portal';
+import { navigate } from '../../routing/navigation';
 import { PortalLinkDependentForm } from './PortalLinkDependentForm';
 
 const schema = z.object({
@@ -20,29 +21,63 @@ const schema = z.object({
   country: z.string().trim().optional(),
   postal_code: z.string().trim().optional(),
   relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']),
+  emergency_name: z.string().trim().optional(),
+  emergency_phone: z.string().trim().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
+const parseFullName = (name?: string) => {
+  if (!name) return { firstName: '', lastName: '' };
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return { firstName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0] ?? '', lastName: '' };
+  return {
+    firstName: parts[0] ?? '',
+    lastName: parts.slice(1).join(' '),
+  };
+};
+
 export function PortalPatientForm({
   mode,
+  defaultFullName,
   onSaved,
   onCancel,
 }: {
   mode: 'SELF' | 'DEPENDENT';
+  defaultFullName?: string;
   onSaved: (patientId: string) => void;
   onCancel?: () => void;
 }) {
   const [linkExisting, setLinkExisting] = useState(false);
   const branches = useQuery({ queryKey: ['public-branches'], queryFn: () => patientPortalApi.publicBranches({ limit: 24 }) });
-  const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const initialName = parseFullName(mode === 'SELF' ? defaultFullName : undefined);
+  const { register, handleSubmit, watch, setError, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      first_name: '', last_name: '', date_of_birth: '', gender: 'UNKNOWN', preferred_branch_id: '', blood_group: '',
-      line1: '', city: '', state: '', country: '', postal_code: '', relationship: 'PARENT',
+      first_name: initialName.firstName, last_name: initialName.lastName, date_of_birth: '', gender: 'UNKNOWN', preferred_branch_id: '', blood_group: '',
+      line1: '', city: '', state: '', country: '', postal_code: '', relationship: 'PARENT', emergency_name: '', emergency_phone: '',
     },
   });
 
+  const watchDob = watch('date_of_birth');
+  const calculateAge = (dob?: string) => {
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age;
+  };
+  const currentAge = calculateAge(watchDob);
+  const isMinorAge = currentAge !== null && currentAge < 15;
+
   const submit = async (values: FormValues) => {
+    if (isMinorAge && !values.emergency_name?.trim()) {
+      setError('emergency_name', { message: 'Parent or guardian full name is required for patients under 15.' });
+      return;
+    }
     const patient: PortalPatientInput = {
       first_name: values.first_name,
       last_name: values.last_name,
@@ -50,6 +85,11 @@ export function PortalPatientForm({
       gender: values.gender,
       preferred_branch_id: values.preferred_branch_id,
       blood_group: values.blood_group || null,
+      emergency_contact: isMinorAge || values.emergency_name ? {
+        name: values.emergency_name || null,
+        relationship: values.relationship || 'PARENT',
+        phone: values.emergency_phone || null,
+      } : undefined,
       address: {
         line1: values.line1 || null,
         city: values.city || null,
@@ -79,11 +119,57 @@ export function PortalPatientForm({
         <div className="portal-form-grid">
           <label><span>First name <b>*</b></span><input {...register('first_name')} />{errors.first_name ? <small>{errors.first_name.message}</small> : null}</label>
           <label><span>Last name <b>*</b></span><input {...register('last_name')} />{errors.last_name ? <small>{errors.last_name.message}</small> : null}</label>
-          <label><span>Date of birth <b>*</b></span><input max={new Date().toISOString().slice(0, 10)} type="date" {...register('date_of_birth')} />{errors.date_of_birth ? <small>{errors.date_of_birth.message}</small> : null}</label>
+          <label>
+            <span>Date of birth <b>*</b></span>
+            <input max={new Date().toISOString().slice(0, 10)} type="date" {...register('date_of_birth')} />
+            {currentAge !== null ? (
+              isMinorAge ? (
+                <small style={{ color: '#d97706', fontWeight: 600 }}>
+                  Age: {currentAge} {currentAge === 1 ? 'year' : 'years'} (Child / Minor — Parent/Guardian required)
+                </small>
+              ) : (
+                <small style={{ color: '#16a34a', fontWeight: 600 }}>
+                  Age: {currentAge} {currentAge === 1 ? 'year' : 'years'} (Adult — Eligible for self-enrollment)
+                </small>
+              )
+            ) : null}
+            {errors.date_of_birth ? <small className="portal-field-error">{errors.date_of_birth.message}</small> : null}
+          </label>
           <label><span>Gender <b>*</b></span><select {...register('gender')}><option value="UNKNOWN">Prefer not to say</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="OTHER">Other</option></select></label>
           <label><span>Blood group</span><select {...register('blood_group')}><option value="">Not known</option>{['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((value) => <option key={value}>{value}</option>)}</select></label>
           {mode === 'DEPENDENT' ? <label><span>Your relationship <b>*</b></span><select {...register('relationship')}><option value="PARENT">Parent</option><option value="LEGAL_GUARDIAN">Legal guardian</option></select></label> : null}
           <label className="wide"><span>Preferred hospital branch <b>*</b></span><select disabled={branches.isLoading} {...register('preferred_branch_id')}><option value="">{branches.isLoading ? 'Loading branches…' : 'Select a branch'}</option>{branches.data?.data.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.city ? ` · ${branch.city}` : ''}</option>)}</select>{errors.preferred_branch_id ? <small>{errors.preferred_branch_id.message}</small> : null}</label>
+          
+          {isMinorAge ? (
+            <div className="wide" style={{ marginTop: '10px', padding: '1rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '9px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <i className="ph ph-shield-check" style={{ color: '#d97706', fontSize: '1.3rem' }} />
+                <div>
+                  <strong style={{ color: '#92400e', fontSize: '0.85rem', display: 'block' }}>Parent / Guardian Information Required</strong>
+                  <small style={{ color: '#b45309', fontSize: '0.68rem' }}>Patients under 15 years old require parent or guardian details for medical consent.</small>
+                </div>
+              </div>
+              <div className="portal-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                <label>
+                  <span>Parent / Guardian full name <b>*</b></span>
+                  <input placeholder="Full name of parent or guardian" {...register('emergency_name')} />
+                  {errors.emergency_name ? <small className="portal-field-error">{errors.emergency_name.message}</small> : null}
+                </label>
+                <label>
+                  <span>Relationship <b>*</b></span>
+                  <select {...register('relationship')}>
+                    <option value="PARENT">Parent</option>
+                    <option value="LEGAL_GUARDIAN">Legal guardian</option>
+                  </select>
+                  {errors.relationship ? <small className="portal-field-error">{errors.relationship.message}</small> : null}
+                </label>
+                <label className="wide">
+                  <span>Parent / Guardian phone number</span>
+                  <input placeholder="Contact mobile number" {...register('emergency_phone')} />
+                </label>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="portal-form-section">

@@ -81,6 +81,11 @@ const patientProfileSchema = z.object({
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
   preferred_branch_id: z.string().min(1),
   blood_group: z.string().trim().max(10).nullable().optional(),
+  emergency_contact: z.object({
+    name: z.string().trim().max(160).nullable().optional(),
+    relationship: z.string().trim().max(80).nullable().optional(),
+    phone: z.string().trim().min(7).max(20).nullable().optional(),
+  }).optional(),
   address: z.object({
     line1: z.string().trim().max(200).nullable().optional(),
     city: z.string().trim().max(100).nullable().optional(),
@@ -409,6 +414,11 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       gender: parsed.data.gender,
       preferredBranchId: parsed.data.preferred_branch_id,
       bloodGroup: parsed.data.blood_group,
+      emergencyContact: parsed.data.emergency_contact ? {
+        name: parsed.data.emergency_contact.name,
+        relationship: parsed.data.emergency_contact.relationship,
+        phone: parsed.data.emergency_contact.phone,
+      } : undefined,
       address: parsed.data.address ? { ...parsed.data.address, postalCode: parsed.data.address.postal_code } : undefined,
     });
     return reply.status(201).send(ok(result));
