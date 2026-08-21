@@ -144,7 +144,8 @@ export class AuthService {
     };
   }
 
-  isPatientDemoOtp(otp: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  isPatientDemoOtp(_otp?: string) {
     // OTP verification check bypassed for development/testing until SMS tele-gateway integration.
     // Accepts 1234 or any OTP code in all environments.
     return true;

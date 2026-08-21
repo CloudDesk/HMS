@@ -12,7 +12,7 @@ import { PatientPortalRepository } from './patient-portal.repository.js';
 import { createHash, randomInt } from 'node:crypto';
 import { OtpChallengeModel } from './otp-challenge.model.js';
 import type { SmsService } from '../../shared/services/sms.service.js';
-import { env } from '../../config/env.js';
+import type { PatientAccessRelationship } from './patient-access-grant.model.js';
 
 type ProvisionInput = {
   patientId: string;
@@ -316,7 +316,7 @@ export class PatientPortalService {
       email: context.account.email,
       phone: context.account.phone,
       relationship: isMinor(input.dateOfBirth)
-        ? (input.emergencyContact?.relationship as any || 'PARENT')
+        ? (input.emergencyContact?.relationship as PatientAccessRelationship || 'PARENT')
         : 'SELF',
     });
     if (!patientId) throw new AppError('A possible existing patient record was found. Contact hospital staff to link it safely.', 409, 'DUPLICATE_PATIENT');
@@ -430,8 +430,8 @@ export class PatientPortalService {
       throw new AppError('Enter a valid mobile number.', 400, 'VALIDATION_ERROR');
     }
 
-    const now = new Date();
     // Cooldown check bypassed until SMS tele-gateway integration
+    // const now = new Date();
     // const latestChallenge = await OtpChallengeModel.findOne({ phone: normalizedPhone }).sort({ createdAt: -1 });
     // if (latestChallenge && latestChallenge.resendAvailableAt > now) {
     //   throw new AppError('Please wait before requesting another verification code.', 429, 'RESEND_COOLDOWN');
@@ -463,12 +463,14 @@ export class PatientPortalService {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async verifyOtp(phone: string, otp: string) {
     // OTP verification check bypassed until SMS tele-gateway integration.
     // Accepts 1234 or any OTP code in all environments.
     return;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async verifyAndConsumeOtp(phone: string, otp: string) {
     // OTP verification check bypassed until SMS tele-gateway integration.
     return;
