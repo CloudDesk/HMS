@@ -28,6 +28,8 @@ export type BillingInvoice = {
   appointment_id: string | null;
   appointment_number: string | null;
   branch_id: string;
+  context_type: 'ADMISSION_REQUEST' | 'PROCEDURE_BOOKING' | null;
+  context_id: string | null;
   branch_name: string | null;
   invoice_date: Date;
   status: BillingInvoiceStatus;
@@ -121,6 +123,16 @@ export type CollectBillingPaymentDTO = {
 export type BillingRequestMetadata = {
   ipAddress?: string;
   userAgent?: string;
+};
+
+export type DepositVerification = {
+  required_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  satisfied: boolean;
+  invoice_id: string | null;
+  payment_ids: string[];
+  verified_at: Date;
 };
 
 export type ResolvedBillingItem = {

@@ -1,5 +1,5 @@
 export type ServiceStatus = 'ACTIVE' | 'INACTIVE';
-export type ServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE';
+export type ServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PROCEDURE';
 
 export type Service = {
   id: string;
@@ -10,6 +10,12 @@ export type Service = {
   description: string | null;
   department_id: string;
   standard_price: number;
+  default_duration_minutes: number | null;
+  booking_capacity: number | null;
+  requires_bed: boolean;
+  requires_consent: boolean;
+  requires_advance_deposit: boolean;
+  minimum_advance_deposit_amount: number | null;
   status: ServiceStatus;
   created_by: string | null;
   updated_by: string | null;
@@ -34,6 +40,12 @@ export type CreateServiceDTO = {
   service_type?: ServiceType;
   department_id: string;
   standard_price: number;
+  default_duration_minutes?: number | null;
+  booking_capacity?: number | null;
+  requires_bed?: boolean;
+  requires_consent?: boolean;
+  requires_advance_deposit?: boolean;
+  minimum_advance_deposit_amount?: number | null;
   category?: string | null;
   description?: string | null;
   status?: ServiceStatus;

@@ -14,8 +14,11 @@ export type OpdPrescriptionItem = {
 
 export type OpdPrescription = {
   id: string;
-  visit_id: string;
-  consultation_id: string;
+  source_type: 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER';
+  source_id: string;
+  visit_id: string | null;
+  consultation_id: string | null;
+  branch_id: string;
   patient_id: string;
   patient_number: string;
   patient_name: string;

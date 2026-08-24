@@ -27,7 +27,7 @@ const createPatientNumber = (sequence: number) => {
 
 const isValidAfricanPhone = (phone: string): boolean => {
   if (!phone || !phone.trim()) return true;
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  const cleaned = phone.replace(/[\s()-]/g, '');
   return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
 };
 
@@ -188,6 +188,9 @@ export class PatientService {
           storage_key: storageKey,
           description: data.description,
           consent_status: data.consent_status,
+          context_type: data.context_type,
+          context_id: data.context_id,
+          consent_kind: data.consent_kind,
           signed_at: data.signed_at,
           valid_until: data.valid_until,
           signed_by_name: data.signed_by_name,
@@ -225,6 +228,9 @@ export class PatientService {
           storage_key: storageKey,
           description: data.description,
           consent_status: data.consent_status,
+          context_type: data.context_type,
+          context_id: data.context_id,
+          consent_kind: data.consent_kind,
           signed_at: data.signed_at,
           valid_until: data.valid_until,
           signed_by_name: data.signed_by_name,
@@ -308,7 +314,31 @@ export class PatientService {
       if (data.valid_until && !isValidDate(data.valid_until)) {
         throw new AppError('Consent validity date is invalid', 400, 'VALIDATION_ERROR');
       }
+      if ((data.context_type && !data.context_id) || (!data.context_type && data.context_id)) {
+        throw new AppError('Consent context type and id must be provided together', 400, 'VALIDATION_ERROR');
+      }
+      if (data.context_id && !Types.ObjectId.isValid(data.context_id)) throw new AppError('Consent context id is invalid', 400, 'VALIDATION_ERROR');
     }
+  }
+
+  async verifyContextConsent(patientId: string, documentId: string | null, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, required: boolean, session: import('mongoose').ClientSession) {
+    if (!required && !documentId) return null;
+    if (!documentId) throw new AppError('A signed admission consent is required', 409, 'CONSENT_REQUIRED');
+    const document = await this.repository.getValidContextConsent(patientId, documentId, contextType, contextId, session);
+    if (!document) throw new AppError('The selected consent is missing, expired, unsigned, or belongs to another context', 409, 'CONSENT_REQUIRED');
+    return document;
+  }
+
+  async addAdmissionTimeline(patientId: string, eventType: 'ADMISSION_REQUEST_CREATED' | 'INPATIENT_ADMISSION_CONFIRMED' | 'ADMISSION_REQUEST_CANCELLED', title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+    return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
+  }
+
+  async addProcedureTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `PROCEDURE_${string}`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+    return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
+  }
+
+  async addEmergencyTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `EMERGENCY_${string}`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+    return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
   }
 
   private validateTimelineQuery(query: PatientTimelineListQuery) {

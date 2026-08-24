@@ -81,6 +81,8 @@ const paymentSchema = z.object({
 
 const invoiceParamsSchema = z.object({ id: objectId }).strict();
 const paymentParamsSchema = z.object({ id: objectId }).strict();
+const admissionContextSchema = z.object({ patient_id: objectId, branch_id: objectId, request_id: objectId }).strict();
+const procedureContextSchema = z.object({ patient_id: objectId, branch_id: objectId, booking_id: objectId }).strict();
 
 const parse = <T>(schema: z.ZodType<T>, value: unknown): T => {
   const result = schema.safeParse(value);
@@ -97,4 +99,6 @@ export const parseUpdateBillingInvoiceBody = (value: unknown) => parse(updateInv
 export const parseCollectBillingPaymentBody = (value: unknown) => parse(paymentSchema, value);
 export const parseBillingInvoiceParams = (value: unknown) => parse(invoiceParamsSchema, value);
 export const parseBillingPaymentParams = (value: unknown) => parse(paymentParamsSchema, value);
+export const parseAdmissionContextBody = (value: unknown) => parse(admissionContextSchema, value);
+export const parseProcedureContextBody = (value: unknown) => parse(procedureContextSchema, value);
 

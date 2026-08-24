@@ -95,6 +95,8 @@ const toInvoice = (
     appointment_id: invoice.appointmentId?.toString() ?? null,
     appointment_number: row.appointmentNumber ?? null,
     branch_id: invoice.branchId.toString(),
+    context_type: invoice.contextType ?? null,
+    context_id: invoice.contextId?.toString() ?? null,
     branch_name: row.branchName ?? null,
     invoice_date: invoice.invoiceDate,
     status: invoice.status,
@@ -258,6 +260,11 @@ export class BillingRepository {
     return toInvoice(invoice, items);
   }
 
+  async linkContext(id: string, patientId: string, branchId: string, contextType: 'ADMISSION_REQUEST' | 'PROCEDURE_BOOKING', contextId: string, userId: string) {
+    const invoice = await BillingInvoiceModel.findOneAndUpdate({ _id: objectId(id), patientId: objectId(patientId), branchId: objectId(branchId), status: { $ne: 'CANCELLED' }, deletedAt: null, $or: [{ contextId: null }, { contextType, contextId: objectId(contextId) }] }, { $set: { contextType, contextId: objectId(contextId), updatedBy: objectId(userId) } }, { new: true, lean: true, runValidators: true }).lean<InvoiceLean>();
+    return invoice ? toInvoice(invoice) : null;
+  }
+
   async listItems(invoiceId: string, session?: ClientSession) {
     const query = BillingInvoiceItemModel.find({ invoiceId: objectId(invoiceId), deletedAt: null })
       .sort({ createdAt: 1, _id: 1 })
@@ -364,13 +371,14 @@ export class BillingRepository {
     return updated ? toInvoice(updated) : null;
   }
 
-  async listPayments(invoiceId: string, branchIds?: string[]) {
+  async listPayments(invoiceId: string, branchIds?: string[], session?: ClientSession) {
     const filter: Record<string, unknown> = { invoiceId: objectId(invoiceId), deletedAt: null };
     if (branchIds) filter.branchId = { $in: branchIds.map(objectId) };
-    const payments = await BillingPaymentModel.find(filter)
+    const query = BillingPaymentModel.find(filter)
       .sort({ paymentDate: -1, createdAt: -1 })
       .lean<PaymentLean[]>();
-    return payments.map(toPayment);
+    if (session) query.session(session);
+    return (await query).map(toPayment);
   }
 
   async getPaymentById(id: string, branchIds?: string[]) {

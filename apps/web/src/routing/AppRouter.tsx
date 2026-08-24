@@ -44,6 +44,10 @@ import { SystemSettingsPage } from '../pages/SystemSettingsPage';
 import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
 import { BedManagementPage } from '../pages/BedManagementPage';
 import { InpatientAdmissionPage } from '../pages/InpatientAdmissionPage';
+import { SurgeryWorkspacePage } from '../pages/SurgeryWorkspacePage';
+import { EmergencyDashboardPage } from '../pages/EmergencyDashboardPage';
+import { EmergencyQueuePage } from '../pages/EmergencyQueuePage';
+import { EmergencyWorkspacePage } from '../pages/EmergencyWorkspacePage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { sidebarModules } from '../data/ui-foundation';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -284,6 +288,22 @@ export function AppRouter() {
     title = 'Inpatient Admission';
     breadcrumbs = ['Home', 'Admissions', 'Inpatient Admission'];
     content = <InpatientAdmissionPage />;
+  } else if (pathname === '/surgery' || pathname === '/surgery/recommendations' || pathname === '/surgery/bookings' || pathname === '/surgery/schedule') {
+    title = 'Surgery & Procedures';
+    breadcrumbs = ['Home', 'Surgery', 'Procedure Workflow'];
+    content = <SurgeryWorkspacePage />;
+  } else if (pathname === '/emergency') {
+    title = 'Emergency Dashboard';
+    breadcrumbs = ['Home', 'Emergency', 'Dashboard'];
+    content = <EmergencyDashboardPage />;
+  } else if (pathname === '/emergency/queue') {
+    title = 'Emergency Queue';
+    breadcrumbs = ['Home', 'Emergency', 'Emergency Queue'];
+    content = <EmergencyQueuePage />;
+  } else if (pathname === '/emergency/workspace') {
+    title = 'Emergency Workspace';
+    breadcrumbs = ['Home', 'Emergency', 'Emergency Workspace'];
+    content = <EmergencyWorkspacePage />;
   } 
   // 2. All other sidebar routes automatically get a ComingSoonPage stub
   else if (matchedModule && matchedLink) {

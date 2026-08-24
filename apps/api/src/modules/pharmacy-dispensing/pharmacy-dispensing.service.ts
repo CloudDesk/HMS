@@ -12,10 +12,10 @@ export class PharmacyDispensingService {
   private async context(prescriptionId: string, actor: string, session?: mongoose.ClientSession) {
     const prescription = await this.repository.getPrescription(prescriptionId, session);
     if (!prescription) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
-    const visit = await this.repository.getVisit(prescription.visitId.toString(), session);
-    if (!visit) throw new AppError('OPD visit not found', 404, 'OPD_VISIT_NOT_FOUND');
-    if (!await this.repository.authorized(actor, visit.branchId.toString())) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
-    return { prescription, visit };
+    const visit = prescription.visitId ? await this.repository.getVisit(prescription.visitId.toString(), session) : null;
+    const context = visit ?? { _id: prescription.sourceId, branchId: prescription.branchId, appointmentId: null };
+    if (!await this.repository.authorized(actor, context.branchId.toString())) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+    return { prescription, visit: context };
   }
 
   async list(query: PharmacyDispensingListQuery, actor: string) {

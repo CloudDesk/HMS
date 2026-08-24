@@ -86,8 +86,26 @@ const permissionDefinitions: PermissionDefinition[] = [
   ...expandPermissions('Admissions', {
     Wards: ['View', 'Create', 'Edit', 'ChangeStatus'],
     Beds: ['View', 'Create', 'Edit', 'ChangeStatus'],
+    'Admission Policy': ['View', 'Edit'],
+    'Bed Holds': ['View', 'Create', 'Release', 'Cancel'],
+    'Bed Transfers': ['View', 'Create', 'Complete', 'Cancel', 'CrossBranch'],
     'Inpatient Admissions': ['View', 'Create'],
+    'Admission Recommendations': ['View', 'Create', 'Cancel'],
+    'Admission Requests': ['View', 'Create', 'Validate', 'Confirm', 'Cancel'],
   }, 'CLINICAL', 'ADMISSIONS'),
+  ...expandPermissions('Surgery', {
+    Recommendations: ['View', 'Create', 'Cancel'],
+    Bookings: ['View', 'Create', 'Confirm', 'Reschedule', 'Cancel', 'Complete'],
+    Schedule: ['View'],
+  }, 'CLINICAL', 'SURGERY'),
+  ...expandPermissions('Emergency', {
+    Encounters: ['View', 'Register', 'Edit'],
+    Triage: ['View', 'Assess', 'OverridePriority'],
+    Consultation: ['View', 'Edit'],
+    Orders: ['View', 'Create'],
+    Disposition: ['View', 'Discharge', 'Transfer', 'ConvertToIP', 'MarkLeft', 'MarkNoShow', 'Cancel'],
+    'Patient Linking': ['Link', 'Correct'],
+  }, 'CLINICAL', 'EMERGENCY'),
   ...expandPermissions('Laboratory', {
     Orders: ['View', 'Edit', 'EnterResult', 'VerifyResult'],
   }, 'CLINICAL', 'LABORATORY'),
@@ -115,7 +133,21 @@ const administratorPermissionCodes = [
     ['View', 'Create', 'Edit', 'Export'].map((action) => code('Administration', screen, action))),
   ...['View', 'Edit', 'Export'].map((action) => `settings.${action.toLowerCase()}`),
   ...['View', 'Create', 'Edit', 'ChangeStatus'].flatMap((action) => [code('Admissions', 'Wards', action), code('Admissions', 'Beds', action)]),
+  ...['View', 'Edit'].map((action) => code('Admissions', 'Admission Policy', action)),
+  ...['View', 'Create', 'Release', 'Cancel'].map((action) => code('Admissions', 'Bed Holds', action)),
+  ...['View', 'Create', 'Complete', 'Cancel', 'CrossBranch'].map((action) => code('Admissions', 'Bed Transfers', action)),
   ...['View', 'Create'].map((action) => code('Admissions', 'Inpatient Admissions', action)),
+  ...['View', 'Create', 'Cancel'].map((action) => code('Admissions', 'Admission Recommendations', action)),
+  ...['View', 'Create', 'Validate', 'Confirm', 'Cancel'].map((action) => code('Admissions', 'Admission Requests', action)),
+  ...['View', 'Create', 'Cancel'].map((action) => code('Surgery', 'Recommendations', action)),
+  ...['View', 'Create', 'Confirm', 'Reschedule', 'Cancel', 'Complete'].map((action) => code('Surgery', 'Bookings', action)),
+  code('Surgery', 'Schedule', 'View'),
+  ...['View', 'Register', 'Edit'].map((action) => code('Emergency', 'Encounters', action)),
+  ...['View', 'Assess', 'OverridePriority'].map((action) => code('Emergency', 'Triage', action)),
+  ...['View', 'Edit'].map((action) => code('Emergency', 'Consultation', action)),
+  ...['View', 'Create'].map((action) => code('Emergency', 'Orders', action)),
+  ...['View', 'Discharge', 'Transfer', 'ConvertToIP', 'MarkLeft', 'MarkNoShow', 'Cancel'].map((action) => code('Emergency', 'Disposition', action)),
+  ...['Link', 'Correct'].map((action) => code('Emergency', 'Patient Linking', action)),
   ...['View', 'Create', 'Edit', 'Export', 'Provision Login'].map((action) => code('Doctors', 'Doctor Directory', action)),
   ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
 ];
@@ -141,6 +173,17 @@ const roleDefinitions: RoleDefinition[] = [
       ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
       ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Vitals', action)),
       ...['View', 'Edit'].map((action) => code('OPD', 'OPD Referral', action)),
+      ...['View', 'Create', 'Validate', 'Confirm', 'Cancel'].map((action) => code('Admissions', 'Admission Requests', action)),
+      ...['Wards', 'Beds'].map((screen) => code('Admissions', screen, 'View')),
+      code('Admissions', 'Admission Policy', 'View'),
+      ...['View', 'Create', 'Release', 'Cancel'].map((action) => code('Admissions', 'Bed Holds', action)),
+      code('Admissions', 'Inpatient Admissions', 'View'),
+      ...['View', 'Create', 'Confirm', 'Reschedule', 'Cancel'].map((action) => code('Surgery', 'Bookings', action)),
+      code('Surgery', 'Recommendations', 'View'),
+      code('Surgery', 'Schedule', 'View'),
+      ...['View', 'Register'].map((action) => code('Emergency', 'Encounters', action)),
+      code('Emergency', 'Triage', 'View'),
+      code('Emergency', 'Patient Linking', 'Link'),
     ],
   },
   {
@@ -155,6 +198,11 @@ const roleDefinitions: RoleDefinition[] = [
       code('Doctors', 'Doctor Availability', 'View'),
       ...['View', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
       ...['View', 'Create'].map((action) => code('OPD', 'OPD Vitals', action)),
+      ...['Wards', 'Beds'].map((screen) => code('Admissions', screen, 'View')),
+      code('Admissions', 'Admission Requests', 'View'),
+      code('Emergency', 'Encounters', 'View'),
+      ...['View', 'Assess'].map((action) => code('Emergency', 'Triage', action)),
+      code('Emergency', 'Consultation', 'View'),
     ],
   },
   {
@@ -171,6 +219,16 @@ const roleDefinitions: RoleDefinition[] = [
       code('OPD', 'OPD Vitals', 'View'),
       ...['OPD Consultation', 'OPD Prescription', 'OPD Clinical Orders', 'OPD Follow-up', 'OPD Referral'].flatMap((screen) =>
         ['View', 'Edit'].map((action) => code('OPD', screen, action))),
+      ...['View', 'Create', 'Cancel'].map((action) => code('Admissions', 'Admission Recommendations', action)),
+      ...['View', 'Create', 'Cancel'].map((action) => code('Surgery', 'Recommendations', action)),
+      ...['View', 'Create', 'Confirm', 'Reschedule', 'Cancel', 'Complete'].map((action) => code('Surgery', 'Bookings', action)),
+      code('Surgery', 'Schedule', 'View'),
+      code('Emergency', 'Encounters', 'View'),
+      code('Emergency', 'Triage', 'View'),
+      ...['View', 'Edit'].map((action) => code('Emergency', 'Consultation', action)),
+      ...['View', 'Create'].map((action) => code('Emergency', 'Orders', action)),
+      ...['View', 'Discharge', 'Transfer', 'ConvertToIP', 'MarkLeft'].map((action) => code('Emergency', 'Disposition', action)),
+      code('Emergency', 'Patient Linking', 'Link'),
     ],
   },
   {
@@ -251,6 +309,15 @@ export const seedDatabase = async () => {
     { $or: [{ serviceType: { $exists: false } }, { serviceType: null }] },
     { $set: { serviceType: 'GENERAL' } },
   );
+  const departmentBranchBackfill = await DepartmentModel.collection.updateMany(
+    {
+      $and: [
+        { $or: [{ branchIds: { $exists: false } }, { branchIds: { $size: 0 } }] },
+        { branchId: { $type: 'objectId' } },
+      ],
+    },
+    [{ $set: { branchIds: ['$branchId'] } }, { $unset: 'branchId' }],
+  );
 
   const categories = new Map<string, Types.ObjectId>();
   for (const category of [
@@ -269,7 +336,7 @@ export const seedDatabase = async () => {
   const groupNames: Record<string, string> = {
     ADMINISTRATION: 'Administration', PATIENTS: 'Patients', DOCTORS: 'Doctors',
     APPOINTMENTS: 'Appointments', OPD: 'OPD', PHARMACY: 'Pharmacy',
-    LABORATORY: 'Laboratory', IMAGING: 'Imaging', BILLING: 'Billing',
+    LABORATORY: 'Laboratory', IMAGING: 'Imaging', BILLING: 'Billing', SURGERY: 'Surgery', EMERGENCY: 'Emergency',
   };
   const groups = new Map<string, Types.ObjectId>();
   for (const definition of permissionDefinitions) {
@@ -443,13 +510,14 @@ export const seedDatabase = async () => {
     changes.usersCreated.push(userSeed.username);
   }
 
-  const changed = serviceTypeBackfill.modifiedCount > 0 || Object.values(changes).some((items) => items.length > 0);
+  const changed = serviceTypeBackfill.modifiedCount > 0 || departmentBranchBackfill.modifiedCount > 0 || Object.values(changes).some((items) => items.length > 0);
   if (changed) {
     await AuditLogModel.create({
       eventType: 'rbac.phase1_seed_reconciled',
       metadataJson: {
         ...changes,
         serviceTypesBackfilled: serviceTypeBackfill.modifiedCount,
+        departmentBranchScopesBackfilled: departmentBranchBackfill.modifiedCount,
         branchCodes,
       },
     });

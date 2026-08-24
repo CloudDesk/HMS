@@ -77,7 +77,7 @@ export function PatientSearchPage() {
   const [nationalIdInput, setNationalIdInput] = useState('');
   const [dobInput, setDobInput] = useState('');
   const [bloodGroupFilter, setBloodGroupFilter] = useState('');
-  const [patientTypeFilter, setPatientTypeFilter] = useState('');
+  const [, setPatientTypeFilter] = useState('');
   const [regDateInput, setRegDateInput] = useState('');
 
   // Applied Filters State (triggers query)
@@ -116,7 +116,7 @@ export function PatientSearchPage() {
   
   const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<UpdatePatientForm>({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<UpdatePatientForm>({
     resolver: zodResolver(updatePatientSchema),
   });
 

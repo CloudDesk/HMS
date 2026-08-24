@@ -112,6 +112,9 @@ export type UploadPatientDocumentPayload = {
   signed_at?: string;
   valid_until?: string;
   signed_by_name?: string;
+  context_type?: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING';
+  context_id?: string;
+  consent_kind?: string;
 };
 
 export type PatientDocumentListResponse = {
@@ -239,6 +242,9 @@ export const patientsApi = {
     if (payload.signed_at) formData.set('signed_at', payload.signed_at);
     if (payload.valid_until) formData.set('valid_until', payload.valid_until);
     if (payload.signed_by_name) formData.set('signed_by_name', payload.signed_by_name);
+    if (payload.context_type) formData.set('context_type', payload.context_type);
+    if (payload.context_id) formData.set('context_id', payload.context_id);
+    if (payload.consent_kind) formData.set('consent_kind', payload.consent_kind);
 
     return apiClient.request<PatientDocumentResponse>(`/patients/${encodeURIComponent(id)}/documents/upload`, {
       body: formData,

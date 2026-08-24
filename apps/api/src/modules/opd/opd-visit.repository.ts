@@ -1,4 +1,4 @@
-import { Types, type SortOrder } from 'mongoose';
+import { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { OpdVisitModel, type OpdVisitFields } from './opd-visit.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -71,6 +71,13 @@ const sortColumnMap = {
 const terminalStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
 export class OpdVisitRepository {
+  async getAdmissionSource(id: string, session: ClientSession) {
+    return OpdVisitModel.findOne({ _id: requiredObjectId(id), deletedAt: null }).session(session).lean<OpdVisitLean>();
+  }
+
+  async markAdmissionConverted(id: string, admissionId: string, userId: string, session: ClientSession) {
+    return OpdVisitModel.findOneAndUpdate({ _id: requiredObjectId(id), inpatientAdmissionId: null, deletedAt: null }, { $set: { inpatientAdmissionId: requiredObjectId(admissionId), admissionConvertedAt: new Date(), updatedBy: requiredObjectId(userId) } }, { new: true, session }).lean<OpdVisitLean>();
+  }
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds').lean();

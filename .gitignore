@@ -27,3 +27,4 @@ recovered_part1.txt
 *.py
 *.py
 clean_user.py
+*.docx

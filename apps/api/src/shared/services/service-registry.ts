@@ -58,6 +58,10 @@ import { AdmissionsConfigurationRepository } from '../../modules/admissions-conf
 import { AdmissionsConfigurationService } from '../../modules/admissions-configuration/admissions-configuration.service.js';
 import { InpatientAdmissionRepository } from '../../modules/inpatient-admissions/inpatient-admission.repository.js';
 import { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
+import { SurgeryRepository } from '../../modules/surgery/surgery.repository.js';
+import { SurgeryService } from '../../modules/surgery/surgery.service.js';
+import { EmergencyRepository } from '../../modules/emergency/emergency.repository.js';
+import { EmergencyService } from '../../modules/emergency/emergency.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -85,9 +89,18 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const notificationRepository = new NotificationRepository();
-  const pharmacyDispensingRepository = new PharmacyDispensingRepository(pharmacyInventoryRepository, billingRepository, opdPrescriptionRepository);
+  const pharmacyDispensingRepository = new PharmacyDispensingRepository(
+    pharmacyInventoryRepository,
+    billingRepository,
+    opdPrescriptionRepository,
+  );
   const admissionsConfigurationRepository = new AdmissionsConfigurationRepository();
+  const admissionsConfigurationService = new AdmissionsConfigurationService(
+    admissionsConfigurationRepository,
+  );
   const inpatientAdmissionRepository = new InpatientAdmissionRepository();
+  const surgeryRepository = new SurgeryRepository();
+  const emergencyRepository = new EmergencyRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
   const userService = new UserService(userRepository, roleRepository);
   const appointmentService = new AppointmentService(
@@ -109,24 +122,24 @@ export const createServiceRegistry = (): ServiceRegistry => {
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
     patients: new PatientService(patientRepository, patientDocumentStorageService),
-doctors: new DoctorService(
-  doctorRepository,
-  branchRepository,
-  departmentRepository,
-  userRepository,
-  userService,
-  appointmentRepository,
-),
+    doctors: new DoctorService(
+      doctorRepository,
+      branchRepository,
+      departmentRepository,
+      userRepository,
+      userService,
+      appointmentRepository,
+    ),
 
-appointments: appointmentService,
+    appointments: appointmentService,
 
-opdVisits: new OpdVisitService(
-  opdVisitRepository,
-  appointmentRepository,
-  patientRepository,
-  doctorRepository,
-  opdConsultationRepository,
-),
+    opdVisits: new OpdVisitService(
+      opdVisitRepository,
+      appointmentRepository,
+      patientRepository,
+      doctorRepository,
+      opdConsultationRepository,
+    ),
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
     opdConsultations: new OpdConsultationService(
       opdConsultationRepository,
@@ -168,7 +181,11 @@ opdVisits: new OpdVisitService(
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
     medicines: new MedicineService(medicineRepository, pharmacyInventoryRepository),
     pharmacyInventory: new PharmacyInventoryService(pharmacyInventoryRepository),
-    laboratory: new LaboratoryService(opdClinicalOrderRepository, laboratoryRepository, serviceRepository),
+    laboratory: new LaboratoryService(
+      opdClinicalOrderRepository,
+      laboratoryRepository,
+      serviceRepository,
+    ),
     imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository),
     billing: new BillingService(
       billingRepository,
@@ -183,7 +200,46 @@ opdVisits: new OpdVisitService(
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
     notification: new NotificationService(notificationRepository),
     pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
-    admissionsConfiguration: new AdmissionsConfigurationService(admissionsConfigurationRepository),
-    inpatientAdmissions: new InpatientAdmissionService(inpatientAdmissionRepository),
+    admissionsConfiguration: admissionsConfigurationService,
+    inpatientAdmissions: new InpatientAdmissionService(
+      inpatientAdmissionRepository,
+      admissionsConfigurationService,
+      new PatientService(patientRepository, patientDocumentStorageService),
+      new BillingService(
+        billingRepository,
+        patientRepository,
+        opdVisitRepository,
+        appointmentRepository,
+        opdConsultationRepository,
+        opdClinicalOrderRepository,
+        serviceRepository,
+        pharmacyInventoryRepository,
+      ),
+      opdVisitRepository,
+      emergencyRepository,
+    ),
+    surgery: new SurgeryService(
+      surgeryRepository,
+      doctorRepository,
+      new PatientService(patientRepository, patientDocumentStorageService),
+      new BillingService(
+        billingRepository,
+        patientRepository,
+        opdVisitRepository,
+        appointmentRepository,
+        opdConsultationRepository,
+        opdClinicalOrderRepository,
+        serviceRepository,
+        pharmacyInventoryRepository,
+      ),
+      admissionsConfigurationService,
+    ),
+    emergency: new EmergencyService(
+      emergencyRepository,
+      new PatientService(patientRepository, patientDocumentStorageService),
+      opdClinicalOrderRepository,
+      opdPrescriptionRepository,
+      serviceRepository,
+    ),
   };
 };

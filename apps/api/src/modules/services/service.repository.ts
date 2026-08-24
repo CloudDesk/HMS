@@ -1,8 +1,13 @@
-
 import { ServiceModel } from './service.model.js';
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { AuditLogModel } from '../auth/auth.model.js';
-import type { Service, ServiceListQuery, ServiceRequestMetadata, CreateServiceDTO, UpdateServiceDTO } from './service.types.js';
+import type {
+  Service,
+  ServiceListQuery,
+  ServiceRequestMetadata,
+  CreateServiceDTO,
+  UpdateServiceDTO,
+} from './service.types.js';
 
 type ServiceRecord = {
   _id: unknown;
@@ -13,6 +18,12 @@ type ServiceRecord = {
   description?: string | null;
   departmentId: unknown;
   standardPrice: number;
+  defaultDurationMinutes?: number | null;
+  bookingCapacity?: number | null;
+  requiresBed?: boolean;
+  requiresConsent?: boolean;
+  requiresAdvanceDeposit?: boolean;
+  minimumAdvanceDepositAmount?: number | null;
   status: Service['status'];
   createdBy?: unknown;
   updatedBy?: unknown;
@@ -37,6 +48,12 @@ const toService = (service: ServiceRecord): Service => ({
   description: service.description ?? null,
   department_id: String(service.departmentId),
   standard_price: service.standardPrice,
+  default_duration_minutes: service.defaultDurationMinutes ?? null,
+  booking_capacity: service.bookingCapacity ?? null,
+  requires_bed: service.requiresBed ?? false,
+  requires_consent: service.requiresConsent ?? false,
+  requires_advance_deposit: service.requiresAdvanceDeposit ?? false,
+  minimum_advance_deposit_amount: service.minimumAdvanceDepositAmount ?? null,
   status: service.status,
   created_by: service.createdBy ? String(service.createdBy) : null,
   updated_by: service.updatedBy ? String(service.updatedBy) : null,
@@ -54,6 +71,12 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
       description: data.description,
       departmentId: data.department_id,
       standardPrice: data.standard_price,
+      defaultDurationMinutes: data.default_duration_minutes,
+      bookingCapacity: data.booking_capacity,
+      requiresBed: data.requires_bed,
+      requiresConsent: data.requires_consent,
+      requiresAdvanceDeposit: data.requires_advance_deposit,
+      minimumAdvanceDepositAmount: data.minimum_advance_deposit_amount,
       status: 'status' in data ? data.status : undefined,
     }).filter(([, value]) => value !== undefined),
   );
@@ -64,28 +87,43 @@ export class ServiceRepository {
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
       status: 'ACTIVE',
       deletedAt: null,
-    }).select('_id name serviceType standardPrice status').lean<Array<{
-      _id: Types.ObjectId;
-      name: string;
-      serviceType: Service['service_type'];
-      standardPrice: number;
-      status: Service['status'];
-    }>>();
+    })
+      .select('_id name serviceType standardPrice status')
+      .lean<
+        Array<{
+          _id: Types.ObjectId;
+          name: string;
+          serviceType: Service['service_type'];
+          standardPrice: number;
+          status: Service['status'];
+        }>
+      >();
   }
 
-  async getActiveClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
+  async getActiveClinicalOrderServices(
+    ids: string[],
+    serviceType: 'LAB_TEST' | 'IMAGING_SERVICE',
+    session?: ClientSession,
+  ) {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
       status: 'ACTIVE',
       deletedAt: null,
-    }).select('_id name serviceType status').lean();
+    })
+      .select('_id name category serviceType status')
+      .session(session ?? null)
+      .lean();
   }
 
   async getClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
       deletedAt: null,
-    }).select('_id name serviceType status').lean();
+    })
+      .select('_id name serviceType status')
+      .lean();
   }
   async list(query: ServiceListQuery) {
     const page = query.page ?? 1;
@@ -144,8 +182,21 @@ export class ServiceRepository {
     return service ? toService(service) : undefined;
   }
 
+  async getActiveProcedure(id: string) {
+    const service = await ServiceModel.findOne({
+      _id: id,
+      serviceType: 'PROCEDURE',
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).lean();
+    return service ? toService(service) : undefined;
+  }
+
   async getByCode(code: string): Promise<Service | undefined> {
-    const service = await ServiceModel.findOne({ code: new RegExp(`^${code}$`, 'i'), deletedAt: null }).lean();
+    const service = await ServiceModel.findOne({
+      code: new RegExp(`^${code}$`, 'i'),
+      deletedAt: null,
+    }).lean();
     return service ? toService(service) : undefined;
   }
 
@@ -164,7 +215,7 @@ export class ServiceRepository {
     const service = await ServiceModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { ...toPersistence(data), updatedBy } },
-      { returnDocument: 'after', lean: true, runValidators: true }
+      { returnDocument: 'after', lean: true, runValidators: true },
     );
     if (!service) {
       throw new Error('Service not found');
@@ -174,18 +225,19 @@ export class ServiceRepository {
 
   async summary() {
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const [total, active, inactive, addedThisMonth, departmentsCovered, typeRows] = await Promise.all([
-      ServiceModel.countDocuments({ deletedAt: null }),
-      ServiceModel.countDocuments({ deletedAt: null, status: 'ACTIVE' }),
-      ServiceModel.countDocuments({ deletedAt: null, status: 'INACTIVE' }),
-      ServiceModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
-      ServiceModel.distinct('departmentId', { deletedAt: null }).then((ids) => ids.length),
-      ServiceModel.aggregate<{ _id: Service['service_type'] | null; count: number }>([
-        { $match: { deletedAt: null } },
-        { $group: { _id: { $ifNull: ['$serviceType', 'GENERAL'] }, count: { $sum: 1 } } },
-      ]),
-    ]);
-    const byType = { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0 };
+    const [total, active, inactive, addedThisMonth, departmentsCovered, typeRows] =
+      await Promise.all([
+        ServiceModel.countDocuments({ deletedAt: null }),
+        ServiceModel.countDocuments({ deletedAt: null, status: 'ACTIVE' }),
+        ServiceModel.countDocuments({ deletedAt: null, status: 'INACTIVE' }),
+        ServiceModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
+        ServiceModel.distinct('departmentId', { deletedAt: null }).then((ids) => ids.length),
+        ServiceModel.aggregate<{ _id: Service['service_type'] | null; count: number }>([
+          { $match: { deletedAt: null } },
+          { $group: { _id: { $ifNull: ['$serviceType', 'GENERAL'] }, count: { $sum: 1 } } },
+        ]),
+      ]);
+    const byType = { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0, PROCEDURE: 0 };
     for (const row of typeRows) {
       if (row._id && row._id in byType) {
         byType[row._id] = row.count;
@@ -202,7 +254,12 @@ export class ServiceRepository {
     );
   }
 
-  async audit(eventType: string, actorUserId: string, metadata: ServiceRequestMetadata, details: Record<string, unknown>) {
+  async audit(
+    eventType: string,
+    actorUserId: string,
+    metadata: ServiceRequestMetadata,
+    details: Record<string, unknown>,
+  ) {
     await AuditLogModel.create({
       eventType,
       actorUserId,

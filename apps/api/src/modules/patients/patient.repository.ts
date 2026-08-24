@@ -1,4 +1,4 @@
-import { Types, type SortOrder } from 'mongoose';
+import { Types, type ClientSession, type SortOrder } from 'mongoose';
 import {
   PatientDocumentModel,
   PatientModel,
@@ -83,6 +83,9 @@ const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string
   storage_key: document.storageKey,
   description: document.description ?? null,
   consent_status: document.consentStatus ?? null,
+  context_type: document.contextType ?? null,
+  context_id: document.contextId?.toString() ?? null,
+  consent_kind: document.consentKind ?? null,
   signed_at: document.signedAt ?? null,
   valid_until: document.validUntil ?? null,
   signed_by_name: document.signedByName ?? null,
@@ -289,15 +292,18 @@ export class PatientRepository {
     patientId: string,
     event: Pick<PatientTimelineEvent, 'event_type' | 'title' | 'description'>,
     userId: string,
+    session?: ClientSession,
   ) {
-    const created = await PatientTimelineEventModel.create({
+    const records = await PatientTimelineEventModel.create([{
       patientId: new Types.ObjectId(patientId),
       eventType: event.event_type,
       title: event.title,
       description: event.description,
       occurredAt: new Date(),
       createdBy: new Types.ObjectId(userId),
-    });
+    }], session ? { session } : undefined);
+    const created = records[0];
+    if (!created) throw new AppError('Patient timeline event could not be created', 500, 'TIMELINE_CREATE_FAILED');
     return toTimelineEvent(created.toObject<PatientTimelineEventLean>());
   }
 
@@ -406,6 +412,9 @@ export class PatientRepository {
       storageKey: data.storage_key.trim(),
       description: nullableString(data.description),
       consentStatus: data.consent_status ?? null,
+      contextType: data.context_type ?? null,
+      contextId: toObjectId(data.context_id),
+      consentKind: nullableString(data.consent_kind),
       signedAt: data.signed_at ? new Date(data.signed_at) : null,
       validUntil: data.valid_until ? new Date(data.valid_until) : null,
       signedByName: nullableString(data.signed_by_name),
@@ -428,6 +437,9 @@ export class PatientRepository {
           storageKey: data.storage_key.trim(),
           description: nullableString(data.description),
           consentStatus: data.consent_status ?? null,
+          contextType: data.context_type ?? null,
+          contextId: toObjectId(data.context_id),
+          consentKind: nullableString(data.consent_kind),
           signedAt: data.signed_at ? new Date(data.signed_at) : null,
           validUntil: data.valid_until ? new Date(data.valid_until) : null,
           signedByName: nullableString(data.signed_by_name),
@@ -454,5 +466,11 @@ export class PatientRepository {
     ).lean<PatientDocumentLean>();
 
     return document ? toPatientDocument(document) : undefined;
+  }
+
+  async getValidContextConsent(patientId: string, documentId: string, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, session: ClientSession) {
+    const now = new Date();
+    const document = await PatientDocumentModel.findOne({ _id: new Types.ObjectId(documentId), patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', contextType, contextId: new Types.ObjectId(contextId), consentStatus: 'SIGNED', signedAt: { $lte: now }, signedByName: { $type: 'string', $ne: '' }, status: 'ACTIVE', $or: [{ validUntil: null }, { validUntil: { $gte: now } }] }).session(session).lean<PatientDocumentLean>();
+    return document ? toPatientDocument(document) : null;
   }
 }

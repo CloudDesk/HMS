@@ -59,8 +59,6 @@ export class OpdReferralService {
     }
     this.validateSubmission(data);
     const doctor = await this.getInternalDoctor(data.referred_doctor_id);
-    const wantsAppointment = Boolean(data.appointment_date || data.appointment_start_time || data.appointment_duration_minutes);
-
     const appointment = null; // Appointment creation is now handled manually by receptionist
 
     const referral = await this.repository.saveForVisit(

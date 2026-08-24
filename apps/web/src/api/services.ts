@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 export type ApiServiceStatus = 'ACTIVE' | 'INACTIVE';
-export type ApiServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE';
+export type ApiServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PROCEDURE';
 
 export type ServiceResponse = {
   id: string;
@@ -12,6 +12,12 @@ export type ServiceResponse = {
   description: string | null;
   department_id: string;
   standard_price: number;
+  default_duration_minutes: number | null;
+  booking_capacity: number | null;
+  requires_bed: boolean;
+  requires_consent: boolean;
+  requires_advance_deposit: boolean;
+  minimum_advance_deposit_amount: number | null;
   status: ApiServiceStatus;
   created_at: string;
   updated_at: string;
@@ -46,6 +52,12 @@ export type CreateServicePayload = {
   service_type?: ApiServiceType;
   department_id: string;
   standard_price: number;
+  default_duration_minutes?: number | null;
+  booking_capacity?: number | null;
+  requires_bed?: boolean;
+  requires_consent?: boolean;
+  requires_advance_deposit?: boolean;
+  minimum_advance_deposit_amount?: number | null;
   category?: string | null;
   description?: string | null;
   status?: ApiServiceStatus;

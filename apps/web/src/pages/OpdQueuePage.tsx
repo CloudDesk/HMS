@@ -140,7 +140,7 @@ export function OpdQueuePage() {
     reset: resetVitals,
     watch: watchVitals,
     setValue: setValueVitals,
-    formState: { errors: actionErrors, isSubmitting: vitalsSubmitting }
+    formState: { isSubmitting: vitalsSubmitting }
   } = useForm<VitalsForm>({
     resolver: zodResolver(vitalsSchema),
     defaultValues: {

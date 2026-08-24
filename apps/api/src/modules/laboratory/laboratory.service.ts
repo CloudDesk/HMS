@@ -95,11 +95,13 @@ export class LaboratoryService {
       await session.withTransaction(async () => {
         const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
         if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
+        const visitId = order.visit_id;
+        if (!visitId) throw new AppError('Emergency result storage adapter is not available in this phase', 409, 'EMERGENCY_SOURCE_CONTEXT_UNSUPPORTED');
         this.assertMutable(order);
         if (order.status !== 'IN_PROGRESS') throw new AppError('Results can only be entered for an in-progress order', 409, 'RESULT_ENTRY_NOT_ALLOWED');
         const normalized = await this.validateAndNormalizeResults(order, data);
         if (await this.repository.getResult(id, session)) throw new AppError('Laboratory result already exists', 409, 'LABORATORY_RESULT_EXISTS');
-        saved = await this.repository.createResult(order, normalized, actorUserId, session);
+        saved = await this.repository.createResult({ ...order, visit_id: visitId }, normalized, actorUserId, session);
         const updated = await this.orderRepository.updateOperationalStatus(id, 'LABORATORY', 'IN_PROGRESS', 'RESULT_ENTERED', actorUserId, session);
         if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit('laboratory.result.entered', actorUserId, metadata, {
