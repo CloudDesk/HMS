@@ -37,8 +37,8 @@ export class LaboratoryService {
     const order = await this.requireOrder(id, actorUserId);
     const result = await this.repository.getResult(id);
     if (!result) throw new AppError('Laboratory result not found', 404, 'LABORATORY_RESULT_NOT_FOUND');
-    return { ...result, source_type: order.source_type, encounter_id: order.encounter_id,
-      admission_id: order.admission_id, procedure_id: order.procedure_id };
+    return { ...result, source_type: order.source_type, encounter_id: order.visit_id ?? order.source_id,
+      admission_id: null, procedure_id: null };
   }
 
   async summary(branchId: string | undefined, actorUserId: string) {
@@ -78,8 +78,8 @@ export class LaboratoryService {
         if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
+          sourceType: order.source_type, encounterId: order.visit_id ?? order.source_id,
+          admissionId: null, procedureId: null,
           previousStatus: order.status, status: data.status,
         }, session);
       });
@@ -104,13 +104,13 @@ export class LaboratoryService {
         if (order.status !== 'IN_PROGRESS') throw new AppError('Results can only be entered for an in-progress order', 409, 'RESULT_ENTRY_NOT_ALLOWED');
         const normalized = await this.validateAndNormalizeResults(order, data);
         if (await this.repository.getResult(id, session)) throw new AppError('Laboratory result already exists', 409, 'LABORATORY_RESULT_EXISTS');
-        saved = await this.repository.createResult({ ...order, visit_id: visitId }, normalized, actorUserId, session);
+        saved = await this.repository.createResult({ ...order, visit_id: visitId, encounter_id: order.visit_id ?? order.source_id, admission_id: null, procedure_id: null }, normalized, actorUserId, session);
         const updated = await this.orderRepository.updateOperationalStatus(id, 'LABORATORY', 'IN_PROGRESS', 'RESULT_ENTERED', actorUserId, session);
         if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit('laboratory.result.entered', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
+          sourceType: order.source_type, encounterId: order.visit_id ?? order.source_id,
+          admissionId: null, procedureId: null,
         }, session);
       });
       if (!saved) throw new AppError('Laboratory result entry failed', 500, 'LABORATORY_RESULT_SAVE_FAILED');
@@ -129,12 +129,12 @@ export class LaboratoryService {
         this.assertMutable(order);
         if (order.status !== 'RESULT_ENTERED') throw new AppError('Only unverified results can be updated', 409, 'RESULT_UPDATE_NOT_ALLOWED');
         const normalized = await this.validateAndNormalizeResults(order, data);
-        saved = await this.repository.updateResult(order, normalized, actorUserId, session);
+        saved = await this.repository.updateResult({ ...order, encounter_id: order.visit_id ?? order.source_id, admission_id: null, procedure_id: null }, normalized, actorUserId, session);
         if (!saved) throw new AppError('Laboratory result not found or already verified', 409, 'RESULT_UPDATE_NOT_ALLOWED');
         await this.orderRepository.audit('laboratory.result.updated', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
+          sourceType: order.source_type, encounterId: order.visit_id ?? order.source_id,
+          admissionId: null, procedureId: null,
         }, session);
       });
       return saved;

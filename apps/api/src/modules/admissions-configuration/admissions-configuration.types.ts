@@ -2,6 +2,7 @@ export type WardStatus = 'ACTIVE' | 'INACTIVE';
 export type BedStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'BLOCKED' | 'UNDER_MAINTENANCE' | 'INACTIVE';
 export type BedHoldStatus = 'ACTIVE' | 'CONSUMED' | 'RELEASED' | 'EXPIRED' | 'CANCELLED';
 export type BedTransferStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+export type BedGenderRestriction = 'MALE' | 'FEMALE' | 'OTHER' | 'ANY';
 
 export type Ward = { id: string; branch_id: string; name: string; ward_type: string; floor: string; description: string | null; status: WardStatus; created_at: Date; updated_at: Date };
 export type Bed = {

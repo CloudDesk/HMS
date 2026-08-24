@@ -213,11 +213,12 @@ export class OpdClinicalOrderRepository {
         .skip((page - 1) * limit).limit(limit).lean<OpdClinicalOrderLean[]>(),
       OpdClinicalOrderModel.countDocuments(filter),
     ]);
-    const visits = await OpdVisitModel.find({ _id: { $in: records.map((record) => record.visitId) } })
+    const visitIds = records.map((record) => record.visitId).filter((id): id is Types.ObjectId => id != null);
+    const visits = await OpdVisitModel.find({ _id: { $in: visitIds } })
       .select('_id visitType').lean<VisitSourceRecord[]>();
     const visitTypeById = new Map(visits.map((visit) => [visit._id.toString(), visit.visitType]));
     return {
-      data: records.map((record) => toClinicalOrder(record, visitTypeById.get(record.visitId.toString()))),
+      data: records.map((record) => toClinicalOrder(record, record.visitId ? visitTypeById.get(record.visitId.toString()) : undefined)),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }

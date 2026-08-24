@@ -2,6 +2,7 @@ import { apiClient } from './client';
 
 export type WardStatus = 'ACTIVE' | 'INACTIVE';
 export type BedStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'BLOCKED' | 'UNDER_MAINTENANCE' | 'INACTIVE';
+export type BedGenderRestriction = 'MALE' | 'FEMALE' | 'OTHER' | 'ANY';
 export type Ward = {
   id: string;
   branch_id: string;

@@ -4,15 +4,18 @@ import type { SaveImagingReportDTO } from './imaging.types.js';
 import type { OpdClinicalOrder } from '../opd/opd-clinical-order.types.js';
 
 type ImagingReportLean = ImagingReportFields & { _id: Types.ObjectId };
-type ImagingOrderContext = Pick<OpdClinicalOrder,
-  'id' | 'patient_id' | 'visit_id' | 'source_type' | 'encounter_id' | 'admission_id' | 'procedure_id'>;
+type ImagingOrderContext = Pick<OpdClinicalOrder, 'id' | 'patient_id' | 'visit_id' | 'source_type'> & {
+  encounter_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
+};
 const objectId = (value: string) => new Types.ObjectId(value);
 const nullable = (value?: string | null) => value?.trim() || null;
 const toReport = (record: ImagingReportLean) => ({
   id: record._id.toString(), order_id: record.orderId.toString(), patient_id: record.patientId.toString(),
   source_type: record.sourceType ?? 'OPD', encounter_id: record.encounterId?.toString() ?? record.visitId.toString(),
   admission_id: record.admissionId?.toString() ?? null, procedure_id: record.procedureId?.toString() ?? null,
-  visit_id: record.visitId.toString(), findings: record.findings, impression: record.impression,
+  visit_id: record.visitId?.toString() ?? null, findings: record.findings, impression: record.impression,
   recommendations: record.recommendations ?? null, entered_by: record.enteredBy.toString(), entered_at: record.enteredAt,
   verified_by: record.verifiedBy?.toString() ?? null, verified_at: record.verifiedAt ?? null,
   created_at: record.createdAt, updated_at: record.updatedAt,
@@ -32,7 +35,7 @@ export class ImagingRepository {
   ) {
     const now = new Date();
     const record = new ImagingReportModel({
-      orderId: objectId(order.id), patientId: objectId(order.patient_id), visitId: objectId(order.visit_id),
+      orderId: objectId(order.id), patientId: objectId(order.patient_id), visitId: order.visit_id ? objectId(order.visit_id) : null,
       sourceType: order.source_type, encounterId: order.encounter_id ? objectId(order.encounter_id) : null,
       admissionId: order.admission_id ? objectId(order.admission_id) : null,
       procedureId: order.procedure_id ? objectId(order.procedure_id) : null,

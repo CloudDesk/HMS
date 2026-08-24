@@ -90,8 +90,7 @@ export type PatientDocumentMetadataFields = {
   visitId?: Types.ObjectId | null;
   admissionId?: Types.ObjectId | null;
   procedureId?: Types.ObjectId | null;
-  contextType?: 'PATIENT' | 'PROCEDURE' | 'ADMISSION' | null;
-  contextId?: Types.ObjectId | null;
+
   consentTemplateId?: Types.ObjectId | null;
   consentCategory?: string | null;
   consentVersion?: number | null;
@@ -103,7 +102,7 @@ export type PatientDocumentMetadataFields = {
   storageKey: string;
   description?: string | null;
   consentStatus?: PatientConsentStatus | null;
-  contextType?: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | null;
+  contextType?: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | 'PATIENT' | 'PROCEDURE' | 'ADMISSION' | null;
   contextId?: Types.ObjectId | null;
   consentKind?: string | null;
   signedAt?: Date | null;
@@ -125,8 +124,6 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
     admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
     procedureId: { type: Schema.Types.ObjectId, default: null },
-    contextType: { type: String, enum: ['PATIENT', 'PROCEDURE', 'ADMISSION'], default: null },
-    contextId: { type: Schema.Types.ObjectId, default: null },
     consentTemplateId: { type: Schema.Types.ObjectId, ref: 'ConsentTemplate', default: null },
     consentCategory: { type: String, default: null, trim: true },
     consentVersion: { type: Number, min: 1, default: null },
@@ -141,8 +138,8 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
     fileSizeBytes: { type: Number, required: true },
     storageKey: { type: String, required: true },
     description: { type: String, default: null },
-    consentStatus: { type: String, enum: ['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED'], default: null },
-    contextType: { type: String, enum: ['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'], default: null },
+    consentStatus: { type: String, enum: ['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED', 'ATTACHED', 'VERIFIED'], default: null },
+    contextType: { type: String, enum: ['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING', 'PATIENT', 'PROCEDURE', 'ADMISSION'], default: null },
     contextId: { type: Schema.Types.ObjectId, default: null },
     consentKind: { type: String, default: null, trim: true },
     signedAt: { type: Date, default: null },

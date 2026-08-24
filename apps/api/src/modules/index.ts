@@ -4,6 +4,7 @@ import { registerAuthRoutes } from './auth/auth.routes.js';
 import { registerHealthRoutes } from './health/health.routes.js';
 import { registerPermissionRoutes } from './permissions/permission.routes.js';
 import { registerPatientRoutes } from './patients/patient.routes.js';
+import { registerConsentRoutes } from './consents/consent.routes.js';
 import { registerRoleRoutes } from './roles/role.routes.js';
 import { registerUserRoutes } from './users/user.routes.js';
 import { registerBranchRoutes } from './branches/branch.routes.js';

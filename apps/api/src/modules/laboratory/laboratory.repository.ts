@@ -5,7 +5,7 @@ import type { OpdClinicalOrder } from '../opd/opd-clinical-order.types.js';
 
 type LaboratoryResultLean = LaboratoryResultFields & { _id: Types.ObjectId };
 type LaboratoryOrderContext = Pick<OpdClinicalOrder,
-  'id' | 'patient_id' | 'visit_id' | 'source_type' | 'encounter_id' | 'admission_id' | 'procedure_id'>;
+  'id' | 'patient_id' | 'visit_id' | 'source_type' | 'source_id'> & { encounter_id: string; admission_id: string | null; procedure_id: string | null; };
 const objectId = (value: string) => new Types.ObjectId(value);
 const nullable = (value?: string | null) => value?.trim() || null;
 
@@ -61,9 +61,9 @@ export class LaboratoryRepository {
   ) {
     const now = new Date();
     const record = new LaboratoryResultModel({
-      orderId: objectId(order.id), patientId: objectId(order.patient_id), visitId: objectId(order.visit_id),
+      orderId: objectId(order.id), patientId: objectId(order.patient_id), visitId: order.visit_id ? objectId(order.visit_id) : null as unknown as Types.ObjectId,
       sourceType: order.source_type,
-      encounterId: order.encounter_id ? objectId(order.encounter_id) : null,
+      encounterId: order.encounter_id ? objectId(order.encounter_id) : null as unknown as Types.ObjectId,
       admissionId: order.admission_id ? objectId(order.admission_id) : null,
       procedureId: order.procedure_id ? objectId(order.procedure_id) : null,
       resultItems: resultItems(data), remarks: nullable(data.remarks), enteredBy: objectId(actorUserId), enteredAt: now,
@@ -78,7 +78,7 @@ export class LaboratoryRepository {
       { orderId: objectId(order.id), deletedAt: null, verifiedAt: null },
       { $set: {
         sourceType: order.source_type,
-        encounterId: order.encounter_id ? objectId(order.encounter_id) : null,
+        encounterId: order.encounter_id ? objectId(order.encounter_id) : null as unknown as Types.ObjectId,
         admissionId: order.admission_id ? objectId(order.admission_id) : null,
         procedureId: order.procedure_id ? objectId(order.procedure_id) : null,
         resultItems: resultItems(data), remarks: nullable(data.remarks), updatedBy: objectId(actorUserId),

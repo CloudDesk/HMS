@@ -12,11 +12,11 @@ type DispensingItemInput = Omit<PharmacyDispensingFields['items'][number], '_id'
 
 type PrescriptionRecord = OpdPrescriptionFields & { _id: Types.ObjectId };
 type VisitRecord = OpdVisitFields & { _id: Types.ObjectId };
-type VisitSourceRecord = Pick<VisitRecord, '_id' | 'visitType'>;
-type DispensingContext = { _id: Types.ObjectId; branchId: Types.ObjectId };
+type VisitSourceRecord = Pick<VisitRecord, '_id' | 'branchId' | 'visitType'>;
+type DispensingContext = { _id: Types.ObjectId; branchId: Types.ObjectId; visitType?: string };
 type DispensingRecord = PharmacyDispensingFields & { _id: Types.ObjectId };
 const objectId = (value: string) => new Types.ObjectId(value);
-const sourceTypeForVisit = (visit: VisitSourceRecord): PharmacyDispensingSourceType => {
+const sourceTypeForVisit = (visit: Pick<DispensingContext, 'visitType'>): PharmacyDispensingSourceType => {
   if (visit.visitType === 'EMERGENCY') return 'EMERGENCY';
   if (visit.visitType === 'PROCEDURE') return 'PROCEDURE';
   return 'OPD';
@@ -57,7 +57,7 @@ export class PharmacyDispensingRepository {
     return query;
   }
 
-  private toDispensing(record: DispensingRecord, prescription: PrescriptionRecord, visit: VisitSourceRecord): PharmacyDispensing {
+  private toDispensing(record: DispensingRecord, prescription: PrescriptionRecord, visit: { _id: Types.ObjectId; visitType?: string }): PharmacyDispensing {
     const prescribedMedicineByItem = new Map(
       prescription.items.map((item) => [item._id.toString(), item.medicineName]),
     );
@@ -84,15 +84,16 @@ export class PharmacyDispensingRepository {
     if (!record) return null;
     const prescription = await this.getPrescription(prescriptionId, session);
     if (!prescription) return null;
-    const visit = await this.getVisit(prescription.visitId.toString(), session);
-    return visit ? this.toDispensing(record, prescription, visit) : null;
+    const visit = prescription.visitId ? await this.getVisit(prescription.visitId.toString(), session) : null;
+    const ctx: DispensingContext = visit ?? { _id: prescription.sourceId, branchId: prescription.branchId, visitType: prescription.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : 'OPD' };
+    return ctx ? this.toDispensing(record, prescription, ctx) : null;
   }
 
   async get(prescriptionId: string, actorUserId: string) {
     const context = await this.getPrescription(prescriptionId);
     if (!context) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
     const visit = context.visitId ? await this.getVisit(context.visitId.toString()) : null;
-    const dispensingContext: DispensingContext = visit ?? { _id: context.sourceId, branchId: context.branchId };
+    const dispensingContext: DispensingContext = visit ?? { _id: context.sourceId, branchId: context.branchId, visitType: context.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : 'OPD' };
     if (!await this.authorized(actorUserId, dispensingContext.branchId.toString())) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
     return this.ensureDraft(context, dispensingContext, actorUserId);
   }
@@ -167,7 +168,7 @@ const visits = await OpdVisitModel.find({
   branchId: objectId(query.branch_id),
   deletedAt: null,
 })
-  .select('_id visitType')
+  .select('_id branchId visitType')
   .lean<VisitSourceRecord[]>();
 
 const visitById = new Map(
@@ -218,11 +219,12 @@ if (query.status === 'PENDING') {
     const byPrescription = new Map(records.map((item) => [item.prescriptionId.toString(), item]));
     const mapped = prescriptions.map((prescription) => {
       const dispensing = byPrescription.get(prescription._id.toString());
-      const visit = visitById.get(prescription.visitId.toString());
-      if (!visit) return null;
-      return dispensing ? this.toDispensing(dispensing, prescription, visit) : {
+      const visit = prescription.visitId ? visitById.get(prescription.visitId.toString()) : null;
+      const ctx = visit ?? { _id: prescription.sourceId, branchId: objectId(query.branch_id), visitType: prescription.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : 'OPD' };
+      if (!ctx) return null;
+      return dispensing ? this.toDispensing(dispensing, prescription, ctx) : {
         id: '', prescription_id: prescription._id.toString(), patient_id: prescription.patientId.toString(),
-        source_type: sourceTypeForVisit(visit), encounter_id: visit._id.toString(), admission_id: null, procedure_id: null,
+        source_type: sourceTypeForVisit(ctx), encounter_id: ctx._id.toString(), admission_id: null, procedure_id: null,
         patient_number: prescription.patientNumber, patient_name: prescription.patientName, doctor_name: prescription.doctorName,
         visit_id: prescription.visitId?.toString() ?? prescription.sourceId.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null,
         submitted_at: prescription.submittedAt ?? null, confirmed_at: null, cancelled_at: null, reversed_at: null, reversal_reason: null,

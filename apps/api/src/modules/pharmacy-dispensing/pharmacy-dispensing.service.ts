@@ -34,7 +34,7 @@ export class PharmacyDispensingService {
     const prescription = await this.repository.getPrescription(prescriptionId, session);
     if (!prescription) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
     const visit = prescription.visitId ? await this.repository.getVisit(prescription.visitId.toString(), session) : null;
-    const context = visit ?? { _id: prescription.sourceId, branchId: prescription.branchId, appointmentId: null };
+    const context = visit ?? { _id: prescription.sourceId, branchId: prescription.branchId, appointmentId: null, visitType: prescription.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : 'OPD' };
     if (!await this.repository.authorized(actor, context.branchId.toString())) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
     return { prescription, visit: context };
   }

@@ -308,7 +308,6 @@ export function AppRouter() {
     title = 'Phase 2 Reports';
     breadcrumbs = ['Home', 'Reports', 'Phase 2 Reports'];
     content = <PhaseTwoReportsPage />;
-  }
   } else if (pathname === '/surgery' || pathname === '/surgery/recommendations' || pathname === '/surgery/bookings' || pathname === '/surgery/schedule') {
     title = 'Surgery & Procedures';
     breadcrumbs = ['Home', 'Surgery', 'Procedure Workflow'];

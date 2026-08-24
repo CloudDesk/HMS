@@ -89,15 +89,15 @@ export class OpdPrescriptionService {
     return this.repository.list(params, scope);
   }
 
-  async updateStatus(id: string, status: import('./opd-prescription.types.js').OpdPrescriptionStatus, userId: string) {
+  async updateStatusIf(id: string, currentStatus: import('./opd-prescription.types.js').OpdPrescriptionStatus, newStatus: import('./opd-prescription.types.js').OpdPrescriptionStatus, actor: string, session?: import('mongoose').ClientSession) {
     const prescription = await this.repository.getById(id);
     if (!prescription) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
-    if (prescription.visit_id) await this.getVisit(prescription.visit_id, userId);
+    if (prescription.visit_id) await this.getVisit(prescription.visit_id, actor);
     else {
-      const scope = await this.visitRepository.resolveBranchScope(userId, prescription.branch_id);
+      const scope = await this.visitRepository.resolveBranchScope(actor, prescription.branch_id);
       if (scope && !scope.includes(prescription.branch_id)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
     }
-    return this.repository.updateStatus(id, status, userId);
+    return this.repository.updateStatusIf(id, currentStatus, newStatus, actor, session);
   }
 
   private async getVisit(visitId: string, userId: string) {

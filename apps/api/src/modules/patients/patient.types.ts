@@ -72,8 +72,8 @@ export type UpdatePatientDTO = Partial<Omit<CreatePatientDTO, 'status'>> & {
 };
 
 export type PatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
-export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
-export type PatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING';
+export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED' | 'ATTACHED' | 'VERIFIED';
+export type PatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
 export type PatientDocument = {
   id: string;
@@ -94,8 +94,6 @@ export type PatientDocument = {
   storage_key: string;
   description: string | null;
   consent_status: PatientConsentStatus | null;
-  context_type: PatientConsentContextType | null;
-  context_id: string | null;
   consent_kind: string | null;
   signed_at: Date | null;
   valid_until: Date | null;
@@ -127,8 +125,6 @@ export type CreatePatientDocumentDTO = {
   storage_key: string;
   description?: string | null;
   consent_status?: PatientConsentStatus | null;
-  context_type?: PatientConsentContextType | null;
-  context_id?: string | null;
   consent_kind?: string | null;
   signed_at?: string | null;
   valid_until?: string | null;
@@ -165,7 +161,7 @@ export type PatientTimelineEventType =
   | 'OPD_IMAGING_ORDER_SUBMITTED'
   | 'OPD_FOLLOW_UP_SCHEDULED'
   | 'OPD_REFERRAL_SUBMITTED'
-  | 'OPD_REFERRAL_BOOKED';
+  | 'OPD_REFERRAL_BOOKED'
   | 'ADMISSION_REQUEST_CREATED'
   | 'INPATIENT_ADMISSION_CONFIRMED'
   | 'ADMISSION_REQUEST_CANCELLED'

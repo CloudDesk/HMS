@@ -36,7 +36,7 @@ type PatientDocumentsQuery = {
   visit_id?: string;
   admission_id?: string;
   procedure_id?: string;
-  context_type?: 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
+  context_type?: import('./patient.types.js').PatientConsentContextType;
   page?: number;
   limit?: number;
 };
@@ -240,24 +240,24 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         }
       }
       let consentMetadata: Pick<CreatePatientDTO, never> & {
-        context_type?: 'PATIENT' | 'PROCEDURE' | 'ADMISSION'; context_id?: string;
+        context_type?: import('./patient.types.js').PatientConsentContextType; context_id?: string;
         admission_id?: string; procedure_id?: string; consent_template_id?: string;
         consent_category?: string; consent_version?: number;
       } = {};
       if (documentType === 'CONSENT') {
-        if (!templateId || !branchId || !contextType || !['PATIENT', 'PROCEDURE', 'ADMISSION'].includes(contextType)) {
+        if (!templateId || !branchId || !contextType || !['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'].includes(contextType as string)) {
           throw new AppError('Consent template, branch, and context are required', 400, 'VALIDATION_ERROR');
         }
-        const typedContext = contextType as 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
+        const typedContext = contextType as import('./patient.types.js').PatientConsentContextType;
         const template = await services.consents.get(templateId, branchId, request.user!.id);
-        if (template.context_type !== typedContext) throw new AppError('Consent template does not support this context', 400, 'CONSENT_CONTEXT_MISMATCH');
+        if ((template.context_type as string) !== (typedContext as string)) throw new AppError('Consent template does not support this context', 400, 'CONSENT_CONTEXT_MISMATCH');
         let contextId = request.params.id;
-        if (typedContext === 'PROCEDURE') {
+        if (typedContext === 'PROCEDURE_BOOKING') {
           if (!visitId) throw new AppError('Procedure encounter is required', 400, 'VALIDATION_ERROR');
           const visit = await services.opdVisits.getById(visitId);
           if (visit.visit_type !== 'PROCEDURE' || visit.branch_id !== branchId) throw new AppError('Valid procedure encounter is required in the selected branch', 400, 'INVALID_PROCEDURE_CONTEXT');
           contextId = visitId;
-        } else if (typedContext === 'ADMISSION') {
+        } else if (typedContext === 'INPATIENT_ADMISSION') {
           if (!admissionId) throw new AppError('Admission is required', 400, 'VALIDATION_ERROR');
           const admission = await services.inpatientAdmissions.get(admissionId, branchId, request.user!.id);
           if (admission.patient_id !== request.params.id) throw new AppError('Admission does not belong to this patient', 400, 'ADMISSION_PATIENT_MISMATCH');
@@ -267,8 +267,8 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
           if (patient.registration_branch_id !== branchId) throw new AppError('Patient is not registered in the selected branch', 400, 'PATIENT_BRANCH_MISMATCH');
         }
         consentMetadata = { context_type: typedContext, context_id: contextId,
-          admission_id: typedContext === 'ADMISSION' ? admissionId ?? undefined : undefined,
-          procedure_id: typedContext === 'PROCEDURE' ? visitId ?? undefined : undefined,
+          admission_id: typedContext === 'INPATIENT_ADMISSION' ? admissionId ?? undefined : undefined,
+          procedure_id: typedContext === 'PROCEDURE_BOOKING' ? visitId ?? undefined : undefined,
           consent_template_id: template.id, consent_category: template.category, consent_version: template.version };
       }
       const document = await services.patients.uploadDocument(

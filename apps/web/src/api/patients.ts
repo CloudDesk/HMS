@@ -4,7 +4,7 @@ export type ApiPatientGender = 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
 export type ApiPatientStatus = 'ACTIVE' | 'INACTIVE' | 'DECEASED';
 export type ApiPatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
 export type ApiPatientConsentStatus = 'NOT_REQUIRED' | 'PENDING' | 'ATTACHED' | 'VERIFIED';
-export type ApiPatientConsentContextType = 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
+export type ApiPatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
 export type PatientAddress = {
   line1?: string | null;
@@ -131,8 +131,7 @@ export type UploadPatientDocumentPayload = {
   signed_at?: string;
   valid_until?: string;
   signed_by_name?: string;
-  context_type?: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING';
-  context_id?: string;
+
   consent_kind?: string;
 };
 

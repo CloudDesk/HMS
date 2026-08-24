@@ -69,9 +69,9 @@ export class OpdClinicalOrderService {
     );
 
     const isLaboratory = orderType === 'LABORATORY';
-    const sourceLabel = order.source_type === 'EMERGENCY'
+    const sourceLabel = order.source_type === 'EMERGENCY_ENCOUNTER'
       ? 'Emergency encounter'
-      : order.source_type === 'PROCEDURE' ? 'Procedure encounter' : 'OPD encounter';
+      : 'OPD encounter';
     await this.patientRepository.addTimelineEvent(
       visit.patient_id,
       {
@@ -89,9 +89,9 @@ export class OpdClinicalOrderService {
       patientId: visit.patient_id,
       visitId: visit.id,
       sourceType: order.source_type,
-      encounterId: order.encounter_id,
-      admissionId: order.admission_id,
-      procedureId: order.procedure_id,
+      encounterId: order.visit_id ?? order.source_id,
+      admissionId: null,
+      procedureId: null,
     });
 
     return order;

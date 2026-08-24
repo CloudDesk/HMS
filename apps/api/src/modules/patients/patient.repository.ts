@@ -97,8 +97,7 @@ const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string
   storage_key: document.storageKey,
   description: document.description ?? null,
   consent_status: document.consentStatus ?? null,
-  context_type: document.contextType ?? null,
-  context_id: document.contextId?.toString() ?? null,
+
   consent_kind: document.consentKind ?? null,
   signed_at: document.signedAt ?? null,
   valid_until: document.validUntil ?? null,
@@ -439,8 +438,6 @@ export class PatientRepository {
       storageKey: data.storage_key.trim(),
       description: nullableString(data.description),
       consentStatus: data.consent_status ?? null,
-      contextType: data.context_type ?? null,
-      contextId: toObjectId(data.context_id),
       consentKind: nullableString(data.consent_kind),
       signedAt: data.signed_at ? new Date(data.signed_at) : null,
       validUntil: data.valid_until ? new Date(data.valid_until) : null,
@@ -473,8 +470,6 @@ export class PatientRepository {
           storageKey: data.storage_key.trim(),
           description: nullableString(data.description),
           consentStatus: data.consent_status ?? null,
-          contextType: data.context_type ?? null,
-          contextId: toObjectId(data.context_id),
           consentKind: nullableString(data.consent_kind),
           signedAt: data.signed_at ? new Date(data.signed_at) : null,
           validUntil: data.valid_until ? new Date(data.valid_until) : null,
@@ -526,6 +521,8 @@ export class PatientRepository {
       if (templateId && !statuses.has(templateId)) statuses.set(templateId, canonicalConsentStatus(record.consentStatus));
     }
     return statuses;
+  }
+
   async getValidContextConsent(patientId: string, documentId: string, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, session: ClientSession) {
     const now = new Date();
     const document = await PatientDocumentModel.findOne({ _id: new Types.ObjectId(documentId), patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', contextType, contextId: new Types.ObjectId(contextId), consentStatus: 'SIGNED', signedAt: { $lte: now }, signedByName: { $type: 'string', $ne: '' }, status: 'ACTIVE', $or: [{ validUntil: null }, { validUntil: { $gte: now } }] }).session(session).lean<PatientDocumentLean>();

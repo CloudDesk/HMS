@@ -217,7 +217,7 @@ export class OpdPrescriptionRepository {
     currentStatus: import('./opd-prescription.types.js').OpdPrescriptionStatus,
     status: import('./opd-prescription.types.js').OpdPrescriptionStatus,
     userId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     return OpdPrescriptionModel.findOneAndUpdate(
       { _id: objectId(id), status: currentStatus, deletedAt: null },
