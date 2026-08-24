@@ -54,7 +54,6 @@ const opdConsultationSchema = new Schema<OpdConsultationFields>(
   { timestamps: true },
 );
 
-opdConsultationSchema.index({ visitId: 1 }, { unique: true });
 opdConsultationSchema.index({ patientId: 1, createdAt: -1 });
 opdConsultationSchema.index({ doctorId: 1, createdAt: -1 });
 opdConsultationSchema.index({ status: 1, createdAt: -1 });

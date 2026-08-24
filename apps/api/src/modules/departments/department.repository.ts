@@ -1,112 +1,135 @@
-
-import { DepartmentModel } from './department.model.js';
+import { Types, type SortOrder } from 'mongoose';
+import { AuditLogModel } from '../auth/auth.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { UserModel } from '../users/user.model.js';
-import { AuditLogModel } from '../auth/auth.model.js';
-import type { Department, DepartmentListQuery, DepartmentRequestMetadata, CreateDepartmentDTO, UpdateDepartmentDTO } from './department.types.js';
+import { DepartmentModel } from './department.model.js';
+import type {
+  CreateDepartmentDTO,
+  Department,
+  DepartmentListQuery,
+  DepartmentRequestMetadata,
+  UpdateDepartmentDTO,
+} from './department.types.js';
+
+type DepartmentRecord = {
+  _id: Types.ObjectId;
+  code: string;
+  name: string;
+  description?: string | null;
+  branchIds?: Types.ObjectId[];
+  branchId?: Types.ObjectId;
+  status: 'ACTIVE' | 'INACTIVE';
+  isClinical: boolean;
+  createdBy?: Types.ObjectId | null;
+  updatedBy?: Types.ObjectId | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const escapedRegex = (value: string) => new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+const branchIds = (record: DepartmentRecord) => record.branchIds ?? (record.branchId ? [record.branchId] : []);
+const toDepartment = (record: DepartmentRecord): Department => ({
+  id: record._id.toString(),
+  code: record.code,
+  name: record.name,
+  description: record.description ?? null,
+  branch_ids: branchIds(record).map((id) => id.toString()),
+  status: record.status,
+  isClinical: record.isClinical,
+  created_by: record.createdBy?.toString() ?? null,
+  updated_by: record.updatedBy?.toString() ?? null,
+  created_at: record.createdAt,
+  updated_at: record.updatedAt,
+});
 
 export class DepartmentRepository {
   async list(query: DepartmentListQuery) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const offset = (page - 1) * limit;
-
-    const filter: any = { deletedAt: null };
-    if (query.status) {
-      filter.status = query.status;
-    }
-    if (query.branch_id) {
-      filter.branchIds = query.branch_id;
-    }
+    const filter: Record<string, unknown> = { deletedAt: null };
+    if (query.status) filter.status = query.status;
+    if (query.branch_id) filter.branchIds = new Types.ObjectId(query.branch_id);
     if (query.search) {
-      const searchRegex = new RegExp(query.search, 'i');
-      filter.$or = [{ name: searchRegex }, { code: searchRegex }];
+      const search = escapedRegex(query.search);
+      filter.$or = [{ name: search }, { code: search }, { description: search }];
     }
 
-    const sortColumn = query.sortBy ?? 'createdAt';
-    const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
-
-    const [data, count] = await Promise.all([
+    const sortFields: Record<NonNullable<DepartmentListQuery['sortBy']>, string> = {
+      name: 'name',
+      code: 'code',
+      status: 'status',
+      created_at: 'createdAt',
+      updated_at: 'updatedAt',
+    };
+    const sortField = sortFields[query.sortBy ?? 'created_at'];
+    const sortOrder: SortOrder = query.sortOrder === 'asc' ? 1 : -1;
+    const [records, total] = await Promise.all([
       DepartmentModel.find(filter)
-        .sort({ [sortColumn === 'created_at' ? 'createdAt' : sortColumn]: sortOrder })
-        .skip(offset)
+        .sort({ [sortField]: sortOrder })
+        .skip((page - 1) * limit)
         .limit(limit)
-        .lean(),
+        .lean<DepartmentRecord[]>(),
       DepartmentModel.countDocuments(filter),
     ]);
 
     return {
-      data: data.map((d) => ({
-        ...d,
-        id: d._id.toString(),
-        branch_ids: (d.branchIds || (d.branchId ? [d.branchId] : [])).map((id: any) => id.toString()),
-      })) as unknown as Department[],
-      meta: {
-        total: count,
-        page,
-        limit,
-        totalPages: Math.ceil(count / limit) || 1,
-      },
+      data: records.map(toDepartment),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
 
   async getById(id: string): Promise<Department | undefined> {
-    const department = await DepartmentModel.findOne({ _id: id, deletedAt: null }).lean();
-    return department
-      ? ({
-          ...department,
-          id: department._id.toString(),
-          branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
-        } as unknown as Department)
-      : undefined;
+    const record = await DepartmentModel.findOne({ _id: id, deletedAt: null }).lean<DepartmentRecord>();
+    return record ? toDepartment(record) : undefined;
   }
 
   async getByCode(code: string): Promise<Department | undefined> {
-    const department = await DepartmentModel.findOne({ code: new RegExp(`^${code}$`, 'i'), deletedAt: null }).lean();
-    return department
-      ? ({
-          ...department,
-          id: department._id.toString(),
-          branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
-        } as unknown as Department)
-      : undefined;
+    const record = await DepartmentModel.findOne({ code: new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), deletedAt: null }).lean<DepartmentRecord>();
+    return record ? toDepartment(record) : undefined;
   }
 
   async create(data: CreateDepartmentDTO, createdBy: string): Promise<Department> {
     const department = await DepartmentModel.create({
-      ...data,
-      branchIds: data.branch_ids,
+      code: data.code,
+      name: data.name,
+      branchIds: data.branch_ids.map((id) => new Types.ObjectId(id)),
+      description: data.description ?? undefined,
       status: data.status ?? 'ACTIVE',
-      createdBy: createdBy,
-      updatedBy: createdBy,
-    } as any);
-    return {
-      ...department.toJSON(),
-      id: department._id.toString(),
-      branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
-    } as unknown as Department;
+      isClinical: data.isClinical ?? false,
+      createdBy: new Types.ObjectId(createdBy),
+      updatedBy: new Types.ObjectId(createdBy),
+    });
+    return toDepartment({
+      _id: department._id,
+      code: department.code,
+      name: department.name,
+      description: department.description,
+      branchIds: department.branchIds,
+      status: department.status,
+      isClinical: department.isClinical,
+      createdBy: department.createdBy,
+      updatedBy: department.updatedBy,
+      createdAt: department.createdAt,
+      updatedAt: department.updatedAt,
+    });
   }
 
   async update(id: string, data: UpdateDepartmentDTO, updatedBy: string): Promise<Department> {
-    const updatePayload: Record<string, any> = { ...data, updatedBy };
-    if (data.branch_ids) {
-      updatePayload.branchIds = data.branch_ids;
-      delete updatePayload.branch_ids;
-    }
+    const updatePayload: Record<string, unknown> = { updatedBy };
+    if (data.code !== undefined) updatePayload.code = data.code;
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.branch_ids !== undefined) updatePayload.branchIds = data.branch_ids;
+    if (data.description !== undefined) updatePayload.description = data.description;
+    if (data.status !== undefined) updatePayload.status = data.status;
+    if (data.isClinical !== undefined) updatePayload.isClinical = data.isClinical;
 
-    const department = await DepartmentModel.findOneAndUpdate(
+    const record = await DepartmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: updatePayload },
-      { returnDocument: 'after', lean: true }
-    );
-    if (!department) {
-      throw new Error('Department not found');
-    }
-    return {
-      ...department,
-      id: department._id.toString(),
-      branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
-    } as unknown as Department;
+      { returnDocument: 'after', lean: true, runValidators: true },
+    ).lean<DepartmentRecord>();
+    if (!record) throw new Error('Department not found');
+    return toDepartment(record);
   }
 
   async summary() {
@@ -138,12 +161,6 @@ export class DepartmentRepository {
   }
 
   async audit(eventType: string, actorUserId: string, metadata: DepartmentRequestMetadata, details: Record<string, unknown>) {
-    await AuditLogModel.create({
-      eventType,
-      actorUserId,
-      ipAddress: metadata.ipAddress,
-      userAgent: metadata.userAgent,
-      metadataJson: details,
-    });
+    await AuditLogModel.create({ eventType, actorUserId, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details });
   }
 }

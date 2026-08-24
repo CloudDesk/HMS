@@ -1,62 +1,152 @@
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { hasPermission } from '../../auth/access-control';
 import { useAuth } from '../../auth/useAuth';
-import type { Bed, BedPayload, BedStatus, UpdateBedPayload, Ward, WardPayload, WardStatus } from '../../api/admissions-configuration';
+import type { BedStatus } from '../../api/admissions-configuration';
 import { useBranchesList } from '../branches/useBranches';
-import { useAdmissionsConfiguration } from '../useAdmissionsConfiguration';
+import { usePatientsList } from '../patients/usePatients';
+import {
+  useAdmissionsConfiguration,
+  useBedTransferOptions,
+} from '../useAdmissionsConfiguration';
 
-export function useBedManagementFeature() {
+type BedManagementFeatureParams = {
+  branchId: string;
+  search: string;
+  status?: BedStatus;
+  wardId?: string;
+  page: number;
+  limit: number;
+  patientSearch: string;
+  patientLookupEnabled: boolean;
+  transferLookupEnabled: boolean;
+  transferDestinationBranchId: string;
+};
+
+export function useBedManagementFeature(
+  params: BedManagementFeatureParams,
+) {
   const { user } = useAuth();
-  const superAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const can = (screen: 'Wards' | 'Beds', action: string) => superAdmin || hasPermission(user?.permissions ?? [], { module: 'Admissions', screen, action });
-  const branchesQuery = useBranchesList({ status: 'ACTIVE', limit: 100, sortBy: 'name', sortOrder: 'asc' }, superAdmin);
-  const branches = superAdmin ? (branchesQuery.data?.data ?? []) : (user?.branches ?? []);
-  const [branchId, setBranchId] = useState('');
-  const [search, setSearch] = useState('');
-  const [bedStatus, setBedStatus] = useState<BedStatus | ''>('');
+
+  const isSuperAdmin =
+    user?.roles.some((role) => role.code === 'SUPER_ADMIN') ?? false;
+
+  const can = (screen: string, action: string) =>
+    isSuperAdmin ||
+    hasPermission(user?.permissions ?? [], {
+      module: 'Admissions',
+      screen,
+      action,
+    });
+
+  const canViewPatients =
+    isSuperAdmin ||
+    hasPermission(user?.permissions ?? [], {
+      module: 'Patients',
+      screen: 'Patient Records',
+      action: 'View',
+    });
+
+  const permissions = {
+    canCreateWard: can('Wards', 'Create'),
+    canChangeWardStatus: can('Wards', 'ChangeStatus'),
+    canCreateBed: can('Beds', 'Create'),
+    canChangeBedStatus: can('Beds', 'ChangeStatus'),
+
+    canViewPolicy: can('Admission Policy', 'View'),
+    canEditPolicy: can('Admission Policy', 'Edit'),
+
+    canCreateHold:
+      can('Bed Holds', 'Create') && canViewPatients,
+    canReleaseHold: can('Bed Holds', 'Release'),
+    canCancelHold: can('Bed Holds', 'Cancel'),
+
+    canTransfer:
+      can('Bed Transfers', 'Create') &&
+      can('Bed Transfers', 'Complete'),
+    canCrossBranchTransfer: can('Bed Transfers', 'CrossBranch'),
+
+    canCreateAdmission: can('Inpatient Admissions', 'Create'),
+  };
+
+  const branchQuery = useBranchesList(
+    {
+      status: 'ACTIVE',
+      page: 1,
+      limit: 100,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    },
+    isSuperAdmin,
+  );
+
+  const branches = isSuperAdmin
+    ? (branchQuery.data?.data ?? [])
+    : (user?.branches ?? []);
+
+  const branchId =
+    params.branchId || branches[0]?.id || '';
+
+  const [debouncedPatientSearch, setDebouncedPatientSearch] =
+    useState(params.patientSearch);
+
+  const [debouncedBedSearch, setDebouncedBedSearch] =
+    useState(params.search);
 
   useEffect(() => {
-    if (!branches.some((branch) => branch.id === branchId)) setBranchId(branches[0]?.id ?? '');
-  }, [branchId, branches]);
+    const timer = window.setTimeout(
+      () => setDebouncedPatientSearch(params.patientSearch.trim()),
+      300,
+    );
 
-  const domain = useAdmissionsConfiguration(branchId, search, bedStatus || undefined);
-  const saveWard = async (payload: WardPayload, editing?: Ward | null) => {
-    if (editing) await domain.updateWard.mutateAsync({ id: editing.id, body: payload });
-    else await domain.createWard.mutateAsync(payload);
-    toast.success(editing ? 'Ward configuration updated.' : 'Ward created.');
-  };
-  const saveBed = async (payload: BedPayload, editing?: Bed | null) => {
-    if (editing) {
-      const update: UpdateBedPayload = { branch_id: payload.branch_id, bed_number: payload.bed_number, bed_category: payload.bed_category, bed_type: payload.bed_type, charge_category: payload.charge_category, gender_restriction: payload.gender_restriction, room_number: payload.room_number };
-      await domain.updateBed.mutateAsync({ id: editing.id, body: update });
-    } else await domain.createBed.mutateAsync(payload);
-    toast.success(editing ? 'Bed configuration updated.' : 'Bed created.');
-  };
-  const changeWardStatus = async (ward: Ward) => {
-    const status: WardStatus = ward.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    await domain.wardStatus.mutateAsync({ id: ward.id, body: { branch_id: branchId, status } });
-    toast.success(`Ward ${status === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
-  };
-  const changeBedStatus = async (bed: Bed, status: Extract<BedStatus, 'AVAILABLE' | 'BLOCKED' | 'UNDER_MAINTENANCE' | 'INACTIVE'>) => {
-    await domain.bedStatus.mutateAsync({ id: bed.id, body: { branch_id: branchId, status } });
-    toast.success(`Bed status changed to ${status.replaceAll('_', ' ').toLowerCase()}.`);
-  };
+    return () => window.clearTimeout(timer);
+  }, [params.patientSearch]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedBedSearch(params.search.trim()),
+      300,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [params.search]);
+
+  const patientsQuery = usePatientsList(
+    {
+      search: debouncedPatientSearch,
+      status: 'ACTIVE',
+      page: 1,
+      limit: 20,
+    },
+    params.patientLookupEnabled &&
+      permissions.canCreateHold &&
+      debouncedPatientSearch.length >= 2,
+  );
+
+  const configuration = useAdmissionsConfiguration({
+    branchId,
+    search: debouncedBedSearch,
+    bedStatus: params.status,
+    wardId: params.wardId,
+    page: params.page,
+    limit: params.limit,
+    canViewPolicy: permissions.canViewPolicy,
+  });
+
+  const transferOptions = useBedTransferOptions(
+    params.transferDestinationBranchId || branchId,
+    params.transferLookupEnabled && permissions.canTransfer,
+  );
 
   return {
-    state: {
-      branches,
-      branchId,
-      search,
-      bedStatus,
-      wards: domain.wardsQuery.data?.data ?? [],
-      beds: domain.bedsQuery.data?.data ?? [],
-      summary: domain.summaryQuery.data ?? { total: 0, available: 0, occupied: 0, reserved: 0, blocked: 0, under_maintenance: 0, inactive: 0 },
-      loading: branchesQuery.isLoading || domain.wardsQuery.isLoading || domain.bedsQuery.isLoading || domain.summaryQuery.isLoading,
-      saving: domain.createWard.isPending || domain.updateWard.isPending || domain.createBed.isPending || domain.updateBed.isPending || domain.wardStatus.isPending || domain.bedStatus.isPending,
-      branchError: branchesQuery.isError,
-    },
-    capabilities: { canCreateWard: can('Wards', 'Create'), canEditWard: can('Wards', 'Edit'), canChangeWardStatus: can('Wards', 'ChangeStatus'), canCreateBed: can('Beds', 'Create'), canEditBed: can('Beds', 'Edit'), canChangeBedStatus: can('Beds', 'ChangeStatus') },
-    actions: { setBranchId, setSearch, setBedStatus, saveWard, saveBed, changeWardStatus, changeBedStatus },
+    user,
+    isSuperAdmin,
+    branches,
+    branchId,
+    branchQuery,
+    patientsQuery,
+    permissions,
+    configuration,
+    transferOptions,
   };
 }
+

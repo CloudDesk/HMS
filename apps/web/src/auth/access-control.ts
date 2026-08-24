@@ -70,20 +70,30 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/admissions/beds': [{ module: 'Admissions', screen: 'Beds', action: 'ChangeStatus' }],
   '/admissions/inpatients': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
   '/reports/library': [{ module: 'Reports', screen: 'Phase 2 Reports' }],
+  '/surgery': [
+    { module: 'Surgery', screen: 'Recommendations' },
+    { module: 'Surgery', screen: 'Bookings' },
+    { module: 'Surgery', screen: 'Schedule' },
+  ],
+  '/surgery/recommendations': [{ module: 'Surgery', screen: 'Recommendations' }],
+  '/surgery/bookings': [{ module: 'Surgery', screen: 'Bookings' }],
+  '/surgery/schedule': [{ module: 'Surgery', screen: 'Schedule' }],
+  '/emergency': [{ module: 'Emergency', screen: 'Encounters' }],
+  '/emergency/queue': [{ module: 'Emergency', screen: 'Encounters' }],
+  '/emergency/workspace': [{ module: 'Emergency', screen: 'Encounters' }],
 };
 
 const normalize = (value: string) => value.trim().toLowerCase();
-const isSuperAdministrator = (roles: AuthRole[]) => roles.some((role) => role.code === 'SUPER_ADMIN');
+const isSuperAdministrator = (roles: AuthRole[]) =>
+  roles.some((role) => role.code === 'SUPER_ADMIN');
 
-export const hasPermission = (
-  permissions: AuthPermission[],
-  requirement: PermissionRequirement,
-) => permissions.some(
-  (permission) =>
-    normalize(permission.module) === normalize(requirement.module) &&
-    normalize(permission.screen) === normalize(requirement.screen) &&
-    normalize(permission.action) === normalize(requirement.action ?? 'View'),
-);
+export const hasPermission = (permissions: AuthPermission[], requirement: PermissionRequirement) =>
+  permissions.some(
+    (permission) =>
+      normalize(permission.module) === normalize(requirement.module) &&
+      normalize(permission.screen) === normalize(requirement.screen) &&
+      normalize(permission.action) === normalize(requirement.action ?? 'View'),
+  );
 
 export const isPermissionControlledRoute = (pathname: string) => pathname in routeRequirements;
 

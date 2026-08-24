@@ -50,17 +50,16 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/opd/queue', label: 'Queue Management' },
     ],
   },
-  // Emergency remains deferred. Admissions configuration is enabled for R2.
-  // {
-  //   key: 'emergency',
-  //   label: 'Emergency',
-  //   icon: 'ph-star',
-  //   links: [
-  //     { href: '/emergency', label: 'Dashboard' },
-  //     { href: '/emergency/queue', label: 'Emergency Queue' },
-  //     { href: '/emergency/workspace', label: 'Emergency Workspace' },
-  //   ],
-  // },
+  {
+    key: 'emergency',
+    label: 'Emergency',
+    icon: 'ph-warning-circle',
+    links: [
+      { href: '/emergency', label: 'Dashboard' },
+      { href: '/emergency/queue', label: 'Emergency Queue' },
+      { href: '/emergency/workspace', label: 'Emergency Workspace' },
+    ],
+  },
   {
     key: 'admissions',
     label: 'Admissions',
@@ -69,6 +68,14 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/admissions/inpatients', label: 'Inpatient Admission' },
       { href: '/admissions/bed-availability', label: 'Bed Availability' },
       { href: '/admissions/beds', label: 'Bed Management' },
+    ],
+  },
+  {
+    key: 'surgery',
+    label: 'Surgery',
+    icon: 'ph-scissors',
+    links: [
+      { href: '/surgery', label: 'Procedure Workflow' },
     ],
   },
   {

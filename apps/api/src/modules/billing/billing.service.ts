@@ -64,6 +64,46 @@ export class BillingService {
     return this.repository.summary(query, scope);
   }
 
+  async verifyAdmissionDeposit(patientId: string, branchId: string, requestId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session: import('mongoose').ClientSession) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, branchId);
+    if (requiredAmount === 0) return { required_amount: 0, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    if (!invoiceId) return { required_amount: requiredAmount, paid_amount: 0, remaining_amount: requiredAmount, satisfied: false, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    const invoice = await this.repository.getById(invoiceId, scope, session);
+    if (!invoice || invoice.patient_id !== patientId || invoice.branch_id !== branchId || invoice.context_type !== 'ADMISSION_REQUEST' || invoice.context_id !== requestId || invoice.status === 'CANCELLED') throw new AppError('The selected deposit invoice is not linked to this admission request', 409, 'ADVANCE_DEPOSIT_REQUIRED');
+    const payments = await this.repository.listPayments(invoiceId, scope, session);
+    const paidAmount = invoice.paid_amount;
+    return { required_amount: requiredAmount, paid_amount: paidAmount, remaining_amount: Math.max(0, requiredAmount - paidAmount), satisfied: paidAmount >= requiredAmount, invoice_id: invoice.id, payment_ids: payments.map((item) => item.id), verified_at: new Date() };
+  }
+
+  async verifyProcedureDeposit(patientId: string, branchId: string, bookingId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session: import('mongoose').ClientSession) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, branchId);
+    if (requiredAmount === 0) return { required_amount: 0, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    if (!invoiceId) return { required_amount: requiredAmount, paid_amount: 0, remaining_amount: requiredAmount, satisfied: false, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    const invoice = await this.repository.getById(invoiceId, scope, session);
+    if (!invoice || invoice.patient_id !== patientId || invoice.branch_id !== branchId || invoice.context_type !== 'PROCEDURE_BOOKING' || invoice.context_id !== bookingId || invoice.status === 'CANCELLED') throw new AppError('The selected deposit invoice is not linked to this procedure booking', 409, 'ADVANCE_DEPOSIT_REQUIRED');
+    const payments = await this.repository.listPayments(invoiceId, scope, session);
+    const paidAmount = invoice.paid_amount;
+    return { required_amount: requiredAmount, paid_amount: paidAmount, remaining_amount: Math.max(0, requiredAmount - paidAmount), satisfied: paidAmount >= requiredAmount, invoice_id: invoice.id, payment_ids: payments.map((item) => item.id), verified_at: new Date() };
+  }
+
+  async linkProcedureContext(invoiceId: string, data: { patient_id: string; branch_id: string; booking_id: string }, actorUserId: string, metadata: BillingRequestMetadata) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, data.branch_id);
+    if (scope && !scope.includes(data.branch_id)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+    const invoice = await this.repository.linkContext(invoiceId, data.patient_id, data.branch_id, 'PROCEDURE_BOOKING', data.booking_id, actorUserId);
+    if (!invoice) throw new AppError('Invoice could not be linked to this procedure booking', 409, 'BILLING_CONTEXT_CONFLICT');
+    await this.repository.audit('billing.invoice.procedure_context_linked', actorUserId, metadata, { invoiceId, patientId: data.patient_id, branchId: data.branch_id, procedureBookingId: data.booking_id });
+    return invoice;
+  }
+
+  async linkAdmissionContext(invoiceId: string, data: { patient_id: string; branch_id: string; request_id: string }, actorUserId: string, metadata: BillingRequestMetadata) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, data.branch_id);
+    if (scope && !scope.includes(data.branch_id)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+    const invoice = await this.repository.linkContext(invoiceId, data.patient_id, data.branch_id, 'ADMISSION_REQUEST', data.request_id, actorUserId);
+    if (!invoice) throw new AppError('Invoice could not be linked to this admission request', 409, 'BILLING_CONTEXT_CONFLICT');
+    await this.repository.audit('billing.invoice.admission_context_linked', actorUserId, metadata, { invoiceId, patientId: data.patient_id, branchId: data.branch_id, admissionRequestId: data.request_id });
+    return invoice;
+  }
+
   async create(data: CreateBillingInvoiceDTO, actorUserId: string, metadata: BillingRequestMetadata) {
     const context = await this.validateInvoiceContext(data, actorUserId);
     const items = await this.resolveItems(data.visit_id, data.items);
@@ -292,6 +332,15 @@ export class BillingService {
     const serviceById = new Map(services.map((service) => [service._id.toString(), service]));
     if (serviceById.size !== new Set(serviceIds).size) {
       throw new AppError('Every invoice item must reference an active Service Catalogue entry', 409, 'INVALID_BILLING_SERVICE');
+    }
+
+    const batchIds = pharmacyItems.map((item) => item.service_id);
+    const batches = await Promise.all(batchIds.map((id) => this.pharmacyInventoryRepository.getBatchById(id)));
+    const batchById = new Map(
+      batches.flatMap((batch) => (batch ? [[batch._id.toString(), batch] as const] : [])),
+    );
+    if (batchIds.some((id) => !batchById.get(id))) {
+      throw new AppError('Every pharmacy invoice item must reference a valid inventory batch', 409, 'INVALID_PHARMACY_BATCH');
     }
 
     const types = new Set(requestedItems.map((item) => item.service_type));

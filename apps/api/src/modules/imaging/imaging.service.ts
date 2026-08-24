@@ -84,10 +84,12 @@ export class ImagingService {
       await session.withTransaction(async () => {
         const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
         if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+        const visitId = order.visit_id;
+        if (!visitId) throw new AppError('Emergency report storage adapter is not available in this phase', 409, 'EMERGENCY_SOURCE_CONTEXT_UNSUPPORTED');
         this.assertMutable(order);
         if (order.status !== 'IN_PROGRESS') throw new AppError('Reports can only be entered for an in-progress order', 409, 'REPORT_ENTRY_NOT_ALLOWED');
         if (await this.repository.getReport(id, session)) throw new AppError('Imaging report already exists', 409, 'IMAGING_REPORT_EXISTS');
-        saved = await this.repository.createReport(order, data, actorUserId, session);
+        saved = await this.repository.createReport({ ...order, visit_id: visitId }, data, actorUserId, session);
         const updated = await this.orderRepository.updateOperationalStatus(id, 'IMAGING', 'IN_PROGRESS', 'REPORT_ENTERED', actorUserId, session);
         if (!updated) throw new AppError('Imaging order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit('imaging.report.entered', actorUserId, metadata, {

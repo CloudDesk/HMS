@@ -72,8 +72,8 @@ export type UpdatePatientDTO = Partial<Omit<CreatePatientDTO, 'status'>> & {
 };
 
 export type PatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
-export type PatientConsentStatus = 'NOT_REQUIRED' | 'PENDING' | 'ATTACHED' | 'VERIFIED';
-export type PatientConsentContextType = 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
+export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
+export type PatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING';
 
 export type PatientDocument = {
   id: string;
@@ -94,6 +94,9 @@ export type PatientDocument = {
   storage_key: string;
   description: string | null;
   consent_status: PatientConsentStatus | null;
+  context_type: PatientConsentContextType | null;
+  context_id: string | null;
+  consent_kind: string | null;
   signed_at: Date | null;
   valid_until: Date | null;
   signed_by_name: string | null;
@@ -124,6 +127,9 @@ export type CreatePatientDocumentDTO = {
   storage_key: string;
   description?: string | null;
   consent_status?: PatientConsentStatus | null;
+  context_type?: PatientConsentContextType | null;
+  context_id?: string | null;
+  consent_kind?: string | null;
   signed_at?: string | null;
   valid_until?: string | null;
   signed_by_name?: string | null;
@@ -160,6 +166,22 @@ export type PatientTimelineEventType =
   | 'OPD_FOLLOW_UP_SCHEDULED'
   | 'OPD_REFERRAL_SUBMITTED'
   | 'OPD_REFERRAL_BOOKED';
+  | 'ADMISSION_REQUEST_CREATED'
+  | 'INPATIENT_ADMISSION_CONFIRMED'
+  | 'ADMISSION_REQUEST_CANCELLED'
+  | 'PROCEDURE_RECOMMENDATION_CREATED'
+  | 'PROCEDURE_RECOMMENDATION_CANCELLED'
+  | 'PROCEDURE_BOOKING_CREATED'
+  | 'PROCEDURE_BOOKING_CONFIRMED'
+  | 'PROCEDURE_BOOKING_RESCHEDULED'
+  | 'PROCEDURE_BOOKING_CANCELLED'
+  | 'PROCEDURE_BOOKING_COMPLETED'
+  | 'EMERGENCY_ENCOUNTER_REGISTERED'
+  | 'EMERGENCY_PATIENT_LINKED'
+  | 'EMERGENCY_TRIAGE_COMPLETED'
+  | 'EMERGENCY_CONSULTATION_UPDATED'
+  | 'EMERGENCY_DISPOSITION_CONFIRMED'
+  | 'EMERGENCY_CONVERTED_TO_IP';
 
 export type PatientTimelineListQuery = {
   event_type?: PatientTimelineEventType;

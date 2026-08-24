@@ -36,6 +36,12 @@ const serviceSchema = z.object({
     (val) => val !== '' && !Number.isNaN(parseFloat(val)) && parseFloat(val) >= 0,
     { message: 'Standard price must be a non-negative number.' }
   ),
+  default_duration_minutes: z.string(),
+  booking_capacity: z.string(),
+  requires_bed: z.boolean(),
+  requires_consent: z.boolean(),
+  requires_advance_deposit: z.boolean(),
+  minimum_advance_deposit_amount: z.string(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
 });
 type ServiceFormData = z.infer<typeof serviceSchema>;
@@ -204,7 +210,7 @@ export function ServiceCataloguePage() {
     resolver: zodResolver(serviceSchema),
     defaultValues: {
       code: '', name: '', service_type: 'GENERAL', branch_id: '',
-      department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE'
+      department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
     }
   });
 
@@ -255,13 +261,19 @@ export function ServiceCataloguePage() {
         category: svc.category || '',
         description: svc.description || '',
         standard_price: svc.standard_price !== null ? String(svc.standard_price) : '',
+        default_duration_minutes: svc.default_duration_minutes == null ? '' : String(svc.default_duration_minutes),
+        booking_capacity: svc.booking_capacity == null ? '' : String(svc.booking_capacity),
+        requires_bed: svc.requires_bed,
+        requires_consent: svc.requires_consent,
+        requires_advance_deposit: svc.requires_advance_deposit,
+        minimum_advance_deposit_amount: svc.minimum_advance_deposit_amount == null ? '' : String(svc.minimum_advance_deposit_amount),
         status: svc.status,
       });
     } else {
       setModalBranchIds([]);
       svcForm.reset({
         code: '', name: '', service_type: 'GENERAL', branch_id: '',
-        department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE'
+        department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
       });
     }
   };
@@ -284,6 +296,14 @@ export function ServiceCataloguePage() {
     setFormError('');
     try {
       const price = parseFloat(values.standard_price);
+      if (values.service_type === 'PROCEDURE' && (!values.default_duration_minutes || !values.booking_capacity)) {
+        setFormError('Procedure duration and booking capacity are required.');
+        return;
+      }
+      if (values.service_type === 'PROCEDURE' && values.requires_advance_deposit && values.minimum_advance_deposit_amount === '') {
+        setFormError('Minimum advance deposit is required for this procedure.');
+        return;
+      }
       const payload = {
         code: values.code.trim(),
         name: values.name.trim(),
@@ -292,6 +312,12 @@ export function ServiceCataloguePage() {
         category: values.category?.trim() || null,
         description: values.description?.trim() || null,
         standard_price: price,
+        default_duration_minutes: values.service_type === 'PROCEDURE' ? Number(values.default_duration_minutes) : null,
+        booking_capacity: values.service_type === 'PROCEDURE' ? Number(values.booking_capacity) : null,
+        requires_bed: values.service_type === 'PROCEDURE' && values.requires_bed,
+        requires_consent: values.service_type === 'PROCEDURE' && values.requires_consent,
+        requires_advance_deposit: values.service_type === 'PROCEDURE' && values.requires_advance_deposit,
+        minimum_advance_deposit_amount: values.service_type === 'PROCEDURE' && values.requires_advance_deposit ? Number(values.minimum_advance_deposit_amount) : null,
         status: values.status,
       };
 
@@ -808,6 +834,20 @@ export function ServiceCataloguePage() {
                 {svcForm.formState.errors.standard_price ? <small className="field-error">{svcForm.formState.errors.standard_price.message}</small> : null}
               </label>
             </div>
+
+            {svcForm.watch('service_type') === 'PROCEDURE' ? <>
+              <div className="form-section-title">Procedure Booking Rules</div>
+              <div className="form-grid-3">
+                <label className="form-field"><span>Default Duration (minutes) <span className="required">*</span></span><input type="number" min="5" max="720" {...svcForm.register('default_duration_minutes')} /></label>
+                <label className="form-field"><span>Overlapping Booking Capacity <span className="required">*</span></span><input type="number" min="1" max="100" {...svcForm.register('booking_capacity')} /></label>
+                <label className="form-field"><span>Minimum Advance Deposit</span><input type="number" min="0" step="0.01" disabled={!svcForm.watch('requires_advance_deposit')} {...svcForm.register('minimum_advance_deposit_amount')} /></label>
+              </div>
+              <div className="form-grid-3">
+                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_bed')} /> Requires bed hold</span></label>
+                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_consent')} /> Requires signed consent</span></label>
+                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_advance_deposit')} /> Requires advance deposit</span></label>
+              </div>
+            </> : null}
 
             <div className="form-section-title">Additional Information</div>
             <div className="form-grid-3">

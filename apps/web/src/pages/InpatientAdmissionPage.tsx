@@ -1,339 +1,73 @@
-﻿import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { useInpatientAdmissions } from '../hooks/useInpatientAdmissions';
-import { StatusBadge } from '../components/ui/StatusBadge';
+import type { AdmissionRequest } from '../api/inpatient-admissions';
+import { patientsApi } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
-import type { InpatientAdmission } from '../api/inpatient-admissions';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { useInpatientAdmissions } from '../hooks/useInpatientAdmissions';
+import { navigate, useAppLocation } from '../routing/navigation';
 
-const schema = z.object({
-  patient_id: z.string().min(1, 'Select a patient'),
-  ward_id: z.string().min(1, 'Select a ward'),
-  bed_id: z.string().min(1, 'Select an available bed'),
-  admitting_doctor_id: z.string().min(1, 'Select an admitting doctor'),
-  department_id: z.string().min(1, 'Select a department'),
-  admission_date: z.string().min(1, 'Admission date is required'),
-  admission_type: z.enum(['MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OBSERVATION', 'OTHER']),
-  reason: z.string().trim().min(1, 'Reason is required').max(500),
-  notes: z.string().max(1000)
-});
-type FormValues = z.infer<typeof schema>;
-
-// Dummy data for missing API fields based on design mockup
-const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-const mockAge = (id: string) => (parseInt(id.slice(-1), 16) || 0) * 5 + 20; // Pseudo-random age
-const mockSource = (id: string) => ['Emergency', 'OPD', 'Referral'][parseInt(id.slice(-1), 16) % 3];
+const createSchema = z.object({ patient_id: z.string().min(1, 'Select a patient'), department_id: z.string().min(1, 'Select a department'), recommending_doctor_id: z.string().min(1, 'Select a doctor'), source_type: z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER']), source_id: z.string(), admission_type: z.enum(['MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OBSERVATION', 'OTHER']), priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']), reason: z.string().trim().min(1, 'Reason is required').max(500), notes: z.string().max(1000) }).superRefine((value, context) => { if (value.source_type !== 'DIRECT' && !/^[a-f\d]{24}$/i.test(value.source_id)) context.addIssue({ code: 'custom', path: ['source_id'], message: 'Enter a valid source record id' }); });
+const allocationSchema = z.object({ ward_id: z.string().min(1, 'Select a ward'), bed_id: z.string().min(1, 'Select a bed'), hold_id: z.string(), consent_document_id: z.string(), deposit_invoice_id: z.string(), admission_date: z.string().min(1, 'Admission date is required') });
+const consentSchema = z.object({ title: z.string().trim().min(1, 'Title is required'), signed_by_name: z.string().trim().min(1, 'Signer is required'), signed_at: z.string().min(1, 'Signed date is required'), valid_until: z.string(), file: z.instanceof(File, { message: 'Select a consent file' }) });
+type CreateValues = z.infer<typeof createSchema>;
+type AllocationValues = z.infer<typeof allocationSchema>;
+type ConsentValues = z.infer<typeof consentSchema>;
+const tone = (status: AdmissionRequest['status']) => status === 'CONFIRMED' ? 'green' : status === 'CANCELLED' ? 'red' : status === 'READY_FOR_CONFIRMATION' ? 'blue' : 'orange';
 
 export function InpatientAdmissionPage() {
-  const [branchId, setBranchId] = useState('');
+  const location = useAppLocation();
+  const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const [branchId, setBranchId] = useState(handoff.get('branch_id') ?? '');
   const [patientSearch, setPatientSearch] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<InpatientAdmission | null>(null);
-
-  const data = useInpatientAdmissions(branchId, patientSearch);
-
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      admission_type: 'MEDICAL',
-      admission_date: new Date().toISOString().slice(0, 16),
-      notes: ''
-    }
-  });
-
+  const [requestSearch, setRequestSearch] = useState('');
+  const [selected, setSelected] = useState<AdmissionRequest | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const data = useInpatientAdmissions(branchId, patientSearch, requestSearch);
+  const createForm = useForm<CreateValues>({ resolver: zodResolver(createSchema), defaultValues: { source_type: 'DIRECT', source_id: '', admission_type: 'MEDICAL', priority: 'ROUTINE', reason: '', notes: '' } });
+  const allocationForm = useForm<AllocationValues>({ resolver: zodResolver(allocationSchema), defaultValues: { ward_id: '', bed_id: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', admission_date: new Date().toISOString().slice(0, 16) } });
+  const consentForm = useForm<ConsentValues>({ resolver: zodResolver(consentSchema), defaultValues: { title: 'Inpatient admission consent', signed_by_name: '', signed_at: new Date().toISOString().slice(0, 16), valid_until: '' } });
+  useEffect(() => { const first = data.branches.data?.data[0]?.id; if (!branchId && first) setBranchId(first); }, [branchId, data.branches.data]);
   useEffect(() => {
-    if (!branchId && data.branches.data?.data[0]?.id) {
-      setBranchId(data.branches.data.data[0].id);
-    }
-  }, [branchId, data.branches.data]);
+    if (handoff.get('source_type') !== 'EMERGENCY_ENCOUNTER') return;
+    const sourceId = handoff.get('source_id') ?? '';
+    const patientId = handoff.get('patient_id') ?? '';
+    const departmentId = handoff.get('department_id') ?? '';
+    const doctorId = handoff.get('doctor_id') ?? '';
+    if (!sourceId || !patientId || !departmentId || !doctorId) return;
+    setBranchId(handoff.get('branch_id') ?? '');
+    setPatientSearch(handoff.get('patient_search') ?? '');
+    createForm.reset({ patient_id: patientId, department_id: departmentId, recommending_doctor_id: doctorId, source_type: 'EMERGENCY_ENCOUNTER', source_id: sourceId, admission_type: 'MEDICAL', priority: 'EMERGENCY', reason: handoff.get('reason') ?? '', notes: handoff.get('notes') ?? '' });
+    setCreateOpen(true);
+  }, [createForm, handoff]);
+  useEffect(() => { if (selected) allocationForm.reset({ ward_id: selected.ward_id ?? '', bed_id: selected.bed_id ?? '', hold_id: selected.hold_id ?? '', consent_document_id: selected.consent_document_id ?? '', deposit_invoice_id: selected.deposit_invoice_id ?? '', admission_date: new Date().toISOString().slice(0, 16) }); }, [allocationForm, selected]);
+  const wardId = allocationForm.watch('ward_id');
+  const beds = useMemo(() => (data.beds.data?.data ?? []).filter((bed) => !wardId || bed.ward_id === wardId), [data.beds.data, wardId]);
+  const requests = data.requests.data?.data ?? [];
+  const policy = data.policy.data;
+  const counts = { pending: requests.filter((item) => item.status === 'PENDING_VALIDATION').length, ready: requests.filter((item) => item.status === 'READY_FOR_CONFIRMATION').length, confirmed: requests.filter((item) => item.status === 'CONFIRMED').length, cancelled: requests.filter((item) => item.status === 'CANCELLED').length };
 
-  const wardId = watch('ward_id');
-  const beds = useMemo(() => (data.beds.data?.data ?? []).filter((bed) => bed.ward_id === wardId), [data.beds.data, wardId]);
+  const createRequest = createForm.handleSubmit(async (values) => { try { const request = await data.createRequest.mutateAsync({ ...values, branch_id: branchId, source_id: values.source_type === 'DIRECT' ? null : values.source_id, notes: values.notes || null }); toast.success('Admission request created.'); setCreateOpen(false); setSelected(request); createForm.reset(); navigate(`/admissions/inpatients?branch_id=${branchId}`, { replace: true }); } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to create admission request.'); } });
+  const validate = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.validateRequest.mutateAsync({ id: selected.id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } }); setSelected(request); toast.success('Request validated and ready for confirmation.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Validation failed.'); } });
+  const confirm = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.confirmRequest.mutateAsync({ id: selected.id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } }); setSelected(request); toast.success('Admission confirmed and bed allotted.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Admission confirmation failed.'); } });
+  const cancel = async () => { if (!selected || !cancelReason.trim()) return; try { const request = await data.cancelRequest.mutateAsync({ id: selected.id, reason: cancelReason.trim() }); setSelected(request); setCancelOpen(false); setCancelReason(''); toast.success('Draft request cancelled and reserved resources released.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Cancellation failed.'); } };
+  const uploadConsent = consentForm.handleSubmit(async (values) => { if (!selected) return; try { const document = await patientsApi.uploadDocument(selected.patient_id, { document_type: 'CONSENT', title: values.title, file: values.file, consent_status: 'SIGNED', signed_by_name: values.signed_by_name, signed_at: new Date(values.signed_at).toISOString(), valid_until: values.valid_until ? new Date(values.valid_until).toISOString() : undefined, context_type: 'INPATIENT_ADMISSION', context_id: selected.id, consent_kind: 'INPATIENT_ADMISSION' }); allocationForm.setValue('consent_document_id', document.id); setConsentOpen(false); consentForm.reset(); toast.success('Signed consent uploaded and linked to this request.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Consent upload failed.'); } });
 
-  const submit = async (values: FormValues) => {
-    try {
-      await data.create.mutateAsync({
-        ...values,
-        branch_id: branchId,
-        admission_date: new Date(values.admission_date).toISOString(),
-        notes: values.notes || null
-      });
-      toast.success('Patient admitted and bed assigned.');
-      reset({ admission_type: 'MEDICAL', admission_date: new Date().toISOString().slice(0, 16), notes: '' });
-      setPatientSearch('');
-      setIsModalOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to complete admission.');
-    }
-  };
-
-  const busy = data.branches.isLoading || data.wards.isLoading || data.beds.isLoading || data.doctors.isLoading || data.departments.isLoading;
-  const admissionsList = data.admissions.data?.data ?? [];
-
-  // KPIs
-  const pendingCount = admissionsList.filter(a => a.status === 'DRAFT').length; // Mocking PENDING
-  const approvedCount = admissionsList.filter(a => a.status === 'ADMITTED').length; // Mocking Approved
-
-  return (
-    <div className="page-shell">
-      <div className="page-heading">
-        <div>
-          <h1>Admission Requests</h1>
-          <p>Review and action clinical admission requests</p>
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <select aria-label="Branch" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-            {(data.branches.data?.data ?? []).map((branch) => (
-              <option key={branch.id} value={branch.id}>{branch.name}</option>
-            ))}
-          </select>
-          <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
-            + New Admission Request
-          </button>
-        </div>
-      </div>
-
-      <section className="kpi-grid enhanced">
-        <div className="kpi-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-          <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#fef3c7', color: '#d97706' }}>âŒ›</div>
-            <span className="kpi-title">Pending</span>
-          </div>
-          <strong className="kpi-value">{pendingCount}</strong>
-          <span className="kpi-subtext">Awaiting decision</span>
-        </div>
-        <div className="kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
-          <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#d1fae5', color: '#059669' }}>âœ“</div>
-            <span className="kpi-title">Approved Today</span>
-          </div>
-          <strong className="kpi-value">{approvedCount}</strong>
-          <span className="kpi-subtext">Ready for allocation</span>
-        </div>
-        <div className="kpi-card" style={{ borderLeft: '4px solid #ef4444' }}>
-          <div className="kpi-header">
-            <div className="kpi-icon" style={{ backgroundColor: '#fee2e2', color: '#dc2626' }}>âœ•</div>
-            <span className="kpi-title">Rejected Today</span>
-          </div>
-          <strong className="kpi-value">0</strong>
-          <span className="kpi-subtext">Clinical plan returned</span>
-        </div>
-      </section>
-
-      <div className="filters-toolbar">
-        <label>
-          <span>Department</span>
-          <select><option>All</option></select>
-        </label>
-        <label>
-          <span>Admission Type</span>
-          <select><option>All</option></select>
-        </label>
-        <label>
-          <span>Source</span>
-          <select><option>All</option></select>
-        </label>
-        <label>
-          <span>Status</span>
-          <select><option>All</option></select>
-        </label>
-        <label>
-          <span>Search Patient</span>
-          <input type="text" placeholder="Name, MRN or request ID" />
-        </label>
-      </div>
-
-      <div className="split-layout">
-        <div className="split-layout__main">
-          <div className="table-scroll" style={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Request ID</th>
-                  <th>MRN</th>
-                  <th>Patient</th>
-                  <th>Age</th>
-                  <th>Requested By</th>
-                  <th>Source</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.admissions.isLoading ? (
-                  <tr><td colSpan={8} className="empty-state">Loading...</td></tr>
-                ) : admissionsList.length === 0 ? (
-                  <tr><td colSpan={8} className="empty-state">No admission requests found.</td></tr>
-                ) : (
-                  admissionsList.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelectedRequest(item)}
-                      style={{ cursor: 'pointer', backgroundColor: selectedRequest?.id === item.id ? '#f3f4f6' : 'transparent' }}
-                    >
-                      <td><strong style={{ color: 'var(--text-color)' }}>{item.admission_number}</strong></td>
-                      <td className="muted-text">{item.patient_number}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>
-                            {getInitials(item.patient_name)}
-                          </div>
-                          <span style={{ fontWeight: 500 }}>{item.patient_name}</span>
-                        </div>
-                      </td>
-                      <td>{mockAge(item.id)}</td>
-                      <td>{item.admitting_doctor_name}</td>
-                      <td>{mockSource(item.id)}</td>
-                      <td>
-                        <StatusBadge tone={item.status === 'ADMITTED' ? 'green' : 'orange'}>
-                          {item.status === 'ADMITTED' ? 'Approved' : 'Pending'}
-                        </StatusBadge>
-                      </td>
-                      <td>
-                        <button className="btn-secondary compact" onClick={(e) => { e.stopPropagation(); setSelectedRequest(item); }}>View</button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {selectedRequest && (
-          <div className="split-layout__side">
-            <div className="profile-header">
-              <div className="profile-circle">{getInitials(selectedRequest.patient_name)}</div>
-              <div className="name-group">
-                <h3>{selectedRequest.patient_name}</h3>
-                <span>{selectedRequest.patient_number}</span>
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'center', margin: '-1rem 0 1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {selectedRequest.admission_number}
-            </div>
-
-            <div className="details-list">
-              <div className="details-list-item">
-                <span>Age / Gender</span>
-                <span>{mockAge(selectedRequest.id)} / M</span>
-              </div>
-              <div className="details-list-item">
-                <span>Source</span>
-                <span>{mockSource(selectedRequest.id)}</span>
-              </div>
-              <div className="details-list-item">
-                <span>Requested By</span>
-                <span>{selectedRequest.admitting_doctor_name}</span>
-              </div>
-              <div className="details-list-item">
-                <span>Status</span>
-                <StatusBadge tone={selectedRequest.status === 'ADMITTED' ? 'green' : 'orange'}>
-                  {selectedRequest.status === 'ADMITTED' ? 'Approved' : 'Pending'}
-                </StatusBadge>
-              </div>
-            </div>
-
-            <div>
-              <strong style={{ fontSize: '0.85rem', color: 'var(--text-color)' }}>Clinical Summary</strong>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.4 }}>
-                Patient requires immediate admission for monitoring and further clinical evaluation.
-                Currently assigned to {selectedRequest.ward_name} / Bed {selectedRequest.bed_number}.
-              </p>
-            </div>
-
-            <div style={{ marginTop: 'auto', display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
-               <button className="btn-primary" style={{ width: '100%' }}>Proceed to Allocation</button>
-               <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setSelectedRequest(null)}>Close</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Admission Request">
-        <form className="form-grid" onSubmit={handleSubmit(submit)} style={{ padding: '1rem 0' }}>
-          <label>Patient
-            <input placeholder="Search by MRN or name" value={patientSearch} onChange={(event) => setPatientSearch(event.target.value)} />
-            {patientSearch.length >= 2 && (
-              <select aria-label="Patient" {...register('patient_id')}>
-                <option value="">Select patient</option>
-                {(data.patients.data?.data ?? []).map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.patient_number} - {[patient.first_name, patient.last_name].filter(Boolean).join(' ')}
-                  </option>
-                ))}
-              </select>
-            )}
-            <small className="form-error">{errors.patient_id?.message}</small>
-          </label>
-          <label>Department
-            <select {...register('department_id')}>
-              <option value="">Select department</option>
-              {(data.departments.data?.data ?? []).map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-            <small className="form-error">{errors.department_id?.message}</small>
-          </label>
-          <label>Admitting doctor
-            <select {...register('admitting_doctor_id')}>
-              <option value="">Select doctor</option>
-              {(data.doctors.data?.data ?? []).map((item) => (
-                <option key={item.id} value={item.id}>{item.display_name}</option>
-              ))}
-            </select>
-            <small className="form-error">{errors.admitting_doctor_id?.message}</small>
-          </label>
-          <label>Ward
-            <select {...register('ward_id')}>
-              <option value="">Select ward</option>
-              {(data.wards.data?.data ?? []).map((item) => (
-                <option key={item.id} value={item.id}>{item.name} - {item.ward_type}</option>
-              ))}
-            </select>
-            <small className="form-error">{errors.ward_id?.message}</small>
-          </label>
-          <label>Available bed
-            <select {...register('bed_id')}>
-              <option value="">Select bed</option>
-              {beds.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.bed_number} {item.room_number ? `- Room ${item.room_number}` : ''} ({item.bed_category})
-                </option>
-              ))}
-            </select>
-            <small className="form-error">{errors.bed_id?.message}</small>
-          </label>
-          <label>Admission date and time
-            <input type="datetime-local" {...register('admission_date')} />
-            <small className="form-error">{errors.admission_date?.message}</small>
-          </label>
-          <label>Admission type
-            <select {...register('admission_type')}>
-              <option value="MEDICAL">Medical</option>
-              <option value="SURGICAL">Surgical</option>
-              <option value="MATERNITY">Maternity</option>
-              <option value="PAEDIATRIC">Paediatric</option>
-              <option value="OBSERVATION">Observation</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </label>
-          <label className="form-grid__full">Reason
-            <textarea {...register('reason')} placeholder="Reason for admission" />
-            <small className="form-error">{errors.reason?.message}</small>
-          </label>
-          <label className="form-grid__full">Notes
-            <textarea {...register('notes')} placeholder="Relevant notes" />
-          </label>
-          <div className="form-grid__full" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-            <button className="btn-secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancel</button>
-            <button className="btn-primary" type="submit" disabled={busy || data.create.isPending || !branchId}>Submit Request</button>
-          </div>
-        </form>
-      </Modal>
-    </div>
-  );
+  return <div className="page-shell">
+    <div className="page-heading"><div><h1>Admission Requests</h1><p>Validate recommendations, prerequisites and bed allotment before admission</p></div><div className="page-actions"><select aria-label="Branch" value={branchId} onChange={(event) => { setBranchId(event.target.value); setSelected(null); }}>{(data.branches.data?.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className="btn-secondary" onClick={() => navigate('/patients/search')}>Find / Register Patient</button><button className="btn-primary" onClick={() => setCreateOpen(true)}>+ New Request</button></div></div>
+    <section className="kpi-grid"><div className="kpi-card"><span className="kpi-title">Pending validation</span><strong className="kpi-value">{counts.pending}</strong></div><div className="kpi-card"><span className="kpi-title">Ready</span><strong className="kpi-value">{counts.ready}</strong></div><div className="kpi-card"><span className="kpi-title">Confirmed</span><strong className="kpi-value">{counts.confirmed}</strong></div><div className="kpi-card"><span className="kpi-title">Cancelled</span><strong className="kpi-value">{counts.cancelled}</strong></div></section>
+    {data.policy.isError ? <div className="error-state">Configure the branch admission policy before validating or confirming requests.</div> : null}
+    <div className="filters-toolbar"><label><span>Search requests</span><input value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder="Request, MRN or patient" /></label></div>
+    <div className="split-layout"><div className="split-layout__main"><div className="table-scroll"><table className="data-table"><thead><tr><th>Request</th><th>Patient</th><th>Source</th><th>Department</th><th>Priority</th><th>Status</th><th>Action</th></tr></thead><tbody>{data.requests.isLoading ? <tr><td colSpan={7} className="empty-state">Loading admission requests...</td></tr> : data.requests.isError ? <tr><td colSpan={7} className="empty-state">Unable to load admission requests. Retry after checking your branch access.</td></tr> : requests.length === 0 ? <tr><td colSpan={7} className="empty-state">No live admission requests found.</td></tr> : requests.map((item) => <tr key={item.id}><td><strong>{item.request_number}</strong><br/><small>{new Date(item.created_at).toLocaleString()}</small></td><td>{item.patient_name}<br/><small>{item.patient_number}</small></td><td>{item.source_type.replace('_', ' ')}{item.source_reference ? <><br/><small>{item.source_reference}</small></> : null}</td><td>{item.department_name}</td><td>{item.priority}</td><td><StatusBadge tone={tone(item.status)}>{item.status.replaceAll('_', ' ')}</StatusBadge></td><td><button className="btn-secondary compact" onClick={() => setSelected(item)}>Review</button></td></tr>)}</tbody></table></div></div>
+      {selected ? <aside className="split-layout__side"><div><h3>{selected.patient_name}</h3><p>{selected.patient_number} · {selected.request_number}</p></div><StatusBadge tone={tone(selected.status)}>{selected.status.replaceAll('_', ' ')}</StatusBadge><div className="details-list"><div className="details-list-item"><span>Recommended by</span><strong>{selected.recommending_doctor_name}</strong></div><div className="details-list-item"><span>Source</span><strong>{selected.source_reference ?? selected.source_type.replace('_', ' ')}</strong></div><div className="details-list-item"><span>Reason</span><strong>{selected.reason}</strong></div></div>{selected.status === 'PENDING_VALIDATION' || selected.status === 'READY_FOR_CONFIRMATION' ? <form className="form-grid" onSubmit={(event) => event.preventDefault()}><label>Ward<select {...allocationForm.register('ward_id')}><option value="">Select ward</option>{(data.wards.data?.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small className="form-error">{allocationForm.formState.errors.ward_id?.message}</small></label><label>Available bed<select {...allocationForm.register('bed_id')}><option value="">Select bed</option>{beds.map((item) => <option key={item.id} value={item.id}>{item.bed_number}{item.room_number ? ` · Room ${item.room_number}` : ''}</option>)}</select><small className="form-error">{allocationForm.formState.errors.bed_id?.message}</small></label><label>Admission date<input type="datetime-local" {...allocationForm.register('admission_date')} /></label><label>Bed hold ID (optional)<input {...allocationForm.register('hold_id')} /></label><label className="form-grid__full">Signed consent document ID {policy?.admission_consent_required ? '(required)' : '(optional)'}<input {...allocationForm.register('consent_document_id')} placeholder="Context must match this request" /><button className="btn-secondary compact" type="button" onClick={() => setConsentOpen(true)}>Upload signed consent</button></label><label className="form-grid__full">Paid invoice ID {policy?.admission_advance_deposit_required ? `(minimum ${policy.admission_minimum_deposit_amount})` : '(optional)'}<input {...allocationForm.register('deposit_invoice_id')} /></label><div className="form-grid__full page-actions"><button className="btn-secondary" type="button" onClick={validate} disabled={data.validateRequest.isPending}>Validate</button><button className="btn-primary" type="button" onClick={confirm} disabled={selected.status !== 'READY_FOR_CONFIRMATION' || data.confirmRequest.isPending}>Confirm Admission</button><button className="btn-danger" type="button" onClick={() => setCancelOpen(true)}>Cancel Draft</button></div></form> : selected.prerequisite_snapshot ? <div className="details-list"><div className="details-list-item"><span>Consent</span><strong>{selected.prerequisite_snapshot.consent_satisfied ? 'Satisfied' : 'Not required'}</strong></div><div className="details-list-item"><span>Deposit</span><strong>{selected.prerequisite_snapshot.deposit_paid_amount} / {selected.prerequisite_snapshot.deposit_required_amount}</strong></div></div> : null}</aside> : null}</div>
+    <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New Admission Request"><form className="form-grid" onSubmit={createRequest}><label className="form-grid__full">Search patient<input value={patientSearch} onChange={(event) => setPatientSearch(event.target.value)} placeholder="MRN, name or phone" /></label><label className="form-grid__full">Patient<select {...createForm.register('patient_id')}><option value="">Select patient</option>{(data.patients.data?.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.patient_number} · {[item.first_name, item.last_name].filter(Boolean).join(' ')}</option>)}</select><small className="form-error">{createForm.formState.errors.patient_id?.message}</small></label><label>Department<select {...createForm.register('department_id')}><option value="">Select department</option>{(data.departments.data?.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Recommending doctor<select {...createForm.register('recommending_doctor_id')}><option value="">Select doctor</option>{(data.doctors.data?.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></label><label>Source<select {...createForm.register('source_type')}><option value="DIRECT">Direct</option><option value="OPD_VISIT">OPD visit</option><option value="EMERGENCY_ENCOUNTER">Emergency encounter</option></select></label><label>Source record ID<input {...createForm.register('source_id')} disabled={createForm.watch('source_type') === 'DIRECT'} /><small className="form-error">{createForm.formState.errors.source_id?.message}</small></label><label>Admission type<select {...createForm.register('admission_type')}><option value="MEDICAL">Medical</option><option value="SURGICAL">Surgical</option><option value="MATERNITY">Maternity</option><option value="PAEDIATRIC">Paediatric</option><option value="OBSERVATION">Observation</option><option value="OTHER">Other</option></select></label><label>Priority<select {...createForm.register('priority')}><option value="ROUTINE">Routine</option><option value="URGENT">Urgent</option><option value="EMERGENCY">Emergency</option></select></label><label className="form-grid__full">Reason<textarea {...createForm.register('reason')} /></label><label className="form-grid__full">Notes<textarea {...createForm.register('notes')} /></label><div className="form-grid__full page-actions"><button type="button" className="btn-secondary" onClick={() => setCreateOpen(false)}>Close</button><button className="btn-primary" disabled={data.createRequest.isPending || !branchId}>Create Request</button></div></form></Modal>
+    <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel admission request"><label>Cancellation reason<textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><div className="page-actions"><button className="btn-secondary" onClick={() => setCancelOpen(false)}>Keep request</button><button className="btn-danger" onClick={cancel} disabled={!cancelReason.trim() || data.cancelRequest.isPending}>Cancel request</button></div></Modal>
+    <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Upload signed admission consent"><form className="form-grid" onSubmit={uploadConsent}><label className="form-grid__full">Title<input {...consentForm.register('title')} /></label><label>Signed by<input {...consentForm.register('signed_by_name')} /></label><label>Signed at<input type="datetime-local" {...consentForm.register('signed_at')} /></label><label>Valid until (optional)<input type="datetime-local" {...consentForm.register('valid_until')} /></label><label className="form-grid__full">Consent file<input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => { const file = event.target.files?.[0]; if (file) consentForm.setValue('file', file, { shouldValidate: true }); }} /><small className="form-error">{consentForm.formState.errors.file?.message}</small></label><div className="form-grid__full page-actions"><button type="button" className="btn-secondary" onClick={() => setConsentOpen(false)}>Close</button><button className="btn-primary">Upload and link</button></div></form></Modal>
+  </div>;
 }

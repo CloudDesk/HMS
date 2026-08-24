@@ -103,6 +103,9 @@ export type PatientDocumentMetadataFields = {
   storageKey: string;
   description?: string | null;
   consentStatus?: PatientConsentStatus | null;
+  contextType?: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | null;
+  contextId?: Types.ObjectId | null;
+  consentKind?: string | null;
   signedAt?: Date | null;
   validUntil?: Date | null;
   signedByName?: string | null;
@@ -138,7 +141,10 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
     fileSizeBytes: { type: Number, required: true },
     storageKey: { type: String, required: true },
     description: { type: String, default: null },
-    consentStatus: { type: String, enum: ['NOT_REQUIRED', 'PENDING', 'ATTACHED', 'VERIFIED', 'SIGNED', 'EXPIRED', 'REJECTED'], default: null },
+    consentStatus: { type: String, enum: ['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED'], default: null },
+    contextType: { type: String, enum: ['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'], default: null },
+    contextId: { type: Schema.Types.ObjectId, default: null },
+    consentKind: { type: String, default: null, trim: true },
     signedAt: { type: Date, default: null },
     validUntil: { type: Date, default: null },
     signedByName: { type: String, default: null },
@@ -159,6 +165,7 @@ patientDocumentSchema.index({ patientId: 1, visitId: 1, status: 1, createdAt: -1
 patientDocumentSchema.index({ patientId: 1, admissionId: 1, status: 1, createdAt: -1 });
 patientDocumentSchema.index({ patientId: 1, consentTemplateId: 1, contextType: 1, contextId: 1, status: 1 });
 patientDocumentSchema.index({ documentType: 1 });
+patientDocumentSchema.index({ patientId: 1, contextType: 1, contextId: 1, status: 1 });
 
 export type PatientTimelineEventFields = {
   patientId: Types.ObjectId;
@@ -193,6 +200,22 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
         'OPD_FOLLOW_UP_SCHEDULED',
         'OPD_REFERRAL_SUBMITTED',
         'OPD_REFERRAL_BOOKED',
+        'ADMISSION_REQUEST_CREATED',
+        'INPATIENT_ADMISSION_CONFIRMED',
+        'ADMISSION_REQUEST_CANCELLED',
+        'PROCEDURE_RECOMMENDATION_CREATED',
+        'PROCEDURE_RECOMMENDATION_CANCELLED',
+        'PROCEDURE_BOOKING_CREATED',
+        'PROCEDURE_BOOKING_CONFIRMED',
+        'PROCEDURE_BOOKING_RESCHEDULED',
+        'PROCEDURE_BOOKING_CANCELLED',
+        'PROCEDURE_BOOKING_COMPLETED',
+        'EMERGENCY_ENCOUNTER_REGISTERED',
+        'EMERGENCY_PATIENT_LINKED',
+        'EMERGENCY_TRIAGE_COMPLETED',
+        'EMERGENCY_CONSULTATION_UPDATED',
+        'EMERGENCY_DISPOSITION_CONFIRMED',
+        'EMERGENCY_CONVERTED_TO_IP',
       ],
       required: true,
     },

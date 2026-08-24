@@ -28,6 +28,8 @@ import type { PharmacyDispensingService } from '../../modules/pharmacy-dispensin
 import type { AdmissionsConfigurationService } from '../../modules/admissions-configuration/admissions-configuration.service.js';
 import type { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
 import type { ConsentService } from '../../modules/consents/consent.service.js';
+import type { SurgeryService } from '../../modules/surgery/surgery.service.js';
+import type { EmergencyService } from '../../modules/emergency/emergency.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -62,4 +64,6 @@ export type ServiceRegistry = {
   pharmacyDispensing: PharmacyDispensingService;
   admissionsConfiguration: AdmissionsConfigurationService;
   inpatientAdmissions: InpatientAdmissionService;
+  surgery: SurgeryService;
+  emergency: EmergencyService;
 };

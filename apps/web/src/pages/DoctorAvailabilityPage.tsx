@@ -100,12 +100,6 @@ const todayValue = () => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-const defaultExceptionBlock = () => ({
-  start_time: '09:00',
-  end_time: '13:00',
-  slot_duration_minutes: 30,
-});
-
 const defaultLeaveForm = (): LeaveFormValues => ({
   start_date: todayValue(),
   end_date: todayValue(),
@@ -148,9 +142,6 @@ export function DoctorAvailabilityPage() {
   });
 
   const leaveStartDate = leaveForm.watch('start_date');
-  const exceptionValues = exceptionForm.watch();
-  const exceptionBlock =
-    exceptionValues.working_blocks[0] ?? defaultExceptionBlock();
   const saving =
     availability.isSaving ||
     availabilityForm.formState.isSubmitting ||
@@ -177,12 +168,6 @@ export function DoctorAvailabilityPage() {
       leaveForm.reset(defaultLeaveForm());
     }
   });
-  const submitException = exceptionForm.handleSubmit(async (values) => {
-    if (await availability.saveException(values)) {
-      exceptionForm.reset(defaultExceptionForm());
-    }
-  });
-
   const [activeTab, setActiveTab] = useState<'schedule' | 'leave'>('schedule');
 
   return (

@@ -13,6 +13,7 @@ type DispensingItemInput = Omit<PharmacyDispensingFields['items'][number], '_id'
 type PrescriptionRecord = OpdPrescriptionFields & { _id: Types.ObjectId };
 type VisitRecord = OpdVisitFields & { _id: Types.ObjectId };
 type VisitSourceRecord = Pick<VisitRecord, '_id' | 'visitType'>;
+type DispensingContext = { _id: Types.ObjectId; branchId: Types.ObjectId };
 type DispensingRecord = PharmacyDispensingFields & { _id: Types.ObjectId };
 const objectId = (value: string) => new Types.ObjectId(value);
 const sourceTypeForVisit = (visit: VisitSourceRecord): PharmacyDispensingSourceType => {
@@ -90,9 +91,10 @@ export class PharmacyDispensingRepository {
   async get(prescriptionId: string, actorUserId: string) {
     const context = await this.getPrescription(prescriptionId);
     if (!context) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
-    const visit = await this.getVisit(context.visitId.toString());
-    if (!visit || !await this.authorized(actorUserId, visit.branchId.toString())) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
-    return this.ensureDraft(context, visit, actorUserId);
+    const visit = context.visitId ? await this.getVisit(context.visitId.toString()) : null;
+    const dispensingContext: DispensingContext = visit ?? { _id: context.sourceId, branchId: context.branchId };
+    if (!await this.authorized(actorUserId, dispensingContext.branchId.toString())) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+    return this.ensureDraft(context, dispensingContext, actorUserId);
   }
 
   async getRawByPrescription(prescriptionId: string, session?: ClientSession) {
@@ -101,7 +103,7 @@ export class PharmacyDispensingRepository {
     return query;
   }
 
-  async ensureDraft(prescription: PrescriptionRecord, visit: VisitRecord, userId: string, session?: ClientSession) {
+  async ensureDraft(prescription: PrescriptionRecord, visit: DispensingContext, userId: string, session?: ClientSession) {
     const existing = await this.getByPrescription(prescription._id.toString(), session);
     if (existing) return existing;
     if (prescription.status !== 'SUBMITTED') throw new AppError('Prescription is not actionable', 409, 'PRESCRIPTION_NOT_ACTIONABLE');
@@ -161,18 +163,49 @@ export class PharmacyDispensingRepository {
 
   async listPrescriptions(query: PharmacyDispensingListQuery) {
     const page = query.page ?? 1; const limit = query.limit ?? 20;
-    const visits = await OpdVisitModel.find({ branchId: objectId(query.branch_id), deletedAt: null }).select('_id visitType').lean<VisitSourceRecord[]>();
-    const visitById = new Map(visits.map((visit) => [visit._id.toString(), visit]));
-    const filter: Record<string, unknown> = { visitId: { $in: visits.map((visit) => visit._id) }, deletedAt: null };
-    if (query.status && query.status !== 'PENDING') {
-      const dispensingRecords = await PharmacyDispensingModel.find({
-        branchId: objectId(query.branch_id),
-        status: query.status,
-      }).select('prescriptionId').lean<Array<{ prescriptionId: Types.ObjectId }>>();
-      filter._id = { $in: dispensingRecords.map((record) => record.prescriptionId) };
-      filter.status = query.status === 'CONFIRMED' ? 'DISPENSED' : 'CANCELLED';
-    } else if (query.status === 'PENDING') filter.status = 'SUBMITTED';
-    else filter.status = { $in: ['SUBMITTED', 'DISPENSED', 'CANCELLED'] };
+const visits = await OpdVisitModel.find({
+  branchId: objectId(query.branch_id),
+  deletedAt: null,
+})
+  .select('_id visitType')
+  .lean<VisitSourceRecord[]>();
+
+const visitById = new Map(
+  visits.map((visit) => [visit._id.toString(), visit]),
+);
+
+const filter: Record<string, unknown> = {
+  $or: [
+    { branchId: objectId(query.branch_id) },
+    { visitId: { $in: visits.map((visit) => visit._id) } },
+  ],
+  deletedAt: null,
+};
+
+if (query.status === 'PENDING') {
+  filter.status = 'SUBMITTED';
+} else if (
+  query.status === 'CONFIRMED' ||
+  query.status === 'REVERSED'
+) {
+  const dispensingRecords = await PharmacyDispensingModel.find({
+    branchId: objectId(query.branch_id),
+    status: query.status,
+  })
+    .select('prescriptionId')
+    .lean<Array<{ prescriptionId: Types.ObjectId }>>();
+
+  filter._id = {
+    $in: dispensingRecords.map((record) => record.prescriptionId),
+  };
+  filter.status = 'DISPENSED';
+} else if (query.status === 'CANCELLED') {
+  filter.status = 'CANCELLED';
+} else {
+  filter.status = {
+    $in: ['SUBMITTED', 'DISPENSED', 'CANCELLED'],
+  };
+}
     if (query.search) filter.$or = [
       { patientName: new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
       { patientNumber: new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
@@ -191,7 +224,7 @@ export class PharmacyDispensingRepository {
         id: '', prescription_id: prescription._id.toString(), patient_id: prescription.patientId.toString(),
         source_type: sourceTypeForVisit(visit), encounter_id: visit._id.toString(), admission_id: null, procedure_id: null,
         patient_number: prescription.patientNumber, patient_name: prescription.patientName, doctor_name: prescription.doctorName,
-        visit_id: prescription.visitId.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null,
+        visit_id: prescription.visitId?.toString() ?? prescription.sourceId.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null,
         submitted_at: prescription.submittedAt ?? null, confirmed_at: null, cancelled_at: null, reversed_at: null, reversal_reason: null,
         created_at: prescription.createdAt, updated_at: prescription.updatedAt,
       };

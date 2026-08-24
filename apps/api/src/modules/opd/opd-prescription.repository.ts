@@ -44,8 +44,11 @@ const toItem = (item: OpdPrescriptionItemFields) => ({
 
 const toPrescription = (record: OpdPrescriptionLean): OpdPrescription => ({
   id: record._id.toString(),
-  visit_id: record.visitId.toString(),
-  consultation_id: record.consultationId.toString(),
+  source_type: record.sourceType,
+  source_id: record.sourceId.toString(),
+  visit_id: record.visitId?.toString() ?? null,
+  consultation_id: record.consultationId?.toString() ?? null,
+  branch_id: record.branchId.toString(),
   patient_id: record.patientId.toString(),
   patient_number: record.patientNumber,
   patient_name: record.patientName,
@@ -108,6 +111,9 @@ export class OpdPrescriptionRepository {
           updatedBy: objectId(userId),
         },
         $setOnInsert: {
+          sourceType: 'OPD_VISIT',
+          sourceId: objectId(data.visit.id),
+          branchId: objectId(data.visit.branch_id),
           visitId: objectId(data.visit.id),
           patientId: objectId(data.visit.patient_id),
           patientNumber: data.visit.patient_number,
@@ -124,6 +130,19 @@ export class OpdPrescriptionRepository {
       throw new AppError('Prescription could not be saved', 500, 'PRESCRIPTION_SAVE_FAILED');
     }
 
+    return toPrescription(record);
+  }
+
+  async submitForEmergency(data: {
+    encounterId: string; patientId: string; patientNumber: string; patientName: string; doctorId: string; doctorName: string; branchId: string;
+    items: SaveOpdPrescriptionItemDTO[]; doctorInstructions?: string | null; patientInstructions?: string | null;
+  }, userId: string, session: ClientSession) {
+    const record = await OpdPrescriptionModel.findOneAndUpdate(
+      { sourceType: 'EMERGENCY_ENCOUNTER', sourceId: objectId(data.encounterId), deletedAt: null },
+      { $set: { status: 'SUBMITTED', items: data.items.map(toItemFields), doctorInstructions: nullableString(data.doctorInstructions), patientInstructions: nullableString(data.patientInstructions), submittedAt: new Date(), updatedBy: objectId(userId) }, $setOnInsert: { sourceType: 'EMERGENCY_ENCOUNTER', sourceId: objectId(data.encounterId), visitId: null, consultationId: null, branchId: objectId(data.branchId), patientId: objectId(data.patientId), patientNumber: data.patientNumber, patientName: data.patientName, doctorId: objectId(data.doctorId), doctorName: data.doctorName, createdBy: objectId(userId) } },
+      { new: true, upsert: true, runValidators: true, session },
+    ).lean<OpdPrescriptionLean>();
+    if (!record) throw new AppError('Emergency prescription could not be submitted', 500, 'PRESCRIPTION_SAVE_FAILED');
     return toPrescription(record);
   }
   async list(
@@ -167,7 +186,7 @@ export class OpdPrescriptionRepository {
               as: 'scopedVisit',
             },
           },
-          { $match: { 'scopedVisit.0': { $exists: true } } },
+          { $match: { $or: [{ branchId: { $in: branchIds.map(objectId) } }, { 'scopedVisit.0': { $exists: true } }] } },
           { $unset: 'scopedVisit' },
         ]
       : [];

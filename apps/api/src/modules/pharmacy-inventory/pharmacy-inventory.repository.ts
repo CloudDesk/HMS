@@ -336,7 +336,16 @@ export class PharmacyInventoryRepository {
   }
 
   async getBatchById(id: string) {
-    return PharmacyMedicineBatchModel.findById(id).populate('medicine').lean();
+    const batch = await PharmacyMedicineBatchModel.findById(id).lean();
+    if (!batch) return null;
+
+    const medicine = await MedicineModel.findById(batch.medicineId)
+      .select('_id name')
+      .lean<{ _id: Types.ObjectId; name: string }>();
+    return {
+      ...batch,
+      medicine: medicine ? { id: medicine._id.toString(), name: medicine.name } : null,
+    };
   }
 
   async updateBatchMetadata(

@@ -56,13 +56,10 @@ const toItem = (item: ClinicalOrderItemFields) => ({
 
 export const toClinicalOrder = (record: OpdClinicalOrderLean, visitType?: OpdVisitType): OpdClinicalOrder => ({
   id: record._id.toString(),
-  originating_order_id: record._id.toString(),
-  source_type: record.sourceType ?? sourceTypeForVisit(visitType ?? 'NEW_CONSULTATION'),
-  encounter_id: (record.encounterId ?? record.visitId)?.toString() ?? null,
-  admission_id: record.admissionId?.toString() ?? null,
-  procedure_id: record.procedureId?.toString() ?? null,
-  visit_id: record.visitId.toString(),
-  consultation_id: record.consultationId.toString(),
+  source_type: record.sourceType,
+  source_id: record.sourceId.toString(),
+  visit_id: record.visitId?.toString() ?? null,
+  consultation_id: record.consultationId?.toString() ?? null,
   patient_id: record.patientId.toString(),
   patient_number: record.patientNumber,
   patient_name: record.patientName,
@@ -127,6 +124,8 @@ export class OpdClinicalOrderRepository {
           updatedBy: objectId(userId),
         },
         $setOnInsert: {
+          sourceType: 'OPD_VISIT',
+          sourceId: objectId(data.visit.id),
           visitId: objectId(data.visit.id),
           patientId: objectId(data.visit.patient_id),
           patientNumber: data.visit.patient_number,
@@ -145,6 +144,20 @@ export class OpdClinicalOrderRepository {
     }
 
     return toClinicalOrder(record, data.visit.visit_type);
+  }
+
+  async submitForEmergency(data: {
+    encounterId: string; patientId: string; patientNumber: string; patientName: string; doctorId: string; doctorName: string;
+    branchId: string; orderType: ClinicalOrderType; priority: import('./opd-clinical-order.types.js').ClinicalOrderPriority;
+    destination?: string | null; specimenType?: string | null; items: SaveClinicalOrderItemDTO[]; clinicalNotes?: string | null; instructions?: string | null;
+  }, userId: string, session: ClientSession) {
+    const record = await OpdClinicalOrderModel.findOneAndUpdate(
+      { sourceType: 'EMERGENCY_ENCOUNTER', sourceId: objectId(data.encounterId), orderType: data.orderType, deletedAt: null },
+      { $set: { status: 'SUBMITTED', priority: data.priority, destination: nullableString(data.destination), specimenType: data.orderType === 'LABORATORY' ? nullableString(data.specimenType) : null, items: data.items.map(toItemFields), clinicalNotes: nullableString(data.clinicalNotes), instructions: nullableString(data.instructions), submittedAt: new Date(), updatedBy: objectId(userId) }, $setOnInsert: { sourceType: 'EMERGENCY_ENCOUNTER', sourceId: objectId(data.encounterId), visitId: null, consultationId: null, patientId: objectId(data.patientId), patientNumber: data.patientNumber, patientName: data.patientName, doctorId: objectId(data.doctorId), doctorName: data.doctorName, branchId: objectId(data.branchId), orderType: data.orderType, createdBy: objectId(userId) } },
+      { new: true, upsert: true, runValidators: true, session },
+    ).lean<OpdClinicalOrderLean>();
+    if (!record) throw new AppError('Emergency clinical order could not be submitted', 500, 'CLINICAL_ORDER_SAVE_FAILED');
+    return toClinicalOrder(record);
   }
 
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {

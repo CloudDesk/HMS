@@ -10,6 +10,8 @@ import {
   parseCollectBillingPaymentBody,
   parseCreateBillingInvoiceBody,
   parseUpdateBillingInvoiceBody,
+  parseAdmissionContextBody,
+  parseProcedureContextBody,
 } from './billing.schemas.js';
 
 const metadata = (request: FastifyRequest) => ({
@@ -56,6 +58,9 @@ export const registerBillingRoutes = async (app: FastifyInstance, services: Serv
       metadata(request),
     )),
   );
+
+  app.patch('/api/billing/invoices/:id/admission-context', { preHandler: requirePermission(services, 'Billing', 'Invoices', 'Edit') }, async (request) => ok(await services.billing.linkAdmissionContext(parseBillingInvoiceParams(request.params).id, parseAdmissionContextBody(request.body), request.user!.id, metadata(request))));
+  app.patch('/api/billing/invoices/:id/procedure-context', { preHandler: requirePermission(services, 'Billing', 'Invoices', 'Edit') }, async (request) => ok(await services.billing.linkProcedureContext(parseBillingInvoiceParams(request.params).id, parseProcedureContextBody(request.body), request.user!.id, metadata(request))));
 
   app.post(
     '/api/billing/invoices/:id/cancel',

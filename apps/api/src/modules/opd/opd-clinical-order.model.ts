@@ -15,12 +15,10 @@ export type ClinicalOrderItemFields = {
 };
 
 export type OpdClinicalOrderFields = {
-  sourceType?: ClinicalOrderSourceType;
-  encounterId?: Types.ObjectId | null;
-  admissionId?: Types.ObjectId | null;
-  procedureId?: Types.ObjectId | null;
-  visitId: Types.ObjectId;
-  consultationId: Types.ObjectId;
+  sourceType: 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER';
+  sourceId: Types.ObjectId;
+  visitId?: Types.ObjectId | null;
+  consultationId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
   patientNumber: string;
   patientName: string;
@@ -56,12 +54,15 @@ const clinicalOrderItemSchema = new Schema<ClinicalOrderItemFields>(
 
 const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
   {
-    sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'IP_ADMISSION', 'PROCEDURE', 'SURGERY'] },
-    encounterId: { type: Schema.Types.ObjectId, default: null },
-    admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
-    procedureId: { type: Schema.Types.ObjectId, default: null },
-    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
-    consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', required: true },
+    sourceType: {
+      type: String,
+      enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER'],
+      default: 'OPD_VISIT',
+      required: true,
+    },
+    sourceId: { type: Schema.Types.ObjectId, required: true },
+    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
+    consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', default: null },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     patientNumber: { type: String, required: true },
     patientName: { type: String, required: true },
@@ -72,13 +73,25 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
     status: {
       type: String,
       enum: [
-        'DRAFT', 'SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS',
-        'RESULT_ENTERED', 'REPORT_ENTERED', 'VERIFIED', 'COMPLETED',
+        'DRAFT',
+        'SUBMITTED',
+        'RECEIVED',
+        'SAMPLE_COLLECTED',
+        'IN_PROGRESS',
+        'RESULT_ENTERED',
+        'REPORT_ENTERED',
+        'VERIFIED',
+        'COMPLETED',
       ],
       default: 'DRAFT',
       required: true,
     },
-    priority: { type: String, enum: ['ROUTINE', 'URGENT', 'STAT'], default: 'ROUTINE', required: true },
+    priority: {
+      type: String,
+      enum: ['ROUTINE', 'URGENT', 'STAT'],
+      default: 'ROUTINE',
+      required: true,
+    },
     destination: { type: String, default: null },
     specimenType: { type: String, default: null },
     items: { type: [clinicalOrderItemSchema], default: [] },
@@ -93,7 +106,14 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
   { timestamps: true },
 );
 
-opdClinicalOrderSchema.index({ visitId: 1, orderType: 1 }, { unique: true });
+opdClinicalOrderSchema.index(
+  { visitId: 1, orderType: 1 },
+  { unique: true, partialFilterExpression: { visitId: { $type: 'objectId' } } },
+);
+opdClinicalOrderSchema.index(
+  { sourceType: 1, sourceId: 1, orderType: 1 },
+  { unique: true, partialFilterExpression: { sourceId: { $type: 'objectId' } } },
+);
 opdClinicalOrderSchema.index({ patientId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ doctorId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ orderType: 1, status: 1, priority: 1, submittedAt: -1 });
