@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import type { DiagnosticListParams, DiagnosticOrder } from '../../api/laboratory';
 import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
 import { useBranchesList } from '../branches/useBranches';
 import { useLaboratoryOrders, useLaboratorySummary } from './useLaboratory';
 import { navigate, useAppLocation } from '../../routing/navigation';
@@ -50,9 +51,9 @@ export function useLaboratoryQueueFeature() {
     limit,
   }), [dateFrom, dateTo, limit, page, priority, search, selectedBranch, status]);
 
-  // Read-only permission checking isn't strictly enforced for listing (as the API enforces it by branch),
-  // but we can ensure the user has at least Laboratory access if needed.
-  const hasAccess = superAdmin || Boolean(user?.permissions.some(p => p.module === 'LABORATORY'));
+  const hasAccess = superAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Laboratory', screen: 'Orders', action: 'View',
+  });
 
   const listQuery = useLaboratoryOrders(listParams, hasAccess);
   const summaryQuery = useLaboratorySummary(selectedBranch || undefined, hasAccess);

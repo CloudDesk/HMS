@@ -1,5 +1,5 @@
 export type ServiceStatus = 'ACTIVE' | 'INACTIVE';
-export type ServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE';
+export type ServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PROCEDURE';
 
 export type Service = {
   id: string;

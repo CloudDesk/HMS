@@ -17,6 +17,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-users',
     links: [
       { href: '/patients/search', label: 'Patients' },
+      { href: '/patients/consent', label: 'Consent Attachment' },
     ],
   },
   {
@@ -36,6 +37,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-calendar-blank',
     links: [
       { href: '/appointments/book', label: 'Book Appointment' },
+      { href: '/appointments/referrals', label: 'Referral Booking' },
       { href: '/appointments/calendar', label: 'Calendar View' },
     ],
   },
@@ -65,6 +67,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-bed',
     links: [
       { href: '/admissions/inpatients', label: 'Inpatient Admission' },
+      { href: '/admissions/bed-availability', label: 'Bed Availability' },
       { href: '/admissions/beds', label: 'Bed Management' },
     ],
   },
@@ -125,10 +128,7 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Reports',
     icon: 'ph-chart-bar',
     links: [
-      { href: '/reports/library', label: 'Report Library' },
-      { href: '/reports/builder', label: 'Report Builder' },
-      { href: '/reports/scheduled', label: 'Scheduled Reports' },
-      { href: '/reports/history', label: 'Report History' },
+      { href: '/reports/library', label: 'Phase 2 Reports' },
     ],
   },
   {
@@ -142,6 +142,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/administration/services', label: 'Service Catalogue' },
       { href: '/administration/medicines', label: 'Medicine Master' },
       { href: '/administration/branches', label: 'Branch Management' },
+      { href: '/administration/consent-templates', label: 'Consent Templates' },
       { href: '/administration/settings', label: 'System Settings' },
     ],
   },

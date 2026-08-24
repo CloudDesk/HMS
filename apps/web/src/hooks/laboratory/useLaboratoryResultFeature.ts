@@ -1,4 +1,5 @@
 import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
 import {
   useEnterLaboratoryResult,
   useLaboratoryOrderDetails,
@@ -24,11 +25,9 @@ export function useLaboratoryResultFeature() {
   const updateResult = useUpdateLaboratoryResult();
 
   const superAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const canEnterResult = superAdmin || Boolean(user?.permissions.some((permission) =>
-    permission.module.toLowerCase() === 'laboratory' &&
-    permission.screen.toLowerCase() === 'orders' &&
-    permission.action.toLowerCase() === 'enterresult'
-  ));
+  const canEnterResult = superAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Laboratory', screen: 'Orders', action: 'EnterResult',
+  });
 
   const readOnly = ['VERIFIED', 'COMPLETED'].includes(order?.status ?? '');
   const canEdit = ['IN_PROGRESS', 'RESULT_ENTERED'].includes(order?.status ?? '');

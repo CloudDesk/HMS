@@ -11,16 +11,19 @@ import {
 } from './opd-clinical-order.model.js';
 import type {
   ClinicalOrderType,
+  ClinicalOrderSourceType,
   ClinicalOrderListQuery,
   ClinicalOrderRequestMetadata,
   OpdClinicalOrder,
   SaveClinicalOrderItemDTO,
   SaveOpdClinicalOrderDTO,
 } from './opd-clinical-order.types.js';
+import { OpdVisitModel } from './opd-visit.model.js';
 import type { OpdConsultation } from './opd-consultation.types.js';
-import type { OpdVisit } from './opd-visit.types.js';
+import type { OpdVisit, OpdVisitType } from './opd-visit.types.js';
 
 type OpdClinicalOrderLean = OpdClinicalOrderFields & { _id: Types.ObjectId };
+type VisitSourceRecord = { _id: Types.ObjectId; visitType: OpdVisitType };
 
 type SaveClinicalOrderRecord = SaveOpdClinicalOrderDTO & {
   consultation: OpdConsultation;
@@ -31,6 +34,12 @@ type SaveClinicalOrderRecord = SaveOpdClinicalOrderDTO & {
 };
 
 const objectId = (value: string) => new Types.ObjectId(value);
+
+const sourceTypeForVisit = (visitType: OpdVisitType): ClinicalOrderSourceType => {
+  if (visitType === 'EMERGENCY') return 'EMERGENCY';
+  if (visitType === 'PROCEDURE') return 'PROCEDURE';
+  return 'OPD';
+};
 
 const nullableString = (value: string | null | undefined) => {
   const normalized = value?.trim();
@@ -45,8 +54,13 @@ const toItem = (item: ClinicalOrderItemFields) => ({
   category: item.category,
 });
 
-export const toClinicalOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder => ({
+export const toClinicalOrder = (record: OpdClinicalOrderLean, visitType?: OpdVisitType): OpdClinicalOrder => ({
   id: record._id.toString(),
+  originating_order_id: record._id.toString(),
+  source_type: record.sourceType ?? sourceTypeForVisit(visitType ?? 'NEW_CONSULTATION'),
+  encounter_id: (record.encounterId ?? record.visitId)?.toString() ?? null,
+  admission_id: record.admissionId?.toString() ?? null,
+  procedure_id: record.procedureId?.toString() ?? null,
   visit_id: record.visitId.toString(),
   consultation_id: record.consultationId.toString(),
   patient_id: record.patientId.toString(),
@@ -79,13 +93,16 @@ const toItemFields = (item: SaveClinicalOrderItemDTO) => ({
 
 export class OpdClinicalOrderRepository {
   async getByVisitAndType(visitId: string, orderType: ClinicalOrderType): Promise<OpdClinicalOrder | null> {
-    const record = await OpdClinicalOrderModel.findOne({
-      visitId: objectId(visitId),
-      orderType,
-      deletedAt: null,
-    }).lean<OpdClinicalOrderLean>();
+    const [record, visit] = await Promise.all([
+      OpdClinicalOrderModel.findOne({
+        visitId: objectId(visitId),
+        orderType,
+        deletedAt: null,
+      }).lean<OpdClinicalOrderLean>(),
+      OpdVisitModel.findById(visitId).select('_id visitType').lean<VisitSourceRecord>(),
+    ]);
 
-    return record ? toClinicalOrder(record) : null;
+    return record ? toClinicalOrder(record, visit?.visitType) : null;
   }
 
   async saveForVisit(data: SaveClinicalOrderRecord, userId: string): Promise<OpdClinicalOrder> {
@@ -93,6 +110,10 @@ export class OpdClinicalOrderRepository {
       { visitId: objectId(data.visit.id), orderType: data.orderType, deletedAt: null },
       {
         $set: {
+          sourceType: sourceTypeForVisit(data.visit.visit_type),
+          encounterId: objectId(data.visit.id),
+          admissionId: null,
+          procedureId: null,
           consultationId: objectId(data.consultation.id),
           branchId: objectId(data.visit.branch_id),
           status: data.status,
@@ -123,7 +144,7 @@ export class OpdClinicalOrderRepository {
       throw new AppError('Clinical order could not be saved', 500, 'CLINICAL_ORDER_SAVE_FAILED');
     }
 
-    return toClinicalOrder(record);
+    return toClinicalOrder(record, data.visit.visit_type);
   }
 
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
@@ -179,8 +200,11 @@ export class OpdClinicalOrderRepository {
         .skip((page - 1) * limit).limit(limit).lean<OpdClinicalOrderLean[]>(),
       OpdClinicalOrderModel.countDocuments(filter),
     ]);
+    const visits = await OpdVisitModel.find({ _id: { $in: records.map((record) => record.visitId) } })
+      .select('_id visitType').lean<VisitSourceRecord[]>();
+    const visitTypeById = new Map(visits.map((visit) => [visit._id.toString(), visit.visitType]));
     return {
-      data: records.map(toClinicalOrder),
+      data: records.map((record) => toClinicalOrder(record, visitTypeById.get(record.visitId.toString()))),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -191,7 +215,11 @@ export class OpdClinicalOrderRepository {
     const find = OpdClinicalOrderModel.findOne(filter).lean<OpdClinicalOrderLean>();
     if (session) find.session(session);
     const record = await find;
-    return record ? toClinicalOrder(record) : null;
+    if (!record) return null;
+    const visitQuery = OpdVisitModel.findById(record.visitId).select('_id visitType').lean<VisitSourceRecord>();
+    if (session) visitQuery.session(session);
+    const visit = await visitQuery;
+    return toClinicalOrder(record, visit?.visitType);
   }
 
   async updateOperationalStatus(
@@ -207,7 +235,11 @@ export class OpdClinicalOrderRepository {
       { $set: { status, updatedBy: objectId(userId) } },
       { returnDocument: 'after', lean: true, runValidators: true, session },
     ).lean<OpdClinicalOrderLean>();
-    return record ? toClinicalOrder(record) : null;
+    if (!record) return null;
+    const visitQuery = OpdVisitModel.findById(record.visitId).select('_id visitType').lean<VisitSourceRecord>();
+    if (session) visitQuery.session(session);
+    const visit = await visitQuery;
+    return toClinicalOrder(record, visit?.visitType);
   }
 
   async summaryOperational(orderType: ClinicalOrderType, branchIds?: string[]) {

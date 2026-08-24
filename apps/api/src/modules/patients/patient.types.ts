@@ -72,12 +72,20 @@ export type UpdatePatientDTO = Partial<Omit<CreatePatientDTO, 'status'>> & {
 };
 
 export type PatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
-export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
+export type PatientConsentStatus = 'NOT_REQUIRED' | 'PENDING' | 'ATTACHED' | 'VERIFIED';
+export type PatientConsentContextType = 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
 export type PatientDocument = {
   id: string;
   patient_id: string;
   visit_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
+  context_type: PatientConsentContextType | null;
+  context_id: string | null;
+  consent_template_id: string | null;
+  consent_category: string | null;
+  consent_version: number | null;
   document_type: PatientDocumentType;
   title: string;
   file_name: string;
@@ -92,12 +100,22 @@ export type PatientDocument = {
   status: 'ACTIVE' | 'DELETED';
   uploaded_by: string | null;
   uploaded_by_name: string | null;
+  uploaded_at: Date;
+  verified_by: string | null;
+  verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };
 
 export type CreatePatientDocumentDTO = {
   visit_id?: string | null;
+  admission_id?: string | null;
+  procedure_id?: string | null;
+  context_type?: PatientConsentContextType | null;
+  context_id?: string | null;
+  consent_template_id?: string | null;
+  consent_category?: string | null;
+  consent_version?: number | null;
   document_type: PatientDocumentType;
   title: string;
   file_name: string;
@@ -114,6 +132,9 @@ export type CreatePatientDocumentDTO = {
 export type PatientDocumentListQuery = {
   document_type?: PatientDocumentType;
   visit_id?: string;
+  admission_id?: string;
+  procedure_id?: string;
+  context_type?: PatientConsentContextType;
   page?: number;
   limit?: number;
 };
@@ -128,6 +149,7 @@ export type PatientTimelineEventType =
   | 'DOCUMENT_ADDED'
   | 'DOCUMENT_DELETED'
   | 'CONSENT_ADDED'
+  | 'CONSENT_VERIFIED'
   | 'OPD_VISIT_CREATED'
   | 'OPD_VISIT_STATUS_UPDATED'
   | 'VITALS_RECORDED'
@@ -136,7 +158,8 @@ export type PatientTimelineEventType =
   | 'OPD_LAB_ORDER_SUBMITTED'
   | 'OPD_IMAGING_ORDER_SUBMITTED'
   | 'OPD_FOLLOW_UP_SCHEDULED'
-  | 'OPD_REFERRAL_SUBMITTED';
+  | 'OPD_REFERRAL_SUBMITTED'
+  | 'OPD_REFERRAL_BOOKED';
 
 export type PatientTimelineListQuery = {
   event_type?: PatientTimelineEventType;

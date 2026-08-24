@@ -3,7 +3,8 @@ import { apiClient } from './client';
 export type ApiPatientGender = 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
 export type ApiPatientStatus = 'ACTIVE' | 'INACTIVE' | 'DECEASED';
 export type ApiPatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
-export type ApiPatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
+export type ApiPatientConsentStatus = 'NOT_REQUIRED' | 'PENDING' | 'ATTACHED' | 'VERIFIED';
+export type ApiPatientConsentContextType = 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
 export type PatientAddress = {
   line1?: string | null;
@@ -84,6 +85,13 @@ export type PatientDocumentResponse = {
   id: string;
   patient_id: string;
   visit_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
+  context_type: ApiPatientConsentContextType | null;
+  context_id: string | null;
+  consent_template_id: string | null;
+  consent_category: string | null;
+  consent_version: number | null;
   document_type: ApiPatientDocumentType;
   title: string;
   file_name: string;
@@ -98,12 +106,23 @@ export type PatientDocumentResponse = {
   status: 'ACTIVE' | 'DELETED';
   uploaded_by: string | null;
   uploaded_by_name: string | null;
+  uploaded_at: string;
+  verified_by: string | null;
+  verified_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
 export type UploadPatientDocumentPayload = {
   visit_id?: string;
+  admission_id?: string;
+  procedure_id?: string;
+  context_type?: ApiPatientConsentContextType;
+  context_id?: string;
+  branch_id?: string;
+  consent_template_id?: string;
+  consent_category?: string;
+  consent_version?: number;
   document_type: ApiPatientDocumentType;
   title: string;
   file: File;
@@ -122,6 +141,9 @@ export type PatientDocumentListResponse = {
 export type PatientDocumentListParams = Partial<{
   document_type: ApiPatientDocumentType;
   visit_id: string;
+  admission_id: string;
+  procedure_id: string;
+  context_type: ApiPatientConsentContextType;
   page: number;
   limit: number;
 }>;
@@ -138,7 +160,8 @@ export type PatientTimelineEventResponse = {
   | 'OPD_VISIT_CREATED'
   | 'OPD_VISIT_STATUS_UPDATED'
   | 'VITALS_RECORDED'
-  | 'OPD_CONSULTATION_COMPLETED';
+  | 'OPD_CONSULTATION_COMPLETED'
+  | 'OPD_REFERRAL_BOOKED';
   title: string;
   description: string | null;
   occurred_at: string;
@@ -231,6 +254,14 @@ export const patientsApi = {
     formData.set('title', payload.title);
     formData.set('file', payload.file);
     if (payload.visit_id) formData.set('visit_id', payload.visit_id);
+    if (payload.admission_id) formData.set('admission_id', payload.admission_id);
+    if (payload.procedure_id) formData.set('procedure_id', payload.procedure_id);
+    if (payload.context_type) formData.set('context_type', payload.context_type);
+    if (payload.context_id) formData.set('context_id', payload.context_id);
+    if (payload.branch_id) formData.set('branch_id', payload.branch_id);
+    if (payload.consent_template_id) formData.set('consent_template_id', payload.consent_template_id);
+    if (payload.consent_category) formData.set('consent_category', payload.consent_category);
+    if (payload.consent_version) formData.set('consent_version', String(payload.consent_version));
 
     if (payload.description) {
       formData.set('description', payload.description);
@@ -274,6 +305,13 @@ export const patientsApi = {
       {
         method: 'DELETE',
       },
+    );
+  },
+
+  verifyConsent(patientId: string, documentId: string) {
+    return apiClient.request<PatientDocumentResponse>(
+      `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/consent/verify`,
+      { method: 'PATCH' },
     );
   },
 };

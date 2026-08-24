@@ -17,7 +17,7 @@ import { useAppointmentBookingFeature } from '../hooks/appointments/useAppointme
 type BookingStep = 1 | 2 | 3;
 
 const visitTypeOptions = Object.keys(appointmentVisitTypeLabels) as ApiAppointmentVisitType[];
-const priorityOptions: ApiAppointmentPriority[] = ['ROUTINE', 'EMERGENCY'];
+const priorityOptions: ApiAppointmentPriority[] = ['ROUTINE', 'URGENT', 'EMERGENCY'];
 
 export const isSlotInPast = (dateStr: string, slotStartTimeStr: string): boolean => {
   const today = todayInputValue();
@@ -38,7 +38,7 @@ const bookingSchema = z.object({
   appointment_date: z.string().min(1, 'Date is required'),
   start_time: z.string().min(1, 'Time slot is required'),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY']),
-  priority: z.enum(['ROUTINE', 'EMERGENCY']),
+  priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
   reason: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -48,6 +48,7 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 export function AppointmentBookingPage() {
   const { search } = useAppLocation();
   const initialPatientId = new URLSearchParams(search).get('patient') ?? '';
+  const referralVisitId = new URLSearchParams(search).get('referral_visit') ?? '';
   const [step, setStep] = useState<BookingStep>(1);
   const [patientSearch, setPatientSearch] = useState('');
   
@@ -74,6 +75,7 @@ export function AppointmentBookingPage() {
   const {
     state: {
       initialPatientData,
+      referral,
       patientResults,
       patientLoading,
       doctors,
@@ -88,7 +90,7 @@ export function AppointmentBookingPage() {
       searchPatientsRefetch,
       handleCreateAppointment,
     }
-  } = useAppointmentBookingFeature(initialPatientId, patientSearch, selectedDoctorId, appointmentDate);
+  } = useAppointmentBookingFeature(initialPatientId, patientSearch, selectedDoctorId, appointmentDate, referralVisitId);
 
   const selectedDoctor = useMemo(() => doctors.find((d) => d.id === selectedDoctorId), [doctors, selectedDoctorId]);
   
@@ -97,17 +99,26 @@ export function AppointmentBookingPage() {
   useEffect(() => {
     if (initialPatientData) {
       setSelectedPatient(initialPatientData);
+      setValue('patient_id', initialPatientData.id);
       setStep(2);
     }
-  }, [initialPatientData]);
+  }, [initialPatientData, setValue]);
+
+  useEffect(() => {
+    if (!referral) return;
+    if (referral.referred_doctor_id) setValue('doctor_id', referral.referred_doctor_id);
+    setValue('priority', referral.priority);
+    setValue('reason', referral.reason ?? '');
+    setValue('notes', referral.clinical_summary ?? '');
+  }, [referral, setValue]);
 
   // Set default doctor when loaded
   useEffect(() => {
-    if (doctors.length > 0 && !selectedDoctorId) {
+    if (doctors.length > 0 && !selectedDoctorId && !referral?.referred_doctor_id) {
       const firstDoctorId = doctors[0]?.id;
       if (firstDoctorId) setValue('doctor_id', firstDoctorId);
     }
-  }, [doctors, selectedDoctorId, setValue]);
+  }, [doctors, referral?.referred_doctor_id, selectedDoctorId, setValue]);
 
   // Clear slot on date/doctor change
   useEffect(() => {

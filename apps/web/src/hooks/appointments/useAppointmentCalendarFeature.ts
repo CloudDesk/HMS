@@ -104,7 +104,7 @@ export function useAppointmentCalendarFeature() {
     }
   }, [calendarDate, departmentFilter, doctorFilter, mode, statusFilter]);
 
-  const handleUpdateAppointment = async (id: string, payload: { appointment_date: string; start_time: string }) => {
+  const handleUpdateAppointment = async (id: string, payload: { appointment_date: string; start_time: string; reschedule_reason: string }) => {
     return updateAppointment.mutateAsync({ id, payload });
   };
 

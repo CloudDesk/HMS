@@ -329,6 +329,7 @@ async auditStatusTransition(
       fromStatus: previousStatus,
       patientId: appointment.patient_id,
       toStatus: appointment.status,
+      reason: appointment.notes,
     },
   });
 }
@@ -345,6 +346,16 @@ async auditCreated(appointment: Appointment, actorUserId: string) {
       patientId: appointment.patient_id,
     },
   });
+}
+
+async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
+  await AuditLogModel.create({ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
+    appointmentId: appointment.id, appointmentNumber: appointment.appointment_number, patientId: appointment.patient_id,
+    reason, previous: { doctorId: previous.doctor_id, appointmentDate: previous.appointment_date,
+      startTime: previous.start_time, durationMinutes: previous.duration_minutes },
+    next: { doctorId: appointment.doctor_id, appointmentDate: appointment.appointment_date,
+      startTime: appointment.start_time, durationMinutes: appointment.duration_minutes },
+  } });
 }
 
   async nextAppointmentSequence() {

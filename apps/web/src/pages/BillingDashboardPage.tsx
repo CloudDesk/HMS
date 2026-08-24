@@ -1,5 +1,5 @@
 import { navigate } from '../routing/navigation';
-import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
+import { billingSourceLabel, billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
 import { useCurrencyFormatter } from '../api/useSettings';
 import { useBillingDashboardFeature } from '../hooks/billing/useBillingDashboardFeature';
 
@@ -15,14 +15,14 @@ export function BillingDashboardPage() {
 
   return <div className="billing-page">
     <div className="billing-page-head">
-      <div><h2>Billing Dashboard</h2><p>OPD invoices, collections, and outstanding balances</p></div>
+      <div><h2>Billing Dashboard</h2><p>Encounter-linked invoices, collections, and outstanding balances</p></div>
       <div className="billing-head-actions">
         <select aria-label="Filter billing by branch" onChange={(event) => setSelectedBranchId(event.target.value)} value={effectiveBranchId}>
           <option value="">All accessible branches</option>
           {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
         </select>
-        <button className="btn-secondary" style={{ cursor: 'default' }} type="button"><i className="ph ph-clock-counter-clockwise" /> History</button>
-        {canCreate ? <button className="btn-primary" style={{ cursor: 'default' }} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}
+        <button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-clock-counter-clockwise" /> History</button>
+        {canCreate ? <button className="btn-primary" onClick={() => navigate('/billing/workspace?mode=create')} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}
       </div>
     </div>
 
@@ -36,14 +36,14 @@ export function BillingDashboardPage() {
     </section>
 
     <section className="billing-card">
-      <div className="billing-card-head"><div><h3>Recent Invoices</h3><p>Latest invoices across accessible branches</p></div><button className="btn-secondary" style={{ cursor: 'default' }} type="button">View all</button></div>
+      <div className="billing-card-head"><div><h3>Recent Invoices</h3><p>Latest invoices across accessible branches</p></div><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button">View all</button></div>
       <div className="table-responsive">
         <table className="data-table billing-table"><thead><tr><th>Invoice</th><th>Patient</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th aria-label="Actions" /></tr></thead>
           <tbody>
             {invoicesQuery.isLoading ? <tr><td className="um-state-cell" colSpan={8}>Loading invoices…</td></tr> : null}
             {!invoicesQuery.isLoading && (invoicesQuery.data?.data.length ?? 0) === 0 ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-receipt" /> No invoices have been created.</td></tr> : null}
             {invoicesQuery.data?.data.map((invoice) => <tr key={invoice.id}>
-              <td><strong>{invoice.invoice_number}</strong><small>{invoice.visit_number ?? 'OPD visit'}</small></td>
+              <td><strong>{invoice.invoice_number}</strong><small>{billingSourceLabel[invoice.source_type]} · {invoice.visit_number ?? invoice.encounter_id}</small></td>
               <td><strong>{invoice.patient_name ?? 'Patient'}</strong><small>{invoice.patient_number ?? invoice.patient_id}</small></td>
               <td>{formatBillingDate(invoice.invoice_date)}</td>
               <td>{formatBillingMoney(invoice.total_amount)}</td>

@@ -1,6 +1,7 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import type {
   ClinicalOrderPriority,
+  ClinicalOrderSourceType,
   ClinicalOrderStatus,
   ClinicalOrderType,
 } from './opd-clinical-order.types.js';
@@ -14,6 +15,10 @@ export type ClinicalOrderItemFields = {
 };
 
 export type OpdClinicalOrderFields = {
+  sourceType?: ClinicalOrderSourceType;
+  encounterId?: Types.ObjectId | null;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
   visitId: Types.ObjectId;
   consultationId: Types.ObjectId;
   patientId: Types.ObjectId;
@@ -51,6 +56,10 @@ const clinicalOrderItemSchema = new Schema<ClinicalOrderItemFields>(
 
 const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
   {
+    sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'IP_ADMISSION', 'PROCEDURE', 'SURGERY'] },
+    encounterId: { type: Schema.Types.ObjectId, default: null },
+    admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    procedureId: { type: Schema.Types.ObjectId, default: null },
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
     consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', required: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },

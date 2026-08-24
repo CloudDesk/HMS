@@ -149,8 +149,14 @@ export class AppointmentService {
     const startTime = data.start_time ?? existing.start_time;
     const durationMinutes = data.duration_minutes ?? existing.duration_minutes;
     const endTime = this.validateAppointmentWindow(startTime, durationMinutes);
+    const scheduleChanged = doctor.id !== existing.doctor_id
+      || appointmentDate.getTime() !== existing.appointment_date.getTime()
+      || startTime !== existing.start_time || durationMinutes !== existing.duration_minutes;
 
     this.ensureCanChangeSchedule(existing);
+    if (scheduleChanged && !data.reschedule_reason?.trim()) {
+      throw new AppError('A reschedule reason is required when changing the appointment slot', 400, 'RESCHEDULE_REASON_REQUIRED');
+    }
     await this.validateDoctorAvailability(doctor, appointmentDate, startTime, endTime, durationMinutes);
     await this.validateDoctorConflict(doctor.id, appointmentDate, startTime, endTime, id);
     await this.validatePatientConflict(existing.patient_id, appointmentDate, startTime, endTime, id);
@@ -175,6 +181,10 @@ export class AppointmentService {
 
     if (!appointment) {
       throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+    }
+
+    if (scheduleChanged) {
+      await this.repository.auditRescheduled(existing, appointment, data.reschedule_reason!.trim(), userId);
     }
 
     return appointment;

@@ -86,6 +86,7 @@ export type SaveAppointmentPayload = {
   reason?: string | null;
   notes?: string | null;
 };
+export type UpdateAppointmentPayload = Partial<SaveAppointmentPayload> & { reschedule_reason?: string | null };
 
 export type UpdateAppointmentStatusPayload = {
   status: ApiAppointmentStatus;
@@ -121,7 +122,7 @@ export const appointmentsApi = {
     });
   },
 
-  update(id: string, payload: Partial<SaveAppointmentPayload>) {
+  update(id: string, payload: UpdateAppointmentPayload) {
     return apiClient.request<AppointmentResponse>(`/appointments/${encodeURIComponent(id)}`, {
       body: payload,
       method: 'PATCH',

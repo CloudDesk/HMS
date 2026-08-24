@@ -5,7 +5,7 @@ import type { DoctorRepository } from '../doctors/doctor.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
 import type { OpdReferralRepository } from './opd-referral.repository.js';
-import type { SaveOpdReferralDTO } from './opd-referral.types.js';
+import type { BookOpdReferralDTO, OpdReferralListQuery, SaveOpdReferralDTO } from './opd-referral.types.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
 
@@ -29,6 +29,43 @@ export class OpdReferralService {
   async getByVisit(visitId: string, userId: string) {
     await this.getVisit(visitId, userId);
     return this.repository.getByVisit(visitId);
+  }
+
+  async listSubmitted(query: OpdReferralListQuery, userId: string) {
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    return this.repository.listSubmitted(query, scope);
+  }
+
+  async book(referralId: string, data: BookOpdReferralDTO, userId: string) {
+    if (!Types.ObjectId.isValid(referralId)) throw new AppError('Referral id is invalid', 400, 'VALIDATION_ERROR');
+    const referral = await this.repository.getById(referralId);
+    if (!referral || referral.status !== 'SUBMITTED') throw new AppError('Submitted referral not found', 404, 'REFERRAL_NOT_FOUND');
+    await this.getVisit(referral.visit_id, userId);
+    if (referral.appointment_id) throw new AppError('Referral is already booked', 409, 'REFERRAL_ALREADY_BOOKED');
+    if (referral.referral_type !== 'INTERNAL' || !referral.referred_doctor_id) {
+      throw new AppError('Only an internal referral with an assigned HMS doctor can be booked', 400, 'REFERRAL_NOT_BOOKABLE');
+    }
+    const appointment = await this.appointmentService.create({
+      patient_id: referral.patient_id, doctor_id: referral.referred_doctor_id,
+      appointment_date: data.appointment_date, start_time: data.start_time,
+      duration_minutes: data.duration_minutes, visit_type: data.visit_type,
+      priority: data.priority ?? referral.priority, reason: referral.reason,
+      notes: data.notes?.trim() || `Booked from referral ${referral.id}`,
+    }, userId);
+    const linked = await this.repository.linkAppointment(referral.id, appointment, userId);
+    if (!linked) {
+      await this.appointmentService.updateStatus(appointment.id, { status: 'CANCELLED', notes: 'Referral was booked concurrently; automatic rollback' }, userId);
+      throw new AppError('Referral was booked by another user; refresh the queue', 409, 'REFERRAL_BOOKING_CONFLICT');
+    }
+    await this.patientRepository.addTimelineEvent(referral.patient_id, {
+      event_type: 'OPD_REFERRAL_BOOKED', title: 'Referral appointment booked',
+      description: `${appointment.appointment_number} booked with ${appointment.doctor_name}.`,
+    }, userId);
+    await this.patientRepository.auditClinicalEvent('opd.referral.booked', userId, {
+      referralId: referral.id, appointmentId: appointment.id, patientId: referral.patient_id,
+      visitId: referral.visit_id, appointmentDate: data.appointment_date, startTime: data.start_time,
+    });
+    return linked;
   }
 
   async saveDraft(visitId: string, data: SaveOpdReferralDTO, userId: string) {
@@ -59,8 +96,6 @@ export class OpdReferralService {
     }
     this.validateSubmission(data);
     const doctor = await this.getInternalDoctor(data.referred_doctor_id);
-    const wantsAppointment = Boolean(data.appointment_date || data.appointment_start_time || data.appointment_duration_minutes);
-
     const appointment = null; // Appointment creation is now handled manually by receptionist
 
     const referral = await this.repository.saveForVisit(

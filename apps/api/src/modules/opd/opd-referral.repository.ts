@@ -3,7 +3,8 @@ import { AppError } from '../../shared/errors/app-error.js';
 import type { Appointment } from '../appointments/appointment.types.js';
 import type { OpdConsultation } from './opd-consultation.types.js';
 import { OpdReferralModel, type OpdReferralFields } from './opd-referral.model.js';
-import type { OpdReferral, SaveOpdReferralDTO } from './opd-referral.types.js';
+import type { OpdReferral, OpdReferralListQuery, SaveOpdReferralDTO } from './opd-referral.types.js';
+import { OpdVisitModel } from './opd-visit.model.js';
 import type { OpdVisit } from './opd-visit.types.js';
 
 type OpdReferralLean = OpdReferralFields & { _id: Types.ObjectId };
@@ -50,6 +51,25 @@ const toReferral = (record: OpdReferralLean): OpdReferral => ({
 });
 
 export class OpdReferralRepository {
+  async listSubmitted(query: OpdReferralListQuery, branchIds?: string[]) {
+    const page = query.page ?? 1; const limit = query.limit ?? 20;
+    const filter: Record<string, unknown> = { status: 'SUBMITTED', deletedAt: null };
+    if (query.booked !== undefined) filter.appointmentId = query.booked ? { $ne: null } : null;
+    if (branchIds) {
+      const visitIds = await OpdVisitModel.find({ branchId: { $in: branchIds.map(objectId) }, deletedAt: null }).distinct('_id');
+      filter.visitId = { $in: visitIds };
+    }
+    const [records, total] = await Promise.all([
+      OpdReferralModel.find(filter).sort({ submittedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean<OpdReferralLean[]>(),
+      OpdReferralModel.countDocuments(filter),
+    ]);
+    return { data: records.map(toReferral), meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 } };
+  }
+
+  async getById(id: string) {
+    const record = await OpdReferralModel.findOne({ _id: objectId(id), deletedAt: null }).lean<OpdReferralLean>();
+    return record ? toReferral(record) : null;
+  }
   async getByVisit(visitId: string): Promise<OpdReferral | null> {
     const record = await OpdReferralModel.findOne({ visitId: objectId(visitId), deletedAt: null }).lean<OpdReferralLean>();
     return record ? toReferral(record) : null;
@@ -93,5 +113,16 @@ export class OpdReferralRepository {
 
     if (!record) throw new AppError('Referral could not be saved', 500, 'REFERRAL_SAVE_FAILED');
     return toReferral(record);
+  }
+
+  async linkAppointment(id: string, appointment: Appointment, userId: string) {
+    const record = await OpdReferralModel.findOneAndUpdate(
+      { _id: objectId(id), status: 'SUBMITTED', appointmentId: null, deletedAt: null },
+      { $set: { appointmentId: objectId(appointment.id), appointmentNumber: appointment.appointment_number,
+        appointmentDate: appointment.appointment_date, appointmentStartTime: appointment.start_time,
+        appointmentDurationMinutes: appointment.duration_minutes, updatedBy: objectId(userId) } },
+      { returnDocument: 'after', lean: true },
+    ).lean<OpdReferralLean>();
+    return record ? toReferral(record) : null;
   }
 }

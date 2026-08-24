@@ -11221,4 +11221,147 @@ textarea.has-error {
   color: #14532d;
 }
 
+.dispensing-kpi-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dispensing-page-banner {
+  margin: 1rem;
+}
+
+.dispensing-detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.dispensing-detail .inventory-detail-summary small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #64748b;
+}
+
+.dispensing-invoice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  padding: 0.75rem 0.9rem;
+}
+
+.dispensing-invoice strong {
+  margin-left: auto;
+}
+
+.dispensing-lines-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.dispensing-lines td {
+  vertical-align: top;
+}
+
+.dispensing-control {
+  width: max-content;
+  min-width: 180px;
+  max-width: 260px;
+}
+
+.dispensing-quantity {
+  width: 88px;
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 0.65rem;
+}
+
+.dispensing-substitution {
+  display: block;
+  width: max-content;
+  margin-top: 0.3rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.dispensing-source {
+  display: inline-flex;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.dispensing-source.source-emergency {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.dispensing-source.source-procedure,
+.dispensing-source.source-surgery {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+.dispensing-source.source-ip-admission {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dispensing-instructions,
+.dispensing-reason {
+  max-width: 680px;
+}
+
+.diagnostic-status.status-pending,
+.diagnostic-status.status-confirmed,
+.diagnostic-status.status-cancelled,
+.diagnostic-status.status-reversed {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.diagnostic-status.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.diagnostic-status.status-confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.diagnostic-status.status-cancelled,
+.diagnostic-status.status-reversed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.secondary-action.danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+@media (max-width: 720px) {
+  .dispensing-invoice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dispensing-invoice strong {
+    margin-left: 0;
+  }
+}
+
 

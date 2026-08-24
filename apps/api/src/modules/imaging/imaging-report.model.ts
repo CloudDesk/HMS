@@ -1,7 +1,12 @@
 import mongoose, { Schema, Types } from 'mongoose';
+import type { ClinicalOrderSourceType } from '../opd/opd-clinical-order.types.js';
 
 export type ImagingReportFields = {
   orderId: Types.ObjectId;
+  sourceType?: ClinicalOrderSourceType;
+  encounterId?: Types.ObjectId | null;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
   visitId: Types.ObjectId;
   findings: string;
@@ -21,6 +26,10 @@ export type ImagingReportFields = {
 
 const imagingReportSchema = new Schema<ImagingReportFields>({
   orderId: { type: Schema.Types.ObjectId, ref: 'OpdClinicalOrder', required: true },
+  sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'IP_ADMISSION', 'PROCEDURE', 'SURGERY'] },
+  encounterId: { type: Schema.Types.ObjectId, default: null },
+  admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+  procedureId: { type: Schema.Types.ObjectId, default: null },
   patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
   visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
   findings: { type: String, required: true, trim: true },

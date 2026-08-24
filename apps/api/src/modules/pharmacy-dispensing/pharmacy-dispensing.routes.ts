@@ -16,7 +16,7 @@ export const registerPharmacyDispensingRoutes = async (app: FastifyInstance, ser
     const { id } = parse(idSchema, request.params); return ok(await services.pharmacyDispensing.get(id, request.user!.id));
   });
   app.put('/api/pharmacy/dispensings/:id', { preHandler: requirePermission(services, 'Pharmacy', 'Dispensing', 'Edit') }, async (request) => {
-    const { id } = parse(idSchema, request.params); return ok(await services.pharmacyDispensing.save(id, parse(saveSchema, request.body), request.user!.id));
+    const { id } = parse(idSchema, request.params); return ok(await services.pharmacyDispensing.save(id, parse(saveSchema, request.body), request.user!.id, metadata(request)));
   });
   app.post('/api/pharmacy/dispensings/:id/confirm', { preHandler: requirePermission(services, 'Pharmacy', 'Dispensing', 'Dispense') }, async (request) => {
     const { id } = parse(idSchema, request.params); const body = parse(confirmSchema, request.body);

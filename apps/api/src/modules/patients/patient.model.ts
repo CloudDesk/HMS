@@ -88,6 +88,13 @@ patientSchema.index({ status: 1 });
 export type PatientDocumentMetadataFields = {
   patientId: Types.ObjectId;
   visitId?: Types.ObjectId | null;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
+  contextType?: 'PATIENT' | 'PROCEDURE' | 'ADMISSION' | null;
+  contextId?: Types.ObjectId | null;
+  consentTemplateId?: Types.ObjectId | null;
+  consentCategory?: string | null;
+  consentVersion?: number | null;
   documentType: PatientDocumentType;
   title: string;
   fileName: string;
@@ -101,6 +108,8 @@ export type PatientDocumentMetadataFields = {
   signedByName?: string | null;
   status: 'ACTIVE' | 'DELETED';
   uploadedBy?: Types.ObjectId;
+  verifiedBy?: Types.ObjectId | null;
+  verifiedAt?: Date | null;
   deletedBy?: Types.ObjectId;
   deletedAt?: Date | null;
   createdAt: Date;
@@ -111,6 +120,13 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
   {
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
+    admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    procedureId: { type: Schema.Types.ObjectId, default: null },
+    contextType: { type: String, enum: ['PATIENT', 'PROCEDURE', 'ADMISSION'], default: null },
+    contextId: { type: Schema.Types.ObjectId, default: null },
+    consentTemplateId: { type: Schema.Types.ObjectId, ref: 'ConsentTemplate', default: null },
+    consentCategory: { type: String, default: null, trim: true },
+    consentVersion: { type: Number, min: 1, default: null },
     documentType: {
       type: String,
       enum: ['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER'],
@@ -122,12 +138,14 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
     fileSizeBytes: { type: Number, required: true },
     storageKey: { type: String, required: true },
     description: { type: String, default: null },
-    consentStatus: { type: String, enum: ['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED'], default: null },
+    consentStatus: { type: String, enum: ['NOT_REQUIRED', 'PENDING', 'ATTACHED', 'VERIFIED', 'SIGNED', 'EXPIRED', 'REJECTED'], default: null },
     signedAt: { type: Date, default: null },
     validUntil: { type: Date, default: null },
     signedByName: { type: String, default: null },
     status: { type: String, enum: ['ACTIVE', 'DELETED'], default: 'ACTIVE', required: true },
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    verifiedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    verifiedAt: { type: Date, default: null },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedAt: { type: Date, default: null },
   },
@@ -138,6 +156,8 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
 
 patientDocumentSchema.index({ patientId: 1, status: 1 });
 patientDocumentSchema.index({ patientId: 1, visitId: 1, status: 1, createdAt: -1 });
+patientDocumentSchema.index({ patientId: 1, admissionId: 1, status: 1, createdAt: -1 });
+patientDocumentSchema.index({ patientId: 1, consentTemplateId: 1, contextType: 1, contextId: 1, status: 1 });
 patientDocumentSchema.index({ documentType: 1 });
 
 export type PatientTimelineEventFields = {
@@ -162,6 +182,7 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
         'DOCUMENT_ADDED',
         'DOCUMENT_DELETED',
         'CONSENT_ADDED',
+        'CONSENT_VERIFIED',
         'OPD_VISIT_CREATED',
         'OPD_VISIT_STATUS_UPDATED',
         'VITALS_RECORDED',
@@ -171,6 +192,7 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
         'OPD_IMAGING_ORDER_SUBMITTED',
         'OPD_FOLLOW_UP_SCHEDULED',
         'OPD_REFERRAL_SUBMITTED',
+        'OPD_REFERRAL_BOOKED',
       ],
       required: true,
     },

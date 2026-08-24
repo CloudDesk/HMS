@@ -19,6 +19,7 @@ import type {
   BillingInvoiceStatus,
   BillingPayment,
   BillingRequestMetadata,
+  BillingSourceType,
   BillingSummaryQuery,
   CollectBillingPaymentDTO,
   ResolvedBillingItem,
@@ -34,12 +35,17 @@ type InvoiceListRow = InvoiceLean & {
   branchName?: string | null;
   visitNumber?: string | null;
   appointmentNumber?: string | null;
+  visitType?: string | null;
 };
 
 export type CreateInvoiceRecord = {
   invoiceNumber: string;
   patientId: string;
   visitId: string;
+  sourceType: BillingSourceType;
+  encounterId: string;
+  admissionId?: string | null;
+  procedureId?: string | null;
   appointmentId?: string | null;
   branchId: string;
   invoiceDate: Date;
@@ -63,6 +69,11 @@ type UpdateInvoiceRecord = {
 const objectId = (value: string) => new Types.ObjectId(value);
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const sourceTypeForVisit = (visitType?: string | null): BillingSourceType => {
+  if (visitType === 'EMERGENCY') return 'EMERGENCY';
+  if (visitType === 'PROCEDURE') return 'PROCEDURE';
+  return 'OPD';
+};
 
 const toItem = (item: InvoiceItemLean): BillingInvoiceItem => ({
   id: item._id.toString(),
@@ -70,6 +81,7 @@ const toItem = (item: InvoiceItemLean): BillingInvoiceItem => ({
   service_id: item.serviceId.toString(),
   service_name: item.serviceName,
   service_type: item.serviceType,
+  originating_order_id: item.originatingOrderId?.toString() ?? null,
   quantity: item.quantity,
   unit_price: item.unitPrice,
   line_total: item.lineTotal,
@@ -92,6 +104,10 @@ const toInvoice = (
     patient_name: row.patientName ?? null,
     visit_id: invoice.visitId.toString(),
     visit_number: row.visitNumber ?? null,
+    source_type: invoice.sourceType ?? sourceTypeForVisit(row.visitType),
+    encounter_id: invoice.encounterId?.toString() ?? invoice.visitId.toString(),
+    admission_id: invoice.admissionId?.toString() ?? null,
+    procedure_id: invoice.procedureId?.toString() ?? null,
     appointment_id: invoice.appointmentId?.toString() ?? null,
     appointment_number: row.appointmentNumber ?? null,
     branch_id: invoice.branchId.toString(),
@@ -149,6 +165,22 @@ const invoiceLookupStages: PipelineStage[] = [
       patientNumber: { $arrayElemAt: ['$patient.patientNumber', 0] },
       branchName: { $arrayElemAt: ['$branch.name', 0] },
       visitNumber: { $arrayElemAt: ['$visit.visitNumber', 0] },
+      visitType: { $arrayElemAt: ['$visit.visitType', 0] },
+      sourceType: {
+        $ifNull: [
+          '$sourceType',
+          {
+            $switch: {
+              branches: [
+                { case: { $eq: [{ $arrayElemAt: ['$visit.visitType', 0] }, 'EMERGENCY'] }, then: 'EMERGENCY' },
+                { case: { $eq: [{ $arrayElemAt: ['$visit.visitType', 0] }, 'PROCEDURE'] }, then: 'PROCEDURE' },
+              ],
+              default: 'OPD',
+            },
+          },
+        ],
+      },
+      encounterId: { $ifNull: ['$encounterId', '$visitId'] },
       appointmentNumber: { $arrayElemAt: ['$appointment.appointmentNumber', 0] },
     },
   },
@@ -271,6 +303,10 @@ export class BillingRepository {
       invoiceNumber: data.invoiceNumber,
       patientId: objectId(data.patientId),
       visitId: objectId(data.visitId),
+      sourceType: data.sourceType,
+      encounterId: objectId(data.encounterId),
+      admissionId: data.admissionId ? objectId(data.admissionId) : null,
+      procedureId: data.procedureId ? objectId(data.procedureId) : null,
       appointmentId: data.appointmentId ? objectId(data.appointmentId) : null,
       branchId: objectId(data.branchId),
       invoiceDate: data.invoiceDate,
@@ -460,6 +496,7 @@ export class BillingRepository {
       serviceId: objectId(item.serviceId),
       serviceName: item.serviceName,
       serviceType: item.serviceType,
+      originatingOrderId: item.originatingOrderId ? objectId(item.originatingOrderId) : null,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       lineTotal: item.lineTotal,

@@ -27,7 +27,7 @@ const serviceSchema = new Schema<IService>(
     name: { type: String, required: true },
     serviceType: {
       type: String,
-      enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE'],
+      enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE', 'PROCEDURE'],
       default: 'GENERAL',
       required: true,
     },

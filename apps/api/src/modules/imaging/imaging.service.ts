@@ -27,10 +27,11 @@ export class ImagingService {
   async getById(id: string, actorUserId: string) { return this.requireOrder(id, actorUserId); }
 
   async getReport(id: string, actorUserId: string) {
-    await this.requireOrder(id, actorUserId);
+    const order = await this.requireOrder(id, actorUserId);
     const report = await this.repository.getReport(id);
     if (!report) throw new AppError('Imaging report not found', 404, 'IMAGING_REPORT_NOT_FOUND');
-    return report;
+    return { ...report, source_type: order.source_type, encounter_id: order.encounter_id,
+      admission_id: order.admission_id, procedure_id: order.procedure_id };
   }
 
   async summary(branchId: string | undefined, actorUserId: string) {
@@ -65,6 +66,8 @@ export class ImagingService {
         if (!updated) throw new AppError('Imaging order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
           previousStatus: order.status, status: data.status,
         }, session);
       });
@@ -89,6 +92,8 @@ export class ImagingService {
         if (!updated) throw new AppError('Imaging order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit('imaging.report.entered', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
         }, session);
       });
       if (!saved) throw new AppError('Imaging report entry failed', 500, 'IMAGING_REPORT_SAVE_FAILED');
@@ -106,10 +111,12 @@ export class ImagingService {
         if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
         this.assertMutable(order);
         if (order.status !== 'REPORT_ENTERED') throw new AppError('Only unverified reports can be updated', 409, 'REPORT_UPDATE_NOT_ALLOWED');
-        saved = await this.repository.updateReport(id, data, actorUserId, session);
+        saved = await this.repository.updateReport(order, data, actorUserId, session);
         if (!saved) throw new AppError('Imaging report not found or already verified', 409, 'REPORT_UPDATE_NOT_ALLOWED');
         await this.orderRepository.audit('imaging.report.updated', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
         }, session);
       });
       return saved;

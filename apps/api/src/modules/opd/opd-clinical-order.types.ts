@@ -10,6 +10,7 @@ export type ClinicalOrderStatus =
   | 'VERIFIED'
   | 'COMPLETED';
 export type ClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
+export type ClinicalOrderSourceType = 'OPD' | 'EMERGENCY' | 'IP_ADMISSION' | 'PROCEDURE' | 'SURGERY';
 
 export type ClinicalOrderItem = {
   id: string;
@@ -21,6 +22,11 @@ export type ClinicalOrderItem = {
 
 export type OpdClinicalOrder = {
   id: string;
+  originating_order_id: string;
+  source_type: ClinicalOrderSourceType;
+  encounter_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
   visit_id: string;
   consultation_id: string;
   patient_id: string;

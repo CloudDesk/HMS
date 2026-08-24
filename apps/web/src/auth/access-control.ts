@@ -34,10 +34,13 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/billing/history': [{ module: 'Billing', screen: 'Invoices' }],
   '/administration/branches': [{ module: 'Administration', screen: 'Branches' }],
   '/administration/settings': [{ module: 'Administration', screen: 'Settings' }],
+  '/administration/consent-templates': [{ module: 'Administration', screen: 'Consent Templates' }],
   '/patients': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/search': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/register': [{ module: 'Patients', screen: 'Patient Records', action: 'Create' }],
   '/patients/profile': [{ module: 'Patients', screen: 'Patient Records' }],
+  '/patients/consent': [{ module: 'Patients', screen: 'Consent' }],
+  '/patients/consents': [{ module: 'Patients', screen: 'Consent' }],
   '/doctors': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/directory': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/profile': [{ module: 'Doctors', screen: 'Doctor Directory' }],
@@ -55,12 +58,18 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/appointments/book': [{ module: 'Appointments', screen: 'Appointment Booking' }],
   '/appointments/calendar': [{ module: 'Appointments', screen: 'Appointment Records' }],
   '/appointments/queue': [{ module: 'Appointments', screen: 'Appointment Records' }],
+  '/appointments/referrals': [
+    { module: 'Appointments', screen: 'Appointment Booking' },
+    { module: 'OPD', screen: 'OPD Referral' },
+  ],
   '/opd': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/queue': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/visit': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
-  '/admissions/beds': [{ module: 'Admissions', screen: 'Beds' }],
+  '/admissions/bed-availability': [{ module: 'Admissions', screen: 'Beds' }],
+  '/admissions/beds': [{ module: 'Admissions', screen: 'Beds', action: 'ChangeStatus' }],
   '/admissions/inpatients': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
+  '/reports/library': [{ module: 'Reports', screen: 'Phase 2 Reports' }],
 };
 
 const normalize = (value: string) => value.trim().toLowerCase();

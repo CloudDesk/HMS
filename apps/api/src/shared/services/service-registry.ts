@@ -48,6 +48,7 @@ import { SettingsRepository } from '../../modules/settings/settings.repository.j
 import { SettingsService } from '../../modules/settings/settings.service.js';
 import { AdministrationDashboardRepository } from '../../modules/administration-dashboard/administration-dashboard.repository.js';
 import { AdministrationDashboardService } from '../../modules/administration-dashboard/administration-dashboard.service.js';
+import { PhaseTwoReportRepository } from '../../modules/administration-dashboard/phase-two-report.repository.js';
 import { NotificationRepository } from '../../modules/notifications/notification.repository.js';
 import { NotificationService } from '../../modules/notifications/notification.service.js';
 import { PatientDocumentStorageService } from '../storage/patient-document-storage.service.js';
@@ -58,6 +59,8 @@ import { AdmissionsConfigurationRepository } from '../../modules/admissions-conf
 import { AdmissionsConfigurationService } from '../../modules/admissions-configuration/admissions-configuration.service.js';
 import { InpatientAdmissionRepository } from '../../modules/inpatient-admissions/inpatient-admission.repository.js';
 import { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
+import { ConsentRepository } from '../../modules/consents/consent.repository.js';
+import { ConsentService } from '../../modules/consents/consent.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -88,6 +91,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const pharmacyDispensingRepository = new PharmacyDispensingRepository(pharmacyInventoryRepository, billingRepository, opdPrescriptionRepository);
   const admissionsConfigurationRepository = new AdmissionsConfigurationRepository();
   const inpatientAdmissionRepository = new InpatientAdmissionRepository();
+  const consentRepository = new ConsentRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
   const userService = new UserService(userRepository, roleRepository);
   const appointmentService = new AppointmentService(
@@ -101,7 +105,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     database: {
       healthCheck: checkDatabaseHealth,
     },
-    administrationDashboard: new AdministrationDashboardService(administrationDashboardRepository),
+    administrationDashboard: new AdministrationDashboardService(administrationDashboardRepository, new PhaseTwoReportRepository()),
     auth: new AuthService(authRepository),
     users: userService,
     roles: new RoleService(roleRepository),
@@ -109,6 +113,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
     patients: new PatientService(patientRepository, patientDocumentStorageService),
+    consents: new ConsentService(consentRepository, patientRepository),
 doctors: new DoctorService(
   doctorRepository,
   branchRepository,
@@ -178,7 +183,6 @@ opdVisits: new OpdVisitService(
       opdConsultationRepository,
       opdClinicalOrderRepository,
       serviceRepository,
-      pharmacyInventoryRepository,
     ),
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
     notification: new NotificationService(notificationRepository),

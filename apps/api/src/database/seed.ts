@@ -57,10 +57,12 @@ const permissionDefinitions: PermissionDefinition[] = [
     Departments: ['View', 'Create', 'Edit', 'Delete', 'Export'],
     Services: ['View', 'Create', 'Edit', 'Delete', 'Export'],
     Medicines: ['View', 'Create', 'Edit', 'Delete', 'Export'],
+    'Consent Templates': ['View', 'Create', 'Edit'],
   }, 'SYSTEM', 'ADMINISTRATION'),
   ...expandPermissions('Patients', {
     'Patient Records': ['View', 'Create', 'Edit'],
     'Patient Documents': ['View', 'Create', 'Edit', 'Delete'],
+    Consent: ['View', 'Attach', 'Verify', 'Delete'],
   }, 'CLINICAL', 'PATIENTS'),
   ...expandPermissions('Doctors', {
     'Doctor Directory': ['View', 'Create', 'Edit', 'Export', 'Provision Login'],
@@ -97,6 +99,7 @@ const permissionDefinitions: PermissionDefinition[] = [
   ...expandPermissions('Billing', {
     Invoices: ['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'],
   }, 'FINANCE', 'BILLING'),
+  ...expandPermissions('Reports', { 'Phase 2 Reports': ['View'] }, 'SYSTEM', 'REPORTS'),
   ...['View', 'Edit', 'Export'].map((action) => ({
     ...permission('Administration', 'Settings', action, 'SYSTEM', 'ADMINISTRATION'),
     code: `settings.${action.toLowerCase()}`,
@@ -113,9 +116,13 @@ const administratorPermissionCodes = [
   ...['View', 'Create', 'Edit', 'Assign'].map((action) => code('Administration', 'Permissions', action)),
   ...['Branches', 'Departments', 'Services', 'Medicines'].flatMap((screen) =>
     ['View', 'Create', 'Edit', 'Export'].map((action) => code('Administration', screen, action))),
+  ...['View', 'Create', 'Edit'].map((action) => code('Administration', 'Consent Templates', action)),
+  ...['View', 'Attach', 'Verify', 'Delete'].map((action) => code('Patients', 'Consent', action)),
+  ...['View', 'Create', 'Edit', 'Delete'].map((action) => code('Patients', 'Patient Documents', action)),
   ...['View', 'Edit', 'Export'].map((action) => `settings.${action.toLowerCase()}`),
   ...['View', 'Create', 'Edit', 'ChangeStatus'].flatMap((action) => [code('Admissions', 'Wards', action), code('Admissions', 'Beds', action)]),
   ...['View', 'Create'].map((action) => code('Admissions', 'Inpatient Admissions', action)),
+  code('Reports', 'Phase 2 Reports', 'View'),
   ...['View', 'Create', 'Edit', 'Export', 'Provision Login'].map((action) => code('Doctors', 'Doctor Directory', action)),
   ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
 ];
@@ -134,6 +141,7 @@ const roleDefinitions: RoleDefinition[] = [
     permissionCodes: [
       ...['View', 'Create', 'Edit'].map((action) => code('Patients', 'Patient Records', action)),
       ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
+      ...['View', 'Attach'].map((action) => code('Patients', 'Consent', action)),
       code('Doctors', 'Doctor Directory', 'View'),
       code('Doctors', 'Doctor Availability', 'View'),
       ...['View', 'Create', 'Edit'].map((action) => code('Appointments', 'Appointment Booking', action)),
@@ -141,6 +149,10 @@ const roleDefinitions: RoleDefinition[] = [
       ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
       ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Vitals', action)),
       ...['View', 'Edit'].map((action) => code('OPD', 'OPD Referral', action)),
+      code('Admissions', 'Wards', 'View'),
+      code('Admissions', 'Beds', 'View'),
+      ...['View', 'Create'].map((action) => code('Admissions', 'Inpatient Admissions', action)),
+      code('Billing', 'Invoices', 'View'),
     ],
   },
   {
@@ -150,6 +162,7 @@ const roleDefinitions: RoleDefinition[] = [
     permissionCodes: [
       code('Patients', 'Patient Records', 'View'),
       ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
+      ...['View', 'Attach', 'Verify'].map((action) => code('Patients', 'Consent', action)),
       code('Appointments', 'Appointment Records', 'View'),
       code('Doctors', 'Doctor Directory', 'View'),
       code('Doctors', 'Doctor Availability', 'View'),
@@ -164,6 +177,7 @@ const roleDefinitions: RoleDefinition[] = [
     permissionCodes: [
       ...['View', 'Edit'].map((action) => code('Patients', 'Patient Records', action)),
       ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
+      ...['View', 'Attach', 'Verify'].map((action) => code('Patients', 'Consent', action)),
       code('Doctors', 'Doctor Directory', 'View'),
       ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
       code('Appointments', 'Appointment Records', 'View'),
@@ -201,6 +215,7 @@ const roleDefinitions: RoleDefinition[] = [
     name: 'Billing Authorized',
     description: 'Reusable permission profile for authorized Phase 1 billing users',
     permissionCodes: [
+      code('Reports', 'Phase 2 Reports', 'View'),
       ...['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'].map((action) => code('Billing', 'Invoices', action)),
       code('Administration', 'Services', 'View'),
       code('Patients', 'Patient Records', 'View'),

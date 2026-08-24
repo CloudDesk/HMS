@@ -45,3 +45,13 @@ export type SaveOpdReferralDTO = {
   appointment_start_time?: string | null;
   appointment_duration_minutes?: number | null;
 };
+
+export type OpdReferralListQuery = { booked?: boolean; page?: number; limit?: number };
+export type BookOpdReferralDTO = {
+  appointment_date: string;
+  start_time: string;
+  duration_minutes: number;
+  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE';
+  priority?: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+  notes?: string | null;
+};

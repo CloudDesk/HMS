@@ -1,6 +1,7 @@
 
 import type { ImagingStatus } from '../../api/laboratory';
 import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
 import { useImagingOrderDetails, useUpdateImagingStatus } from './useImaging';
 import { useAppLocation } from '../../routing/navigation';
 
@@ -23,11 +24,9 @@ export function useImagingWorkspaceFeature() {
 
   const superAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
 
-  const hasAction = (action: string) => superAdmin || Boolean(user?.permissions.some((permission) =>
-    permission.module.toLowerCase() === 'imaging' &&
-    permission.screen.toLowerCase() === 'orders' &&
-    permission.action.toLowerCase() === action.toLowerCase()
-  ));
+  const hasAction = (action: string) => superAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Imaging', screen: 'Orders', action,
+  });
 
   const statusMutation = useUpdateImagingStatus();
 

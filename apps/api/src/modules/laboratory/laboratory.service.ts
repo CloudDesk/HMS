@@ -34,10 +34,11 @@ export class LaboratoryService {
   }
 
   async getResult(id: string, actorUserId: string) {
-    await this.requireOrder(id, actorUserId);
+    const order = await this.requireOrder(id, actorUserId);
     const result = await this.repository.getResult(id);
     if (!result) throw new AppError('Laboratory result not found', 404, 'LABORATORY_RESULT_NOT_FOUND');
-    return result;
+    return { ...result, source_type: order.source_type, encounter_id: order.encounter_id,
+      admission_id: order.admission_id, procedure_id: order.procedure_id };
   }
 
   async summary(branchId: string | undefined, actorUserId: string) {
@@ -77,6 +78,8 @@ export class LaboratoryService {
         if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
           previousStatus: order.status, status: data.status,
         }, session);
       });
@@ -104,6 +107,8 @@ export class LaboratoryService {
         if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit('laboratory.result.entered', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
         }, session);
       });
       if (!saved) throw new AppError('Laboratory result entry failed', 500, 'LABORATORY_RESULT_SAVE_FAILED');
@@ -122,10 +127,12 @@ export class LaboratoryService {
         this.assertMutable(order);
         if (order.status !== 'RESULT_ENTERED') throw new AppError('Only unverified results can be updated', 409, 'RESULT_UPDATE_NOT_ALLOWED');
         const normalized = await this.validateAndNormalizeResults(order, data);
-        saved = await this.repository.updateResult(id, normalized, actorUserId, session);
+        saved = await this.repository.updateResult(order, normalized, actorUserId, session);
         if (!saved) throw new AppError('Laboratory result not found or already verified', 409, 'RESULT_UPDATE_NOT_ALLOWED');
         await this.orderRepository.audit('laboratory.result.updated', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
         }, session);
       });
       return saved;

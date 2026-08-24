@@ -193,25 +193,6 @@ export class OpdPrescriptionRepository {
     };
   }
 
-  async updateStatus(id: string, status: import('./opd-prescription.types.js').OpdPrescriptionStatus, userId: string): Promise<OpdPrescription> {
-    const record = await OpdPrescriptionModel.findOneAndUpdate(
-      { _id: objectId(id), deletedAt: null },
-      {
-        $set: {
-          status,
-          updatedBy: objectId(userId),
-        },
-      },
-      { lean: true, returnDocument: 'after' },
-    ).lean<OpdPrescriptionLean>();
-
-    if (!record) {
-      throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
-    }
-
-    return toPrescription(record);
-  }
-
   async updateStatusIf(
     id: string,
     currentStatus: import('./opd-prescription.types.js').OpdPrescriptionStatus,

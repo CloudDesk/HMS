@@ -30,6 +30,7 @@ type Props = {
 };
 
 const label = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const sourceLabel = (value: DiagnosticOrder['source_type']) => value === 'IP_ADMISSION' ? 'IP / Admission' : label(value);
 const dateTime = (value: string | null) => value ? new Intl.DateTimeFormat('en', {
   day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 }).format(new Date(value)) : '---';
@@ -50,6 +51,7 @@ export function DiagnosticQueue({
 }: Props) {
   const moduleName = module === 'laboratory' ? 'Laboratory' : 'Imaging';
   const entryPath = module === 'laboratory' ? 'results' : 'reports';
+  const columnCount = 8;
 
   return <div className={`diagnostic-page ${module}`}>
     <div className="diagnostic-kpis">
@@ -94,13 +96,14 @@ export function DiagnosticQueue({
       </div>
       <div className="table-responsive">
         <table className="data-table">
-          <thead><tr><th>Patient</th><th>Services</th><th>Doctor</th><th>Submitted</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Patient</th><th>Source</th><th>Services</th><th>Doctor</th><th>Submitted</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={7} className="um-state-cell"><span className="loading-spinner" /> Loading orders...</td></tr> : null}
-            {isError ? <tr><td colSpan={7} className="um-state-cell"><i className="ph ph-warning" /> Unable to load orders. Retry from this page.</td></tr> : null}
-            {!isLoading && !isError && orders.length === 0 ? <tr><td colSpan={7} className="um-state-cell"><i className="ph ph-inbox" /> No submitted orders match these filters.</td></tr> : null}
+            {isLoading ? <tr><td colSpan={columnCount} className="um-state-cell"><span className="loading-spinner" /> Loading orders...</td></tr> : null}
+            {isError ? <tr><td colSpan={columnCount} className="um-state-cell"><i className="ph ph-warning" /> Unable to load orders. Retry from this page.</td></tr> : null}
+            {!isLoading && !isError && orders.length === 0 ? <tr><td colSpan={columnCount} className="um-state-cell"><i className="ph ph-inbox" /> No submitted orders match these filters.</td></tr> : null}
             {orders.map((order) => <tr key={order.id}>
               <td><div className="user-cell-info"><strong>{order.patient_name}</strong><span className="muted-cell">{order.patient_number}</span></div></td>
+              <td><span className="status-badge">{sourceLabel(order.source_type)}</span><span className="muted-cell">{order.encounter_id?.slice(-8).toUpperCase() ?? 'No encounter'}</span></td>
               <td><strong>{order.items.length}</strong><span className="muted-cell">{order.items.map((item) => item.service_name).join(', ')}</span></td>
               <td>{order.doctor_name}</td><td>{dateTime(order.submitted_at)}</td>
               <td><span className={`diagnostic-priority priority-${order.priority.toLowerCase()}`}>{order.priority}</span></td>

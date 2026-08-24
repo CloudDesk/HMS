@@ -1,10 +1,14 @@
 import mongoose, { Schema, Types } from 'mongoose';
-import type { BillingInvoiceStatus, BillingPaymentMethod, BillingServiceType } from './billing.types.js';
+import type { BillingInvoiceStatus, BillingPaymentMethod, BillingServiceType, BillingSourceType } from './billing.types.js';
 
 export type BillingInvoiceFields = {
   invoiceNumber: string;
   patientId: Types.ObjectId;
   visitId: Types.ObjectId;
+  sourceType?: BillingSourceType;
+  encounterId?: Types.ObjectId | null;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
   appointmentId?: Types.ObjectId | null;
   branchId: Types.ObjectId;
   invoiceDate: Date;
@@ -28,6 +32,7 @@ export type BillingInvoiceItemFields = {
   serviceId: Types.ObjectId;
   serviceName: string;
   serviceType: BillingServiceType;
+  originatingOrderId?: Types.ObjectId | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -68,6 +73,10 @@ const invoiceSchema = new Schema<BillingInvoiceFields>(
     invoiceNumber: { type: String, required: true, unique: true, trim: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
+    sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'PROCEDURE'], default: 'OPD', required: true },
+    encounterId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
+    admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    procedureId: { type: Schema.Types.ObjectId, default: null },
     appointmentId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     invoiceDate: { type: Date, required: true },
@@ -90,6 +99,9 @@ const invoiceSchema = new Schema<BillingInvoiceFields>(
 
 invoiceSchema.index({ patientId: 1, createdAt: -1 });
 invoiceSchema.index({ visitId: 1 });
+invoiceSchema.index({ sourceType: 1, encounterId: 1 });
+invoiceSchema.index({ admissionId: 1 });
+invoiceSchema.index({ procedureId: 1 });
 invoiceSchema.index({ status: 1, createdAt: -1 });
 invoiceSchema.index({ branchId: 1, invoiceDate: -1, status: 1 });
 
@@ -103,6 +115,7 @@ const invoiceItemSchema = new Schema<BillingInvoiceItemFields>(
       enum: ['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE', 'PHARMACY'],
       required: true,
     },
+    originatingOrderId: { type: Schema.Types.ObjectId, default: null },
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true, min: 0 },
     lineTotal: { type: Number, required: true, min: 0 },

@@ -142,6 +142,18 @@ export class PharmacyInventoryRepository {
     return query;
   }
 
+  async getAvailableBatch(id: string, branchId: string, session?: ClientSession) {
+    const query = PharmacyMedicineBatchModel.findOne({
+      _id: objectId(id),
+      branchId: objectId(branchId),
+      status: 'ACTIVE',
+      quantityOnHand: { $gt: 0 },
+      expiryDate: { $gte: startOfUtcDay() },
+    }).lean();
+    if (session) query.session(session);
+    return query;
+  }
+
   async hasInventoryReferences(medicineId: string) {
     return Boolean(await PharmacyMedicineInventoryModel.exists({ medicineId }));
   }

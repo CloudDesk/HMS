@@ -29,6 +29,7 @@ import { registerNotificationRoutes } from './notifications/index.js';
 import { registerPharmacyDispensingRoutes } from './pharmacy-dispensing/pharmacy-dispensing.routes.js';
 import { registerAdmissionsConfigurationRoutes } from './admissions-configuration/admissions-configuration.routes.js';
 import { registerInpatientAdmissionRoutes } from './inpatient-admissions/inpatient-admission.routes.js';
+import { registerConsentRoutes } from './consents/consent.routes.js';
 
 export const registerModules = async (app: FastifyInstance, services: ServiceRegistry) => {
   await registerHealthRoutes(app, services);
@@ -47,6 +48,7 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerBillingRoutes(app, services);
   await registerSettingsRoutes(app, services);
   await registerPatientRoutes(app, services);
+  await registerConsentRoutes(app, services);
   await registerDoctorRoutes(app, services);
   await registerAppointmentRoutes(app, services);
   await registerOpdVisitRoutes(app, services);

@@ -101,7 +101,7 @@ export function useServiceCatalogueFeature() {
   const forbidden = error instanceof ApiError && error.status === 403;
 
   const emptyMeta: ServiceListResponse['meta'] = { limit: pageSize, page: currentPage, total: 0, totalPages: 1 };
-  const emptySummary: ServiceSummary = { total: 0, active: 0, inactive: 0, addedThisMonth: 0, departmentsCovered: 0, byType: { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0 } };
+  const emptySummary: ServiceSummary = { total: 0, active: 0, inactive: 0, addedThisMonth: 0, departmentsCovered: 0, byType: { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0, PROCEDURE: 0 } };
 
   return {
     state: {

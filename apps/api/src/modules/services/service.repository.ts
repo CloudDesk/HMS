@@ -76,6 +76,7 @@ export class ServiceRepository {
   async getActiveClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
       status: 'ACTIVE',
       deletedAt: null,
     }).select('_id name serviceType status').lean();
@@ -84,6 +85,7 @@ export class ServiceRepository {
   async getClinicalOrderServices(ids: string[], serviceType: 'LAB_TEST' | 'IMAGING_SERVICE') {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      serviceType,
       deletedAt: null,
     }).select('_id name serviceType status').lean();
   }
@@ -185,7 +187,7 @@ export class ServiceRepository {
         { $group: { _id: { $ifNull: ['$serviceType', 'GENERAL'] }, count: { $sum: 1 } } },
       ]),
     ]);
-    const byType = { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0 };
+    const byType: Record<Service['service_type'], number> = { GENERAL: 0, LAB_TEST: 0, IMAGING_SERVICE: 0, PROCEDURE: 0 };
     for (const row of typeRows) {
       if (row._id && row._id in byType) {
         byType[row._id] = row.count;

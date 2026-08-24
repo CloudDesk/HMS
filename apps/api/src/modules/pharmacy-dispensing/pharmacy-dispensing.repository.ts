@@ -7,18 +7,28 @@ import type { OpdPrescriptionRepository } from '../opd/opd-prescription.reposito
 import { OpdVisitModel, type OpdVisitFields } from '../opd/opd-visit.model.js';
 import { PharmacyInventoryRepository } from '../pharmacy-inventory/pharmacy-inventory.repository.js';
 import { PharmacyDispensingModel, type PharmacyDispensingFields } from './pharmacy-dispensing.model.js';
-import type { PharmacyDispensing, PharmacyDispensingItem, PharmacyDispensingListQuery } from './pharmacy-dispensing.types.js';
+import type { PharmacyDispensing, PharmacyDispensingItem, PharmacyDispensingListQuery, PharmacyDispensingSourceType } from './pharmacy-dispensing.types.js';
 type DispensingItemInput = Omit<PharmacyDispensingFields['items'][number], '_id'>;
 
 type PrescriptionRecord = OpdPrescriptionFields & { _id: Types.ObjectId };
 type VisitRecord = OpdVisitFields & { _id: Types.ObjectId };
+type VisitSourceRecord = Pick<VisitRecord, '_id' | 'visitType'>;
 type DispensingRecord = PharmacyDispensingFields & { _id: Types.ObjectId };
 const objectId = (value: string) => new Types.ObjectId(value);
+const sourceTypeForVisit = (visit: VisitSourceRecord): PharmacyDispensingSourceType => {
+  if (visit.visitType === 'EMERGENCY') return 'EMERGENCY';
+  if (visit.visitType === 'PROCEDURE') return 'PROCEDURE';
+  return 'OPD';
+};
 
-const toItem = (item: PharmacyDispensingFields['items'][number]): PharmacyDispensingItem => ({
-  id: item._id?.toString() ?? '', prescription_item_id: item.prescriptionItemId.toString(), medicine_id: item.medicineId.toString(),
-  batch_id: item.batchId.toString(), medicine_name: item.medicineName, batch_number: item.batchNumber,
-  requested_quantity: item.requestedQuantity ?? null, confirmed_quantity: item.confirmedQuantity,
+const toItem = (
+  item: PharmacyDispensingFields['items'][number],
+  prescribedMedicineName: string,
+): PharmacyDispensingItem => ({
+  id: item._id?.toString() ?? '', prescription_item_id: item.prescriptionItemId.toString(), medicine_id: item.medicineId?.toString() ?? null,
+  prescribed_medicine_name: prescribedMedicineName,
+  batch_id: item.batchId?.toString() ?? null, medicine_name: item.medicineName, batch_number: item.batchNumber,
+  requested_quantity: item.requestedQuantity ?? null, confirmed_quantity: item.confirmedQuantity ?? null,
   available_quantity: item.availableQuantity, unit_price: item.unitPrice, line_total: item.lineTotal,
   pharmacist_instructions: item.pharmacistInstructions ?? null,
 });
@@ -46,12 +56,20 @@ export class PharmacyDispensingRepository {
     return query;
   }
 
-  private toDispensing(record: DispensingRecord, prescription: PrescriptionRecord): PharmacyDispensing {
+  private toDispensing(record: DispensingRecord, prescription: PrescriptionRecord, visit: VisitSourceRecord): PharmacyDispensing {
+    const prescribedMedicineByItem = new Map(
+      prescription.items.map((item) => [item._id.toString(), item.medicineName]),
+    );
     return {
       id: record._id.toString(), prescription_id: record.prescriptionId.toString(), patient_id: record.patientId.toString(),
+      source_type: record.sourceType ?? sourceTypeForVisit(visit), encounter_id: (record.encounterId ?? visit._id).toString(),
+      admission_id: null, procedure_id: null,
       patient_number: prescription.patientNumber, patient_name: prescription.patientName, doctor_name: prescription.doctorName,
       visit_id: record.visitId.toString(), branch_id: record.branchId.toString(), status: record.status, version: record.version,
-      items: record.items.map(toItem), invoice_id: record.invoiceId?.toString() ?? null,
+      items: record.items.map((item) => toItem(
+        item,
+        prescribedMedicineByItem.get(item.prescriptionItemId.toString()) ?? item.medicineName,
+      )), invoice_id: record.invoiceId?.toString() ?? null,
       submitted_at: prescription.submittedAt ?? null, confirmed_at: record.confirmedAt ?? null,
       cancelled_at: record.cancelledAt ?? null, reversed_at: record.reversedAt ?? null,
       reversal_reason: record.reversalReason ?? null, created_at: record.createdAt, updated_at: record.updatedAt,
@@ -64,7 +82,9 @@ export class PharmacyDispensingRepository {
     const record = await query;
     if (!record) return null;
     const prescription = await this.getPrescription(prescriptionId, session);
-    return prescription ? this.toDispensing(record, prescription) : null;
+    if (!prescription) return null;
+    const visit = await this.getVisit(prescription.visitId.toString(), session);
+    return visit ? this.toDispensing(record, prescription, visit) : null;
   }
 
   async get(prescriptionId: string, actorUserId: string) {
@@ -88,21 +108,22 @@ export class PharmacyDispensingRepository {
     const record = await PharmacyDispensingModel.findOneAndUpdate(
       { prescriptionId: prescription._id },
       { $setOnInsert: {
-        prescriptionId: prescription._id, patientId: prescription.patientId, visitId: visit._id, branchId: visit.branchId,
+        prescriptionId: prescription._id, patientId: prescription.patientId, sourceType: sourceTypeForVisit(visit),
+        encounterId: visit._id, visitId: visit._id, branchId: visit.branchId,
         status: 'DRAFT', version: 0, items: [], createdBy: objectId(userId), updatedBy: objectId(userId),
       } }, { upsert: true, returnDocument: 'after', lean: true, session });
     if (!record) throw new AppError('Dispensing draft could not be created', 500, 'DISPENSING_CREATE_FAILED');
     const items = record.items.length > 0 ? record.items : await Promise.all(prescription.items.map(async (item) => {
       const medicine = await this.inventory.findMedicineByName(item.medicineName, session);
       const batch = medicine ? await this.inventory.findAvailableBatch(medicine._id.toString(), visit.branchId.toString(), session) : null;
-      return { prescriptionItemId: item._id, medicineId: medicine?._id ?? new Types.ObjectId(), batchId: batch?._id ?? new Types.ObjectId(), medicineName: medicine?.name ?? item.medicineName, batchNumber: batch?.batchNumber ?? '', requestedQuantity: item.quantity ?? null, confirmedQuantity: item.quantity ?? 0, availableQuantity: batch?.quantityOnHand ?? 0, unitPrice: batch?.unitPrice ?? 0, lineTotal: batch ? batch.unitPrice * (item.quantity ?? 0) : 0, pharmacistInstructions: null, _id: new Types.ObjectId() };
+      return { prescriptionItemId: item._id, medicineId: medicine?._id ?? null, batchId: batch?._id ?? null, medicineName: medicine?.name ?? item.medicineName, batchNumber: batch?.batchNumber ?? '', requestedQuantity: item.quantity ?? null, confirmedQuantity: item.quantity ?? null, availableQuantity: batch?.quantityOnHand ?? 0, unitPrice: batch?.unitPrice ?? 0, lineTotal: batch && item.quantity ? batch.unitPrice * item.quantity : 0, pharmacistInstructions: null, _id: new Types.ObjectId() };
     }));
     if (record.items.length === 0 && items.length > 0) {
       await PharmacyDispensingModel.updateOne({ _id: record._id, version: record.version }, { $set: { items, updatedBy: objectId(userId) } }, { session });
       const refreshed = await PharmacyDispensingModel.findById(record._id).session(session ?? null).lean<DispensingRecord>();
-      return refreshed ? this.toDispensing(refreshed, prescription) : this.toDispensing({ ...record, items }, prescription);
+      return refreshed ? this.toDispensing(refreshed, prescription, visit) : this.toDispensing({ ...record, items }, prescription, visit);
     }
-    return this.toDispensing(record as DispensingRecord, prescription);
+    return this.toDispensing(record as DispensingRecord, prescription, visit);
   }
 
   async save(recordId: string, version: number, items: DispensingItemInput[], userId: string) {
@@ -140,11 +161,18 @@ export class PharmacyDispensingRepository {
 
   async listPrescriptions(query: PharmacyDispensingListQuery) {
     const page = query.page ?? 1; const limit = query.limit ?? 20;
-    const visits = await OpdVisitModel.find({ branchId: objectId(query.branch_id), deletedAt: null }).select('_id').lean();
+    const visits = await OpdVisitModel.find({ branchId: objectId(query.branch_id), deletedAt: null }).select('_id visitType').lean<VisitSourceRecord[]>();
+    const visitById = new Map(visits.map((visit) => [visit._id.toString(), visit]));
     const filter: Record<string, unknown> = { visitId: { $in: visits.map((visit) => visit._id) }, deletedAt: null };
-    if (query.status === 'PENDING') filter.status = 'SUBMITTED';
-    else if (query.status === 'CONFIRMED' || query.status === 'REVERSED') filter.status = 'DISPENSED';
-    else if (query.status === 'CANCELLED') filter.status = 'CANCELLED';
+    if (query.status && query.status !== 'PENDING') {
+      const dispensingRecords = await PharmacyDispensingModel.find({
+        branchId: objectId(query.branch_id),
+        status: query.status,
+      }).select('prescriptionId').lean<Array<{ prescriptionId: Types.ObjectId }>>();
+      filter._id = { $in: dispensingRecords.map((record) => record.prescriptionId) };
+      filter.status = query.status === 'CONFIRMED' ? 'DISPENSED' : 'CANCELLED';
+    } else if (query.status === 'PENDING') filter.status = 'SUBMITTED';
+    else filter.status = { $in: ['SUBMITTED', 'DISPENSED', 'CANCELLED'] };
     if (query.search) filter.$or = [
       { patientName: new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
       { patientNumber: new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
@@ -157,24 +185,28 @@ export class PharmacyDispensingRepository {
     const byPrescription = new Map(records.map((item) => [item.prescriptionId.toString(), item]));
     const mapped = prescriptions.map((prescription) => {
       const dispensing = byPrescription.get(prescription._id.toString());
-      return dispensing ? this.toDispensing(dispensing, prescription) : {
+      const visit = visitById.get(prescription.visitId.toString());
+      if (!visit) return null;
+      return dispensing ? this.toDispensing(dispensing, prescription, visit) : {
         id: '', prescription_id: prescription._id.toString(), patient_id: prescription.patientId.toString(),
+        source_type: sourceTypeForVisit(visit), encounter_id: visit._id.toString(), admission_id: null, procedure_id: null,
         patient_number: prescription.patientNumber, patient_name: prescription.patientName, doctor_name: prescription.doctorName,
         visit_id: prescription.visitId.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null,
         submitted_at: prescription.submittedAt ?? null, confirmed_at: null, cancelled_at: null, reversed_at: null, reversal_reason: null,
         created_at: prescription.createdAt, updated_at: prescription.updatedAt,
       };
     });
+    const available = mapped.filter((item): item is PharmacyDispensing => item !== null);
     const data = query.status && query.status !== 'PENDING'
-      ? mapped.filter((item) => item.status === query.status)
-      : mapped;
-    return { data, meta: { total: query.status && query.status !== 'PENDING' ? data.length : total, page, limit, totalPages: Math.ceil((query.status && query.status !== 'PENDING' ? data.length : total) / limit) || 1 } };
+      ? available.filter((item) => item.status === query.status)
+      : available;
+    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 } };
   }
 
-  async updateStatus(id: string, status: PharmacyDispensingFields['status'], version: number, userId: string, reason: string | null, session: ClientSession) {
+  async cancel(id: string, version: number, userId: string, reason: string, session: ClientSession) {
     return PharmacyDispensingModel.findOneAndUpdate(
       { _id: objectId(id), status: 'DRAFT', version },
-      { $set: { status, updatedBy: objectId(userId), ...(status === 'CANCELLED' ? { cancelledAt: new Date(), cancelledBy: objectId(userId), cancellationReason: reason } : {}) }, $inc: { version: 1 } },
+      { $set: { status: 'CANCELLED', updatedBy: objectId(userId), cancelledAt: new Date(), cancelledBy: objectId(userId), cancellationReason: reason }, $inc: { version: 1 } },
       { returnDocument: 'after', lean: true, session },
     ).lean<DispensingRecord>();
   }

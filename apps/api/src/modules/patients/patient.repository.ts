@@ -11,6 +11,7 @@ import type {
   CreatePatientDTO,
   CreatePatientDocumentDTO,
   Patient,
+  PatientConsentContextType,
   PatientDocument,
   PatientDocumentListQuery,
   PatientListQuery,
@@ -36,6 +37,12 @@ const nullableString = (value: string | null | undefined) => {
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const toObjectId = (value: string | null | undefined) => (value ? new Types.ObjectId(value) : null);
+const canonicalConsentStatus = (value: string | null | undefined) => {
+  if (!value) return null;
+  if (value === 'SIGNED') return 'ATTACHED' as const;
+  if (value === 'EXPIRED' || value === 'REJECTED') return 'PENDING' as const;
+  return value as PatientDocument['consent_status'];
+};
 
 const toPatient = (patient: PatientLean): Patient => ({
   id: patient._id.toString(),
@@ -75,6 +82,13 @@ const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string
   id: document._id.toString(),
   patient_id: document.patientId.toString(),
   visit_id: document.visitId?.toString() ?? null,
+  admission_id: document.admissionId?.toString() ?? null,
+  procedure_id: document.procedureId?.toString() ?? null,
+  context_type: document.contextType ?? null,
+  context_id: document.contextId?.toString() ?? null,
+  consent_template_id: document.consentTemplateId?.toString() ?? null,
+  consent_category: document.consentCategory ?? null,
+  consent_version: document.consentVersion ?? null,
   document_type: document.documentType,
   title: document.title,
   file_name: document.fileName,
@@ -82,13 +96,16 @@ const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string
   file_size_bytes: document.fileSizeBytes,
   storage_key: document.storageKey,
   description: document.description ?? null,
-  consent_status: document.consentStatus ?? null,
+  consent_status: canonicalConsentStatus(document.consentStatus),
   signed_at: document.signedAt ?? null,
   valid_until: document.validUntil ?? null,
   signed_by_name: document.signedByName ?? null,
   status: document.status,
   uploaded_by: document.uploadedBy?.toString() ?? null,
   uploaded_by_name: uploadedByName,
+  uploaded_at: document.createdAt,
+  verified_by: document.verifiedBy?.toString() ?? null,
+  verified_at: document.verifiedAt ?? null,
   created_at: document.createdAt,
   updated_at: document.updatedAt,
 });
@@ -361,6 +378,9 @@ export class PatientRepository {
     if (query.visit_id) {
       filter.visitId = new Types.ObjectId(query.visit_id);
     }
+    if (query.admission_id) filter.admissionId = new Types.ObjectId(query.admission_id);
+    if (query.procedure_id) filter.procedureId = new Types.ObjectId(query.procedure_id);
+    if (query.context_type) filter.contextType = query.context_type;
 
     const [documents, total] = await Promise.all([
       PatientDocumentModel.find(filter)
@@ -398,6 +418,13 @@ export class PatientRepository {
     const created = await PatientDocumentModel.create({
       patientId: new Types.ObjectId(patientId),
       visitId: toObjectId(data.visit_id),
+      admissionId: toObjectId(data.admission_id),
+      procedureId: toObjectId(data.procedure_id),
+      contextType: data.context_type ?? null,
+      contextId: toObjectId(data.context_id),
+      consentTemplateId: toObjectId(data.consent_template_id),
+      consentCategory: nullableString(data.consent_category),
+      consentVersion: data.consent_version ?? null,
       documentType: data.document_type,
       title: data.title.trim(),
       fileName: data.file_name.trim(),
@@ -410,6 +437,8 @@ export class PatientRepository {
       validUntil: data.valid_until ? new Date(data.valid_until) : null,
       signedByName: nullableString(data.signed_by_name),
       uploadedBy: new Types.ObjectId(userId),
+      verifiedBy: null,
+      verifiedAt: null,
       status: 'ACTIVE',
     });
     return toPatientDocument(created.toObject<PatientDocumentLean>());
@@ -421,6 +450,13 @@ export class PatientRepository {
       {
         $set: {
           documentType: data.document_type,
+          admissionId: toObjectId(data.admission_id),
+          procedureId: toObjectId(data.procedure_id),
+          contextType: data.context_type ?? null,
+          contextId: toObjectId(data.context_id),
+          consentTemplateId: toObjectId(data.consent_template_id),
+          consentCategory: nullableString(data.consent_category),
+          consentVersion: data.consent_version ?? null,
           title: data.title.trim(),
           fileName: data.file_name.trim(),
           mimeType: data.mime_type.trim(),
@@ -432,6 +468,8 @@ export class PatientRepository {
           validUntil: data.valid_until ? new Date(data.valid_until) : null,
           signedByName: nullableString(data.signed_by_name),
           uploadedBy: new Types.ObjectId(userId),
+          verifiedBy: null,
+          verifiedAt: null,
         },
       },
       { new: true, lean: true },
@@ -454,5 +492,27 @@ export class PatientRepository {
     ).lean<PatientDocumentLean>();
 
     return document ? toPatientDocument(document) : undefined;
+  }
+
+  async verifyConsent(patientId: string, documentId: string, userId: string) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      { _id: documentId, patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', status: 'ACTIVE', consentStatus: 'ATTACHED' },
+      { $set: { consentStatus: 'VERIFIED', verifiedBy: new Types.ObjectId(userId), verifiedAt: new Date() } },
+      { new: true, lean: true },
+    ).lean<PatientDocumentLean>();
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async consentStatuses(patientId: string, templateIds: string[], contextType: PatientConsentContextType, contextId: string) {
+    const records = await PatientDocumentModel.find({
+      patientId: new Types.ObjectId(patientId), consentTemplateId: { $in: templateIds.map((id) => new Types.ObjectId(id)) },
+      contextType, contextId: new Types.ObjectId(contextId), documentType: 'CONSENT', status: 'ACTIVE',
+    }).sort({ createdAt: -1 }).lean<PatientDocumentLean[]>();
+    const statuses = new Map<string, PatientDocument['consent_status']>();
+    for (const record of records) {
+      const templateId = record.consentTemplateId?.toString();
+      if (templateId && !statuses.has(templateId)) statuses.set(templateId, canonicalConsentStatus(record.consentStatus));
+    }
+    return statuses;
   }
 }

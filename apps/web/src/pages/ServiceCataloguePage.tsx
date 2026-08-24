@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,7 +26,7 @@ type ModalMode = 'create' | 'edit' | 'view';
 const serviceSchema = z.object({
   code: z.string().min(1, 'Service code is required.'),
   name: z.string().min(1, 'Service name is required.'),
-  service_type: z.enum(['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE']),
+  service_type: z.enum(['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE', 'PROCEDURE']),
   // branch_id is UI-only (filters dept options); not sent to API
   branch_id: z.string().optional(),
   department_id: z.string().min(1, 'Department is required.'),
@@ -44,6 +44,7 @@ const serviceTypeLabels: Record<ApiServiceType, string> = {
   GENERAL: 'General Service',
   LAB_TEST: 'Lab Test',
   IMAGING_SERVICE: 'Imaging / Scan',
+  PROCEDURE: 'Surgery / Procedure',
 };
 
 

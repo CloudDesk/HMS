@@ -125,6 +125,9 @@ export function AppointmentCalendarPage() {
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   const weekDays = useMemo(() => buildWeekDays(calendarDate), [calendarDate]);
   const monthDays = useMemo(() => buildMonthDays(calendarDate), [calendarDate]);
@@ -157,31 +160,31 @@ export function AppointmentCalendarPage() {
       return;
     }
 
-    try {
-      await handleUpdateAppointment(draggedAppointmentId, {
-        appointment_date: targetDate,
-        start_time: newStartTime,
-      });
-      // success toast is handled by mutation
-    } finally {
-      setDraggedAppointmentId(null);
-    }
+    setSelectedAppointmentId(draggedAppointmentId);
+    setRescheduleDate(targetDate);
+    setRescheduleTime(newStartTime);
+    setRescheduleReason('');
+    setIsRescheduling(true);
+    setDraggedAppointmentId(null);
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
+    if (!cancellationReason.trim()) { toast.error('Cancellation reason is required.'); return; }
     await handleUpdateStatus(appointmentId, {
       status: 'CANCELLED',
-      notes: 'Cancelled by patient request from calendar view'
+      notes: cancellationReason.trim(),
     });
+    setIsCancelling(false); setCancellationReason('');
   };
 
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAppointment || !rescheduleDate || !rescheduleTime) return;
+    if (!selectedAppointment || !rescheduleDate || !rescheduleTime || !rescheduleReason.trim()) return;
 
     await handleUpdateAppointment(selectedAppointment.id, {
       appointment_date: rescheduleDate,
       start_time: rescheduleTime,
+      reschedule_reason: rescheduleReason.trim(),
     });
     setIsRescheduling(false);
   };
@@ -498,6 +501,7 @@ export function AppointmentCalendarPage() {
                         value={rescheduleDate}
                       />
                     </div>
+                    <div className="doc-field"><label htmlFor="reschedule-reason-input">Reason</label><textarea id="reschedule-reason-input" onChange={(e) => setRescheduleReason(e.target.value)} required value={rescheduleReason} /></div>
                     <div className="doc-field">
                       <label htmlFor="reschedule-time-input">New Time</label>
                       <input
@@ -519,6 +523,7 @@ export function AppointmentCalendarPage() {
                   </div>
                 </form>
               ) : null}
+              {isCancelling ? <form className="apt-modal-reschedule-form" onSubmit={(e) => { e.preventDefault(); void handleCancelAppointment(selectedAppointment.id); }}><h4>Cancel Appointment</h4><div className="doc-field"><label htmlFor="cancellation-reason-input">Cancellation reason</label><textarea id="cancellation-reason-input" onChange={(e) => setCancellationReason(e.target.value)} required value={cancellationReason} /></div><div className="apt-modal-reschedule-actions"><button className="doc-btn" onClick={() => setIsCancelling(false)} type="button">Back</button><button className="doc-btn danger-outline" disabled={isUpdatingStatus} type="submit">Confirm Cancellation</button></div></form> : null}
             </div>
 
             <div className="modal-footer apt-modal-footer">
@@ -532,7 +537,7 @@ export function AppointmentCalendarPage() {
               <button
                 className="doc-btn danger-outline"
                 disabled={selectedAppointment.status === 'CANCELLED' || isUpdatingStatus}
-                onClick={() => void handleCancelAppointment(selectedAppointment.id)}
+                onClick={() => { setIsCancelling(true); setIsRescheduling(false); }}
                 type="button"
               >
                 Cancel Appointment
@@ -542,6 +547,8 @@ export function AppointmentCalendarPage() {
                 onClick={() => {
                   setRescheduleDate(selectedAppointment.appointment_date.slice(0, 10));
                   setRescheduleTime(selectedAppointment.start_time);
+                  setRescheduleReason('');
+                  setIsCancelling(false);
                   setIsRescheduling(true);
                 }}
                 type="button"

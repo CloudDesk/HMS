@@ -5,7 +5,6 @@ import { useBranchesList } from '../branches/useBranches';
 import { usePatientsList } from '../patients/usePatients';
 import { useOpdVisits } from '../opd/useOpd';
 import { useServicesList } from '../services/useServices';
-import { usePharmacyBatches } from '../pharmacy/usePharmacy';
 import {
   useBillingInvoiceDetails,
   useBillingPayments,
@@ -15,25 +14,30 @@ import {
   useCollectBillingPayment,
   useBillingReceipt,
 } from './useBilling';
+import { useBillingAutoPopulate, type DraftItem } from './useBillingAutoPopulate';
 
-type ServiceType = 'CONSULTATION' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PHARMACY';
+type ServiceType = 'CONSULTATION' | 'LAB_TEST' | 'IMAGING_SERVICE';
 
 const catalogueType = (type: ServiceType) => type === 'CONSULTATION'
   ? 'GENERAL'
-  : type === 'LAB_TEST' ? 'LAB_TEST' : type === 'IMAGING_SERVICE' ? 'IMAGING_SERVICE' : undefined;
+  : type === 'LAB_TEST' ? 'LAB_TEST' : 'IMAGING_SERVICE';
 
 export function useBillingWorkspaceFeature({
   invoiceId,
   createMode,
   selectedBranch,
   selectedPatient,
+  selectedVisit,
   selectedSource,
+  onPopulate,
 }: {
   invoiceId: string;
   createMode: boolean;
   selectedBranch: string;
   selectedPatient: string;
+  selectedVisit: string;
   selectedSource: ServiceType;
+  onPopulate: (items: DraftItem[]) => void;
 }) {
   const { user } = useAuth();
   const capabilities = useBillingCapabilities();
@@ -62,12 +66,7 @@ export function useBillingWorkspaceFeature({
 
   const servicesQuery = useServicesList(
     { status: 'ACTIVE', service_type: catalogueType(selectedSource), page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' },
-    createMode && selectedSource !== 'PHARMACY'
-  );
-
-  const batchesQuery = usePharmacyBatches(
-    { branch_id: selectedBranch, status: 'ACTIVE', page: 1, limit: 100 },
-    createMode && selectedSource === 'PHARMACY' && Boolean(selectedBranch)
+    createMode
   );
 
   const invoiceQuery = useBillingInvoiceDetails(!createMode ? invoiceId : null);
@@ -79,6 +78,12 @@ export function useBillingWorkspaceFeature({
   const paymentMutation = useCollectBillingPayment();
   const receiptMutation = useBillingReceipt();
 
+  useBillingAutoPopulate({
+    visitId: selectedVisit,
+    createMode,
+    onPopulate,
+  });
+
   return {
     capabilities,
     queries: {
@@ -87,7 +92,6 @@ export function useBillingWorkspaceFeature({
       patientsQuery,
       visitsQuery,
       servicesQuery,
-      batchesQuery,
       invoiceQuery,
       paymentsQuery,
     },

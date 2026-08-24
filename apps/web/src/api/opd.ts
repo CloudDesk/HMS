@@ -363,6 +363,10 @@ export type SaveOpdReferralPayload = {
   appointment_duration_minutes?: number | null;
 };
 
+export type OpdReferralListResponse = { data: OpdReferralResponse[]; meta: { total: number; page: number; limit: number; totalPages: number } };
+export type BookOpdReferralPayload = { appointment_date: string; start_time: string; duration_minutes: number;
+  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE'; priority?: ApiOpdReferralPriority; notes?: string | null };
+
 const toQueryString = (params: Record<string, unknown>) => {
   const searchParams = new URLSearchParams();
 
@@ -377,6 +381,13 @@ const toQueryString = (params: Record<string, unknown>) => {
 };
 
 export const opdApi = {
+  listReferrals(params: { booked?: boolean; page?: number; limit?: number } = {}) {
+    return apiClient.request<OpdReferralListResponse>(`/opd/referrals${toQueryString(params)}`);
+  },
+
+  bookReferral(referralId: string, payload: BookOpdReferralPayload) {
+    return apiClient.request<OpdReferralResponse>(`/opd/referrals/${encodeURIComponent(referralId)}/book`, { method: 'POST', body: payload });
+  },
   listVisits(params: OpdVisitListParams = {}) {
     return apiClient.request<OpdVisitListResponse>(`/opd/visits${toQueryString(params)}`);
   },
@@ -441,13 +452,6 @@ export const opdApi = {
 
   listPrescriptions(params: Partial<{ status: ApiOpdPrescriptionStatus; limit: number; skip: number; search: string; sortBy: string; sortOrder: 'asc' | 'desc' }> = {}) {
     return apiClient.request<{ data: OpdPrescriptionResponse[]; total: number }>(`/opd/prescriptions${toQueryString(params)}`);
-  },
-
-  updatePrescriptionStatus(id: string, status: ApiOpdPrescriptionStatus) {
-    return apiClient.request<OpdPrescriptionResponse>(`/opd/prescriptions/${encodeURIComponent(id)}/status`, {
-      body: { status },
-      method: 'PATCH',
-    });
   },
 
   getPrescription(visitId: string) {

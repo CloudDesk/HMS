@@ -69,12 +69,15 @@ export class OpdClinicalOrderService {
     );
 
     const isLaboratory = orderType === 'LABORATORY';
+    const sourceLabel = order.source_type === 'EMERGENCY'
+      ? 'Emergency encounter'
+      : order.source_type === 'PROCEDURE' ? 'Procedure encounter' : 'OPD encounter';
     await this.patientRepository.addTimelineEvent(
       visit.patient_id,
       {
         event_type: isLaboratory ? 'OPD_LAB_ORDER_SUBMITTED' : 'OPD_IMAGING_ORDER_SUBMITTED',
         title: isLaboratory ? 'Laboratory order submitted' : 'Imaging order submitted',
-        description: `${visit.visit_number}: ${data.items.length} ${isLaboratory ? 'laboratory' : 'imaging'} investigation${data.items.length === 1 ? '' : 's'} ordered by ${visit.doctor_name}.`,
+        description: `${sourceLabel} ${visit.visit_number}: ${data.items.length} ${isLaboratory ? 'laboratory' : 'imaging'} investigation${data.items.length === 1 ? '' : 's'} ordered by ${visit.doctor_name}.`,
       },
       userId,
     );
@@ -85,6 +88,10 @@ export class OpdClinicalOrderService {
       orderType,
       patientId: visit.patient_id,
       visitId: visit.id,
+      sourceType: order.source_type,
+      encounterId: order.encounter_id,
+      admissionId: order.admission_id,
+      procedureId: order.procedure_id,
     });
 
     return order;

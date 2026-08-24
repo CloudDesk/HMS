@@ -74,7 +74,7 @@ export type UpdateAppointmentDTO = Partial<
     CreateAppointmentDTO,
     'doctor_id' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes'
   >
->;
+> & { reschedule_reason?: string | null };
 
 export type UpdateAppointmentStatusDTO = {
   status: AppointmentStatus;

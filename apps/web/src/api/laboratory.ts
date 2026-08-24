@@ -2,8 +2,11 @@ import { apiClient } from './client';
 
 export type LaboratoryStatus = 'SUBMITTED' | 'RECEIVED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'RESULT_ENTERED' | 'VERIFIED' | 'COMPLETED';
 export type DiagnosticPriority = 'ROUTINE' | 'URGENT' | 'STAT';
+export type DiagnosticSourceType = 'OPD' | 'EMERGENCY' | 'IP_ADMISSION' | 'PROCEDURE' | 'SURGERY';
 export type DiagnosticOrder = {
-  id: string; visit_id: string; consultation_id: string; patient_id: string; patient_number: string; patient_name: string;
+  id: string; originating_order_id: string; source_type: DiagnosticSourceType; encounter_id: string | null;
+  admission_id: string | null; procedure_id: string | null;
+  visit_id: string; consultation_id: string; patient_id: string; patient_number: string; patient_name: string;
   doctor_id: string; doctor_name: string; branch_id: string; order_type: 'LABORATORY' | 'IMAGING'; status: LaboratoryStatus | ImagingStatus;
   priority: DiagnosticPriority; destination: string | null; specimen_type: string | null;
   items: Array<{ id: string; service_id: string; service_name: string; investigation_name: string; category: string }>;
@@ -19,7 +22,9 @@ export type LaboratoryResultPayload = {
   remarks?: string | null;
 };
 export type LaboratoryResult = LaboratoryResultPayload & {
-  id: string; order_id: string; patient_id: string; visit_id: string; entered_by: string; entered_at: string;
+  id: string; order_id: string; source_type: DiagnosticSourceType; encounter_id: string | null;
+  admission_id: string | null; procedure_id: string | null;
+  patient_id: string; visit_id: string; entered_by: string; entered_at: string;
   verified_by: string | null; verified_at: string | null; created_at: string; updated_at: string;
 };
 export type DiagnosticPage = { data: DiagnosticOrder[]; meta: { page: number; limit: number; total: number; totalPages: number } };

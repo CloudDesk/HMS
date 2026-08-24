@@ -49,19 +49,3 @@ export const listOpdPrescriptionsQuerySchema = {
     sortOrder: { type: 'string', enum: ['asc', 'desc'] },
   },
 } as const;
-
-export const opdPrescriptionParamsSchema = {
-  type: 'object',
-  required: ['id'],
-  properties: {
-    id: { type: 'string', minLength: 1 },
-  },
-} as const;
-
-export const updateOpdPrescriptionStatusBodySchema = {
-  type: 'object',
-  required: ['status'],
-  properties: {
-    status: { type: 'string', enum: ['SUBMITTED', 'DISPENSED'] },
-  },
-} as const;

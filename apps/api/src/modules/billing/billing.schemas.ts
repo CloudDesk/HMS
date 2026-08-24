@@ -5,7 +5,7 @@ const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Object id is invalid');
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use YYYY-MM-DD');
 const money = z.number().finite().min(0).max(1_000_000_000).multipleOf(0.01);
 const positiveMoney = z.number().finite().positive().max(1_000_000_000).multipleOf(0.01);
-const serviceType = z.enum(['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE', 'PHARMACY']);
+const serviceType = z.enum(['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE']);
 
 const invoiceItemSchema = z.object({
   service_id: objectId,

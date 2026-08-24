@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 export type ApiServiceStatus = 'ACTIVE' | 'INACTIVE';
-export type ApiServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE';
+export type ApiServiceType = 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PROCEDURE';
 
 export type ServiceResponse = {
   id: string;

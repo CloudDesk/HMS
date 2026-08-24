@@ -71,6 +71,7 @@ export const updateAppointmentBodySchema = {
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    reschedule_reason: { type: ['string', 'null'], maxLength: 1000 },
   },
 } as const;
 

@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useLaboratoryResultFeature } from '../hooks/laboratory/useLaboratoryResultFeature';
 import { navigate } from '../routing/navigation';
+import { PrintLaboratoryResultModal } from '../components/print/PrintLaboratoryResultModal';
 
 const schema = z.object({
   result_items: z.array(z.object({
@@ -16,6 +17,7 @@ type FormData = z.infer<typeof schema>;
 
 export function LaboratoryResultEntryPage() {
   const feature = useLaboratoryResultFeature();
+  const [printOpen, setPrintOpen] = useState(false);
   const { id, order, result, isLoading, isError, isSaving, readOnly, canEdit, canEnterResult, actions } = feature;
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { result_items: [], remarks: '' } });
@@ -62,6 +64,7 @@ export function LaboratoryResultEntryPage() {
       <div>
         <span className="eyebrow">Laboratory results</span>
         <h2>{order.patient_name}</h2>
+        <span className="status-badge">{order.source_type.replaceAll('_', ' ')}</span>
         <p>{order.patient_number} — {order.doctor_name}</p>
       </div>
       <span className={`diagnostic-status status-${order.status.toLowerCase().replaceAll('_', '-')}`}>{order.status.replaceAll('_', ' ')}</span>
@@ -97,8 +100,10 @@ export function LaboratoryResultEntryPage() {
 
       <div className="diagnostic-form-actions">
         <button className="btn-secondary" type="button" onClick={() => navigate(`/laboratory/workspace?id=${id}`)}>Back</button>
+        {readOnly && result ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
         {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterResult} type="submit">{isSaving ? 'Saving...' : 'Save Results'}</button> : null}
       </div>
     </form>
+    {printOpen && result ? <PrintLaboratoryResultModal onClose={() => setPrintOpen(false)} order={order} result={result} /> : null}
   </div>;
 }

@@ -27,7 +27,7 @@ const createPatientNumber = (sequence: number) => {
 
 const isValidAfricanPhone = (phone: string): boolean => {
   if (!phone || !phone.trim()) return true;
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  const cleaned = phone.replace(/[\s\-()]/g, '');
   return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
 };
 
@@ -143,7 +143,15 @@ export class PatientService {
     if (query.visit_id && !Types.ObjectId.isValid(query.visit_id)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
+    for (const contextId of [query.admission_id, query.procedure_id]) {
+      if (contextId && !Types.ObjectId.isValid(contextId)) throw new AppError('Consent context id is invalid', 400, 'VALIDATION_ERROR');
+    }
     return this.repository.listDocuments(id, query);
+  }
+
+  async getDocument(patientId: string, documentId: string, userId?: string) {
+    await this.getById(patientId, userId);
+    return this.getActiveDocument(patientId, documentId);
   }
 
   async createDocument(id: string, data: CreatePatientDocumentDTO, userId: string) {
@@ -161,6 +169,12 @@ export class PatientService {
       userId,
     );
 
+    if (isConsent) {
+      await this.repository.auditClinicalEvent('consent.document.attached', userId, {
+        patientId: id, documentId: document.id, consentTemplateId: document.consent_template_id,
+        contextType: document.context_type, contextId: document.context_id, status: document.consent_status,
+      });
+    }
     return document;
   }
 
@@ -180,6 +194,13 @@ export class PatientService {
         id,
         {
           visit_id: data.visit_id,
+          admission_id: data.admission_id,
+          procedure_id: data.procedure_id,
+          context_type: data.context_type,
+          context_id: data.context_id,
+          consent_template_id: data.consent_template_id,
+          consent_category: data.consent_category,
+          consent_version: data.consent_version,
           document_type: data.document_type,
           title: data.title,
           file_name: data.file_name,
@@ -187,7 +208,7 @@ export class PatientService {
           file_size_bytes: data.file_size_bytes,
           storage_key: storageKey,
           description: data.description,
-          consent_status: data.consent_status,
+          consent_status: data.document_type === 'CONSENT' ? 'ATTACHED' : data.consent_status,
           signed_at: data.signed_at,
           valid_until: data.valid_until,
           signed_by_name: data.signed_by_name,
@@ -202,8 +223,14 @@ export class PatientService {
 
   async replaceDocument(patientId: string, documentId: string, data: UploadPatientDocumentDTO, userId: string) {
     await this.getById(patientId, userId);
-    this.validateDocumentUpload(data);
     const activeDocument = await this.getActiveDocument(patientId, documentId);
+    this.validateDocumentUpload({
+      ...data,
+      consent_template_id: activeDocument.consent_template_id,
+      consent_category: activeDocument.consent_category,
+      consent_version: activeDocument.consent_version,
+      context_type: activeDocument.context_type,
+    });
     const { storageKey } = await this.documentStorage.uploadPatientDocument({
       patientId,
       fileName: data.file_name,
@@ -217,6 +244,13 @@ export class PatientService {
         documentId,
         {
           visit_id: activeDocument.visit_id,
+          admission_id: activeDocument.admission_id,
+          procedure_id: activeDocument.procedure_id,
+          context_type: activeDocument.context_type,
+          context_id: activeDocument.context_id,
+          consent_template_id: activeDocument.consent_template_id,
+          consent_category: activeDocument.consent_category,
+          consent_version: activeDocument.consent_version,
           document_type: data.document_type,
           title: data.title,
           file_name: data.file_name,
@@ -224,7 +258,7 @@ export class PatientService {
           file_size_bytes: data.file_size_bytes,
           storage_key: storageKey,
           description: data.description,
-          consent_status: data.consent_status,
+          consent_status: data.document_type === 'CONSENT' ? 'ATTACHED' : data.consent_status,
           signed_at: data.signed_at,
           valid_until: data.valid_until,
           signed_by_name: data.signed_by_name,
@@ -235,6 +269,9 @@ export class PatientService {
         throw new AppError('Patient document not found', 404, 'NOT_FOUND');
       }
       await this.documentStorage.deleteIfExists(activeDocument.storage_key);
+      if (document.document_type === 'CONSENT') {
+        await this.repository.auditClinicalEvent('consent.document.replaced', userId, { patientId, documentId, status: 'ATTACHED' });
+      }
       return document;
     } catch (error) {
       await this.documentStorage.deleteIfExists(storageKey);
@@ -272,7 +309,25 @@ export class PatientService {
       },
       userId,
     );
+    if (document.document_type === 'CONSENT') {
+      await this.repository.auditClinicalEvent('consent.document.deleted', userId, { patientId, documentId });
+    }
 
+    return document;
+  }
+
+  async verifyConsent(patientId: string, documentId: string, userId: string) {
+    await this.getById(patientId, userId);
+    const current = await this.getActiveDocument(patientId, documentId);
+    if (current.document_type !== 'CONSENT') throw new AppError('Document is not a consent', 400, 'NOT_A_CONSENT');
+    if (current.consent_status !== 'ATTACHED') throw new AppError('Only an attached consent can be verified', 409, 'CONSENT_NOT_ATTACHED');
+    const document = await this.repository.verifyConsent(patientId, documentId, userId);
+    if (!document) throw new AppError('Consent status changed; refresh and try again', 409, 'CONSENT_STATUS_CONFLICT');
+    await this.repository.addTimelineEvent(patientId, { event_type: 'CONSENT_VERIFIED', title: 'Consent verified', description: `${document.title} was verified.` }, userId);
+    await this.repository.auditClinicalEvent('consent.document.verified', userId, {
+      patientId, documentId, consentTemplateId: document.consent_template_id,
+      contextType: document.context_type, contextId: document.context_id,
+    });
     return document;
   }
 
@@ -299,8 +354,8 @@ export class PatientService {
     }
 
     if (data.document_type === 'CONSENT') {
-      if (!data.consent_status) {
-        throw new AppError('Consent status is required', 400, 'VALIDATION_ERROR');
+      if (!data.consent_template_id || !data.consent_category || !data.consent_version || !data.context_type) {
+        throw new AppError('Consent template, category, version, and context are required', 400, 'VALIDATION_ERROR');
       }
       if (data.signed_at && !isValidDate(data.signed_at)) {
         throw new AppError('Consent signed date is invalid', 400, 'VALIDATION_ERROR');

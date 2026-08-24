@@ -6,14 +6,13 @@ import type { OpdConsultationRepository } from '../opd/opd-consultation.reposito
 import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { ServiceRepository } from '../services/service.repository.js';
-import type { PharmacyInventoryRepository } from '../pharmacy-inventory/pharmacy-inventory.repository.js';
 import type { BillingRepository } from './billing.repository.js';
 import { createBillingNumber } from './billing-number.js';
 import type {
   BillingInvoice,
   BillingInvoiceListQuery,
   BillingRequestMetadata,
-  BillingServiceType,
+  BillingSourceType,
   BillingSummaryQuery,
   CollectBillingPaymentDTO,
   CreateBillingInvoiceDTO,
@@ -24,10 +23,16 @@ import type {
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-const catalogueTypeByBillingType: Record<Exclude<BillingServiceType, 'PHARMACY'>, 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE'> = {
+const catalogueTypeByBillingType = {
   CONSULTATION: 'GENERAL',
   LAB_TEST: 'LAB_TEST',
   IMAGING_SERVICE: 'IMAGING_SERVICE',
+} as const;
+
+const sourceTypeForVisit = (visitType: string): BillingSourceType => {
+  if (visitType === 'EMERGENCY') return 'EMERGENCY';
+  if (visitType === 'PROCEDURE') return 'PROCEDURE';
+  return 'OPD';
 };
 
 export class BillingService {
@@ -39,7 +44,6 @@ export class BillingService {
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly clinicalOrderRepository: OpdClinicalOrderRepository,
     private readonly serviceRepository: ServiceRepository,
-    private readonly pharmacyInventoryRepository: PharmacyInventoryRepository,
   ) {}
 
   async list(query: BillingInvoiceListQuery, actorUserId: string) {
@@ -71,6 +75,10 @@ export class BillingService {
           invoiceNumber: createBillingNumber('INV'),
           patientId: data.patient_id,
           visitId: data.visit_id,
+          sourceType: context.sourceType,
+          encounterId: data.visit_id,
+          admissionId: null,
+          procedureId: null,
           appointmentId: context.appointmentId,
           branchId: data.branch_id,
           invoiceDate: data.invoice_date ? new Date(data.invoice_date) : new Date(),
@@ -81,6 +89,8 @@ export class BillingService {
           invoiceNumber: created.invoice_number,
           patientId: data.patient_id,
           visitId: data.visit_id,
+          sourceType: context.sourceType,
+          encounterId: data.visit_id,
           branchId: data.branch_id,
           totalAmount: totals.totalAmount,
           itemCount: items.length,
@@ -101,6 +111,7 @@ export class BillingService {
     metadata: BillingRequestMetadata,
   ) {
     const existing = await this.getById(id, actorUserId);
+    this.assertNotDispensingManaged(existing);
     this.assertFinanciallyMutable(existing);
 
     const items = data.items ? await this.resolveItems(existing.visit_id, data.items) : existing.items.map((item) => ({
@@ -151,6 +162,7 @@ export class BillingService {
 
   async cancel(id: string, actorUserId: string, metadata: BillingRequestMetadata) {
     const existing = await this.getById(id, actorUserId);
+    this.assertNotDispensingManaged(existing);
     if (existing.status === 'CANCELLED') throw new AppError('Invoice is already cancelled', 409, 'INVOICE_CANCELLED');
     if (existing.status === 'PAID' || existing.paid_amount > 0) {
       throw new AppError('Invoices with collected payments cannot be cancelled because refunds are out of scope', 409, 'PAID_INVOICE_CANNOT_CANCEL');
@@ -268,25 +280,18 @@ export class BillingService {
         throw new AppError('Appointment context is invalid', 409, 'INVALID_APPOINTMENT_CONTEXT');
       }
     }
-    return { appointmentId: appointmentId ?? null };
+    return {
+      appointmentId: appointmentId ?? null,
+      sourceType: sourceTypeForVisit(visit.visit_type),
+    };
   }
 
   private async resolveItems(visitId: string, requestedItems: SaveBillingInvoiceItemDTO[]): Promise<ResolvedBillingItem[]> {
-    const nonPharmacyItems = requestedItems.filter((i) => i.service_type !== 'PHARMACY');
-    const pharmacyItems = requestedItems.filter((i) => i.service_type === 'PHARMACY');
-
-    const serviceIds = nonPharmacyItems.map((item) => item.service_id);
+    const serviceIds = requestedItems.map((item) => item.service_id);
     const services = await this.serviceRepository.getActiveBillingServices(serviceIds);
     const serviceById = new Map(services.map((service) => [service._id.toString(), service]));
     if (serviceById.size !== new Set(serviceIds).size) {
       throw new AppError('Every invoice item must reference an active Service Catalogue entry', 409, 'INVALID_BILLING_SERVICE');
-    }
-
-    const batchIds = pharmacyItems.map((item) => item.service_id);
-    const batches = await Promise.all(batchIds.map((id) => this.pharmacyInventoryRepository.getBatchById(id)));
-    const batchById = new Map(batches.map((batch) => batch ? [batch._id.toString(), batch as any] : ['', null]));
-    if (batchIds.some((id) => !batchById.get(id))) {
-      throw new AppError('Every pharmacy invoice item must reference a valid inventory batch', 409, 'INVALID_PHARMACY_BATCH');
     }
 
     const types = new Set(requestedItems.map((item) => item.service_type));
@@ -304,21 +309,8 @@ export class BillingService {
       : null;
 
     return requestedItems.map((item) => {
-      if (item.service_type === 'PHARMACY') {
-        const batch = batchById.get(item.service_id)!;
-        const unitPrice = roundMoney(batch.unitPrice);
-        return {
-          serviceId: item.service_id,
-          serviceName: batch.medicine?.name ? `${batch.medicine.name} (Batch: ${batch.batchNumber})` : `Batch: ${batch.batchNumber}`,
-          serviceType: item.service_type,
-          quantity: item.quantity,
-          unitPrice,
-          lineTotal: roundMoney(unitPrice * item.quantity),
-        };
-      }
-
       const service = serviceById.get(item.service_id)!;
-      const expectedCatalogueType = catalogueTypeByBillingType[item.service_type as Exclude<BillingServiceType, 'PHARMACY'>];
+      const expectedCatalogueType = catalogueTypeByBillingType[item.service_type];
       if (service.serviceType !== expectedCatalogueType) {
         throw new AppError(`Service ${service.name} is not valid for ${item.service_type}`, 409, 'BILLING_SERVICE_TYPE_MISMATCH');
       }
@@ -333,6 +325,9 @@ export class BillingService {
         serviceId: item.service_id,
         serviceName: service.name,
         serviceType: item.service_type,
+        originatingOrderId: item.service_type === 'LAB_TEST'
+          ? laboratoryOrder?.id ?? null
+          : item.service_type === 'IMAGING_SERVICE' ? imagingOrder?.id ?? null : null,
         quantity: item.quantity,
         unitPrice,
         lineTotal: roundMoney(unitPrice * item.quantity),
@@ -355,6 +350,16 @@ export class BillingService {
     if (invoice.status === 'PAID') throw new AppError('Paid invoices cannot be modified', 409, 'INVOICE_PAID');
     if (invoice.status === 'CANCELLED') throw new AppError('Cancelled invoices cannot be modified', 409, 'INVOICE_CANCELLED');
     if (invoice.paid_amount > 0) throw new AppError('Invoices with payments cannot be modified', 409, 'INVOICE_HAS_PAYMENTS');
+  }
+
+  private assertNotDispensingManaged(invoice: BillingInvoice) {
+    if (invoice.items.some((item) => item.service_type === 'PHARMACY')) {
+      throw new AppError(
+        'Pharmacy invoices are managed by the dispensing workflow',
+        409,
+        'PHARMACY_INVOICE_MANAGED_BY_DISPENSING',
+      );
+    }
   }
 
   private requireObjectId(value: string, message: string) {

@@ -44,6 +44,10 @@ import { SystemSettingsPage } from '../pages/SystemSettingsPage';
 import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
 import { BedManagementPage } from '../pages/BedManagementPage';
 import { InpatientAdmissionPage } from '../pages/InpatientAdmissionPage';
+import { ConsentTemplatesPage } from '../pages/ConsentTemplatesPage';
+import { ReferralBookingPage } from '../pages/ReferralBookingPage';
+import { BedAvailabilityPage } from '../pages/BedAvailabilityPage';
+import { PhaseTwoReportsPage } from '../pages/PhaseTwoReportsPage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { sidebarModules } from '../data/ui-foundation';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -162,6 +166,10 @@ export function AppRouter() {
     title = 'Patient Consent';
     breadcrumbs = ['Home', 'Patients', 'Consent Forms'];
     content = <PatientConsentPage />;
+  } else if (pathname === '/administration/consent-templates') {
+    title = 'Consent Templates';
+    breadcrumbs = ['Home', 'Administration', 'Consent Templates'];
+    content = <ConsentTemplatesPage />;
   } else if (pathname === '/doctors') {
     title = 'Doctor Dashboard';
     breadcrumbs = ['Home', 'Doctors', 'Dashboard'];
@@ -194,6 +202,14 @@ export function AppRouter() {
     title = 'Book Appointment';
     breadcrumbs = ['Home', 'Appointments', 'Book Appointment'];
     content = <AppointmentBookingPage />;
+  } else if (pathname === '/appointments/referrals') {
+    title = 'Referral Booking';
+    breadcrumbs = ['Home', 'Appointments', 'Referral Booking'];
+    content = <ReferralBookingPage />;
+  } else if (pathname === '/admissions/bed-availability') {
+    title = 'Bed Availability';
+    breadcrumbs = ['Home', 'Admissions', 'Bed Availability'];
+    content = <BedAvailabilityPage />;
   } else if (pathname === '/appointments/calendar') {
     title = 'Calendar View';
     breadcrumbs = ['Home', 'Appointments', 'Calendar View'];
@@ -284,7 +300,11 @@ export function AppRouter() {
     title = 'Inpatient Admission';
     breadcrumbs = ['Home', 'Admissions', 'Inpatient Admission'];
     content = <InpatientAdmissionPage />;
-  } 
+  } else if (pathname === '/reports/library') {
+    title = 'Phase 2 Reports';
+    breadcrumbs = ['Home', 'Reports', 'Phase 2 Reports'];
+    content = <PhaseTwoReportsPage />;
+  }
   // 2. All other sidebar routes automatically get a ComingSoonPage stub
   else if (matchedModule && matchedLink) {
     title = matchedLink.label;

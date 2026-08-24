@@ -1,5 +1,7 @@
 export type BillingInvoiceStatus = 'DRAFT' | 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
 export type BillingServiceType = 'CONSULTATION' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PHARMACY';
+export type BillingSourceType = 'OPD' | 'EMERGENCY' | 'PROCEDURE';
+export type ManualBillingServiceType = Exclude<BillingServiceType, 'PHARMACY'>;
 export type BillingPaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER';
 
 export type BillingInvoiceItem = {
@@ -8,6 +10,7 @@ export type BillingInvoiceItem = {
   service_id: string;
   service_name: string;
   service_type: BillingServiceType;
+  originating_order_id: string | null;
   quantity: number;
   unit_price: number;
   line_total: number;
@@ -25,6 +28,10 @@ export type BillingInvoice = {
   patient_name: string | null;
   visit_id: string;
   visit_number: string | null;
+  source_type: BillingSourceType;
+  encounter_id: string;
+  admission_id: string | null;
+  procedure_id: string | null;
   appointment_id: string | null;
   appointment_number: string | null;
   branch_id: string;
@@ -88,7 +95,7 @@ export type BillingSummaryQuery = {
 
 export type SaveBillingInvoiceItemDTO = {
   service_id: string;
-  service_type: BillingServiceType;
+  service_type: ManualBillingServiceType;
   quantity: number;
 };
 
@@ -127,6 +134,7 @@ export type ResolvedBillingItem = {
   serviceId: string;
   serviceName: string;
   serviceType: BillingServiceType;
+  originatingOrderId?: string | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
