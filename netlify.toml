@@ -4,7 +4,7 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "22"
+  NODE_VERSION = "20"
   NPM_FLAGS = "--include=dev"
   VITE_APP_ENV = "prod"
   VITE_API_BASE_URL = "/api"
