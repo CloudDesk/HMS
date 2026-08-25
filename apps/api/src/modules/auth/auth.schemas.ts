@@ -10,7 +10,6 @@ export const loginBodySchema = {
 
 export const refreshBodySchema = {
   type: 'object',
-  required: ['refreshToken'],
   additionalProperties: false,
   properties: {
     refreshToken: { type: 'string', minLength: 1 },

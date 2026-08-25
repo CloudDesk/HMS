@@ -4,7 +4,7 @@ import { ApiError, getFriendlyAuthMessage } from '../api/api-error';
 import { apiClient } from '../api/client';
 import { navigate } from '../routing/navigation';
 import { authApi } from './auth-api';
-import { AuthContext, type AuthContextValue, type AuthStatus, type GuardianActivationInput } from './auth-context-value';
+import { AuthContext, type AuthContextValue, type AuthStatus, type GuardianActivationInput, type SignupInput } from './auth-context-value';
 import type { AuthUser } from './auth-types';
 import { tokenStorage } from './token-storage';
 
@@ -25,12 +25,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const refresh = useCallback(async () => {
     if (refreshRef.current) return refreshRef.current;
-    const refreshToken = tokenStorage.getRefreshToken();
-    if (!refreshToken || tokenStorage.isRefreshTokenExpired()) { clear('session-expired'); return null; }
-    refreshRef.current = authApi.refresh(refreshToken).then((session) => {
+    refreshRef.current = authApi.refresh().then((session) => {
       if (!isPortalUser(session.user)) { clear(); return null; }
       tokenStorage.setTokens(session.tokens); setUser(session.user); setStatus('authenticated'); return session.tokens.accessToken;
-    }).catch(() => { clear('session-expired'); return null; }).finally(() => { refreshRef.current = null; });
+    }).catch(() => { clear('unauthenticated'); return null; }).finally(() => { refreshRef.current = null; });
     return refreshRef.current;
   }, [clear]);
 
@@ -38,9 +36,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     apiClient.setRefreshHandler(refresh);
     apiClient.setUnauthorizedHandler(() => { clear('session-expired'); navigate('/login?reason=session-expired', { replace: true }); });
     void (async () => {
-      if (!tokenStorage.hasRefreshToken()) { setStatus('unauthenticated'); return; }
       const token = await refresh();
-      if (!token) setStatus('session-expired');
+      if (!token) setStatus('unauthenticated');
     })();
     return () => { apiClient.setRefreshHandler(null); apiClient.setUnauthorizedHandler(null); };
   }, [clear, refresh]);
@@ -51,7 +48,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const session = await authApi.login(identifier, password);
       if (!isPortalUser(session.user)) throw new ApiError('This account belongs to the staff system. Use Staff login.', 403);
       tokenStorage.setTokens(session.tokens); setUser(session.user); setStatus('authenticated');
-    } catch (error) { clear(); const message = getFriendlyAuthMessage(error); setAuthError(message); throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined); }
+    } catch (error) { clear(); const message = getFriendlyAuthMessage(error); setAuthError(message); throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined, error instanceof ApiError ? error.details : undefined); }
   }, [clear, queryClient]);
 
   const loginWithOtp = useCallback(async (phone: string, otp: string) => {
@@ -60,7 +57,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const session = await authApi.loginWithOtp(phone, otp);
       if (!isPortalUser(session.user)) throw new ApiError('This account cannot access the patient portal.', 403);
       tokenStorage.setTokens(session.tokens); setUser(session.user); setStatus('authenticated');
-    } catch (error) { clear(); const message = getFriendlyAuthMessage(error); setAuthError(message); throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined); }
+    } catch (error) { clear(); const message = getFriendlyAuthMessage(error); setAuthError(message); throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined, error instanceof ApiError ? error.details : undefined); }
+  }, [clear, queryClient]);
+
+  const signup = useCallback(async (input: SignupInput) => {
+    setStatus('loading'); setAuthError(null); queryClient.clear();
+    try {
+      const session = await authApi.signup(input);
+      if (!isPortalUser(session.user)) throw new ApiError('This account cannot access the patient portal.', 403);
+      tokenStorage.setTokens(session.tokens); setUser(session.user); setStatus('authenticated');
+    } catch (error) {
+      clear();
+      const message = getFriendlyAuthMessage(error);
+      setAuthError(message);
+      throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined, error instanceof ApiError ? error.details : undefined);
+    }
   }, [clear, queryClient]);
 
   const activateGuardian = useCallback(async (input: GuardianActivationInput) => {
@@ -69,14 +80,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const session = await authApi.activateGuardian(input);
       if (!isPortalUser(session.user)) throw new ApiError('This account cannot access the patient portal.', 403);
       tokenStorage.setTokens(session.tokens); setUser(session.user); setStatus('authenticated');
-    } catch (error) { clear(); const message = getFriendlyAuthMessage(error); setAuthError(message); throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined); }
+    } catch (error) { clear(); const message = getFriendlyAuthMessage(error); setAuthError(message); throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined, error instanceof ApiError ? error.details : undefined); }
   }, [clear, queryClient]);
 
   const logout = useCallback(async () => {
-    try { if (tokenStorage.getAccessToken()) await authApi.logout(tokenStorage.getRefreshToken()); } catch { /* Local sign-out remains authoritative. */ }
+    try { await authApi.logout(); } catch { /* Local sign-out remains authoritative. */ }
     finally { clear(); navigate('/', { replace: true }); }
   }, [clear]);
 
-  const value = useMemo<AuthContextValue>(() => ({ status, user, authError, login, loginWithOtp, activateGuardian, logout, clearAuthError: () => setAuthError(null) }), [activateGuardian, authError, login, loginWithOtp, logout, status, user]);
+  const value = useMemo<AuthContextValue>(() => ({ status, user, authError, login, loginWithOtp, signup, activateGuardian, logout, clearAuthError: () => setAuthError(null) }), [activateGuardian, authError, login, loginWithOtp, logout, signup, status, user]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

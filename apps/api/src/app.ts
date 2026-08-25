@@ -1,3 +1,4 @@
+import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import Fastify from 'fastify';
@@ -17,6 +18,15 @@ export const buildApp = async () => {
 
   registerErrorHandler(app);
   await registerRequestContext(app);
+
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('X-XSS-Protection', '0');
+  });
+
+  await app.register(cookie);
 
   await app.register(cors, {
     origin: (origin, cb) => {

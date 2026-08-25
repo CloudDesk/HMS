@@ -1,20 +1,53 @@
-import { useAuth } from '../auth/useAuth';
-import { PatientLoginPage } from '../pages/PatientLoginPage';
-import { PatientPortalPage } from '../pages/PatientPortalPage';
-import { PatientSignupPage } from '../pages/PatientSignupPage';
+import { lazy, Suspense } from 'react';
 import { PatientWebsitePage } from '../pages/PatientWebsitePage';
+import { ProtectedRoute } from './ProtectedRoute';
 import { navigate, useAppLocation } from './navigation';
+
+const PatientLoginPage = lazy(() =>
+  import('../pages/PatientLoginPage').then((m) => ({ default: m.PatientLoginPage }))
+);
+const PatientSignupPage = lazy(() =>
+  import('../pages/PatientSignupPage').then((m) => ({ default: m.PatientSignupPage }))
+);
+const PatientPortalPage = lazy(() =>
+  import('../pages/PatientPortalPage').then((m) => ({ default: m.PatientPortalPage }))
+);
+
+function RouteLoadingFallback() {
+  return (
+    <main className="patient-portal-state">
+      <div className="portal-spinner" />
+      <strong>Loading…</strong>
+    </main>
+  );
+}
 
 export function AppRouter() {
   const { pathname } = useAppLocation();
-  const { status } = useAuth();
-  if (pathname === '/') return <PatientWebsitePage />;
-  if (pathname === '/login') return <PatientLoginPage />;
-  if (pathname === '/signup') return <PatientSignupPage />;
-  if (pathname === '/portal') {
-    if (status === 'loading') return <main className="patient-portal-state"><div className="portal-spinner" /><strong>Opening your portal…</strong></main>;
-    if (status !== 'authenticated') { navigate(`/login?return=${encodeURIComponent(`${pathname}${location.search}`)}`, { replace: true }); return null; }
-    return <PatientPortalPage />;
+
+  if (pathname === '/') {
+    return <PatientWebsitePage />;
   }
-  return <main className="patient-portal-state"><i className="ph ph-compass" /><strong>Page not found</strong><button onClick={() => navigate('/')} type="button">Return home</button></main>;
+
+  return (
+    <Suspense fallback={<RouteLoadingFallback />}>
+      {pathname === '/login' ? (
+        <PatientLoginPage />
+      ) : pathname === '/signup' ? (
+        <PatientSignupPage />
+      ) : pathname === '/portal' ? (
+        <ProtectedRoute>
+          <PatientPortalPage />
+        </ProtectedRoute>
+      ) : (
+        <main className="patient-portal-state">
+          <i className="ph ph-compass" />
+          <strong>Page not found</strong>
+          <button onClick={() => navigate('/')} type="button">
+            Return home
+          </button>
+        </main>
+      )}
+    </Suspense>
+  );
 }

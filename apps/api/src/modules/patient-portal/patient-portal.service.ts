@@ -11,6 +11,7 @@ import type { UserService } from '../users/user.service.js';
 import { PatientPortalRepository } from './patient-portal.repository.js';
 import { createHash, randomInt } from 'node:crypto';
 import { OtpChallengeModel } from './otp-challenge.model.js';
+import { RegistrationTokenModel } from './registration-token.model.js';
 import type { SmsService } from '../../shared/services/sms.service.js';
 import type { PatientAccessRelationship } from './patient-access-grant.model.js';
 
@@ -27,6 +28,7 @@ type RegisterInput = {
   email: string;
   phone: string;
   guardianProfile?: GuardianProfileInput;
+  initialDependent?: PatientProfileInput & { relationship: 'PARENT' | 'LEGAL_GUARDIAN' };
 };
 
 type GuardianProfileInput = {
@@ -223,6 +225,17 @@ export class PatientPortalService {
       await this.repository.upsertGuardianProfile(account.id, {
         fullName: input.fullName, email: input.email, phone: input.phone, ...input.guardianProfile,
       });
+    }
+    if (input.accountType === 'GUARDIAN' && input.initialDependent) {
+      await this.requireActiveBranch(input.initialDependent.preferredBranchId);
+      const patientId = await this.repository.createPortalPatient({
+        userId: account.id,
+        ...input.initialDependent,
+        relationship: input.initialDependent.relationship,
+      });
+      if (!patientId) {
+        throw new AppError('A possible existing patient record was found. Hospital staff must verify and link that patient.', 409, 'DUPLICATE_PATIENT');
+      }
     }
     return account;
   }
@@ -463,11 +476,52 @@ export class PatientPortalService {
     };
   }
 
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  async issueRegistrationToken(phone: string, mode: 'new' | 'guardian' | 'any' = 'any') {
+    const normalizedPhone = phone.replace(/\D/g, '');
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(token);
+    await RegistrationTokenModel.create({
+      phone: normalizedPhone,
+      tokenHash,
+      mode,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      consumedAt: null,
+    });
+    return token;
+  }
+
+  async verifyAndConsumeRegistrationToken(phone: string, token: string) {
+    const normalizedPhone = phone.replace(/\D/g, '');
+    const tokenHash = this.hashToken(token);
+    const now = new Date();
+    const doc = await RegistrationTokenModel.findOne({
+      phone: normalizedPhone,
+      tokenHash,
+      consumedAt: null,
+      expiresAt: { $gt: now },
+    });
+    if (!doc) {
+      throw new AppError(
+        'The registration session is invalid or has expired. Please verify your mobile number again.',
+        401,
+        'INVALID_REGISTRATION_TOKEN',
+      );
+    }
+    doc.consumedAt = now;
+    await doc.save();
+    return true;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async verifyOtp(phone: string, otp: string) {
     // OTP verification check bypassed until SMS tele-gateway integration.
     // Accepts 1234 or any OTP code in all environments.
-    return;
+    const registrationToken = await this.issueRegistrationToken(phone);
+    return { registrationToken };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

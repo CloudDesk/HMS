@@ -5,7 +5,19 @@ import { useState } from 'react';
 import { z } from 'zod';
 import { ApiError } from '../../api/api-error';
 import { patientPortalApi, type PortalPatientInput } from '../../api/patient-portal';
+import { portalQueryKeys } from '../../api/query-keys';
 import { PortalLinkDependentForm } from './PortalLinkDependentForm';
+
+const calculateAge = (dob?: string) => {
+  if (!dob) return null;
+  const birthDate = new Date(dob);
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+  return age;
+};
 
 const schema = z.object({
   first_name: z.string().trim().min(1, 'First name is required.'),
@@ -22,14 +34,23 @@ const schema = z.object({
   relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']),
   emergency_name: z.string().trim().optional(),
   emergency_phone: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  const age = calculateAge(data.date_of_birth);
+  if (age !== null && age < 15) {
+    if (!data.emergency_name || data.emergency_name.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['emergency_name'],
+        message: 'Parent or guardian full name is required for patients under 15.',
+      });
+    }
+  }
 });
 type FormValues = z.infer<typeof schema>;
 
-const parseFullName = (name?: string) => {
-  if (!name) return { firstName: '', lastName: '' };
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 0) return { firstName: '', lastName: '' };
-  if (parts.length === 1) return { firstName: parts[0] ?? '', lastName: '' };
+const parseFullName = (fullName?: string) => {
+  if (!fullName) return { firstName: '', lastName: '' };
+  const parts = fullName.trim().split(/\s+/);
   return {
     firstName: parts[0] ?? '',
     lastName: parts.slice(1).join(' '),
@@ -48,7 +69,10 @@ export function PortalPatientForm({
   onCancel?: () => void;
 }) {
   const [linkExisting, setLinkExisting] = useState(false);
-  const branches = useQuery({ queryKey: ['public-branches'], queryFn: () => patientPortalApi.publicBranches({ limit: 24 }) });
+  const branches = useQuery({
+    queryKey: portalQueryKeys.branches({ limit: 24 }),
+    queryFn: () => patientPortalApi.publicBranches({ limit: 24 }),
+  });
   const initialName = parseFullName(mode === 'SELF' ? defaultFullName : undefined);
   const { register, handleSubmit, watch, setError, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -137,7 +161,45 @@ export function PortalPatientForm({
           <label><span>Gender <b>*</b></span><select {...register('gender')}><option value="UNKNOWN">Prefer not to say</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="OTHER">Other</option></select></label>
           <label><span>Blood group</span><select {...register('blood_group')}><option value="">Not known</option>{['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((value) => <option key={value}>{value}</option>)}</select></label>
           {mode === 'DEPENDENT' ? <label><span>Your relationship <b>*</b></span><select {...register('relationship')}><option value="PARENT">Parent</option><option value="LEGAL_GUARDIAN">Legal guardian</option></select></label> : null}
-          <label className="wide"><span>Preferred hospital branch <b>*</b></span><select disabled={branches.isLoading} {...register('preferred_branch_id')}><option value="">{branches.isLoading ? 'Loading branches…' : 'Select a branch'}</option>{branches.data?.data.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.city ? ` · ${branch.city}` : ''}</option>)}</select>{errors.preferred_branch_id ? <small>{errors.preferred_branch_id.message}</small> : null}</label>
+          <label className="wide">
+            <span>Preferred hospital branch <b>*</b></span>
+            <select disabled={branches.isLoading || branches.isError} {...register('preferred_branch_id')}>
+              <option value="">
+                {branches.isLoading
+                  ? 'Loading branches…'
+                  : branches.isError
+                    ? 'Failed to load branches'
+                    : 'Select a branch'}
+              </option>
+              {branches.data?.data.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                  {branch.city ? ` · ${branch.city}` : ''}
+                </option>
+              ))}
+            </select>
+            {branches.isError ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
+                <small className="portal-field-error">Could not load hospital branches.</small>
+                <button
+                  onClick={() => void branches.refetch()}
+                  style={{
+                    fontSize: '0.72rem',
+                    padding: '0.15rem 0.5rem',
+                    background: 'transparent',
+                    border: '1px solid var(--portal-border, #cbd5e1)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  type="button"
+                >
+                  <i className="ph ph-arrows-clockwise" /> Retry
+                </button>
+              </div>
+            ) : errors.preferred_branch_id ? (
+              <small>{errors.preferred_branch_id.message}</small>
+            ) : null}
+          </label>
           
           {isMinorAge ? (
             <div className="wide" style={{ marginTop: '10px', padding: '1rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '9px' }}>

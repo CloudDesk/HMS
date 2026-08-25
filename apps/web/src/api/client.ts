@@ -145,8 +145,12 @@ export const apiClient = {
   },
 
   async request<T>(path: string, options: ApiRequestOptions = {}) {
-    if (options.auth !== false && tokenStorage.isAccessTokenExpired()) {
-      await refreshAccessToken();
+    if (options.auth !== false && tokenStorage.isAccessTokenExpired() && refreshHandler) {
+      const refreshedToken = await refreshAccessToken();
+      if (!refreshedToken) {
+        unauthorizedHandler?.();
+        throw new ApiError('Session expired. Please sign in again.', 401, 'SESSION_EXPIRED');
+      }
     }
 
     try {
@@ -179,8 +183,12 @@ export const apiClient = {
   },
 
   async download(path: string, options: ApiRequestOptions = {}) {
-    if (options.auth !== false && tokenStorage.isAccessTokenExpired()) {
-      await refreshAccessToken();
+    if (options.auth !== false && tokenStorage.isAccessTokenExpired() && refreshHandler) {
+      const refreshedToken = await refreshAccessToken();
+      if (!refreshedToken) {
+        unauthorizedHandler?.();
+        throw new ApiError('Session expired. Please sign in again.', 401, 'SESSION_EXPIRED');
+      }
     }
 
     try {
