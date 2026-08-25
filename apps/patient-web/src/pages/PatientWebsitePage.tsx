@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type FocusEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FocusEvent, type FormEvent } from 'react';
 import { patientPortalApi, type PublicDoctor } from '../api/patient-portal';
 import { useAuth } from '../auth/useAuth';
 import { appConfig } from '../config';
@@ -77,11 +77,20 @@ export function PatientWebsitePage() {
   const globalResultCount = (globalDepartments.data?.data.length ?? 0) + (globalServices.data?.data.length ?? 0) + (globalDoctors.data?.data.length ?? 0);
   const globalSearchLoading = globalDepartments.isFetching || globalServices.isFetching || globalDoctors.isFetching;
 
-  const departmentOptions = allDepartments.data?.data?.length
-    ? allDepartments.data.data
-    : headerDepartments.data?.data?.length
-      ? headerDepartments.data.data
-      : departments.data?.data ?? [];
+  const departmentOptions = useMemo(() => {
+    const raw = allDepartments.data?.data?.length
+      ? allDepartments.data.data
+      : headerDepartments.data?.data?.length
+        ? headerDepartments.data.data
+        : departments.data?.data ?? [];
+    const seen = new Set<string>();
+    return raw.filter((dept) => {
+      const nameKey = dept.name.trim().toLowerCase();
+      if (seen.has(nameKey)) return false;
+      seen.add(nameKey);
+      return true;
+    });
+  }, [allDepartments.data, headerDepartments.data, departments.data]);
 
   const headerMenuProps = (menu: Exclude<HeaderMenu, null>) => ({
     className: `hospital-nav-item${openHeaderMenu === menu ? ' open' : ''}`,
@@ -210,7 +219,7 @@ export function PatientWebsitePage() {
               aria-label="Search hospital services, departments and doctors"
               onChange={(event) => { setGlobalSearch(event.target.value); setGlobalSearchOpen(true); }}
               onFocus={() => setGlobalSearchOpen(true)}
-              placeholder="Search hospital"
+              placeholder="Search"
               value={globalSearch}
             />
             {globalSearch ? <button aria-label="Clear search" onClick={() => { setGlobalSearch(''); setGlobalQuery(''); setGlobalSearchOpen(false); }} type="button"><i className="ph ph-x" /></button> : null}
@@ -256,13 +265,6 @@ export function PatientWebsitePage() {
           ) : null}
         </div>
         <div className="hospital-header-actions">
-          <label className="hospital-branch-select">
-            <i className="ph ph-map-pin" /><span>Location</span>
-            <select aria-label="Select hospital branch" onChange={(event) => setCatalogueQuery({ branch_id: event.target.value || null, department_id: null, department_page: null, doctor_page: null }, 'departments')} value={branchId}>
-              <option value="">All branches</option>
-              {branches.data?.data.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
-          </label>
           {appConfig.staffWebUrl ? <button className="hospital-staff-link" onClick={() => window.location.assign(appConfig.staffWebUrl)} type="button">Staff login</button> : null}
           <button className="hospital-signin" onClick={() => navigate(status === 'authenticated' ? '/portal' : '/login')} title={status === 'authenticated' ? `Open ${signedInLabel}'s patient record` : 'Sign in / Sign up'} type="button">
             <i className="ph ph-user-circle" /> {status === 'authenticated' ? signedInLabel : 'Sign in / Sign up'}

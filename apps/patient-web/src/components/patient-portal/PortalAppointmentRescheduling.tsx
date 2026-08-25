@@ -35,13 +35,14 @@ export function PortalAppointmentRescheduling({ appointment, onSaved, onCancel }
   onCancel: () => void;
 }) {
   const queryClient = useQueryClient();
+  const today = localDateValue(new Date());
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
       branch_id: appointment.branch?.id ?? '',
       department_id: appointment.department_id,
       doctor_id: appointment.doctor_id,
-      appointment_date: '',
+      appointment_date: today,
       start_time: '',
     },
   });
@@ -76,6 +77,9 @@ export function PortalAppointmentRescheduling({ appointment, onSaved, onCancel }
     mutationFn: async (values: Values) => {
       const slot = slots.data?.slots.find((item) => item.start_time === values.start_time);
       if (!slot) throw new Error('Select an available appointment time.');
+      if (slot.available === false || slot.is_available === false) {
+        throw new Error('This time slot is no longer available. Select an open slot.');
+      }
       return patientPortalApi.rescheduleAppointment(appointment.id, {
         doctor_id: values.doctor_id,
         appointment_date: values.appointment_date,
@@ -113,12 +117,36 @@ export function PortalAppointmentRescheduling({ appointment, onSaved, onCancel }
       </div>
     </div>
     <section><div className="portal-form-section-title"><span>1</span><div><strong>Choose the new care location</strong><small>You may keep the same doctor or choose another available doctor.</small></div></div><div className="portal-form-grid">
-      <label><span>Branch <b>*</b></span><select {...form.register('branch_id', { onChange: () => { form.setValue('department_id', ''); form.setValue('doctor_id', ''); form.setValue('appointment_date', ''); } })}><option value="">Select a branch</option>{branches.data?.data.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label><span>Department <b>*</b></span><select disabled={!branchId || departments.isLoading} {...form.register('department_id', { onChange: () => { form.setValue('doctor_id', ''); form.setValue('appointment_date', ''); } })}><option value="">Select a department</option>{departments.data?.data.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label className="wide"><span>Doctor <b>*</b></span><select disabled={!departmentId || doctors.isLoading} {...form.register('doctor_id', { onChange: () => form.setValue('appointment_date', '') })}><option value="">Select a doctor</option>{doctors.data?.data.map((item) => <option key={item.id} value={item.id}>{item.display_name} · {item.specialization}</option>)}</select></label>
+      <label><span>Branch <b>*</b></span><select {...form.register('branch_id', { onChange: () => { form.setValue('department_id', ''); form.setValue('doctor_id', ''); form.setValue('appointment_date', today); } })}><option value="">Select a branch</option>{branches.data?.data.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label><span>Department <b>*</b></span><select disabled={!branchId || departments.isLoading} {...form.register('department_id', { onChange: () => { form.setValue('doctor_id', ''); form.setValue('appointment_date', today); } })}><option value="">Select a department</option>{departments.data?.data.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label className="wide"><span>Doctor <b>*</b></span><select disabled={!departmentId || doctors.isLoading} {...form.register('doctor_id', { onChange: () => form.setValue('appointment_date', today) })}><option value="">Select a doctor</option>{doctors.data?.data.map((item) => <option key={item.id} value={item.id}>{item.display_name} · {item.specialization}</option>)}</select></label>
     </div></section>
-    <section><div className="portal-form-section-title"><span>2</span><div><strong>Select a new date and time</strong><small>The new slot is checked again when you confirm.</small></div></div><div className="portal-form-grid portal-date-options"><label><span>New date <b>*</b></span><input min={localDateValue(new Date())} type="date" {...form.register('appointment_date')} /></label></div>
-      <div className="portal-slot-area">{!doctorId || !appointmentDate ? <p><i className="ph ph-info" /> Select a doctor and date to see available times.</p> : slots.isLoading ? <p><i className="ph ph-spinner-gap" /> Checking live availability…</p> : slots.isError ? <p className="error"><i className="ph ph-warning-circle" /> Availability could not be loaded.</p> : slots.data?.slots.length ? <div className="portal-slot-grid">{slots.data.slots.map((slot) => <button className={selectedTime === slot.start_time ? 'selected' : ''} key={slot.start_time} onClick={() => form.setValue('start_time', slot.start_time, { shouldValidate: true })} type="button"><strong>{slot.start_time}</strong><small>to {slot.end_time}</small></button>)}</div> : <p><i className="ph ph-calendar-x" /> No open times remain on this date.</p>}</div>
+    <section><div className="portal-form-section-title"><span>2</span><div><strong>Select a new date and time</strong><small>The new slot is checked again when you confirm.</small></div></div><div className="portal-form-grid portal-date-options"><label><span>New date <b>*</b></span><input min={today} onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* ignore browsers without showPicker support */ } }} style={{ cursor: 'pointer' }} type="date" {...form.register('appointment_date')} /></label></div>
+      <div className="portal-slot-area">{!doctorId || !appointmentDate ? <p><i className="ph ph-info" /> Select a doctor and date to see available times.</p> : slots.isLoading ? <p><i className="ph ph-spinner-gap" /> Checking live availability…</p> : slots.isError ? <p className="error"><i className="ph ph-warning-circle" /> Availability could not be loaded.</p> : slots.data?.slots.length ? <div className="portal-slot-grid">{slots.data.slots.map((slot) => {
+        const isAvailable = slot.available !== false && slot.is_available !== false;
+        const isSelected = selectedTime === slot.start_time;
+        return (
+          <button
+            className={`portal-slot-btn ${isAvailable ? 'available' : 'unavailable'} ${isSelected ? 'selected' : ''}`}
+            disabled={!isAvailable}
+            key={slot.start_time}
+            onClick={() => {
+              if (isAvailable) {
+                form.setValue('start_time', slot.start_time, { shouldValidate: true });
+              }
+            }}
+            type="button"
+          >
+            <div className="portal-slot-time">
+              <strong>{slot.start_time}</strong>
+              <small>to {slot.end_time}</small>
+            </div>
+            <span className={`portal-slot-status-badge ${isAvailable ? 'badge-available' : 'badge-unavailable'}`}>
+              {isAvailable ? 'Available' : (slot.reason || 'Booked')}
+            </span>
+          </button>
+        );
+      })}</div> : <p><i className="ph ph-calendar-x" /> No open times remain on this date.</p>}</div>
     </section>
     {mutationMessage ? <div className="auth-alert auth-alert--error" role="alert">{mutationMessage}</div> : null}
     <footer className="portal-form-actions"><button onClick={onCancel} type="button">Keep current appointment</button><button className="primary" disabled={mutation.isPending} type="submit"><i className="ph ph-calendar-check" /> {mutation.isPending ? 'Rescheduling…' : 'Confirm new appointment'}</button></footer>

@@ -210,8 +210,14 @@ export function PatientPortalPage() {
     queryFn: patientPortalApi.context,
   });
   useEffect(() => {
-    if (!selectedPatientId && contextQuery.data?.patients[0])
-      setSelectedPatientId(contextQuery.data.patients[0].id);
+    const patients = contextQuery.data?.patients;
+    const firstPatient = patients?.[0];
+    if (patients && patients.length > 0 && firstPatient) {
+      const isValid = patients.some((p) => p.id === selectedPatientId);
+      if (!selectedPatientId || !isValid) {
+        setSelectedPatientId(firstPatient.id);
+      }
+    }
   }, [contextQuery.data, selectedPatientId]);
   const query = useQuery({
     queryKey: ['patient-portal-overview', selectedPatientId],

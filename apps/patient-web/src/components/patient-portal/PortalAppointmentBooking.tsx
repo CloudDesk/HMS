@@ -42,24 +42,39 @@ export function PortalAppointmentBooking({ context, initialDoctorId, initialBran
 }) {
   const queryClient = useQueryClient();
   const today = localDateValue(new Date());
+  const defaultPatient = context.patients[0];
+  const defaultBranchId = initialBranchId || defaultPatient?.preferred_branch?.id || '';
+
   const form = useForm<BookingValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      patient_id: context.patients[0]?.id ?? '',
-      branch_id: initialBranchId ?? '',
+      patient_id: defaultPatient?.id ?? '',
+      branch_id: defaultBranchId,
       department_id: initialDepartmentId ?? '',
       doctor_id: initialDoctorId ?? '',
-      appointment_date: '',
+      appointment_date: today,
       start_time: '',
       visit_type: 'NEW_CONSULTATION',
       reason: '',
     },
   });
+  const selectedPatientId = form.watch('patient_id');
   const branchId = form.watch('branch_id');
   const departmentId = form.watch('department_id');
   const doctorId = form.watch('doctor_id');
   const appointmentDate = form.watch('appointment_date');
   const selectedTime = form.watch('start_time');
+
+  // Auto-populate branch when patient selection changes
+  useEffect(() => {
+    const selectedPatient = context.patients.find((p) => p.id === selectedPatientId);
+    if (selectedPatient?.preferred_branch?.id) {
+      form.setValue('branch_id', selectedPatient.preferred_branch.id, { shouldValidate: true });
+      form.setValue('department_id', '');
+      form.setValue('doctor_id', '');
+      form.setValue('start_time', '');
+    }
+  }, [selectedPatientId, context.patients, form]);
 
   const branches = useQuery({ queryKey: ['public-branches'], queryFn: () => patientPortalApi.publicBranches({ limit: 24 }) });
   const departments = useQuery({ queryKey: ['public-departments-booking', branchId], queryFn: () => patientPortalApi.publicDepartments({ limit: 24, branchId: branchId || undefined }) });
@@ -131,7 +146,7 @@ export function PortalAppointmentBooking({ context, initialDoctorId, initialBran
   useEffect(() => form.setValue('start_time', ''), [doctorId, appointmentDate, form]);
 
   const resetSchedule = () => {
-    form.setValue('appointment_date', '');
+    form.setValue('appointment_date', today);
     form.setValue('start_time', '');
   };
 
@@ -139,6 +154,9 @@ export function PortalAppointmentBooking({ context, initialDoctorId, initialBran
     mutationFn: async (values: BookingValues) => {
       const slot = slots.data?.slots.find((item) => item.start_time === values.start_time);
       if (!slot) throw new Error('Select an available appointment time.');
+      if (slot.available === false || slot.is_available === false) {
+        throw new Error('This time slot is no longer available. Select an open slot.');
+      }
       return patientPortalApi.bookAppointment({
         patient_id: values.patient_id,
         doctor_id: values.doctor_id,
@@ -167,8 +185,32 @@ export function PortalAppointmentBooking({ context, initialDoctorId, initialBran
       <label><span>Department <b>*</b></span><select {...form.register('department_id', { onChange: () => { form.setValue('doctor_id', ''); resetSchedule(); } })} disabled={departments.isLoading}><option value="">{departments.isLoading ? 'Loading departments…' : 'Select a department'}</option>{departmentList.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select>{form.formState.errors.department_id ? <small>{form.formState.errors.department_id.message}</small> : null}</label>
       <label><span>Doctor <b>*</b></span><select {...form.register('doctor_id', { onChange: resetSchedule })} disabled={doctors.isLoading}><option value="">{!departmentId ? 'Select a department first' : doctors.isLoading ? 'Loading doctors…' : doctorList.length === 0 ? 'No doctors available in this department' : 'Select a doctor'}</option>{doctorList.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.display_name} · {doctor.specialization}</option>)}</select>{form.formState.errors.doctor_id ? <small>{form.formState.errors.doctor_id.message}</small> : null}</label>
     </div></section>
-    <section><div className="portal-form-section-title"><span>2</span><div><strong>Date and available time</strong><small>Select a date to load the doctor’s live appointment slots.</small></div></div><div className="portal-form-grid portal-date-options"><label><span>Appointment date <b>*</b></span><input min={today} type="date" {...form.register('appointment_date')} />{form.formState.errors.appointment_date ? <small>{form.formState.errors.appointment_date.message}</small> : null}</label><label><span>Visit type <b>*</b></span><select {...form.register('visit_type')}><option value="NEW_CONSULTATION">New consultation</option><option value="FOLLOW_UP">Follow-up</option><option value="PROCEDURE">Procedure</option></select></label></div>
-      <div className="portal-slot-area">{!doctorId || !appointmentDate ? <p><i className="ph ph-info" /> Select a doctor and date to view available times.</p> : slots.isLoading ? <p><i className="ph ph-spinner-gap" /> Checking live availability…</p> : slots.isError ? <p className="error"><i className="ph ph-warning-circle" /> Availability could not be loaded.</p> : slots.data?.slots.length ? <div className="portal-slot-grid">{slots.data.slots.map((slot) => <button className={selectedTime === slot.start_time ? 'selected' : ''} key={slot.start_time} onClick={() => form.setValue('start_time', slot.start_time, { shouldValidate: true })} type="button"><strong>{slot.start_time}</strong><small>to {slot.end_time}</small></button>)}</div> : <p><i className="ph ph-calendar-x" /> {slots.data?.unavailable_reason || 'No open times remain on this date.'}</p>}{form.formState.errors.start_time ? <small className="portal-field-error">{form.formState.errors.start_time.message}</small> : null}</div>
+    <section><div className="portal-form-section-title"><span>2</span><div><strong>Date and available time</strong><small>Select a date to load the doctor’s live appointment slots.</small></div></div><div className="portal-form-grid portal-date-options"><label><span>Appointment date <b>*</b></span><input min={today} onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* ignore browsers without showPicker support */ } }} style={{ cursor: 'pointer' }} type="date" {...form.register('appointment_date')} />{form.formState.errors.appointment_date ? <small>{form.formState.errors.appointment_date.message}</small> : null}</label><label><span>Visit type <b>*</b></span><select {...form.register('visit_type')}><option value="NEW_CONSULTATION">New consultation</option><option value="FOLLOW_UP">Follow-up</option><option value="PROCEDURE">Procedure</option></select></label></div>
+      <div className="portal-slot-area">{!doctorId || !appointmentDate ? <p><i className="ph ph-info" /> Select a doctor and date to view available times.</p> : slots.isLoading ? <p><i className="ph ph-spinner-gap" /> Checking live availability…</p> : slots.isError ? <p className="error"><i className="ph ph-warning-circle" /> Availability could not be loaded.</p> : slots.data?.slots.length ? <div className="portal-slot-grid">{slots.data.slots.map((slot) => {
+        const isAvailable = slot.available !== false && slot.is_available !== false;
+        const isSelected = selectedTime === slot.start_time;
+        return (
+          <button
+            className={`portal-slot-btn ${isAvailable ? 'available' : 'unavailable'} ${isSelected ? 'selected' : ''}`}
+            disabled={!isAvailable}
+            key={slot.start_time}
+            onClick={() => {
+              if (isAvailable) {
+                form.setValue('start_time', slot.start_time, { shouldValidate: true });
+              }
+            }}
+            type="button"
+          >
+            <div className="portal-slot-time">
+              <strong>{slot.start_time}</strong>
+              <small>to {slot.end_time}</small>
+            </div>
+            <span className={`portal-slot-status-badge ${isAvailable ? 'badge-available' : 'badge-unavailable'}`}>
+              {isAvailable ? 'Available' : (slot.reason || 'Booked')}
+            </span>
+          </button>
+        );
+      })}</div> : <p><i className="ph ph-calendar-x" /> {slots.data?.unavailable_reason || 'No open times remain on this date.'}</p>}{form.formState.errors.start_time ? <small className="portal-field-error">{form.formState.errors.start_time.message}</small> : null}</div>
     </section>
     <section><div className="portal-form-section-title"><span>3</span><div><strong>Reason for visit</strong><small>This helps the care team prepare for your appointment.</small></div></div><div className="portal-form-grid"><label className="wide"><span>Reason <b>*</b></span><textarea placeholder="Briefly describe the concern or service you need" rows={4} {...form.register('reason')} />{form.formState.errors.reason ? <small>{form.formState.errors.reason.message}</small> : null}</label></div></section>
     {mutationMessage ? <div className="auth-alert auth-alert--error" role="alert">{mutationMessage}</div> : null}

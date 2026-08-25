@@ -1,4 +1,23 @@
+import os from 'node:os';
+import path from 'node:path';
+
 type AppEnv = 'dev' | 'test' | 'prod';
+
+const isServerless = Boolean(
+  process.env.NETLIFY ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.VERCEL ||
+    process.env.LAMBDA_TASK_ROOT ||
+    (typeof process.cwd === 'function' && process.cwd().startsWith('/var/task')),
+);
+
+const getDefaultStoragePath = (subDir: string) => {
+  if (isServerless) {
+    return path.join(os.tmpdir(), 'hms-storage', subDir);
+  }
+
+  return `./storage/${subDir}`;
+};
 
 const parseInteger = (value: string | undefined, fallback: number) => {
   if (!value) {
@@ -79,8 +98,10 @@ export const env = {
   },
   storage: {
     provider: process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER ?? 'local',
-    localPatientDocumentsPath: process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? './storage/patient-documents',
-    localHospitalLogosPath: process.env.LOCAL_HOSPITAL_LOGO_STORAGE_PATH ?? './storage/hospital-logos',
+    localPatientDocumentsPath:
+      process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? getDefaultStoragePath('patient-documents'),
+    localHospitalLogosPath:
+      process.env.LOCAL_HOSPITAL_LOGO_STORAGE_PATH ?? getDefaultStoragePath('hospital-logos'),
     gcpPatientDocumentsBucket: process.env.GCP_PATIENT_DOCUMENTS_BUCKET ?? '',
   },
   upload: {

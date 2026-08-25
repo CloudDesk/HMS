@@ -82,6 +82,8 @@ export class PatientPortalRepository {
     const nonClinicalRegex = /administration|admin|billing|finance|reception|nursing|pharmacy|imaging|laboratory|lab/i;
     const baseFilter: Record<string, unknown> = {
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+      status: { $ne: 'INACTIVE' },
+      isClinical: { $ne: false },
       name: { $not: nonClinicalRegex },
       code: { $not: nonClinicalRegex },
     };
@@ -97,23 +99,29 @@ export class PatientPortalRepository {
       andConditions.push({ name: new RegExp(escapeRegex(query.search), 'i') });
     }
     const filter = andConditions.length > 1 ? { $and: andConditions } : baseFilter;
-    const [departments, total] = await Promise.all([
-      DepartmentModel.find(filter)
-        .select('code name description branchId')
-        .sort({ name: 1 })
-        .skip((query.page - 1) * query.limit)
-        .limit(query.limit)
-        .lean(),
-      DepartmentModel.countDocuments(filter),
-    ]);
+    const departments = await DepartmentModel.find(filter)
+      .select('code name description branchId')
+      .sort({ name: 1 })
+      .lean();
 
-    const branchIds = validObjectIds(departments.map((item) => (item as any).branchId ?? (item as any).branchIds?.[0]));
+    const seenNames = new Set<string>();
+    const uniqueDepartments = departments.filter((dept) => {
+      const key = dept.name.trim().toLowerCase();
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    });
+
+    const total = uniqueDepartments.length;
+    const pagedDepartments = uniqueDepartments.slice((query.page - 1) * query.limit, query.page * query.limit);
+
+    const branchIds = validObjectIds(pagedDepartments.map((item) => (item as any).branchId ?? (item as any).branchIds?.[0]));
     const branches = branchIds.length
       ? await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city').lean()
       : [];
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
     return {
-      data: departments.map((department) => {
+      data: pagedDepartments.map((department) => {
         const deptBranchId = (department as any).branchId ?? (department as any).branchIds?.[0];
         const branch = branchById.get(String(deptBranchId));
         return {
@@ -132,7 +140,16 @@ export class PatientPortalRepository {
     const filter: Record<string, unknown> = {
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     };
-    if (query.departmentId) filter.departmentId = objectId(query.departmentId);
+    if (query.departmentId) {
+      const validObjId = objectId(query.departmentId);
+      const targetDept = validObjId ? await DepartmentModel.findById(validObjId).lean() : null;
+      if (targetDept) {
+        const sameNameDepts = await DepartmentModel.find({ name: targetDept.name, deletedAt: null, status: { $ne: 'INACTIVE' } }).select('_id').lean();
+        filter.departmentId = { $in: sameNameDepts.map((d) => d._id) };
+      } else {
+        filter.departmentId = objectId(query.departmentId);
+      }
+    }
     if (query.branchId) {
       const departmentIds = await DepartmentModel.distinct('_id', {
         branchId: objectId(query.branchId),
@@ -193,8 +210,16 @@ export class PatientPortalRepository {
     if (query.departmentId) {
       const dId = query.departmentId;
       const validObjId = objectId(dId);
-      const deptConds: Record<string, unknown>[] = [{ departmentId: String(dId) }];
-      if (validObjId) deptConds.push({ departmentId: validObjId });
+      const targetDept = validObjId ? await DepartmentModel.findById(validObjId).lean() : null;
+      let matchingDeptIds: (Types.ObjectId | string)[] = validObjId ? [validObjId] : [dId];
+      if (targetDept) {
+        const sameNameDepts = await DepartmentModel.find({ name: targetDept.name, deletedAt: null, status: { $ne: 'INACTIVE' } }).select('_id').lean();
+        matchingDeptIds = sameNameDepts.map((d) => d._id);
+      }
+      const deptConds: Record<string, unknown>[] = [
+        { departmentId: { $in: matchingDeptIds } },
+        { departmentId: { $in: matchingDeptIds.map((id) => String(id)) } },
+      ];
       andConditions.push({ $or: deptConds });
     }
     if (query.branchId && !query.departmentId) {

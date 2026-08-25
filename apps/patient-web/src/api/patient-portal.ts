@@ -367,7 +367,7 @@ export const patientPortalApi = {
       date: string;
       is_available: boolean;
       unavailable_reason: string | null;
-      slots: Array<{ start_time: string; end_time: string }>;
+      slots: Array<{ start_time: string; end_time: string; available?: boolean; is_available?: boolean; reason?: string }>;
     }>(
       `/patient-portal/public/doctors/${encodeURIComponent(doctorId)}/slots?date=${encodeURIComponent(date)}`,
       { auth: false },
