@@ -76,8 +76,13 @@ export class OpdVisitRepository {
   }
 
   async markAdmissionConverted(id: string, admissionId: string, userId: string, session: ClientSession) {
-    return OpdVisitModel.findOneAndUpdate({ _id: requiredObjectId(id), inpatientAdmissionId: null, deletedAt: null }, { $set: { inpatientAdmissionId: requiredObjectId(admissionId), admissionConvertedAt: new Date(), updatedBy: requiredObjectId(userId) } }, { new: true, session }).lean<OpdVisitLean>();
+    return OpdVisitModel.findOneAndUpdate(
+      { _id: requiredObjectId(id), inpatientAdmissionId: null, deletedAt: null },
+      { $set: { inpatientAdmissionId: requiredObjectId(admissionId), admissionConvertedAt: new Date(), updatedBy: requiredObjectId(userId) } },
+      { new: true, session }
+    ).lean<OpdVisitLean>();
   }
+
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds').lean();
@@ -97,6 +102,35 @@ export class OpdVisitRepository {
       _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null,
     }).select('_id').lean();
     return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async reconcileStaleVisits(): Promise<number> {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const staleStatuses: OpdVisit['status'][] = [
+      'CHECKED_IN',
+      'WAITING_FOR_VITALS',
+      'READY_FOR_CONSULTATION',
+      'SKIPPED',
+    ];
+
+    const result = await OpdVisitModel.updateMany(
+      {
+        visitDate: { $lt: todayStart },
+        status: { $in: staleStatuses },
+        deletedAt: null,
+      },
+      {
+        $set: {
+          status: 'NO_SHOW',
+          notes: 'Automatically marked as NO_SHOW during end-of-day reconciliation.',
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    return result.modifiedCount;
   }
 
   async list(query: OpdVisitListQuery, branchIds?: string[]) {
@@ -153,7 +187,8 @@ export class OpdVisitRepository {
 
   async getById(id: string, branchIds?: string[]): Promise<OpdVisit | undefined> {
     const visit = await OpdVisitModel.findOne({
-      _id: id, deletedAt: null,
+      _id: id,
+      deletedAt: null,
       ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}),
     }).lean<OpdVisitLean>();
     return visit ? toVisit(visit) : undefined;
@@ -168,8 +203,12 @@ export class OpdVisitRepository {
   }
 
   async findActiveByPatient(patientId: string): Promise<OpdVisit | undefined> {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
     const visit = await OpdVisitModel.findOne({
       patientId: requiredObjectId(patientId),
+      visitDate: { $gte: todayStart },
       status: { $nin: terminalStatuses },
       deletedAt: null,
     }).lean<OpdVisitLean>();

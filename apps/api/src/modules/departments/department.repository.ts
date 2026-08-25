@@ -48,10 +48,24 @@ export class DepartmentRepository {
     const limit = query.limit ?? 10;
     const filter: Record<string, unknown> = { deletedAt: null };
     if (query.status) filter.status = query.status;
-    if (query.branch_id) filter.branchIds = new Types.ObjectId(query.branch_id);
+    const andClauses: Record<string, unknown>[] = [];
+    if (query.branch_id) {
+      const bId = new Types.ObjectId(query.branch_id);
+      andClauses.push({
+        $or: [
+          { branchIds: bId },
+          { branchId: bId },
+          { branchIds: { $exists: false } },
+          { branchIds: { $size: 0 } },
+        ],
+      });
+    }
     if (query.search) {
       const search = escapedRegex(query.search);
-      filter.$or = [{ name: search }, { code: search }, { description: search }];
+      andClauses.push({ $or: [{ name: search }, { code: search }, { description: search }] });
+    }
+    if (andClauses.length > 0) {
+      filter.$and = andClauses;
     }
 
     const sortFields: Record<NonNullable<DepartmentListQuery['sortBy']>, string> = {

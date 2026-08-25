@@ -35,9 +35,94 @@ export function SurgeryWorkspacePage() {
 
   if (!state.branchId && state.branches.length === 0) return <div className="admin-dashboard-state"><i className="ph ph-buildings"/><strong>No authorized branch</strong><span>Assign this user to a branch before managing procedure bookings.</span></div>;
   return <div className="page-shell">
-    <div className="page-heading"><div><h1>Surgery &amp; Procedures</h1><p>Coordinate recommendations, prerequisites and procedure schedules</p></div><div className="page-actions"><select aria-label="Branch" value={state.branchId} onChange={(event) => actions.setBranchId(event.target.value)}>{state.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className="btn-primary" onClick={() => setRecommendationOpen(true)}><i className="ph ph-plus"/> New Recommendation</button></div></div>
-    <section className="kpi-grid"><div className="kpi-card"><span className="kpi-title">Active recommendations</span><strong className="kpi-value">{state.recommendations.filter((item) => item.status === 'ACTIVE').length}</strong></div><div className="kpi-card"><span className="kpi-title">Pending confirmation</span><strong className="kpi-value">{state.bookings.filter((item) => item.status === 'PENDING_CONFIRMATION').length}</strong></div><div className="kpi-card"><span className="kpi-title">Booked</span><strong className="kpi-value">{state.bookings.filter((item) => item.status === 'BOOKED').length}</strong></div><div className="kpi-card"><span className="kpi-title">Completed</span><strong className="kpi-value">{state.bookings.filter((item) => item.status === 'COMPLETED').length}</strong></div></section>
-    <div className="filters-toolbar"><div className="segmented-control"><button className={state.tab === 'recommendations' ? 'active' : ''} onClick={() => actions.setTab('recommendations')}>Recommendations</button><button className={state.tab === 'bookings' ? 'active' : ''} onClick={() => actions.setTab('bookings')}>Bookings</button><button className={state.tab === 'schedule' ? 'active' : ''} onClick={() => actions.setTab('schedule')}>Schedule</button></div><label><span>Search</span><input placeholder="Number, MRN, patient or procedure" value={state.searchText} onChange={(event) => actions.setSearchText(event.target.value)} /></label><label><span>Status</span><select value={state.status} onChange={(event) => actions.setStatus(event.target.value)}><option value="">All statuses</option>{state.tab === 'recommendations' ? <><option value="ACTIVE">Active</option><option value="BOOKED">Booked</option><option value="CANCELLED">Cancelled</option></> : <><option value="PENDING_CONFIRMATION">Pending confirmation</option><option value="BOOKED">Booked</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></>}</select></label>{state.tab === 'schedule' ? <label><span>Date</span><input type="date" value={state.date} onChange={(event) => actions.setDate(event.target.value)} /></label> : null}</div>
+    <div className="page-heading">
+      <div>
+        <h1>Surgery &amp; Procedures</h1>
+        <p>Coordinate recommendations, prerequisites and procedure schedules</p>
+      </div>
+      <div className="page-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <select aria-label="Branch" value={state.branchId} onChange={(event) => actions.setBranchId(event.target.value)} style={{ height: '38px', borderRadius: '6px' }}>
+          {state.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <button className="btn-primary" onClick={() => setRecommendationOpen(true)} type="button">
+          <i className="ph ph-plus"/> New Recommendation
+        </button>
+      </div>
+    </div>
+
+    {/* 4 Modern Surgery KPI Metric Cards */}
+    <section className="surgery-kpi-grid">
+      <div className="surgery-kpi-card blue">
+        <div className="surgery-kpi-icon"><i className="ph ph-clipboard-text" /></div>
+        <div className="surgery-kpi-body">
+          <span>Active Recommendations</span>
+          <strong>{state.recommendations.filter((item) => item.status === 'ACTIVE').length}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#64748b' }}>Awaiting booking</small>
+        </div>
+      </div>
+      <div className="surgery-kpi-card orange">
+        <div className="surgery-kpi-icon"><i className="ph ph-clock-countdown" /></div>
+        <div className="surgery-kpi-body">
+          <span>Pending Confirmation</span>
+          <strong>{state.bookings.filter((item) => item.status === 'PENDING_CONFIRMATION').length}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#ea580c' }}>Prerequisites pending</small>
+        </div>
+      </div>
+      <div className="surgery-kpi-card purple">
+        <div className="surgery-kpi-icon"><i className="ph ph-calendar-check" /></div>
+        <div className="surgery-kpi-body">
+          <span>Booked / Scheduled</span>
+          <strong>{state.bookings.filter((item) => item.status === 'BOOKED').length}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#9333ea' }}>Confirmed slots</small>
+        </div>
+      </div>
+      <div className="surgery-kpi-card green">
+        <div className="surgery-kpi-icon"><i className="ph ph-check-circle" /></div>
+        <div className="surgery-kpi-body">
+          <span>Completed</span>
+          <strong>{state.bookings.filter((item) => item.status === 'COMPLETED').length}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#16a34a' }}>Discharged / Done</small>
+        </div>
+      </div>
+    </section>
+
+    <div className="filters-toolbar" style={{ background: '#fff', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.25rem' }}>
+      <div className="segmented-control">
+        <button className={state.tab === 'recommendations' ? 'active' : ''} onClick={() => actions.setTab('recommendations')} type="button">Recommendations</button>
+        <button className={state.tab === 'bookings' ? 'active' : ''} onClick={() => actions.setTab('bookings')} type="button">Bookings</button>
+        <button className={state.tab === 'schedule' ? 'active' : ''} onClick={() => actions.setTab('schedule')} type="button">Schedule</button>
+      </div>
+      <label>
+        <span>Search</span>
+        <input placeholder="Number, MRN, patient or procedure" value={state.searchText} onChange={(event) => actions.setSearchText(event.target.value)} />
+      </label>
+      <label>
+        <span>Status</span>
+        <select value={state.status} onChange={(event) => actions.setStatus(event.target.value)}>
+          <option value="">All statuses</option>
+          {state.tab === 'recommendations' ? (
+            <>
+              <option value="ACTIVE">Active</option>
+              <option value="BOOKED">Booked</option>
+              <option value="CANCELLED">Cancelled</option>
+            </>
+          ) : (
+            <>
+              <option value="PENDING_CONFIRMATION">Pending confirmation</option>
+              <option value="BOOKED">Booked</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </>
+          )}
+        </select>
+      </label>
+      {state.tab === 'schedule' ? (
+        <label>
+          <span>Date</span>
+          <input type="date" value={state.date} onChange={(event) => actions.setDate(event.target.value)} />
+        </label>
+      ) : null}
+    </div>
     {state.tab === 'recommendations' ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Recommendation</th><th>Patient</th><th>Procedure</th><th>Doctor / Department</th><th>Clinical reason</th><th>Status</th><th>Actions</th></tr></thead><tbody>{state.recommendationsQuery.isLoading ? <StateRow columns={7} text="Loading recommendations..."/> : state.recommendationsQuery.isError ? <StateRow columns={7} text="Unable to load recommendations."/> : state.recommendations.length === 0 ? <StateRow columns={7} text="No live procedure recommendations found."/> : state.recommendations.map((item) => <tr key={item.id}><td><strong>{item.recommendation_number}</strong><br/><small>{new Date(item.created_at).toLocaleDateString()}</small></td><td>{item.patient_name}<br/><small>{item.patient_number}</small></td><td>{item.service_name}</td><td>{item.recommending_doctor_name}<br/><small>{item.department_name}</small></td><td>{item.clinical_reason}</td><td><StatusBadge tone={statusTone(item.status)}>{item.status}</StatusBadge></td><td><div className="table-actions">{item.status === 'ACTIVE' ? <><button className="btn-primary compact" onClick={() => { setBookingFor(item); bookingForm.reset(); }}>Book</button><button className="btn-danger compact" onClick={() => { setBookingFor(item); setActionMode('cancel-recommendation'); }}>Cancel</button></> : item.booking_id ? <button className="btn-secondary compact" onClick={() => actions.setTab('bookings')}>View booking</button> : null}</div></td></tr>)}</tbody></table></div> : null}
     {state.tab === 'bookings' ? <div className="table-scroll"><table className="data-table"><thead><tr><th>Booking</th><th>Patient</th><th>Procedure</th><th>Schedule</th><th>Doctor</th><th>Prerequisites</th><th>Status</th><th>Actions</th></tr></thead><tbody>{state.bookingsQuery.isLoading ? <StateRow columns={8} text="Loading procedure bookings..."/> : state.bookingsQuery.isError ? <StateRow columns={8} text="Unable to load procedure bookings."/> : state.bookings.length === 0 ? <StateRow columns={8} text="No live procedure bookings found."/> : state.bookings.map((item) => <tr key={item.id}><td><strong>{item.booking_number}</strong></td><td>{item.patient_name}<br/><small>{item.patient_number}</small></td><td>{item.service_name}<br/><small>{item.duration_minutes} min</small></td><td>{displayDate(item.scheduled_start)}</td><td>{item.doctor_name}</td><td><RequirementFlags booking={item} service={state.services.find((service) => service.id === item.service_id)} /></td><td><StatusBadge tone={statusTone(item.status)}>{item.status.replaceAll('_', ' ')}</StatusBadge></td><td><button className="btn-secondary compact" onClick={() => setSelected(item)}>Review</button></td></tr>)}</tbody></table></div> : null}
     {state.tab === 'schedule' ? <section className="content-card"><div className="section-heading"><div><h2>Procedure Schedule</h2><p>All doctors and active procedure bookings for {new Date(`${state.date}T00:00:00`).toLocaleDateString()}</p></div></div>{state.bookingsQuery.isLoading ? <div className="empty-state">Loading schedule...</div> : state.bookingsQuery.isError ? <div className="error-state">Unable to load the procedure schedule.</div> : state.scheduleRows.length === 0 ? <div className="empty-state">No procedures are scheduled for this date.</div> : <div className="schedule-timeline">{state.scheduleRows.map((item) => <button type="button" className="schedule-event" key={item.id} onClick={() => setSelected(item)}><span>{new Date(item.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><strong>{item.patient_name} · {item.service_name}</strong><small>{item.doctor_name} · {item.department_name}</small><StatusBadge tone={statusTone(item.status)}>{item.status.replaceAll('_', ' ')}</StatusBadge></button>)}</div>}</section> : null}

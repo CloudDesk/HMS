@@ -296,13 +296,13 @@ export function AppRouter() {
     title = 'System Settings';
     breadcrumbs = ['Home', 'Administration', 'System Settings'];
     content = <SystemSettingsPage />;
-  } else if (pathname === '/admissions/beds') {
+  } else if (pathname === '/admissions/beds' || pathname === '/admissions/bed-availability') {
     title = 'Bed Management';
     breadcrumbs = ['Home', 'Admissions', 'Bed Management'];
     content = <BedManagementPage />;
-  } else if (pathname === '/admissions/inpatients') {
-    title = 'Inpatient Admission';
-    breadcrumbs = ['Home', 'Admissions', 'Inpatient Admission'];
+  } else if (pathname === '/admissions/inpatients' || pathname === '/admissions/requests') {
+    title = 'Admission Requests';
+    breadcrumbs = ['Home', 'Admissions', 'Admission Requests'];
     content = <InpatientAdmissionPage />;
   } else if (pathname === '/reports/library') {
     title = 'Phase 2 Reports';

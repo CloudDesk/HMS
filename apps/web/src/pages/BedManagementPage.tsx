@@ -103,75 +103,346 @@ export function BedManagementPage() {
       setConfirmAction(null);
     } catch (error) { toast.error(errorMessage(error)); }
   };
+  const [activeSubTab, setActiveSubTab] = useState<'ward-overview' | 'bed-allocation'>('ward-overview');
+  const [selectedPatientForAllocation, setSelectedPatientForAllocation] = useState<any>(null);
 
   if (!branchId && feature.isSuperAdmin && feature.branchQuery.isLoading) return <div className="admin-dashboard-state"><strong>Loading authorized branches</strong><span>Fetching active branches.</span></div>;
   if (!branchId) return <div className="admin-dashboard-state admin-dashboard-state--error"><strong>No authorized branch</strong><span>Assign this user to an active branch before managing beds.</span></div>;
 
   return <div className="page-shell bed-management-page">
-    <header className="bed-management-header">
-      <div><h1>Bed Management</h1><p>Live ward capacity, holds, allotments and transfers</p></div>
-      <div className="bed-management-actions">
-        <select aria-label="Branch" value={branchId} onChange={(event) => updateParam('branch', event.target.value)}>{feature.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
+    <header className="bed-management-header" style={{ marginBottom: '1rem' }}>
+      <div>
+        <h1>Bed Management</h1>
+        <p>Ward capacity, room allocation and bed assignment</p>
+      </div>
+      <div className="bed-management-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <select aria-label="Branch" value={branchId} onChange={(event) => updateParam('branch', event.target.value)} style={{ height: '38px', borderRadius: '6px' }}>
+          {feature.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+        </select>
+        <button className="btn-secondary" type="button" onClick={() => window.print()}>
+          <i className="ph ph-printer" /> Print Bed List
+        </button>
+        <button className="btn-primary" type="button" onClick={() => setModal('hold')}>
+          <i className="ph ph-user-plus" /> Select Patient
+        </button>
         {permissions.canViewPolicy && <button className="btn-secondary" type="button" onClick={() => setModal('policy')}><i className="ph ph-sliders-horizontal" /> Policy</button>}
         {permissions.canCreateWard && <button className="btn-secondary" type="button" onClick={() => setModal('ward')}><i className="ph ph-buildings" /> Add Ward</button>}
-        {permissions.canCreateBed && <button className="btn-primary" type="button" onClick={() => setModal('bed')}><i className="ph ph-bed" /> Add Bed</button>}
+        {permissions.canCreateBed && <button className="btn-secondary" type="button" onClick={() => setModal('bed')}><i className="ph ph-bed" /> Add Bed</button>}
       </div>
     </header>
 
     {permissions.canViewPolicy && configuration.policyQuery.isError && <div className="bed-policy-alert"><i className="ph ph-warning-circle" /><div><strong>Admission policy required</strong><span>Configure hold duration before beds can be reserved or allotted.</span></div>{permissions.canEditPolicy && <button className="btn-secondary compact" onClick={() => setModal('policy')} type="button">Configure</button>}</div>}
 
-    <section className="bed-kpi-grid">
-      {[['ph-bed', 'Total Beds', summary.total, 'blue'], ['ph-check-circle', 'Available', summary.available, 'green'], ['ph-user', 'Occupied', summary.occupied, 'red'], ['ph-clock', 'Reserved', summary.reserved, 'orange'], ['ph-prohibit', 'Blocked', summary.blocked + summary.under_maintenance, 'gray']].map(([icon, label, value, tone]) => <div className={`bed-kpi bed-kpi--${tone}`} key={String(label)}><i className={`ph ${icon}`} /><div><span>{label}</span><strong>{value}</strong></div></div>)}
-    </section>
-
-    <section className="content-card bed-board-panel">
-      <div className="bed-board-toolbar">
-        <div><h2>Live Bed Board</h2><p>Owner-aware bed state across the selected branch</p></div>
-        <div className="bed-board-filters">
-          <select aria-label="Ward filter" value={wardId} onChange={(event) => updateParam('ward', event.target.value)}><option value="">All wards</option>{wards.map((ward) => <option key={ward.id} value={ward.id}>{ward.name}</option>)}</select>
-          <select aria-label="Status filter" value={status ?? ''} onChange={(event) => updateParam('status', event.target.value)}><option value="">All statuses</option>{(['AVAILABLE', 'OCCUPIED', 'RESERVED', 'BLOCKED', 'UNDER_MAINTENANCE', 'INACTIVE'] as BedStatus[]).map((item) => <option key={item} value={item}>{formatStatus(item)}</option>)}</select>
-          <label className="bed-search"><i className="ph ph-magnifying-glass" /><input aria-label="Search beds" placeholder="Search bed or room" value={search} onChange={(event) => updateParam('search', event.target.value)} /></label>
+    {/* 4 Modern KPI Cards */}
+    <section className="surgery-kpi-grid" style={{ marginBottom: '1.25rem' }}>
+      <div className="surgery-kpi-card blue">
+        <div className="surgery-kpi-icon"><i className="ph ph-bed" /></div>
+        <div className="surgery-kpi-body">
+          <span>Total Beds</span>
+          <strong>{summary.total}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#64748b' }}>Registered capacity</small>
         </div>
       </div>
-
-      {configuration.bedsQuery.isError ? <EmptyState icon="ph-warning-circle" title="Unable to load the bed board" message={errorMessage(configuration.bedsQuery.error)} /> : loading ? <div className="bed-board-loading">Loading live bed availability...</div> : beds.length === 0 ? <EmptyState icon="ph-bed" title="No beds found" message="Adjust the filters or configure a bed in an active ward." /> : <div className="bed-workspace">
-        <div className="bed-grid bed-grid--live">
-          {beds.map((bed) => <button className={`bed-card status-${bed.status}${selectedBed?.id === bed.id ? ' selected' : ''}`} key={bed.id} onClick={() => setSelectedBed(bed)} type="button">
-            <div className="bed-card-top"><strong>{bed.bed_number}</strong><StatusBadge tone={statusTone(bed.status)}>{formatStatus(bed.status)}</StatusBadge></div>
-            <span>{bed.ward_name}{bed.room_number ? ` / Room ${bed.room_number}` : ''}</span>
-            <span>{bed.bed_category}</span>
-            {bed.status === 'OCCUPIED' && <div className="bed-owner"><i className="ph ph-user" /><div><strong>{bed.patient_name ?? 'Assigned patient'}</strong><span>{bed.patient_number ?? bed.admission_number}</span></div></div>}
-            {bed.status === 'RESERVED' && <div className="bed-owner"><i className="ph ph-clock" /><div><strong>{bed.hold_number}</strong><span>{bed.hold_expires_at ? `Expires ${new Date(bed.hold_expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Active hold'}</span></div></div>}
-            {(bed.status === 'BLOCKED' || bed.status === 'UNDER_MAINTENANCE') && <div className="bed-owner"><i className="ph ph-warning" /><span>{bed.block_reason_code ?? 'Operational restriction'}</span></div>}
-          </button>)}
+      <div className="surgery-kpi-card green">
+        <div className="surgery-kpi-icon"><i className="ph ph-check-circle" /></div>
+        <div className="surgery-kpi-body">
+          <span>Available Beds</span>
+          <strong>{summary.available}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#16a34a' }}>Ready now</small>
         </div>
-        <aside className="bed-detail-panel">
-          {!selectedBed ? <EmptyState icon="ph-cursor-click" title="Select a bed" message="Choose a bed to view its current owner and permitted actions." /> : <>
-            <div className="bed-detail-heading"><div><span>Selected bed</span><h3>{selectedBed.bed_number}</h3></div><StatusBadge tone={statusTone(selectedBed.status)}>{formatStatus(selectedBed.status)}</StatusBadge></div>
-            <dl><div><dt>Ward</dt><dd>{selectedBed.ward_name}</dd></div><div><dt>Room</dt><dd>{selectedBed.room_number || 'Not assigned'}</dd></div><div><dt>Category</dt><dd>{selectedBed.bed_category}</dd></div></dl>
-            {selectedBed.status === 'OCCUPIED' && <div className="bed-context"><strong>{selectedBed.patient_name}</strong><span>{selectedBed.patient_number}</span><span>{selectedBed.admission_number}</span></div>}
-            {selectedBed.status === 'RESERVED' && <div className="bed-context"><strong>{selectedBed.hold_number}</strong><span>{selectedBed.hold_expires_at ? new Date(selectedBed.hold_expires_at).toLocaleString() : 'Expiry unavailable'}</span></div>}
-            <div className="bed-detail-actions">
-              {selectedBed.status === 'AVAILABLE' && permissions.canCreateHold && <button className="btn-primary" type="button" onClick={() => setModal('hold')}><i className="ph ph-clock" /> Hold Bed</button>}
-              {(selectedBed.status === 'AVAILABLE' || selectedBed.status === 'RESERVED') && permissions.canCreateAdmission && <button className="btn-secondary" type="button" onClick={() => {
-                const params = new URLSearchParams({ branch_id: branchId, ward_id: selectedBed.ward_id, bed_id: selectedBed.id });
-                if (selectedBed.current_hold_id) params.set('hold_id', selectedBed.current_hold_id);
-                if (selectedBed.patient_id) params.set('patient_id', selectedBed.patient_id);
-                navigate(`/admissions/inpatients?${params.toString()}`);
-              }}><i className="ph ph-user-plus" /> Allot Bed</button>}
-              {selectedBed.status === 'OCCUPIED' && permissions.canTransfer && <button className="btn-primary" type="button" onClick={() => setModal('transfer')}><i className="ph ph-arrows-left-right" /> Transfer</button>}
-              {selectedBed.status === 'RESERVED' && permissions.canReleaseHold && <button className="btn-secondary" type="button" onClick={() => setConfirmAction({ type: 'release-hold', id: selectedBed.current_hold_id ?? '', label: selectedBed.bed_number })}>Release Hold</button>}
-              {selectedBed.status === 'RESERVED' && permissions.canCancelHold && <button className="btn-danger" type="button" onClick={() => setConfirmAction({ type: 'cancel-hold', id: selectedBed.current_hold_id ?? '', label: selectedBed.bed_number })}>Cancel Hold</button>}
-              {!['OCCUPIED', 'RESERVED'].includes(selectedBed.status) && permissions.canChangeBedStatus && <button className="btn-secondary" type="button" onClick={() => { statusForm.reset({ status: selectedBed.status === 'AVAILABLE' ? 'BLOCKED' : 'AVAILABLE', reason: '' }); setModal('status'); }}><i className="ph ph-wrench" /> Change Status</button>}
-            </div>
-          </>}
-        </aside>
-      </div>}
-
-      {bedMeta && bedMeta.totalPages > 1 && <div className="bed-pagination"><span>Showing {(bedMeta.page - 1) * bedMeta.limit + 1}-{Math.min(bedMeta.page * bedMeta.limit, bedMeta.total)} of {bedMeta.total} beds</span><div><button disabled={page <= 1} onClick={() => updateParam('page', String(page - 1), false)} type="button"><i className="ph ph-caret-left" /></button><strong>{page}</strong><button disabled={page >= bedMeta.totalPages} onClick={() => updateParam('page', String(page + 1), false)} type="button"><i className="ph ph-caret-right" /></button></div></div>}
+      </div>
+      <div className="surgery-kpi-card orange">
+        <div className="surgery-kpi-icon"><i className="ph ph-user" /></div>
+        <div className="surgery-kpi-body">
+          <span>Occupied Beds</span>
+          <strong>{summary.occupied}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#ea580c' }}>Active patients</small>
+        </div>
+      </div>
+      <div className="surgery-kpi-card purple">
+        <div className="surgery-kpi-icon"><i className="ph ph-bookmark-simple" /></div>
+        <div className="surgery-kpi-body">
+          <span>Reserved Beds</span>
+          <strong>{summary.reserved}</strong>
+          <small style={{ fontSize: '0.72rem', color: '#9333ea' }}>Awaiting arrival</small>
+        </div>
+      </div>
     </section>
 
-    <section className="content-card ward-table-panel"><div className="section-heading"><div><h2>Ward Configuration</h2><p>Active branch wards and operational status</p></div></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Ward</th><th>Type</th><th>Floor</th><th>Status</th><th>Action</th></tr></thead><tbody>{wards.map((ward) => <tr key={ward.id}><td><strong>{ward.name}</strong><small>{ward.description || 'No description'}</small></td><td>{ward.ward_type}</td><td>{ward.floor}</td><td><StatusBadge tone={statusTone(ward.status)}>{ward.status}</StatusBadge></td><td>{permissions.canChangeWardStatus && <button className="btn-secondary compact" onClick={() => setConfirmAction({ type: 'ward-status', id: ward.id, label: ward.name, status: ward.status })} type="button">{ward.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>}</td></tr>)}</tbody></table></div></section>
+    {/* Subtabs: Ward Overview | Bed Allocation */}
+    <div className="bed-overview-tabs">
+      <button
+        className={`bed-overview-tab-btn ${activeSubTab === 'ward-overview' ? 'active' : ''}`}
+        onClick={() => setActiveSubTab('ward-overview')}
+        type="button"
+      >
+        Ward Overview
+      </button>
+      <button
+        className={`bed-overview-tab-btn ${activeSubTab === 'bed-allocation' ? 'active' : ''}`}
+        onClick={() => setActiveSubTab('bed-allocation')}
+        type="button"
+      >
+        Bed Allocation
+      </button>
+    </div>
+
+    {/* Comprehensive Filter Bar */}
+    <div className="bed-mgmt-filters-bar">
+      <div className="bed-mgmt-filter-field">
+        <span>Ward</span>
+        <select value={wardId} onChange={(event) => updateParam('ward', event.target.value)}>
+          <option value="">All</option>
+          {wards.map((ward) => <option key={ward.id} value={ward.id}>{ward.name}</option>)}
+        </select>
+      </div>
+      <div className="bed-mgmt-filter-field">
+        <span>Room</span>
+        <select value="" onChange={() => {}}>
+          <option value="">All</option>
+          {Array.from(new Set(beds.map((b) => b.room_number).filter((r): r is string => Boolean(r)))).map((room) => (
+            <option key={room} value={room}>{room}</option>
+          ))}
+        </select>
+      </div>
+      <div className="bed-mgmt-filter-field">
+        <span>Room Type</span>
+        <select value="" onChange={() => {}}>
+          <option value="">All</option>
+          {Array.from(new Set(wards.map((w) => w.ward_type).filter((t): t is string => Boolean(t)))).map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+      </div>
+      <div className="bed-mgmt-filter-field">
+        <span>Bed Type</span>
+        <select value="" onChange={() => {}}>
+          <option value="">All</option>
+          {Array.from(new Set(beds.map((b) => b.bed_category).filter((c): c is string => Boolean(c)))).map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+      <div className="bed-mgmt-filter-field">
+        <span>Floor</span>
+        <select value="" onChange={() => {}}>
+          <option value="">All</option>
+          {Array.from(new Set(wards.map((w) => w.floor).filter((f): f is string => Boolean(f)))).map((f) => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
+      </div>
+      <div className="bed-mgmt-filter-field">
+        <span>Bed Status</span>
+        <select value={status ?? ''} onChange={(event) => updateParam('status', event.target.value)}>
+          <option value="">All</option>
+          {(['AVAILABLE', 'OCCUPIED', 'RESERVED', 'BLOCKED', 'UNDER_MAINTENANCE', 'INACTIVE'] as BedStatus[]).map((item) => (
+            <option key={item} value={item}>{formatStatus(item)}</option>
+          ))}
+        </select>
+      </div>
+      <div className="bed-mgmt-filter-field">
+        <span>Search Bed</span>
+        <input placeholder="Ward, room or bed" value={search} onChange={(event) => updateParam('search', event.target.value)} />
+      </div>
+    </div>
+
+    {/* 2-Column Main Layout: Visual Bed Grid + Allocation Summary */}
+    <div className="bed-mgmt-layout">
+      <div className="bed-grid-container">
+        <div className="bed-grid-header">
+          <h3>Ward Overview</h3>
+          <p>Live visual bed state</p>
+        </div>
+
+        {configuration.bedsQuery.isError ? (
+          <EmptyState icon="ph-warning-circle" title="Unable to load the bed board" message={errorMessage(configuration.bedsQuery.error)} />
+        ) : loading ? (
+          <div className="bed-board-loading" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>Loading live bed state...</div>
+        ) : beds.length === 0 ? (
+          <EmptyState icon="ph-bed" title="No beds found" message="Adjust the filters or configure a bed in an active ward." />
+        ) : (
+          <div className="bed-visual-cards-grid">
+            {beds.map((bed) => {
+              const isSelected = selectedBed?.id === bed.id;
+              return (
+                <button
+                  className={`bed-visual-card status-${bed.status} ${isSelected ? 'selected' : ''}`}
+                  key={bed.id}
+                  onClick={() => setSelectedBed(bed)}
+                  type="button"
+                >
+                  <div>
+                    <div className="bvc-title">{bed.room_number ? `${bed.room_number} · ${bed.bed_number}` : bed.bed_number}</div>
+                    <div className="bvc-subtitle">{bed.ward_name} · {bed.bed_category}</div>
+                  </div>
+                  <div className="bvc-status">
+                    {bed.status === 'OCCUPIED'
+                      ? `Occupied · ${bed.patient_name ?? 'Active patient'}`
+                      : bed.status === 'RESERVED'
+                        ? 'Reserved'
+                        : bed.status === 'AVAILABLE'
+                          ? 'Available'
+                          : bed.status === 'UNDER_MAINTENANCE'
+                            ? 'Maintenance'
+                            : formatStatus(bed.status)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {bedMeta && bedMeta.totalPages > 1 && (
+          <div className="bed-pagination" style={{ marginTop: '1.25rem' }}>
+            <span>Showing {(bedMeta.page - 1) * bedMeta.limit + 1}-{Math.min(bedMeta.page * bedMeta.limit, bedMeta.total)} of {bedMeta.total} beds</span>
+            <div>
+              <button disabled={page <= 1} onClick={() => updateParam('page', String(page - 1), false)} type="button"><i className="ph ph-caret-left" /></button>
+              <strong>{page}</strong>
+              <button disabled={page >= bedMeta.totalPages} onClick={() => updateParam('page', String(page + 1), false)} type="button"><i className="ph ph-caret-right" /></button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Allocation Summary Right Panel */}
+      <aside className="bed-allocation-panel">
+        <div className="bed-allocation-header" style={{ marginBottom: '1rem' }}>
+          <h3>Allocation Summary</h3>
+          <p>Confirm patient and selected bed</p>
+        </div>
+
+        {selectedBed ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {selectedBed.status === 'OCCUPIED' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem' }}>
+                  {(selectedBed.patient_name || 'PT').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.88rem', color: '#0f172a' }}>{selectedBed.patient_name || 'Assigned Patient'}</strong>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{selectedBed.patient_number || selectedBed.admission_number}</span>
+                </div>
+              </div>
+            )}
+
+            <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Selected Bed:</span>
+                <strong style={{ color: '#0f172a' }}>{selectedBed.bed_number}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Ward:</span>
+                <span style={{ color: '#0f172a' }}>{selectedBed.ward_name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Room:</span>
+                <span style={{ color: '#0f172a' }}>{selectedBed.room_number || 'N/A'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Status:</span>
+                <StatusBadge tone={statusTone(selectedBed.status)}>{formatStatus(selectedBed.status)}</StatusBadge>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+              {(selectedBed.status === 'AVAILABLE' || selectedBed.status === 'RESERVED') && permissions.canCreateAdmission && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    const params = new URLSearchParams({ branch_id: branchId, ward_id: selectedBed.ward_id, bed_id: selectedBed.id });
+                    if (selectedBed.current_hold_id) params.set('hold_id', selectedBed.current_hold_id);
+                    if (selectedBed.patient_id) params.set('patient_id', selectedBed.patient_id);
+                    navigate(`/admissions/inpatients?${params.toString()}`);
+                  }}
+                  style={{ width: '100%', justifyContent: 'center', height: '40px' }}
+                  type="button"
+                >
+                  <i className="ph ph-check" /> Allocate Bed
+                </button>
+              )}
+
+              {selectedBed.status === 'AVAILABLE' && permissions.canCreateHold && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => setModal('hold')}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  type="button"
+                >
+                  <i className="ph ph-clock" /> Reserve Bed
+                </button>
+              )}
+
+              {selectedBed.status === 'OCCUPIED' && permissions.canTransfer && (
+                <button
+                  className="btn-primary"
+                  onClick={() => setModal('transfer')}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  type="button"
+                >
+                  <i className="ph ph-arrows-left-right" /> Transfer Bed
+                </button>
+              )}
+
+              {selectedBed.status === 'RESERVED' && permissions.canReleaseHold && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => setConfirmAction({ type: 'release-hold', id: selectedBed.current_hold_id ?? '', label: selectedBed.bed_number })}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  type="button"
+                >
+                  Release Hold
+                </button>
+              )}
+
+              {selectedBed.status === 'RESERVED' && permissions.canCancelHold && (
+                <button
+                  className="btn-danger"
+                  onClick={() => setConfirmAction({ type: 'cancel-hold', id: selectedBed.current_hold_id ?? '', label: selectedBed.bed_number })}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  type="button"
+                >
+                  Cancel Hold
+                </button>
+              )}
+
+              {!['OCCUPIED', 'RESERVED'].includes(selectedBed.status) && permissions.canChangeBedStatus && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    statusForm.reset({ status: selectedBed.status === 'AVAILABLE' ? 'BLOCKED' : 'AVAILABLE', reason: '' });
+                    setModal('status');
+                  }}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  type="button"
+                >
+                  <i className="ph ph-wrench" /> Change Status
+                </button>
+              )}
+
+              <button
+                className="btn-secondary"
+                onClick={() => setSelectedBed(null)}
+                style={{ width: '100%', justifyContent: 'center' }}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b' }}>
+            <i className="ph ph-bed" style={{ fontSize: '2rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }} />
+            <p style={{ fontSize: '0.82rem', margin: 0 }}>Select an available bed from the overview to allocate or hold.</p>
+          </div>
+        )}
+      </aside>
+    </div>
+
+    <section className="content-card ward-table-panel" style={{ marginTop: '1.5rem' }}>
+      <div className="section-heading"><div><h2>Ward Configuration</h2><p>Active branch wards and operational status</p></div></div>
+      <div className="table-scroll"><table className="data-table"><thead><tr><th>Ward</th><th>Type</th><th>Floor</th><th>Status</th><th>Action</th></tr></thead><tbody>{wards.map((ward) => <tr key={ward.id}><td><strong>{ward.name}</strong><small>{ward.description || 'No description'}</small></td><td>{ward.ward_type}</td><td>{ward.floor}</td><td><StatusBadge tone={statusTone(ward.status)}>{ward.status}</StatusBadge></td><td>{permissions.canChangeWardStatus && <button className="btn-secondary compact" onClick={() => setConfirmAction({ type: 'ward-status', id: ward.id, label: ward.name, status: ward.status })} type="button">{ward.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>}</td></tr>)}</tbody></table></div>
+    </section>
 
     <Modal title="Add Ward" open={modal === 'ward'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Cancel</button><button className="btn-primary" disabled={configuration.createWard.isPending} onClick={() => void submitWard()} type="button">Save Ward</button></>}><form className="modal-form-grid" onSubmit={submitWard}><label>Ward name<input {...wardForm.register('name')} /></label><label>Ward type<input {...wardForm.register('ward_type')} /></label><label>Floor<input {...wardForm.register('floor')} /></label><label className="span-2">Description<textarea {...wardForm.register('description')} /></label></form></Modal>
     <Modal title="Add Bed" open={modal === 'bed'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Cancel</button><button className="btn-primary" disabled={configuration.createBed.isPending} onClick={() => void submitBed()} type="button">Save Bed</button></>}><form className="modal-form-grid" onSubmit={submitBed}><label className="span-2">Ward<select {...bedForm.register('ward_id')}><option value="">Select ward</option>{wards.map((ward) => <option key={ward.id} value={ward.id}>{ward.name}</option>)}</select></label><label>Bed number<input {...bedForm.register('bed_number')} /></label><label>Bed category<input {...bedForm.register('bed_category')} /></label><label>Room number<input {...bedForm.register('room_number')} /></label></form></Modal>

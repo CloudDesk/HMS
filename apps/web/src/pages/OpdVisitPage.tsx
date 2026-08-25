@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { billingApi, type SaveBillingInvoiceItem } from '../api/billing';
+import { branchesApi, type BranchResponse } from '../api/branches';
+import { departmentsApi, type DepartmentResponse } from '../api/departments';
 import { doctorsApi, type DoctorResponse } from '../api/doctors';
 import { medicinesApi } from '../api/medicines';
 import {
@@ -13,6 +15,7 @@ import {
 import { patientsApi, type PatientDocumentResponse, type PatientResponse } from '../api/patients';
 import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
 import { servicesApi, type ServiceResponse } from '../api/services';
+import { ICD10_DIAGNOSES, type Icd10Diagnosis } from '../data/icd10-diagnoses';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import {
@@ -370,20 +373,180 @@ export function OpdVisitPage() {
     [masterMedicines, medicationForm.medicine_name],
   );
 
-  const [labOrders, setLabOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
+  // Sub-tab 2: Diagnosis State
+  const [dxSearchTerm, setDxSearchTerm] = useState('');
+  const [selectedDiagnoses, setSelectedDiagnoses] = useState<Icd10Diagnosis[]>([]);
+
+  const filteredIcd10 = useMemo(() => {
+    if (!dxSearchTerm.trim()) {
+      return ICD10_DIAGNOSES.slice(0, 8);
+    }
+    const q = dxSearchTerm.toLowerCase();
+    return ICD10_DIAGNOSES.filter(
+      (d) =>
+        d.code.toLowerCase().includes(q) ||
+        d.name.toLowerCase().includes(q) ||
+        d.category.toLowerCase().includes(q),
+    );
+  }, [dxSearchTerm]);
+
+  const handleAddDiagnosis = (dx: Icd10Diagnosis) => {
+    if (selectedDiagnoses.some((d) => d.code === dx.code)) return;
+    const next = [...selectedDiagnoses, dx];
+    setSelectedDiagnoses(next);
+    setConsultationForm((prev) => ({
+      ...prev,
+      assessment: prev.assessment ? `${prev.assessment}\n${dx.code} - ${dx.name}` : `${dx.code} - ${dx.name}`,
+    }));
+  };
+
+  const handleRemoveDiagnosis = (code: string) => {
+    const next = selectedDiagnoses.filter((d) => d.code !== code);
+    setSelectedDiagnoses(next);
+  };
+
+  // Sub-tab 4: Lab Orders State
+  const [branches, setBranches] = useState<BranchResponse[]>([]);
+  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+
+  const labFacilities = useMemo(() => {
+    const list: string[] = [];
+    branches.forEach((b) => {
+      if (b.name) list.push(`${b.name} - Laboratory`);
+    });
+    departments
+      .filter(
+        (d) =>
+          d.name.toLowerCase().includes('lab') ||
+          d.name.toLowerCase().includes('pathology') ||
+          d.name.toLowerCase().includes('diagnostic'),
+      )
+      .forEach((d) => {
+        if (!list.includes(d.name)) list.push(d.name);
+      });
+    if (list.length === 0) {
+      list.push('Main Branch - Laboratory');
+    }
+    return list;
+  }, [branches, departments]);
+
+  const [labOrders, setLabOrders] = useState<Array<{ id: string; name: string; local_id: string; category?: string }>>([]);
   const [labPriority, setLabPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
+  const [labFacility, setLabFacility] = useState('Main Branch - Laboratory');
+  const [labSampleType, setLabSampleType] = useState('Blood');
+  const [labCategory, setLabCategory] = useState('All');
+  const [labClinicalNotes, setLabClinicalNotes] = useState('');
+  const [labOrderSummary, setLabOrderSummary] = useState('');
   const [selectedLabTest, setSelectedLabTest] = useState('');
 
-  const [imagingOrders, setImagingOrders] = useState<Array<{ id: string; name: string; local_id: string }>>([]);
+  const labCategoryOptions = useMemo(() => {
+    const dbCats = Array.from(
+      new Set(
+        labTestServices
+          .map((s) => s.category?.trim())
+          .filter((cat): cat is string => Boolean(cat && cat.length > 0)),
+      ),
+    );
+    return dbCats.length > 0 ? [...dbCats, 'All'] : ['All'];
+  }, [labTestServices]);
+
+  const labSampleTypeOptions = useMemo(() => {
+    const dbSamples = Array.from(
+      new Set(
+        labTestServices
+          .map((s) => s.sample_type?.trim())
+          .filter((st): st is string => Boolean(st && st.length > 0)),
+      ),
+    );
+    const standardSamples = [
+      'Blood',
+      'Serum',
+      'Plasma',
+      'Urine',
+      'Stool',
+      'Sputum',
+      'Throat Swab',
+      'CSF (Cerebrospinal Fluid)',
+      'Tissue / Biopsy',
+      'Synovial Fluid',
+    ];
+    return Array.from(new Set([...dbSamples, ...standardSamples]));
+  }, [labTestServices]);
+
+  const availableLabTests = useMemo(() => {
+    if (!labCategory || labCategory === 'All') return labTestServices;
+    const cat = labCategory.toLowerCase();
+    const matched = labTestServices.filter((s) => (s.category && s.category.toLowerCase().includes(cat)) || s.name.toLowerCase().includes(cat));
+    return matched.length > 0 ? matched : labTestServices;
+  }, [labTestServices, labCategory]);
+
+  const handleToggleLabTest = (test: ServiceResponse) => {
+    if (labOrders.some((o) => o.id === test.id)) {
+      setLabOrders((prev) => prev.filter((o) => o.id !== test.id));
+    } else {
+      if (test.sample_type && test.sample_type.trim()) {
+        setLabSampleType(test.sample_type);
+      }
+      setLabOrders((prev) => [
+        ...prev,
+        {
+          id: test.id,
+          name: test.name,
+          local_id: `lab-${Date.now()}-${Math.random()}`,
+          category: test.category || labCategory,
+        },
+      ]);
+    }
+  };
+
+  // Sub-tab 5: Imaging Orders State
+  const [imagingOrders, setImagingOrders] = useState<Array<{ id: string; name: string; local_id: string; category?: string }>>([]);
   const [imagingPriority, setImagingPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
+  const [imagingCategory, setImagingCategory] = useState('All');
+  const [imagingClinicalInfo, setImagingClinicalInfo] = useState('');
+  const [imagingOrderInstructions, setImagingOrderInstructions] = useState('');
   const [selectedImagingTest, setSelectedImagingTest] = useState('');
+
+  const imagingCategoryOptions = useMemo(() => {
+    const dbCats = Array.from(
+      new Set(
+        imagingServices
+          .map((s) => s.category?.trim())
+          .filter((cat): cat is string => Boolean(cat && cat.length > 0)),
+      ),
+    );
+    return dbCats.length > 0 ? [...dbCats, 'All'] : ['All'];
+  }, [imagingServices]);
+
+  const availableImagingTests = useMemo(() => {
+    if (!imagingCategory || imagingCategory === 'All') return imagingServices;
+    const cat = imagingCategory.toLowerCase();
+    const matched = imagingServices.filter((s) => (s.category && s.category.toLowerCase().includes(cat)) || s.name.toLowerCase().includes(cat));
+    return matched.length > 0 ? matched : imagingServices;
+  }, [imagingServices, imagingCategory]);
+
+  const handleToggleImagingTest = (test: ServiceResponse) => {
+    if (imagingOrders.some((o) => o.id === test.id)) {
+      setImagingOrders((prev) => prev.filter((o) => o.id !== test.id));
+    } else {
+      setImagingOrders((prev) => [
+        ...prev,
+        {
+          id: test.id,
+          name: test.name,
+          local_id: `img-${Date.now()}-${Math.random()}`,
+          category: test.category || imagingCategory,
+        },
+      ]);
+    }
+  };
 
   // Load patient clinical sub-resources
   const loadClinicalData = useCallback(async () => {
     if (!activeVisitId) return;
 
     try {
-      const [vitalsRes, consultRes, prescriptionRes, docRes, medRes, invRes, servRes, labOrderRes, imagingOrderRes] =
+      const [vitalsRes, consultRes, prescriptionRes, docRes, medRes, invRes, servRes, labOrderRes, imagingOrderRes, branchRes, deptRes] =
         await Promise.allSettled([
           opdApi.getLatestVitals(activeVisitId),
           opdApi.getConsultation(activeVisitId),
@@ -394,15 +557,30 @@ export function OpdVisitPage() {
           servicesApi.list({ status: 'ACTIVE', limit: 100 }),
           opdApi.getClinicalOrder(activeVisitId, 'LABORATORY'),
           opdApi.getClinicalOrder(activeVisitId, 'IMAGING'),
+          branchesApi.list({ status: 'ACTIVE', limit: 100 }),
+          departmentsApi.list({ status: 'ACTIVE', limit: 100 }),
         ]);
 
+      if (branchRes.status === 'fulfilled' && branchRes.value?.data) {
+        setBranches(branchRes.value.data);
+      }
+      if (deptRes.status === 'fulfilled' && deptRes.value?.data) {
+        setDepartments(deptRes.value.data);
+      }
+
       if (labOrderRes.status === 'fulfilled' && labOrderRes.value?.items?.length) {
-        setLabOrders(labOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, local_id: i.id || `lab-${Date.now()}-${Math.random()}` })));
+        setLabOrders(labOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, category: i.category, local_id: i.id || `lab-${Date.now()}-${Math.random()}` })));
         if (labOrderRes.value.priority) setLabPriority(labOrderRes.value.priority);
+        if (labOrderRes.value.destination) setLabFacility(labOrderRes.value.destination);
+        if (labOrderRes.value.specimen_type) setLabSampleType(labOrderRes.value.specimen_type);
+        if (labOrderRes.value.clinical_notes) setLabClinicalNotes(labOrderRes.value.clinical_notes);
+        if (labOrderRes.value.instructions) setLabOrderSummary(labOrderRes.value.instructions);
       }
       if (imagingOrderRes.status === 'fulfilled' && imagingOrderRes.value?.items?.length) {
-        setImagingOrders(imagingOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, local_id: i.id || `img-${Date.now()}-${Math.random()}` })));
+        setImagingOrders(imagingOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, category: i.category, local_id: i.id || `img-${Date.now()}-${Math.random()}` })));
         if (imagingOrderRes.value.priority) setImagingPriority(imagingOrderRes.value.priority);
+        if (imagingOrderRes.value.clinical_notes) setImagingClinicalInfo(imagingOrderRes.value.clinical_notes);
+        if (imagingOrderRes.value.instructions) setImagingOrderInstructions(imagingOrderRes.value.instructions);
       }
 
       if (servRes.status === 'fulfilled' && servRes.value?.data) {
@@ -451,6 +629,17 @@ export function OpdVisitPage() {
       if (consultRes.status === 'fulfilled' && consultRes.value) {
         setConsultation(consultRes.value);
         setConsultationForm(consultationFormFromRecord(consultRes.value));
+        const assessmentVal = consultRes.value?.assessment;
+        if (assessmentVal) {
+          const matched = ICD10_DIAGNOSES.filter(
+            (d) =>
+              assessmentVal.toLowerCase().includes(d.code.toLowerCase()) ||
+              assessmentVal.toLowerCase().includes(d.name.toLowerCase()),
+          );
+          if (matched.length > 0) {
+            setSelectedDiagnoses(matched);
+          }
+        }
       }
       if (prescriptionRes.status === 'fulfilled' && prescriptionRes.value) {
         setPrescriptionForm(prescriptionFormFromRecord(prescriptionRes.value));
@@ -501,9 +690,153 @@ export function OpdVisitPage() {
       };
       const response = await opdApi.saveConsultationDraft(visit.id, payload);
       setConsultation(response);
-      showToast('Consultation draft saved.');
+
+      // Also persist prescription draft if items exist
+      if (prescriptionForm.items.length > 0) {
+        await opdApi
+          .savePrescriptionDraft(visit.id, {
+            items: prescriptionForm.items.map((i) => ({
+              medicine_name: i.medicine_name,
+              strength: i.strength || null,
+              dosage: i.dosage,
+              route: i.route || 'ORAL',
+              frequency: i.frequency,
+              duration: i.duration,
+              quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+              instructions: i.instructions || null,
+            })),
+            follow_up_date: prescriptionForm.follow_up_date || null,
+            doctor_instructions: prescriptionForm.doctor_instructions || null,
+            patient_instructions: prescriptionForm.patient_instructions || null,
+          })
+          .catch(() => null);
+      }
+
+      // Also persist lab order draft if items exist
+      if (labOrders.length > 0) {
+        await opdApi
+          .saveClinicalOrderDraft(visit.id, 'LABORATORY', {
+            priority: labPriority || 'ROUTINE',
+            destination: labFacility,
+            specimen_type: labSampleType,
+            clinical_notes: labClinicalNotes || null,
+            instructions: labOrderSummary || null,
+            items: labOrders.map((o) => ({
+              service_id: o.id,
+              investigation_name: o.name,
+              category: o.category || labCategory || 'Hematology',
+            })),
+          })
+          .catch(() => null);
+      }
+
+      // Also persist imaging order draft if items exist
+      if (imagingOrders.length > 0) {
+        await opdApi
+          .saveClinicalOrderDraft(visit.id, 'IMAGING', {
+            priority: imagingPriority || 'ROUTINE',
+            clinical_notes: imagingClinicalInfo || null,
+            instructions: imagingOrderInstructions || null,
+            items: imagingOrders.map((o) => ({
+              service_id: o.id,
+              investigation_name: o.name,
+              category: o.category || imagingCategory || 'X-Ray',
+            })),
+          })
+          .catch(() => null);
+      }
+
+      showToast('Consultation draft and clinical orders saved.');
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const handleSendToPharmacy = async () => {
+    if (!visit) return;
+    if (prescriptionForm.items.length === 0) {
+      showToast('Add at least one medication before sending to pharmacy.', 'error');
+      return;
+    }
+    setUpdating('prescription-submit');
+    try {
+      await opdApi.submitPrescription(visit.id, {
+        items: prescriptionForm.items.map((i) => ({
+          medicine_name: i.medicine_name,
+          strength: i.strength || null,
+          dosage: i.dosage,
+          route: i.route || 'ORAL',
+          frequency: i.frequency,
+          duration: i.duration,
+          quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+          instructions: i.instructions || null,
+        })),
+        follow_up_date: prescriptionForm.follow_up_date || null,
+        doctor_instructions: prescriptionForm.doctor_instructions || null,
+        patient_instructions: prescriptionForm.patient_instructions || null,
+      });
+      showToast('Prescription sent to Pharmacy queue successfully!', 'success');
+      await loadClinicalData();
+    } catch (err) {
+      showToast(getOpdErrorMessage(err), 'error');
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const handleSubmitLabOrder = async () => {
+    if (!visit) return;
+    if (labOrders.length === 0) {
+      showToast('Select at least one lab test to order.', 'error');
+      return;
+    }
+    setUpdating('lab-order-submit');
+    try {
+      await opdApi.submitClinicalOrder(visit.id, 'LABORATORY', {
+        priority: labPriority,
+        destination: labFacility,
+        specimen_type: labSampleType,
+        clinical_notes: labClinicalNotes || null,
+        instructions: labOrderSummary || null,
+        items: labOrders.map((o) => ({
+          service_id: o.id,
+          investigation_name: o.name,
+          category: o.category || labCategory,
+        })),
+      });
+      showToast('Laboratory order submitted to Laboratory queue successfully!', 'success');
+      await loadClinicalData();
+    } catch (err) {
+      showToast(getOpdErrorMessage(err), 'error');
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const handleSubmitImagingOrder = async () => {
+    if (!visit) return;
+    if (imagingOrders.length === 0) {
+      showToast('Select at least one imaging test to order.', 'error');
+      return;
+    }
+    setUpdating('imaging-order-submit');
+    try {
+      await opdApi.submitClinicalOrder(visit.id, 'IMAGING', {
+        priority: imagingPriority,
+        clinical_notes: imagingClinicalInfo || null,
+        instructions: imagingOrderInstructions || null,
+        items: imagingOrders.map((o) => ({
+          service_id: o.id,
+          investigation_name: o.name,
+          category: o.category || imagingCategory,
+        })),
+      });
+      showToast('Imaging order submitted to Radiology queue successfully!', 'success');
+      await loadClinicalData();
+    } catch (err) {
+      showToast(getOpdErrorMessage(err), 'error');
     } finally {
       setUpdating('');
     }
@@ -524,11 +857,15 @@ export function OpdVisitPage() {
         physical_examination: consultationForm.physical_examination.trim() || null,
         treatment_plan: consultationForm.treatment_plan.trim() || null,
       };
-      // The payload will be sent when completing the consultation at the end of this function
-      // Save & Submit Prescriptions if items present
+
+      // 1. FIRST: Mark the consultation as COMPLETED on the backend so order submissions can succeed
+      const response = await opdApi.completeConsultation(visit.id, payload);
+      setConsultation(response);
+
+      // 2. Submit Prescriptions to Pharmacy Queue
       if (prescriptionForm.items.length > 0) {
-        await opdApi
-          .submitPrescription(visit.id, {
+        try {
+          await opdApi.submitPrescription(visit.id, {
             items: prescriptionForm.items.map((i) => ({
               medicine_name: i.medicine_name,
               strength: i.strength || null,
@@ -542,66 +879,51 @@ export function OpdVisitPage() {
             follow_up_date: prescriptionForm.follow_up_date || null,
             doctor_instructions: prescriptionForm.doctor_instructions || null,
             patient_instructions: prescriptionForm.patient_instructions || null,
-          })
-          .catch(() => null);
+          });
+        } catch (rxErr) {
+          console.error('Failed to submit prescriptions:', rxErr);
+        }
       }
 
-      // Save & Submit Lab Clinical Orders if selected
-      const pendingLabName = selectedLabTest || (document.getElementById('lab-test-name') as HTMLSelectElement | null)?.value || '';
-      const matchedPendingLab = pendingLabName ? labTestServices.find((s) => s.name === pendingLabName) : undefined;
-
-      const allLabItems = [...labOrders.map(o => ({
-        service_id: o.id,
-        investigation_name: o.name,
-        category: labTestServices.find(s => s.id === o.id)?.category || 'General Lab',
-      }))];
-
-      if (matchedPendingLab && !allLabItems.find(i => i.service_id === matchedPendingLab.id)) {
-        allLabItems.push({
-          service_id: matchedPendingLab.id,
-          investigation_name: pendingLabName,
-          category: matchedPendingLab.category || 'General Lab',
-        });
+      // 3. Submit Lab Orders to Laboratory Queue
+      if (labOrders.length > 0) {
+        try {
+          await opdApi.submitClinicalOrder(visit.id, 'LABORATORY', {
+            priority: labPriority,
+            destination: labFacility,
+            specimen_type: labSampleType,
+            clinical_notes: labClinicalNotes || null,
+            instructions: labOrderSummary || null,
+            items: labOrders.map((o) => ({
+              service_id: o.id,
+              investigation_name: o.name,
+              category: o.category || labCategory,
+            })),
+          });
+        } catch (labErr) {
+          console.error('Failed to submit lab orders:', labErr);
+        }
       }
 
-      if (allLabItems.length > 0) {
-        await opdApi
-          .submitClinicalOrder(visit.id, 'LABORATORY', {
-            priority: labPriority || 'ROUTINE',
-            specimen_type: 'Not Specified',
-            items: allLabItems,
-          })
-          .catch(() => null);
+      // 4. Submit Imaging Orders to Radiology Queue
+      if (imagingOrders.length > 0) {
+        try {
+          await opdApi.submitClinicalOrder(visit.id, 'IMAGING', {
+            priority: imagingPriority,
+            clinical_notes: imagingClinicalInfo || null,
+            instructions: imagingOrderInstructions || null,
+            items: imagingOrders.map((o) => ({
+              service_id: o.id,
+              investigation_name: o.name,
+              category: o.category || imagingCategory,
+            })),
+          });
+        } catch (imgErr) {
+          console.error('Failed to submit imaging orders:', imgErr);
+        }
       }
 
-      // Save & Submit Imaging Clinical Orders if selected
-      const pendingImagingName = selectedImagingTest || (document.getElementById('imaging-test-name') as HTMLSelectElement | null)?.value || '';
-      const matchedPendingImaging = pendingImagingName ? imagingServices.find((s) => s.name === pendingImagingName) : undefined;
-
-      const allImagingItems = [...imagingOrders.map(o => ({
-        service_id: o.id,
-        investigation_name: o.name,
-        category: imagingServices.find(s => s.id === o.id)?.category || 'Radiology',
-      }))];
-
-      if (matchedPendingImaging && !allImagingItems.find(i => i.service_id === matchedPendingImaging.id)) {
-        allImagingItems.push({
-          service_id: matchedPendingImaging.id,
-          investigation_name: pendingImagingName,
-          category: matchedPendingImaging.category || 'Radiology',
-        });
-      }
-
-      if (allImagingItems.length > 0) {
-        await opdApi
-          .submitClinicalOrder(visit.id, 'IMAGING', {
-            priority: imagingPriority || 'ROUTINE',
-            items: allImagingItems,
-          })
-          .catch(() => null);
-      }
-
-      // Automatically Create Billing Invoice for Consultation + Lab + Imaging
+      // 5. Automatically Create Billing Invoice for Consultation + Lab + Imaging
       const matchedConsultationService =
         services.find(
           (s) =>
@@ -620,17 +942,17 @@ export function OpdVisitPage() {
           quantity: 1,
         });
       }
-      for (const item of allLabItems) {
+      for (const item of labOrders) {
         invoiceItems.push({
-          service_id: item.service_id,
+          service_id: item.id,
           service_type: 'LAB_TEST',
           quantity: 1,
         });
       }
 
-      for (const item of allImagingItems) {
+      for (const item of imagingOrders) {
         invoiceItems.push({
-          service_id: item.service_id,
+          service_id: item.id,
           service_type: 'IMAGING_SERVICE',
           quantity: 1,
         });
@@ -647,15 +969,12 @@ export function OpdVisitPage() {
           .catch(() => null);
       }
 
-      const response = await opdApi.completeConsultation(visit.id, payload);
-      setConsultation(response);
-
-      // Update the overall visit status to COMPLETED now that consultation is closed
+      // 6. Update the overall visit status to COMPLETED now that consultation and orders are processed
       await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED', notes: 'Consultation completed.' });
 
       await loadVisit();
       await loadClinicalData();
-      showToast('Consultation completed successfully & billing invoice generated.');
+      showToast('Consultation completed successfully! Orders routed to Pharmacy, Lab & Imaging.');
 
       // Automatically trigger "Call Next Patient"
       await handleCallNextPatient();
@@ -850,7 +1169,7 @@ export function OpdVisitPage() {
                 </span>
               </div>
               <div className="opd-patient-meta-line">
-                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} â€¢ ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
+                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
                 <span className="divider">|</span>
                 <span>{opdVisitTypeLabels[visit.visit_type]}</span>
                 <span className="divider">|</span>
@@ -1043,27 +1362,75 @@ export function OpdVisitPage() {
                   <section className="opd-form-section">
                     <div className="opd-form-section-head">
                       <div>
-                        <h3>Diagnosis &amp; ICD Coding</h3>
-                        <p>Assign primary and secondary ICD diagnoses for this encounter</p>
+                        <h3>Diagnosis Search</h3>
+                        <p>Search ICD-10 terminology and add diagnoses</p>
                       </div>
                     </div>
-                    <div className="doc-form-grid two">
-                      <label className="doc-field full" htmlFor="primary-dx">
-                        <span>Primary Diagnosis (ICD-10)</span>
-                        <input
-                          id="primary-dx"
-                          onChange={(e) => setPrimaryDiagnosis(e.target.value)}
-                          placeholder="e.g. Essential (primary) hypertension [I10]"
-                          value={primaryDiagnosis}
-                        />
+
+                    <div className="opd-dx-search-container">
+                      <label className="doc-field full" htmlFor="icd-search-input">
+                        <span>Diagnosis / ICD-10 Search</span>
+                        <div className="opd-dx-search-input-wrap">
+                          <i className="ph ph-magnifying-glass" aria-hidden="true" />
+                          <input
+                            id="icd-search-input"
+                            className="opd-dx-search-input"
+                            onChange={(e) => setDxSearchTerm(e.target.value)}
+                            placeholder="Search code or clinical term (e.g. reflux, hypertension, K21, diabetes)..."
+                            value={dxSearchTerm}
+                          />
+                        </div>
                       </label>
-                      <label className="doc-field full" htmlFor="secondary-dx">
-                        <span>Secondary Diagnoses</span>
+
+                      <div className="opd-dx-results-list">
+                        {filteredIcd10.map((dx) => {
+                          const isAdded = selectedDiagnoses.some((d) => d.code === dx.code);
+                          return (
+                            <div className="opd-dx-result-item" key={dx.code}>
+                              <div className="opd-dx-item-info">
+                                <span className="opd-dx-code-badge">{dx.code}</span>
+                                <span className="opd-dx-name">{dx.name}</span>
+                              </div>
+                              <button
+                                className="doc-btn compact"
+                                disabled={isAdded}
+                                onClick={() => handleAddDiagnosis(dx)}
+                                type="button"
+                              >
+                                {isAdded ? 'Added' : 'Add'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {selectedDiagnoses.length > 0 ? (
+                      <div className="opd-dx-chips-container">
+                        {selectedDiagnoses.map((dx) => (
+                          <span className="opd-dx-chip" key={dx.code}>
+                            {dx.code} • {dx.name}
+                            <button
+                              onClick={() => handleRemoveDiagnosis(dx.code)}
+                              title="Remove diagnosis"
+                              type="button"
+                            >
+                              <i aria-hidden="true" className="ph ph-x" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className="doc-form-grid">
+                      <label className="doc-field full" htmlFor="diagnostic-reasoning">
+                        <span>Document Diagnostic Reasoning &amp; Clinical Notes</span>
                         <textarea
-                          id="secondary-dx"
-                          onChange={(e) => setSecondaryDiagnosis(e.target.value)}
+                          id="diagnostic-reasoning"
+                          onChange={(e) => setConsultationForm((c) => ({ ...c, assessment: e.target.value }))}
+                          placeholder="Document clinical reasoning, differential diagnoses, or diagnostic findings..."
                           rows={3}
-                          value={secondaryDiagnosis}
+                          value={consultationForm.assessment}
                         />
                       </label>
                     </div>
@@ -1071,26 +1438,27 @@ export function OpdVisitPage() {
 
                   <div className="opd-sticky-actions">
                     <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
+                      <i aria-hidden="true" className="ph ph-check-circle" />
                       Auto-save enabled
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Prescription')} type="button">
-                        Next: Prescription
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
+                      <button className="doc-btn" onClick={() => setActiveTab('Prescription')} type="button">
+                        Prescription
+                        <i aria-hidden="true" className="ph ph-arrow-right" />
                       </button>
                       <button
-                        className="doc-btn success"
-                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
-                        onClick={completeConsultation}
-                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        className="doc-btn primary"
+                        onClick={async () => {
+                          await saveConsultationDraft();
+                          showToast('Diagnosis saved successfully.', 'success');
+                        }}
                         type="button"
                       >
-                        <i className="ph ph-check-circle" aria-hidden="true" />
-                        Complete Consultation
+                        <i aria-hidden="true" className="ph ph-check-circle" />
+                        Save Diagnosis
                       </button>
                     </div>
                   </div>
@@ -1104,14 +1472,59 @@ export function OpdVisitPage() {
                     <div className="opd-form-section-head">
                       <div>
                         <h3>Prescription Builder</h3>
-                        <p>Formulary search and dosage instructions</p>
+                        <p>Search formulary medicine and specify dosage instructions</p>
                       </div>
                     </div>
-                    <div className="opd-medication-builder">
-                      <label className="doc-field medicine" htmlFor="medicine-name">
-                        <span>Medicine Name</span>
+
+                    {/* Diagnosis Summary Section */}
+                    <div style={{ marginBottom: '1.25rem', padding: '0.85rem 1rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: selectedDiagnoses.length > 0 ? '0.5rem' : '0' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <i className="ph ph-stethoscope" style={{ color: '#2563eb' }} />
+                          Diagnosis Summary
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('Diagnosis')}
+                          style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          Edit Diagnosis <i className="ph ph-arrow-right" />
+                        </button>
+                      </div>
+                      {selectedDiagnoses.length === 0 ? (
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>
+                          No diagnosis selected yet. You can add ICD-10 diagnoses in the Diagnosis tab.
+                        </p>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                          {selectedDiagnoses.map((dx) => (
+                            <span
+                              key={dx.code}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.25rem 0.65rem',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '16px',
+                                color: '#1e40af',
+                                fontSize: '0.78rem',
+                                fontWeight: 500,
+                              }}
+                            >
+                              <strong>{dx.code}</strong> • {dx.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="doc-form-grid three" style={{ gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <label className="doc-field" htmlFor="medicine-search-sel">
+                        <span>Medicine Search</span>
                         <select
-                          id="medicine-name"
+                          id="medicine-search-sel"
                           onChange={(e) => {
                             const selectedMedName = e.target.value;
                             const matchedOpt = masterMedicines.find((m) => m.name === selectedMedName);
@@ -1123,105 +1536,159 @@ export function OpdVisitPage() {
                           }}
                           value={medicationForm.medicine_name}
                         >
-                          <option value="">Select Medicine from Master Data</option>
+                          <option value="">Search medicine from Pharmacy formulary</option>
                           {masterMedicines.map((med) => (
                             <option key={med.id} value={med.name}>
-                              {med.name} {med.strength ? `(${med.strength})` : ''} â€” Stock: {med.available_quantity} {med.unit || 'units'}
+                              {med.name} {med.strength ? `(${med.strength})` : ''} — Stock: {med.available_quantity} {med.unit || 'units'}
                             </option>
                           ))}
                         </select>
-                        {selectedMasterMed ? (
-                          <span className={`stock-level-chip ${selectedMasterMed.available_quantity > 0 ? 'in-stock' : 'out-of-stock'}`}>
-                            <i className={`ph ${selectedMasterMed.available_quantity > 0 ? 'ph-check-circle' : 'ph-warning-circle'}`} aria-hidden="true" />
-                            Available Stock: {selectedMasterMed.available_quantity} {selectedMasterMed.unit || 'units'}
-                          </span>
-                        ) : null}
-                      </label>
-                      <label className="doc-field" htmlFor="medicine-strength">
-                        <span>Strength</span>
-                        <input
-                          id="medicine-strength"
-                          onChange={(e) => setMedicationForm((m) => ({ ...m, strength: e.target.value }))}
-                          placeholder="5 mg"
-                          value={medicationForm.strength}
-                        />
                       </label>
                       <label className="doc-field" htmlFor="medicine-dosage">
                         <span>Dosage</span>
                         <input
                           id="medicine-dosage"
                           onChange={(e) => setMedicationForm((m) => ({ ...m, dosage: e.target.value }))}
-                          placeholder="1 tablet"
+                          placeholder="e.g. 1 tablet"
                           value={medicationForm.dosage}
                         />
                       </label>
+                      <label className="doc-field" htmlFor="medicine-route">
+                        <span>Route</span>
+                        <select
+                          id="medicine-route"
+                          onChange={(e) => setMedicationForm((m) => ({ ...m, route: e.target.value }))}
+                          value={medicationForm.route || 'Oral'}
+                        >
+                          <option value="Oral">Oral</option>
+                          <option value="Intravenous (IV)">Intravenous (IV)</option>
+                          <option value="Intramuscular (IM)">Intramuscular (IM)</option>
+                          <option value="Subcutaneous (SC)">Subcutaneous (SC)</option>
+                          <option value="Inhalation">Inhalation</option>
+                          <option value="Topical">Topical</option>
+                          <option value="Sublingual">Sublingual</option>
+                          <option value="Ophthalmic">Ophthalmic</option>
+                          <option value="Otic">Otic</option>
+                          <option value="Rectal">Rectal</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="doc-form-grid four" style={{ gap: '0.75rem', alignItems: 'flex-end', marginBottom: '1.25rem' }}>
                       <label className="doc-field" htmlFor="medicine-frequency">
                         <span>Frequency</span>
                         <select
                           id="medicine-frequency"
                           onChange={(e) => setMedicationForm((m) => ({ ...m, frequency: e.target.value }))}
-                          value={medicationForm.frequency}
+                          value={medicationForm.frequency || 'BD'}
                         >
                           <option value="OD">OD (Once Daily)</option>
                           <option value="BD">BD (Twice Daily)</option>
                           <option value="TDS">TDS (Thrice Daily)</option>
                           <option value="QID">QID (Four times daily)</option>
                           <option value="PRN">PRN (As needed)</option>
+                          <option value="STAT">STAT (Immediately)</option>
+                          <option value="Q4H">Q4H (Every 4 hours)</option>
+                          <option value="Q6H">Q6H (Every 6 hours)</option>
+                          <option value="Q8H">Q8H (Every 8 hours)</option>
+                          <option value="HS">HS (At bedtime)</option>
                         </select>
                       </label>
                       <label className="doc-field" htmlFor="medicine-duration">
                         <span>Duration</span>
-                        <input
+                        <select
                           id="medicine-duration"
                           onChange={(e) => setMedicationForm((m) => ({ ...m, duration: e.target.value }))}
-                          placeholder="30 days"
-                          value={medicationForm.duration}
+                          value={medicationForm.duration || '5 Days'}
+                        >
+                          <option value="3 Days">3 Days</option>
+                          <option value="5 Days">5 Days</option>
+                          <option value="7 Days">7 Days</option>
+                          <option value="10 Days">10 Days</option>
+                          <option value="14 Days">14 Days</option>
+                          <option value="30 Days">30 Days</option>
+                          <option value="Ongoing">Ongoing / Chronic</option>
+                        </select>
+                      </label>
+                      <label className="doc-field" htmlFor="medicine-instructions">
+                        <span>Instructions</span>
+                        <input
+                          id="medicine-instructions"
+                          onChange={(e) => setMedicationForm((m) => ({ ...m, instructions: e.target.value }))}
+                          placeholder="e.g. After meals"
+                          value={medicationForm.instructions}
                         />
                       </label>
                       <button
-                        className="doc-btn primary add-medication"
+                        className="doc-btn primary"
                         onClick={() => {
-                          if (!medicationForm.medicine_name.trim()) return;
+                          if (!medicationForm.medicine_name.trim()) {
+                            showToast('Select a medicine first.', 'error');
+                            return;
+                          }
                           setPrescriptionForm((prev) => ({
                             ...prev,
-                            items: [...prev.items, { ...medicationForm, local_id: `med-${Date.now()}` }],
+                            items: [
+                              ...prev.items,
+                              {
+                                ...medicationForm,
+                                dosage: medicationForm.dosage || '1 tablet',
+                                route: medicationForm.route || 'Oral',
+                                frequency: medicationForm.frequency || 'BD',
+                                duration: medicationForm.duration || '5 Days',
+                                local_id: `med-${Date.now()}`,
+                              },
+                            ],
                           }));
                           setMedicationForm(emptyMedicationForm);
                           showToast('Medication added.');
                         }}
+                        style={{ height: '42px', justifyContent: 'center' }}
                         type="button"
                       >
-                        <i className="ph ph-plus" aria-hidden="true" />
-                        Add Medicine
+                        <i aria-hidden="true" className="ph ph-plus" />
+                        Add Medication
                       </button>
                     </div>
 
-                    <div className="doc-table-wrap" style={{ marginTop: '1rem' }}>
+                    <div className="opd-form-section-head" style={{ marginTop: '1rem' }}>
+                      <div>
+                        <h4>Medication Table</h4>
+                        <p style={{ fontSize: '0.78rem', color: '#64748b' }}>Current prescription items</p>
+                      </div>
+                    </div>
+
+                    <div className="doc-table-wrap">
                       <table className="doc-table opd-prescription-table">
                         <thead>
                           <tr>
-                            <th>Medicine</th>
-                            <th>Dosage</th>
-                            <th>Frequency</th>
-                            <th>Duration</th>
-                            <th>Instructions</th>
-                            <th aria-label="Actions" />
+                            <th>MEDICINE</th>
+                            <th>DOSAGE</th>
+                            <th>ROUTE</th>
+                            <th>FREQUENCY</th>
+                            <th>DURATION</th>
+                            <th>INSTRUCTIONS</th>
+                            <th aria-label="Actions" style={{ width: '48px' }} />
                           </tr>
                         </thead>
                         <tbody>
                           {prescriptionForm.items.length === 0 ? (
                             <tr>
-                              <td className="opd-prescription-empty" colSpan={6}>
+                              <td className="opd-prescription-empty" colSpan={7}>
                                 No medications prescribed yet.
                               </td>
                             </tr>
                           ) : (
                             prescriptionForm.items.map((item, index) => (
                               <tr key={item.local_id || index}>
-                                <td><strong>{item.medicine_name}</strong>{item.strength ? ` (${item.strength})` : ''}</td>
-                                <td>{item.dosage}</td>
-                                <td>{item.frequency}</td>
-                                <td>{item.duration}</td>
+                                <td>
+                                  <strong>{item.medicine_name}</strong>
+                                  {item.strength ? <small style={{ color: '#64748b' }}>{item.strength}</small> : null}
+                                </td>
+                                <td>{item.dosage || '1 tablet'}</td>
+                                <td>{item.route || 'Oral'}</td>
+                                <td>{item.frequency || 'BD'}</td>
+                                <td>{item.duration || '5 Days'}</td>
                                 <td>{item.instructions || '-'}</td>
                                 <td>
                                   <button
@@ -1244,30 +1711,65 @@ export function OpdVisitPage() {
                         </tbody>
                       </table>
                     </div>
+
+                    <div className="doc-form-grid two" style={{ marginTop: '1.25rem' }}>
+                      <label className="doc-field" htmlFor="rx-follow-up-date">
+                        <span>Follow-up Date</span>
+                        <input
+                          id="rx-follow-up-date"
+                          onChange={(e) => setPrescriptionForm((prev) => ({ ...prev, follow_up_date: e.target.value }))}
+                          type="date"
+                          value={prescriptionForm.follow_up_date}
+                        />
+                      </label>
+                      <label className="doc-field" htmlFor="rx-doctor-instructions">
+                        <span>Doctor Instructions</span>
+                        <textarea
+                          id="rx-doctor-instructions"
+                          onChange={(e) => setPrescriptionForm((prev) => ({ ...prev, doctor_instructions: e.target.value }))}
+                          placeholder="Clinical instructions for pharmacy dispensing..."
+                          rows={2}
+                          value={prescriptionForm.doctor_instructions}
+                        />
+                      </label>
+                      <label className="doc-field full" htmlFor="rx-patient-instructions">
+                        <span>Patient Instructions</span>
+                        <textarea
+                          id="rx-patient-instructions"
+                          onChange={(e) => setPrescriptionForm((prev) => ({ ...prev, patient_instructions: e.target.value }))}
+                          placeholder="Patient counseling notes, lifestyle advice, diet restrictions..."
+                          rows={2}
+                          value={prescriptionForm.patient_instructions}
+                        />
+                      </label>
+                    </div>
                   </section>
 
                   <div className="opd-sticky-actions">
                     <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
+                      <i aria-hidden="true" className="ph ph-check-circle" />
                       Auto-save enabled
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Lab Orders')} type="button">
-                        Next: Lab Orders
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
-                      </button>
                       <button
-                        className="doc-btn success"
-                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
-                        onClick={completeConsultation}
-                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        className="doc-btn"
+                        onClick={() => window.print()}
                         type="button"
                       >
-                        <i className="ph ph-check-circle" aria-hidden="true" />
-                        Complete Consultation
+                        <i aria-hidden="true" className="ph ph-printer" />
+                        Print Prescription
+                      </button>
+                      <button
+                        className="doc-btn primary"
+                        disabled={updating === 'prescription-submit' || prescriptionForm.items.length === 0}
+                        onClick={handleSendToPharmacy}
+                        type="button"
+                      >
+                        <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+                        Send To Pharmacy
                       </button>
                     </div>
                   </div>
@@ -1280,80 +1782,160 @@ export function OpdVisitPage() {
                   <section className="opd-form-section">
                     <div className="opd-form-section-head">
                       <div>
-                        <h3>Laboratory Requisition</h3>
-                        <p>Order laboratory tests for this encounter</p>
+                        <h3>Laboratory Order</h3>
+                        <p>Select priority, category and requested investigations</p>
                       </div>
                     </div>
-                    <div className="doc-form-grid two">
-                      <label className="doc-field" htmlFor="lab-test-name">
-                        <span>Test / Investigation Name</span>
-                        <select id="lab-test-name" onChange={(e) => setSelectedLabTest(e.target.value)} value={selectedLabTest}>
-                          <option value="">Select Lab Test from Service Catalogue</option>
-                          {labTestServices.map((service) => (
-                            <option key={service.id} value={service.name}>
-                              {service.name} ({service.code})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="doc-field" htmlFor="lab-priority">
+
+                    <div className="doc-form-grid four" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
+                      <label className="doc-field" htmlFor="lab-priority-sel">
                         <span>Priority</span>
-                        <select id="lab-priority" onChange={(e) => setLabPriority(e.target.value as ApiClinicalOrderPriority)} value={labPriority}>
+                        <select
+                          id="lab-priority-sel"
+                          onChange={(e) => setLabPriority(e.target.value as ApiClinicalOrderPriority)}
+                          value={labPriority}
+                        >
                           <option value="ROUTINE">Routine</option>
                           <option value="URGENT">Urgent</option>
                           <option value="STAT">Stat</option>
                         </select>
                       </label>
-                      <button
-                        className="doc-btn primary add-medication"
-                        onClick={() => {
-                          if (!selectedLabTest.trim()) return;
-                          const matchedLab = labTestServices.find(s => s.name === selectedLabTest);
-                          if (!matchedLab) return;
-                          setLabOrders((prev) => [
-                            ...prev,
-                            { id: matchedLab.id, name: selectedLabTest, local_id: `lab-${Date.now()}` }
-                          ]);
-                          setSelectedLabTest('');
-                        }}
-                        type="button"
-                        style={{ alignSelf: 'flex-end', height: 'fit-content', marginBottom: '4px' }}
-                      >
-                        <i className="ph ph-plus" aria-hidden="true" />
-                        Add Test
-                      </button>
+                      <label className="doc-field" htmlFor="lab-facility-sel">
+                        <span>Laboratory</span>
+                        <select
+                          id="lab-facility-sel"
+                          onChange={(e) => setLabFacility(e.target.value)}
+                          value={labFacility}
+                        >
+                          {labFacilities.map((facility) => (
+                            <option key={facility} value={facility}>
+                              {facility}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="doc-field" htmlFor="lab-sample-type-sel">
+                        <span>Sample Type</span>
+                        <select
+                          id="lab-sample-type-sel"
+                          onChange={(e) => setLabSampleType(e.target.value)}
+                          value={labSampleType}
+                        >
+                          {labSampleTypeOptions.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="doc-field" htmlFor="lab-category-sel">
+                        <span>Laboratory Category</span>
+                        <select
+                          id="lab-category-sel"
+                          onChange={(e) => setLabCategory(e.target.value)}
+                          value={labCategory}
+                        >
+                          {labCategoryOptions.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat === 'All' ? 'All Categories' : cat}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="opd-form-section-head" style={{ marginTop: '0.75rem' }}>
+                      <div>
+                        <h4>Available Tests</h4>
+                        <p style={{ fontSize: '0.78rem', color: '#64748b' }}>Check tests to add to requisition</p>
+                      </div>
+                    </div>
+
+                    <div className="opd-tests-checkbox-grid">
+                      {availableLabTests.length === 0 ? (
+                        <span style={{ color: '#64748b', fontSize: '0.82rem', gridColumn: 'span 4' }}>
+                          No lab tests found for this category in the Service Catalogue.
+                        </span>
+                      ) : (
+                        availableLabTests.map((test) => {
+                          const isSelected = labOrders.some((o) => o.id === test.id);
+                          return (
+                            <label
+                              className={`opd-test-checkbox-label ${isSelected ? 'selected' : ''}`}
+                              key={test.id}
+                            >
+                              <input
+                                checked={isSelected}
+                                onChange={() => handleToggleLabTest(test)}
+                                type="checkbox"
+                              />
+                              <span>{test.name}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="doc-form-grid two" style={{ marginTop: '1rem' }}>
+                      <label className="doc-field" htmlFor="lab-clinical-notes">
+                        <span>Clinical Notes</span>
+                        <textarea
+                          id="lab-clinical-notes"
+                          onChange={(e) => setLabClinicalNotes(e.target.value)}
+                          placeholder="Clinical indication or suspected conditions..."
+                          rows={2}
+                          value={labClinicalNotes}
+                        />
+                      </label>
+                      <label className="doc-field" htmlFor="lab-order-summary">
+                        <span>Order Summary</span>
+                        <textarea
+                          id="lab-order-summary"
+                          onChange={(e) => setLabOrderSummary(e.target.value)}
+                          placeholder="Instructions for laboratory technician..."
+                          rows={2}
+                          value={labOrderSummary}
+                        />
+                      </label>
                     </div>
 
                     <div className="doc-table-wrap" style={{ marginTop: '1rem' }}>
                       <table className="doc-table opd-prescription-table">
                         <thead>
                           <tr>
-                            <th>Test / Investigation Name</th>
-                            <th style={{ width: '60px' }}></th>
+                            <th>TEST</th>
+                            <th>CATEGORY</th>
+                            <th>PRIORITY</th>
+                            <th>STATUS</th>
+                            <th style={{ width: '48px' }} />
                           </tr>
                         </thead>
                         <tbody>
                           {labOrders.length === 0 ? (
                             <tr>
-                              <td colSpan={2} style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>
-                                No lab tests added yet. Select a test and click "Add Test".
+                              <td colSpan={5} style={{ textAlign: 'center', padding: '1.2rem', color: '#64748b' }}>
+                                No lab tests selected yet.
                               </td>
                             </tr>
                           ) : (
                             labOrders.map((item) => (
                               <tr key={item.local_id}>
+                                <td><strong>{item.name}</strong></td>
+                                <td>{item.category || labCategory}</td>
                                 <td>
-                                  <strong>{item.name}</strong>
+                                  <span className="doc-status draft">{labPriority}</span>
+                                </td>
+                                <td>
+                                  <span className="doc-status pending">Pending Submit</span>
                                 </td>
                                 <td>
                                   <button
-                                    className="btn-icon"
-                                    onClick={() => setLabOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
+                                    className="doc-action danger"
+                                    onClick={() => setLabOrders((prev) => prev.filter((i) => i.local_id !== item.local_id))}
                                     title="Remove test"
                                     type="button"
-                                    style={{ color: '#ef4444' }}
                                   >
-                                    <i className="ph ph-trash" aria-hidden="true" />
+                                    <i className="ph ph-trash" />
                                   </button>
                                 </td>
                               </tr>
@@ -1366,26 +1948,29 @@ export function OpdVisitPage() {
 
                   <div className="opd-sticky-actions">
                     <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
+                      <i aria-hidden="true" className="ph ph-check-circle" />
                       Auto-save enabled
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Imaging Orders')} type="button">
-                        Next: Imaging Orders
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
-                      </button>
                       <button
-                        className="doc-btn success"
-                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
-                        onClick={completeConsultation}
-                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        className="doc-btn"
+                        onClick={() => window.print()}
                         type="button"
                       >
-                        <i className="ph ph-check-circle" aria-hidden="true" />
-                        Complete Consultation
+                        <i aria-hidden="true" className="ph ph-printer" />
+                        Print Laboratory Order
+                      </button>
+                      <button
+                        className="doc-btn primary"
+                        disabled={updating === 'lab-order-submit' || labOrders.length === 0}
+                        onClick={handleSubmitLabOrder}
+                        type="button"
+                      >
+                        <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+                        Submit Laboratory Order
                       </button>
                     </div>
                   </div>
@@ -1402,76 +1987,135 @@ export function OpdVisitPage() {
                         <p>Order X-rays, Ultrasounds, CT, or MRI scans</p>
                       </div>
                     </div>
-                    <div className="doc-form-grid two">
-                      <label className="doc-field" htmlFor="imaging-test-name">
-                        <span>Scan / Modality</span>
-                        <select id="imaging-test-name" onChange={(e) => setSelectedImagingTest(e.target.value)} value={selectedImagingTest}>
-                          <option value="">Select Imaging Scan from Service Catalogue</option>
-                          {imagingServices.map((service) => (
-                            <option key={service.id} value={service.name}>
-                              {service.name} ({service.code})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="doc-field" htmlFor="imaging-priority">
+
+                    <div className="doc-form-grid two" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
+                      <label className="doc-field" htmlFor="imaging-priority-sel">
                         <span>Priority</span>
-                        <select id="imaging-priority" onChange={(e) => setImagingPriority(e.target.value as ApiClinicalOrderPriority)} value={imagingPriority}>
+                        <select
+                          id="imaging-priority-sel"
+                          onChange={(e) => setImagingPriority(e.target.value as ApiClinicalOrderPriority)}
+                          value={imagingPriority}
+                        >
                           <option value="ROUTINE">Routine</option>
                           <option value="URGENT">Urgent</option>
                           <option value="STAT">Stat</option>
                         </select>
                       </label>
-                      <button
-                        className="doc-btn primary add-medication"
-                        onClick={() => {
-                          if (!selectedImagingTest.trim()) return;
-                          const matchedImg = imagingServices.find(s => s.name === selectedImagingTest);
-                          if (!matchedImg) return;
-                          setImagingOrders((prev) => [
-                            ...prev,
-                            { id: matchedImg.id, name: selectedImagingTest, local_id: `img-${Date.now()}` }
-                          ]);
-                          setSelectedImagingTest('');
-                        }}
-                        type="button"
-                        style={{ alignSelf: 'flex-end', height: 'fit-content', marginBottom: '4px' }}
-                      >
-                        <i className="ph ph-plus" aria-hidden="true" />
-                        Add Scan
-                      </button>
+                      <label className="doc-field" htmlFor="imaging-category-sel">
+                        <span>Imaging Category</span>
+                        <select
+                          id="imaging-category-sel"
+                          onChange={(e) => setImagingCategory(e.target.value)}
+                          value={imagingCategory}
+                        >
+                          {imagingCategoryOptions.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat === 'All' ? 'All Modalities' : cat}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
 
-                    <div className="doc-table-wrap" style={{ marginTop: '1rem' }}>
+                    <div className="opd-form-section-head" style={{ marginTop: '0.75rem' }}>
+                      <div>
+                        <h4>Available Imaging Tests</h4>
+                        <p style={{ fontSize: '0.78rem', color: '#64748b' }}>Check scans to add to requisition</p>
+                      </div>
+                    </div>
+
+                    <div className="opd-tests-checkbox-grid">
+                      {availableImagingTests.length === 0 ? (
+                        <span style={{ color: '#64748b', fontSize: '0.82rem', gridColumn: 'span 2' }}>
+                          No imaging tests found for this modality in the Service Catalogue.
+                        </span>
+                      ) : (
+                        availableImagingTests.map((test) => {
+                          const isSelected = imagingOrders.some((o) => o.id === test.id);
+                          return (
+                            <label
+                              className={`opd-test-checkbox-label ${isSelected ? 'selected' : ''}`}
+                              key={test.id}
+                            >
+                              <input
+                                checked={isSelected}
+                                onChange={() => handleToggleImagingTest(test)}
+                                type="checkbox"
+                              />
+                              <span>{test.name}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="doc-form-grid two" style={{ marginTop: '1rem' }}>
+                      <label className="doc-field" htmlFor="imaging-clinical-info">
+                        <span>Clinical Information</span>
+                        <textarea
+                          id="imaging-clinical-info"
+                          onChange={(e) => setImagingClinicalInfo(e.target.value)}
+                          placeholder="Clinical symptoms, suspected pathology, or trauma site..."
+                          rows={2}
+                          value={imagingClinicalInfo}
+                        />
+                      </label>
+                      <label className="doc-field" htmlFor="imaging-order-instructions">
+                        <span>Order Instructions</span>
+                        <textarea
+                          id="imaging-order-instructions"
+                          onChange={(e) => setImagingOrderInstructions(e.target.value)}
+                          placeholder="Special radiology instructions, views requested, with/without contrast..."
+                          rows={2}
+                          value={imagingOrderInstructions}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="opd-form-section-head" style={{ marginTop: '1.25rem' }}>
+                      <div>
+                        <h4>Selected Imaging Tests</h4>
+                        <p style={{ fontSize: '0.78rem', color: '#64748b' }}>Orders created during this consultation</p>
+                      </div>
+                    </div>
+
+                    <div className="doc-table-wrap">
                       <table className="doc-table opd-prescription-table">
                         <thead>
                           <tr>
-                            <th>Scan / Modality</th>
-                            <th style={{ width: '60px' }}></th>
+                            <th>TEST</th>
+                            <th>CATEGORY</th>
+                            <th>PRIORITY</th>
+                            <th>STATUS</th>
+                            <th style={{ width: '48px' }} />
                           </tr>
                         </thead>
                         <tbody>
                           {imagingOrders.length === 0 ? (
                             <tr>
-                              <td colSpan={2} style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>
-                                No imaging scans added yet. Select a scan and click "Add Scan".
+                              <td colSpan={5} style={{ textAlign: 'center', padding: '1.2rem', color: '#64748b' }}>
+                                No tests selected.
                               </td>
                             </tr>
                           ) : (
                             imagingOrders.map((item) => (
                               <tr key={item.local_id}>
+                                <td><strong>{item.name}</strong></td>
+                                <td>{item.category || imagingCategory}</td>
                                 <td>
-                                  <strong>{item.name}</strong>
+                                  <span className="doc-status draft">{imagingPriority}</span>
+                                </td>
+                                <td>
+                                  <span className="doc-status pending">Pending Submit</span>
                                 </td>
                                 <td>
                                   <button
-                                    className="btn-icon"
-                                    onClick={() => setImagingOrders(prev => prev.filter(i => i.local_id !== item.local_id))}
-                                    title="Remove scan"
+                                    className="doc-action danger"
+                                    onClick={() => setImagingOrders((prev) => prev.filter((i) => i.local_id !== item.local_id))}
+                                    title="Remove test"
                                     type="button"
-                                    style={{ color: '#ef4444' }}
                                   >
-                                    <i className="ph ph-trash" aria-hidden="true" />
+                                    <i className="ph ph-trash" />
                                   </button>
                                 </td>
                               </tr>
@@ -1484,26 +2128,29 @@ export function OpdVisitPage() {
 
                   <div className="opd-sticky-actions">
                     <span className="opd-autosave saved">
-                      <i className="ph ph-check-circle" aria-hidden="true" />
+                      <i aria-hidden="true" className="ph ph-check-circle" />
                       Auto-save enabled
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Referral')} type="button">
-                        Next: Referral
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
-                      </button>
                       <button
-                        className="doc-btn success"
-                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
-                        onClick={completeConsultation}
-                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        className="doc-btn"
+                        onClick={() => window.print()}
                         type="button"
                       >
-                        <i className="ph ph-check-circle" aria-hidden="true" />
-                        Complete Consultation
+                        <i aria-hidden="true" className="ph ph-printer" />
+                        Print Imaging Order
+                      </button>
+                      <button
+                        className="doc-btn primary"
+                        disabled={updating === 'imaging-order-submit' || imagingOrders.length === 0}
+                        onClick={handleSubmitImagingOrder}
+                        type="button"
+                      >
+                        <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+                        Submit Imaging Order
                       </button>
                     </div>
                   </div>
@@ -1846,10 +2493,10 @@ export function OpdVisitPage() {
                   </div>
                   <div className="opd-summary-row">
                     <span>Temperature</span>
-                    <strong>{vitalsForm.temperature_c ? `${vitalsForm.temperature_c} Â°C` : 'Not recorded'}</strong>
+                    <strong>{vitalsForm.temperature_c ? `${vitalsForm.temperature_c} °C` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">
-                    <span>SpOâ‚‚</span>
+                    <span>SpOa</span>
                     <strong>{vitalsForm.oxygen_saturation_percent ? `${vitalsForm.oxygen_saturation_percent}%` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useMemo, type FormEvent } from 'react';
 import { type BillingInvoice } from '../api/billing';
 import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
@@ -365,9 +365,41 @@ export function PatientProfilePage() {
   const [viewingLabOrder, setViewingLabOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingImagingOrder, setViewingImagingOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<BillingInvoice | null>(null);
-
   const [editOpen, setEditOpen] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
+
+  const patientAllergies = useMemo(() => {
+    const list: string[] = [];
+    if (patient?.notes && (patient.notes.toLowerCase().includes('allerg') || patient.notes.toLowerCase().includes('sensitiv'))) {
+      list.push(patient.notes);
+    }
+    visitsData.forEach((v) => {
+      const vAny = v as unknown as { consultation?: { allergies?: string | null }; notes?: string | null; reason?: string | null };
+      if (vAny.consultation?.allergies && !list.includes(vAny.consultation.allergies)) {
+        list.push(vAny.consultation.allergies);
+      }
+      if (vAny.notes && vAny.notes.toLowerCase().includes('allerg') && !list.includes(vAny.notes)) {
+        list.push(vAny.notes);
+      }
+    });
+    timeline.forEach((ev) => {
+      if (ev.description && ev.description.toLowerCase().includes('allerg') && !list.includes(ev.description)) {
+        list.push(ev.description);
+      }
+    });
+    return list;
+  }, [patient?.notes, visitsData, timeline]);
+
+  const patientChronicConditions = useMemo(() => {
+    const list: string[] = [];
+    visitsData.forEach((v) => {
+      const vAny = v as unknown as { consultation?: { past_history?: string | null } };
+      if (vAny.consultation?.past_history && vAny.consultation.past_history.trim().toLowerCase() !== 'no' && !list.includes(vAny.consultation.past_history)) {
+        list.push(vAny.consultation.past_history);
+      }
+    });
+    return list;
+  }, [visitsData]);
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
@@ -750,11 +782,23 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div className="profile-alert-box">
                     <strong>Allergies</strong>
-                    <div>{patient.notes?.toLowerCase().includes('allergy') ? patient.notes : 'None recorded'}</div>
+                    <div>
+                      {patientAllergies.length > 0 ? (
+                        <span style={{ color: '#dc2626', fontWeight: 600 }}>{patientAllergies.join(', ')}</span>
+                      ) : (
+                        'None recorded'
+                      )}
+                    </div>
                   </div>
                   <div className="profile-alert-box info">
                     <strong>Chronic conditions</strong>
-                    <div>None recorded</div>
+                    <div>
+                      {patientChronicConditions.length > 0 ? (
+                        <span style={{ color: '#1e40af', fontWeight: 600 }}>{patientChronicConditions.join(', ')}</span>
+                      ) : (
+                        'None recorded'
+                      )}
+                    </div>
                   </div>
                 </div>
               </article>

@@ -9,6 +9,7 @@ export type ServiceResponse = {
   name: string;
   service_type: ApiServiceType;
   category: string | null;
+  sample_type?: string | null;
   description: string | null;
   department_id: string;
   standard_price: number;
@@ -59,6 +60,7 @@ export type CreateServicePayload = {
   requires_advance_deposit?: boolean;
   minimum_advance_deposit_amount?: number | null;
   category?: string | null;
+  sample_type?: string | null;
   description?: string | null;
   status?: ApiServiceStatus;
 };

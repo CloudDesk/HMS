@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -194,6 +194,8 @@ export function OpdQueuePage() {
       navigate(nextUrl, { replace: true });
     }
   }, [filters]);
+
+  const isPastDate = useMemo(() => Boolean(filters.date && filters.date < todayInputValue()), [filters.date]);
 
   const sortedVisits = useMemo(() => [...visits].sort(visitSort), [visits]);
   const activeVisits = sortedVisits.filter(isActiveVisit);
@@ -491,30 +493,47 @@ export function OpdQueuePage() {
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
                             {visit.status === 'WAITING_FOR_VITALS' || visit.status === 'CHECKED_IN' ? (
-                              <button
-                                className="doc-btn primary compact"
-                                disabled={isUpdating || !canCreateVitals || !canEditVisit}
-                                onClick={() => {
-                                  setVitalsVisit(visit);
-                                  resetVitals();
-                                  setVitalsModalOpen(true);
-                                }}
-                                title="Step 1: Take Vitals"
-                                type="button"
-                              >
-                                <i className="ph ph-heartbeat" aria-hidden="true" />
-                                Take Vitals
-                              </button>
+                              <>
+                                <button
+                                  className="doc-btn primary compact"
+                                  disabled={isUpdating || !canCreateVitals || !canEditVisit || isPastDate}
+                                  onClick={() => {
+                                    setVitalsVisit(visit);
+                                    resetVitals();
+                                    setVitalsModalOpen(true);
+                                  }}
+                                  title={isPastDate ? 'Intake locked for past dates' : 'Step 1: Take Vitals'}
+                                  type="button"
+                                >
+                                  <i className="ph ph-heartbeat" aria-hidden="true" />
+                                  Take Vitals
+                                </button>
+                                {isPastDate ? (
+                                  <button
+                                    className="doc-action error"
+                                    disabled={isUpdating || !canEditVisit}
+                                    onClick={() => {
+                                      if (window.confirm('Mark this stale visit as No Show?')) {
+                                        void handleStatusChange(visit, 'NO_SHOW', 'Marked as No Show during past queue review.');
+                                      }
+                                    }}
+                                    title="Mark No Show"
+                                    type="button"
+                                  >
+                                    <i className="ph ph-user-minus" aria-hidden="true" />
+                                  </button>
+                                ) : null}
+                              </>
                             ) : visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED' ? (
                               <>
                                 <button
                                   className="doc-btn success compact"
-                                  disabled={isUpdating || !canEditVisit}
+                                  disabled={isUpdating || !canEditVisit || isPastDate}
                                   onClick={async () => {
                                     await handleStatusChange(visit, 'IN_CONSULTATION');
                                     navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
                                   }}
-                                  title="Step 2: Start Consultation"
+                                  title={isPastDate ? 'Consultation calling is locked for past dates' : 'Step 2: Start Consultation'}
                                   type="button"
                                 >
                                   <i className="ph ph-stethoscope" aria-hidden="true" />
@@ -610,8 +629,9 @@ export function OpdQueuePage() {
             <div className="doc-action-group" style={{ margin: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <button
                 className="doc-btn primary full-width"
-                disabled={isUpdating || !nextVisit || Boolean(currentVisit) || !canEditVisit}
+                disabled={isUpdating || !nextVisit || Boolean(currentVisit) || !canEditVisit || isPastDate}
                 onClick={handleCallNext}
+                title={isPastDate ? 'Queue calling is disabled for past dates' : 'Call Next Patient'}
                 type="button"
               >
                 <i className="ph ph-megaphone" aria-hidden="true" />

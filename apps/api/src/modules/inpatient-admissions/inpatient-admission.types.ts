@@ -1,6 +1,22 @@
-export type AdmissionType = 'MEDICAL' | 'SURGICAL' | 'MATERNITY' | 'PAEDIATRIC' | 'OBSERVATION' | 'OTHER';
+export type AdmissionType =
+  | 'INPATIENT'
+  | 'OBSERVATION'
+  | 'DAY_CARE'
+  | 'ICU'
+  | 'HDU'
+  | 'MEDICAL'
+  | 'SURGICAL'
+  | 'MATERNITY'
+  | 'PAEDIATRIC'
+  | 'OTHER';
 export type AdmissionStatus = 'DRAFT' | 'ADMITTED' | 'CANCELLED';
-export type AdmissionSourceType = 'DIRECT' | 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER' | 'PROCEDURE_BOOKING';
+export type AdmissionSourceType =
+  | 'DIRECT'
+  | 'OPD_VISIT'
+  | 'EMERGENCY_ENCOUNTER'
+  | 'REFERRAL'
+  | 'TRANSFER'
+  | 'PROCEDURE_BOOKING';
 export type AdmissionRequestStatus = 'PENDING_VALIDATION' | 'READY_FOR_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED';
 export type AdmissionPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 
@@ -96,7 +112,7 @@ export type CreateAdmissionRequestDTO = {
   branch_id: string;
   department_id: string;
   recommending_doctor_id: string;
-  source_type: 'DIRECT' | 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER';
+  source_type: AdmissionSourceType;
   source_id?: string | null;
   admission_type: AdmissionType;
   priority: AdmissionPriority;

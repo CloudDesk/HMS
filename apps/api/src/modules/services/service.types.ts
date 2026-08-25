@@ -7,6 +7,7 @@ export type Service = {
   name: string;
   service_type: ServiceType;
   category: string | null;
+  sample_type?: string | null;
   description: string | null;
   department_id: string;
   standard_price: number;
@@ -47,6 +48,7 @@ export type CreateServiceDTO = {
   requires_advance_deposit?: boolean;
   minimum_advance_deposit_amount?: number | null;
   category?: string | null;
+  sample_type?: string | null;
   description?: string | null;
   status?: ServiceStatus;
 };

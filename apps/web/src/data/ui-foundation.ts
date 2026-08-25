@@ -65,8 +65,7 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Admissions',
     icon: 'ph-bed',
     links: [
-      { href: '/admissions/inpatients', label: 'Inpatient Admission' },
-      { href: '/admissions/bed-availability', label: 'Bed Availability' },
+      { href: '/admissions/inpatients', label: 'Admission Requests' },
       { href: '/admissions/beds', label: 'Bed Management' },
     ],
   },

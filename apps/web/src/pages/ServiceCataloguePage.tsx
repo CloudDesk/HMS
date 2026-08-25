@@ -31,6 +31,7 @@ const serviceSchema = z.object({
   branch_id: z.string().optional(),
   department_id: z.string().min(1, 'Department is required.'),
   category: z.string().optional(),
+  sample_type: z.string().optional(),
   description: z.string().optional(),
   standard_price: z.string().refine(
     (val) => val !== '' && !Number.isNaN(parseFloat(val)) && parseFloat(val) >= 0,
@@ -259,6 +260,7 @@ export function ServiceCataloguePage() {
         branch_id: dept?.branch_ids?.[0] || '',
         department_id: svc.department_id,
         category: svc.category || '',
+        sample_type: svc.sample_type || '',
         description: svc.description || '',
         standard_price: svc.standard_price !== null ? String(svc.standard_price) : '',
         default_duration_minutes: svc.default_duration_minutes == null ? '' : String(svc.default_duration_minutes),
@@ -273,7 +275,7 @@ export function ServiceCataloguePage() {
       setModalBranchIds([]);
       svcForm.reset({
         code: '', name: '', service_type: 'GENERAL', branch_id: '',
-        department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
+        department_id: '', category: '', sample_type: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
       });
     }
   };
@@ -310,6 +312,7 @@ export function ServiceCataloguePage() {
         service_type: values.service_type,
         department_id: values.department_id,
         category: values.category?.trim() || null,
+        sample_type: values.service_type === 'LAB_TEST' ? (values.sample_type?.trim() || null) : null,
         description: values.description?.trim() || null,
         standard_price: price,
         default_duration_minutes: values.service_type === 'PROCEDURE' ? Number(values.default_duration_minutes) : null,
@@ -755,9 +758,50 @@ export function ServiceCataloguePage() {
                 <span>Category</span>
                 <input
                   disabled={submitting}
-                  placeholder="e.g. Diagnostics"
+                  list="category-options-list"
+                  placeholder={
+                    svcForm.watch('service_type') === 'LAB_TEST'
+                      ? 'e.g. Hematology, Biochemistry'
+                      : svcForm.watch('service_type') === 'IMAGING_SERVICE'
+                        ? 'e.g. X-Ray, CT Scan, MRI'
+                        : 'e.g. Diagnostics'
+                  }
                   {...svcForm.register('category')}
                 />
+                <datalist id="category-options-list">
+                  {svcForm.watch('service_type') === 'LAB_TEST' ? (
+                    <>
+                      <option value="Hematology" />
+                      <option value="Biochemistry" />
+                      <option value="Microbiology" />
+                      <option value="Immunology" />
+                      <option value="Clinical Pathology" />
+                      <option value="Serology" />
+                      <option value="Urinalysis" />
+                      <option value="Molecular Diagnostics" />
+                    </>
+                  ) : svcForm.watch('service_type') === 'IMAGING_SERVICE' ? (
+                    <>
+                      <option value="X-Ray" />
+                      <option value="Ultrasound" />
+                      <option value="CT Scan" />
+                      <option value="MRI" />
+                      <option value="Mammography" />
+                      <option value="ECG" />
+                      <option value="Echo" />
+                      <option value="Fluoroscopy" />
+                      <option value="DEXA Scan" />
+                    </>
+                  ) : (
+                    <>
+                      <option value="Consultation" />
+                      <option value="Diagnostics" />
+                      <option value="Emergency" />
+                      <option value="Procedure" />
+                      <option value="General" />
+                    </>
+                  )}
+                </datalist>
               </label>
               <label className="form-field">
                 <span>Service Type <span className="required">*</span></span>
@@ -770,6 +814,24 @@ export function ServiceCataloguePage() {
                   ))}
                 </select>
               </label>
+              {svcForm.watch('service_type') === 'LAB_TEST' ? (
+                <label className="form-field">
+                  <span>Sample / Specimen Type</span>
+                  <select disabled={submitting} {...svcForm.register('sample_type')}>
+                    <option value="">Select Sample Type</option>
+                    <option value="Blood">Blood</option>
+                    <option value="Serum">Serum</option>
+                    <option value="Plasma">Plasma</option>
+                    <option value="Urine">Urine</option>
+                    <option value="Stool">Stool</option>
+                    <option value="Sputum">Sputum</option>
+                    <option value="Throat Swab">Throat Swab</option>
+                    <option value="CSF (Cerebrospinal Fluid)">CSF (Cerebrospinal Fluid)</option>
+                    <option value="Tissue / Biopsy">Tissue / Biopsy</option>
+                    <option value="Synovial Fluid">Synovial Fluid</option>
+                  </select>
+                </label>
+              ) : null}
             </div>
 
             <div className="form-section-title">Organisation</div>
@@ -871,6 +933,9 @@ export function ServiceCataloguePage() {
               <label className="form-field"><span>Service Name</span><input readOnly value={activeSvc.name} /></label>
               <label className="form-field"><span>Service Type</span><input readOnly value={serviceTypeLabels[activeSvc.service_type]} /></label>
               <label className="form-field"><span>Category</span><input readOnly value={activeSvc.category ?? ''} /></label>
+              {activeSvc.service_type === 'LAB_TEST' ? (
+                <label className="form-field"><span>Sample Type</span><input readOnly value={activeSvc.sample_type ?? '—'} /></label>
+              ) : null}
               <label className="form-field"><span>Department</span><input readOnly value={getDeptName(activeSvc.department_id)} /></label>
               <label className="form-field"><span>Branch</span><input readOnly value={getBranchForDept(activeSvc.department_id)} /></label>
               <label className="form-field"><span>Status</span><input readOnly value={activeSvc.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label>

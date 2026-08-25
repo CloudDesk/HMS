@@ -71,6 +71,7 @@ export class OpdVisitService {
 
   async list(query: OpdVisitListQuery, userId?: string) {
     this.validateListQuery(query);
+    await this.repository.reconcileStaleVisits().catch(() => 0);
     const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
     return this.repository.list(this.normalizeListDates(query), scope);
   }
