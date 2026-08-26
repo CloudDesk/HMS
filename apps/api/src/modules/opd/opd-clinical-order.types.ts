@@ -10,7 +10,7 @@ export type ClinicalOrderStatus =
   | 'VERIFIED'
   | 'COMPLETED';
 export type ClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
-export type ClinicalOrderSourceType = 'OPD' | 'EMERGENCY' | 'IP_ADMISSION' | 'PROCEDURE' | 'SURGERY';
+export type ClinicalOrderSourceType = ClinicalContextSourceType;
 
 export type ClinicalOrderItem = {
   id: string;
@@ -22,8 +22,11 @@ export type ClinicalOrderItem = {
 
 export type OpdClinicalOrder = {
   id: string;
-  source_type: 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER';
+  source_type: ClinicalContextSourceType;
   source_id: string;
+  encounter_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
   visit_id: string | null;
   consultation_id: string | null;
   patient_id: string;
@@ -75,3 +78,4 @@ export type ClinicalOrderRequestMetadata = {
   ipAddress?: string;
   userAgent?: string;
 };
+import type { ClinicalContextSourceType } from './clinical-context.types.js';

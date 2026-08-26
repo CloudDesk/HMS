@@ -4,11 +4,8 @@ import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { KpiCard } from '../components/ui/KpiCard';
 
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('en-KE', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+import { formatRegionalDateTime } from '../utils/localization-utils';
+import { useTimezone } from '../api/useSettings';
 
 function MetricBars({ items }: { items: DashboardMetric[] }) {
   const maximum = Math.max(...items.map((item) => item.value), 1);
@@ -30,6 +27,8 @@ function MetricBars({ items }: { items: DashboardMetric[] }) {
 }
 
 export function AdministrationDashboardPage() {
+  const timezone = useTimezone();
+  const formatDate = (value: string) => formatRegionalDateTime(value, timezone);
   const { data, status, actions } = useAdministrationDashboardFeature();
   const { dashboard, kpis } = data;
   const { isFetching: loading, loadError: error } = status;

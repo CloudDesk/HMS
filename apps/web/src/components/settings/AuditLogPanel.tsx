@@ -3,22 +3,18 @@ import { ApiError } from '../../api/api-error';
 import { settingsApi, type AuditAction, type AuditLogItem } from '../../api/settings';
 import { EmptyState } from '../ui/EmptyState';
 import { downloadBlob } from '../../utils/download';
+import { formatRegionalDateTime } from '../../utils/localization-utils';
+import { useTimezone } from '../../api/useSettings';
 
 type AuditLogPanelProps = {
   onTotalChange: (total: number) => void;
   onMessage: (message: string) => void;
 };
 
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('en-KE', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
 
 export function AuditLogPanel({ onTotalChange, onMessage }: AuditLogPanelProps) {
+  const timezone = useTimezone();
+  const formatDate = (value: string) => formatRegionalDateTime(value, timezone);
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [search, setSearch] = useState('');
   const [action, setAction] = useState<AuditAction | ''>('');

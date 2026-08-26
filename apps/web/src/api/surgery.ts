@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { ApiClinicalOrderType, OpdClinicalOrderResponse, OpdPrescriptionResponse, SaveOpdClinicalOrderPayload, SaveOpdPrescriptionPayload } from './opd';
 export type ProcedureRecommendationStatus = 'ACTIVE' | 'BOOKED' | 'CANCELLED';
 export type ProcedureBookingStatus = 'PENDING_CONFIRMATION' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 export type ProcedureRecommendation = { id: string; recommendation_number: string; patient_id: string; patient_number: string; patient_name: string; branch_id: string; department_id: string; department_name: string; recommending_doctor_id: string; recommending_doctor_name: string; service_id: string; service_name: string; encounter_type: 'OPD_VISIT'; encounter_id: string; clinical_reason: string; notes: string | null; status: ProcedureRecommendationStatus; booking_id: string | null; cancellation_reason: string | null; created_at: string; updated_at: string };
@@ -15,6 +16,10 @@ export const surgeryApi = {
   cancelRecommendation: (id: string, branchId: string, reason: string) => apiClient.request<ProcedureRecommendation>(`/surgery/recommendations/${id}/cancel${query({ branch_id: branchId })}`, { method: 'POST', body: { reason } }),
   bookings: (params: SurgeryListParams) => apiClient.request<SurgeryPage<ProcedureBooking>>(`/surgery/bookings${query(params)}`),
   booking: (id: string, branchId: string) => apiClient.request<ProcedureBooking>(`/surgery/bookings/${id}${query({ branch_id: branchId })}`),
+  prescription: (id: string, branchId: string) => apiClient.request<OpdPrescriptionResponse | null>(`/surgery/bookings/${id}/prescription${query({ branch_id: branchId })}`),
+  submitPrescription: (id: string, branchId: string, body: SaveOpdPrescriptionPayload) => apiClient.request<OpdPrescriptionResponse>(`/surgery/bookings/${id}/prescription${query({ branch_id: branchId })}`, { method: 'POST', body }),
+  clinicalOrder: (id: string, branchId: string, type: ApiClinicalOrderType) => apiClient.request<OpdClinicalOrderResponse | null>(`/surgery/bookings/${id}/clinical-orders/${type}${query({ branch_id: branchId })}`),
+  submitClinicalOrder: (id: string, branchId: string, type: ApiClinicalOrderType, body: SaveOpdClinicalOrderPayload) => apiClient.request<OpdClinicalOrderResponse>(`/surgery/bookings/${id}/clinical-orders/${type}${query({ branch_id: branchId })}`, { method: 'POST', body }),
   createBooking: (body: CreateBookingPayload) => apiClient.request<ProcedureBooking>('/surgery/bookings', { method: 'POST', body }),
   confirmBooking: (id: string, branchId: string, body: { consent_document_id?: string | null; deposit_invoice_id?: string | null; hold_id?: string | null }) => apiClient.request<ProcedureBooking>(`/surgery/bookings/${id}/confirm${query({ branch_id: branchId })}`, { method: 'POST', body }),
   rescheduleBooking: (id: string, branchId: string, body: { scheduled_start: string; reason: string; doctor_id?: string; hold_id?: string | null; consent_document_id?: string | null; deposit_invoice_id?: string | null }) => apiClient.request<ProcedureBooking>(`/surgery/bookings/${id}/reschedule${query({ branch_id: branchId })}`, { method: 'POST', body }),

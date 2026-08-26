@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   type DoctorScheduleAppointment as AppointmentResponse,
   type DoctorScheduleAppointmentStatus as ApiAppointmentStatus,
@@ -11,8 +11,13 @@ import {
   appointmentStatusLabels,
   appointmentVisitTypeLabels,
   todayInputValue,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
 } from './appointment-utils';
 import { statusTone, toDisplayDate, visitTypeText } from './doctor-workflow-utils';
+import { useSettings } from '../api/useSettings';
 
 const scheduleTimes = Array.from({ length: 22 }).map((_, index) => {
   const totalMinutes = 8 * 60 + index * 30;
@@ -41,29 +46,9 @@ const parseScheduleDate = (value: string) => {
 
 const appointmentDateKey = (appointment: AppointmentResponse) => appointment.appointment_date.slice(0, 10);
 
-const startOfWeek = (value: string) => {
-  const date = parseScheduleDate(value);
-  date.setDate(date.getDate() - date.getDay());
-  return date;
-};
 
-const endOfWeek = (value: string) => {
-  const date = startOfWeek(value);
-  date.setDate(date.getDate() + 6);
-  return date;
-};
 
-const startOfMonth = (value: string) => {
-  const date = parseScheduleDate(value);
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-};
-
-const endOfMonth = (value: string) => {
-  const date = parseScheduleDate(value);
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
-};
-
-const buildScheduleRange = (mode: DoctorScheduleViewMode, selectedDate: string) => {
+const buildScheduleRange = (mode: DoctorScheduleViewMode, selectedDate: string, firstDayOfWeek: 'Monday' | 'Sunday') => {
   if (mode === 'day') {
     return { from: selectedDate, to: selectedDate };
   }
@@ -72,7 +57,7 @@ const buildScheduleRange = (mode: DoctorScheduleViewMode, selectedDate: string) 
     return { from: toInputDate(startOfMonth(selectedDate)), to: toInputDate(endOfMonth(selectedDate)) };
   }
 
-  return { from: toInputDate(startOfWeek(selectedDate)), to: toInputDate(endOfWeek(selectedDate)) };
+  return { from: toInputDate(startOfWeek(selectedDate, firstDayOfWeek)), to: toInputDate(endOfWeek(selectedDate, firstDayOfWeek)) };
 };
 
 const scheduleViewModes: DoctorScheduleViewMode[] = ['day', 'week', 'month'];
@@ -102,8 +87,8 @@ const parseAppointmentStatus = (value: string | null): ApiAppointmentStatus | ''
 const parseVisitType = (value: string | null): ApiAppointmentVisitType | '' =>
   appointmentVisitTypes.find((visitType) => visitType === value) ?? '';
 
-const buildWeekDays = (selectedDate: string) => {
-  const weekStart = startOfWeek(selectedDate);
+const buildWeekDays = (selectedDate: string, firstDayOfWeek: 'Monday' | 'Sunday') => {
+  const weekStart = startOfWeek(selectedDate, firstDayOfWeek);
   return Array.from({ length: 7 }).map((_, index) => {
     const date = new Date(weekStart);
     date.setDate(date.getDate() + index);
@@ -139,13 +124,13 @@ const scheduleEventClass = (appointment: AppointmentResponse) => {
   return '';
 };
 
-const getRelativeDateLabel = (dateStr: string, view: DoctorScheduleViewMode) => {
+const getRelativeDateLabel = (dateStr: string, view: DoctorScheduleViewMode, firstDayOfWeek: 'Monday' | 'Sunday') => {
   if (view === 'month') {
     return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(parseScheduleDate(dateStr));
   }
   if (view === 'week') {
-    const start = startOfWeek(dateStr);
-    const end = endOfWeek(dateStr);
+    const start = startOfWeek(dateStr, firstDayOfWeek);
+    const end = endOfWeek(dateStr, firstDayOfWeek);
     const startStr = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(start);
     const endStr = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(end);
     return `${startStr} - ${endStr}`;
@@ -179,8 +164,11 @@ export function DoctorSchedulePage() {
     parseViewMode(initialParams.get('view')),
   );
 
-  const scheduleRange = useMemo(() => buildScheduleRange(viewMode, scheduleDate), [scheduleDate, viewMode]);
-  const weekDays = useMemo(() => buildWeekDays(scheduleDate), [scheduleDate]);
+  const settings = useSettings();
+  const firstDayOfWeek = settings?.localization.firstDayOfWeek || 'Sunday';
+
+  const scheduleRange = useMemo(() => buildScheduleRange(viewMode, scheduleDate, firstDayOfWeek), [scheduleDate, viewMode, firstDayOfWeek]);
+  const weekDays = useMemo(() => buildWeekDays(scheduleDate, firstDayOfWeek), [scheduleDate, firstDayOfWeek]);
   const monthDays = useMemo(() => buildMonthDays(scheduleDate), [scheduleDate]);
   const schedule = useDoctorSchedule({
     initialDoctorId: initialParams.get('doctor_id') ?? '',
@@ -328,7 +316,7 @@ export function DoctorSchedulePage() {
                 <i className="ph ph-caret-left" aria-hidden="true" />
               </button>
               <button className="doc-btn" onClick={() => setScheduleDate(todayInputValue())} type="button">
-                {getRelativeDateLabel(scheduleDate, viewMode)}
+                {getRelativeDateLabel(scheduleDate, viewMode, firstDayOfWeek)}
               </button>
               <button className="doc-btn icon-only" onClick={() => moveDate(1)} type="button">
                 <i className="ph ph-caret-right" aria-hidden="true" />

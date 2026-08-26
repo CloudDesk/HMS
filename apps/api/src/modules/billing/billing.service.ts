@@ -20,6 +20,7 @@ import type {
   SaveBillingInvoiceItemDTO,
   UpdateBillingInvoiceDTO,
 } from './billing.types.js';
+import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -44,6 +45,7 @@ export class BillingService {
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly clinicalOrderRepository: OpdClinicalOrderRepository,
     private readonly serviceRepository: ServiceRepository,
+    private readonly advancePaymentService: AdvancePaymentService,
   ) {}
 
   async list(query: BillingInvoiceListQuery, actorUserId: string) {
@@ -62,6 +64,11 @@ export class BillingService {
   async summary(query: BillingSummaryQuery, actorUserId: string) {
     const scope = await this.repository.resolveBranchScope(actorUserId, query.branch_id);
     return this.repository.summary(query, scope);
+  }
+
+  async isEncounterFinanciallyClosed(encounterId: string, session?: import('mongoose').ClientSession) {
+    const hasUnresolved = await this.repository.hasUnresolvedInvoicesForEncounter(encounterId, session);
+    return !hasUnresolved;
   }
 
   async verifyAdmissionDeposit(patientId: string, branchId: string, requestId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session: import('mongoose').ClientSession) {
@@ -251,6 +258,13 @@ export class BillingService {
         const payment = await this.repository.createPayment(invoice, createBillingNumber('PAY'), data, actorUserId, session);
         const updated = await this.repository.applyPayment(invoice, data.amount, actorUserId, session);
         if (!updated) throw new AppError('Invoice balance changed; refresh and retry', 409, 'PAYMENT_CONFLICT');
+
+        if (updated.context_type === 'ADMISSION_REQUEST' || updated.context_type === 'PROCEDURE_BOOKING') {
+          if (updated.context_id) {
+            await this.advancePaymentService.processPayment(updated.context_type, updated.context_id, data.amount, actorUserId, session);
+          }
+        }
+
         paymentId = payment.id;
         await this.repository.audit('billing.payment.collected', actorUserId, metadata, {
           invoiceId: invoice.id,

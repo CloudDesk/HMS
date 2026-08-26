@@ -1,5 +1,7 @@
 import type { DiagnosticOrder, DiagnosticSummary } from '../../api/laboratory';
 import { navigate } from '../../routing/navigation';
+import { formatRegionalDateTime } from '../../utils/localization-utils';
+import { useTimezone } from '../../api/useSettings';
 
 type Props = {
   module: 'laboratory' | 'imaging';
@@ -31,9 +33,6 @@ type Props = {
 
 const label = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const sourceLabel = (value: DiagnosticOrder['source_type']) => value === 'IP_ADMISSION' ? 'IP / Admission' : label(value);
-const dateTime = (value: string | null) => value ? new Intl.DateTimeFormat('en', {
-  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-}).format(new Date(value)) : '---';
 
 export function DiagnosticQueue({
   module,
@@ -49,10 +48,11 @@ export function DiagnosticQueue({
   updateFilters,
   clearFilters
 }: Props) {
+  const timezone = useTimezone();
+  const dateTime = (value: string | null) => formatRegionalDateTime(value, timezone);
   const moduleName = module === 'laboratory' ? 'Laboratory' : 'Imaging';
   const entryPath = module === 'laboratory' ? 'results' : 'reports';
   const columnCount = 8;
-
   return <div className={`diagnostic-page ${module}`}>
     <div className="diagnostic-kpis">
       <div className="kpi-card">

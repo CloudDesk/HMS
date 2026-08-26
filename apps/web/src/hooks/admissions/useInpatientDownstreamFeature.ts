@@ -1,0 +1,3 @@
+import { useServicesList } from '../services/useServices';
+import { useInpatientDownstream } from './useInpatientDownstream';
+export function useInpatientDownstreamFeature(admissionId: string | null, branchId: string, enabled: boolean) { const domain = useInpatientDownstream(admissionId, branchId, enabled); const laboratoryServices = useServicesList({ status: 'ACTIVE', service_type: 'LAB_TEST', limit: 100 }, enabled); const imagingServices = useServicesList({ status: 'ACTIVE', service_type: 'IMAGING_SERVICE', limit: 100 }, enabled); return { ...domain, laboratoryServices: laboratoryServices.data?.data ?? [], imagingServices: imagingServices.data?.data ?? [] }; }

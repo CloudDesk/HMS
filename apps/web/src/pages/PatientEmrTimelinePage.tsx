@@ -62,6 +62,7 @@ export function PatientEmrTimelinePage() {
   const [eventType, setEventType] = useState<PatientTimelineEventType | ''>(
     (searchParams.get('event_type') as PatientTimelineEventType | null) ?? '',
   );
+  // Removed todayDate
   const [fromDate, setFromDate] = useState(searchParams.get('from') ?? '');
   const [toDate, setToDate] = useState(searchParams.get('to') ?? '');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -222,6 +223,7 @@ export function PatientEmrTimelinePage() {
             <label htmlFor="emr-from-date">From</label>
             <input
               id="emr-from-date"
+              max={toDate || undefined}
               onChange={(e) => {
                 setFromDate(e.target.value);
                 setCurrentPage(1);
@@ -234,6 +236,7 @@ export function PatientEmrTimelinePage() {
             <label htmlFor="emr-to-date">To</label>
             <input
               id="emr-to-date"
+              min={fromDate || undefined}
               onChange={(e) => {
                 setToDate(e.target.value);
                 setCurrentPage(1);
@@ -351,7 +354,7 @@ export function PatientEmrTimelinePage() {
                       </div>
                       <div className="emr-card-cell">
                         <span>Doctor</span>
-                        <strong>{event.created_by || 'System'}</strong>
+                        <strong>{event.created_by_name || event.created_by || 'System'}</strong>
                       </div>
                       <div className="emr-card-cell">
                         <span>Department</span>

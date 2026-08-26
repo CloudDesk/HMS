@@ -1,6 +1,6 @@
 export type BillingInvoiceStatus = 'DRAFT' | 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
 export type BillingServiceType = 'CONSULTATION' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PHARMACY';
-export type BillingSourceType = 'OPD' | 'EMERGENCY' | 'PROCEDURE';
+export type BillingSourceType = 'OPD' | 'EMERGENCY' | 'PROCEDURE' | 'IP_ADMISSION';
 export type ManualBillingServiceType = Exclude<BillingServiceType, 'PHARMACY'>;
 export type BillingPaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER';
 

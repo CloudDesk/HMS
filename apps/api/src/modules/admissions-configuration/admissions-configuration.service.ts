@@ -39,17 +39,26 @@ export class AdmissionsConfigurationService {
   }
 
   private async expireHolds(branchId: string, actor: string, metadata: StatusActionMetadata) {
-    const expired = await this.repository.findExpiredHolds(branchId, new Date());
-    for (const item of expired) {
-      const session = await this.repository.session();
-      try {
-        await session.withTransaction(async () => {
-          const hold = await this.repository.closeHold(item._id.toString(), branchId, 'EXPIRED', 'Hold duration elapsed', actor, session);
-          if (hold) await this.repository.audit('admissions.bed_hold.expired', actor, metadata, { holdId: hold.id, bedId: hold.bed_id, branchId }, session);
-        });
-      } finally {
-        await session.endSession();
+    const MAX_BATCHES = 10;
+    const now = new Date();
+    
+    for (let batch = 0; batch < MAX_BATCHES; batch++) {
+      const expired = await this.repository.findExpiredHolds(branchId, now);
+      if (expired.length === 0) break;
+      
+      for (const item of expired) {
+        const session = await this.repository.session();
+        try {
+          await session.withTransaction(async () => {
+            const hold = await this.repository.closeHold(item._id.toString(), branchId, 'EXPIRED', 'Hold duration elapsed', actor, session);
+            if (hold) await this.repository.audit('admissions.bed_hold.expired', actor, metadata, { holdId: hold.id, bedId: hold.bed_id, branchId }, session);
+          });
+        } finally {
+          await session.endSession();
+        }
       }
+      
+      if (expired.length < 100) break;
     }
   }
 
@@ -107,6 +116,21 @@ export class AdmissionsConfigurationService {
     if (!hold) throw new AppError('Active bed hold not found or bed ownership changed', 409, 'BED_HOLD_CONFLICT');
     await this.repository.audit('admissions.bed_hold.cancelled', actor, metadata, { holdId, bedId: hold.bed_id, branchId, reason }, session);
     return hold;
+  }
+
+  async releaseHoldSafe(holdId: string, branchId: string, reason: string, actor: string, metadata: StatusActionMetadata, session: ClientSession) {
+    const current = await this.repository.getHoldById(holdId, branchId, session);
+    if (!current) return false;
+    
+    // Only release if it is still ACTIVE. If it naturally expired or was released/consumed, it is already safe.
+    if (current.status === 'ACTIVE') {
+      const hold = await this.repository.closeHold(holdId, branchId, 'RELEASED', reason, actor, session);
+      // It is possible the hold expired or was consumed concurrently before we could close it. We can safely ignore that.
+      if (hold) {
+        await this.repository.audit('admissions.bed_hold.released', actor, metadata, { holdId, bedId: hold.bed_id, branchId, reason }, session);
+      }
+    }
+    return true;
   }
 
   async releaseAdmissionBed(admission: AdmissionRecord, preparationRequired: boolean, reason: string, actor: string, metadata: StatusActionMetadata, session: ClientSession) {

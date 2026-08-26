@@ -43,11 +43,12 @@ export const listAppointmentsQuerySchema = {
 
 export const createAppointmentBodySchema = {
   type: 'object',
-  required: ['patient_id', 'doctor_id', 'appointment_date', 'start_time', 'duration_minutes', 'visit_type'],
+  required: ['patient_id', 'doctor_id', 'duration_minutes', 'visit_type'],
   additionalProperties: false,
   properties: {
     patient_id: { type: 'string', minLength: 1 },
     doctor_id: { type: 'string', minLength: 1 },
+    utc_datetime: { type: 'string', format: 'date-time' },
     appointment_date: { type: 'string', minLength: 10, maxLength: 10 },
     start_time: { type: 'string', minLength: 5, maxLength: 5 },
     duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
@@ -64,6 +65,7 @@ export const updateAppointmentBodySchema = {
   additionalProperties: false,
   properties: {
     doctor_id: { type: 'string', minLength: 1 },
+    utc_datetime: { type: 'string', format: 'date-time' },
     appointment_date: { type: 'string', minLength: 10, maxLength: 10 },
     start_time: { type: 'string', minLength: 5, maxLength: 5 },
     duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },

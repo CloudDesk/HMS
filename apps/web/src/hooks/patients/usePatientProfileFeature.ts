@@ -30,7 +30,7 @@ export type PatientProfileTab =
   | 'Billing'
   | 'Consent';
 
-export function usePatientProfileFeature(patientId: string | null) {
+export function usePatientProfileFeature(patientId: string | null, initialTab: PatientProfileTab = 'Overview') {
   const { user } = useAuth();
   
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
@@ -40,8 +40,9 @@ export function usePatientProfileFeature(patientId: string | null) {
 
   const canEdit = can('Edit');
 
-  const [activeTab, setActiveTab] = useState<PatientProfileTab>('Overview');
+  const [activeTab, setActiveTab] = useState<PatientProfileTab>(initialTab);
 
+  // Removed todayDate
   const [timelineFilters, setTimelineFilters] = useState({ from: '', to: '' });
   const [timelinePage, setTimelinePage] = useState({ page: 1, limit: 10 });
 

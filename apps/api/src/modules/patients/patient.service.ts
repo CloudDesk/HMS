@@ -3,6 +3,7 @@ import { UserModel } from '../users/user.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { env } from '../../config/env.js';
 import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
+import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { PatientRepository } from './patient.repository.js';
 import type {
   CreatePatientDTO,
@@ -20,11 +21,6 @@ const isValidDate = (value: string) => {
   return !Number.isNaN(date.getTime());
 };
 
-const createPatientNumber = (sequence: number) => {
-  const year = new Date().getFullYear();
-  return `HMS-${year}-${String(sequence + 1).padStart(6, '0')}`;
-};
-
 const isValidAfricanPhone = (phone: string): boolean => {
   if (!phone || !phone.trim()) return true;
   const cleaned = phone.replace(/[\s\-()]/g, '');
@@ -35,6 +31,7 @@ export class PatientService {
   constructor(
     private readonly repository: PatientRepository,
     private readonly documentStorage: PatientDocumentStorageService,
+    private readonly sequenceService: SequenceService,
   ) {}
 
   async list(query: PatientListQuery, userId?: string) {
@@ -75,8 +72,8 @@ export class PatientService {
       });
     }
 
-    const sequence = await this.repository.nextPatientSequence();
-    const patient = await this.repository.create(createPatientNumber(sequence), scopedData, userId);
+    const sequence = await this.sequenceService.getNextSequence('patient');
+    const patient = await this.repository.create(this.sequenceService.formatStandardSequence('HMS', sequence), scopedData, userId);
 
     await this.repository.addTimelineEvent(
       patient.id,
@@ -389,6 +386,10 @@ export class PatientService {
   }
 
   async addEmergencyTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `EMERGENCY_${string}`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+    return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
+  }
+
+  async addDownstreamTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `INPATIENT_${string}` | `PROCEDURE_${'PRESCRIPTION' | 'LAB_ORDER' | 'IMAGING_ORDER'}_SUBMITTED`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
     return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
   }
 

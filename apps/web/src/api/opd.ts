@@ -188,6 +188,7 @@ export type OpdPrescriptionItemResponse = {
   frequency: string;
   duration: string;
   quantity: number | null;
+  intake_time: string | null;
   instructions: string | null;
 };
 
@@ -364,7 +365,7 @@ export type SaveOpdReferralPayload = {
 };
 
 export type OpdReferralListResponse = { data: OpdReferralResponse[]; meta: { total: number; page: number; limit: number; totalPages: number } };
-export type BookOpdReferralPayload = { appointment_date: string; start_time: string; duration_minutes: number;
+export type BookOpdReferralPayload = { appointment_date: string; start_time: string; utc_datetime?: string; duration_minutes: number;
   visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE'; priority?: ApiOpdReferralPriority; notes?: string | null };
 
 const toQueryString = (params: Record<string, unknown>) => {

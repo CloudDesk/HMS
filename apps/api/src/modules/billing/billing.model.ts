@@ -75,7 +75,7 @@ const invoiceSchema = new Schema<BillingInvoiceFields>(
     invoiceNumber: { type: String, required: true, unique: true, trim: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
-    sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'PROCEDURE'], default: 'OPD', required: true },
+    sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'PROCEDURE', 'IP_ADMISSION'], default: 'OPD', required: true },
     encounterId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
     admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
     procedureId: { type: Schema.Types.ObjectId, default: null },

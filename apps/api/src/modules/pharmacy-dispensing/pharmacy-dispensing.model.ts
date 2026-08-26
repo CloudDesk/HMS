@@ -21,7 +21,9 @@ export type PharmacyDispensingFields = {
   patientId: Types.ObjectId;
   sourceType?: PharmacyDispensingSourceType;
   encounterId?: Types.ObjectId | null;
-  visitId: Types.ObjectId;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
+  visitId?: Types.ObjectId | null;
   branchId: Types.ObjectId;
   status: PharmacyDispensingStatus;
   version: number;
@@ -60,9 +62,11 @@ const itemSchema = new Schema<PharmacyDispensingItemFields>({
 const schema = new Schema<PharmacyDispensingFields>({
   prescriptionId: { type: Schema.Types.ObjectId, ref: 'OpdPrescription', required: true, unique: true },
   patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
-  sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'IP_ADMISSION', 'PROCEDURE', 'SURGERY'], default: 'OPD', required: true },
+  sourceType: { type: String, enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'], default: 'OPD_VISIT', required: true },
   encounterId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
-  visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
+  admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+  procedureId: { type: Schema.Types.ObjectId, ref: 'ProcedureBooking', default: null },
+  visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
   branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
   status: { type: String, enum: ['DRAFT', 'CONFIRMED', 'CANCELLED', 'REVERSED'], default: 'DRAFT', required: true },
   version: { type: Number, default: 0, required: true },
@@ -82,6 +86,8 @@ const schema = new Schema<PharmacyDispensingFields>({
 schema.index({ branchId: 1, status: 1, createdAt: -1 });
 schema.index({ patientId: 1, createdAt: -1 });
 schema.index({ sourceType: 1, encounterId: 1 });
+schema.index({ admissionId: 1, createdAt: -1 });
+schema.index({ procedureId: 1, createdAt: -1 });
 schema.index({ confirmIdempotencyKey: 1 }, { unique: true, sparse: true });
 schema.index({ reverseIdempotencyKey: 1 }, { unique: true, sparse: true });
 

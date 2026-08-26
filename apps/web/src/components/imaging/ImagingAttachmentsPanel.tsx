@@ -1,4 +1,6 @@
 import type { PatientDocumentResponse } from '../../api/patients';
+import { formatRegionalDate } from '../../utils/localization-utils';
+import { useTimezone } from '../../api/useSettings';
 
 type Props = {
   attachments: PatientDocumentResponse[];
@@ -19,6 +21,7 @@ const fileSize = (bytes: number) => bytes < 1024 * 1024
 export function ImagingAttachmentsPanel({
   attachments, canView, canUpload, isLoading, isError, isUploading, isDownloading, onUpload, onDownload,
 }: Props) {
+  const timezone = useTimezone();
   return <section className="card diagnostic-panel">
     <div className="form-section-title">Study Attachments</div>
     <p className="muted-cell">Images and external reports are stored in Patient Documents and linked to this encounter and imaging order.</p>
@@ -48,7 +51,7 @@ export function ImagingAttachmentsPanel({
       <tbody>{attachments.map((document) => <tr key={document.id}>
         <td><strong>{document.title}</strong><span className="muted-cell">{document.file_name}</span></td>
         <td>{document.mime_type}</td><td>{fileSize(document.file_size_bytes)}</td>
-        <td>{new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(document.created_at))}</td>
+        <td>{formatRegionalDate(document.created_at, timezone)}</td>
         <td><button className="action-icon-btn" disabled={isDownloading} title="Download attachment" type="button" onClick={() => { void onDownload(document); }}><i className="ph ph-download-simple" /></button></td>
       </tr>)}</tbody>
     </table></div> : null}

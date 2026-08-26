@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -553,11 +553,7 @@ export function OpdQueuePage() {
                                 <i className="ph ph-arrow-square-out" aria-hidden="true" />
                                 Consultation
                               </button>
-                            ) : (
-                              <span className="doc-status completed">
-                                <i className="ph ph-check-circle" aria-hidden="true" /> Completed
-                              </span>
-                            )}
+                            ) : null}
                             <button
                               className="doc-action"
                               onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)}

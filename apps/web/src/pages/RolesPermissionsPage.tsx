@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRolesPermissionsFeature } from '../hooks/admin/useRolesPermissionsFeature';
+import { useTimezone } from '../api/useSettings';
+import { formatRegionalDateTime } from '../utils/localization-utils';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -134,6 +136,7 @@ function PermissionSummary({
 }
 
 export function RolesPermissionsPage() {
+  const timezone = useTimezone();
   const { refreshCurrentUser } = useAuth();
   const { search: locationSearch } = useAppLocation();
 
@@ -598,7 +601,7 @@ export function RolesPermissionsPage() {
         {modalMode === 'assign-user' ? <form id="user-form" onSubmit={onSubmitUser}><div className="form-field"><label htmlFor="assign-role-user">User</label><select disabled={submitting} id="assign-role-user" {...userForm.register('userId')}><option value="">{isFetching ? 'Loading users...' : 'Select user'}</option>{userOptions.map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select>{userForm.formState.errors.userId ? <span className="field-error">{userForm.formState.errors.userId.message}</span> : null}</div></form> : null}
         {modalMode === 'remove-user' ? <form id="user-form" onSubmit={onSubmitUser}><div className="form-field"><label htmlFor="remove-role-user">User</label><select id="remove-role-user" {...userForm.register('userId')}><option value="">Select user</option>{(selectedRole?.users ?? []).map((user) => <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>)}</select>{userForm.formState.errors.userId ? <span className="field-error">{userForm.formState.errors.userId.message}</span> : null}</div></form> : null}
         {modalMode === 'delete' ? <p>Delete {selectedRole?.name}? The backend will enforce status and assignment restrictions.</p> : null}
-        {modalMode === 'audit' ? auditLoading ? <div className="rp-detail-empty">Loading audit history...</div> : auditItems.length ? <div className="role-audit-list">{auditItems.map((item) => <article key={item.id}><div><strong>{item.actorName}</strong><span>{item.eventType}</span></div><time dateTime={item.createdAt}>{new Intl.DateTimeFormat('en-KE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.createdAt))}</time></article>)}</div> : <div className="rp-detail-empty">No audit activity found for this role.</div> : null}
+        {modalMode === 'audit' ? auditLoading ? <div className="rp-detail-empty">Loading audit history...</div> : auditItems.length ? <div className="role-audit-list">{auditItems.map((item) => <article key={item.id}><div><strong>{item.actorName}</strong><span>{item.eventType}</span></div><time dateTime={item.createdAt}>{formatRegionalDateTime(item.createdAt, timezone)}</time></article>)}</div> : <div className="rp-detail-empty">No audit activity found for this role.</div> : null}
       </Modal>
     </>
   );

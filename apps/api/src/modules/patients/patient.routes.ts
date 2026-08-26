@@ -210,6 +210,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       const admissionId = readMultipartField(file.fields, 'admission_id');
       const procedureId = readMultipartField(file.fields, 'procedure_id');
       const contextType = readMultipartField(file.fields, 'context_type');
+      const requestedContextId = readMultipartField(file.fields, 'context_id');
       const templateId = readMultipartField(file.fields, 'consent_template_id');
       const branchId = readMultipartField(file.fields, 'branch_id');
       const consentStatusValue = readMultipartField(file.fields, 'consent_status');
@@ -245,19 +246,33 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         consent_category?: string; consent_version?: number;
       } = {};
       if (documentType === 'CONSENT') {
-        if (!templateId || !branchId || !contextType || !['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'].includes(contextType as string)) {
+        const supportedConsentContexts = ['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING', 'PATIENT', 'PROCEDURE', 'ADMISSION'];
+        if (!templateId || !branchId || !contextType || !supportedConsentContexts.includes(contextType)) {
           throw new AppError('Consent template, branch, and context are required', 400, 'VALIDATION_ERROR');
         }
         const typedContext = contextType as import('./patient.types.js').PatientConsentContextType;
         const template = await services.consents.get(templateId, branchId, request.user!.id);
-        if ((template.context_type as string) !== (typedContext as string)) throw new AppError('Consent template does not support this context', 400, 'CONSENT_CONTEXT_MISMATCH');
-        let contextId = request.params.id;
+        const expectedTemplateContext = typedContext === 'PROCEDURE_BOOKING'
+          ? 'PROCEDURE'
+          : typedContext === 'INPATIENT_ADMISSION'
+            ? 'ADMISSION'
+            : typedContext;
+        if (template.context_type !== expectedTemplateContext) throw new AppError('Consent template does not support this context', 400, 'CONSENT_CONTEXT_MISMATCH');
+        let contextId = requestedContextId ?? request.params.id;
         if (typedContext === 'PROCEDURE_BOOKING') {
+          if (!requestedContextId) throw new AppError('Procedure booking is required', 400, 'VALIDATION_ERROR');
+          const booking = await services.surgery.getBooking(contextId, branchId, request.user!.id);
+          if (booking.patient_id !== request.params.id) throw new AppError('Procedure booking does not belong to this patient', 400, 'INVALID_PROCEDURE_CONTEXT');
+        } else if (typedContext === 'INPATIENT_ADMISSION') {
+          if (!requestedContextId) throw new AppError('Admission request is required', 400, 'VALIDATION_ERROR');
+          const admissionRequest = await services.inpatientAdmissions.getRequest(contextId, branchId, request.user!.id);
+          if (admissionRequest.patient_id !== request.params.id) throw new AppError('Admission request does not belong to this patient', 400, 'ADMISSION_PATIENT_MISMATCH');
+        } else if (typedContext === 'PROCEDURE') {
           if (!visitId) throw new AppError('Procedure encounter is required', 400, 'VALIDATION_ERROR');
           const visit = await services.opdVisits.getById(visitId);
-          if (visit.visit_type !== 'PROCEDURE' || visit.branch_id !== branchId) throw new AppError('Valid procedure encounter is required in the selected branch', 400, 'INVALID_PROCEDURE_CONTEXT');
+          if (visit.visit_type !== 'PROCEDURE' || visit.patient_id !== request.params.id || visit.branch_id !== branchId) throw new AppError('Valid procedure encounter is required in the selected branch', 400, 'INVALID_PROCEDURE_CONTEXT');
           contextId = visitId;
-        } else if (typedContext === 'INPATIENT_ADMISSION') {
+        } else if (typedContext === 'ADMISSION') {
           if (!admissionId) throw new AppError('Admission is required', 400, 'VALIDATION_ERROR');
           const admission = await services.inpatientAdmissions.get(admissionId, branchId, request.user!.id);
           if (admission.patient_id !== request.params.id) throw new AppError('Admission does not belong to this patient', 400, 'ADMISSION_PATIENT_MISMATCH');
@@ -267,8 +282,8 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
           if (patient.registration_branch_id !== branchId) throw new AppError('Patient is not registered in the selected branch', 400, 'PATIENT_BRANCH_MISMATCH');
         }
         consentMetadata = { context_type: typedContext, context_id: contextId,
-          admission_id: typedContext === 'INPATIENT_ADMISSION' ? admissionId ?? undefined : undefined,
-          procedure_id: typedContext === 'PROCEDURE_BOOKING' ? visitId ?? undefined : undefined,
+          admission_id: typedContext === 'ADMISSION' ? contextId : undefined,
+          procedure_id: typedContext === 'PROCEDURE_BOOKING' || typedContext === 'PROCEDURE' ? contextId : undefined,
           consent_template_id: template.id, consent_category: template.category, consent_version: template.version };
       }
       const document = await services.patients.uploadDocument(

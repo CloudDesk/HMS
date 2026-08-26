@@ -112,7 +112,7 @@ const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string
   updated_at: document.updatedAt,
 });
 
-const toTimelineEvent = (event: PatientTimelineEventLean): PatientTimelineEvent => ({
+const toTimelineEvent = (event: PatientTimelineEventLean, createdByName: string | null = null): PatientTimelineEvent => ({
   id: event._id.toString(),
   patient_id: event.patientId.toString(),
   event_type: event.eventType,
@@ -120,6 +120,7 @@ const toTimelineEvent = (event: PatientTimelineEventLean): PatientTimelineEvent 
   description: event.description ?? null,
   occurred_at: event.occurredAt,
   created_by: event.createdBy?.toString() ?? null,
+  created_by_name: createdByName,
   created_at: event.createdAt,
 });
 
@@ -300,9 +301,7 @@ export class PatientRepository {
     return patient ? toPatient(patient) : undefined;
   }
 
-  async nextPatientSequence() {
-    return PatientModel.countDocuments();
-  }
+
 
   async addTimelineEvent(
     patientId: string,
@@ -344,10 +343,15 @@ export class PatientRepository {
     }
 
     if (query.from || query.to) {
-      filter.occurredAt = {
-        ...(query.from ? { $gte: new Date(query.from) } : {}),
-        ...(query.to ? { $lte: new Date(query.to) } : {}),
-      };
+      filter.occurredAt = {};
+      if (query.from) {
+        filter.occurredAt = { ...(filter.occurredAt as object), $gte: new Date(query.from) };
+      }
+      if (query.to) {
+        const toDate = new Date(query.to);
+        toDate.setUTCHours(23, 59, 59, 999);
+        filter.occurredAt = { ...(filter.occurredAt as object), $lte: toDate };
+      }
     }
 
     const [events, count] = await Promise.all([
@@ -359,8 +363,16 @@ export class PatientRepository {
       PatientTimelineEventModel.countDocuments(filter),
     ]);
 
+    const creatorIds = events.flatMap((event) => (event.createdBy ? [event.createdBy] : []));
+    const creators = await UserModel.find({ _id: { $in: creatorIds } })
+      .select({ fullName: 1 })
+      .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
+    const creatorNames = new Map(creators.map((user) => [user._id.toString(), user.fullName]));
+
     return {
-      data: events.map(toTimelineEvent),
+      data: events.map((event) =>
+        toTimelineEvent(event, event.createdBy ? creatorNames.get(event.createdBy.toString()) ?? null : null),
+      ),
       meta: {
         total: count,
         page,

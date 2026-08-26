@@ -13,6 +13,7 @@ import {
   toInputDate,
 } from './appointment-utils';
 import { useAppointmentDashboardFeature } from '../hooks/appointments/useAppointmentDashboardFeature';
+import { useTimezone } from '../api/useSettings';
 
 const countByStatus = (appointments: AppointmentResponse[], status: ApiAppointmentStatus) =>
   appointments.filter((appointment) => appointment.status === status).length;
@@ -55,6 +56,8 @@ export function AppointmentDashboardPage() {
       refetch,
     }
   } = useAppointmentDashboardFeature();
+  
+  const timezone = useTimezone();
 
   const kpis = useMemo(
     () => [
@@ -379,7 +382,7 @@ export function AppointmentDashboardPage() {
                     <td>
                       <strong>{formatAppointmentTime(appointment)}</strong>
                       <br />
-                      <small>{formatAppointmentDate(appointment.appointment_date)}</small>
+                      <small>{formatAppointmentDate(appointment.appointment_date, timezone)}</small>
                     </td>
                     <td>
                       <div className="doc-person">
@@ -406,7 +409,7 @@ export function AppointmentDashboardPage() {
                         {appointmentStatusLabels[appointment.status]}
                       </span>
                     </td>
-                    <td>{formatAppointmentDate(appointment.created_at)}</td>
+                    <td>{formatAppointmentDate(appointment.created_at, timezone)}</td>
                     <td>
                       <div className="doc-actions">
                         <button

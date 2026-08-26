@@ -3,6 +3,8 @@ import { usePatientsList, usePatientDetails } from '../patients/usePatients';
 import { useCreateAppointment, useAppointmentsList } from './useAppointments';
 import type { SaveAppointmentPayload } from '../../api/appointments';
 import { useBookReceptionReferral, useReceptionReferral } from '../reception/useReception';
+import { useTimezone } from '../../api/useSettings';
+import { fromZonedTime } from 'date-fns-tz';
 
 export function useAppointmentBookingFeature(
   initialPatientId: string,
@@ -43,16 +45,25 @@ export function useAppointmentBookingFeature(
 
   const createAppointment = useCreateAppointment();
   const bookReferral = useBookReceptionReferral();
+  const timezone = useTimezone();
 
   const handleCreateAppointment = async (payload: SaveAppointmentPayload) => {
+    let utc_datetime: string | undefined;
+    if (payload.appointment_date && payload.start_time) {
+      const localDateTimeString = `${payload.appointment_date}T${payload.start_time}:00`;
+      utc_datetime = fromZonedTime(localDateTimeString, timezone).toISOString();
+    }
+    
+    const finalPayload = { ...payload, utc_datetime };
+
     if (referral) {
       return bookReferral.mutateAsync({ referralId: referral.id, payload: {
-        appointment_date: payload.appointment_date, start_time: payload.start_time,
+        appointment_date: payload.appointment_date ?? '', start_time: payload.start_time ?? '', utc_datetime,
         duration_minutes: payload.duration_minutes, visit_type: payload.visit_type === 'EMERGENCY' ? 'NEW_CONSULTATION' : payload.visit_type,
         priority: payload.priority, notes: payload.notes,
       } });
     }
-    return createAppointment.mutateAsync(payload);
+    return createAppointment.mutateAsync(finalPayload);
   };
 
   return {

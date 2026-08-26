@@ -1,7 +1,7 @@
 import mongoose, { Schema, Types } from 'mongoose';
+import type { ClinicalContextSourceType } from './clinical-context.types.js';
 import type {
   ClinicalOrderPriority,
-  ClinicalOrderSourceType,
   ClinicalOrderStatus,
   ClinicalOrderType,
 } from './opd-clinical-order.types.js';
@@ -15,8 +15,11 @@ export type ClinicalOrderItemFields = {
 };
 
 export type OpdClinicalOrderFields = {
-  sourceType: 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER';
+  sourceType: ClinicalContextSourceType;
   sourceId: Types.ObjectId;
+  encounterId?: Types.ObjectId | null;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
   visitId?: Types.ObjectId | null;
   consultationId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
@@ -56,11 +59,14 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
   {
     sourceType: {
       type: String,
-      enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER'],
+      enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'],
       default: 'OPD_VISIT',
       required: true,
     },
     sourceId: { type: Schema.Types.ObjectId, required: true },
+    encounterId: { type: Schema.Types.ObjectId, default: null },
+    admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    procedureId: { type: Schema.Types.ObjectId, ref: 'ProcedureBooking', default: null },
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
     consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', default: null },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
@@ -118,6 +124,8 @@ opdClinicalOrderSchema.index({ patientId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ doctorId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ orderType: 1, status: 1, priority: 1, submittedAt: -1 });
 opdClinicalOrderSchema.index({ branchId: 1, orderType: 1, status: 1, submittedAt: -1 });
+opdClinicalOrderSchema.index({ admissionId: 1, orderType: 1, status: 1, submittedAt: -1 });
+opdClinicalOrderSchema.index({ procedureId: 1, orderType: 1, status: 1, submittedAt: -1 });
 
 export const OpdClinicalOrderModel = mongoose.model<OpdClinicalOrderFields>(
   'OpdClinicalOrder',

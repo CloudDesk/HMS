@@ -8,7 +8,7 @@ export type ImagingReportFields = {
   admissionId?: Types.ObjectId | null;
   procedureId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
-  visitId: Types.ObjectId;
+  visitId?: Types.ObjectId | null;
   findings: string;
   impression: string;
   recommendations?: string | null;
@@ -26,12 +26,12 @@ export type ImagingReportFields = {
 
 const imagingReportSchema = new Schema<ImagingReportFields>({
   orderId: { type: Schema.Types.ObjectId, ref: 'OpdClinicalOrder', required: true },
-  sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'IP_ADMISSION', 'PROCEDURE', 'SURGERY'] },
+  sourceType: { type: String, enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'] },
   encounterId: { type: Schema.Types.ObjectId, default: null },
   admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
   procedureId: { type: Schema.Types.ObjectId, default: null },
   patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
-  visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
+  visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
   findings: { type: String, required: true, trim: true },
   impression: { type: String, required: true, trim: true },
   recommendations: { type: String, default: null, trim: true },

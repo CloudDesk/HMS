@@ -8,6 +8,8 @@ import {
 } from '../components/doctors/DoctorAvailabilityEditor';
 import { useDoctorAvailability } from '../hooks/doctors/useDoctorAvailability';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { doctorAvailabilityToForm } from '../components/doctors/DoctorAvailabilityEditor';
+import type { DoctorResponse } from '../api/doctors';
 
 const availabilityDays = [
   'MONDAY',
@@ -120,8 +122,9 @@ export function DoctorAvailabilityPage() {
 
   const availabilityValues = useMemo<AvailabilityFormValues>(
     () => ({
-      availability:
-        availability.availability ?? createDefaultDoctorAvailability(),
+      availability: availability.availability
+        ? doctorAvailabilityToForm({ availability: availability.availability } as DoctorResponse)
+        : createDefaultDoctorAvailability(),
     }),
     [availability.availability],
   );
@@ -147,9 +150,23 @@ export function DoctorAvailabilityPage() {
     availabilityForm.formState.isSubmitting ||
     leaveForm.formState.isSubmitting ||
     exceptionForm.formState.isSubmitting;
+  const getNestedError = (errors: unknown): string | undefined => {
+    if (!errors || typeof errors !== 'object') return undefined;
+    const e = errors as Record<string, unknown>;
+    if (typeof e.message === 'string') return e.message;
+    for (const key in e) {
+      if (e[key]) {
+        const message = getNestedError(e[key]);
+        if (message) return message;
+      }
+    }
+    return undefined;
+  };
+
   const formError =
     availabilityForm.formState.errors.root?.message ??
     availabilityForm.formState.errors.availability?.message ??
+    getNestedError(availabilityForm.formState.errors.availability) ??
     leaveForm.formState.errors.root?.message ??
     leaveForm.formState.errors.start_date?.message ??
     leaveForm.formState.errors.end_date?.message ??
@@ -188,20 +205,6 @@ export function DoctorAvailabilityPage() {
           >
             <i className="ph ph-user-circle" /> Profile
           </button>
-          {activeTab === 'schedule' ? (
-            <button
-              className="doc-btn primary"
-              disabled={
-                saving ||
-                !availability.selectedDoctorId ||
-                !availability.canEdit
-              }
-              onClick={() => void saveAvailability()}
-              type="button"
-            >
-              <i className="ph ph-floppy-disk" /> Save Working Hours
-            </button>
-          ) : null}
         </div>
       </section>
 
@@ -290,6 +293,20 @@ export function DoctorAvailabilityPage() {
                   />
                 )}
               />
+              <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  className="doc-btn primary"
+                  disabled={
+                    saving ||
+                    !availability.selectedDoctorId ||
+                    !availability.canEdit
+                  }
+                  onClick={() => void saveAvailability()}
+                  type="button"
+                >
+                  <i className="ph ph-floppy-disk" /> Save Working Hours
+                </button>
+              </div>
             </section>
           ) : (
             <section className="doc-card" style={{ width: '100%' }}>

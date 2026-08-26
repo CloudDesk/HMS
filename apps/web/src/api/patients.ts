@@ -168,6 +168,7 @@ export type PatientTimelineEventResponse = {
   description: string | null;
   occurred_at: string;
   created_by: string | null;
+  created_by_name: string | null;
   created_at: string;
 };
 

@@ -279,6 +279,15 @@ export class BillingRepository {
     return invoice ? toInvoice(invoice) : null;
   }
 
+  async hasUnresolvedInvoicesForEncounter(encounterId: string, session?: ClientSession) {
+    const unresolvedCount = await BillingInvoiceModel.countDocuments({
+      encounterId: objectId(encounterId),
+      status: { $in: ['DRAFT', 'PENDING', 'PARTIALLY_PAID'] },
+      deletedAt: null,
+    }).session(session ?? null);
+    return unresolvedCount > 0;
+  }
+
   async getHydratedById(id: string, branchIds?: string[]) {
     const filter: Record<string, unknown> = { _id: objectId(id), deletedAt: null };
     if (branchIds) filter.branchId = { $in: branchIds.map(objectId) };

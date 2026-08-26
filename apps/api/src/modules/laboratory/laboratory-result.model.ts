@@ -17,7 +17,7 @@ export type LaboratoryResultFields = {
   admissionId?: Types.ObjectId | null;
   procedureId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
-  visitId: Types.ObjectId;
+  visitId?: Types.ObjectId | null;
   resultItems: LaboratoryResultItemFields[];
   remarks?: string | null;
   enteredBy: Types.ObjectId;
@@ -43,12 +43,12 @@ const laboratoryResultItemSchema = new Schema<LaboratoryResultItemFields>({
 
 const laboratoryResultSchema = new Schema<LaboratoryResultFields>({
   orderId: { type: Schema.Types.ObjectId, ref: 'OpdClinicalOrder', required: true },
-  sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'IP_ADMISSION', 'PROCEDURE', 'SURGERY'] },
+  sourceType: { type: String, enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'] },
   encounterId: { type: Schema.Types.ObjectId, default: null },
   admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
   procedureId: { type: Schema.Types.ObjectId, default: null },
   patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
-  visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
+  visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
   resultItems: { type: [laboratoryResultItemSchema], required: true },
   remarks: { type: String, default: null, trim: true },
   enteredBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

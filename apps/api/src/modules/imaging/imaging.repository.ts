@@ -13,7 +13,7 @@ const objectId = (value: string) => new Types.ObjectId(value);
 const nullable = (value?: string | null) => value?.trim() || null;
 const toReport = (record: ImagingReportLean) => ({
   id: record._id.toString(), order_id: record.orderId.toString(), patient_id: record.patientId.toString(),
-  source_type: record.sourceType ?? 'OPD', encounter_id: record.encounterId?.toString() ?? record.visitId.toString(),
+  source_type: record.sourceType ?? 'OPD_VISIT', encounter_id: record.encounterId?.toString() ?? record.visitId?.toString() ?? null,
   admission_id: record.admissionId?.toString() ?? null, procedure_id: record.procedureId?.toString() ?? null,
   visit_id: record.visitId?.toString() ?? null, findings: record.findings, impression: record.impression,
   recommendations: record.recommendations ?? null, entered_by: record.enteredBy.toString(), entered_at: record.enteredAt,

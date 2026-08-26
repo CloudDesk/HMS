@@ -1,27 +1,30 @@
 import { useState } from 'react';
-import { useCurrencyFormatter } from '../api/useSettings';
+import { useCurrencyFormatter, useTimezone } from '../api/useSettings';
 import { usePhaseTwoReportsFeature } from '../hooks/reports/usePhaseTwoReportsFeature';
-type Tab = 'beds' | 'emergency' | 'procedures' | 'payments' | 'consents' | 'pending';
-const date = (value: string) =>
-  new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(value));
+import { formatRegionalDate } from '../utils/localization-utils';
+type Tab = 'beds' | 'emergency' | 'procedures' | 'conversions' | 'advances' | 'payments' | 'consents' | 'pending';
 const badge = (value: string) => (
   <span className="status-badge neutral">{value.replaceAll('_', ' ')}</span>
 );
 export function PhaseTwoReportsPage() {
   const { state, actions } = usePhaseTwoReportsFeature();
   const money = useCurrencyFormatter();
+  const timezone = useTimezone();
+  const date = (value: string) => formatRegionalDate(value, timezone, 'MMM d, yyyy');
   const [tab, setTab] = useState<Tab>('beds');
   const data = state.data;
   const tabs: Array<[Tab, string, number]> = [
     ['beds', 'Bed Occupancy', data?.bed_occupancy.meta.total ?? 0],
     ['emergency', 'Emergency Register', data?.emergency_register.meta.total ?? 0],
     ['procedures', 'Procedure Schedule', data?.procedure_schedule.meta.total ?? 0],
+    ['conversions', 'IP Conversions', data?.ip_conversions.meta.total ?? 0],
+    ['advances', 'Advance Payments', data?.advance_payments.meta.total ?? 0],
     ['payments', 'Payment Status', data?.payment_status.meta.total ?? 0],
     ['consents', 'Consent Pending', data?.consent_pending.meta.total ?? 0],
     ['pending', 'Department Pending', data?.department_pending.meta.total ?? 0],
   ];
   const activeMeta = data
-    ? ({ beds: data.bed_occupancy.meta, emergency: data.emergency_register.meta, procedures: data.procedure_schedule.meta, payments: data.payment_status.meta, consents: data.consent_pending.meta, pending: data.department_pending.meta } as const)[tab]
+    ? ({ beds: data.bed_occupancy.meta, emergency: data.emergency_register.meta, procedures: data.procedure_schedule.meta, conversions: data.ip_conversions.meta, advances: data.advance_payments.meta, payments: data.payment_status.meta, consents: data.consent_pending.meta, pending: data.department_pending.meta } as const)[tab]
     : null;
   return (
     <div className="page-shell">
@@ -73,10 +76,13 @@ export function PhaseTwoReportsPage() {
           Refresh
         </button>
       </div>
+      {!state.canView ? (
+        <div className="admin-dashboard-state admin-dashboard-state--error">Phase 2 Reports View permission is required.</div>
+      ) : null}
       {state.error && (
         <div className="admin-dashboard-state admin-dashboard-state--error">{state.error}</div>
       )}
-      {state.loading || !data ? (
+      {!state.canView ? null : state.loading || !data ? (
         <div className="admin-dashboard-state">
           <span className="loading-spinner" /> Loading reports...
         </div>
@@ -92,6 +98,10 @@ export function PhaseTwoReportsPage() {
               <strong>{data.dashboard.procedures_scheduled}</strong>
             </article>
             <article className="kpi-card">
+              <span>IP conversions</span>
+              <strong>{data.dashboard.ip_conversions}</strong>
+            </article>
+            <article className="kpi-card">
               <span>Available / Total beds</span>
               <strong>
                 {data.dashboard.beds_available} / {data.dashboard.beds_total}
@@ -104,6 +114,10 @@ export function PhaseTwoReportsPage() {
                   ? money(data.dashboard.pending_payment_amount ?? 0)
                   : 'Restricted'}
               </strong>
+            </article>
+            <article className="kpi-card">
+              <span>Advance received</span>
+              <strong>{data.financial_access ? money(data.dashboard.advance_received_amount ?? 0) : 'Restricted'}</strong>
             </article>
             <article className="kpi-card">
               <span>Department pending</span>
@@ -157,6 +171,10 @@ export function PhaseTwoReportsPage() {
                       <th>Schedule</th>
                       <th>Status</th>
                     </tr>
+                  ) : tab === 'conversions' ? (
+                    <tr><th>Admission / Patient</th><th>Source</th><th>Source Reference</th><th>Converted</th><th>Status</th></tr>
+                  ) : tab === 'advances' ? (
+                    <tr><th>Invoice / Patient</th><th>Context</th><th>Total</th><th>Paid / Balance</th><th>Consumption</th></tr>
                   ) : tab === 'payments' ? (
                     <tr>
                       <th>Invoice / Patient</th>
@@ -209,11 +227,11 @@ export function PhaseTwoReportsPage() {
                         <td>
                           <strong>{row.visit_number}</strong>
                           <small>
-                            {row.patient_number} · {row.patient_name}
+                            {row.patient_number ?? 'Provisional'} · {row.patient_name}
                           </small>
                         </td>
                         <td>
-                          {row.doctor_name}
+                          {row.doctor_name ?? 'Unassigned'}
                           <small>{row.department_name}</small>
                         </td>
                         <td>{date(row.visit_date)}</td>
@@ -223,7 +241,7 @@ export function PhaseTwoReportsPage() {
                         </td>
                         <td>
                           {badge(row.status)}
-                          <small>IP outcome unavailable</small>
+                          <small>{row.conversion_outcome?.replaceAll('_', ' ') ?? 'Pending disposition'}</small>
                         </td>
                       </tr>
                     ))
@@ -244,6 +262,28 @@ export function PhaseTwoReportsPage() {
                           {date(row.scheduled_date)} · {row.start_time}
                         </td>
                         <td>{badge(row.status)}</td>
+                      </tr>
+                    ))
+                  ) : tab === 'conversions' ? (
+                    data.ip_conversions.data.map((row) => (
+                      <tr key={row.id}>
+                        <td><strong>{row.admission_number}</strong><small>{row.patient_number} · {row.patient_name}</small></td>
+                        <td>{row.source_type.replaceAll('_', ' ')}</td>
+                        <td>{row.source_reference ?? row.source_id}</td>
+                        <td>{date(row.admission_date)}</td>
+                        <td>{badge(row.status)}</td>
+                      </tr>
+                    ))
+                  ) : tab === 'advances' ? (
+                    !data.financial_access ? (
+                      <tr><td colSpan={5}>Billing Invoice View permission is required.</td></tr>
+                    ) : data.advance_payments.data.map((row) => (
+                      <tr key={row.id}>
+                        <td><strong>{row.invoice_number}</strong><small>{row.patient_number ?? '-'} · {row.patient_name ?? 'Patient'}</small></td>
+                        <td>{row.context_type.replaceAll('_', ' ')}<small>{row.context_id}</small></td>
+                        <td>{money(row.total_amount)}</td>
+                        <td>{money(row.paid_amount)} / {money(row.balance_amount)}</td>
+                        <td>{badge(row.consumption_status)}</td>
                       </tr>
                     ))
                   ) : tab === 'payments' ? (

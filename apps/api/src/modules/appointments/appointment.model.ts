@@ -11,9 +11,11 @@ export type AppointmentFields = {
   doctorSpecialization: string;
   branchId: Types.ObjectId;
   departmentId: Types.ObjectId;
-  appointmentDate: Date;
-  startTime: string;
-  endTime: string;
+  utcDateTime?: Date;
+  utcEndTime?: Date;
+  appointmentDate?: Date;
+  startTime?: string;
+  endTime?: string;
   durationMinutes: number;
   visitType: AppointmentVisitType;
   priority: AppointmentPriority;
@@ -39,9 +41,11 @@ const appointmentSchema = new Schema<AppointmentFields>(
     doctorSpecialization: { type: String, required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
-    appointmentDate: { type: Date, required: true },
-    startTime: { type: String, required: true },
-    endTime: { type: String, required: true },
+    utcDateTime: { type: Date },
+    utcEndTime: { type: Date },
+    appointmentDate: { type: Date },
+    startTime: { type: String },
+    endTime: { type: String },
     durationMinutes: { type: Number, required: true },
     visitType: {
       type: String,
@@ -67,10 +71,10 @@ const appointmentSchema = new Schema<AppointmentFields>(
   },
 );
 
-appointmentSchema.index({ doctorId: 1, appointmentDate: 1, startTime: 1 });
-appointmentSchema.index({ patientId: 1, appointmentDate: -1 });
-appointmentSchema.index({ status: 1, appointmentDate: 1 });
-appointmentSchema.index({ branchId: 1, departmentId: 1, appointmentDate: 1 });
+appointmentSchema.index({ doctorId: 1, utcDateTime: 1, appointmentDate: 1, startTime: 1 });
+appointmentSchema.index({ patientId: 1, utcDateTime: -1, appointmentDate: -1 });
+appointmentSchema.index({ status: 1, utcDateTime: 1, appointmentDate: 1 });
+appointmentSchema.index({ branchId: 1, departmentId: 1, utcDateTime: 1, appointmentDate: 1 });
 appointmentSchema.index({ patientNumber: 1 });
 appointmentSchema.index({ patientName: 1 });
 appointmentSchema.index({ doctorName: 1 });

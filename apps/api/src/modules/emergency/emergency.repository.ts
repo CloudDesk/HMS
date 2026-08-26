@@ -1,4 +1,5 @@
 import mongoose, { Types, type ClientSession } from 'mongoose';
+import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
@@ -119,6 +120,7 @@ const emergencyQueueDto = (row: EmergencyLean) => ({
 });
 
 export class EmergencyRepository {
+  constructor(private readonly sequenceService: SequenceService) {}
   async session() {
     return mongoose.startSession();
   }
@@ -202,12 +204,13 @@ export class EmergencyRepository {
     actor: string,
     session: ClientSession,
   ) {
-    const stamp = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const sequence = await this.sequenceService.getNextSequence('emergency_encounter', session);
+    const ts = this.sequenceService.formatTimestampSequence(null, sequence);
     const rows = await EmergencyEncounterModel.create(
       [
         {
-          encounterNumber: `ER-${stamp}`,
-          emergencyIdentifier: `EID-${stamp}`,
+          encounterNumber: `ER-${ts}`,
+          emergencyIdentifier: `EID-${ts}`,
           branchId: oid(data.branch_id),
           departmentId: oid(data.department_id),
           patientId: identity.patientId,

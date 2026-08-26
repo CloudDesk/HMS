@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { ApiClinicalOrderType, OpdClinicalOrderResponse, OpdPrescriptionResponse, SaveOpdClinicalOrderPayload, SaveOpdPrescriptionPayload } from './opd';
 export type AdmissionType = 'MEDICAL' | 'SURGICAL' | 'MATERNITY' | 'PAEDIATRIC' | 'OBSERVATION' | 'OTHER';
 export type AdmissionSourceType = 'DIRECT' | 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER' | 'PROCEDURE_BOOKING';
 export type AdmissionRequestStatus = 'PENDING_VALIDATION' | 'READY_FOR_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED';
@@ -13,6 +14,10 @@ const query = (params: Record<string, string | number | undefined>) => { const v
 export const inpatientAdmissionsApi = {
   list: (params: { branch_id: string; status?: InpatientAdmission['status']; page?: number; limit?: number }) => apiClient.request<AdmissionPage>(`/admissions/inpatients${query(params)}`),
   get: (id: string, branchId: string) => apiClient.request<InpatientAdmission>(`/admissions/inpatients/${id}${query({ branch_id: branchId })}`),
+  prescription: (id: string, branchId: string) => apiClient.request<OpdPrescriptionResponse | null>(`/admissions/inpatients/${id}/prescription${query({ branch_id: branchId })}`),
+  submitPrescription: (id: string, branchId: string, body: SaveOpdPrescriptionPayload) => apiClient.request<OpdPrescriptionResponse>(`/admissions/inpatients/${id}/prescription${query({ branch_id: branchId })}`, { method: 'POST', body }),
+  clinicalOrder: (id: string, branchId: string, type: ApiClinicalOrderType) => apiClient.request<OpdClinicalOrderResponse | null>(`/admissions/inpatients/${id}/clinical-orders/${type}${query({ branch_id: branchId })}`),
+  submitClinicalOrder: (id: string, branchId: string, type: ApiClinicalOrderType, body: SaveOpdClinicalOrderPayload) => apiClient.request<OpdClinicalOrderResponse>(`/admissions/inpatients/${id}/clinical-orders/${type}${query({ branch_id: branchId })}`, { method: 'POST', body }),
   requests: (params: { branch_id: string; status?: AdmissionRequestStatus; source_type?: AdmissionSourceType; search?: string; page?: number; limit?: number }) => apiClient.request<AdmissionRequestPage>(`/admissions/requests${query(params)}`),
   request: (id: string, branchId: string) => apiClient.request<AdmissionRequest>(`/admissions/requests/${id}${query({ branch_id: branchId })}`),
   createRequest: (body: CreateAdmissionRequestPayload) => apiClient.request<AdmissionRequest>('/admissions/requests', { method: 'POST', body }),

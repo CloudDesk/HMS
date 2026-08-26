@@ -1,5 +1,6 @@
 export type PharmacyDispensingStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'REVERSED';
-export type PharmacyDispensingSourceType = 'OPD' | 'EMERGENCY' | 'IP_ADMISSION' | 'PROCEDURE' | 'SURGERY';
+import type { ClinicalContextSourceType } from '../opd/clinical-context.types.js';
+export type PharmacyDispensingSourceType = ClinicalContextSourceType;
 
 export type PharmacyDispensingItem = {
   id: string;
@@ -28,7 +29,7 @@ export type PharmacyDispensing = {
   patient_number: string;
   patient_name: string;
   doctor_name: string;
-  visit_id: string;
+  visit_id: string | null;
   branch_id: string;
   status: PharmacyDispensingStatus;
   version: number;

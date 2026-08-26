@@ -5,6 +5,8 @@ import {
   type BillingInvoiceListParams,
   type CollectBillingPaymentPayload,
   type CreateBillingInvoicePayload,
+  type LinkAdmissionBillingContextPayload,
+  type LinkProcedureBillingContextPayload,
   type UpdateBillingInvoicePayload,
 } from '../../api/billing';
 import { billingService } from '../../services/billing.service';
@@ -119,6 +121,32 @@ export function useCancelBillingInvoice() {
       await queryClient.invalidateQueries({ queryKey: billingKeys.detail(id) });
       await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
       await queryClient.invalidateQueries({ queryKey: billingKeys.summaries() });
+    },
+    onError: (error) => toast.error(getBillingErrorMessage(error)),
+  });
+}
+
+export function useLinkAdmissionBillingContext() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: LinkAdmissionBillingContextPayload }) =>
+      billingService.linkAdmissionContext(id, payload),
+    onSuccess: async (invoice) => {
+      await queryClient.invalidateQueries({ queryKey: billingKeys.detail(invoice.id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+    },
+    onError: (error) => toast.error(getBillingErrorMessage(error)),
+  });
+}
+
+export function useLinkProcedureBillingContext() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: LinkProcedureBillingContextPayload }) =>
+      billingService.linkProcedureContext(id, payload),
+    onSuccess: async (invoice) => {
+      await queryClient.invalidateQueries({ queryKey: billingKeys.detail(invoice.id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
     },
     onError: (error) => toast.error(getBillingErrorMessage(error)),
   });

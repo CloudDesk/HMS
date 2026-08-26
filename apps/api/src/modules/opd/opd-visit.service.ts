@@ -8,6 +8,7 @@ import type { Patient } from '../patients/patient.types.js';
 import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
+import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 
 const terminalAppointmentStatuses = ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'];
 
@@ -47,10 +48,6 @@ const todayUtc = () => {
 const patientName = (patient: Patient) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
 
-const createVisitNumber = (sequence: number) => {
-  const year = new Date().getFullYear();
-  return `OPD-${year}-${String(sequence + 1).padStart(6, '0')}`;
-};
 
 const appointmentVisitType = (appointment: Appointment) => {
   if (appointment.visit_type === 'NEW_CONSULTATION') return 'NEW_CONSULTATION';
@@ -67,6 +64,7 @@ export class OpdVisitService {
     private readonly patientRepository: PatientRepository,
     private readonly doctorRepository: DoctorRepository,
     private readonly consultationRepository: OpdConsultationRepository,
+    private readonly sequenceService: SequenceService,
   ) {}
 
   async list(query: OpdVisitListQuery, userId?: string) {
@@ -169,11 +167,11 @@ export class OpdVisitService {
     }
 
     await this.ensureNoActiveVisit(appointment.patient_id);
-    const sequence = await this.repository.nextVisitSequence();
+    const sequence = await this.sequenceService.getNextSequence('opd_visit');
     const visit = await this.repository.create(
       {
         appointmentId: appointment.id,
-        visitNumber: createVisitNumber(sequence),
+        visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
         patientId: appointment.patient_id,
         patientNumber: appointment.patient_number,
         patientName: appointment.patient_name,
@@ -221,10 +219,10 @@ export class OpdVisitService {
     await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
     await this.ensureNoActiveVisit(patient.id);
-    const sequence = await this.repository.nextVisitSequence();
+    const sequence = await this.sequenceService.getNextSequence('opd_visit');
     const visit = await this.repository.create(
       {
-        visitNumber: createVisitNumber(sequence),
+        visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
         patientId: patient.id,
         patientNumber: patient.patient_number,
         patientName: patientName(patient),

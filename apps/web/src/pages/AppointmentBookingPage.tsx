@@ -13,6 +13,7 @@ import {
 } from './appointment-utils';
 import { patientFullName, patientInitials } from './patient-utils';
 import { useAppointmentBookingFeature } from '../hooks/appointments/useAppointmentBookingFeature';
+import { useTimezone } from '../api/useSettings';
 
 type BookingStep = 1 | 2 | 3;
 
@@ -51,8 +52,9 @@ export function AppointmentBookingPage() {
   const referralVisitId = new URLSearchParams(search).get('referral_visit') ?? '';
   const [step, setStep] = useState<BookingStep>(1);
   const [patientSearch, setPatientSearch] = useState('');
+  const timezone = useTimezone();
   
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<BookingFormData>({
+  const { register, watch, setValue, trigger, getValues, formState: { errors } } = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       patient_id: initialPatientId,
@@ -122,8 +124,8 @@ export function AppointmentBookingPage() {
 
   // Clear slot on date/doctor change
   useEffect(() => {
-    setValue('start_time', '', { shouldValidate: step === 2 });
-  }, [appointmentDate, selectedDoctorId, setValue, step]);
+    setValue('start_time', '');
+  }, [appointmentDate, selectedDoctorId, setValue]);
 
   const searchPatients = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -184,7 +186,7 @@ export function AppointmentBookingPage() {
   );
 
   const continueToConfirmation = async () => {
-    const isValid = await handleSubmit(() => {})();
+    const isValid = await trigger();
     if (isValid && selectedSlot) {
       setStep(3);
     }
@@ -273,7 +275,7 @@ export function AppointmentBookingPage() {
                   <div className="copy">
                     <h3>{patientFullName(patient)}</h3>
                     <p>
-                      {patient.patient_number} · {patient.gender} · {formatAppointmentDate(patient.date_of_birth)}
+                      {patient.patient_number} · {patient.gender} · {formatAppointmentDate(patient.date_of_birth, timezone)}
                     </p>
                     <div className="appointment-patient-meta">
                       <span>
@@ -300,7 +302,7 @@ export function AppointmentBookingPage() {
                 <h3>{patientFullName(selectedPatient)}</h3>
                 <p>
                   {selectedPatient.patient_number} · {selectedPatient.gender} ·{' '}
-                  {formatAppointmentDate(selectedPatient.date_of_birth)}
+                  {formatAppointmentDate(selectedPatient.date_of_birth, timezone)}
                 </p>
                 <div className="appointment-patient-meta">
                   <span>{selectedPatient.phone || 'No phone'}</span>
@@ -497,7 +499,7 @@ export function AppointmentBookingPage() {
             </div>
             <div>
               <span>Date</span>
-              <strong>{formatAppointmentDate(appointmentDate)}</strong>
+              <strong>{formatAppointmentDate(appointmentDate, timezone)}</strong>
             </div>
             <div>
               <span>Time</span>
@@ -523,7 +525,7 @@ export function AppointmentBookingPage() {
               <button className="doc-btn" disabled={isSubmitting} onClick={() => navigate('/appointments')} type="button">
                 Cancel
               </button>
-              <button className="doc-btn primary" disabled={isSubmitting} onClick={() => handleSubmit(submitBooking)()} type="button">
+              <button className="doc-btn primary" disabled={isSubmitting} onClick={() => submitBooking(getValues())} type="button">
                 <i className="ph ph-check" aria-hidden="true" />
                 {isSubmitting ? 'Saving...' : 'Confirm Booking'}
               </button>

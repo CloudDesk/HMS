@@ -458,7 +458,7 @@ export class PharmacyInventoryRepository {
           updatedAt: '$$NOW',
         },
       }],
-      { returnDocument: 'after', lean: true, session },
+      { returnDocument: 'after', lean: true, session, updatePipeline: true },
     );
     return batch;
   }

@@ -237,7 +237,7 @@ export function DoctorAvailabilityEditor({
                       <input
                         disabled={disabled}
                         onChange={(event) =>
-                          updateBlock(activeDayForm.day_of_week, index, { start_time: event.target.value })
+                          updateBlock(activeDayForm.day_of_week, index, { start_time: event.target.value.slice(0, 5) })
                         }
                         type="time"
                         value={block.start_time}
@@ -248,7 +248,7 @@ export function DoctorAvailabilityEditor({
                       <input
                         disabled={disabled}
                         onChange={(event) =>
-                          updateBlock(activeDayForm.day_of_week, index, { end_time: event.target.value })
+                          updateBlock(activeDayForm.day_of_week, index, { end_time: event.target.value.slice(0, 5) })
                         }
                         type="time"
                         value={block.end_time}

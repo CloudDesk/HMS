@@ -11,15 +11,15 @@ type Props = {
   onClose: () => void;
 };
 
+import { useCurrencyFormatter } from '../../api/useSettings';
+
 export function PrintBillingModal({ invoice, patient, onClose }: Props) {
+  const formatCurrency = useCurrencyFormatter();
+
   if (!invoice || !patient) return null;
 
   const handlePrint = () => {
     window.print();
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount);
   };
 
   const gridItems = [

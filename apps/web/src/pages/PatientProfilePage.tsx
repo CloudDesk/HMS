@@ -21,6 +21,8 @@ import { navigate, useAppLocation } from '../routing/navigation';
 import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
 import { formatDate, formatDateTime, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
+import { useCurrencyFormatter } from '../api/useSettings';
+import { type PatientProfileTab } from '../hooks/patients/usePatientProfileFeature';
 
 const updatePatientSchema = z.object({
   firstName: z.string().optional(),
@@ -41,7 +43,7 @@ type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
 const tabs = [
   'Overview',
   'EMR Timeline',
-  'Medical History',
+  /* 'Medical History', */
   'Visits',
   'Appointments',
   'Prescriptions',
@@ -120,6 +122,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
           <label htmlFor="emr-tab-from">From</label>
           <input
             id="emr-tab-from"
+            max={filters.to || undefined}
             onChange={(e) => {
               setFilters((prev) => ({ ...prev, from: e.target.value }));
               setCurrentPage(1);
@@ -132,6 +135,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
           <label htmlFor="emr-tab-to">To</label>
           <input
             id="emr-tab-to"
+            min={filters.from || undefined}
             onChange={(e) => {
               setFilters((prev) => ({ ...prev, to: e.target.value }));
               setCurrentPage(1);
@@ -196,7 +200,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
                     </div>
                     <div className="emr-card-cell">
                       <span>Recorded by</span>
-                      <strong>{event.created_by || 'System'}</strong>
+                      <strong>{event.created_by_name || event.created_by || 'System'}</strong>
                     </div>
                     <div className="emr-card-cell">
                       <span>Description</span>
@@ -264,7 +268,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
                 <div className="apt-modal-detail-row"><span>Title</span><strong>{selectedDetails.title}</strong></div>
                 <div className="apt-modal-detail-row"><span>Description</span><strong>{selectedDetails.description || 'N/A'}</strong></div>
                 <div className="apt-modal-detail-row"><span>Timestamp</span><strong>{formatDateTime(selectedDetails.occurred_at)}</strong></div>
-                <div className="apt-modal-detail-row"><span>Recorded by</span><strong>{selectedDetails.created_by || 'System'}</strong></div>
+                <div className="apt-modal-detail-row"><span>Recorded by</span><strong>{selectedDetails.created_by_name || selectedDetails.created_by || 'System'}</strong></div>
               </div>
             </div>
             <div className="modal-footer">
@@ -309,9 +313,13 @@ export function PatientProfilePage() {
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
   const canEditAllDetails = isSuperAdmin || isAdmin;
+  const formatCurrency = useCurrencyFormatter();
 
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
+  const searchParams = new URLSearchParams(search);
+  const initialTab = (searchParams.get('tab') as PatientProfileTab) || 'Overview';
+
   const {
     state: {
       activeTab,
@@ -350,7 +358,7 @@ export function PatientProfilePage() {
       handleUpdateProfile,
       handleUploadDocument,
     },
-  } = usePatientProfileFeature(requestedPatientId);
+  } = usePatientProfileFeature(requestedPatientId, initialTab);
 
   const loading = loadingDetails || (loadingHistory && activeTab === 'Medical History');
   const loadError = detailsError?.message || '';
@@ -720,7 +728,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                     {timeline.slice(0, 3).map((event) => (
                       <div key={event.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem' }}>
-                        <span>{formatDate(event.occurred_at)} â€¢ {event.title}</span>
+                        <span>{formatDate(event.occurred_at)} • {event.title}</span>
                         <strong style={{ color: '#2563eb' }}>Consultation</strong>
                       </div>
                     ))}
@@ -734,7 +742,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Current balance</span>
-                    <strong style={{ fontSize: '1.2rem', color: '#0f172a' }}>KES 0</strong>
+                    <strong style={{ fontSize: '1.2rem', color: '#0f172a' }}>{formatCurrency(0)}</strong>
                   </div>
                   <div>
                     <button className="doc-btn" onClick={() => setActiveTab('Billing')} type="button">
@@ -1101,8 +1109,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                         <td><strong>{inv.invoice_number}</strong></td>
                         <td>{formatDate(inv.invoice_date || inv.created_at)}</td>
                         <td>{inv.items.map((i: { service_name: string }) => i.service_name).join(', ') || 'OPD Services'}</td>
-                        <td>₹{inv.total_amount.toLocaleString()}</td>
-                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>₹{inv.balance_amount.toLocaleString()}</strong></td>
+                        <td>{formatCurrency(inv.total_amount)}</td>
+                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>{formatCurrency(inv.balance_amount)}</strong></td>
                         <td><span className="doc-status active">{inv.status}</span></td>
                         <td style={{ textAlign: 'center' }}>
                           <button className="doc-btn small" onClick={() => setViewingInvoice(inv)} title="View Invoice" type="button">

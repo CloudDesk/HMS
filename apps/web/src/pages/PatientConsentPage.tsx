@@ -1,8 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import {
-  type ApiPatientConsentStatus,
-  type PatientDocumentResponse,
-} from '../api/patients';
+import { type PatientDocumentResponse } from '../api/patients';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { formatDate, patientFullName } from './patient-utils';
@@ -10,9 +7,12 @@ import { patientInitials } from './opd-utils';
 import { toast } from 'sonner';
 import { usePatientConsentFeature } from '../hooks/patients/usePatientConsentFeature';
 
-const statusLabels: Record<ApiPatientConsentStatus, string> = {
-  NOT_REQUIRED: 'Not required',
+const statusLabels: Record<string, string> = {
+  NOT_REQUIRED: 'Not Required',
+  SIGNED: 'Signed',
   PENDING: 'Pending',
+  EXPIRED: 'Expired',
+  REJECTED: 'Rejected',
   ATTACHED: 'Attached',
   VERIFIED: 'Verified',
 };
@@ -80,7 +80,7 @@ export function PatientConsentPage() {
     if (replacementInput.current) replacementInput.current.value = '';
   };
 
-  const count = (target: ApiPatientConsentStatus) => consents.filter((document) => document.consent_status === target).length;
+  const count = (target: string) => consents.filter((document) => document.consent_status === target).length;
 
   return (
     <>
@@ -110,7 +110,7 @@ export function PatientConsentPage() {
         ) : null}
 
         <section className="consent-kpi-grid">
-          {([['Total', consents.length], ['Pending', count('PENDING')], ['Attached', count('ATTACHED')], ['Verified', count('VERIFIED')]] as const).map(([label, value]) => (
+          {([['Total', consents.length], ['Pending', count('PENDING')], ['Signed', count('SIGNED')], ['Verified', count('VERIFIED')]] as const).map(([label, value]) => (
             <article className="doc-card consent-kpi-card" key={label}><div><span>{label}</span><strong>{loading ? '-' : value}</strong></div></article>
           ))}
         </section>

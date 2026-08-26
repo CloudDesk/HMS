@@ -3,6 +3,7 @@ import type { OpdClinicalOrderRepository } from '../opd/opd-clinical-order.repos
 import type { OpdPrescriptionRepository } from '../opd/opd-prescription.repository.js';
 import type { PatientService } from '../patients/patient.service.js';
 import type { ServiceRepository } from '../services/service.repository.js';
+import type { BillingService } from '../billing/billing.service.js';
 import type { EmergencyRepository, EmergencyLean } from './emergency.repository.js';
 import type {
   CreateEmergencyDTO,
@@ -33,6 +34,7 @@ export class EmergencyService {
     private readonly clinicalOrders: OpdClinicalOrderRepository,
     private readonly prescriptions: OpdPrescriptionRepository,
     private readonly services: ServiceRepository,
+    private readonly billing: BillingService,
   ) {}
   private async authorize(actor: string, branchId: string) {
     if (!(await this.repository.hasBranchAccess(actor, branchId)))
@@ -142,7 +144,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, session);
+        const current = await this.requireRecord(id, branchId, actor, session);
         if (terminal.includes(current.status))
           throw new AppError(
             'Terminal encounter identity cannot be changed',
@@ -220,7 +222,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, session);
+        const current = await this.requireRecord(id, branchId, actor, session);
         result = await this.repository.transition(
           id,
           branchId,
@@ -292,7 +294,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, session);
+        const current = await this.requireRecord(id, branchId, actor, session);
         if (!current.triage)
           throw new AppError(
             'Complete triage before overriding priority',
@@ -371,7 +373,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, session);
+        const current = await this.requireRecord(id, branchId, actor, session);
         const doctor = await this.repository.doctor(
           data.doctor_id,
           branchId,
@@ -457,7 +459,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, session);
+        const current = await this.requireRecord(id, branchId, actor, session);
         if (!current.patientId || !current.patientNumber)
           throw new AppError(
             'Link an existing patient before placing downstream orders',
@@ -601,7 +603,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, session);
+        const current = await this.requireRecord(id, branchId, actor, session);
         if (!current.consultation || !current.assignedDoctorId)
           throw new AppError(
             'Doctor evaluation is required before disposition',
@@ -616,12 +618,16 @@ export class EmergencyService {
               : data.decision === 'LEFT'
                 ? 'LEFT'
                 : 'READY_FOR_DISPOSITION';
-        if (data.decision === 'DISCHARGE' && current.orders.length > 0)
-          throw new AppError(
-            'Billing closure is unavailable while downstream emergency orders remain unbilled',
-            409,
-            'EMERGENCY_BILLING_CLOSURE_REQUIRED',
-          );
+        if (data.decision === 'DISCHARGE') {
+          const isFinanciallyClosed = await this.billing.isEncounterFinanciallyClosed(id, session);
+          if (!isFinanciallyClosed) {
+            throw new AppError(
+              'Billing closure is unavailable while emergency charges remain unresolved',
+              409,
+              'EMERGENCY_BILLING_CLOSURE_REQUIRED',
+            );
+          }
+        }
         result = await this.repository.transition(
           id,
           branchId,
@@ -763,7 +769,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, session);
+        const current = await this.requireRecord(id, branchId, actor, session);
         result = await this.repository.transition(
           id,
           branchId,
@@ -804,11 +810,13 @@ export class EmergencyService {
   private async requireRecord(
     id: string,
     branchId: string,
+    actor: string,
     session: import('mongoose').ClientSession,
   ): Promise<EmergencyLean> {
     const row = await this.repository.getRecord(id, branchId, session);
     if (!row)
       throw new AppError('Emergency encounter not found', 404, 'EMERGENCY_ENCOUNTER_NOT_FOUND');
+    await this.authorizeDepartment(actor, row.departmentId.toString());
     return row;
   }
 }

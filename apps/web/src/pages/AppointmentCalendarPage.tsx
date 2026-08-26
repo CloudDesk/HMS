@@ -10,22 +10,19 @@ import {
   startOfWeek,
   startOfMonth,
   endOfMonth,
+  formatAppointmentTime,
 } from './appointment-utils';
 import { patientInitials } from './opd-utils';
 import { toast } from 'sonner';
 import { useAppointmentCalendarFeature } from '../hooks/appointments/useAppointmentCalendarFeature';
+import { useSettings, useTimezone } from '../api/useSettings';
+import { formatInTimeZone } from 'date-fns-tz';
 
 const timeSlots = Array.from({ length: 11 }).map((_, index) => `${String(index + 8).padStart(2, '0')}:00`);
 
 const dateKey = (value: string) => toInputDate(parseInputDate(value));
 
 const appointmentDateKey = (appointment: AppointmentResponse) => appointment.appointment_date.slice(0, 10);
-
-const formatDayHeader = (value: string) =>
-  new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', weekday: 'short' }).format(parseInputDate(value));
-
-const formatMonthDay = (value: string) =>
-  new Intl.DateTimeFormat('en', { day: 'numeric', weekday: 'short' }).format(parseInputDate(value));
 
 const isReferral = (appointment: AppointmentResponse) => {
   return Boolean(
@@ -43,8 +40,8 @@ const eventClass = (appointment: AppointmentResponse) => {
   return '';
 };
 
-const buildWeekDays = (selectedDate: string) => {
-  const weekStart = startOfWeek(selectedDate);
+const buildWeekDays = (selectedDate: string, firstDayOfWeek: 'Monday' | 'Sunday') => {
+  const weekStart = startOfWeek(selectedDate, firstDayOfWeek);
   return Array.from({ length: 7 }).map((_, index) => {
     const date = new Date(weekStart);
     date.setDate(date.getDate() + index);
@@ -117,6 +114,28 @@ export function AppointmentCalendarPage() {
     }
   } = useAppointmentCalendarFeature();
 
+  const timezone = useTimezone();
+
+  const getDayHeader = (value: string) => {
+    try {
+      const parsed = parseInputDate(value);
+      if (Number.isNaN(parsed.getTime())) return value;
+      return formatInTimeZone(parsed, timezone, 'd MMM, EEE');
+    } catch {
+      return value;
+    }
+  };
+
+  const getMobileDayHeader = (value: string) => {
+    try {
+      const parsed = parseInputDate(value);
+      if (Number.isNaN(parsed.getTime())) return value;
+      return formatInTimeZone(parsed, timezone, 'd EEE');
+    } catch {
+      return value;
+    }
+  };
+
   // Drag and Drop State & Active Modal State
   const [draggedAppointmentId, setDraggedAppointmentId] = useState<string | null>(null);
   const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
@@ -129,7 +148,10 @@ export function AppointmentCalendarPage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
 
-  const weekDays = useMemo(() => buildWeekDays(calendarDate), [calendarDate]);
+  const settings = useSettings();
+  const firstDayOfWeek = settings?.localization.firstDayOfWeek || 'Sunday';
+
+  const weekDays = useMemo(() => buildWeekDays(calendarDate, firstDayOfWeek), [calendarDate, firstDayOfWeek]);
   const monthDays = useMemo(() => buildMonthDays(calendarDate), [calendarDate]);
 
   const appointmentsFor = (day: string, slot?: string) =>
@@ -313,7 +335,7 @@ export function AppointmentCalendarPage() {
                   <span>Time</span>
                   {(mode === 'day' ? [dateKey(calendarDate)] : weekDays).map((day) => (
                     <span className={day === todayInputValue() ? 'today' : ''} key={day}>
-                      {formatDayHeader(day)}
+                      {getDayHeader(day)}
                     </span>
                   ))}
                 </div>
@@ -349,12 +371,11 @@ export function AppointmentCalendarPage() {
                               }}
                               type="button"
                             >
-                              <strong>
-                                {appointment.start_time} - {appointment.patient_name}
-                              </strong>
-                              <span>
-                                {appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}
-                              </span>
+                              <strong>{formatAppointmentTime(appointment)}</strong>
+                              <div>
+                                <strong>{appointment.patient_name}</strong>
+                                <span>{appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}</span>
+                              </div>
                             </button>
                           ))}
                         </div>
@@ -385,7 +406,7 @@ export function AppointmentCalendarPage() {
                       }}
                       onDrop={() => void handleDrop(day)}
                     >
-                      <strong>{formatMonthDay(day)}</strong>
+                      <strong>{getMobileDayHeader(day)}</strong>
                       {appointmentsFor(day).slice(0, 4).map((appointment) => (
                         <button
                           className={`appointment-calendar-event ${eventClass(appointment)}`}

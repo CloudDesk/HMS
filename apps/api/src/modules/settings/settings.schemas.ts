@@ -57,9 +57,9 @@ export const localizationSettingsBodySchema = {
   additionalProperties: false,
   required: ['country', 'timezone', 'currency', 'currencySymbol', 'numberFormat', 'firstDayOfWeek'],
   properties: {
-    country: { type: 'string', enum: ['Kenya', 'Uganda', 'Tanzania', 'Nigeria'] },
-    timezone: { type: 'string', enum: ['Africa/Nairobi', 'Africa/Lagos', 'Africa/Cairo'] },
-    currency: { type: 'string', enum: ['KES', 'UGX', 'USD'] },
+    country: { type: 'string', enum: ['Kenya', 'Uganda', 'Tanzania', 'Nigeria', 'India'] },
+    timezone: { type: 'string', enum: ['Africa/Nairobi', 'Africa/Lagos', 'Africa/Cairo', 'Africa/Kampala', 'Africa/Dar_es_Salaam', 'Asia/Kolkata'] },
+    currency: { type: 'string', enum: ['KES', 'UGX', 'USD', 'TZS', 'NGN', 'INR'] },
     currencySymbol: { type: 'string', minLength: 1, maxLength: 8 },
     numberFormat: { type: 'string', enum: ['1,000.00', '1.000,00'] },
     firstDayOfWeek: { type: 'string', enum: ['Monday', 'Sunday'] },

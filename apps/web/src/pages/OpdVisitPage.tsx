@@ -27,7 +27,7 @@ import {
   evaluateTemperature,
 } from '../components/ui/ClinicalVitalCard';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { getPatientErrorMessage, calculateAge } from './patient-utils';
+import { getPatientErrorMessage, calculateAge, formatDate } from './patient-utils';
 import {
   getOpdErrorMessage,
   opdVisitStatusLabels,
@@ -68,6 +68,7 @@ type MedicationFormState = {
   frequency: string;
   duration: string;
   quantity: string;
+  intake_time: string;
   instructions: string;
 };
 
@@ -110,7 +111,7 @@ const emptyConsultationForm: ConsultationFormState = {
 const emptyMedicationForm: MedicationFormState = {
   medicine_name: '',
   strength: '',
-  dosage: '', route: '', frequency: '', duration: '', quantity: '', instructions: '',
+  dosage: '', route: '', frequency: '', duration: '', quantity: '', intake_time: '', instructions: '',
 };
 
 const emptyPrescriptionForm: PrescriptionFormState = {
@@ -141,6 +142,7 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null
     frequency: item.frequency,
     duration: item.duration,
     quantity: item.quantity?.toString() ?? '',
+    intake_time: item.intake_time ?? '',
     instructions: item.instructions ?? '',
   })),
   follow_up_date: prescription?.follow_up_date?.slice(0, 10) ?? '',
@@ -185,6 +187,26 @@ export function OpdVisitPage() {
 
   const [prescriptionForm, setPrescriptionForm] = useState<PrescriptionFormState>(emptyPrescriptionForm);
   const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
+
+  useEffect(() => {
+    const dos = Number(medicationForm.dosage) || 0;
+    const dur = Number(medicationForm.duration) || 0;
+    let freqMultiplier = 1;
+    switch (medicationForm.frequency) {
+      case 'BD': freqMultiplier = 2; break;
+      case 'TDS': freqMultiplier = 3; break;
+      case 'QID': freqMultiplier = 4; break;
+      case 'PRN':
+      case 'OD':
+      default: break;
+    }
+    const computed = dos * freqMultiplier * dur;
+    const newQuantity = computed > 0 ? String(computed) : '';
+    
+    if (newQuantity !== medicationForm.quantity) {
+      setMedicationForm((m) => ({ ...m, quantity: newQuantity }));
+    }
+  }, [medicationForm.dosage, medicationForm.frequency, medicationForm.duration, medicationForm.quantity]);
 
   // Documents state (Tab 9)
   const [documents, setDocuments] = useState<PatientDocumentResponse[]>([]);
@@ -537,6 +559,7 @@ export function OpdVisitPage() {
               frequency: i.frequency,
               duration: i.duration,
               quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+              intake_time: i.intake_time || null,
               instructions: i.instructions || null,
             })),
             follow_up_date: prescriptionForm.follow_up_date || null,
@@ -850,7 +873,7 @@ export function OpdVisitPage() {
                 </span>
               </div>
               <div className="opd-patient-meta-line">
-                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} â€¢ ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
+                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} • ${calculateAge(patient.date_of_birth)} (${formatDate(patient.date_of_birth)})` : 'Gender/Age N/A'}</span>
                 <span className="divider">|</span>
                 <span>{opdVisitTypeLabels[visit.visit_type]}</span>
                 <span className="divider">|</span>
@@ -874,7 +897,7 @@ export function OpdVisitPage() {
               </button>
               <button
                 className="doc-btn"
-                onClick={() => navigate(`/patients/emr?id=${visit.patient_id}`)}
+                onClick={() => navigate(`/patients/profile?id=${visit.patient_id}&tab=EMR+Timeline`)}
                 type="button"
               >
                 <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
@@ -1147,11 +1170,14 @@ export function OpdVisitPage() {
                         />
                       </label>
                       <label className="doc-field" htmlFor="medicine-dosage">
-                        <span>Dosage</span>
+                        <span>Dosage {selectedMasterMed ? `(${selectedMasterMed.unit || 'units'})` : ''}</span>
                         <input
                           id="medicine-dosage"
+                          type="number"
+                          min="0.5"
+                          step="0.5"
                           onChange={(e) => setMedicationForm((m) => ({ ...m, dosage: e.target.value }))}
-                          placeholder="1 tablet"
+                          placeholder="e.g. 1"
                           value={medicationForm.dosage}
                         />
                       </label>
@@ -1170,21 +1196,61 @@ export function OpdVisitPage() {
                         </select>
                       </label>
                       <label className="doc-field" htmlFor="medicine-duration">
-                        <span>Duration</span>
+                        <span>Duration (Days)</span>
                         <input
                           id="medicine-duration"
+                          type="number"
+                          min="1"
+                          step="1"
                           onChange={(e) => setMedicationForm((m) => ({ ...m, duration: e.target.value }))}
-                          placeholder="30 days"
+                          placeholder="e.g. 5"
                           value={medicationForm.duration}
+                        />
+                      </label>
+
+                      <label className="doc-field" htmlFor="medicine-intake-time">
+                        <span>Intake Time</span>
+                        <select
+                          id="medicine-intake-time"
+                          onChange={(e) => setMedicationForm((m) => ({ ...m, intake_time: e.target.value }))}
+                          value={medicationForm.intake_time}
+                        >
+                          <option value="">Select Time</option>
+                          <option value="Before Food">Before Food</option>
+                          <option value="After Food">After Food</option>
+                          <option value="Empty Stomach">Empty Stomach</option>
+                          <option value="At Bed Time">At Bed Time</option>
+                        </select>
+                      </label>
+                      <label className="doc-field" htmlFor="medicine-instructions" style={{ gridColumn: '1 / -1' }}>
+                        <span>Instructions</span>
+                        <textarea
+                          id="medicine-instructions"
+                          onChange={(e) => setMedicationForm((m) => ({ ...m, instructions: e.target.value }))}
+                          placeholder="e.g. Take with sufficient water"
+                          value={medicationForm.instructions}
+                          rows={2}
                         />
                       </label>
                       <button
                         className="doc-btn primary add-medication"
                         onClick={() => {
                           if (!medicationForm.medicine_name.trim()) return;
+                          const unit = selectedMasterMed?.unit || 'units';
+                          const dosageStr = Number(medicationForm.dosage) > 0 ? `${medicationForm.dosage} ${unit}` : medicationForm.dosage;
+                          const durationStr = Number(medicationForm.duration) > 0 ? `${medicationForm.duration} days` : medicationForm.duration;
+                          
                           setPrescriptionForm((prev) => ({
                             ...prev,
-                            items: [...prev.items, { ...medicationForm, local_id: `med-${Date.now()}` }],
+                            items: [
+                              ...prev.items, 
+                              { 
+                                ...medicationForm, 
+                                dosage: dosageStr, 
+                                duration: durationStr, 
+                                local_id: `med-${Date.now()}` 
+                              }
+                            ],
                           }));
                           setMedicationForm(emptyMedicationForm);
                           showToast('Medication added.');
@@ -1204,6 +1270,7 @@ export function OpdVisitPage() {
                             <th>Dosage</th>
                             <th>Frequency</th>
                             <th>Duration</th>
+                            <th>Intake Time</th>
                             <th>Instructions</th>
                             <th aria-label="Actions" />
                           </tr>
@@ -1211,7 +1278,7 @@ export function OpdVisitPage() {
                         <tbody>
                           {prescriptionForm.items.length === 0 ? (
                             <tr>
-                              <td className="opd-prescription-empty" colSpan={6}>
+                              <td className="opd-prescription-empty" colSpan={7}>
                                 No medications prescribed yet.
                               </td>
                             </tr>
@@ -1222,6 +1289,7 @@ export function OpdVisitPage() {
                                 <td>{item.dosage}</td>
                                 <td>{item.frequency}</td>
                                 <td>{item.duration}</td>
+                                <td>{item.intake_time || '-'}</td>
                                 <td>{item.instructions || '-'}</td>
                                 <td>
                                   <button
@@ -1781,7 +1849,7 @@ export function OpdVisitPage() {
                           <div className="opd-document-details">
                             <strong>{doc.title}</strong>
                             <span>
-                              {doc.document_type} â€¢ {new Date(doc.created_at).toLocaleDateString()}
+                              {doc.document_type} • {new Date(doc.created_at).toLocaleDateString()}
                             </span>
                           </div>
                           <div className="opd-document-actions">
@@ -1846,10 +1914,10 @@ export function OpdVisitPage() {
                   </div>
                   <div className="opd-summary-row">
                     <span>Temperature</span>
-                    <strong>{vitalsForm.temperature_c ? `${vitalsForm.temperature_c} Â°C` : 'Not recorded'}</strong>
+                    <strong>{vitalsForm.temperature_c ? `${vitalsForm.temperature_c} °C` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">
-                    <span>SpOâ‚‚</span>
+                    <span>SpO₂</span>
                     <strong>{vitalsForm.oxygen_saturation_percent ? `${vitalsForm.oxygen_saturation_percent}%` : 'Not recorded'}</strong>
                   </div>
                   <div className="opd-summary-row">

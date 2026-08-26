@@ -33,10 +33,10 @@ export type AuthUser = {
 
 export type AuthTokens = {
   accessToken: string;
-  refreshToken: string;
+  // refreshToken is intentionally absent: it is stored in an HttpOnly cookie
+  // by the backend and is never exposed to frontend JavaScript.
   tokenType: 'Bearer';
   expiresIn: number;
-  refreshExpiresIn: number;
 };
 
 export type AuthSession = {

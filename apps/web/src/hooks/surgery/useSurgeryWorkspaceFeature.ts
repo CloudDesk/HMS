@@ -6,10 +6,13 @@ import { useDepartmentsList } from '../departments/useDepartments';
 import { useDoctorsList } from '../doctors/useDoctors';
 import { usePatientsList } from '../patients/usePatients';
 import { useServicesList } from '../services/useServices';
+import { useLinkProcedureBillingContext } from '../billing/useBilling';
+import { useConsentTemplates } from '../consents/useConsents';
+import { useUploadPatientDocument } from '../patients/usePatients';
 import { useSurgery, useSurgeryAlternatives } from './useSurgery';
 export type SurgeryTab = 'recommendations' | 'bookings' | 'schedule';
 const isTab = (value: string | null): value is SurgeryTab => value === 'recommendations' || value === 'bookings' || value === 'schedule';
-export function useSurgeryWorkspaceFeature() {
+export function useSurgeryWorkspaceFeature(consentOpen = false) {
   const { user } = useAuth(); const { search } = useAppLocation(); const initial = new URLSearchParams(search);
   const initialTab = initial.get('tab');
   const [tab, setTab] = useState<SurgeryTab>(isTab(initialTab) ? initialTab : 'recommendations');
@@ -26,6 +29,13 @@ export function useSurgeryWorkspaceFeature() {
   const services = useServicesList({ status: 'ACTIVE', service_type: 'PROCEDURE', page: 1, limit: 100 });
   const patients = usePatientsList({ search: patientSearch, status: 'ACTIVE', page: 1, limit: 20 }, patientSearch.trim().length >= 2);
   const alternatives = useSurgeryAlternatives({ branch_id: branchId, ...availability }, Boolean(branchId && availability.department_id && availability.service_id && availability.scheduled_start));
+  const consentTemplates = useConsentTemplates({ branch_id: branchId, context_type: 'PROCEDURE', status: 'ACTIVE' }, consentOpen);
+  const uploadConsent = useUploadPatientDocument();
+  const linkProcedureBillingContext = useLinkProcedureBillingContext();
+  const linkDeposit = async (booking: { id: string; patient_id: string }, invoiceId?: string | null) => {
+    if (!invoiceId) return;
+    await linkProcedureBillingContext.mutateAsync({ id: invoiceId, payload: { patient_id: booking.patient_id, branch_id: branchId, booking_id: booking.id } });
+  };
   const scheduleRows = useMemo(() => (surgery.bookings.data?.data ?? []).sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start)), [surgery.bookings.data]);
-  return { state: { tab, branchId, status, date, searchText, patientSearch, branches, departments: departments.data?.data ?? [], doctors: doctors.data?.data ?? [], services: services.data?.data ?? [], patients: patients.data?.data ?? [], recommendations: surgery.recommendations.data?.data ?? [], bookings: surgery.bookings.data?.data ?? [], scheduleRows, recommendationsQuery: surgery.recommendations, bookingsQuery: surgery.bookings, alternatives: alternatives.data ?? [], alternativesLoading: alternatives.isFetching }, actions: { setTab, setBranchId, setStatus, setDate, setSearchText, setPatientSearch, setAvailability }, mutations: surgery };
+  return { state: { tab, branchId, status, date, searchText, patientSearch, branches, departments: departments.data?.data ?? [], doctors: doctors.data?.data ?? [], services: services.data?.data ?? [], patients: patients.data?.data ?? [], recommendations: surgery.recommendations.data?.data ?? [], bookings: surgery.bookings.data?.data ?? [], scheduleRows, recommendationsQuery: surgery.recommendations, bookingsQuery: surgery.bookings, alternatives: alternatives.data ?? [], alternativesLoading: alternatives.isFetching, consentTemplates: consentTemplates.data ?? [], consentTemplatesLoading: consentTemplates.isLoading }, actions: { setTab, setBranchId, setStatus, setDate, setSearchText, setPatientSearch, setAvailability, linkDeposit }, mutations: { ...surgery, uploadConsent } };
 }

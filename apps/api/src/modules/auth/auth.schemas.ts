@@ -8,21 +8,18 @@ export const loginBodySchema = {
   },
 } as const;
 
+// Refresh token is no longer supplied in the request body.
+// The browser sends it automatically via the HttpOnly hms-refresh-token cookie.
 export const refreshBodySchema = {
   type: 'object',
-  required: ['refreshToken'],
   additionalProperties: false,
-  properties: {
-    refreshToken: { type: 'string', minLength: 1 },
-  },
+  properties: {},
 } as const;
 
 export const logoutBodySchema = {
   type: 'object',
   additionalProperties: false,
-  properties: {
-    refreshToken: { type: 'string', minLength: 1 },
-  },
+  properties: {},
 } as const;
 
 export const changePasswordBodySchema = {

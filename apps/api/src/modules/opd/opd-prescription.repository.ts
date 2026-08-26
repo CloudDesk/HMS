@@ -13,6 +13,7 @@ import type {
 import type { OpdConsultation } from './opd-consultation.types.js';
 import type { OpdVisit } from './opd-visit.types.js';
 import { OpdVisitModel } from './opd-visit.model.js';
+import type { ClinicalSourceContext } from './clinical-context.types.js';
 
 type OpdPrescriptionLean = OpdPrescriptionFields & { _id: Types.ObjectId };
 
@@ -39,6 +40,7 @@ const toItem = (item: OpdPrescriptionItemFields) => ({
   frequency: item.frequency,
   duration: item.duration,
   quantity: item.quantity ?? null,
+  intake_time: item.intakeTime ?? null,
   instructions: item.instructions ?? null,
 });
 
@@ -46,6 +48,9 @@ const toPrescription = (record: OpdPrescriptionLean): OpdPrescription => ({
   id: record._id.toString(),
   source_type: record.sourceType,
   source_id: record.sourceId.toString(),
+  encounter_id: record.encounterId?.toString() ?? record.visitId?.toString() ?? null,
+  admission_id: record.admissionId?.toString() ?? null,
+  procedure_id: record.procedureId?.toString() ?? null,
   visit_id: record.visitId?.toString() ?? null,
   consultation_id: record.consultationId?.toString() ?? null,
   branch_id: record.branchId.toString(),
@@ -74,6 +79,7 @@ const toItemFields = (item: SaveOpdPrescriptionItemDTO) => ({
   frequency: item.frequency.trim(),
   duration: item.duration.trim(),
   quantity: item.quantity ?? null,
+  intakeTime: nullableString(item.intake_time),
   instructions: nullableString(item.instructions),
 });
 
@@ -96,11 +102,25 @@ export class OpdPrescriptionRepository {
     return record ? toPrescription(record) : null;
   }
 
+  async getBySource(sourceType: ClinicalSourceContext['source_type'], sourceId: string, session?: ClientSession) {
+    const query = OpdPrescriptionModel.findOne({
+      sourceType,
+      sourceId: objectId(sourceId),
+      deletedAt: null,
+    }).lean<OpdPrescriptionLean>();
+    if (session) query.session(session);
+    const record = await query;
+    return record ? toPrescription(record) : null;
+  }
+
   async saveForVisit(data: SaveOpdPrescriptionRecord, userId: string): Promise<OpdPrescription> {
     const record = await OpdPrescriptionModel.findOneAndUpdate(
       { visitId: objectId(data.visit.id), deletedAt: null },
       {
         $set: {
+          encounterId: objectId(data.visit.id),
+          admissionId: null,
+          procedureId: null,
           consultationId: objectId(data.consultation.id),
           status: data.status,
           items: data.items.map(toItemFields),
@@ -137,12 +157,38 @@ export class OpdPrescriptionRepository {
     encounterId: string; patientId: string; patientNumber: string; patientName: string; doctorId: string; doctorName: string; branchId: string;
     items: SaveOpdPrescriptionItemDTO[]; doctorInstructions?: string | null; patientInstructions?: string | null;
   }, userId: string, session: ClientSession) {
+    return this.submitForContext({
+      source_type: 'EMERGENCY_ENCOUNTER', source_id: data.encounterId, encounter_id: data.encounterId,
+      admission_id: null, procedure_id: null, patient_id: data.patientId, patient_number: data.patientNumber,
+      patient_name: data.patientName, doctor_id: data.doctorId, doctor_name: data.doctorName, branch_id: data.branchId,
+    }, {
+      items: data.items, doctor_instructions: data.doctorInstructions, patient_instructions: data.patientInstructions,
+    }, userId, session);
+  }
+
+  async submitForContext(
+    context: ClinicalSourceContext,
+    data: SaveOpdPrescriptionDTO,
+    userId: string,
+    session: ClientSession,
+  ) {
     const record = await OpdPrescriptionModel.findOneAndUpdate(
-      { sourceType: 'EMERGENCY_ENCOUNTER', sourceId: objectId(data.encounterId), deletedAt: null },
-      { $set: { status: 'SUBMITTED', items: data.items.map(toItemFields), doctorInstructions: nullableString(data.doctorInstructions), patientInstructions: nullableString(data.patientInstructions), submittedAt: new Date(), updatedBy: objectId(userId) }, $setOnInsert: { sourceType: 'EMERGENCY_ENCOUNTER', sourceId: objectId(data.encounterId), visitId: null, consultationId: null, branchId: objectId(data.branchId), patientId: objectId(data.patientId), patientNumber: data.patientNumber, patientName: data.patientName, doctorId: objectId(data.doctorId), doctorName: data.doctorName, createdBy: objectId(userId) } },
+      { sourceType: context.source_type, sourceId: objectId(context.source_id), deletedAt: null },
+      { $set: {
+        status: 'SUBMITTED', items: data.items.map(toItemFields), followUpDate: data.follow_up_date ? new Date(data.follow_up_date) : null,
+        doctorInstructions: nullableString(data.doctor_instructions), patientInstructions: nullableString(data.patient_instructions),
+        submittedAt: new Date(), updatedBy: objectId(userId), encounterId: context.encounter_id ? objectId(context.encounter_id) : null,
+        admissionId: context.admission_id ? objectId(context.admission_id) : null,
+        procedureId: context.procedure_id ? objectId(context.procedure_id) : null,
+      }, $setOnInsert: {
+        sourceType: context.source_type, sourceId: objectId(context.source_id), visitId: context.source_type === 'OPD_VISIT' ? objectId(context.source_id) : null,
+        consultationId: null, branchId: objectId(context.branch_id), patientId: objectId(context.patient_id),
+        patientNumber: context.patient_number, patientName: context.patient_name, doctorId: objectId(context.doctor_id),
+        doctorName: context.doctor_name, createdBy: objectId(userId),
+      } },
       { new: true, upsert: true, runValidators: true, session },
     ).lean<OpdPrescriptionLean>();
-    if (!record) throw new AppError('Emergency prescription could not be submitted', 500, 'PRESCRIPTION_SAVE_FAILED');
+    if (!record) throw new AppError('Context prescription could not be submitted', 500, 'PRESCRIPTION_SAVE_FAILED');
     return toPrescription(record);
   }
   async list(

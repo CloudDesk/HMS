@@ -3,6 +3,7 @@ import type { DispensingQueueStatus, DispensingSourceType, DispensingStatus } fr
 import { Modal } from '../components/ui/Modal';
 import { usePharmacyDispensingFeature } from '../hooks/pharmacy/usePharmacyDispensingFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { useCurrencyFormatter } from '../api/useSettings';
 
 const isQueueStatus = (value: string | null): value is DispensingQueueStatus =>
   value === 'PENDING' || value === 'CONFIRMED' || value === 'CANCELLED' || value === 'REVERSED';
@@ -39,6 +40,7 @@ export function PrescriptionQueuePage() {
   const [page, setPage] = useState(positiveInteger(initialParams.get('page'), 1));
   const [limit, setLimit] = useState(positiveInteger(initialParams.get('limit'), 20));
   const [actionReason, setActionReason] = useState('');
+  const formatCurrency = useCurrencyFormatter();
 
   const queue = usePharmacyDispensingFeature({
     requestedBranch: branchId,
@@ -163,7 +165,7 @@ export function PrescriptionQueuePage() {
                   <td>{detail.status === 'DRAFT' ? <select aria-label={`Batch for ${line.prescribedMedicineName}`} className="um-filter dispensing-control" disabled={draftDisabled || !line.medicineId} onChange={(event) => queue.actions.selectBatch(line.id, event.target.value)} value={line.batchId ?? ''}><option value="">Select batch</option>{line.batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batch_number} · {batch.quantity_on_hand} available · exp {new Date(batch.expiry_date).toLocaleDateString()}</option>)}</select> : line.batchNumber || '—'}</td>
                   <td><span className={line.insufficientStock ? 'diagnostic-status status-cancelled' : 'diagnostic-status status-confirmed'}>{line.availableQuantity}</span>{line.insufficientStock ? <div className="field-error">Insufficient stock</div> : null}</td>
                   <td>{detail.status === 'DRAFT' ? <input aria-label={`Final quantity for ${line.prescribedMedicineName}`} className="dispensing-quantity" disabled={draftDisabled} min="1" onChange={(event) => queue.actions.setConfirmedQuantity(line.id, event.target.value ? Number(event.target.value) : null)} step="1" type="number" value={line.confirmedQuantity ?? ''} /> : line.confirmedQuantity ?? '—'}</td>
-                  <td>{line.lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td>{formatCurrency(line.lineTotal)}</td>
                 </tr>
               ))}</tbody>
             </table></div>

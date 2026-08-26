@@ -11,6 +11,7 @@ const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 10
 const billingSourceTypeForVisit = (visitType: string): BillingSourceType => {
   if (visitType === 'EMERGENCY') return 'EMERGENCY';
   if (visitType === 'PROCEDURE') return 'PROCEDURE';
+  if (visitType === 'IP_ADMISSION') return 'IP_ADMISSION';
   return 'OPD';
 };
 
@@ -34,9 +35,10 @@ export class PharmacyDispensingService {
     const prescription = await this.repository.getPrescription(prescriptionId, session);
     if (!prescription) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
     const visit = prescription.visitId ? await this.repository.getVisit(prescription.visitId.toString(), session) : null;
-    const context = visit ?? { _id: prescription.sourceId, branchId: prescription.branchId, appointmentId: null, visitType: prescription.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : 'OPD' };
+    const context = visit ?? { _id: prescription.sourceId, branchId: prescription.branchId, appointmentId: null, visitType: prescription.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : prescription.sourceType === 'PROCEDURE_BOOKING' ? 'PROCEDURE' : prescription.sourceType === 'INPATIENT_ADMISSION' ? 'IP_ADMISSION' : 'OPD' };
     if (!await this.repository.authorized(actor, context.branchId.toString())) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
-    return { prescription, visit: context };
+    const billingVisit = visit ?? (prescription.sourceType === 'PROCEDURE_BOOKING' && prescription.encounterId ? await this.repository.getVisit(prescription.encounterId.toString(), session) : null);
+    return { prescription, visit: context, billingVisit };
   }
 
   async list(query: PharmacyDispensingListQuery, actor: string) {
@@ -104,8 +106,10 @@ export class PharmacyDispensingService {
     const session = await mongoose.startSession();
     try {
       return await session.withTransaction(async () => {
-        const { prescription, visit } = await this.context(prescriptionId, actor, session);
+        const { prescription, visit, billingVisit } = await this.context(prescriptionId, actor, session);
         if (prescription.status !== 'SUBMITTED') throw new AppError('Prescription is not actionable', 409, 'PRESCRIPTION_NOT_ACTIONABLE');
+        if (prescription.sourceType === 'PROCEDURE_BOOKING' && (!prescription.procedureId || !prescription.encounterId || !await this.repository.hasActiveProcedureContext(prescription.procedureId.toString(), prescription.patientId.toString(), prescription.branchId.toString(), prescription.encounterId.toString(), session))) throw new AppError('Procedure booking is no longer active for dispensing', 409, 'PROCEDURE_CONTEXT_NOT_ACTIVE');
+        if (prescription.sourceType === 'PROCEDURE_BOOKING' && (!billingVisit || billingVisit.patientId.toString() !== prescription.patientId.toString() || billingVisit.branchId.toString() !== prescription.branchId.toString())) throw new AppError('Procedure billing encounter context is invalid', 409, 'PROCEDURE_BILLING_CONTEXT_INVALID');
         const dispensing = await this.repository.getRawByPrescription(prescriptionId, session);
         if (!dispensing || dispensing.status !== 'DRAFT') throw new AppError('Dispensing is not confirmable', 409, 'INVALID_STATE_TRANSITION');
         if (dispensing.version !== version) throw new AppError('Dispensing changed; refresh and retry', 409, 'STALE_VERSION');
@@ -133,7 +137,8 @@ export class PharmacyDispensingService {
           billItems.push({ serviceId: item.batchId.toString(), serviceName: item.medicineName, serviceType: 'PHARMACY' as const, originatingOrderId: prescriptionId, quantity: item.confirmedQuantity, unitPrice: item.unitPrice, lineTotal: item.lineTotal });
         }
         const total = money(billItems.reduce((sum, item) => sum + item.lineTotal, 0));
-        const invoice = await this.repository.getBillingRepository().createInvoice({ invoiceNumber: createBillingNumber('INV'), patientId: prescription.patientId.toString(), visitId: visit._id.toString(), sourceType: billingSourceTypeForVisit(visit.visitType), encounterId: visit._id.toString(), admissionId: null, procedureId: null, appointmentId: visit.appointmentId?.toString() ?? null, branchId: visit.branchId.toString(), invoiceDate: new Date(), subtotal: total, discountAmount: 0, taxAmount: 0, totalAmount: total, balanceAmount: total }, billItems, actor, session);
+        const invoiceVisit = billingVisit ?? visit;
+        const invoice = await this.repository.getBillingRepository().createInvoice({ invoiceNumber: createBillingNumber('INV'), patientId: prescription.patientId.toString(), visitId: invoiceVisit._id.toString(), sourceType: prescription.sourceType === 'PROCEDURE_BOOKING' ? 'PROCEDURE' : billingSourceTypeForVisit(invoiceVisit.visitType), encounterId: prescription.encounterId?.toString() ?? invoiceVisit._id.toString(), admissionId: prescription.admissionId?.toString() ?? null, procedureId: prescription.procedureId?.toString() ?? null, appointmentId: invoiceVisit.appointmentId?.toString() ?? null, branchId: visit.branchId.toString(), invoiceDate: new Date(), subtotal: total, discountAmount: 0, taxAmount: 0, totalAmount: total, balanceAmount: total }, billItems, actor, session);
         await this.repository.getBillingRepository().updateInvoice(invoice.id, { status: 'PENDING' }, actor, session);
         const confirmed = await this.repository.confirm(dispensing._id.toString(), version, actor, invoice.id, key, session);
         if (!confirmed) throw new AppError('Dispensing changed; refresh and retry', 409, 'STALE_VERSION');

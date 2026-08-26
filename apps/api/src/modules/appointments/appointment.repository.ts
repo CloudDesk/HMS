@@ -15,7 +15,7 @@ import type {
 
 type AppointmentLean = AppointmentFields & { _id: Types.ObjectId };
 
-type AppointmentCreateRecord = Omit<CreateAppointmentDTO, 'appointment_date' | 'priority'> & {
+type AppointmentCreateRecord = Omit<CreateAppointmentDTO, 'appointment_date' | 'start_time' | 'utc_datetime' | 'priority'> & {
   appointmentNumber: string;
   patientNumber: string;
   patientName: string;
@@ -23,19 +23,25 @@ type AppointmentCreateRecord = Omit<CreateAppointmentDTO, 'appointment_date' | '
   doctorSpecialization: string;
   branchId: string;
   departmentId: string;
+  utcDateTime: Date;
+  utcEndTime: Date;
   appointmentDate: Date;
+  startTime: string;
   endTime: string;
   priority: NonNullable<CreateAppointmentDTO['priority']>;
 };
 
-type AppointmentUpdateRecord = Omit<UpdateAppointmentDTO, 'appointment_date'> & {
+type AppointmentUpdateRecord = Omit<UpdateAppointmentDTO, 'appointment_date' | 'start_time' | 'utc_datetime'> & {
   patientNumber?: string;
   patientName?: string;
   doctorName?: string;
   doctorSpecialization?: string;
   branchId?: string;
   departmentId?: string;
+  utcDateTime?: Date;
+  utcEndTime?: Date;
   appointmentDate?: Date;
+  startTime?: string;
   endTime?: string;
 };
 
@@ -59,6 +65,8 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   doctor_specialization: appointment.doctorSpecialization,
   branch_id: appointment.branchId.toString(),
   department_id: appointment.departmentId.toString(),
+  utc_datetime: appointment.utcDateTime?.toISOString(),
+  utc_end_time: appointment.utcEndTime?.toISOString(),
   appointment_date: appointment.appointmentDate,
   start_time: appointment.startTime,
   end_time: appointment.endTime,
@@ -92,8 +100,10 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   doctorSpecialization: data.doctorSpecialization,
   branchId: toObjectId(data.branchId),
   departmentId: toObjectId(data.departmentId),
+  utcDateTime: data.utcDateTime,
+  utcEndTime: data.utcEndTime,
   appointmentDate: data.appointmentDate,
-  startTime: data.start_time,
+  startTime: data.startTime,
   endTime: data.endTime,
   durationMinutes: data.duration_minutes,
   visitType: data.visit_type,
@@ -111,8 +121,10 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.doctorSpecialization !== undefined ? { doctorSpecialization: data.doctorSpecialization } : {}),
   ...(data.branchId !== undefined ? { branchId: toObjectId(data.branchId) } : {}),
   ...(data.departmentId !== undefined ? { departmentId: toObjectId(data.departmentId) } : {}),
+  ...(data.utcDateTime !== undefined ? { utcDateTime: data.utcDateTime } : {}),
+  ...(data.utcEndTime !== undefined ? { utcEndTime: data.utcEndTime } : {}),
   ...(data.appointmentDate !== undefined ? { appointmentDate: data.appointmentDate } : {}),
-  ...(data.start_time !== undefined ? { startTime: data.start_time } : {}),
+  ...(data.startTime !== undefined ? { startTime: data.startTime } : {}),
   ...(data.endTime !== undefined ? { endTime: data.endTime } : {}),
   ...(data.duration_minutes !== undefined ? { durationMinutes: data.duration_minutes } : {}),
   ...(data.visit_type !== undefined ? { visitType: data.visit_type } : {}),
@@ -256,14 +268,33 @@ export class AppointmentRepository {
     startTime: string,
     endTime: string,
     excludeAppointmentId?: string,
+    utcStart?: Date,
+    utcEnd?: Date,
   ) {
-    const filter: Record<string, unknown> = {
-      doctorId: toObjectId(doctorId),
+    const timeFilter = utcStart && utcEnd ? {
+      $or: [
+        {
+          utcDateTime: { $lt: utcEnd },
+          utcEndTime: { $gt: utcStart },
+        },
+        {
+          utcDateTime: { $exists: false },
+          appointmentDate,
+          startTime: { $lt: endTime },
+          endTime: { $gt: startTime },
+        }
+      ]
+    } : {
       appointmentDate,
-      deletedAt: null,
-    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
       startTime: { $lt: endTime },
       endTime: { $gt: startTime },
+    };
+
+    const filter: Record<string, unknown> = {
+      doctorId: toObjectId(doctorId),
+      deletedAt: null,
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+      ...timeFilter,
     };
 
     if (excludeAppointmentId) {
@@ -297,14 +328,33 @@ async findPatientConflict(
   startTime: string,
   endTime: string,
   excludeAppointmentId?: string,
+  utcStart?: Date,
+  utcEnd?: Date,
 ) {
-  const filter: Record<string, unknown> = {
-    patientId: toObjectId(patientId),
+  const timeFilter = utcStart && utcEnd ? {
+    $or: [
+      {
+        utcDateTime: { $lt: utcEnd },
+        utcEndTime: { $gt: utcStart },
+      },
+      {
+        utcDateTime: { $exists: false },
+        appointmentDate,
+        startTime: { $lt: endTime },
+        endTime: { $gt: startTime },
+      }
+    ]
+  } : {
     appointmentDate,
-    deletedAt: null,
-    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
     startTime: { $lt: endTime },
     endTime: { $gt: startTime },
+  };
+
+  const filter: Record<string, unknown> = {
+    patientId: toObjectId(patientId),
+    deletedAt: null,
+    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+    ...timeFilter,
   };
 
   if (excludeAppointmentId) {
@@ -358,7 +408,5 @@ async auditRescheduled(previous: Appointment, appointment: Appointment, reason: 
   } });
 }
 
-  async nextAppointmentSequence() {
-    return AppointmentModel.countDocuments();
-  }
+
 }

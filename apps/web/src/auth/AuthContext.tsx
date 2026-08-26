@@ -47,20 +47,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
     redirectToLogin('session-expired');
   }, [clearSession]);
 
+  /**
+   * Refreshes the session by calling /auth/refresh.
+   *
+   * The browser automatically sends the HttpOnly refresh-token cookie so
+   * this function does not need to read or supply the token itself.
+   * The backend validates the token, rotates it, and sets a new cookie.
+   */
   const refreshSession = useCallback(async () => {
     if (refreshPromiseRef.current) {
       return refreshPromiseRef.current;
     }
 
-    const refreshToken = tokenStorage.getRefreshToken();
-
-    if (!refreshToken || tokenStorage.isRefreshTokenExpired()) {
-      clearSession('session-expired');
-      return null;
-    }
-
     refreshPromiseRef.current = (async () => {
-      const session = await authApi.refresh(refreshToken);
+      const session = await authApi.refresh();
       tokenStorage.setTokens(session.tokens);
       setUser(session.user);
       setStatus('authenticated');
@@ -84,6 +84,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return refreshPromiseRef.current;
   }, [clearSession]);
 
+  /**
+   * Re-fetches the current user profile from /auth/me to pick up any
+   * permission, role, or branch changes that occurred since the last sync.
+   *
+   * The `hasRefreshToken()` guard is an optimisation: skip the call when
+   * module memory has no active session (e.g. immediately after logout or on
+   * a cold page load before the first refresh attempt succeeds).
+   */
   const refreshCurrentUser = useCallback(async () => {
     if (!tokenStorage.hasRefreshToken()) {
       return;
@@ -109,35 +117,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let isMounted = true;
 
     const restoreSession = async () => {
-      if (!tokenStorage.hasRefreshToken()) {
-        if (isMounted) {
-          setStatus('unauthenticated');
-        }
-
-        return;
-      }
-
+      /**
+       * With the HttpOnly cookie architecture, the frontend cannot inspect
+       * the cookie to determine whether a session exists. We therefore always
+       * attempt /auth/refresh on page load and let the backend decide:
+       *
+       *   Valid cookie   → new access token → status: authenticated
+       *   Missing/expired cookie → 401      → status: unauthenticated
+       *
+       * If the access token is still valid in memory (e.g. in-page navigation
+       * that triggers a remount), skip the refresh and use /auth/me instead.
+       */
       try {
         if (tokenStorage.isAccessTokenExpired()) {
-          // Refresh already returns a database-backed user access context. Avoid a
-          // second /me request after rotating the one-time refresh token.
+          // Access token absent or expired — call /auth/refresh via cookie.
           const accessToken = await refreshSession();
+
           if (!accessToken && isMounted) {
-            setStatus('session-expired');
-          }
-          return;
-        }
-
-        const accessToken = tokenStorage.getAccessToken();
-
-        if (!accessToken) {
-          if (isMounted) {
-            setStatus('session-expired');
+            // refreshSession already called clearSession('session-expired').
+            // Set to unauthenticated for a cleaner first-visit experience.
+            setStatus('unauthenticated');
           }
 
           return;
         }
 
+        // In-memory access token is still valid; re-verify the user profile.
         const currentUser = await authApi.me();
 
         if (isMounted) {
@@ -146,13 +151,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       } catch (error) {
         if (!isMounted) return;
+
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          clearSession('session-expired');
+          clearSession('unauthenticated');
           return;
         }
 
-        // A temporary API/network failure must not destroy a still-valid refresh
-        // token. Keep the provider in its restoration state so focus/reload can retry.
+        // A temporary API/network failure must not destroy a still-valid
+        // session. Retain the loading/restoration state so that focus/reload
+        // can retry.
         setAuthError(getFriendlyAuthMessage(error));
       }
     };
@@ -195,14 +202,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get('redirect');
-      
+
       let finalRedirect = '/dashboard';
       if (redirect && redirect.startsWith('/')) {
         if (canAccessRoute(redirect, session.user.permissions ?? [], session.user.roles ?? [])) {
           finalRedirect = redirect;
         }
       }
-      
+
       navigate(finalRedirect, { replace: true });
     } catch (error) {
       tokenStorage.clear();
@@ -216,11 +223,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const logout = useCallback(async () => {
-    const refreshToken = tokenStorage.getRefreshToken();
-
     try {
       if (tokenStorage.getAccessToken()) {
-        await authApi.logout(refreshToken);
+        // Cookie is sent automatically via credentials: 'include' in authApi.logout().
+        await authApi.logout();
       }
     } catch {
       // Local sign out should still complete if the server already rejected the session.

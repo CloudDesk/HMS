@@ -246,7 +246,5 @@ export class OpdVisitRepository {
     });
   }
 
-  async nextVisitSequence() {
-    return OpdVisitModel.countDocuments();
-  }
+
 }
