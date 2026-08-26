@@ -29,7 +29,7 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     releaseHoldSafe: mock.fn(async () => true),
     cancelAdmissionRequestHold: mock.fn(async () => { throw new AppError('Active bed hold not found', 409, 'BED_HOLD_CONFLICT') }),
     validateHold: mock.fn(async () => true),
-  } as any;
+  } as unknown as ConstructorParameters<typeof SurgeryService>[4];
 
   const mockDoctors = {
     getById: mock.fn(async (id) => ({
@@ -47,13 +47,13 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     })),
     hasActiveLeave: mock.fn(async () => false),
     getExceptionByDate: mock.fn(async () => null),
-  } as any;
-  const mockPatients = { addProcedureTimeline: mock.fn(async () => {}), verifyContextConsent: mock.fn(async () => null) } as any;
-  const mockAdvancePayment = { syncRequirement: mock.fn(async () => ({ requirement_status: 'NOT_REQUIRED', paid_amount: 0 })) } as any;
+  } as unknown as ConstructorParameters<typeof SurgeryService>[1];
+  const mockPatients = { addProcedureTimeline: mock.fn(async () => {}), verifyContextConsent: mock.fn(async () => null) } as unknown as ConstructorParameters<typeof SurgeryService>[2];
+  const mockAdvancePayment = { syncRequirement: mock.fn(async () => ({ requirement_status: 'NOT_REQUIRED', paid_amount: 0 })) } as unknown as ConstructorParameters<typeof SurgeryService>[5];
 
-  const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as any;
+  const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as unknown as ConstructorParameters<typeof SurgeryService>[8];
   const service = new SurgeryService(
-    repository, mockDoctors, mockPatients, {} as any, mockBeds, mockAdvancePayment, {} as any, {} as any, mockSettingsRepo
+    repository, mockDoctors, mockPatients, {} as unknown as ConstructorParameters<typeof SurgeryService>[3], mockBeds, mockAdvancePayment, {} as unknown as ConstructorParameters<typeof SurgeryService>[6], {} as unknown as ConstructorParameters<typeof SurgeryService>[7], mockSettingsRepo
   );
 
   t.beforeEach(async () => {
@@ -104,7 +104,7 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
       scheduled_start: new Date(Date.now() + 186400000).toISOString(),
       reason: 'Patient requested',
       hold_id: newHoldId
-    }, actorId, {} as any);
+    }, actorId, {} as unknown as import('mongoose').ClientSession);
 
     assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 1);
     assert.equal(mockBeds.releaseHoldSafe.mock.calls[0].arguments[0], oldHoldId);
@@ -117,7 +117,7 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     await service.rescheduleBooking(booking._id.toString(), branchId, {
       scheduled_start: new Date(Date.now() + 186400000).toISOString(),
       reason: 'Patient requested',
-    }, actorId, {} as any);
+    }, actorId, {} as unknown as import('mongoose').ClientSession);
 
     assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 0, 'Should not release the old hold if new hold is not provided (re-using old hold)');
   });
@@ -126,7 +126,7 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     const holdId = createObjectId();
     const booking = await setupBooking('BOOKED', holdId);
     
-    await service.completeBooking(booking._id.toString(), branchId, actorId, {} as any);
+    await service.completeBooking(booking._id.toString(), branchId, actorId, {} as unknown as import('mongoose').ClientSession);
 
     assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 1);
     assert.equal(mockBeds.releaseHoldSafe.mock.calls[0].arguments[0], holdId);
@@ -136,7 +136,7 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     const holdId = createObjectId();
     const booking = await setupBooking('PENDING_CONFIRMATION', holdId);
     
-    await service.cancelBooking(booking._id.toString(), branchId, { reason: 'No longer needed' }, actorId, {} as any);
+    await service.cancelBooking(booking._id.toString(), branchId, { reason: 'No longer needed' }, actorId, {} as unknown as import('mongoose').ClientSession);
 
     assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 1, 'releaseHoldSafe should have been called');
     assert.equal(mockBeds.releaseHoldSafe.mock.calls[0].arguments[0], holdId);
@@ -150,7 +150,7 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     const booking = await setupBooking('PENDING_CONFIRMATION', holdId);
     
     await assert.doesNotReject(async () => {
-      await service.cancelBooking(booking._id.toString(), branchId, { reason: 'No longer needed' }, actorId, {} as any);
+      await service.cancelBooking(booking._id.toString(), branchId, { reason: 'No longer needed' }, actorId, {} as unknown as import('mongoose').ClientSession);
     });
   });
 });

@@ -15,8 +15,6 @@ import type { ConfirmProcedureBookingDTO, CreateProcedureBookingDTO, CreateProce
 import type { SettingsRepository } from '../settings/settings.repository.js';
 import { formatInTimeZone } from 'date-fns-tz';
 
-const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
-const minutes = (date: Date) => date.getUTCHours() * 60 + date.getUTCMinutes();
 const timeMinutes = (value: string) => { const [hour, minute] = value.split(':').map(Number); return (hour ?? 0) * 60 + (minute ?? 0); };
 const duplicate = (error: unknown): never => { if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11000) throw new AppError('An active recommendation or booking already exists', 409, 'PROCEDURE_DUPLICATE_CONFLICT'); throw error; };
 

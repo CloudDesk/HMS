@@ -36,9 +36,9 @@ const departmentSchema = new Schema<IDepartment>(
     timestamps: true,
     toJSON: {
       virtuals: true,
-      transform: (_, ret) => {
-        delete (ret as any)._id;
-        delete (ret as any).__v;
+      transform: (_, ret: Record<string, unknown>) => {
+        delete ret._id;
+        delete ret.__v;
         return ret;
       },
     },

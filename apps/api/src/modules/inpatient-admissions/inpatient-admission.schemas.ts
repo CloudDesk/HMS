@@ -8,6 +8,10 @@ const sourceType = z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER']);
 const admissionType = z.enum(['MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OBSERVATION', 'OTHER']);
 export const createAdmissionRequestSchema = z.object({ patient_id: id, branch_id: id, department_id: id, recommending_doctor_id: id, source_type: sourceType, source_id: id.nullable().optional(), admission_type: admissionType, priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']), reason: text('Reason', 500), notes: z.string().trim().max(1000).nullable().optional() }).strict();
 export const listAdmissionRequestsSchema = z.object({ branch_id: id, status: z.enum(['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION', 'CONFIRMED', 'CANCELLED']).optional(), source_type: z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'PROCEDURE_BOOKING']).optional(), patient_id: id.optional(), search: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) });
+
+export const requestStatsSchema = z.object({
+  branch_id: id
+});
 export const admissionRequestActionSchema = z.object({ id, });
 export const admissionRequestBranchSchema = z.object({ branch_id: id });
 export const validateAdmissionRequestSchema = z.object({ ward_id: id, bed_id: id, hold_id: id.nullable().optional(), consent_document_id: id.nullable().optional(), deposit_invoice_id: id.nullable().optional() }).strict();

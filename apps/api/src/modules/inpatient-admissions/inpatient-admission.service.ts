@@ -24,6 +24,13 @@ export class InpatientAdmissionService {
 
   async list(query: InpatientAdmissionListQuery, actor: string) { await this.authorize(actor, query.branch_id); const scope = await this.repository.departmentScope(actor); return this.repository.list(query, scope); }
   async get(id: string, branchId: string, actor: string) { await this.authorize(actor, branchId); const item = await this.repository.getById(id, branchId); if (!item) throw new AppError('Inpatient admission not found', 404, 'ADMISSION_NOT_FOUND'); await this.authorizeDepartment(actor, item.department_id); return item; }
+
+  async getRequestStatusCounts(actor: string, branchId: string) {
+    await this.authorize(actor, branchId);
+    const deptScope = await this.repository.departmentScope(actor);
+    return this.repository.getRequestStatusCounts(branchId, deptScope);
+  }
+
   async listRequests(query: AdmissionRequestListQuery, actor: string) { await this.authorize(actor, query.branch_id); const scope = await this.repository.departmentScope(actor); return this.repository.listRequests(query, scope); }
   async getRequest(id: string, branchId: string, actor: string) { await this.authorize(actor, branchId); const item = await this.repository.getRequest(id, branchId); if (!item) throw new AppError('Admission request not found', 404, 'ADMISSION_REQUEST_NOT_FOUND'); await this.authorizeDepartment(actor, item.department_id); return item; }
 

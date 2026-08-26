@@ -39,24 +39,24 @@ test('Department-Level Authorization Boundary Tests', async (t) => {
       })),
       hasBranchAccess: mock.fn(async () => true),
       departmentScope: mock.fn(async () => [cardiologyDept]), // The user only has Cardiology
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[0];
 
     const service = new SurgeryService(
-      mockRepo, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, { get: async () => ({ localization: { timezone: 'UTC' } }) } as any
+      mockRepo, {} as unknown as ConstructorParameters<typeof SurgeryService>[1], {} as unknown as ConstructorParameters<typeof SurgeryService>[2], {} as unknown as ConstructorParameters<typeof SurgeryService>[3], {} as unknown as ConstructorParameters<typeof SurgeryService>[4], {} as unknown as ConstructorParameters<typeof SurgeryService>[5], {} as unknown as ConstructorParameters<typeof SurgeryService>[6], {} as unknown as ConstructorParameters<typeof SurgeryService>[7], { get: async () => ({ localization: { timezone: 'UTC' } }) } as unknown as ConstructorParameters<typeof SurgeryService>[8]
     );
 
     await assert.rejects(
       async () => {
-        await service.confirmBooking(createObjectId(), branchA, {} as any, actor, {} as any);
+        await service.confirmBooking(createObjectId(), branchA, {} as unknown as import('../src/modules/surgery/surgery.types.js').ConfirmSurgeryBookingDTO, actor, {} as unknown as import('../src/modules/surgery/surgery.types.js').SurgeryMetadata);
       },
-      (err: any) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
+      (err: unknown) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
     );
   });
 
   await t.test('Surgery - Same branch + same department -> PASS (or proceeds to next validation)', async () => {
     const mockRepo = {
       session: mock.fn(async () => ({
-        withTransaction: async (cb: any) => cb(),
+        withTransaction: async (cb: () => Promise<void>) => cb(),
         endSession: async () => {},
       })),
       getBookingRecord: mock.fn(async () => ({
@@ -73,17 +73,17 @@ test('Department-Level Authorization Boundary Tests', async (t) => {
       bookingReferences: mock.fn(async () => ({})),
       hasBranchAccess: mock.fn(async () => true),
       departmentScope: mock.fn(async () => [surgeryDept]), // User has Surgery
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[0];
 
     const service = new SurgeryService(
-      mockRepo, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, { get: async () => ({ localization: { timezone: 'UTC' } }) } as any
+      mockRepo, {} as unknown as ConstructorParameters<typeof SurgeryService>[1], {} as unknown as ConstructorParameters<typeof SurgeryService>[2], {} as unknown as ConstructorParameters<typeof SurgeryService>[3], {} as unknown as ConstructorParameters<typeof SurgeryService>[4], {} as unknown as ConstructorParameters<typeof SurgeryService>[5], {} as unknown as ConstructorParameters<typeof SurgeryService>[6], {} as unknown as ConstructorParameters<typeof SurgeryService>[7], { get: async () => ({ localization: { timezone: 'UTC' } }) } as unknown as ConstructorParameters<typeof SurgeryService>[8]
     );
 
     await assert.rejects(
       async () => {
-        await service.confirmBooking(createObjectId(), branchA, {} as any, actor, {} as any);
+        await service.confirmBooking(createObjectId(), branchA, {} as unknown as import('../src/modules/surgery/surgery.types.js').ConfirmSurgeryBookingDTO, actor, {} as unknown as import('../src/modules/surgery/surgery.types.js').SurgeryMetadata);
       },
-      (err: any) => err instanceof AppError && err.code !== 'DEPARTMENT_ACCESS_DENIED' // Should fail on business logic, not authorization
+      (err: unknown) => err instanceof AppError && err.code !== 'DEPARTMENT_ACCESS_DENIED' // Should fail on business logic, not authorization
     );
   });
 
@@ -98,15 +98,15 @@ test('Department-Level Authorization Boundary Tests', async (t) => {
       })),
       hasBranchAccess: mock.fn(async () => true),
       departmentScope: mock.fn(async () => [cardiologyDept]), // User in Cardiology
-    } as any;
+    } as unknown as ConstructorParameters<typeof EmergencyService>[0];
 
-    const service = new EmergencyService(mockRepo, {} as any, {} as any, {} as any, {} as any);
+    const service = new EmergencyService(mockRepo, {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], {} as unknown as ConstructorParameters<typeof EmergencyService>[5]);
 
     await assert.rejects(
       async () => {
-        await service.triage(createObjectId(), branchA, {} as any, actor, {} as any);
+        await service.triage(createObjectId(), branchA, {} as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyTriageDTO, actor, {} as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyMetadata);
       },
-      (err: any) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
+      (err: unknown) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
     );
   });
 
@@ -121,16 +121,16 @@ test('Department-Level Authorization Boundary Tests', async (t) => {
       })),
       hasBranchAccess: mock.fn(async () => true),
       departmentScope: mock.fn(async () => [cardiologyDept]), // User only has Cardiology
-    } as any;
+    } as unknown as ConstructorParameters<typeof EmergencyService>[0];
 
-    const service = new EmergencyService(mockRepo, {} as any, {} as any, {} as any, {} as any);
+    const service = new EmergencyService(mockRepo, {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], {} as unknown as ConstructorParameters<typeof EmergencyService>[5]);
 
     // The user passes a cardiology ID in the body but the record is surgery.
     await assert.rejects(
       async () => {
-        await service.triage(createObjectId(), branchA, { department_id: cardiologyDept } as any, actor, {} as any);
+        await service.triage(createObjectId(), branchA, { department_id: cardiologyDept } as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyTriageDTO, actor, {} as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyMetadata);
       },
-      (err: any) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
+      (err: unknown) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
     );
   });
 
@@ -146,17 +146,17 @@ test('Department-Level Authorization Boundary Tests', async (t) => {
       })),
       hasBranchAccess: mock.fn(async () => true),
       departmentScope: mock.fn(async () => [cardiologyDept]), // User in Cardiology
-    } as any;
+    } as unknown as ConstructorParameters<typeof InpatientAdmissionService>[0];
 
     const service = new InpatientAdmissionService(
-      mockRepo, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any
+      mockRepo, {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[1], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[2], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[3], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[4], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[5], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[6], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[7], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[8]
     );
 
     await assert.rejects(
       async () => {
-        await service.validateRequest(createObjectId(), branchA, {} as any, actor, {} as any);
+        await service.validateRequest(createObjectId(), branchA, {} as unknown as import('../src/modules/inpatient-admissions/inpatient-admission.types.js').ValidateAdmissionRequestDTO, actor, {} as unknown as import('../src/modules/inpatient-admissions/inpatient-admission.types.js').AdmissionRequestMetadata);
       },
-      (err: any) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
+      (err: unknown) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED'
     );
   });
 });

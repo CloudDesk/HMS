@@ -23,7 +23,7 @@ test('InpatientAdmissionService - Advance Payment Gating', async (t) => {
     await teardownTestDatabase();
   });
 
-  const setupMockService = (policy: any) => {
+  const setupMockService = (policy: { admission_advance_deposit_required: boolean, admission_minimum_deposit_amount: number }) => {
     const mockRepo = {
       session: mock.fn(async () => mongoose.startSession()),
       getRequest: mock.fn(async () => ({
@@ -50,20 +50,20 @@ test('InpatientAdmissionService - Advance Payment Gating', async (t) => {
       audit: mock.fn(async () => {}),
       hasBranchAccess: mock.fn(async () => true),
       departmentScope: mock.fn(async () => undefined),
-    } as any;
+    } as unknown as ConstructorParameters<typeof InpatientAdmissionService>[0];
 
     const mockBeds = {
       getPolicyForConfirmation: mock.fn(async () => policy),
       allotAdmission: mock.fn(async () => {}),
-    } as any;
+    } as unknown as ConstructorParameters<typeof InpatientAdmissionService>[1];
 
     const mockPatients = {
       verifyContextConsent: mock.fn(async () => null),
       addAdmissionTimeline: mock.fn(async () => {})
-    } as any;
+    } as unknown as ConstructorParameters<typeof InpatientAdmissionService>[2];
 
     return new InpatientAdmissionService(
-      mockRepo, mockBeds, mockPatients, {} as any, {} as any, {} as any, advancePaymentService
+      mockRepo, mockBeds, mockPatients, {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[3], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[4], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[5], advancePaymentService, {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[7], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[8]
     );
   };
 
@@ -78,7 +78,7 @@ test('InpatientAdmissionService - Advance Payment Gating', async (t) => {
         ward_id: createObjectId(),
         bed_id: createObjectId(),
         admission_date: new Date().toISOString()
-      }, createObjectId(), {} as any);
+      }, createObjectId(), {} as unknown as import('../src/modules/inpatient-admissions/inpatient-admission.types.js').AdmissionRequestMetadata);
     });
   });
 
@@ -93,8 +93,8 @@ test('InpatientAdmissionService - Advance Payment Gating', async (t) => {
         ward_id: createObjectId(),
         bed_id: createObjectId(),
         admission_date: new Date().toISOString()
-      }, createObjectId(), {} as any);
-    }, (err: any) => {
+      }, createObjectId(), {} as unknown as import('../src/modules/inpatient-admissions/inpatient-admission.types.js').AdmissionRequestMetadata);
+    }, (err: unknown) => {
       return err instanceof AppError && err.code === 'ADVANCE_DEPOSIT_REQUIRED';
     });
   });
@@ -111,7 +111,7 @@ test('InpatientAdmissionService - Advance Payment Gating', async (t) => {
     const patientId = createObjectId();
     const actorId = createObjectId();
 
-    (service as any).repository.getRequest = mock.fn(async () => ({
+    (service as unknown as { repository: { getRequest: typeof mock.fn } }).repository.getRequest = mock.fn(async () => ({
       id: requestId,
       status: 'READY_FOR_CONFIRMATION',
       patient_id: patientId,
@@ -142,7 +142,7 @@ test('InpatientAdmissionService - Advance Payment Gating', async (t) => {
         ward_id: createObjectId(),
         bed_id: createObjectId(),
         admission_date: new Date().toISOString()
-      }, actorId, {} as any);
+      }, actorId, {} as unknown as import('../src/modules/inpatient-admissions/inpatient-admission.types.js').AdmissionRequestMetadata);
     });
   });
 });

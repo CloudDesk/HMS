@@ -3,6 +3,8 @@ import { DepartmentModel } from '../departments/department.model.js';
 import { UserModel } from '../users/user.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import type { Branch, BranchListQuery, BranchRequestMetadata, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
+import type { IBranch } from './branch.model.js';
+import type { UpdateQuery } from 'mongoose';
 
 type BranchRecord = {
   _id: unknown;
@@ -65,7 +67,7 @@ export class BranchRepository {
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
-    const filter: any = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
     if (query.status) {
       filter.status = query.status;
     }
@@ -120,14 +122,14 @@ export class BranchRepository {
       status: data.status ?? 'ACTIVE',
       createdBy: createdBy,
       updatedBy: createdBy,
-    } as any);
+    });
     return toBranch(branch.toObject());
   }
 
   async update(id: string, data: UpdateBranchDTO, updatedBy: string): Promise<Branch> {
     const branch = await BranchModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
-      { $set: { ...toPersistence(data), updatedBy } as any },
+      { $set: { ...toPersistence(data), updatedBy } as UpdateQuery<IBranch>['$set'] },
       { returnDocument: 'after', lean: true }
     );
     if (!branch) {

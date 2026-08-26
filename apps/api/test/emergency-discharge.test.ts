@@ -52,12 +52,12 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
     };
 
     const service = new EmergencyService(
-      mockRepo as any,
-      { addEmergencyTimeline: mock.fn() } as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      mockBilling as any,
+      mockRepo as unknown as ConstructorParameters<typeof EmergencyService>[0],
+      { addEmergencyTimeline: mock.fn() } as unknown as ConstructorParameters<typeof EmergencyService>[1],
+      {} as unknown as ConstructorParameters<typeof EmergencyService>[2],
+      {} as unknown as ConstructorParameters<typeof EmergencyService>[3],
+      {} as unknown as ConstructorParameters<typeof EmergencyService>[4],
+      mockBilling as unknown as ConstructorParameters<typeof EmergencyService>[5],
     );
 
     const dispositionData = {
@@ -65,7 +65,7 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
       reason: 'Standard discharge',
     };
 
-    return service.disposition(encounterId, branchId, dispositionData as any, actor, {} as any);
+    return service.disposition(encounterId, branchId, dispositionData as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyDispositionDTO, actor, {} as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyMetadata);
   };
 
   await t.test('Test 1 - Orders + settled billing -> SUCCESS', async () => {
@@ -74,7 +74,7 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
 
   await t.test('Test 2 - Orders + outstanding billing -> DENIED', async () => {
     const p = runDischargeTest(true, false);
-    await assert.rejects(p, (err: any) => {
+    await assert.rejects(p, (err: unknown) => {
       return err instanceof AppError && err.code === 'EMERGENCY_BILLING_CLOSURE_REQUIRED';
     });
   });
@@ -82,7 +82,7 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
   await t.test('Test 3 - Orders + partially paid billing -> DENIED', async () => {
     // Partially paid implies not financially closed in the Billing repo
     const p = runDischargeTest(true, false);
-    await assert.rejects(p, (err: any) => {
+    await assert.rejects(p, (err: unknown) => {
       return err instanceof AppError && err.code === 'EMERGENCY_BILLING_CLOSURE_REQUIRED';
     });
   });
@@ -93,14 +93,14 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
 
   await t.test('Test 5 - No orders + outstanding billing -> DENIED', async () => {
     const p = runDischargeTest(false, false);
-    await assert.rejects(p, (err: any) => {
+    await assert.rejects(p, (err: unknown) => {
       return err instanceof AppError && err.code === 'EMERGENCY_BILLING_CLOSURE_REQUIRED';
     });
   });
 
   await t.test('Test 6 - Billing verification failure -> NOT ALLOWED (safe failure)', async () => {
     const p = runDischargeTest(true, new AppError('Service unavailable', 503, 'BILLING_SERVICE_DOWN'));
-    await assert.rejects(p, (err: any) => {
+    await assert.rejects(p, (err: unknown) => {
       return err instanceof AppError && err.code === 'BILLING_SERVICE_DOWN';
     });
   });
@@ -124,7 +124,7 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
     const mockBilling = {
       isEncounterFinanciallyClosed: mock.fn(async () => false) // backend says unpaid
     };
-    const service = new EmergencyService(mockRepo as any, {} as any, {} as any, {} as any, {} as any, mockBilling as any);
+    const service = new EmergencyService(mockRepo as unknown as ConstructorParameters<typeof EmergencyService>[0], {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], mockBilling as unknown as ConstructorParameters<typeof EmergencyService>[5]);
     
     // Simulate client sending rogue billingStatus
     const dispositionData = {
@@ -132,8 +132,8 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
       billingStatus: 'SETTLED', 
     };
 
-    const p = service.disposition(encounterId, branchId, dispositionData as any, actor, {} as any);
-    await assert.rejects(p, (err: any) => {
+    const p = service.disposition(encounterId, branchId, dispositionData as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyDispositionDTO, actor, {} as unknown as import('../src/modules/emergency/emergency.types.js').EmergencyMetadata);
+    await assert.rejects(p, (err: unknown) => {
       return err instanceof AppError && err.code === 'EMERGENCY_BILLING_CLOSURE_REQUIRED';
     });
   });

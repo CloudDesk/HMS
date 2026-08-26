@@ -9,7 +9,7 @@ test('SurgeryService - Timezone Handling', async (t) => {
       hasAppointmentOverlap: mock.fn(async () => false),
       hasDoctorOverlap: mock.fn(async () => false),
       countServiceOverlap: mock.fn(async () => 0),
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[0];
     const mockDoctors = {
       getById: mock.fn(async (id) => ({
         id: id.toString(),
@@ -21,13 +21,13 @@ test('SurgeryService - Timezone Handling', async (t) => {
       })),
       hasActiveLeave: mock.fn(async () => false),
       getExceptionByDate: mock.fn(async () => null),
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[1];
     const mockSettingsRepo = {
       get: async () => ({ localization: { timezone: tz } })
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[8];
 
     return new SurgeryService(
-      mockRepo, mockDoctors, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, mockSettingsRepo
+      mockRepo, mockDoctors, {} as unknown as ConstructorParameters<typeof SurgeryService>[2], {} as unknown as ConstructorParameters<typeof SurgeryService>[3], {} as unknown as ConstructorParameters<typeof SurgeryService>[4], {} as unknown as ConstructorParameters<typeof SurgeryService>[5], {} as unknown as ConstructorParameters<typeof SurgeryService>[6], {} as unknown as ConstructorParameters<typeof SurgeryService>[7], mockSettingsRepo
     );
   };
 
@@ -43,7 +43,7 @@ test('SurgeryService - Timezone Handling', async (t) => {
 
     await assert.doesNotReject(async () => {
       // call private validateSchedule using any cast
-      await (service as any).validateSchedule('doc1', start, end, 'srv1', 1);
+      await (service as unknown as { validateSchedule: (...args: unknown[]) => Promise<void> }).validateSchedule('doc1', start, end, 'srv1', 1);
     });
   });
 
@@ -55,9 +55,9 @@ test('SurgeryService - Timezone Handling', async (t) => {
 
     await assert.rejects(
       async () => {
-        await (service as any).validateSchedule('doc1', start, end, 'srv1', 1);
+        await (service as unknown as { validateSchedule: (...args: unknown[]) => Promise<void> }).validateSchedule('doc1', start, end, 'srv1', 1);
       },
-      (err: any) => err instanceof AppError && err.code === 'DOCTOR_NOT_AVAILABLE'
+      (err: unknown) => err instanceof AppError && err.code === 'DOCTOR_NOT_AVAILABLE'
     );
   });
 
@@ -92,7 +92,7 @@ test('SurgeryService - Timezone Handling', async (t) => {
     const end = new Date('2028-10-08T23:00:00Z'); // Sunday in UTC
 
     await assert.doesNotReject(async () => {
-      await (serviceAuckland as any).validateSchedule('doc1', start, end, 'srv1', 1);
+      await (serviceAuckland as unknown as { validateSchedule: (...args: unknown[]) => Promise<void> }).validateSchedule('doc1', start, end, 'srv1', 1);
     });
   });
 
@@ -110,11 +110,11 @@ test('SurgeryService - Timezone Handling', async (t) => {
 
     // Both should pass because they represent 10:00 AM local time in NY.
     await assert.doesNotReject(async () => {
-      await (service as any).validateSchedule('doc1', startEDT, endEDT, 'srv1', 1);
+      await (service as unknown as { validateSchedule: (...args: unknown[]) => Promise<void> }).validateSchedule('doc1', startEDT, endEDT, 'srv1', 1);
     });
 
     await assert.doesNotReject(async () => {
-      await (service as any).validateSchedule('doc1', startEST, endEST, 'srv1', 1);
+      await (service as unknown as { validateSchedule: (...args: unknown[]) => Promise<void> }).validateSchedule('doc1', startEST, endEST, 'srv1', 1);
     });
   });
 
@@ -125,7 +125,7 @@ test('SurgeryService - Timezone Handling', async (t) => {
     const end = new Date('2028-10-09T11:00:00Z');
 
     await assert.doesNotReject(async () => {
-      await (service as any).validateSchedule('doc1', start, end, 'srv1', 1);
+      await (service as unknown as { validateSchedule: (...args: unknown[]) => Promise<void> }).validateSchedule('doc1', start, end, 'srv1', 1);
     });
   });
 });

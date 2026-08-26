@@ -47,7 +47,7 @@ const toDisplayName = (firstName: string, lastName: string) => `Dr. ${firstName.
 const legacyWorkingBlocks = (availability: DoctorAvailabilityFields) => {
   if (!availability.startTime || !availability.endTime) return [];
 
-  const legacyDuration = (availability as any).slotDurationMinutes ?? 30;
+  const legacyDuration = (availability as DoctorAvailabilityFields & { slotDurationMinutes?: number }).slotDurationMinutes ?? 30;
 
   if (!availability.breakStartTime || !availability.breakEndTime) {
     return [

@@ -7,8 +7,12 @@ import { PasswordResetTokenModel, AuditLogModel } from './auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AuthAccessContext, AuthUserRecord, AuthUserStatus, PasswordResetTokenRecord, RefreshTokenRecord, RequestMetadata } from './auth.types.js';
 
-const mapUser = (user: any): AuthUserRecord => ({
-  id: user._id.toString(),
+import type { IUser } from '../users/user.model.js';
+
+type UserLean = Pick<IUser, 'employeeCode' | 'username' | 'email' | 'fullName' | 'passwordHash' | 'status' | 'failedLoginAttempts' | 'lockedUntil' | 'passwordChangedAt' | 'lastLoginAt' | 'createdAt' | 'updatedAt'> & { _id: unknown };
+
+const mapUser = (user: UserLean): AuthUserRecord => ({
+  id: String(user._id),
   employeeCode: user.employeeCode ?? null,
   username: user.username,
   email: user.email ?? null,
@@ -101,7 +105,7 @@ export class AuthRepository {
 
     user.set('failedLoginAttempts', attempts);
     if (shouldLock) {
-      user.status = 'locked' as any; // Ensure auth type matches
+      user.status = 'locked'; // Ensure auth type matches
       user.set('lockedUntil', lockedUntil);
     }
 
@@ -162,8 +166,8 @@ export class AuthRepository {
       userId: token.userId.toString(),
       tokenHash: token.token,
       expiresAt: token.expiresAt,
-      revokedAt: (token as any).revokedAt ?? null,
-      replacedByTokenId: (token as any).replacedByTokenId ?? null,
+      revokedAt: (token as { revokedAt?: Date }).revokedAt ?? null,
+      replacedByTokenId: (token as { replacedByTokenId?: string }).replacedByTokenId ?? null,
       createdAt: token.createdAt,
     } as RefreshTokenRecord;
   }

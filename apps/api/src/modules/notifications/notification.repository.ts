@@ -30,7 +30,7 @@ export class NotificationRepository {
     return toNotification(created.toObject<NotificationLean>());
   }
 
-  async list(query: NotificationListQuery): Promise<{ data: Notification[]; meta: any }> {
+  async list(query: NotificationListQuery): Promise<{ data: Notification[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;

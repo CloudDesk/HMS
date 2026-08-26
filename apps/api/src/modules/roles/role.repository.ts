@@ -9,9 +9,27 @@ import type {
   RoleStatus,
   RoleType,
 } from './role.types.js';
+import type { UpdateQuery } from 'mongoose';
+import type { IRole } from './role.model.js';
 
-const mapRole = (role: any, userCount: number): RoleRecord => ({
-  id: role._id.toString(),
+type RoleDoc = {
+  _id: unknown;
+  code: string;
+  name: string;
+  description?: string | null;
+  type: string;
+  status: string;
+  color?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+  createdBy?: unknown;
+  updatedBy?: unknown;
+  deletedBy?: unknown;
+};
+
+const mapRole = (role: RoleDoc, userCount: number): RoleRecord => ({
+  id: String(role._id),
   code: role.code,
   name: role.name,
   description: role.description ?? null,
@@ -22,9 +40,9 @@ const mapRole = (role: any, userCount: number): RoleRecord => ({
   createdAt: role.createdAt,
   updatedAt: role.updatedAt,
   deletedAt: role.deletedAt ?? null,
-  createdBy: role.createdBy?.toString() ?? null,
-  updatedBy: role.updatedBy?.toString() ?? null,
-  deletedBy: role.deletedBy?.toString() ?? null,
+  createdBy: role.createdBy ? String(role.createdBy) : null,
+  updatedBy: role.updatedBy ? String(role.updatedBy) : null,
+  deletedBy: role.deletedBy ? String(role.deletedBy) : null,
 });
 
 export class RoleRepository {
@@ -46,7 +64,7 @@ export class RoleRepository {
     const role = await RoleModel.findOne({ _id: id, deletedAt: null }).lean();
     if (!role) return null;
     const userCount = await UserModel.countDocuments({ roleIds: id, deletedAt: null });
-    return mapRole(role, userCount);
+    return mapRole(role as unknown as RoleDoc, userCount);
   }
 
   async findByUniqueFields(fields: {
@@ -54,12 +72,12 @@ export class RoleRepository {
     name?: string;
     excludeRoleId?: string;
   }) {
-    const filter: Record<string, any> = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
     if (fields.excludeRoleId) {
       filter._id = { $ne: fields.excludeRoleId };
     }
 
-    const orConditions: any[] = [];
+    const orConditions: Array<Record<string, unknown>> = [];
     if (fields.code) {
       orConditions.push({ code: new RegExp(`^${fields.code}$`, 'i') });
     }
@@ -77,7 +95,7 @@ export class RoleRepository {
     if (!role) return null;
     
     const userCount = await UserModel.countDocuments({ roleIds: role._id, deletedAt: null });
-    return mapRole(role, userCount);
+    return mapRole(role as unknown as RoleDoc, userCount);
   }
 
   async list(query: RoleListQuery) {
@@ -85,7 +103,7 @@ export class RoleRepository {
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
-    const filter: Record<string, any> = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
     
     if (query.status) {
       filter.status = query.status;
@@ -114,13 +132,13 @@ export class RoleRepository {
         .skip(offset)
         .limit(limit)
         .lean(),
-      RoleModel.countDocuments(filter as any),
+      RoleModel.countDocuments(filter),
     ]);
 
     const rolesWithCounts = await Promise.all(
       data.map(async (role) => {
         const userCount = await UserModel.countDocuments({ roleIds: role._id, deletedAt: null });
-        return mapRole(role, userCount);
+        return mapRole(role as unknown as RoleDoc, userCount);
       })
     );
 
@@ -149,15 +167,15 @@ export class RoleRepository {
     const role = await RoleModel.create({
       code: input.code,
       name: input.name,
-      description: input.description,
+      description: input.description ?? undefined,
       type: input.type,
       status: input.status,
-      color: input.color,
+      color: input.color ?? undefined,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
-    } as any);
+    } as unknown as Partial<import('./role.model.js').IRole>);
     
-    return mapRole(role.toObject(), 0);
+    return mapRole(role.toObject() as unknown as RoleDoc, 0);
   }
 
   async update(
@@ -171,22 +189,23 @@ export class RoleRepository {
       actorUserId: string;
     },
   ) {
-    const updatePayload: any = { updatedBy: input.actorUserId };
-    for (const [key, value] of Object.entries(input)) {
-      if (value !== undefined && key !== 'actorUserId') {
-        updatePayload[key] = value;
-      }
-    }
+    type RoleUpdate = Pick<IRole, 'code' | 'name' | 'description' | 'color'> & { type?: IRole['type']; updatedBy: IRole['updatedBy'] };
+    const updateFields: Partial<RoleUpdate> = { updatedBy: input.actorUserId as unknown as IRole['updatedBy'] };
+    if (input.code !== undefined) updateFields.code = input.code;
+    if (input.name !== undefined) updateFields.name = input.name;
+    if (input.description !== undefined) updateFields.description = input.description ?? undefined;
+    if (input.type !== undefined) updateFields.type = input.type;
+    if (input.color !== undefined) updateFields.color = input.color ?? undefined;
 
     const role = await RoleModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
-      { $set: updatePayload as any },
+      { $set: updateFields } as UpdateQuery<IRole>,
       { returnDocument: 'after', lean: true }
     );
     
     if (!role) return null;
     const userCount = await UserModel.countDocuments({ roleIds: id, deletedAt: null });
-    return mapRole(role, userCount);
+    return mapRole(role as unknown as RoleDoc, userCount);
   }
 
   async updateStatus(id: string, status: RoleStatus, actorUserId: string) {
@@ -198,7 +217,7 @@ export class RoleRepository {
     
     if (!role) return null;
     const userCount = await UserModel.countDocuments({ roleIds: id, deletedAt: null });
-    return mapRole(role, userCount);
+    return mapRole(role as unknown as RoleDoc, userCount);
   }
 
   async softDelete(id: string, actorUserId: string) {
@@ -210,7 +229,7 @@ export class RoleRepository {
     
     if (!role) return null;
     const userCount = await UserModel.countDocuments({ roleIds: id, deletedAt: null });
-    return mapRole(role, userCount);
+    return mapRole(role as unknown as RoleDoc, userCount);
   }
 
   async findUserStatus(userId: string) {

@@ -10,7 +10,7 @@ import { useLinkAdmissionBillingContext } from './billing/useBilling';
 import { useConsentTemplates } from './consents/useConsents';
 import { useUploadPatientDocument } from './patients/usePatients';
 
-export const useInpatientAdmissions = (branchId: string, patientSearch: string, requestSearch = '', consentOpen = false) => {
+export const useInpatientAdmissions = (branchId: string, patientSearch: string, requestSearch = '', consentOpen = false, createOpen = false, allocationOpen = false) => {
   const client = useQueryClient();
   const refresh = () => Promise.all([
     client.invalidateQueries({ queryKey: ['admissions', 'requests'] }),
@@ -20,13 +20,13 @@ export const useInpatientAdmissions = (branchId: string, patientSearch: string, 
   ]);
   const branches = useQuery({ queryKey: ['admissions', 'branches'], queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100 }) });
   const patients = useQuery({ queryKey: ['admissions', 'patients', patientSearch], queryFn: () => patientsApi.list({ search: patientSearch, status: 'ACTIVE', page: 1, limit: 20 }), enabled: patientSearch.length >= 2 });
-  const doctors = useQuery({ queryKey: ['admissions', 'doctors', branchId], queryFn: () => doctorsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) });
-  const departments = useQuery({ queryKey: ['admissions', 'departments', branchId], queryFn: () => departmentsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) });
-  const wards = useQuery({ queryKey: ['admissions', 'wards', branchId], queryFn: () => admissionsConfigurationApi.wards({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) });
-  const beds = useQuery({ queryKey: ['admissions', 'available-beds', branchId], queryFn: () => admissionsConfigurationApi.beds({ branch_id: branchId, status: 'AVAILABLE', page: 1, limit: 100 }), enabled: Boolean(branchId) });
+  const doctors = useQuery({ queryKey: ['admissions', 'doctors', branchId], queryFn: () => doctorsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && createOpen });
+  const departments = useQuery({ queryKey: ['admissions', 'departments', branchId], queryFn: () => departmentsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && createOpen });
+  const wards = useQuery({ queryKey: ['admissions', 'wards', branchId], queryFn: () => admissionsConfigurationApi.wards({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && allocationOpen });
+  const beds = useQuery({ queryKey: ['admissions', 'available-beds', branchId], queryFn: () => admissionsConfigurationApi.beds({ branch_id: branchId, status: 'AVAILABLE', page: 1, limit: 100 }), enabled: Boolean(branchId) && allocationOpen });
   const policy = useQuery({ queryKey: ['admissions', 'policy', branchId], queryFn: () => admissionsConfigurationApi.policy(branchId), enabled: Boolean(branchId), retry: false });
   const requests = useQuery({ queryKey: ['admissions', 'requests', branchId, requestSearch], queryFn: () => inpatientAdmissionsService.requests({ branch_id: branchId, search: requestSearch || undefined, page: 1, limit: 50 }), enabled: Boolean(branchId) });
-  const admissions = useQuery({ queryKey: ['admissions', 'inpatients', branchId], queryFn: () => inpatientAdmissionsService.list({ branch_id: branchId, page: 1, limit: 50 }), enabled: Boolean(branchId) });
+  const requestStats = useQuery({ queryKey: ['admissions', 'requestStats', branchId], queryFn: () => inpatientAdmissionsService.requestStats(branchId), enabled: Boolean(branchId) });
   const consentTemplates = useConsentTemplates({ branch_id: branchId, context_type: 'ADMISSION', status: 'ACTIVE' }, consentOpen);
   const uploadConsent = useUploadPatientDocument();
   const linkAdmissionBillingContext = useLinkAdmissionBillingContext();
@@ -40,5 +40,5 @@ export const useInpatientAdmissions = (branchId: string, patientSearch: string, 
     return inpatientAdmissionsService.confirmRequest(id, branchId, payload);
   }, onSuccess: refresh });
   const cancelRequest = useMutation({ mutationFn: ({ id, reason }: { id: string; reason: string }) => inpatientAdmissionsService.cancelRequest(id, branchId, reason), onSuccess: refresh });
-  return { branches, patients, doctors, departments, wards, beds, policy, requests, admissions, consentTemplates, uploadConsent, createRequest, validateRequest, confirmRequest, cancelRequest };
+  return { branches, patients, doctors, departments, wards, beds, policy, requests, requestStats, consentTemplates, uploadConsent, createRequest, validateRequest, confirmRequest, cancelRequest };
 };

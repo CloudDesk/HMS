@@ -9,9 +9,36 @@ import type {
   PermissionType,
   RequestMetadata,
 } from './permission.types.js';
+import type { IPermissionGroup, IPermissionCategory } from './permission.model.js';
 
-const mapPermission = (permission: any, roleCount: number): PermissionRecord => ({
-  id: permission._id.toString(),
+type PermissionDoc = {
+  _id: unknown;
+  code: string;
+  name: string;
+  module: string;
+  screen: string;
+  action: string;
+  description?: string | null;
+  type: string;
+  status: string;
+  categoryId?: unknown;
+  groupId?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+  createdBy?: unknown;
+  updatedBy?: unknown;
+  deletedBy?: unknown;
+};
+
+const mapPermission = (
+  permission: PermissionDoc,
+  roleCount: number
+): PermissionRecord => {
+  const cat = permission.categoryId as Partial<IPermissionCategory> | undefined;
+  const group = permission.groupId as Partial<IPermissionGroup> | undefined;
+  return {
+  id: String(permission._id),
   code: permission.code,
   name: permission.name,
   module: permission.module,
@@ -20,20 +47,21 @@ const mapPermission = (permission: any, roleCount: number): PermissionRecord => 
   description: permission.description ?? null,
   type: permission.type as PermissionType,
   status: permission.status as PermissionStatus,
-  categoryId: permission.categoryId?._id?.toString() ?? permission.categoryId?.toString() ?? null,
-  categoryCode: permission.categoryId?.code ?? null,
-  categoryName: permission.categoryId?.name ?? null,
-  groupId: permission.groupId?._id?.toString() ?? permission.groupId?.toString() ?? null,
-  groupCode: permission.groupId?.code ?? null,
-  groupName: permission.groupId?.name ?? null,
+  categoryId: cat?._id?.toString() ?? (typeof permission.categoryId === 'string' || typeof permission.categoryId === 'object' ? permission.categoryId?.toString() : null) ?? null,
+  categoryCode: cat?.code ?? null,
+  categoryName: cat?.name ?? null,
+  groupId: group?._id?.toString() ?? (typeof permission.groupId === 'string' || typeof permission.groupId === 'object' ? permission.groupId?.toString() : null) ?? null,
+  groupCode: group?.code ?? null,
+  groupName: group?.name ?? null,
   roleCount,
   createdAt: permission.createdAt,
   updatedAt: permission.updatedAt,
   deletedAt: permission.deletedAt ?? null,
-  createdBy: permission.createdBy?.toString() ?? null,
-  updatedBy: permission.updatedBy?.toString() ?? null,
-  deletedBy: permission.deletedBy?.toString() ?? null,
-});
+  createdBy: permission.createdBy ? String(permission.createdBy) : null,
+  updatedBy: permission.updatedBy ? String(permission.updatedBy) : null,
+  deletedBy: permission.deletedBy ? String(permission.deletedBy) : null,
+};
+};
 
 export class PermissionRepository {
   async findById(id: string) {
@@ -43,7 +71,7 @@ export class PermissionRepository {
       .lean();
     if (!permission) return null;
     const roleCount = await RoleModel.countDocuments({ permissionIds: id, deletedAt: null });
-    return mapPermission(permission, roleCount);
+    return mapPermission(permission as unknown as PermissionDoc, roleCount);
   }
 
   async findByUniqueFields(fields: {
@@ -53,12 +81,12 @@ export class PermissionRepository {
     action?: string;
     excludePermissionId?: string;
   }) {
-    const filter: Record<string, any> = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
     if (fields.excludePermissionId) {
       filter._id = { $ne: fields.excludePermissionId };
     }
 
-    const orConditions: any[] = [];
+    const orConditions: Array<Record<string, unknown>> = [];
     if (fields.code) {
       orConditions.push({ code: new RegExp(`^${fields.code}$`, 'i') });
     }
@@ -83,7 +111,7 @@ export class PermissionRepository {
     if (!permission) return null;
     
     const roleCount = await RoleModel.countDocuments({ permissionIds: permission._id, deletedAt: null });
-    return mapPermission(permission, roleCount);
+    return mapPermission(permission as unknown as PermissionDoc, roleCount);
   }
 
   async list(query: PermissionListQuery) {
@@ -91,7 +119,7 @@ export class PermissionRepository {
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
-    const filter: Record<string, any> = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
     
     if (query.status) filter.status = query.status;
     if (query.type) filter.type = query.type;
@@ -125,13 +153,13 @@ export class PermissionRepository {
         .skip(offset)
         .limit(limit)
         .lean(),
-      PermissionModel.countDocuments(filter as any),
+      PermissionModel.countDocuments(filter),
     ]);
 
     const permissionsWithCounts = await Promise.all(
       data.map(async (p) => {
         const roleCount = await RoleModel.countDocuments({ permissionIds: p._id, deletedAt: null });
-        return mapPermission(p, roleCount);
+        return mapPermission(p as unknown as PermissionDoc, roleCount);
       })
     );
 
@@ -160,7 +188,7 @@ export class PermissionRepository {
         code: input.code,
         name: input.name,
         description: input.description,
-      } as any).then(doc => doc.toObject());
+      } as Partial<IPermissionCategory>).then(doc => doc.toObject());
     }
     return {
       id: category!._id.toString(),
@@ -187,7 +215,7 @@ export class PermissionRepository {
         code: input.code,
         name: input.name,
         description: input.description,
-      } as any).then(doc => doc.toObject());
+      } as unknown as Partial<IPermissionGroup>).then(doc => doc.toObject());
     }
     return {
       id: group!._id.toString(),
@@ -212,7 +240,7 @@ export class PermissionRepository {
     const group = await PermissionGroupModel.findById(id).lean();
     return group ? {
       id: group._id.toString(),
-      categoryId: (group as any).categoryId.toString(),
+      categoryId: group.categoryId.toString(),
       code: group.code,
       name: group.name,
       status: 'active' as PermissionStatus,
@@ -241,12 +269,12 @@ export class PermissionRepository {
       description: input.description,
       type: input.type,
       status: input.status,
-      categoryId: input.categoryId,
-      groupId: input.groupId,
+      categoryId: input.categoryId ?? undefined,
+      groupId: input.groupId ?? undefined,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
-    } as any);
-    return mapPermission(permission.toObject(), 0);
+    } as unknown as Partial<import('./permission.model.js').IPermission>);
+    return mapPermission(permission.toObject() as unknown as PermissionDoc, 0);
   }
 
   async update(
@@ -265,22 +293,33 @@ export class PermissionRepository {
       actorUserId: string;
     },
   ) {
-    const updatePayload: any = { updatedBy: input.actorUserId };
-    for (const [key, value] of Object.entries(input)) {
-      if (value !== undefined && key !== 'actorUserId') {
-        updatePayload[key] = value;
-      }
-    }
+    type PermissionUpdate = {
+      updatedBy: string;
+      code?: string; name?: string; module?: string; screen?: string; action?: string;
+      description?: string | null; type?: string; status?: string;
+      categoryId?: string | null; groupId?: string | null;
+    };
+    const updatePayload: PermissionUpdate = { updatedBy: input.actorUserId };
+    if (input.code !== undefined) updatePayload.code = input.code;
+    if (input.name !== undefined) updatePayload.name = input.name;
+    if (input.module !== undefined) updatePayload.module = input.module;
+    if (input.screen !== undefined) updatePayload.screen = input.screen;
+    if (input.action !== undefined) updatePayload.action = input.action;
+    if (input.description !== undefined) updatePayload.description = input.description;
+    if (input.type !== undefined) updatePayload.type = input.type;
+    if (input.status !== undefined) updatePayload.status = input.status;
+    if (input.categoryId !== undefined) updatePayload.categoryId = input.categoryId;
+    if (input.groupId !== undefined) updatePayload.groupId = input.groupId;
 
-    const permission = await (PermissionModel.findOneAndUpdate(
+    const permission = await PermissionModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
-      { $set: updatePayload as any },
+      { $set: updatePayload },
       { returnDocument: 'after', lean: true }
-    ) as any).populate('categoryId').populate('groupId');
+    ).populate('categoryId').populate('groupId');
     
     if (!permission) return null;
     const roleCount = await RoleModel.countDocuments({ permissionIds: id, deletedAt: null });
-    return mapPermission(permission, roleCount);
+    return mapPermission(permission as unknown as PermissionDoc, roleCount);
   }
 
   async softDelete(id: string, actorUserId: string) {
@@ -292,7 +331,7 @@ export class PermissionRepository {
     
     if (!permission) return null;
     const roleCount = await RoleModel.countDocuments({ permissionIds: id, deletedAt: null });
-    return mapPermission(permission, roleCount);
+    return mapPermission(permission as unknown as PermissionDoc, roleCount);
   }
 
   async findRoleById(roleId: string) {
@@ -345,7 +384,7 @@ export class PermissionRepository {
 
     return Promise.all(permissions.map(async (permission) => {
       const roleCount = await RoleModel.countDocuments({ permissionIds: permission._id, deletedAt: null });
-      return mapPermission(permission, roleCount);
+      return mapPermission(permission as unknown as PermissionDoc, roleCount);
     }));
   }
 

@@ -35,19 +35,19 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
     })),
     hasActiveLeave: mock.fn(async () => false),
     getExceptionByDate: mock.fn(async () => null),
-  } as any;
+  } as unknown as ConstructorParameters<typeof SurgeryService>[1];
 
   const mockPatients = {
     addProcedureTimeline: mock.fn(async () => {})
-  } as any;
+  } as unknown as ConstructorParameters<typeof SurgeryService>[2];
   
-  const mockBeds = {} as any;
-  const mockAdvancePayment = {} as any;
-  const mockBilling = {} as any;
-  const mockClinicalOrders = {} as any;
-  const mockPrescriptions = {} as any;
+  const mockBeds = {} as unknown as ConstructorParameters<typeof SurgeryService>[4];
+  const mockAdvancePayment = {} as unknown as ConstructorParameters<typeof SurgeryService>[5];
+  const mockBilling = {} as unknown as ConstructorParameters<typeof SurgeryService>[3];
+  const mockClinicalOrders = {} as unknown as ConstructorParameters<typeof SurgeryService>[7];
+  const mockPrescriptions = {} as unknown as ConstructorParameters<typeof SurgeryService>[6];
 
-  const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as any;
+  const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as unknown as ConstructorParameters<typeof SurgeryService>[8];
   const service = new SurgeryService(
     repository, mockDoctors, mockPatients, mockBilling, mockBeds, mockAdvancePayment, mockPrescriptions, mockClinicalOrders, mockSettingsRepo
   );
@@ -165,14 +165,14 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
         department_id: departmentId,
         doctor_id: doctorId,
         scheduled_start: startTime
-      }, actorId, {} as any),
+      }, actorId, {} as unknown as import('mongoose').ClientSession),
       service.createBooking({
         recommendation_id: rec2._id.toString(),
         branch_id: branchId,
         department_id: departmentId,
         doctor_id: doctorId,
         scheduled_start: startTime
-      }, actorId, {} as any)
+      }, actorId, {} as unknown as import('mongoose').ClientSession)
     ]);
 
     // 4. Validate one success and one conflict
@@ -250,21 +250,21 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
         department_id: departmentId,
         doctor_id: doctorId, // Doc 1
         scheduled_start: startTime
-      }, actorId, {} as any),
+      }, actorId, {} as unknown as import('mongoose').ClientSession),
       service.createBooking({
         recommendation_id: recs[1]._id.toString(),
         branch_id: branchId,
         department_id: departmentId,
         doctor_id: doc2, // Doc 2
         scheduled_start: startTime
-      }, actorId, {} as any),
+      }, actorId, {} as unknown as import('mongoose').ClientSession),
       service.createBooking({
         recommendation_id: recs[2]._id.toString(),
         branch_id: branchId,
         department_id: departmentId,
         doctor_id: doc3, // Doc 3
         scheduled_start: startTime
-      }, actorId, {} as any)
+      }, actorId, {} as unknown as import('mongoose').ClientSession)
     ]);
 
     // 3. Validate two successes and one conflict

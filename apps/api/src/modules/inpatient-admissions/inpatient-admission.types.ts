@@ -114,15 +114,23 @@ export type ValidateAdmissionRequestDTO = {
 
 export type ConfirmAdmissionRequestDTO = ValidateAdmissionRequestDTO & { admission_date: string };
 export type CancelAdmissionRequestDTO = { reason: string };
-export type AdmissionRequestListQuery = {
+
+export interface AdmissionRequestListQuery {
   branch_id: string;
-  status?: AdmissionRequestStatus;
-  source_type?: AdmissionSourceType;
+  status?: string;
+  source_type?: string;
   patient_id?: string;
   search?: string;
   page?: number;
   limit?: number;
-};
+}
+
+export interface AdmissionRequestStats {
+  pendingValidation: number;
+  readyForConfirmation: number;
+  confirmed: number;
+  cancelled: number;
+}
 
 export type InpatientAdmissionListQuery = { branch_id: string; status?: AdmissionStatus; page?: number; limit?: number };
 export type AdmissionRequestMetadata = { ipAddress?: string; userAgent?: string };

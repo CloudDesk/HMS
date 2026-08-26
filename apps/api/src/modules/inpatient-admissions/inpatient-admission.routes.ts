@@ -5,18 +5,20 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import { clinicalContextBranchSchema, clinicalContextOrderSchema, clinicalContextParamsSchema, clinicalContextPrescriptionSchema } from '../opd/clinical-context.schemas.js';
-import { admissionRequestActionSchema, admissionRequestBranchSchema, cancelAdmissionRequestSchema, confirmAdmissionRequestSchema, createAdmissionRequestSchema, inpatientAdmissionIdSchema, listAdmissionRequestsSchema, listInpatientAdmissionsSchema, validateAdmissionRequestSchema } from './inpatient-admission.schemas.js';
+import { admissionRequestActionSchema, admissionRequestBranchSchema, cancelAdmissionRequestSchema, confirmAdmissionRequestSchema, createAdmissionRequestSchema, inpatientAdmissionIdSchema, listAdmissionRequestsSchema, listInpatientAdmissionsSchema, validateAdmissionRequestSchema, requestStatsSchema } from './inpatient-admission.schemas.js';
+
 const metadata = (request: FastifyRequest) => ({ ipAddress: request.ip, userAgent: request.headers['user-agent'] });
 const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
   try {
     return schema.parse(value);
   } catch (error) {
     if (error instanceof ZodError) {
-      throw new AppError('Request validation failed', 400, 'VALIDATION_ERROR', error.flatten());
+      throw new AppError('Validation Error', 400, 'VALIDATION_ERROR', error.flatten());
     }
     throw error;
   }
 };
+
 export const registerInpatientAdmissionRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
   app.get('/api/admissions/inpatients', { preHandler: requirePermission(services, 'Admissions', 'Inpatient Admissions', 'View') }, async (request) => ok(await services.inpatientAdmissions.list(parse(listInpatientAdmissionsSchema, request.query), request.user!.id)));
   app.get('/api/admissions/inpatients/:id', { preHandler: requirePermission(services, 'Admissions', 'Inpatient Admissions', 'View') }, async (request) => { const params = parse(inpatientAdmissionIdSchema, request.params); const query = parse(listInpatientAdmissionsSchema.pick({ branch_id: true }), request.query); return ok(await services.inpatientAdmissions.get(params.id, query.branch_id, request.user!.id)); });
@@ -24,6 +26,12 @@ export const registerInpatientAdmissionRoutes = async (app: FastifyInstance, ser
   app.post('/api/admissions/inpatients/:id/prescription', { preHandler: requirePermission(services, 'OPD', 'OPD Prescription', 'Edit') }, async (request, reply) => { const params = parse(inpatientAdmissionIdSchema, request.params); const query = parse(clinicalContextBranchSchema, request.query); return reply.status(201).send(ok(await services.inpatientAdmissions.submitPrescription(params.id, query.branch_id, parse(clinicalContextPrescriptionSchema, request.body), request.user!.id, metadata(request)))); });
   app.get('/api/admissions/inpatients/:id/clinical-orders/:orderType', { preHandler: requirePermission(services, 'OPD', 'OPD Clinical Orders', 'View') }, async (request) => { const params = parse(clinicalContextParamsSchema, request.params); const query = parse(clinicalContextBranchSchema, request.query); return ok(await services.inpatientAdmissions.getClinicalOrder(params.id, query.branch_id, params.orderType, request.user!.id)); });
   app.post('/api/admissions/inpatients/:id/clinical-orders/:orderType', { preHandler: requirePermission(services, 'OPD', 'OPD Clinical Orders', 'Edit') }, async (request, reply) => { const params = parse(clinicalContextParamsSchema, request.params); const query = parse(clinicalContextBranchSchema, request.query); return reply.status(201).send(ok(await services.inpatientAdmissions.submitClinicalOrder(params.id, query.branch_id, params.orderType, parse(clinicalContextOrderSchema, request.body), request.user!.id, metadata(request)))); });
+  
+  app.get('/api/admissions/request-stats', { preHandler: requirePermission(services, 'Admissions', 'Admission Requests', 'View') }, async (request) => {
+    const query = parse(requestStatsSchema, request.query);
+    return ok(await services.inpatientAdmissions.getRequestStatusCounts(request.user!.id, query.branch_id));
+  });
+
   app.get('/api/admissions/requests', { preHandler: requirePermission(services, 'Admissions', 'Admission Requests', 'View') }, async (request) => ok(await services.inpatientAdmissions.listRequests(parse(listAdmissionRequestsSchema, request.query), request.user!.id)));
   app.get('/api/admissions/requests/:id', { preHandler: requirePermission(services, 'Admissions', 'Admission Requests', 'View') }, async (request) => { const params = parse(admissionRequestActionSchema, request.params); const query = parse(admissionRequestBranchSchema, request.query); return ok(await services.inpatientAdmissions.getRequest(params.id, query.branch_id, request.user!.id)); });
   app.post('/api/admissions/requests', { preHandler: requirePermission(services, 'Admissions', 'Admission Requests', 'Create') }, async (request, reply) => reply.status(201).send(ok(await services.inpatientAdmissions.createRequest(parse(createAdmissionRequestSchema, request.body), request.user!.id, metadata(request)))));

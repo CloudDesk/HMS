@@ -77,11 +77,11 @@ test('Billing Integration with Advance Payment', async (t) => {
         amount: 5000,
         payment_method: 'CASH'
       }))
-    } as any;
+    } as unknown as ConstructorParameters<typeof BillingService>[0];
 
     const billingService = new BillingService(
       mockBillingRepo,
-      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+      {} as unknown as ConstructorParameters<typeof BillingService>[1], {} as unknown as ConstructorParameters<typeof BillingService>[2], {} as unknown as ConstructorParameters<typeof BillingService>[3], {} as unknown as ConstructorParameters<typeof BillingService>[4], {} as unknown as ConstructorParameters<typeof BillingService>[5], {} as unknown as ConstructorParameters<typeof BillingService>[6],
       advancePaymentService
     );
 
@@ -90,7 +90,7 @@ test('Billing Integration with Advance Payment', async (t) => {
       createObjectId(),
       { amount: 5000, payment_method: 'CASH' },
       userId,
-      {} as any
+      {} as unknown as import('../src/modules/billing/billing.types.js').BillingRequestMetadata
     );
 
     // 4. Verify the Advance Payment was updated properly

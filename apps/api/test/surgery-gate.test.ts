@@ -23,7 +23,7 @@ test('SurgeryService - Advance Payment Gating', async (t) => {
     await teardownTestDatabase();
   });
 
-  const setupMockService = (procedureConfig: any) => {
+  const setupMockService = (procedureConfig: { requiresAdvanceDeposit: boolean, minimumAdvanceDepositAmount: number }) => {
     const mockRepo = {
       session: mock.fn(async () => mongoose.startSession()),
       getBooking: mock.fn(async (id) => ({
@@ -67,7 +67,7 @@ test('SurgeryService - Advance Payment Gating', async (t) => {
       audit: mock.fn(async () => {}),
       hasBranchAccess: mock.fn(async () => true),
       departmentScope: mock.fn(async () => undefined),
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[0];
 
     const mockDoctors = {
       getById: mock.fn(async (id) => ({
@@ -85,20 +85,20 @@ test('SurgeryService - Advance Payment Gating', async (t) => {
       })),
       hasActiveLeave: mock.fn(async () => false),
       getExceptionByDate: mock.fn(async () => null),
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[1];
 
     const mockBeds = {
       verifyHold: mock.fn(async () => {})
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[4];
     
     const mockPatients = {
       verifyContextConsent: mock.fn(async () => null),
       addProcedureTimeline: mock.fn(async () => {})
-    } as any;
+    } as unknown as ConstructorParameters<typeof SurgeryService>[2];
 
-    const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as any;
+    const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as unknown as ConstructorParameters<typeof SurgeryService>[8];
     return new SurgeryService(
-      mockRepo, mockDoctors, mockPatients, {} as any, mockBeds, advancePaymentService, {} as any, {} as any, mockSettingsRepo
+      mockRepo, mockDoctors, mockPatients, {} as unknown as ConstructorParameters<typeof SurgeryService>[3], mockBeds, advancePaymentService, {} as unknown as ConstructorParameters<typeof SurgeryService>[6], {} as unknown as ConstructorParameters<typeof SurgeryService>[7], mockSettingsRepo
     );
   };
 
@@ -109,7 +109,7 @@ test('SurgeryService - Advance Payment Gating', async (t) => {
     });
 
     await assert.doesNotReject(async () => {
-      await service.confirmBooking(createObjectId(), createObjectId(), {}, createObjectId(), {} as any);
+      await service.confirmBooking(createObjectId(), createObjectId(), {}, createObjectId(), {} as unknown as import('mongoose').ClientSession);
     });
   });
 
@@ -120,8 +120,8 @@ test('SurgeryService - Advance Payment Gating', async (t) => {
     });
 
     await assert.rejects(async () => {
-      await service.confirmBooking(createObjectId(), createObjectId(), {}, createObjectId(), {} as any);
-    }, (err: any) => {
+      await service.confirmBooking(createObjectId(), createObjectId(), {}, createObjectId(), {} as unknown as import('mongoose').ClientSession);
+    }, (err: unknown) => {
       return err instanceof AppError && err.code === 'ADVANCE_DEPOSIT_REQUIRED';
     });
   });
@@ -137,7 +137,7 @@ test('SurgeryService - Advance Payment Gating', async (t) => {
     const actorId = createObjectId();
 
     // The booking is originally booked
-    (service as any).repository.getBookingRecord = mock.fn(async () => ({
+    (service as unknown as { repository: { getBookingRecord: ReturnType<typeof mock.fn> } }).repository.getBookingRecord = mock.fn(async () => ({
       _id: bookingId,
       status: 'BOOKED',
       patientId: createObjectId(),
@@ -155,8 +155,8 @@ test('SurgeryService - Advance Payment Gating', async (t) => {
         doctor_id: createObjectId(),
         scheduled_start: new Date(Date.now() + 172800000).toISOString(), // 2 days from now
         reason: 'Patient request'
-      }, actorId, {} as any);
-    }, (err: any) => {
+      }, actorId, {} as unknown as import('mongoose').ClientSession);
+    }, (err: unknown) => {
       return err instanceof AppError && err.code === 'ADVANCE_DEPOSIT_REQUIRED';
     });
 

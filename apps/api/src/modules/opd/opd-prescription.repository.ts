@@ -196,7 +196,7 @@ export class OpdPrescriptionRepository {
     branchIds?: string[],
   ): Promise<{ data: OpdPrescription[]; total: number }> {
     const { status, limit = 50, skip = 0, search, sortBy = 'createdAt', sortOrder = 'desc' } = params;
-    const filter: any = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
 
     if (status) {
       filter.status = status;

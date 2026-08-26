@@ -40,6 +40,37 @@ export class InpatientAdmissionRepository {
     const first = created[0]; if (!first) throw new Error('Admission request create returned no record'); return toRequest(first.toObject() as AdmissionRequestFields & { _id: Types.ObjectId });
   }
   async listRequests(query: AdmissionRequestListQuery, departmentIds?: string[]) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id) }; if (departmentIds) filter.departmentId = { $in: departmentIds.map(oid) }; if (query.status) filter.status = query.status; if (query.source_type) filter.sourceType = query.source_type; if (query.patient_id) filter.patientId = oid(query.patient_id); if (query.search) { const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); const value = new RegExp(escaped, 'i'); filter.$or = [{ requestNumber: value }, { patientNumber: value }, { patientName: value }]; } const [items, total] = await Promise.all([AdmissionRequestModel.find(filter).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean<(AdmissionRequestFields & { _id: Types.ObjectId })[]>(), AdmissionRequestModel.countDocuments(filter)]); return { data: items.map(toRequest), meta: meta(total, page, limit) }; }
+
+  async getRequestStatusCounts(branchId: string, departmentIds?: string[], session?: ClientSession) {
+    const filter: Record<string, unknown> = { branchId: oid(branchId) };
+    if (departmentIds) {
+      filter.departmentId = { $in: departmentIds.map(oid) };
+    }
+    
+    const query = AdmissionRequestModel.aggregate<{ _id: string; count: number }>([
+      { $match: filter },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    if (session) query.session(session);
+    
+    const results = await query;
+    const counts = {
+      pendingValidation: 0,
+      readyForConfirmation: 0,
+      confirmed: 0,
+      cancelled: 0
+    };
+    
+    for (const res of results) {
+      if (res._id === 'PENDING_VALIDATION') counts.pendingValidation = res.count;
+      else if (res._id === 'READY_FOR_CONFIRMATION') counts.readyForConfirmation = res.count;
+      else if (res._id === 'CONFIRMED') counts.confirmed = res.count;
+      else if (res._id === 'CANCELLED') counts.cancelled = res.count;
+    }
+    
+    return counts;
+  }
   async getRequest(id: string, branchId: string, session?: ClientSession) { const query = AdmissionRequestModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean<AdmissionRequestFields & { _id: Types.ObjectId }>(); if (session) query.session(session); const item = await query; return item ? toRequest(item) : null; }
   async validateRequest(id: string, branchId: string, data: ValidateAdmissionRequestDTO, actor: string, session: ClientSession) { const item = await AdmissionRequestModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: { $in: ['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'] } }, { $set: { wardId: oid(data.ward_id), bedId: oid(data.bed_id), holdId: data.hold_id ? oid(data.hold_id) : null, consentDocumentId: data.consent_document_id ? oid(data.consent_document_id) : null, depositInvoiceId: data.deposit_invoice_id ? oid(data.deposit_invoice_id) : null, status: 'READY_FOR_CONFIRMATION', updatedBy: oid(actor) } }, { new: true, session, runValidators: true }).lean<AdmissionRequestFields & { _id: Types.ObjectId }>(); return item ? toRequest(item) : null; }
   async confirmRequest(id: string, admissionId: string, snapshot: AdmissionPrerequisiteSnapshot, actor: string, session: ClientSession) { const item = await AdmissionRequestModel.findOneAndUpdate({ _id: oid(id), status: 'READY_FOR_CONFIRMATION', admissionId: null }, { $set: { status: 'CONFIRMED', admissionId: oid(admissionId), prerequisiteSnapshot: snapshot, updatedBy: oid(actor) } }, { new: true, session }).lean<AdmissionRequestFields & { _id: Types.ObjectId }>(); return item ? toRequest(item) : null; }

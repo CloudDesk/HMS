@@ -29,17 +29,20 @@ async function migrate() {
   process.exit(0);
 }
 
-async function migrateStandardSequence(key: string, model: mongoose.Model<any>, field: string) {
+async function migrateStandardSequence<T extends Record<string, unknown>>(key: string, model: mongoose.Model<T>, field: keyof T & string) {
   const all = await model.find({}, { [field]: 1 }).lean();
   let maxSeq = 0;
   for (const doc of all) {
-    const val = doc[field];
-    if (!val) continue;
+    const val = (doc as Record<string, unknown>)[field];
+    if (typeof val !== 'string') continue;
     const parts = val.split('-');
     if (parts.length >= 3) {
-      const seq = parseInt(parts[2], 10);
-      if (!isNaN(seq) && seq > maxSeq) {
-        maxSeq = seq;
+      const p2 = parts[2];
+      if (p2) {
+        const seq = parseInt(p2, 10);
+        if (!isNaN(seq) && seq > maxSeq) {
+          maxSeq = seq;
+        }
       }
     }
   }
@@ -56,22 +59,26 @@ async function migrateStandardSequence(key: string, model: mongoose.Model<any>, 
   }
 }
 
-async function migrateTimestampSequence(key: string, model: mongoose.Model<any>, field: string, prefix: string) {
+async function migrateTimestampSequence<T extends Record<string, unknown>>(key: string, model: mongoose.Model<T>, field: keyof T & string, prefix: string) {
   const all = await model.find({}, { [field]: 1 }).lean();
   let maxSeq = 0;
   for (const doc of all) {
-    const val = doc[field];
-    if (!val) continue;
+    const val = (doc as Record<string, unknown>)[field];
+    if (typeof val !== 'string') continue;
     
     // Legacy format is PREFIX-123456789-999 (timestamp and random suffix)
     const str = val.replace(`${prefix}-`, '');
     const parts = str.split('-');
     if (parts.length === 2) {
-      const ts = parseInt(parts[0], 10);
-      const rnd = parseInt(parts[1], 10);
-      if (!isNaN(ts) && !isNaN(rnd)) {
-        if (rnd > maxSeq) {
-          maxSeq = rnd;
+      const p0 = parts[0];
+      const p1 = parts[1];
+      if (p0 && p1) {
+        const ts = parseInt(p0, 10);
+        const rnd = parseInt(p1, 10);
+        if (!isNaN(ts) && !isNaN(rnd)) {
+          if (rnd > maxSeq) {
+            maxSeq = rnd;
+          }
         }
       }
     }
