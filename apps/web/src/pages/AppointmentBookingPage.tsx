@@ -52,7 +52,7 @@ export function AppointmentBookingPage() {
   const [step, setStep] = useState<BookingStep>(1);
   const [patientSearch, setPatientSearch] = useState('');
   
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<BookingFormData>({
+  const { register, handleSubmit, watch, setValue, clearErrors, trigger, formState: { errors } } = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       patient_id: initialPatientId,
@@ -122,8 +122,9 @@ export function AppointmentBookingPage() {
 
   // Clear slot on date/doctor change
   useEffect(() => {
-    setValue('start_time', '', { shouldValidate: step === 2 });
-  }, [appointmentDate, selectedDoctorId, setValue, step]);
+    setValue('start_time', '', { shouldDirty: false, shouldValidate: false });
+    clearErrors('start_time');
+  }, [appointmentDate, clearErrors, selectedDoctorId, setValue]);
 
   const searchPatients = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -184,8 +185,8 @@ export function AppointmentBookingPage() {
   );
 
   const continueToConfirmation = async () => {
-    const isValid = await handleSubmit(() => {})();
-    if (isValid && selectedSlot) {
+    const isValid = await trigger();
+    if (isValid) {
       setStep(3);
     }
   };
@@ -414,7 +415,11 @@ export function AppointmentBookingPage() {
                           key={slot.startTime}
                           onClick={() => {
                             if (!isDisabled) {
-                              setValue('start_time', slot.startTime, { shouldValidate: true });
+                              setValue('start_time', slot.startTime, {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                                shouldValidate: true,
+                              });
                             }
                           }}
                           style={isPast ? { opacity: 0.45, cursor: 'not-allowed', backgroundColor: '#f1f5f9', borderColor: '#cbd5e1' } : undefined}

@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { Doctor, DoctorAvailabilityDay } from '../doctors/doctor.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
@@ -80,6 +80,13 @@ const createAppointmentNumber = (sequence: number) => {
 const patientName = (patient: Patient) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
 
+const scheduledDateTime = (date: Date, time: string) => {
+  const [hours = 0, minutes = 0] = time.split(':').map(Number);
+  const scheduled = new Date(date);
+  scheduled.setUTCHours(hours, minutes, 0, 0);
+  return scheduled;
+};
+
 export class AppointmentService {
   constructor(
     private readonly repository: AppointmentRepository,
@@ -118,24 +125,76 @@ export class AppointmentService {
     await this.validateDoctorConflict(doctor.id, appointmentDate, data.start_time, endTime);
     await this.validatePatientConflict(patient.id, appointmentDate, data.start_time, endTime);
 
-    const sequence = await this.repository.nextAppointmentSequence();
-    const appointment = await this.repository.create(
-      {
-        ...data,
-        appointmentNumber: createAppointmentNumber(sequence),
-        patientNumber: patient.patient_number,
-        patientName: patientName(patient),
-        doctorName: doctor.display_name,
-        doctorSpecialization: doctor.specialization,
-        branchId: doctor.branch_id,
-        departmentId: doctor.department_id,
-        appointmentDate,
-        endTime,
-        priority: data.priority ?? 'ROUTINE',
-      },
-      userId,
-    );
-    await this.repository.auditCreated(appointment, userId);
+    const session = await mongoose.startSession();
+    let appointment: Appointment | undefined;
+
+    try {
+      await session.withTransaction(async () => {
+        const appointmentSequence = await this.repository.nextAppointmentSequence(session);
+        const createdAppointment = await this.repository.create(
+          {
+            ...data,
+            appointmentNumber: createAppointmentNumber(appointmentSequence),
+            patientNumber: patient.patient_number,
+            patientName: patientName(patient),
+            doctorName: doctor.display_name,
+            doctorSpecialization: doctor.specialization,
+            branchId: doctor.branch_id,
+            departmentId: doctor.department_id,
+            appointmentDate,
+            endTime,
+            priority: data.priority ?? 'ROUTINE',
+          },
+          userId,
+          session,
+        );
+        appointment = createdAppointment;
+
+        const visitSequence = await this.opdVisitRepository.nextVisitSequence(session);
+        const visit = await this.opdVisitRepository.create(
+          {
+            appointmentId: createdAppointment.id,
+            visitNumber: `OPD-${new Date().getFullYear()}-${String(visitSequence + 1).padStart(6, '0')}`,
+            queueTokenNumber: visitSequence + 1,
+            patientId: createdAppointment.patient_id,
+            patientNumber: createdAppointment.patient_number,
+            patientName: createdAppointment.patient_name,
+            doctorId: createdAppointment.doctor_id,
+            doctorName: createdAppointment.doctor_name,
+            doctorSpecialization: createdAppointment.doctor_specialization,
+            branchId: createdAppointment.branch_id,
+            departmentId: createdAppointment.department_id,
+            visitDate: createdAppointment.appointment_date,
+            checkInTime: scheduledDateTime(createdAppointment.appointment_date, createdAppointment.start_time),
+            visit_type: createdAppointment.visit_type,
+            priority: createdAppointment.priority,
+            reason: createdAppointment.reason,
+            notes: 'OPD queue record created from appointment booking.',
+          },
+          userId,
+          session,
+        );
+
+        await this.repository.auditCreated(createdAppointment, userId, session);
+        await this.opdVisitRepository.auditCreated(visit, userId, session);
+        await this.patientRepository.addTimelineEvent(
+          createdAppointment.patient_id,
+          {
+            event_type: 'OPD_VISIT_CREATED',
+            title: 'OPD visit queued',
+            description: `${visit.visit_number} was queued for ${createdAppointment.doctor_name}.`,
+          },
+          userId,
+          session,
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    if (!appointment) {
+      throw new AppError('Appointment could not be created', 500, 'APPOINTMENT_CREATE_FAILED');
+    }
     return appointment;
   }
 

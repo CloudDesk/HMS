@@ -3,10 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAppLocation, navigate } from '../../routing/navigation';
 import { type ApiAppointmentPriority, type ApiAppointmentStatus, isApiAppointmentStatus, isApiAppointmentPriority } from '../../api/appointments';
-import { type OpdVisitResponse } from '../../api/opd';
+import { type CreateOpdVitalsPayload, type OpdVisitResponse } from '../../api/opd';
 import { getAppointmentErrorMessage, todayInputValue } from '../../pages/appointment-utils';
 import { appointmentsKeys, useAppointmentsList, useUpdateAppointmentStatus } from './useAppointments';
-import { opdKeys, useCreateOpdVisit, useOpdVisits, useUpdateOpdVisitStatus } from '../opd/useOpd';
+import { opdKeys, useCreateOpdVisit, useCreateOpdVitals, useOpdVisits, useUpdateOpdVisitStatus } from '../opd/useOpd';
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
+import { useUnreadNotifications } from '../notifications/useNotifications';
 import { useDepartmentsList } from '../departments/useDepartments';
 import { useDoctorsList } from '../doctors/useDoctors';
 import { useBranchesList } from '../branches/useBranches';
@@ -30,6 +33,10 @@ const queueSort = (left: { status: string; priority: string; start_time: string 
 };
 
 export function useAppointmentQueueFeature() {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
+  const canCreateVitals = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'OPD Vitals', action: 'Create' });
+  const canEditVisit = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'OPD Visits', action: 'Edit' });
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
 
@@ -94,10 +101,14 @@ export function useAppointmentQueueFeature() {
     branch_id: branchFilter || undefined,
     limit: 100,
   });
+  const notificationsQuery = useUnreadNotifications(
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'Appointments', screen: 'Appointment Records' }),
+  );
 
   const updateStatus = useUpdateAppointmentStatus();
   const createVisit = useCreateOpdVisit();
   const updateVisit = useUpdateOpdVisitStatus();
+  const createVitals = useCreateOpdVitals();
 
   const appointments = useMemo(() => {
     let list = appointmentsQuery.data?.data || [];
@@ -108,11 +119,12 @@ export function useAppointmentQueueFeature() {
   }, [appointmentsQuery.data?.data, priorityFilter]);
 
   const opdVisits = opdVisitsQuery.data?.data || [];
+  const callNotifications = (notificationsQuery.data?.data ?? []).filter((notification) => notification.type === 'CALL_NEXT_PATIENT');
   
   const loading = appointmentsQuery.isLoading || opdVisitsQuery.isLoading;
   const loadError = appointmentsQuery.error ? getAppointmentErrorMessage(appointmentsQuery.error) : '';
   const opdLoadError = opdVisitsQuery.error ? getAppointmentErrorMessage(opdVisitsQuery.error) : '';
-  const updating = updateStatus.isPending || createVisit.isPending || updateVisit.isPending;
+  const updating = updateStatus.isPending || createVisit.isPending || updateVisit.isPending || createVitals.isPending;
 
   const currentAppointment = appointments.find((a) => a.status === 'CHECKED_IN') ?? null;
   const nextAppointment = appointments.find((a) => waitingStatuses.has(a.status)) ?? null;
@@ -209,6 +221,21 @@ export function useAppointmentQueueFeature() {
     await queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() });
   };
 
+  const handleSaveVitals = async (visit: OpdVisitResponse, payload: CreateOpdVitalsPayload) => {
+    if (!canCreateVitals || !canEditVisit) {
+      throw new Error('You do not have permission to record vitals for this visit.');
+    }
+    if (visit.status !== 'CHECKED_IN' && visit.status !== 'WAITING_FOR_VITALS') {
+      throw new Error('Vitals can only be recorded while the patient is checked in or waiting for vitals.');
+    }
+    await createVitals.mutateAsync({ visitId: visit.id, payload });
+    await updateVisit.mutateAsync({ id: visit.id, payload: { status: 'READY_FOR_CONSULTATION' } });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: opdKeys.visits() }),
+      queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() }),
+    ]);
+  };
+
   return {
     state: {
       departmentFilter,
@@ -222,12 +249,15 @@ export function useAppointmentQueueFeature() {
       branches,
       appointments,
       opdVisits,
+      callNotifications,
       loading,
       loadError,
       opdLoadError,
       updating,
       currentAppointment,
       nextAppointment,
+      canCreateVitals,
+      canEditVisit,
     },
     actions: {
       setDepartmentFilter,
@@ -241,6 +271,7 @@ export function useAppointmentQueueFeature() {
       handleSkip,
       handleNoShow,
       handleComplete,
+      handleSaveVitals,
     }
   };
 }

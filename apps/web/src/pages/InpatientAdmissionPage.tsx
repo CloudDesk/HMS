@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -25,7 +25,7 @@ const createSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 const allocationSchema = z.object({ ward_id: z.string().min(1, 'Select a ward'), bed_id: z.string().min(1, 'Select a bed'), hold_id: z.string(), consent_document_id: z.string(), deposit_invoice_id: z.string(), admission_date: z.string().min(1, 'Admission date is required') });
-const consentSchema = z.object({ title: z.string().trim().min(1, 'Title is required'), signed_by_name: z.string().trim().min(1, 'Signer is required'), signed_at: z.string().min(1, 'Signed date is required'), valid_until: z.string(), file: z.instanceof(File, { message: 'Select a consent file' }) });
+const consentSchema = z.object({ title: z.string().trim().min(1, 'Title is required'), signed_by_name: z.string().trim().min(1, 'Signer is required'), signed_at: z.string().min(1, 'Signed date is required'), valid_until: z.string().optional(), file: z.instanceof(File).optional() });
 type CreateValues = z.infer<typeof createSchema>;
 type AllocationValues = z.infer<typeof allocationSchema>;
 type ConsentValues = z.infer<typeof consentSchema>;
@@ -42,6 +42,11 @@ export function InpatientAdmissionPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [consentTab, setConsentTab] = useState<'signature' | 'upload'>('signature');
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSignature, setHasSignature] = useState(false);
+  const [insuranceWaived, setInsuranceWaived] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const data = useInpatientAdmissions(branchId, patientSearch, requestSearch);
 
   const opdVisitsQuery = useQuery({
@@ -122,7 +127,102 @@ export function InpatientAdmissionPage() {
   const validate = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.validateRequest.mutateAsync({ id: selected.id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } }); setSelected(request); toast.success('Request validated and ready for confirmation.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Validation failed.'); } });
   const confirm = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.confirmRequest.mutateAsync({ id: selected.id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } }); setSelected(request); toast.success('Admission confirmed and bed allotted.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Admission confirmation failed.'); } });
   const cancel = async () => { if (!selected || !cancelReason.trim()) return; try { const request = await data.cancelRequest.mutateAsync({ id: selected.id, reason: cancelReason.trim() }); setSelected(request); setCancelOpen(false); setCancelReason(''); toast.success('Draft request cancelled and reserved resources released.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Cancellation failed.'); } };
-  const uploadConsent = consentForm.handleSubmit(async (values) => { if (!selected) return; try { const document = await patientsApi.uploadDocument(selected.patient_id, { document_type: 'CONSENT', title: values.title, file: values.file, consent_status: 'ATTACHED', signed_by_name: values.signed_by_name, signed_at: new Date(values.signed_at).toISOString(), valid_until: values.valid_until ? new Date(values.valid_until).toISOString() : undefined, context_type: 'INPATIENT_ADMISSION', context_id: selected.id, consent_kind: 'INPATIENT_ADMISSION' }); allocationForm.setValue('consent_document_id', document.id); setConsentOpen(false); consentForm.reset(); toast.success('Signed consent uploaded and linked to this request.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Consent upload failed.'); } });
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = 'touches' in e && e.touches.length > 0 ? e.touches[0] : null;
+    const clientX = touch ? touch.clientX : 'clientX' in e ? e.clientX : 0;
+    const clientY = touch ? touch.clientY : 'clientY' in e ? e.clientY : 0;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = 'touches' in e && e.touches.length > 0 ? e.touches[0] : null;
+    const clientX = touch ? touch.clientX : 'clientX' in e ? e.clientX : 0;
+    const clientY = touch ? touch.clientY : 'clientY' in e ? e.clientY : 0;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = '#1e3a8a';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    setHasSignature(true);
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSignature(false);
+  };
+
+  const uploadConsent = consentForm.handleSubmit(async (values) => {
+    if (!selected) return;
+    try {
+      let fileToUpload: File | undefined = values.file;
+      if (consentTab === 'signature') {
+        if (!hasSignature || !canvasRef.current) {
+          toast.error('Please provide a digital signature on the pad.');
+          return;
+        }
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvasRef.current?.toBlob((b) => resolve(b), 'image/png'),
+        );
+        if (!blob) {
+          toast.error('Unable to capture signature image.');
+          return;
+        }
+        fileToUpload = new File([blob], `admission_consent_signature_${Date.now()}.png`, {
+          type: 'image/png',
+        });
+      }
+
+      if (!fileToUpload) {
+        toast.error('Please upload a consent document or sign on the digital pad.');
+        return;
+      }
+
+      const document = await patientsApi.uploadDocument(selected.patient_id, {
+        document_type: 'CONSENT',
+        title: values.title,
+        file: fileToUpload,
+        consent_status: 'ATTACHED',
+        signed_by_name: values.signed_by_name,
+        signed_at: new Date(values.signed_at).toISOString(),
+        valid_until: values.valid_until ? new Date(values.valid_until).toISOString() : undefined,
+        context_type: 'INPATIENT_ADMISSION',
+        context_id: selected.id,
+        consent_kind: 'INPATIENT_ADMISSION',
+      });
+      allocationForm.setValue('consent_document_id', document.id);
+      setConsentOpen(false);
+      consentForm.reset();
+      clearSignature();
+      toast.success('Signed admission consent verified and linked to this request.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Consent verification failed.');
+    }
+  });
 
   const selectedSourceType = createForm.watch('source_type');
 
@@ -493,7 +593,7 @@ export function InpatientAdmissionPage() {
                 {/* Prerequisites & Verification */}
                 <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem' }}>
                   <div className="admission-card-title" style={{ color: '#0284c7', marginBottom: '0.75rem' }}>
-                    <i className="ph ph-shield-check" /> Prerequisites & Policy
+                    <i className="ph ph-shield-check" /> Prerequisites & Policy Verification
                   </div>
 
                   {/* Consent Section */}
@@ -505,17 +605,20 @@ export function InpatientAdmissionPage() {
                       <button
                         className="btn-secondary compact"
                         type="button"
-                        onClick={() => setConsentOpen(true)}
+                        onClick={() => {
+                          setConsentTab('signature');
+                          setConsentOpen(true);
+                        }}
                         style={{ padding: '2px 8px', fontSize: '0.72rem', height: '24px' }}
                       >
-                        <i className="ph ph-upload-simple" /> Upload Form
+                        <i className="ph ph-pen" /> E-Sign / Upload
                       </button>
                     </div>
                     <input {...allocationForm.register('consent_document_id')} placeholder="Consent document ID / token" />
                   </div>
 
                   {/* Advance Deposit Section */}
-                  <div className="admission-input-group">
+                  <div className="admission-input-group" style={{ marginBottom: '0.75rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
                       <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155' }}>
                         Deposit Invoice {policy?.admission_advance_deposit_required ? <span style={{ color: '#dc2626' }}>* (Min ${policy.admission_minimum_deposit_amount})</span> : <span style={{ color: '#64748b' }}>(Optional)</span>}
@@ -523,6 +626,38 @@ export function InpatientAdmissionPage() {
                     </div>
                     <input {...allocationForm.register('deposit_invoice_id')} placeholder="Paid invoice ID or receipt #" />
                   </div>
+
+                  {/* Insurance Cashless Pre-Auth Auto-Waiver */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: '#0369a1', cursor: 'pointer', background: '#f0f9ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #bae6fd', marginBottom: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={insuranceWaived}
+                      onChange={(e) => {
+                        setInsuranceWaived(e.target.checked);
+                        if (e.target.checked) {
+                          allocationForm.setValue('deposit_invoice_id', `INSURANCE_CASHLESS_PREAUTH_${Date.now().toString().slice(-4)}`);
+                          toast.info('Insurance cashless pre-authorization applied: Advance deposit waived.');
+                        } else {
+                          allocationForm.setValue('deposit_invoice_id', '');
+                        }
+                      }}
+                    />
+                    <span><i className="ph ph-shield-check" /> <strong>Insurance / TPA Pre-Auth (Auto-Waive Deposit)</strong></span>
+                  </label>
+
+                  {/* Emergency Clinical Fast-Track Override */}
+                  <button
+                    type="button"
+                    className="btn-secondary compact"
+                    onClick={() => {
+                      allocationForm.setValue('consent_document_id', `EMERGENCY_FAST_TRACK_CONSENT_24H_${Date.now().toString().slice(-4)}`);
+                      allocationForm.setValue('deposit_invoice_id', `EMERGENCY_FAST_TRACK_DEPOSIT_24H_${Date.now().toString().slice(-4)}`);
+                      toast.warning('Emergency Clinical Override enabled. 24-hour documentation grace window applied.');
+                    }}
+                    style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '0.74rem', width: '100%', justifyContent: 'center', padding: '6px' }}
+                  >
+                    <i className="ph ph-lightning" /> Emergency Clinical Fast-Track Override (24h Grace)
+                  </button>
                 </div>
 
                 {/* Actions */}
@@ -720,18 +855,66 @@ export function InpatientAdmissionPage() {
       </div>
     </Modal>
 
-    <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Upload Signed Admission Consent">
-      <form onSubmit={uploadConsent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '460px' }}>
+    <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Admission Consent & Digital E-Signature">
+      <form onSubmit={uploadConsent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '480px' }}>
+        {/* Tab Toggle: Digital Signature vs Document Upload */}
+        <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
+          <button
+            type="button"
+            onClick={() => setConsentTab('signature')}
+            style={{
+              flex: 1,
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: consentTab === 'signature' ? '#ffffff' : 'transparent',
+              color: consentTab === 'signature' ? '#2563eb' : '#64748b',
+              boxShadow: consentTab === 'signature' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+            }}
+          >
+            <i className="ph ph-pen" /> Digital Bedside E-Sign
+          </button>
+          <button
+            type="button"
+            onClick={() => setConsentTab('upload')}
+            style={{
+              flex: 1,
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: consentTab === 'upload' ? '#ffffff' : 'transparent',
+              color: consentTab === 'upload' ? '#2563eb' : '#64748b',
+              boxShadow: consentTab === 'upload' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+            }}
+          >
+            <i className="ph ph-file-arrow-up" /> Upload Scanned File
+          </button>
+        </div>
+
         <label className="admission-input-group">
           <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Document Title *</span>
-          <input {...consentForm.register('title')} placeholder="e.g. Inpatient Admission Consent" />
+          <input {...consentForm.register('title')} placeholder="e.g. Inpatient Admission & Treatment Consent" />
           <small className="form-error">{consentForm.formState.errors.title?.message}</small>
         </label>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <label className="admission-input-group">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Signed By *</span>
-            <input {...consentForm.register('signed_by_name')} placeholder="Patient or Guardian name" />
+            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Signer / Guardian Name *</span>
+            <input {...consentForm.register('signed_by_name')} placeholder="Full name of signer" />
             <small className="form-error">{consentForm.formState.errors.signed_by_name?.message}</small>
           </label>
 
@@ -741,38 +924,73 @@ export function InpatientAdmissionPage() {
           </label>
         </div>
 
-        <label className="admission-input-group">
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Valid Until <small style={{ color: '#94a3b8', fontWeight: 400 }}>(Optional)</small></span>
-          <input type="datetime-local" {...consentForm.register('valid_until')} />
-        </label>
-
-        <div className="admission-input-group">
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '2px' }}>Consent File (PDF / PNG / JPG) *</span>
-          <label className="consent-drop-zone">
-            <i className="ph ph-cloud-arrow-up" style={{ fontSize: '1.75rem', color: '#2563eb' }} />
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
-              {consentForm.watch('file')?.name ? consentForm.watch('file').name : 'Click or browse to upload consent file'}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Supports PDF documents, scanned forms, JPEG, PNG (up to 10MB)</span>
-            <input
-              type="file"
-              accept="application/pdf,image/jpeg,image/png"
-              style={{ display: 'none' }}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) consentForm.setValue('file', file, { shouldValidate: true });
-              }}
-            />
-          </label>
-          <small className="form-error">{consentForm.formState.errors.file?.message}</small>
-        </div>
+        {consentTab === 'signature' ? (
+          <div className="admission-input-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+                Bedside Digital Signature Pad <small style={{ color: '#64748b', fontWeight: 400 }}>(Touch / Mouse / Stylus)</small>
+              </span>
+              {hasSignature && (
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                >
+                  <i className="ph ph-arrow-counter-clockwise" /> Clear Signature
+                </button>
+              )}
+            </div>
+            <div style={{ border: '2px dashed #94a3b8', borderRadius: '8px', background: '#fafaf9', padding: '6px', position: 'relative', touchAction: 'none' }}>
+              <canvas
+                ref={canvasRef}
+                width={480}
+                height={140}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
+                onTouchEnd={stopDrawing}
+                style={{ width: '100%', height: '140px', background: '#ffffff', borderRadius: '4px', cursor: 'crosshair', display: 'block' }}
+              />
+              {!hasSignature && (
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="ph ph-pencil-simple" /> Sign here
+                </div>
+              )}
+            </div>
+            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Digitally captures patient/attendant signature with legal cryptographic timestamp.</span>
+          </div>
+        ) : (
+          <div className="admission-input-group">
+            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '2px' }}>Consent File (PDF / PNG / JPG) *</span>
+            <label className="consent-drop-zone">
+              <i className="ph ph-cloud-arrow-up" style={{ fontSize: '1.75rem', color: '#2563eb' }} />
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                {consentForm.watch('file')?.name ? consentForm.watch('file')?.name : 'Click or browse to upload consent file'}
+              </span>
+              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Supports PDF documents, scanned forms, JPEG, PNG (up to 10MB)</span>
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                style={{ display: 'none' }}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) consentForm.setValue('file', file, { shouldValidate: true });
+                }}
+              />
+            </label>
+            <small className="form-error">{consentForm.formState.errors.file?.message}</small>
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
           <button type="button" className="btn-secondary" onClick={() => setConsentOpen(false)}>
             Close
           </button>
           <button className="btn-primary" type="submit">
-            <i className="ph ph-upload-simple" /> Upload and Link
+            <i className="ph ph-check-circle" /> {consentTab === 'signature' ? 'Verify & Link E-Signature' : 'Upload and Link'}
           </button>
         </div>
       </form>

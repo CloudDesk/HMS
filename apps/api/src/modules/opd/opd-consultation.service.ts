@@ -81,6 +81,23 @@ export class OpdConsultationService {
       userId,
     );
 
+    await this.visitRepository.updateStatus(
+      visit.id,
+      {
+        notes: 'Doctor consultation completed.',
+        status: 'COMPLETED',
+      },
+      userId,
+    );
+
+    if (visit.appointment_id) {
+      await this.appointmentRepository.updateStatus(
+        visit.appointment_id,
+        { status: 'COMPLETED', notes: 'Consultation completed by doctor.' },
+        userId,
+      );
+    }
+
 
 
     await this.patientRepository.addTimelineEvent(

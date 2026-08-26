@@ -30,6 +30,7 @@ import {
   evaluateTemperature,
 } from '../components/ui/ClinicalVitalCard';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { useCallNextOpdPatient } from '../hooks/opd/useOpd';
 import { getPatientErrorMessage, calculateAge } from './patient-utils';
 import {
   getOpdErrorMessage,
@@ -156,6 +157,7 @@ export function OpdVisitPage() {
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
   const visitIdParam = searchParams.get('id') ?? '';
   const initialTabParam = searchParams.get('tab') ?? 'Consultation';
+  const callNextPatient = useCallNextOpdPatient();
 
   // Active visit and selection state
   const [activeVisitId, setActiveVisitId] = useState(visitIdParam);
@@ -182,9 +184,6 @@ export function OpdVisitPage() {
   const [, setConsultation] = useState<OpdConsultationResponse | null>(null);
   const [patient, setPatient] = useState<PatientResponse | null>(null);
   const [consultationForm, setConsultationForm] = useState<ConsultationFormState>(emptyConsultationForm);
-
-  const [primaryDiagnosis, setPrimaryDiagnosis] = useState('');
-  const [secondaryDiagnosis, setSecondaryDiagnosis] = useState('');
 
   const [prescriptionForm, setPrescriptionForm] = useState<PrescriptionFormState>(emptyPrescriptionForm);
   const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
@@ -368,11 +367,6 @@ export function OpdVisitPage() {
     [services],
   );
 
-  const selectedMasterMed = useMemo(
-    () => masterMedicines.find((m) => m.name === medicationForm.medicine_name) ?? null,
-    [masterMedicines, medicationForm.medicine_name],
-  );
-
   // Sub-tab 2: Diagnosis State
   const [dxSearchTerm, setDxSearchTerm] = useState('');
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<Icd10Diagnosis[]>([]);
@@ -437,7 +431,6 @@ export function OpdVisitPage() {
   const [labCategory, setLabCategory] = useState('All');
   const [labClinicalNotes, setLabClinicalNotes] = useState('');
   const [labOrderSummary, setLabOrderSummary] = useState('');
-  const [selectedLabTest, setSelectedLabTest] = useState('');
 
   const labCategoryOptions = useMemo(() => {
     const dbCats = Array.from(
@@ -505,7 +498,6 @@ export function OpdVisitPage() {
   const [imagingCategory, setImagingCategory] = useState('All');
   const [imagingClinicalInfo, setImagingClinicalInfo] = useState('');
   const [imagingOrderInstructions, setImagingOrderInstructions] = useState('');
-  const [selectedImagingTest, setSelectedImagingTest] = useState('');
 
   const imagingCategoryOptions = useMemo(() => {
     const dbCats = Array.from(
@@ -976,8 +968,6 @@ export function OpdVisitPage() {
       await loadClinicalData();
       showToast('Consultation completed successfully! Orders routed to Pharmacy, Lab & Imaging.');
 
-      // Automatically trigger "Call Next Patient"
-      await handleCallNextPatient();
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
     } finally {
@@ -1050,27 +1040,15 @@ export function OpdVisitPage() {
 
   const handleCallNextPatient = async () => {
     if (!visit) return;
+    setUpdating('call-next');
     try {
-      // Import isn't strictly necessary as we can use apiClient directly if needed,
-      // but we have `notificationsApi` available.
-      const { notificationsApi } = await import('../api/notifications');
-      await notificationsApi.listMe(); // Just to make sure we imported it
-      // Create notification by calling API directly or via a new endpoint if we had one.
-      // Wait, we don't have a `create` exposed in notificationsApi. Let's just use `apiClient.post`
-      const { apiClient } = await import('../api/client');
-      await apiClient.request('/notifications', {
-        method: 'POST',
-        body: {
-          recipient_role: 'RECEPTIONIST',
-          title: 'Call Next Patient',
-          message: `Dr. ${visit.doctor_name} is ready for the next patient. Previous patient: ${visit.patient_name}.`,
-          type: 'CALL_NEXT_PATIENT',
-          related_entity_id: visit.id,
-        }
-      });
-      showToast('Receptionist notified to call the next patient.');
-    } catch {
-      showToast('Failed to notify receptionist.', 'error');
+      const nextVisit = await callNextPatient.mutateAsync(visit.id);
+      showToast(`${nextVisit.patient_name} has been called. Reception and nursing were notified.`);
+      navigate(`/opd/consultation?id=${encodeURIComponent(nextVisit.id)}`);
+    } catch (error) {
+      showToast(getOpdErrorMessage(error), 'error');
+    } finally {
+      setUpdating('');
     }
   };
 
@@ -1081,7 +1059,7 @@ export function OpdVisitPage() {
       case 'Vitals':
         return Boolean(vitalsForm.blood_pressure_systolic.trim() || vitalsForm.pulse_bpm.trim());
       case 'Diagnosis':
-        return Boolean(primaryDiagnosis.trim());
+        return selectedDiagnoses.length > 0;
       case 'Prescription':
         return prescriptionForm.items.length > 0;
       case 'Orders & Labs':
@@ -1110,6 +1088,16 @@ export function OpdVisitPage() {
           </button>
         </div>
         <div className="opd-page-actions">
+          <button
+            className="doc-btn primary"
+            disabled={!visit || visit.status !== 'COMPLETED' || updating === 'call-next'}
+            onClick={() => void handleCallNextPatient()}
+            title={visit?.status === 'COMPLETED' ? 'Call the next ready OPD token' : 'Complete this consultation first'}
+            type="button"
+          >
+            <i className="ph ph-megaphone" aria-hidden="true" />
+            {updating === 'call-next' ? 'Calling...' : 'Call Next Patient'}
+          </button>
           {recentVisits.length > 1 ? (
             <label className="opd-visit-selector" htmlFor="active-visit-select">
               <span>Patient Visit:</span>
@@ -1369,7 +1357,23 @@ export function OpdVisitPage() {
 
                     <div className="opd-dx-search-container">
                       <label className="doc-field full" htmlFor="icd-search-input">
-                        <span>Diagnosis / ICD-10 Search</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <span>Diagnosis / ICD-10 Search</span>
+                          {dxSearchTerm.trim().length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const customCode = `DX-${Date.now().toString().slice(-4)}`;
+                                handleAddDiagnosis({ code: customCode, name: dxSearchTerm.trim(), category: 'Clinical Diagnosis' });
+                                setDxSearchTerm('');
+                                showToast(`Custom diagnosis "${dxSearchTerm.trim()}" added.`, 'success');
+                              }}
+                              style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <i className="ph ph-plus-circle" /> Add "{dxSearchTerm}" as Custom Diagnosis
+                            </button>
+                          )}
+                        </div>
                         <div className="opd-dx-search-input-wrap">
                           <i className="ph ph-magnifying-glass" aria-hidden="true" />
                           <input
@@ -1383,25 +1387,45 @@ export function OpdVisitPage() {
                       </label>
 
                       <div className="opd-dx-results-list">
-                        {filteredIcd10.map((dx) => {
-                          const isAdded = selectedDiagnoses.some((d) => d.code === dx.code);
-                          return (
-                            <div className="opd-dx-result-item" key={dx.code}>
-                              <div className="opd-dx-item-info">
-                                <span className="opd-dx-code-badge">{dx.code}</span>
-                                <span className="opd-dx-name">{dx.name}</span>
+                        {filteredIcd10.length === 0 && dxSearchTerm.trim().length > 1 ? (
+                          <div style={{ padding: '1.25rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 0.6rem', fontSize: '0.85rem', color: '#475569' }}>
+                              No ICD-10 code matched "<strong>{dxSearchTerm}</strong>"
+                            </p>
+                            <button
+                              type="button"
+                              className="doc-btn primary compact"
+                              onClick={() => {
+                                const customCode = `DX-${Date.now().toString().slice(-4)}`;
+                                handleAddDiagnosis({ code: customCode, name: dxSearchTerm.trim(), category: 'Clinical Diagnosis' });
+                                setDxSearchTerm('');
+                                showToast(`Custom diagnosis "${dxSearchTerm.trim()}" added.`, 'success');
+                              }}
+                            >
+                              <i className="ph ph-plus" /> Add "{dxSearchTerm}" as Custom Diagnosis
+                            </button>
+                          </div>
+                        ) : (
+                          filteredIcd10.map((dx) => {
+                            const isAdded = selectedDiagnoses.some((d) => d.code === dx.code);
+                            return (
+                              <div className="opd-dx-result-item" key={dx.code}>
+                                <div className="opd-dx-item-info">
+                                  <span className="opd-dx-code-badge">{dx.code}</span>
+                                  <span className="opd-dx-name">{dx.name}</span>
+                                </div>
+                                <button
+                                  className="doc-btn compact"
+                                  disabled={isAdded}
+                                  onClick={() => handleAddDiagnosis(dx)}
+                                  type="button"
+                                >
+                                  {isAdded ? 'Added' : 'Add'}
+                                </button>
                               </div>
-                              <button
-                                className="doc-btn compact"
-                                disabled={isAdded}
-                                onClick={() => handleAddDiagnosis(dx)}
-                                type="button"
-                              >
-                                {isAdded ? 'Added' : 'Add'}
-                              </button>
-                            </div>
-                          );
-                        })}
+                            );
+                          })
+                        )}
                       </div>
                     </div>
 

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ApiError } from '../api/api-error';
-import type { Bed, BedStatus, WardStatus } from '../api/admissions-configuration';
+import type { Bed, BedStatus } from '../api/admissions-configuration';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
@@ -13,22 +13,18 @@ import { useBedManagementFeature } from '../hooks/admissions/useBedManagementFea
 import { navigate, useAppLocation } from '../routing/navigation';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Select a valid record');
-const wardSchema = z.object({ name: z.string().trim().min(1).max(100), ward_type: z.string().trim().min(1).max(100), floor: z.string().trim().min(1).max(50), description: z.string().trim().max(500) });
-const bedSchema = z.object({ ward_id: objectId, bed_number: z.string().trim().min(1).max(50), bed_category: z.string().trim().min(1).max(100), room_number: z.string().trim().max(50) });
 const policySchema = z.object({ bed_hold_duration_minutes: z.coerce.number().int().min(5).max(240), admission_consent_required: z.boolean(), admission_advance_deposit_required: z.boolean(), admission_minimum_deposit_amount: z.coerce.number().min(0).max(100000000) }).superRefine((value, context) => { if (!value.admission_advance_deposit_required && value.admission_minimum_deposit_amount !== 0) context.addIssue({ code: 'custom', path: ['admission_minimum_deposit_amount'], message: 'Set the amount to zero when a deposit is not required' }); });
 const holdSchema = z.object({ patient_id: objectId, reason: z.string().trim().min(3).max(500) });
 const transferSchema = z.object({ destination_branch_id: objectId, destination_ward_id: objectId, destination_bed_id: objectId, reason: z.string().trim().min(3).max(500) });
 const statusSchema = z.object({ status: z.enum(['AVAILABLE', 'BLOCKED', 'UNDER_MAINTENANCE', 'INACTIVE']), reason: z.string().trim().max(500) }).superRefine((value, context) => { if ((value.status === 'BLOCKED' || value.status === 'UNDER_MAINTENANCE') && !value.reason) context.addIssue({ code: 'custom', path: ['reason'], message: 'A reason is required' }); });
 
-type ModalName = 'ward' | 'bed' | 'policy' | 'hold' | 'transfer' | 'status' | null;
-type WardForm = z.infer<typeof wardSchema>;
-type BedForm = z.infer<typeof bedSchema>;
+type ModalName = 'policy' | 'hold' | 'transfer' | 'status' | null;
 type PolicyFormInput = z.input<typeof policySchema>;
 type PolicyForm = z.output<typeof policySchema>;
 type HoldForm = z.infer<typeof holdSchema>;
 type TransferForm = z.infer<typeof transferSchema>;
 type StatusForm = z.infer<typeof statusSchema>;
-type ConfirmAction = { type: 'release-hold' | 'cancel-hold' | 'ward-status'; id: string; label: string; status?: WardStatus } | null;
+type ConfirmAction = { type: 'release-hold' | 'cancel-hold'; id: string; label: string } | null;
 
 const statusTone = (status: string) => status === 'AVAILABLE' || status === 'ACTIVE' ? 'green' as const : status === 'OCCUPIED' ? 'red' as const : status === 'RESERVED' ? 'orange' as const : status === 'BLOCKED' ? 'purple' as const : 'gray' as const;
 const formatStatus = (status: string) => status.replaceAll('_', ' ').toLowerCase().replace(/(^|\s)\S/g, (value) => value.toUpperCase());
@@ -62,8 +58,6 @@ export function BedManagementPage() {
   const transferBeds = feature.transferOptions.bedsQuery.data?.data ?? [];
   const loading = configuration.wardsQuery.isLoading || configuration.bedsQuery.isLoading || configuration.summaryQuery.isLoading;
 
-  const wardForm = useForm<WardForm>({ resolver: zodResolver(wardSchema), defaultValues: { name: '', ward_type: '', floor: '', description: '' } });
-  const bedForm = useForm<BedForm>({ resolver: zodResolver(bedSchema), defaultValues: { ward_id: '', bed_number: '', bed_category: '', room_number: '' } });
   const policyForm = useForm<PolicyFormInput, unknown, PolicyForm>({ resolver: zodResolver(policySchema), defaultValues: { bed_hold_duration_minutes: 30, admission_consent_required: false, admission_advance_deposit_required: false, admission_minimum_deposit_amount: 0 } });
   const holdForm = useForm<HoldForm>({ resolver: zodResolver(holdSchema), defaultValues: { patient_id: '', reason: '' } });
   const transferForm = useForm<TransferForm>({ resolver: zodResolver(transferSchema), defaultValues: { destination_branch_id: branchId, destination_ward_id: '', destination_bed_id: '', reason: '' } });
@@ -88,8 +82,6 @@ export function BedManagementPage() {
   const selectedDestinationWard = transferForm.watch('destination_ward_id');
   const availableTransferBeds = useMemo(() => transferBeds.filter((bed) => !selectedDestinationWard || bed.ward_id === selectedDestinationWard), [selectedDestinationWard, transferBeds]);
 
-  const submitWard = wardForm.handleSubmit(async (values) => { try { await configuration.createWard.mutateAsync({ branch_id: branchId, ...values, description: values.description || null }); toast.success('Ward created successfully.'); wardForm.reset(); setModal(null); } catch (error) { toast.error(errorMessage(error)); } });
-  const submitBed = bedForm.handleSubmit(async (values) => { try { await configuration.createBed.mutateAsync({ branch_id: branchId, ...values, room_number: values.room_number || null }); toast.success('Bed created successfully.'); bedForm.reset(); setModal(null); } catch (error) { toast.error(errorMessage(error)); } });
   const submitPolicy = policyForm.handleSubmit(async (values) => { try { await configuration.savePolicy.mutateAsync({ branch_id: branchId, ...values }); toast.success('Admission policy saved.'); setModal(null); } catch (error) { toast.error(errorMessage(error)); } });
   const submitHold = holdForm.handleSubmit(async (values) => { if (!selectedBed) return; try { await configuration.createHold.mutateAsync({ bedId: selectedBed.id, body: { branch_id: branchId, patient_id: values.patient_id, reason: values.reason, idempotency_key: crypto.randomUUID() } }); toast.success('Bed held successfully.'); holdForm.reset(); setPatientSearch(''); setModal(null); } catch (error) { toast.error(errorMessage(error)); } });
   const submitTransfer = transferForm.handleSubmit(async (values) => { if (!selectedBed?.current_admission_id) return; try { const crossBranch = values.destination_branch_id !== branchId; await configuration.transfer.mutateAsync({ admissionId: selectedBed.current_admission_id, body: { branch_id: branchId, ...values }, crossBranch }); toast.success('Bed transfer completed.'); transferForm.reset(); setModal(null); } catch (error) { toast.error(errorMessage(error)); } });
@@ -98,13 +90,11 @@ export function BedManagementPage() {
   const runConfirmedAction = async () => {
     if (!confirmAction) return;
     try {
-      if (confirmAction.type === 'ward-status') { const next = confirmAction.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'; await configuration.wardStatus.mutateAsync({ id: confirmAction.id, body: { branch_id: branchId, status: next } }); toast.success(`Ward ${next === 'ACTIVE' ? 'activated' : 'deactivated'}.`); }
       if ((confirmAction.type === 'release-hold' || confirmAction.type === 'cancel-hold') && selectedBed?.current_hold_id) { const mutation = confirmAction.type === 'release-hold' ? configuration.releaseHold : configuration.cancelHold; await mutation.mutateAsync({ holdId: selectedBed.current_hold_id, body: { branch_id: branchId, reason: confirmAction.type === 'release-hold' ? 'Released by bed management user' : 'Cancelled by bed management user' } }); toast.success(confirmAction.type === 'release-hold' ? 'Bed hold released.' : 'Bed hold cancelled.'); }
       setConfirmAction(null);
     } catch (error) { toast.error(errorMessage(error)); }
   };
   const [activeSubTab, setActiveSubTab] = useState<'ward-overview' | 'bed-allocation'>('ward-overview');
-  const [selectedPatientForAllocation, setSelectedPatientForAllocation] = useState<any>(null);
 
   if (!branchId && feature.isSuperAdmin && feature.branchQuery.isLoading) return <div className="admin-dashboard-state"><strong>Loading authorized branches</strong><span>Fetching active branches.</span></div>;
   if (!branchId) return <div className="admin-dashboard-state admin-dashboard-state--error"><strong>No authorized branch</strong><span>Assign this user to an active branch before managing beds.</span></div>;
@@ -126,8 +116,6 @@ export function BedManagementPage() {
           <i className="ph ph-user-plus" /> Select Patient
         </button>
         {permissions.canViewPolicy && <button className="btn-secondary" type="button" onClick={() => setModal('policy')}><i className="ph ph-sliders-horizontal" /> Policy</button>}
-        {permissions.canCreateWard && <button className="btn-secondary" type="button" onClick={() => setModal('ward')}><i className="ph ph-buildings" /> Add Ward</button>}
-        {permissions.canCreateBed && <button className="btn-secondary" type="button" onClick={() => setModal('bed')}><i className="ph ph-bed" /> Add Bed</button>}
       </div>
     </header>
 
@@ -439,17 +427,100 @@ export function BedManagementPage() {
       </aside>
     </div>
 
-    <section className="content-card ward-table-panel" style={{ marginTop: '1.5rem' }}>
-      <div className="section-heading"><div><h2>Ward Configuration</h2><p>Active branch wards and operational status</p></div></div>
-      <div className="table-scroll"><table className="data-table"><thead><tr><th>Ward</th><th>Type</th><th>Floor</th><th>Status</th><th>Action</th></tr></thead><tbody>{wards.map((ward) => <tr key={ward.id}><td><strong>{ward.name}</strong><small>{ward.description || 'No description'}</small></td><td>{ward.ward_type}</td><td>{ward.floor}</td><td><StatusBadge tone={statusTone(ward.status)}>{ward.status}</StatusBadge></td><td>{permissions.canChangeWardStatus && <button className="btn-secondary compact" onClick={() => setConfirmAction({ type: 'ward-status', id: ward.id, label: ward.name, status: ward.status })} type="button">{ward.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>}</td></tr>)}</tbody></table></div>
-    </section>
+    <Modal
+      title="Admission Policy & Care-Level Rules"
+      open={modal === 'policy'}
+      onClose={() => setModal(null)}
+      footer={
+        <>
+          <button className="btn-secondary" onClick={() => setModal(null)} type="button">Close</button>
+          {permissions.canEditPolicy && (
+            <button className="btn-primary" disabled={configuration.savePolicy.isPending} onClick={() => void submitPolicy()} type="button">
+              Save Policy
+            </button>
+          )}
+        </>
+      }
+    >
+      <form className="modal-form-grid" onSubmit={submitPolicy} style={{ gap: '1rem' }}>
+        <div className="span-2" style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <strong style={{ fontSize: '0.82rem', color: '#1e293b', display: 'block', marginBottom: '0.4rem' }}>
+            <i className="ph ph-sliders" /> Quick Presets for Care Levels
+          </strong>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-secondary compact"
+              onClick={() => {
+                policyForm.setValue('bed_hold_duration_minutes', 240);
+                policyForm.setValue('admission_minimum_deposit_amount', 0);
+                policyForm.setValue('admission_consent_required', true);
+                policyForm.setValue('admission_advance_deposit_required', false);
+                toast.info('ICU / HDU Preset: $0 Deposit Barrier, Fast-Track Hold.');
+              }}
+              style={{ fontSize: '0.72rem' }}
+            >
+              ICU / HDU (Zero Deposit)
+            </button>
+            <button
+              type="button"
+              className="btn-secondary compact"
+              onClick={() => {
+                policyForm.setValue('bed_hold_duration_minutes', 60);
+                policyForm.setValue('admission_minimum_deposit_amount', 50);
+                policyForm.setValue('admission_consent_required', true);
+                policyForm.setValue('admission_advance_deposit_required', true);
+                toast.info('Day Care / Observation Preset: 60m Quick Hold.');
+              }}
+              style={{ fontSize: '0.72rem' }}
+            >
+              Day Care (60m Hold)
+            </button>
+            <button
+              type="button"
+              className="btn-secondary compact"
+              onClick={() => {
+                policyForm.setValue('bed_hold_duration_minutes', 180);
+                policyForm.setValue('admission_minimum_deposit_amount', 250);
+                policyForm.setValue('admission_consent_required', true);
+                policyForm.setValue('admission_advance_deposit_required', true);
+                toast.info('Private / Deluxe Ward Preset: Full Deposit & Consent.');
+              }}
+              style={{ fontSize: '0.72rem' }}
+            >
+              Private / Deluxe Ward
+            </button>
+          </div>
+        </div>
 
-    <Modal title="Add Ward" open={modal === 'ward'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Cancel</button><button className="btn-primary" disabled={configuration.createWard.isPending} onClick={() => void submitWard()} type="button">Save Ward</button></>}><form className="modal-form-grid" onSubmit={submitWard}><label>Ward name<input {...wardForm.register('name')} /></label><label>Ward type<input {...wardForm.register('ward_type')} /></label><label>Floor<input {...wardForm.register('floor')} /></label><label className="span-2">Description<textarea {...wardForm.register('description')} /></label></form></Modal>
-    <Modal title="Add Bed" open={modal === 'bed'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Cancel</button><button className="btn-primary" disabled={configuration.createBed.isPending} onClick={() => void submitBed()} type="button">Save Bed</button></>}><form className="modal-form-grid" onSubmit={submitBed}><label className="span-2">Ward<select {...bedForm.register('ward_id')}><option value="">Select ward</option>{wards.map((ward) => <option key={ward.id} value={ward.id}>{ward.name}</option>)}</select></label><label>Bed number<input {...bedForm.register('bed_number')} /></label><label>Bed category<input {...bedForm.register('bed_category')} /></label><label>Room number<input {...bedForm.register('room_number')} /></label></form></Modal>
-    <Modal title="Admission Policy" open={modal === 'policy'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Close</button>{permissions.canEditPolicy && <button className="btn-primary" disabled={configuration.savePolicy.isPending} onClick={() => void submitPolicy()} type="button">Save Policy</button>}</>}><form className="modal-form-grid" onSubmit={submitPolicy}><label>Hold duration (minutes)<input min="5" max="240" type="number" {...policyForm.register('bed_hold_duration_minutes')} /></label><label>Minimum deposit<input min="0" type="number" {...policyForm.register('admission_minimum_deposit_amount')} /></label><label className="checkbox-field"><input type="checkbox" {...policyForm.register('admission_consent_required')} /> Admission consent required</label><label className="checkbox-field"><input type="checkbox" {...policyForm.register('admission_advance_deposit_required')} /> Advance deposit required</label></form></Modal>
+        <label>
+          Hold duration (minutes)
+          <input min="5" max="240" type="number" {...policyForm.register('bed_hold_duration_minutes')} />
+        </label>
+        <label>
+          Minimum deposit ($)
+          <input min="0" type="number" {...policyForm.register('admission_minimum_deposit_amount')} />
+        </label>
+        <label className="checkbox-field">
+          <input type="checkbox" {...policyForm.register('admission_consent_required')} /> Admission consent required
+        </label>
+        <label className="checkbox-field">
+          <input type="checkbox" {...policyForm.register('admission_advance_deposit_required')} /> Advance deposit required
+        </label>
+
+        <div className="span-2" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem', fontSize: '0.75rem', color: '#64748b' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0369a1', marginBottom: '4px' }}>
+            <i className="ph ph-shield-check" /> <strong>Insurance & Cashless Pre-Auth:</strong> Advance deposit automatically waived for approved TPAs.
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b91c1c' }}>
+            <i className="ph ph-lightning" /> <strong>Emergency Fast-Track:</strong> Allows 24-hour documentation grace override during life-critical arrivals.
+          </div>
+        </div>
+      </form>
+    </Modal>
     <Modal title={`Hold ${selectedBed?.bed_number ?? 'Bed'}`} open={modal === 'hold'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Cancel</button><button className="btn-primary" disabled={configuration.createHold.isPending} onClick={() => void submitHold()} type="button">Confirm Hold</button></>}><form className="modal-form-grid" onSubmit={submitHold}><label className="span-2">Find patient<input placeholder="Search MRN, name or phone" value={patientSearch} onChange={(event) => setPatientSearch(event.target.value)} /></label><label className="span-2">Patient<select {...holdForm.register('patient_id')}><option value="">Select patient</option>{patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.patient_number} - {[patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ')}</option>)}</select></label><label className="span-2">Reason<textarea {...holdForm.register('reason')} /></label>{patientSearch.trim().length > 0 && patientSearch.trim().length < 2 && <p className="form-hint span-2">Enter at least two characters to search.</p>}</form></Modal>
     <Modal title={`Transfer from ${selectedBed?.bed_number ?? 'Bed'}`} open={modal === 'transfer'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Cancel</button><button className="btn-primary" disabled={configuration.transfer.isPending} onClick={() => void submitTransfer()} type="button">Confirm Transfer</button></>}><form className="modal-form-grid" onSubmit={submitTransfer}><label className="span-2">Destination branch<select {...transferForm.register('destination_branch_id')} onChange={(event) => { transferForm.setValue('destination_branch_id', event.target.value); transferForm.setValue('destination_ward_id', ''); transferForm.setValue('destination_bed_id', ''); updateParam('destination_branch', event.target.value, false); }}><option value="">Select branch</option>{feature.branches.map((branch) => <option key={branch.id} value={branch.id} disabled={branch.id !== branchId && !permissions.canCrossBranchTransfer}>{branch.name}</option>)}</select></label><label>Destination ward<select {...transferForm.register('destination_ward_id')}><option value="">Select ward</option>{transferWards.map((ward) => <option key={ward.id} value={ward.id}>{ward.name}</option>)}</select></label><label>Destination bed<select {...transferForm.register('destination_bed_id')}><option value="">Select available bed</option>{availableTransferBeds.filter((bed) => bed.id !== selectedBed?.id).map((bed) => <option key={bed.id} value={bed.id}>{bed.bed_number}{bed.room_number ? ` / Room ${bed.room_number}` : ''}</option>)}</select></label><label className="span-2">Reason<textarea {...transferForm.register('reason')} /></label></form></Modal>
     <Modal title={`Change ${selectedBed?.bed_number ?? 'Bed'} Status`} open={modal === 'status'} onClose={() => setModal(null)} footer={<><button className="btn-secondary" onClick={() => setModal(null)} type="button">Cancel</button><button className="btn-primary" disabled={configuration.bedStatus.isPending} onClick={() => void submitStatus()} type="button">Update Status</button></>}><form className="modal-form-grid" onSubmit={submitStatus}><label className="span-2">Status<select {...statusForm.register('status')}><option value="AVAILABLE">Available</option><option value="BLOCKED">Blocked</option><option value="UNDER_MAINTENANCE">Under Maintenance</option><option value="INACTIVE">Inactive</option></select></label><label className="span-2">Reason<textarea {...statusForm.register('reason')} /></label></form></Modal>
-    <ConfirmDialog open={Boolean(confirmAction)} title={confirmAction?.type === 'ward-status' ? 'Change ward status' : 'Confirm hold action'} message={confirmAction ? `${confirmAction.type === 'ward-status' ? 'Change the operational status of' : confirmAction.type === 'release-hold' ? 'Release the active hold on' : 'Cancel the active hold on'} ${confirmAction.label}?` : ''} confirmLabel="Confirm" onCancel={() => setConfirmAction(null)} onConfirm={() => void runConfirmedAction()} />
+    <ConfirmDialog open={Boolean(confirmAction)} title="Confirm hold action" message={confirmAction ? `${confirmAction.type === 'release-hold' ? 'Release the active hold on' : 'Cancel the active hold on'} ${confirmAction.label}?` : ''} confirmLabel="Confirm" onCancel={() => setConfirmAction(null)} onConfirm={() => void runConfirmedAction()} />
   </div>;
 }

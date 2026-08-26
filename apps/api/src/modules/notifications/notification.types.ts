@@ -4,6 +4,7 @@ export type Notification = {
   id: string;
   recipient_role: string | null;
   recipient_user_id: string | null;
+  recipient_branch_id: string | null;
   title: string;
   message: string;
   type: NotificationType;
@@ -16,6 +17,7 @@ export type Notification = {
 export type CreateNotificationDTO = {
   recipient_role?: string | null;
   recipient_user_id?: string | null;
+  recipient_branch_id?: string | null;
   title: string;
   message: string;
   type: NotificationType;

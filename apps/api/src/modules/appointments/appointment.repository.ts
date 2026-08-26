@@ -1,4 +1,4 @@
-import { Types, type SortOrder } from 'mongoose';
+import { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -214,8 +214,13 @@ export class AppointmentRepository {
     return appointment ? toAppointment(appointment) : undefined;
   }
 
-  async create(data: AppointmentCreateRecord, userId: string): Promise<Appointment> {
-    const created = await AppointmentModel.create(buildCreatePayload(data, userId));
+  async create(data: AppointmentCreateRecord, userId: string, session?: ClientSession): Promise<Appointment> {
+    const records = await AppointmentModel.create(
+      [buildCreatePayload(data, userId)],
+      session ? { session } : undefined,
+    );
+    const created = records[0];
+    if (!created) throw new AppError('Appointment could not be created', 500, 'APPOINTMENT_CREATE_FAILED');
     return toAppointment(created.toObject<AppointmentLean>());
   }
 
@@ -334,8 +339,8 @@ async auditStatusTransition(
   });
 }
 
-async auditCreated(appointment: Appointment, actorUserId: string) {
-  await AuditLogModel.create({
+async auditCreated(appointment: Appointment, actorUserId: string, session?: ClientSession) {
+  await AuditLogModel.create([{
     actorUserId,
     eventType: 'appointment.created',
     metadataJson: {
@@ -345,7 +350,7 @@ async auditCreated(appointment: Appointment, actorUserId: string) {
       doctorId: appointment.doctor_id,
       patientId: appointment.patient_id,
     },
-  });
+  }], session ? { session } : undefined);
 }
 
 async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
@@ -358,7 +363,8 @@ async auditRescheduled(previous: Appointment, appointment: Appointment, reason: 
   } });
 }
 
-  async nextAppointmentSequence() {
-    return AppointmentModel.countDocuments();
+  async nextAppointmentSequence(session?: ClientSession) {
+    const query = AppointmentModel.countDocuments();
+    return session ? query.session(session) : query;
   }
 }

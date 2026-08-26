@@ -29,6 +29,14 @@ export function useBranchManagementFeature() {
   const canEdit = can('Edit');
   const canDelete = can('Delete');
   const canExport = can('Export');
+  const canConfigureWards = isSuperAdmin || (
+    hasPermission(user?.permissions ?? [], { module: 'Admissions', screen: 'Wards', action: 'View' })
+    && hasPermission(user?.permissions ?? [], { module: 'Admissions', screen: 'Wards', action: 'Create' })
+  );
+  const canConfigureBeds = isSuperAdmin || (
+    hasPermission(user?.permissions ?? [], { module: 'Admissions', screen: 'Beds', action: 'View' })
+    && hasPermission(user?.permissions ?? [], { module: 'Admissions', screen: 'Beds', action: 'Create' })
+  );
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ApiBranchStatus | ''>('');
@@ -124,6 +132,8 @@ export function useBranchManagementFeature() {
       canEdit,
       canDelete,
       canExport,
+      canConfigureWards,
+      canConfigureBeds,
     },
     actions: {
       handleSort,

@@ -144,6 +144,7 @@ doctors: new DoctorService(
       patientRepository,
       doctorRepository,
       opdConsultationRepository,
+      new NotificationService(notificationRepository),
     ),
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
     opdConsultations: new OpdConsultationService(

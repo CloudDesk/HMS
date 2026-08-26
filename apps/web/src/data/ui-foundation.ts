@@ -39,6 +39,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/appointments/book', label: 'Book Appointment' },
       { href: '/appointments/referrals', label: 'Referral Booking' },
       { href: '/appointments/calendar', label: 'Calendar View' },
+      { href: '/appointments/queue', label: 'Queue Management' },
     ],
   },
   {
@@ -47,7 +48,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-first-aid',
     links: [
       { href: '/opd/consultation', label: 'Consultation' },
-      { href: '/opd/queue', label: 'Queue Management' },
+      { href: '/opd/queue', label: 'Waiting Queue' },
     ],
   },
   {

@@ -156,7 +156,7 @@ export class EmergencyRepository {
     })
       .session(session)
       .lean();
-    const department = await DepartmentModel.findOne({
+    let department = await DepartmentModel.findOne({
       _id: oid(data.department_id),
       branchIds: oid(data.branch_id),
       status: 'ACTIVE',
@@ -165,6 +165,16 @@ export class EmergencyRepository {
     })
       .session(session)
       .lean();
+    if (!department) {
+      department = await DepartmentModel.findOne({
+        _id: oid(data.department_id),
+        status: 'ACTIVE',
+        isClinical: true,
+        deletedAt: null,
+      })
+        .session(session)
+        .lean();
+    }
     const patient = data.patient_id
       ? await PatientModel.findOne({
           _id: oid(data.patient_id),

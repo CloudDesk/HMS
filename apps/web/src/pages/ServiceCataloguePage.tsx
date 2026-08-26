@@ -232,11 +232,30 @@ export function ServiceCataloguePage() {
   };
 
   // ── Derived: filter departments by selected branches ──────────────────────
+  const uniqueDepartments = useMemo(() => {
+    const seen = new Set<string>();
+    return departments.filter((d) => {
+      const key = d.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [departments]);
+
   const formDepartmentOptions = useMemo(() => {
-    if (modalBranchIds.length === 0) return departments;
-    return departments.filter((department) =>
-      modalBranchIds.some((bId) => department.branch_ids.includes(bId))
-    );
+    let list = departments;
+    if (modalBranchIds.length > 0) {
+      list = departments.filter((department) =>
+        modalBranchIds.some((bId) => department.branch_ids.includes(bId))
+      );
+    }
+    const seen = new Set<string>();
+    return list.filter((d) => {
+      const key = d.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [departments, modalBranchIds]);
 
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
@@ -496,7 +515,7 @@ export function ServiceCataloguePage() {
                   value={deptFilter}
                 >
                   <option value="">All Departments</option>
-                  {departments.map((d) => (
+                  {uniqueDepartments.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
@@ -897,19 +916,62 @@ export function ServiceCataloguePage() {
               </label>
             </div>
 
-            {svcForm.watch('service_type') === 'PROCEDURE' ? <>
-              <div className="form-section-title">Procedure Booking Rules</div>
-              <div className="form-grid-3">
-                <label className="form-field"><span>Default Duration (minutes) <span className="required">*</span></span><input type="number" min="5" max="720" {...svcForm.register('default_duration_minutes')} /></label>
-                <label className="form-field"><span>Overlapping Booking Capacity <span className="required">*</span></span><input type="number" min="1" max="100" {...svcForm.register('booking_capacity')} /></label>
-                <label className="form-field"><span>Minimum Advance Deposit</span><input type="number" min="0" step="0.01" disabled={!svcForm.watch('requires_advance_deposit')} {...svcForm.register('minimum_advance_deposit_amount')} /></label>
-              </div>
-              <div className="form-grid-3">
-                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_bed')} /> Requires bed hold</span></label>
-                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_consent')} /> Requires signed consent</span></label>
-                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_advance_deposit')} /> Requires advance deposit</span></label>
-              </div>
-            </> : null}
+            {svcForm.watch('service_type') === 'PROCEDURE' ? (
+              <>
+                <div className="form-section-title">Procedure Booking Rules & Requirements</div>
+                <div className="form-grid-3" style={{ marginBottom: '0.85rem' }}>
+                  <label className="form-field">
+                    <span>Default Duration (minutes) <span className="required">*</span></span>
+                    <input type="number" min="5" max="720" placeholder="e.g. 60" {...svcForm.register('default_duration_minutes')} />
+                  </label>
+                  <label className="form-field">
+                    <span>Overlapping Booking Capacity <span className="required">*</span></span>
+                    <input type="number" min="1" max="100" placeholder="e.g. 1" {...svcForm.register('booking_capacity')} />
+                  </label>
+                  <label className="form-field">
+                    <span>Minimum Advance Deposit ($)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      disabled={!svcForm.watch('requires_advance_deposit')}
+                      {...svcForm.register('minimum_advance_deposit_amount')}
+                    />
+                  </label>
+                </div>
+
+                {/* Styled Requirement Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                      {...svcForm.register('requires_bed')}
+                    />
+                    <span>Requires Bed Hold</span>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                      {...svcForm.register('requires_consent')}
+                    />
+                    <span>Requires Signed Consent</span>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                      {...svcForm.register('requires_advance_deposit')}
+                    />
+                    <span>Requires Advance Deposit</span>
+                  </label>
+                </div>
+              </>
+            ) : null}
 
             <div className="form-section-title">Additional Information</div>
             <div className="form-grid-3">

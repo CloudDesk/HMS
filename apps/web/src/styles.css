@@ -12436,6 +12436,17 @@ textarea.has-error {
 .modal-form-grid textarea { min-height: 82px; resize: vertical; }
 .modal-form-grid .checkbox-field { display: flex; align-items: center; grid-auto-flow: column; justify-content: start; }
 .modal-form-grid .checkbox-field input { width: 17px; min-height: 17px; }
+.modal-form-grid label > small { color: #dc2626; font-size: 11px; font-weight: 500; }
+
+.branch-infrastructure { display: grid; gap: 20px; }
+.branch-infrastructure-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.branch-infrastructure-summary > div { min-width: 0; padding: 12px 14px; border: 1px solid #dbe3ef; border-radius: 6px; background: #f8fafc; }
+.branch-infrastructure-summary span { display: block; color: #64748b; font-size: 12px; }
+.branch-infrastructure-summary strong { display: block; margin-top: 3px; color: #0f172a; font-size: 20px; }
+.branch-infrastructure-section { min-width: 0; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+.branch-infrastructure-section .section-heading { padding: 0 0 12px; }
+.branch-infrastructure-section .data-table td small { display: block; margin-top: 3px; color: #64748b; }
+.branch-infrastructure .empty-state { min-height: 150px; }
 .form-hint { margin: 0; color: #64748b; font-size: 11px; }
 
 @media (max-width: 1200px) {
@@ -12455,6 +12466,7 @@ textarea.has-error {
   .bed-kpi-grid,
   .modal-form-grid { grid-template-columns: 1fr; }
   .modal-form-grid .span-2 { grid-column: auto; }
+  .branch-infrastructure-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bed-grid.bed-grid--live { grid-template-columns: 1fr; }
   .bed-pagination { align-items: flex-start; flex-direction: column; gap: 10px; }
 }
@@ -12864,8 +12876,22 @@ textarea.has-error {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 270px);
+  min-height: 400px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.admission-table-container table {
+  min-width: 950px;
+  width: 100%;
+}
+.admission-table-container thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 .admission-side-panel {
   background: #ffffff;

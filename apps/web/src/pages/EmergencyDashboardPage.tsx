@@ -542,132 +542,251 @@ export function EmergencyDashboardPage() {
         open={registrationOpen}
         size="large"
         title="Register Emergency Encounter"
+        icon="ph-first-aid"
       >
-        <form className="form-grid" onSubmit={createEncounter}>
-          <label>
-            Department <span className="required-asterisk" style={{ color: '#dc2626' }}>*</span>
-            <select {...registration.register('department_id')}>
-              <option value="">Select department</option>
-              {state.departments.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            {registration.formState.errors.department_id?.message && (
-              <span className="field-error" style={{ color: '#dc2626', fontSize: '0.75rem' }}>
-                {registration.formState.errors.department_id.message}
-              </span>
-            )}
-          </label>
+        <form onSubmit={createEncounter} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '520px' }}>
+          {/* Identity Mode Pill Selector */}
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
+            <button
+              type="button"
+              onClick={() => registration.setValue('identity_mode', 'KNOWN')}
+              style={{
+                flex: 1,
+                padding: '7px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: identityMode === 'KNOWN' ? '#ffffff' : 'transparent',
+                color: identityMode === 'KNOWN' ? '#dc2626' : '#64748b',
+                boxShadow: identityMode === 'KNOWN' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
+            >
+              <i className="ph ph-user" /> Existing Patient (MRN Lookup)
+            </button>
+            <button
+              type="button"
+              onClick={() => registration.setValue('identity_mode', 'PROVISIONAL')}
+              style={{
+                flex: 1,
+                padding: '7px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: identityMode === 'PROVISIONAL' ? '#ffffff' : 'transparent',
+                color: identityMode === 'PROVISIONAL' ? '#dc2626' : '#64748b',
+                boxShadow: identityMode === 'PROVISIONAL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
+            >
+              <i className="ph ph-warning-circle" /> Unknown / Trauma Provisional
+            </button>
+          </div>
 
-          <label>
-            Identity mode
-            <select {...registration.register('identity_mode')}>
-              <option value="KNOWN">Existing patient</option>
-              <option value="PROVISIONAL">Unknown / incomplete identity</option>
-            </select>
-          </label>
+          {/* Department & Arrival Mode Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+            <div>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                Department <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <select
+                {...registration.register('department_id')}
+                style={{ width: '100%', height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+              >
+                <option value="">Select department</option>
+                {state.departments.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              {registration.formState.errors.department_id?.message && (
+                <span style={{ color: '#dc2626', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
+                  {registration.formState.errors.department_id.message}
+                </span>
+              )}
+            </div>
 
+            <div>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                Arrival Mode <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <select
+                {...registration.register('arrival_mode')}
+                style={{ width: '100%', height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+              >
+                <option value="Ambulance">🚑 Ambulance</option>
+                <option value="Walk-in">🚶 Walk-in</option>
+                <option value="Police">🚓 Police</option>
+                <option value="Referral">📋 Referral</option>
+                <option value="Air Ambulance">🚁 Air Ambulance</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Patient Selection vs Provisional Identity */}
           {identityMode === 'KNOWN' ? (
-            <>
-              <label className="form-grid__full">
-                Search patient
+            <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                  Search Patient (MRN, Name, Phone)
+                </label>
                 <input
                   onChange={(event) => actions.setPatientSearch(event.target.value)}
-                  placeholder="MRN, name or phone"
+                  placeholder="Type MRN or name to filter registered patients..."
                   value={state.patientSearch}
+                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '0.82rem' }}
                 />
-              </label>
-              <label className="form-grid__full">
-                Patient <span className="required-asterisk" style={{ color: '#dc2626' }}>*</span>
-                <select {...registration.register('patient_id')}>
-                  <option value="">Select patient</option>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                  Select Patient <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <select
+                  {...registration.register('patient_id')}
+                  style={{ width: '100%', height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+                >
+                  <option value="">Select patient record</option>
                   {state.patients.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.patient_number} - {item.first_name} {item.last_name}
+                      {item.patient_number} - {item.first_name} {item.last_name} ({item.gender}, {item.date_of_birth?.slice(0, 10) || 'N/A'})
                     </option>
                   ))}
                 </select>
                 {registration.formState.errors.patient_id?.message && (
-                  <span className="field-error" style={{ color: '#dc2626', fontSize: '0.75rem' }}>
+                  <span style={{ color: '#dc2626', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
                     {registration.formState.errors.patient_id.message}
                   </span>
                 )}
-              </label>
-            </>
+              </div>
+            </div>
           ) : (
-            <>
-              <label>
-                Display name / description <span className="required-asterisk" style={{ color: '#dc2626' }}>*</span>
-                <input {...registration.register('display_name')} placeholder="e.g. Unknown Trauma Male #1" />
-                {registration.formState.errors.display_name?.message && (
-                  <span className="field-error" style={{ color: '#dc2626', fontSize: '0.75rem' }}>
-                    {registration.formState.errors.display_name.message}
-                  </span>
-                )}
-              </label>
-              <label>
-                Estimated age
-                <input type="number" {...registration.register('estimated_age', numericInput)} placeholder="e.g. 45" />
-              </label>
-              <label>
-                Gender
-                <select {...registration.register('gender')}>
-                  <option value="UNKNOWN">UNKNOWN</option>
-                  <option value="MALE">MALE</option>
-                  <option value="FEMALE">FEMALE</option>
-                  <option value="OTHER">OTHER</option>
-                </select>
-              </label>
-              <label>
-                Contact
-                <input {...registration.register('contact')} placeholder="Phone or bystander contact" />
-              </label>
-              <label className="form-grid__full">
-                Identity notes
-                <textarea {...registration.register('identity_notes')} placeholder="Physical description, tattoos, clothing, found location..." />
-              </label>
-            </>
+            <div style={{ background: '#fef2f2', padding: '0.85rem', borderRadius: '8px', border: '1px solid #fecaca', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '0.65rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
+                    Provisional Identifier / Tag <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    {...registration.register('display_name')}
+                    placeholder="e.g. Unknown Trauma Male #1"
+                    style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
+                  />
+                  {registration.formState.errors.display_name?.message && (
+                    <span style={{ color: '#dc2626', fontSize: '0.72rem' }}>{registration.formState.errors.display_name.message}</span>
+                  )}
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
+                    Estimated Age
+                  </label>
+                  <input
+                    type="number"
+                    {...registration.register('estimated_age', numericInput)}
+                    placeholder="e.g. 45"
+                    style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
+                    Gender
+                  </label>
+                  <select
+                    {...registration.register('gender')}
+                    style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
+                  >
+                    <option value="UNKNOWN">UNKNOWN</option>
+                    <option value="MALE">MALE</option>
+                    <option value="FEMALE">FEMALE</option>
+                    <option value="OTHER">OTHER</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
+                  Bystander / EMS Contact
+                </label>
+                <input
+                  {...registration.register('contact')}
+                  placeholder="Phone, paramedic badge # or bystander info"
+                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
+                  Physical Description / Triage Notes
+                </label>
+                <textarea
+                  {...registration.register('identity_notes')}
+                  placeholder="Physical description, tattoos, clothing, found location..."
+                  rows={2}
+                  style={{ width: '100%', borderRadius: '6px', border: '1px solid #fca5a5', padding: '6px 8px', fontSize: '0.82rem' }}
+                />
+              </div>
+            </div>
           )}
 
-          <label>
-            Arrival mode <span className="required-asterisk" style={{ color: '#dc2626' }}>*</span>
-            <select {...registration.register('arrival_mode')}>
-              <option value="Ambulance">Ambulance</option>
-              <option value="Walk-in">Walk-in</option>
-              <option value="Police">Police</option>
-              <option value="Referral">Referral</option>
-              <option value="Air Ambulance">Air Ambulance</option>
-              <option value="Other">Other</option>
-            </select>
-          </label>
-
-          <label className="form-grid__full">
-            Chief complaint <span className="required-asterisk" style={{ color: '#dc2626' }}>*</span>
-            <textarea {...registration.register('chief_complaint')} placeholder="Primary presenting emergency..." />
+          {/* Chief Complaint */}
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
+              Chief Emergency Complaint <span style={{ color: '#dc2626' }}>*</span>
+            </label>
+            <textarea
+              {...registration.register('chief_complaint')}
+              placeholder="Primary presenting emergency (e.g. Acute chest pain radiating to left arm, severe SOB, polytrauma)..."
+              rows={2}
+              style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '8px', fontSize: '0.82rem' }}
+            />
             {registration.formState.errors.chief_complaint?.message && (
-              <span className="field-error" style={{ color: '#dc2626', fontSize: '0.75rem' }}>
+              <span style={{ color: '#dc2626', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
                 {registration.formState.errors.chief_complaint.message}
               </span>
             )}
-          </label>
+          </div>
 
-          <label className="form-grid__full">
-            Arrival notes
-            <textarea {...registration.register('arrival_notes')} placeholder="Initial paramedic or intake notes..." />
-          </label>
+          {/* Arrival Notes */}
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
+              Paramedic / Intake Notes <span style={{ color: '#64748b', fontWeight: 400 }}>(Optional)</span>
+            </label>
+            <textarea
+              {...registration.register('arrival_notes')}
+              placeholder="Initial paramedic observations, on-scene vitals, intake details..."
+              rows={2}
+              style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '8px', fontSize: '0.82rem' }}
+            />
+          </div>
 
-          <div className="form-grid__full page-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+          {/* Modal Footer Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
             <button
               className="btn-emergency-secondary"
               onClick={() => setRegistrationOpen(false)}
               type="button"
+              style={{ padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#334155', cursor: 'pointer', fontWeight: 600 }}
             >
               Cancel
             </button>
-            <button className="btn-emergency-primary" disabled={mutations.create.isPending} type="submit">
-              {mutations.create.isPending ? 'Registering...' : 'Register Encounter'}
+            <button
+              disabled={mutations.create.isPending}
+              type="submit"
+              style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#ffffff', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <i className="ph ph-plus-circle" /> {mutations.create.isPending ? 'Registering...' : 'Register Encounter'}
             </button>
           </div>
         </form>

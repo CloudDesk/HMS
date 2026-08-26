@@ -1,9 +1,7 @@
 import { useMemo } from 'react';
-import { useOpdVisits, useCreateOpdVisit, useUpdateOpdVisitStatus, useCreateOpdVitals } from './useOpd';
-import { useAppointmentsList as useAppointments } from '../appointments/useAppointments';
+import { useOpdVisits, useUpdateOpdVisitStatus } from './useOpd';
 import { useDoctorsList as useDoctors } from '../doctors/useDoctors';
 import { useDepartmentsList as useDepartments } from '../departments/useDepartments';
-import { usePatientsList as usePatients } from '../patients/usePatients';
 import { type ApiOpdVisitPriority, type ApiOpdVisitStatus } from '../../api/opd';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
@@ -26,9 +24,7 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
 
   // Capability flags — owned here so pages never need to traverse permissions
-  const canCreateVisit = canAction('OPD', 'OPD Visits', 'Create');
   const canEditVisit = canAction('OPD', 'OPD Visits', 'Edit');
-  const canCreateVitals = canAction('OPD', 'OPD Vitals', 'Create');
 
   // Queries
   const { data: visitsData, isLoading: visitsLoading, error: visitsError } = useOpdVisits({
@@ -41,18 +37,7 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     limit: 100,
     sortBy: 'check_in_time',
     sortOrder: 'asc',
-  }, canAccess('OPD', 'OPD Visits'));
-
-  const { data: appointmentsData, isLoading: appointmentsLoading, error: appointmentsError } = useAppointments({
-    search: filters.search || undefined,
-    doctor_id: filters.doctor_id || undefined,
-    department_id: filters.department_id || undefined,
-    date_from: filters.date,
-    date_to: filters.date,
-    limit: 100,
-    sortBy: 'start_time',
-    sortOrder: 'asc',
-  }, canAccess('Appointments', 'Appointment Records'));
+  }, canAccess('OPD', 'OPD Visits'), 5_000);
 
   const { data: doctorsData, isLoading: doctorsLoading } = useDoctors(
     { status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' },
@@ -64,15 +49,8 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     canAccess('Administration', 'Departments')
   );
   
-  const { data: patientsData, isLoading: patientsLoading } = usePatients(
-    { status: 'ACTIVE', limit: 100, sortBy: 'created_at', sortOrder: 'desc' },
-    canAccess('Patients', 'Patient Records')
-  );
-
   // Mutations
-  const { mutateAsync: createVisit, isPending: isCreatingVisit } = useCreateOpdVisit();
   const { mutateAsync: updateVisitStatus, isPending: isUpdatingVisit } = useUpdateOpdVisitStatus();
-  const { mutateAsync: createVitals, isPending: isCreatingVitals } = useCreateOpdVitals();
 
   const visits = useMemo(() => {
     let filtered = visitsData?.data ?? [];
@@ -82,30 +60,21 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     return filtered;
   }, [visitsData, filters.priority]);
 
-  const appointments = appointmentsData?.data ?? [];
   const doctors = doctorsData?.data ?? [];
   const departments = departmentsData?.data ?? [];
-  const patients = patientsData?.data ?? [];
-
-  const isLoading = visitsLoading || appointmentsLoading || doctorsLoading || departmentsLoading || patientsLoading;
-  const error = visitsError || appointmentsError;
-  const isUpdating = isCreatingVisit || isUpdatingVisit || isCreatingVitals;
+  const isLoading = visitsLoading || doctorsLoading || departmentsLoading;
+  const error = visitsError;
+  const isUpdating = isUpdatingVisit;
 
   return {
     visits,
-    appointments,
     doctors,
     departments,
-    patients,
     isLoading,
     error,
     isUpdating,
-    createVisit,
     updateVisitStatus,
-    createVitals,
     // Capability flags
-    canCreateVisit,
     canEditVisit,
-    canCreateVitals,
   };
 }

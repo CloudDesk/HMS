@@ -16,6 +16,9 @@ type AdmissionsConfigurationParams = {
   page: number;
   limit: number;
   canViewPolicy: boolean;
+  enabled?: boolean;
+  canViewWards?: boolean;
+  canViewBeds?: boolean;
 };
 
 export const admissionsConfigurationKeys = {
@@ -42,6 +45,9 @@ export const useAdmissionsConfiguration = ({
   page,
   limit,
   canViewPolicy,
+  enabled = true,
+  canViewWards = true,
+  canViewBeds = true,
 }: AdmissionsConfigurationParams) => {
   const queryClient = useQueryClient();
 
@@ -62,25 +68,25 @@ export const useAdmissionsConfiguration = ({
   const wardsQuery = useQuery({
     queryKey: admissionsConfigurationKeys.wardList(branchId, wardParams),
     queryFn: () => admissionsConfigurationService.wards(wardParams),
-    enabled: Boolean(branchId),
+    enabled: enabled && canViewWards && Boolean(branchId),
   });
 
   const bedsQuery = useQuery({
     queryKey: admissionsConfigurationKeys.bedList(branchId, bedParams),
     queryFn: () => admissionsConfigurationService.beds(bedParams),
-    enabled: Boolean(branchId),
+    enabled: enabled && canViewBeds && Boolean(branchId),
   });
 
   const summaryQuery = useQuery({
     queryKey: admissionsConfigurationKeys.summary(branchId),
     queryFn: () => admissionsConfigurationService.summary(branchId),
-    enabled: Boolean(branchId),
+    enabled: enabled && canViewBeds && Boolean(branchId),
   });
 
   const policyQuery = useQuery({
     queryKey: admissionsConfigurationKeys.policy(branchId),
     queryFn: () => admissionsConfigurationService.policy(branchId),
-    enabled: Boolean(branchId) && canViewPolicy,
+    enabled: enabled && Boolean(branchId) && canViewPolicy,
     retry: false,
   });
 
