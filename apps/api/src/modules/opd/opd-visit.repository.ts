@@ -1,4 +1,4 @@
-import { Types, type ClientSession, type SortOrder } from 'mongoose';
+import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { OpdVisitModel, type OpdVisitFields } from './opd-visit.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -11,6 +11,8 @@ type OpdVisitLean = OpdVisitFields & { _id: Types.ObjectId };
 
 type CreateOpdVisitRecord = Omit<CreateOpdVisitDTO, 'appointment_id' | 'patient_id' | 'doctor_id'> & {
   visitNumber: string;
+  queueTokenNumber: number;
+  initialStatus?: OpdVisit['status'];
   appointmentId?: string | null;
   patientId: string;
   patientNumber: string;
@@ -38,6 +40,7 @@ const requiredObjectId = (value: string) => new Types.ObjectId(value);
 const toVisit = (visit: OpdVisitLean): OpdVisit => ({
   id: visit._id.toString(),
   visit_number: visit.visitNumber,
+  queue_token_number: visit.queueTokenNumber ?? null,
   appointment_id: visit.appointmentId?.toString() ?? null,
   patient_id: visit.patientId.toString(),
   patient_number: visit.patientNumber,
@@ -71,13 +74,22 @@ const sortColumnMap = {
 const terminalStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
 export class OpdVisitRepository {
+  session() {
+    return mongoose.startSession();
+  }
+
   async getAdmissionSource(id: string, session: ClientSession) {
     return OpdVisitModel.findOne({ _id: requiredObjectId(id), deletedAt: null }).session(session).lean<OpdVisitLean>();
   }
 
   async markAdmissionConverted(id: string, admissionId: string, userId: string, session: ClientSession) {
-    return OpdVisitModel.findOneAndUpdate({ _id: requiredObjectId(id), inpatientAdmissionId: null, deletedAt: null }, { $set: { inpatientAdmissionId: requiredObjectId(admissionId), admissionConvertedAt: new Date(), updatedBy: requiredObjectId(userId) } }, { new: true, session }).lean<OpdVisitLean>();
+    return OpdVisitModel.findOneAndUpdate(
+      { _id: requiredObjectId(id), inpatientAdmissionId: null, deletedAt: null },
+      { $set: { inpatientAdmissionId: requiredObjectId(admissionId), admissionConvertedAt: new Date(), updatedBy: requiredObjectId(userId) } },
+      { new: true, session }
+    ).lean<OpdVisitLean>();
   }
+
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds').lean();
@@ -97,6 +109,35 @@ export class OpdVisitRepository {
       _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null,
     }).select('_id').lean();
     return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async reconcileStaleVisits(): Promise<number> {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const staleStatuses: OpdVisit['status'][] = [
+      'CHECKED_IN',
+      'WAITING_FOR_VITALS',
+      'READY_FOR_CONSULTATION',
+      'SKIPPED',
+    ];
+
+    const result = await OpdVisitModel.updateMany(
+      {
+        visitDate: { $lt: todayStart },
+        status: { $in: staleStatuses },
+        deletedAt: null,
+      },
+      {
+        $set: {
+          status: 'NO_SHOW',
+          notes: 'Automatically marked as NO_SHOW during end-of-day reconciliation.',
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    return result.modifiedCount;
   }
 
   async list(query: OpdVisitListQuery, branchIds?: string[]) {
@@ -153,7 +194,8 @@ export class OpdVisitRepository {
 
   async getById(id: string, branchIds?: string[]): Promise<OpdVisit | undefined> {
     const visit = await OpdVisitModel.findOne({
-      _id: id, deletedAt: null,
+      _id: id,
+      deletedAt: null,
       ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}),
     }).lean<OpdVisitLean>();
     return visit ? toVisit(visit) : undefined;
@@ -168,17 +210,22 @@ export class OpdVisitRepository {
   }
 
   async findActiveByPatient(patientId: string): Promise<OpdVisit | undefined> {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
     const visit = await OpdVisitModel.findOne({
       patientId: requiredObjectId(patientId),
+      visitDate: { $gte: todayStart },
       status: { $nin: terminalStatuses },
       deletedAt: null,
     }).lean<OpdVisitLean>();
     return visit ? toVisit(visit) : undefined;
   }
 
-  async create(data: CreateOpdVisitRecord, userId: string): Promise<OpdVisit> {
-    const created = await OpdVisitModel.create({
+  async create(data: CreateOpdVisitRecord, userId: string, session?: ClientSession): Promise<OpdVisit> {
+    const records = await OpdVisitModel.create([{
       visitNumber: data.visitNumber,
+      queueTokenNumber: data.queueTokenNumber,
       ...(data.appointmentId ? { appointmentId: requiredObjectId(data.appointmentId) } : {}),
       patientId: requiredObjectId(data.patientId),
       patientNumber: data.patientNumber,
@@ -192,12 +239,14 @@ export class OpdVisitRepository {
       checkInTime: data.checkInTime,
       visitType: data.visit_type ?? 'WALK_IN',
       priority: data.priority ?? 'ROUTINE',
-      status: 'CHECKED_IN',
+      status: data.initialStatus ?? 'CHECKED_IN',
       reason: nullableString(data.reason),
       notes: nullableString(data.notes),
       createdBy: requiredObjectId(userId),
       updatedBy: requiredObjectId(userId),
-    });
+    }], session ? { session } : undefined);
+    const created = records[0];
+    if (!created) throw new AppError('OPD visit could not be created', 500, 'OPD_VISIT_CREATE_FAILED');
     return toVisit(created.toObject<OpdVisitLean>());
   }
 
@@ -217,8 +266,46 @@ export class OpdVisitRepository {
     return visit ? toVisit(visit) : undefined;
   }
 
-  async auditStatusTransition(visit: OpdVisit, previousStatus: OpdVisit['status'], actorUserId: string) {
-    await AuditLogModel.create({
+  async startNextReadyVisit(current: OpdVisit, userId: string, session: ClientSession): Promise<OpdVisit | undefined> {
+    const visit = await OpdVisitModel.findOneAndUpdate(
+      {
+        branchId: requiredObjectId(current.branch_id),
+        doctorId: requiredObjectId(current.doctor_id),
+        visitDate: current.visit_date,
+        status: 'READY_FOR_CONSULTATION',
+        deletedAt: null,
+      },
+      { $set: { status: 'IN_CONSULTATION', updatedBy: requiredObjectId(userId) } },
+      {
+        new: true,
+        session,
+        sort: { queueTokenNumber: 1, checkInTime: 1, _id: 1 },
+      },
+    ).lean<OpdVisitLean>();
+    return visit ? toVisit(visit) : undefined;
+  }
+
+  async claimNextPatientCall(currentVisitId: string, nextVisitId: string, userId: string, session: ClientSession) {
+    return OpdVisitModel.findOneAndUpdate(
+      {
+        _id: requiredObjectId(currentVisitId),
+        status: 'COMPLETED',
+        nextPatientCalledAt: null,
+        deletedAt: null,
+      },
+      {
+        $set: {
+          nextPatientCalledAt: new Date(),
+          nextPatientVisitId: requiredObjectId(nextVisitId),
+          updatedBy: requiredObjectId(userId),
+        },
+      },
+      { new: true, session },
+    ).lean<OpdVisitLean>();
+  }
+
+  async auditStatusTransition(visit: OpdVisit, previousStatus: OpdVisit['status'], actorUserId: string, session?: ClientSession) {
+    await AuditLogModel.create([{
       actorUserId,
       eventType: 'opd.visit.status.updated',
       metadataJson: {
@@ -228,11 +315,11 @@ export class OpdVisitRepository {
         visitId: visit.id,
         visitNumber: visit.visit_number,
       },
-    });
+    }], session ? { session } : undefined);
   }
 
-  async auditCreated(visit: OpdVisit, actorUserId: string) {
-    await AuditLogModel.create({
+  async auditCreated(visit: OpdVisit, actorUserId: string, session?: ClientSession) {
+    await AuditLogModel.create([{
       actorUserId,
       eventType: 'opd.visit.created',
       metadataJson: {
@@ -243,8 +330,11 @@ export class OpdVisitRepository {
         visitId: visit.id,
         visitNumber: visit.visit_number,
       },
-    });
+    }], session ? { session } : undefined);
   }
 
-
+  async nextVisitSequence(session?: ClientSession) {
+    const query = OpdVisitModel.countDocuments();
+    return session ? query.session(session) : query;
+  }
 }

@@ -12,6 +12,7 @@ import {
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { BranchWardBedConfiguration } from '../components/branches/BranchWardBedConfiguration';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 
@@ -67,7 +68,7 @@ export function BranchManagementPage() {
   const { query, statusFilter, sortColumn, sortDirection, currentPage, setQuery, setStatusFilter, setCurrentPage } = state;
   const { branches, meta, summary } = data;
   const { isFetching: loading, isMutating: submitting, loadError, forbidden } = status;
-  const { canCreate, canEdit, canDelete, canExport } = rbac;
+  const { canCreate, canEdit, canDelete, canExport, canConfigureWards, canConfigureBeds } = rbac;
   const { handleSort, resetFilters, handleExport } = actions;
 
   const search = query;
@@ -86,6 +87,7 @@ export function BranchManagementPage() {
   });
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BranchResponse | null>(null);
+  const [configurationBranch, setConfigurationBranch] = useState<BranchResponse | null>(null);
 
   // Status
   const [toastMessage, setToastMessage] = useState('');
@@ -312,6 +314,18 @@ export function BranchManagementPage() {
                         <td className="actions-cell">
                           <div className="action-icons">
                             <button aria-label={`View ${branch.name}`} className="action-icon-btn" onClick={() => openModal('view', branch)} title="View" type="button"><i className="ph ph-eye" /></button>
+                            {(canConfigureWards || canConfigureBeds) ? (
+                              <button
+                                aria-label={`Configure wards and beds for ${branch.name}`}
+                                className="action-icon-btn"
+                                disabled={branch.status !== 'ACTIVE'}
+                                onClick={() => setConfigurationBranch(branch)}
+                                title={branch.status === 'ACTIVE' ? 'Configure wards and beds' : 'Activate the branch before configuring wards and beds'}
+                                type="button"
+                              >
+                                <i className="ph ph-bed" aria-hidden="true" />
+                              </button>
+                            ) : null}
                             <button
                               aria-label={`Edit ${branch.name}`}
                               className="action-icon-btn"
@@ -546,6 +560,12 @@ export function BranchManagementPage() {
           title="Delete Branch"
         />
       )}
+
+      <BranchWardBedConfiguration
+        branch={configurationBranch}
+        onClose={() => setConfigurationBranch(null)}
+        open={Boolean(configurationBranch)}
+      />
 
       <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>

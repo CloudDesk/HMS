@@ -7,6 +7,7 @@ export interface IService extends Document {
   name: string;
   serviceType: ServiceType;
   category?: string;
+  sampleType?: string | null;
   description?: string;
   departmentId: Types.ObjectId;
   standardPrice: number;
@@ -38,6 +39,7 @@ const serviceSchema = new Schema<IService>(
       required: true,
     },
     category: { type: String },
+    sampleType: { type: String, default: null },
     description: { type: String },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
     standardPrice: { type: Number, required: true },

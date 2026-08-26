@@ -1,14 +1,30 @@
 import { apiClient } from './client';
 import type { ApiClinicalOrderType, OpdClinicalOrderResponse, OpdPrescriptionResponse, SaveOpdClinicalOrderPayload, SaveOpdPrescriptionPayload } from './opd';
-export type AdmissionType = 'MEDICAL' | 'SURGICAL' | 'MATERNITY' | 'PAEDIATRIC' | 'OBSERVATION' | 'OTHER';
-export type AdmissionSourceType = 'DIRECT' | 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER' | 'PROCEDURE_BOOKING';
+export type AdmissionType =
+  | 'INPATIENT'
+  | 'OBSERVATION'
+  | 'DAY_CARE'
+  | 'ICU'
+  | 'HDU'
+  | 'MEDICAL'
+  | 'SURGICAL'
+  | 'MATERNITY'
+  | 'PAEDIATRIC'
+  | 'OTHER';
+export type AdmissionSourceType =
+  | 'DIRECT'
+  | 'OPD_VISIT'
+  | 'EMERGENCY_ENCOUNTER'
+  | 'REFERRAL'
+  | 'TRANSFER'
+  | 'PROCEDURE_BOOKING';
 export type AdmissionRequestStatus = 'PENDING_VALIDATION' | 'READY_FOR_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED';
 export type InpatientAdmission = { id: string; admission_number: string; patient_id: string; patient_number: string; patient_name: string; branch_id: string; ward_id: string; ward_name: string; bed_id: string; bed_number: string; admitting_doctor_id: string; admitting_doctor_name: string; department_id: string; department_name: string; admission_date: string; admission_type: AdmissionType; reason: string; notes: string | null; status: 'DRAFT' | 'ADMITTED' | 'CANCELLED'; request_id: string | null; source_type: AdmissionSourceType; source_id: string | null; created_at: string; updated_at: string };
 export type AdmissionRequest = { id: string; request_number: string; patient_id: string; patient_number: string; patient_name: string; branch_id: string; department_id: string; department_name: string; recommending_doctor_id: string; recommending_doctor_name: string; source_type: AdmissionSourceType; source_id: string | null; source_reference: string | null; admission_type: AdmissionType; priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY'; reason: string; notes: string | null; status: AdmissionRequestStatus; hold_id: string | null; ward_id: string | null; bed_id: string | null; consent_document_id: string | null; deposit_invoice_id: string | null; prerequisite_snapshot: { consent_required: boolean; consent_satisfied: boolean; deposit_required: boolean; deposit_satisfied: boolean; deposit_required_amount: number; deposit_paid_amount: number } | null; admission_id: string | null; cancellation_reason: string | null; created_at: string; updated_at: string };
 export type AdmissionPage = { data: InpatientAdmission[]; meta: { total: number; page: number; limit: number; totalPages: number } };
 export type AdmissionRequestPage = { data: AdmissionRequest[]; meta: { total: number; page: number; limit: number; totalPages: number } };
 export type AdmissionRequestStats = { pendingValidation: number; readyForConfirmation: number; confirmed: number; cancelled: number; };
-export type CreateAdmissionRequestPayload = { patient_id: string; branch_id: string; department_id: string; recommending_doctor_id: string; source_type: 'DIRECT' | 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER'; source_id?: string | null; admission_type: AdmissionType; priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY'; reason: string; notes?: string | null };
+export type CreateAdmissionRequestPayload = { patient_id: string; branch_id: string; department_id: string; recommending_doctor_id: string; source_type: AdmissionSourceType; source_id?: string | null; admission_type: AdmissionType; priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY'; reason: string; notes?: string | null };
 export type ValidateAdmissionRequestPayload = { ward_id: string; bed_id: string; hold_id?: string | null; consent_document_id?: string | null; deposit_invoice_id?: string | null };
 export type ConfirmAdmissionRequestPayload = ValidateAdmissionRequestPayload & { admission_date: string };
 const query = (params: Record<string, string | number | undefined>) => { const value = new URLSearchParams(); Object.entries(params).forEach(([key, item]) => { if (item !== undefined && item !== '') value.set(key, String(item)); }); return `?${value.toString()}`; };

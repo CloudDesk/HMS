@@ -24,7 +24,18 @@ export const toAppError = (error: unknown) => {
       return new AppError('Conflict: A record with these details already exists.', 409, 'UNIQUE_VIOLATION');
     }
     if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
-      return new AppError('Validation failed', 400, 'VALIDATION_ERROR');
+      const fieldErrors = (error as any).errors
+        ? Object.keys((error as any).errors).reduce<Record<string, string[]>>((acc, key) => {
+            acc[key] = [(error as any).errors[key]?.message];
+            return acc;
+          }, {})
+        : undefined;
+      return new AppError(
+        (error as Error).message || 'Validation failed',
+        400,
+        'VALIDATION_ERROR',
+        fieldErrors ? { fieldErrors } : undefined,
+      );
     }
     if (error && typeof error === 'object' && 'name' in error && error.name === 'CastError') {
       return new AppError('Invalid resource identifier', 400, 'INVALID_ID');

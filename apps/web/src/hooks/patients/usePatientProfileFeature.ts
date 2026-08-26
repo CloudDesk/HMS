@@ -66,7 +66,7 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
   // Visits & Appointments
   const visitsQuery = useOpdVisits(
     { ...visitsFilters, patient_id: patientId || undefined, page: visitsPage.page, limit: visitsPage.limit },
-    (activeTab === 'Visits' || activeTab === 'Prescriptions') && Boolean(patientId)
+    (activeTab === 'Visits' || activeTab === 'Prescriptions' || activeTab === 'Overview') && Boolean(patientId)
   );
 
   const appointmentsQuery = useAppointmentsList(

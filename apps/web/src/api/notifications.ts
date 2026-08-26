@@ -6,6 +6,7 @@ export type NotificationResponse = {
   id: string;
   recipient_role: string | null;
   recipient_user_id: string | null;
+  recipient_branch_id: string | null;
   title: string;
   message: string;
   type: ApiNotificationType;

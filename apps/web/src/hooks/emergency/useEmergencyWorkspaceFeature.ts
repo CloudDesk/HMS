@@ -76,6 +76,19 @@ export function useEmergencyWorkspaceFeature() {
     { branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 },
     Boolean(branchId),
   );
+  const allDepartments = useDepartmentsList({ status: 'ACTIVE', page: 1, limit: 100 }, true);
+  const rawDepartmentOptions =
+    departments.data?.data && departments.data.data.length > 0
+      ? departments.data.data
+      : allDepartments.data?.data ?? [];
+  const seenDept = new Set<string>();
+  const departmentOptions = rawDepartmentOptions.filter((d) => {
+    const key = d.name.trim().toLowerCase();
+    if (seenDept.has(key)) return false;
+    seenDept.add(key);
+    return true;
+  });
+
   const doctors = useDoctorsList(
     {
       branch_id: branchId || undefined,
@@ -86,14 +99,23 @@ export function useEmergencyWorkspaceFeature() {
     },
     Boolean(branchId) && (view === 'queue' || view === 'workspace'),
   );
+  const allDoctors = useDoctorsList({ status: 'ACTIVE', page: 1, limit: 100 }, true);
+  const doctorOptions =
+    doctors.data?.data && doctors.data.data.length > 0
+      ? doctors.data.data
+      : allDoctors.data?.data ?? [];
+
   const patients = usePatientsList(
     { search: patientSearch, status: 'ACTIVE', page: 1, limit: 20 },
     patientSearch.trim().length >= 2,
   );
-  const services = useServicesList(
-    { status: 'ACTIVE', page: 1, limit: 100 },
-    view === 'workspace',
-  );
+  const allPatients = usePatientsList({ status: 'ACTIVE', page: 1, limit: 100 }, true);
+  const patientOptions =
+    patientSearch.trim().length >= 2
+      ? patients.data?.data ?? []
+      : allPatients.data?.data ?? [];
+
+  const services = useServicesList({ status: 'ACTIVE', page: 1, limit: 100 });
   const setSelectedId = (id: string | null) => {
     setSelectedIdState(id);
     if (id && view !== 'workspace')
@@ -110,9 +132,9 @@ export function useEmergencyWorkspaceFeature() {
       selectedId,
       patientSearch,
       branches,
-      departments: departments.data?.data ?? [],
-      doctors: doctors.data?.data ?? [],
-      patients: patients.data?.data ?? [],
+      departments: departmentOptions,
+      doctors: doctorOptions,
+      patients: patientOptions,
       services: services.data?.data ?? [],
       capabilities,
       encounters: emergency.list.data?.data ?? [],

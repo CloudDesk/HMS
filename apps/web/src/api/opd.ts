@@ -23,6 +23,7 @@ export type ApiOpdVisitPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type OpdVisitResponse = {
   id: string;
   visit_number: string;
+  queue_token_number: number | null;
   appointment_id: string | null;
   patient_id: string;
   patient_number: string;
@@ -408,6 +409,12 @@ export const opdApi = {
     return apiClient.request<OpdVisitResponse>(`/opd/visits/${encodeURIComponent(id)}/status`, {
       body: payload,
       method: 'PATCH',
+    });
+  },
+
+  callNextPatient(id: string) {
+    return apiClient.request<OpdVisitResponse>(`/opd/visits/${encodeURIComponent(id)}/call-next`, {
+      method: 'POST',
     });
   },
 

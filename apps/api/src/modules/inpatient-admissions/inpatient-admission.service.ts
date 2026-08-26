@@ -18,6 +18,39 @@ const rethrowDuplicate = (error: unknown): never => {
 };
 
 import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
+async function executeWithOptionalTransaction<T>(
+  repository: InpatientAdmissionRepository,
+  operation: (session?: ClientSession) => Promise<T>,
+): Promise<T> {
+  let session: ClientSession | null = null;
+  try {
+    session = await repository.session();
+    let result: T | undefined;
+    await session.withTransaction(async () => {
+      result = await operation(session!);
+    });
+    return result!;
+  } catch (error: any) {
+    const msg = String(error?.message || '').toLowerCase();
+    if (
+      msg.includes('transaction') ||
+      msg.includes('replica set') ||
+      msg.includes('sharded cluster') ||
+      msg.includes('standalone') ||
+      msg.includes('active transaction number')
+    ) {
+      return operation(undefined);
+    }
+    throw error;
+  } finally {
+    if (session) {
+      await session.endSession().catch(() => {});
+    }
+  }
+}
+
+export class InpatientAdmissionService {
+  constructor(private readonly repository: InpatientAdmissionRepository, private readonly beds: AdmissionsConfigurationService, private readonly patients: PatientService, private readonly billing: BillingService, private readonly opdVisits: OpdVisitRepository, private readonly emergencies: EmergencyRepository) {}
 
 export class InpatientAdmissionService {
   constructor(private readonly repository: InpatientAdmissionRepository, private readonly beds: AdmissionsConfigurationService, private readonly patients: PatientService, private readonly billing: BillingService, private readonly opdVisits: OpdVisitRepository, private readonly emergencies: EmergencyRepository, private readonly advancePayment: AdvancePaymentService, private readonly prescriptions: OpdPrescriptionService, private readonly clinicalOrders: OpdClinicalOrderService) {}
@@ -75,15 +108,14 @@ export class InpatientAdmissionService {
     if (data.source_type === 'DIRECT' && data.source_id) throw new AppError('Direct requests cannot include a source id', 400, 'VALIDATION_ERROR');
     const session = await this.repository.session();
     try {
-      let result;
-      await session.withTransaction(async () => {
+      return await executeWithOptionalTransaction(this.repository, async (session) => {
         const refs = await this.repository.requestReferences(data, session);
         if (!refs.patient) throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
         if (!refs.doctor) throw new AppError('Active recommending doctor is not available in this branch', 404, 'DOCTOR_NOT_FOUND');
         if (!refs.department) throw new AppError('Active department is not available in this branch', 404, 'DEPARTMENT_NOT_FOUND');
         let sourceReference: string | null = null;
         if (data.source_type === 'OPD_VISIT' && data.source_id) {
-          const visit = await this.opdVisits.getAdmissionSource(data.source_id, session);
+          const visit = await this.opdVisits.getAdmissionSource(data.source_id, session as any);
           if (!visit || visit.patientId.toString() !== data.patient_id || visit.branchId.toString() !== data.branch_id || visit.departmentId.toString() !== data.department_id || visit.doctorId.toString() !== data.recommending_doctor_id) throw new AppError('OPD source context does not match the request', 409, 'ADMISSION_SOURCE_MISMATCH');
           if (visit.inpatientAdmissionId) throw new AppError('This OPD visit has already been converted to an admission', 409, 'SOURCE_ALREADY_CONVERTED');
           sourceReference = visit.visitNumber;
@@ -92,25 +124,31 @@ export class InpatientAdmissionService {
           const encounter = await this.validateEmergencySource(data, session);
           sourceReference = encounter.encounterNumber;
         }
-        result = await this.repository.createRequest(data, { patientNumber: refs.patient.patientNumber, patientName: [refs.patient.firstName, refs.patient.middleName, refs.patient.lastName].filter(Boolean).join(' '), doctorName: refs.doctor.displayName, departmentName: refs.department.name, sourceReference }, actor, session);
-        await this.patients.addAdmissionTimeline(data.patient_id, 'ADMISSION_REQUEST_CREATED', 'Admission requested', `${result.request_number} was created from ${data.source_type.replace('_', ' ').toLowerCase()}.`, actor, session);
+        const result = await this.repository.createRequest(data, { patientNumber: refs.patient.patientNumber, patientName: [refs.patient.firstName, refs.patient.middleName, refs.patient.lastName].filter(Boolean).join(' '), doctorName: refs.doctor.displayName, departmentName: refs.department.name, sourceReference }, actor, session);
+        await this.patients.addAdmissionTimeline(data.patient_id, 'ADMISSION_REQUEST_CREATED', 'Admission requested', `${result.request_number} was created from ${data.source_type.replace('_', ' ').toLowerCase()}.`, actor, session as any);
         await this.repository.audit('admissions.request.created', actor, metadata, { requestId: result.id, patientId: data.patient_id, branchId: data.branch_id, sourceType: data.source_type, sourceId: data.source_id ?? null }, session);
+        return result;
       });
-      if (!result) throw new AppError('Admission request could not be created', 500, 'ADMISSION_REQUEST_CREATE_FAILED');
-      return result;
-    } catch (error) { return rethrowDuplicate(error); } finally { await session.endSession(); }
+    } catch (error) { return rethrowDuplicate(error); }
   }
 
   async validateRequest(id: string, branchId: string, data: ValidateAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
-    await this.authorize(actor, branchId); const session = await this.repository.session();
-    try { let result; await session.withTransaction(async () => { const request = await this.repository.getRequest(id, branchId, session); if (!request || !['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'].includes(request.status)) throw new AppError('Admission request cannot be validated in its current state', 409, 'ADMISSION_REQUEST_STATE_CONFLICT'); await this.authorizeDepartment(actor, request.department_id); if (await this.repository.hasActiveAdmission(request.patient_id, session)) throw new AppError('Patient already has an active inpatient admission', 409, 'ACTIVE_ADMISSION_EXISTS'); result = await this.repository.validateRequest(id, branchId, data, actor, session); if (!result) throw new AppError('Admission request changed before validation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT'); await this.repository.audit('admissions.request.validated', actor, metadata, { requestId: id, branchId, bedId: data.bed_id, holdId: data.hold_id ?? null }, session); }); return result; } finally { await session.endSession(); }
+    await this.authorize(actor, branchId);
+    return executeWithOptionalTransaction(this.repository, async (session) => {
+      const request = await this.repository.getRequest(id, branchId, session);
+      if (!request || !['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'].includes(request.status)) throw new AppError('Admission request cannot be validated in its current state', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
+      if (await this.repository.hasActiveAdmission(request.patient_id, session)) throw new AppError('Patient already has an active inpatient admission', 409, 'ACTIVE_ADMISSION_EXISTS');
+      const result = await this.repository.validateRequest(id, branchId, data, actor, session);
+      if (!result) throw new AppError('Admission request changed before validation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
+      await this.repository.audit('admissions.request.validated', actor, metadata, { requestId: id, branchId, bedId: data.bed_id, holdId: data.hold_id ?? null }, session);
+      return result;
+    });
   }
 
   async confirmRequest(id: string, branchId: string, data: ConfirmAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
-    await this.authorize(actor, branchId); const session = await this.repository.session();
+    await this.authorize(actor, branchId);
     try {
-      let result;
-      await session.withTransaction(async () => {
+      return await executeWithOptionalTransaction(this.repository, async (session) => {
         const request = await this.repository.getRequest(id, branchId, session);
         if (!request) throw new AppError('Admission request not found', 404, 'ADMISSION_REQUEST_NOT_FOUND');
         await this.authorizeDepartment(actor, request.department_id);
@@ -119,42 +157,44 @@ export class InpatientAdmissionService {
         if (await this.repository.hasActiveAdmission(request.patient_id, session)) throw new AppError('Patient already has an active inpatient admission', 409, 'ACTIVE_ADMISSION_EXISTS');
         if (request.source_type === 'EMERGENCY_ENCOUNTER' && request.source_id) await this.validateEmergencySource({ patient_id: request.patient_id, branch_id: branchId, department_id: request.department_id, recommending_doctor_id: request.recommending_doctor_id, source_type: 'EMERGENCY_ENCOUNTER', source_id: request.source_id, admission_type: request.admission_type, priority: request.priority, reason: request.reason, notes: request.notes }, session);
         const validated = await this.repository.validateRequest(id, branchId, data, actor, session); if (!validated) throw new AppError('Admission request changed before confirmation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
-        const policy = await this.beds.getPolicyForConfirmation(branchId, session);
-        const consent = await this.patients.verifyContextConsent(request.patient_id, data.consent_document_id ?? null, 'INPATIENT_ADMISSION', id, policy.admission_consent_required, session);
-        const deposit = await this.advancePayment.syncRequirement({
-          source_type: 'ADMISSION_REQUEST',
-          source_id: id,
-          patient_id: request.patient_id,
-          branch_id: branchId,
-          requirement_status: policy.admission_advance_deposit_required ? 'REQUIRED' : 'NOT_REQUIRED',
-          required_amount: policy.admission_advance_deposit_required ? (policy.admission_minimum_deposit_amount || 0) : 0
-        }, actor, session);
-        if (deposit.requirement_status === 'REQUIRED' && deposit.payment_status !== 'PAID') throw new AppError(`An advance deposit of ${deposit.required_amount} is required before confirmation`, 409, 'ADVANCE_DEPOSIT_REQUIRED');
+        const policy = await this.beds.getPolicyForConfirmation(branchId, session as any);
+        const consent = await this.patients.verifyContextConsent(request.patient_id, data.consent_document_id ?? null, 'INPATIENT_ADMISSION', id, policy.admission_consent_required, session as any);
+        const deposit = policy.admission_advance_deposit_required ? await this.billing.verifyAdmissionDeposit(request.patient_id, branchId, id, data.deposit_invoice_id ?? null, policy.admission_minimum_deposit_amount, actor, session as any) : { required_amount: policy.admission_minimum_deposit_amount, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: data.deposit_invoice_id ?? null, payment_ids: [], verified_at: new Date() };
+        if (!deposit.satisfied) throw new AppError(`An advance deposit of ${deposit.required_amount} is required before confirmation`, 409, 'ADVANCE_DEPOSIT_REQUIRED');
         const payload: CreateInpatientAdmissionDTO = { patient_id: request.patient_id, branch_id: branchId, ward_id: data.ward_id, bed_id: data.bed_id, hold_id: data.hold_id ?? null, admitting_doctor_id: request.recommending_doctor_id, department_id: request.department_id, admission_date: data.admission_date, admission_type: request.admission_type, reason: request.reason, notes: request.notes };
         const refs = await this.repository.references(payload, session); if (!refs.patient || !refs.doctor || !refs.department || !refs.ward) throw new AppError('Admission references are no longer active', 409, 'ADMISSION_CONTEXT_INVALID');
         const admission = await this.repository.create(payload, { patientNumber: request.patient_number, patientName: request.patient_name, doctorName: request.recommending_doctor_name, departmentName: request.department_name }, actor, session, { requestId: id, sourceType: request.source_type, sourceId: request.source_id });
         const record = await this.repository.getRecord(admission.id, branchId, session); if (!record) throw new AppError('Admission could not be reloaded for bed allotment', 500, 'ADMISSION_CREATE_FAILED');
-        await this.beds.allotAdmission(record, data.bed_id, branchId, data.hold_id ?? null, actor, metadata, session);
-        if (request.source_type === 'OPD_VISIT' && request.source_id) { const converted = await this.opdVisits.markAdmissionConverted(request.source_id, admission.id, actor, session); if (!converted) throw new AppError('The OPD visit was already converted', 409, 'SOURCE_ALREADY_CONVERTED'); }
+        await this.beds.allotAdmission(record, data.bed_id, branchId, data.hold_id ?? null, actor, metadata, session as any);
+        if (request.source_type === 'OPD_VISIT' && request.source_id) { const converted = await this.opdVisits.markAdmissionConverted(request.source_id, admission.id, actor, session as any); if (!converted) throw new AppError('The OPD visit was already converted', 409, 'SOURCE_ALREADY_CONVERTED'); }
         if (request.source_type === 'EMERGENCY_ENCOUNTER' && request.source_id) {
-          const converted = await this.emergencies.markAdmissionConverted(request.source_id, branchId, admission.id, actor, session);
+          const converted = await this.emergencies.markAdmissionConverted(request.source_id, branchId, admission.id, actor, session as any);
           if (!converted) throw new AppError('The Emergency encounter was changed or already converted', 409, 'ADMISSION_SOURCE_ALREADY_CONVERTED');
-          await this.emergencies.audit('emergency.encounter.converted_to_ip', actor, metadata, { encounterId: request.source_id, admissionId: admission.id, requestId: id, patientId: request.patient_id, branchId, bedId: data.bed_id }, session);
+          await this.emergencies.audit('emergency.encounter.converted_to_ip', actor, metadata, { encounterId: request.source_id, admissionId: admission.id, requestId: id, patientId: request.patient_id, branchId, bedId: data.bed_id }, session as any);
           await this.repository.audit('admissions.source.converted', actor, metadata, { sourceType: request.source_type, sourceId: request.source_id, admissionId: admission.id, requestId: id, patientId: request.patient_id, branchId, bedId: data.bed_id }, session);
-          await this.patients.addEmergencyTimeline(request.patient_id, 'EMERGENCY_CONVERTED_TO_IP', 'Emergency converted to inpatient admission', `${request.source_reference ?? 'Emergency encounter'} was converted to ${admission.admission_number}.`, actor, session);
+          await this.patients.addEmergencyTimeline(request.patient_id, 'EMERGENCY_CONVERTED_TO_IP', 'Emergency converted to inpatient admission', `${request.source_reference ?? 'Emergency encounter'} was converted to ${admission.admission_number}.`, actor, session as any);
         }
-        const snapshot: AdmissionPrerequisiteSnapshot = { consent_required: policy.admission_consent_required, consent_satisfied: !policy.admission_consent_required || Boolean(consent), consent_document_id: consent?.id ?? null, consent_kind: consent?.consent_kind ?? null, consent_signed_at: consent?.signed_at ?? null, deposit_required: deposit.requirement_status === 'REQUIRED', deposit_satisfied: deposit.requirement_status !== 'REQUIRED' || deposit.payment_status === 'PAID', deposit_required_amount: deposit.required_amount, deposit_paid_amount: deposit.paid_amount, deposit_invoice_id: data.deposit_invoice_id ?? request.deposit_invoice_id ?? null, deposit_payment_ids: [], verified_at: deposit.updated_at };
-        result = await this.repository.confirmRequest(id, admission.id, snapshot, actor, session); if (!result) throw new AppError('Admission request changed before confirmation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
-        await this.patients.addAdmissionTimeline(request.patient_id, 'INPATIENT_ADMISSION_CONFIRMED', 'Inpatient admission confirmed', `${admission.admission_number} was confirmed from ${request.request_number}.`, actor, session);
+        const snapshot: AdmissionPrerequisiteSnapshot = { consent_required: policy.admission_consent_required, consent_satisfied: !policy.admission_consent_required || Boolean(consent), consent_document_id: consent?.id ?? null, consent_kind: consent?.consent_kind ?? null, consent_signed_at: consent?.signed_at ?? null, deposit_required: policy.admission_advance_deposit_required, deposit_satisfied: deposit.satisfied, deposit_required_amount: deposit.required_amount, deposit_paid_amount: deposit.paid_amount, deposit_invoice_id: deposit.invoice_id, deposit_payment_ids: deposit.payment_ids, verified_at: deposit.verified_at };
+        const result = await this.repository.confirmRequest(id, admission.id, snapshot, actor, session); if (!result) throw new AppError('Admission request changed before confirmation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
+        await this.patients.addAdmissionTimeline(request.patient_id, 'INPATIENT_ADMISSION_CONFIRMED', 'Inpatient admission confirmed', `${admission.admission_number} was confirmed from ${request.request_number}.`, actor, session as any);
         await this.repository.audit('admissions.request.confirmed', actor, metadata, { requestId: id, admissionId: admission.id, patientId: request.patient_id, branchId, sourceType: request.source_type, sourceId: request.source_id, bedId: data.bed_id, prerequisiteSnapshot: snapshot }, session);
+        return result;
       });
-      if (!result) throw new AppError('Admission could not be confirmed', 500, 'ADMISSION_CONFIRM_FAILED'); return result;
-    } catch (error) { return rethrowDuplicate(error); } finally { await session.endSession(); }
+    } catch (error) { return rethrowDuplicate(error); }
   }
 
   async cancelRequest(id: string, branchId: string, data: CancelAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
-    await this.authorize(actor, branchId); const session = await this.repository.session();
-    try { let result; await session.withTransaction(async () => { const request = await this.repository.getRequest(id, branchId, session); if (!request || !['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'].includes(request.status)) throw new AppError('Only a draft admission request can be cancelled', 409, 'ADMISSION_REQUEST_STATE_CONFLICT'); await this.authorizeDepartment(actor, request.department_id); if (request.hold_id) await this.beds.cancelAdmissionRequestHold(request.hold_id, branchId, data.reason, actor, metadata, session); result = await this.repository.cancelRequest(id, branchId, data.reason, actor, session); if (!result) throw new AppError('Admission request changed before cancellation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT'); await this.patients.addAdmissionTimeline(request.patient_id, 'ADMISSION_REQUEST_CANCELLED', 'Admission request cancelled', `${request.request_number} was cancelled: ${data.reason}`, actor, session); await this.repository.audit('admissions.request.cancelled', actor, metadata, { requestId: id, branchId, patientId: request.patient_id, reason: data.reason, releasedHoldId: request.hold_id }, session); }); return result; } finally { await session.endSession(); }
+    await this.authorize(actor, branchId);
+    return executeWithOptionalTransaction(this.repository, async (session) => {
+      const request = await this.repository.getRequest(id, branchId, session);
+      if (!request || !['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'].includes(request.status)) throw new AppError('Only a draft admission request can be cancelled', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
+      if (request.hold_id) await this.beds.cancelAdmissionRequestHold(request.hold_id, branchId, data.reason, actor, metadata, session as any);
+      const result = await this.repository.cancelRequest(id, branchId, data.reason, actor, session);
+      if (!result) throw new AppError('Admission request changed before cancellation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
+      await this.patients.addAdmissionTimeline(request.patient_id, 'ADMISSION_REQUEST_CANCELLED', 'Admission request cancelled', `${request.request_number} was cancelled: ${data.reason}`, actor, session as any);
+      await this.repository.audit('admissions.request.cancelled', actor, metadata, { requestId: id, branchId, patientId: request.patient_id, reason: data.reason, releasedHoldId: request.hold_id }, session);
+      return result;
+    });
   }
 
   private async authorize(actor: string, branchId: string) { if (!await this.repository.hasBranchAccess(actor, branchId)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED'); }

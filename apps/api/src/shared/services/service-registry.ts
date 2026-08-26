@@ -179,6 +179,7 @@ doctors: new DoctorService(
       doctorRepository,
       opdConsultationRepository,
       sequenceService,
+      new NotificationService(notificationRepository),
     ),
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
     opdConsultations: new OpdConsultationService(

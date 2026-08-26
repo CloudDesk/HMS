@@ -31,6 +31,7 @@ const serviceSchema = z.object({
   branch_id: z.string().optional(),
   department_id: z.string().min(1, 'Department is required.'),
   category: z.string().optional(),
+  sample_type: z.string().optional(),
   description: z.string().optional(),
   standard_price: z.string().refine(
     (val) => val !== '' && !Number.isNaN(parseFloat(val)) && parseFloat(val) >= 0,
@@ -231,11 +232,30 @@ export function ServiceCataloguePage() {
   };
 
   // ── Derived: filter departments by selected branches ──────────────────────
+  const uniqueDepartments = useMemo(() => {
+    const seen = new Set<string>();
+    return departments.filter((d) => {
+      const key = d.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [departments]);
+
   const formDepartmentOptions = useMemo(() => {
-    if (modalBranchIds.length === 0) return departments;
-    return departments.filter((department) =>
-      modalBranchIds.some((bId) => department.branch_ids.includes(bId))
-    );
+    let list = departments;
+    if (modalBranchIds.length > 0) {
+      list = departments.filter((department) =>
+        modalBranchIds.some((bId) => department.branch_ids.includes(bId))
+      );
+    }
+    const seen = new Set<string>();
+    return list.filter((d) => {
+      const key = d.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [departments, modalBranchIds]);
 
   const getDeptName = (id: string) => departments.find((d) => d.id === id)?.name ?? id;
@@ -259,6 +279,7 @@ export function ServiceCataloguePage() {
         branch_id: dept?.branch_ids?.[0] || '',
         department_id: svc.department_id,
         category: svc.category || '',
+        sample_type: svc.sample_type || '',
         description: svc.description || '',
         standard_price: svc.standard_price !== null ? String(svc.standard_price) : '',
         default_duration_minutes: svc.default_duration_minutes == null ? '' : String(svc.default_duration_minutes),
@@ -273,7 +294,7 @@ export function ServiceCataloguePage() {
       setModalBranchIds([]);
       svcForm.reset({
         code: '', name: '', service_type: 'GENERAL', branch_id: '',
-        department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
+        department_id: '', category: '', sample_type: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
       });
     }
   };
@@ -310,6 +331,7 @@ export function ServiceCataloguePage() {
         service_type: values.service_type,
         department_id: values.department_id,
         category: values.category?.trim() || null,
+        sample_type: values.service_type === 'LAB_TEST' ? (values.sample_type?.trim() || null) : null,
         description: values.description?.trim() || null,
         standard_price: price,
         default_duration_minutes: values.service_type === 'PROCEDURE' ? Number(values.default_duration_minutes) : null,
@@ -493,7 +515,7 @@ export function ServiceCataloguePage() {
                   value={deptFilter}
                 >
                   <option value="">All Departments</option>
-                  {departments.map((d) => (
+                  {uniqueDepartments.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
@@ -755,9 +777,50 @@ export function ServiceCataloguePage() {
                 <span>Category</span>
                 <input
                   disabled={submitting}
-                  placeholder="e.g. Diagnostics"
+                  list="category-options-list"
+                  placeholder={
+                    svcForm.watch('service_type') === 'LAB_TEST'
+                      ? 'e.g. Hematology, Biochemistry'
+                      : svcForm.watch('service_type') === 'IMAGING_SERVICE'
+                        ? 'e.g. X-Ray, CT Scan, MRI'
+                        : 'e.g. Diagnostics'
+                  }
                   {...svcForm.register('category')}
                 />
+                <datalist id="category-options-list">
+                  {svcForm.watch('service_type') === 'LAB_TEST' ? (
+                    <>
+                      <option value="Hematology" />
+                      <option value="Biochemistry" />
+                      <option value="Microbiology" />
+                      <option value="Immunology" />
+                      <option value="Clinical Pathology" />
+                      <option value="Serology" />
+                      <option value="Urinalysis" />
+                      <option value="Molecular Diagnostics" />
+                    </>
+                  ) : svcForm.watch('service_type') === 'IMAGING_SERVICE' ? (
+                    <>
+                      <option value="X-Ray" />
+                      <option value="Ultrasound" />
+                      <option value="CT Scan" />
+                      <option value="MRI" />
+                      <option value="Mammography" />
+                      <option value="ECG" />
+                      <option value="Echo" />
+                      <option value="Fluoroscopy" />
+                      <option value="DEXA Scan" />
+                    </>
+                  ) : (
+                    <>
+                      <option value="Consultation" />
+                      <option value="Diagnostics" />
+                      <option value="Emergency" />
+                      <option value="Procedure" />
+                      <option value="General" />
+                    </>
+                  )}
+                </datalist>
               </label>
               <label className="form-field">
                 <span>Service Type <span className="required">*</span></span>
@@ -770,6 +833,24 @@ export function ServiceCataloguePage() {
                   ))}
                 </select>
               </label>
+              {svcForm.watch('service_type') === 'LAB_TEST' ? (
+                <label className="form-field">
+                  <span>Sample / Specimen Type</span>
+                  <select disabled={submitting} {...svcForm.register('sample_type')}>
+                    <option value="">Select Sample Type</option>
+                    <option value="Blood">Blood</option>
+                    <option value="Serum">Serum</option>
+                    <option value="Plasma">Plasma</option>
+                    <option value="Urine">Urine</option>
+                    <option value="Stool">Stool</option>
+                    <option value="Sputum">Sputum</option>
+                    <option value="Throat Swab">Throat Swab</option>
+                    <option value="CSF (Cerebrospinal Fluid)">CSF (Cerebrospinal Fluid)</option>
+                    <option value="Tissue / Biopsy">Tissue / Biopsy</option>
+                    <option value="Synovial Fluid">Synovial Fluid</option>
+                  </select>
+                </label>
+              ) : null}
             </div>
 
             <div className="form-section-title">Organisation</div>
@@ -835,19 +916,62 @@ export function ServiceCataloguePage() {
               </label>
             </div>
 
-            {svcForm.watch('service_type') === 'PROCEDURE' ? <>
-              <div className="form-section-title">Procedure Booking Rules</div>
-              <div className="form-grid-3">
-                <label className="form-field"><span>Default Duration (minutes) <span className="required">*</span></span><input type="number" min="5" max="720" {...svcForm.register('default_duration_minutes')} /></label>
-                <label className="form-field"><span>Overlapping Booking Capacity <span className="required">*</span></span><input type="number" min="1" max="100" {...svcForm.register('booking_capacity')} /></label>
-                <label className="form-field"><span>Minimum Advance Deposit</span><input type="number" min="0" step="0.01" disabled={!svcForm.watch('requires_advance_deposit')} {...svcForm.register('minimum_advance_deposit_amount')} /></label>
-              </div>
-              <div className="form-grid-3">
-                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_bed')} /> Requires bed hold</span></label>
-                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_consent')} /> Requires signed consent</span></label>
-                <label className="form-field"><span><input type="checkbox" {...svcForm.register('requires_advance_deposit')} /> Requires advance deposit</span></label>
-              </div>
-            </> : null}
+            {svcForm.watch('service_type') === 'PROCEDURE' ? (
+              <>
+                <div className="form-section-title">Procedure Booking Rules & Requirements</div>
+                <div className="form-grid-3" style={{ marginBottom: '0.85rem' }}>
+                  <label className="form-field">
+                    <span>Default Duration (minutes) <span className="required">*</span></span>
+                    <input type="number" min="5" max="720" placeholder="e.g. 60" {...svcForm.register('default_duration_minutes')} />
+                  </label>
+                  <label className="form-field">
+                    <span>Overlapping Booking Capacity <span className="required">*</span></span>
+                    <input type="number" min="1" max="100" placeholder="e.g. 1" {...svcForm.register('booking_capacity')} />
+                  </label>
+                  <label className="form-field">
+                    <span>Minimum Advance Deposit ($)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      disabled={!svcForm.watch('requires_advance_deposit')}
+                      {...svcForm.register('minimum_advance_deposit_amount')}
+                    />
+                  </label>
+                </div>
+
+                {/* Styled Requirement Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                      {...svcForm.register('requires_bed')}
+                    />
+                    <span>Requires Bed Hold</span>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                      {...svcForm.register('requires_consent')}
+                    />
+                    <span>Requires Signed Consent</span>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                      {...svcForm.register('requires_advance_deposit')}
+                    />
+                    <span>Requires Advance Deposit</span>
+                  </label>
+                </div>
+              </>
+            ) : null}
 
             <div className="form-section-title">Additional Information</div>
             <div className="form-grid-3">
@@ -871,6 +995,9 @@ export function ServiceCataloguePage() {
               <label className="form-field"><span>Service Name</span><input readOnly value={activeSvc.name} /></label>
               <label className="form-field"><span>Service Type</span><input readOnly value={serviceTypeLabels[activeSvc.service_type]} /></label>
               <label className="form-field"><span>Category</span><input readOnly value={activeSvc.category ?? ''} /></label>
+              {activeSvc.service_type === 'LAB_TEST' ? (
+                <label className="form-field"><span>Sample Type</span><input readOnly value={activeSvc.sample_type ?? '—'} /></label>
+              ) : null}
               <label className="form-field"><span>Department</span><input readOnly value={getDeptName(activeSvc.department_id)} /></label>
               <label className="form-field"><span>Branch</span><input readOnly value={getBranchForDept(activeSvc.department_id)} /></label>
               <label className="form-field"><span>Status</span><input readOnly value={activeSvc.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label>

@@ -160,9 +160,9 @@ export function BillingWorkspacePage() {
               <label><span>Charge Source</span><select {...itemForm.register('service_type', { onChange: () => itemForm.setValue('service_id', '') })}><option value="CONSULTATION">Consultation</option><option value="LAB_TEST">Laboratory Test</option><option value="IMAGING_SERVICE">Imaging Service</option></select></label>
               <label><span>Service</span><select disabled={servicesQuery.isLoading} {...itemForm.register('service_id')}><option value="">{servicesQuery.isLoading ? 'Loading...' : 'Select item'}</option>
                 {servicesQuery.data?.data.map((service) => <option key={service.id} value={service.id}>{service.name} / {formatBillingMoney(service.standard_price)}</option>)}
-              </select><small>{itemForm.formState.errors.service_id?.message}</small></label>
+              </select>{itemForm.formState.errors.service_id?.message ? <small>{itemForm.formState.errors.service_id.message}</small> : null}</label>
               <label><span>Quantity</span><input min="1" type="number" {...itemForm.register('quantity', { valueAsNumber: true })} /></label>
-              <button className="btn-secondary" disabled={!selectedService} type="submit"><i className="ph ph-plus" /> Add</button>
+              <button className="btn-secondary" disabled={!selectedService} style={{ height: '38px', minHeight: '38px', alignSelf: 'flex-end' }} type="submit"><i className="ph ph-plus" /> Add</button>
             </form>
             {servicesQuery.isError ? <div className="billing-inline-alert error"><i className="ph ph-warning-circle" /> Service Catalogue could not be loaded.</div> : null}
             {!servicesQuery.isLoading && !servicesQuery.isError && (servicesQuery.data?.data.length ?? 0) === 0 ? <div className="billing-inline-alert"><i className="ph ph-info" /> No active {billingServiceLabel[selectedSource]} services are configured.</div> : null}

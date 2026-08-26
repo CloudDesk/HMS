@@ -48,11 +48,7 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
       },
     },
     async (request) => {
-      const query: NotificationListQuery = {
-        ...request.query,
-        recipient_user_id: request.user!.id,
-      };
-      return ok(await services.notification.listNotifications(query));
+      return ok(await services.notification.listForUser(request.user!.id, request.query));
     },
   );
 
@@ -66,7 +62,7 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const notification = await services.notification.markAsRead(id);
+      const notification = await services.notification.markAsRead(id, request.user!.id);
       if (!notification) {
         return reply.status(404).send({ error: { message: 'Notification not found' } });
       }

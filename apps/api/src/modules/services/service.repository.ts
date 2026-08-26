@@ -15,6 +15,7 @@ type ServiceRecord = {
   name: string;
   serviceType?: Service['service_type'];
   category?: string | null;
+  sampleType?: string | null;
   description?: string | null;
   departmentId: unknown;
   standardPrice: number;
@@ -45,6 +46,7 @@ const toService = (service: ServiceRecord): Service => ({
   name: service.name,
   service_type: service.serviceType ?? 'GENERAL',
   category: service.category ?? null,
+  sample_type: service.sampleType ?? null,
   description: service.description ?? null,
   department_id: String(service.departmentId),
   standard_price: service.standardPrice,
@@ -68,6 +70,7 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
       name: data.name,
       serviceType: data.service_type,
       category: data.category,
+      sampleType: data.sample_type,
       description: data.description,
       departmentId: data.department_id,
       standardPrice: data.standard_price,
