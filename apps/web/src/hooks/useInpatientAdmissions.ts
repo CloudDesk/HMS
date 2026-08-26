@@ -31,6 +31,7 @@ export const useInpatientAdmissions = (branchId: string, patientSearch: string, 
   const beds = useQuery({ queryKey: ['admissions', 'available-beds', branchId], queryFn: () => admissionsConfigurationApi.beds({ branch_id: branchId, status: 'AVAILABLE', page: 1, limit: 100 }), enabled: Boolean(branchId) });
   const policy = useQuery({ queryKey: ['admissions', 'policy', branchId], queryFn: () => admissionsConfigurationApi.policy(branchId), enabled: Boolean(branchId), retry: false });
   const requests = useQuery({ queryKey: ['admissions', 'requests', branchId, requestSearch], queryFn: () => inpatientAdmissionsService.requests({ branch_id: branchId, search: requestSearch || undefined, page: 1, limit: 50 }), enabled: Boolean(branchId) });
+  const admissions = useQuery({ queryKey: ['admissions', 'inpatients', branchId], queryFn: () => inpatientAdmissionsService.list({ branch_id: branchId, page: 1, limit: 50 }), enabled: Boolean(branchId) });
   const requestStats = useQuery({ queryKey: ['admissions', 'requestStats', branchId], queryFn: () => inpatientAdmissionsService.requestStats(branchId), enabled: Boolean(branchId) });
   const consentTemplates = useConsentTemplates({ branch_id: branchId, context_type: 'ADMISSION', status: 'ACTIVE' }, consentOpen);
   const uploadConsent = useUploadPatientDocument();

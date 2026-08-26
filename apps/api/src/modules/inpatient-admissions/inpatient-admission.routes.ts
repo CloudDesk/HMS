@@ -5,7 +5,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import { clinicalContextBranchSchema, clinicalContextOrderSchema, clinicalContextParamsSchema, clinicalContextPrescriptionSchema } from '../opd/clinical-context.schemas.js';
-import { admissionRequestActionSchema, admissionRequestBranchSchema, cancelAdmissionRequestSchema, confirmAdmissionRequestSchema, createAdmissionRequestSchema, inpatientAdmissionIdSchema, listAdmissionRequestsSchema, listInpatientAdmissionsSchema, validateAdmissionRequestSchema, requestStatsSchema } from './inpatient-admission.schemas.js';
+import { admissionRequestActionSchema, admissionRequestBranchSchema, cancelAdmissionRequestSchema, confirmAdmissionRequestSchema, createAdmissionRequestSchema, inpatientAdmissionIdSchema, listAdmissionRequestsSchema, listInpatientAdmissionsSchema, validateAdmissionRequestSchema } from './inpatient-admission.schemas.js';
 
 const metadata = (request: FastifyRequest) => ({ ipAddress: request.ip, userAgent: request.headers['user-agent'] });
 const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
@@ -28,7 +28,7 @@ export const registerInpatientAdmissionRoutes = async (app: FastifyInstance, ser
   app.post('/api/admissions/inpatients/:id/clinical-orders/:orderType', { preHandler: requirePermission(services, 'OPD', 'OPD Clinical Orders', 'Edit') }, async (request, reply) => { const params = parse(clinicalContextParamsSchema, request.params); const query = parse(clinicalContextBranchSchema, request.query); return reply.status(201).send(ok(await services.inpatientAdmissions.submitClinicalOrder(params.id, query.branch_id, params.orderType, parse(clinicalContextOrderSchema, request.body), request.user!.id, metadata(request)))); });
   
   app.get('/api/admissions/request-stats', { preHandler: requirePermission(services, 'Admissions', 'Admission Requests', 'View') }, async (request) => {
-    const query = parse(requestStatsSchema, request.query);
+    const query = parse(admissionRequestBranchSchema, request.query);
     return ok(await services.inpatientAdmissions.getRequestStatusCounts(request.user!.id, query.branch_id));
   });
 

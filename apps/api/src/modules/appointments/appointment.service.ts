@@ -145,18 +145,21 @@ export class AppointmentService {
 
     try {
       await session.withTransaction(async () => {
-        const appointmentSequence = await this.repository.nextAppointmentSequence(session);
+        const appointmentSequence = await this.sequenceService.getNextSequence('appointment', session);
         const createdAppointment = await this.repository.create(
           {
             ...data,
-            appointmentNumber: createAppointmentNumber(appointmentSequence),
+            appointmentNumber: this.sequenceService.formatStandardSequence('APT', appointmentSequence),
             patientNumber: patient.patient_number,
             patientName: patientName(patient),
             doctorName: doctor.display_name,
             doctorSpecialization: doctor.specialization,
             branchId: doctor.branch_id,
             departmentId: doctor.department_id,
+            utcDateTime: appointmentUtc,
+            utcEndTime,
             appointmentDate,
+            startTime: startTimeStr,
             endTime,
             priority: data.priority ?? 'ROUTINE',
           },
@@ -179,8 +182,8 @@ export class AppointmentService {
             doctorSpecialization: createdAppointment.doctor_specialization,
             branchId: createdAppointment.branch_id,
             departmentId: createdAppointment.department_id,
-            visitDate: createdAppointment.appointment_date,
-            checkInTime: scheduledDateTime(createdAppointment.appointment_date, createdAppointment.start_time),
+            visitDate: appointmentDate,
+            checkInTime: scheduledDateTime(appointmentDate, startTimeStr),
             visit_type: createdAppointment.visit_type,
             priority: createdAppointment.priority,
             reason: createdAppointment.reason,

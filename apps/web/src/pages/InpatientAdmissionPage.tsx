@@ -130,8 +130,8 @@ export function InpatientAdmissionPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to create admission request.');
     }
   });
-  const validate = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.validateRequest.mutateAsync({ id: selected.id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } }); setSelected(request); toast.success('Request validated and ready for confirmation.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Validation failed.'); } });
-  const confirm = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.confirmRequest.mutateAsync({ id: selected.id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } }); setSelected(request); toast.success('Admission confirmed and bed allotted.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Admission confirmation failed.'); } });
+  const validate = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.validateRequest.mutateAsync({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } }); setSelected(request); toast.success('Request validated and ready for confirmation.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Validation failed.'); } });
+  const confirm = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.confirmRequest.mutateAsync({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } }); setSelected(request); toast.success('Admission confirmed and bed allotted.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Admission confirmation failed.'); } });
   const cancel = async () => { if (!selected || !cancelReason.trim()) return; try { const request = await data.cancelRequest.mutateAsync({ id: selected.id, reason: cancelReason.trim() }); setSelected(request); setCancelOpen(false); setCancelReason(''); toast.success('Draft request cancelled and reserved resources released.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Cancellation failed.'); } };
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -324,7 +324,7 @@ export function InpatientAdmissionPage() {
         <div className="admission-kpi-icon"><i className="ph ph-hourglass-high" /></div>
         <div className="admission-kpi-body">
           <span>Pending</span>
-          <strong>{counts.pending}</strong>
+          <strong>{counts.pendingValidation}</strong>
           <small>Awaiting decision</small>
         </div>
       </div>

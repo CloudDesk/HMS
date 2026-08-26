@@ -232,7 +232,7 @@ export class OpdVisitService {
     const visit = await this.repository.create(
       {
         appointmentId: appointment.id,
-        visitNumber: createVisitNumber(sequence),
+        visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
         queueTokenNumber: sequence + 1,
         patientId: appointment.patient_id,
         patientNumber: appointment.patient_number,
@@ -284,7 +284,7 @@ export class OpdVisitService {
     const sequence = await this.sequenceService.getNextSequence('opd_visit');
     const visit = await this.repository.create(
       {
-        visitNumber: createVisitNumber(sequence),
+        visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
         queueTokenNumber: sequence + 1,
         patientId: patient.id,
         patientNumber: patient.patient_number,
