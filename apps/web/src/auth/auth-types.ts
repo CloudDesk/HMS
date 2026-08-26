@@ -26,6 +26,7 @@ export type AuthUser = {
   fullName: string;
   status: AuthUserStatus;
   lastLoginAt?: string | null;
+  patientId: string | null;
   branches: AuthBranch[];
   permissions: AuthPermission[];
   roles: AuthRole[];

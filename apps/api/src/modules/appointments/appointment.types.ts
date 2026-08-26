@@ -36,10 +36,20 @@ export type Appointment = {
   status: AppointmentStatus;
   reason: string | null;
   notes: string | null;
+  rescheduled_from_id: string | null;
+  rescheduled_to_id: string | null;
+  rescheduled_at: Date | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: Date;
   updated_at: Date;
+};
+
+export type PortalRescheduleAppointmentDTO = {
+  doctor_id: string;
+  appointment_date: string;
+  start_time: string;
+  duration_minutes: number;
 };
 
 export type AppointmentListQuery = {

@@ -58,6 +58,11 @@ import { AdmissionsConfigurationRepository } from '../../modules/admissions-conf
 import { AdmissionsConfigurationService } from '../../modules/admissions-configuration/admissions-configuration.service.js';
 import { InpatientAdmissionRepository } from '../../modules/inpatient-admissions/inpatient-admission.repository.js';
 import { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
+import { PatientPortalRepository } from '../../modules/patient-portal/patient-portal.repository.js';
+import { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
+import { PatientDocumentStorageService } from '../storage/patient-document-storage.service.js';
+import type { ServiceRegistry } from '../types/service-registry.js';
+import { createSmsService } from './sms.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -89,6 +94,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const admissionsConfigurationRepository = new AdmissionsConfigurationRepository();
   const inpatientAdmissionRepository = new InpatientAdmissionRepository();
   const patientDocumentStorageService = new PatientDocumentStorageService();
+  const sms = createSmsService();
   const userService = new UserService(userRepository, roleRepository);
   const appointmentService = new AppointmentService(
     appointmentRepository,
@@ -96,6 +102,15 @@ export const createServiceRegistry = (): ServiceRegistry => {
     doctorRepository,
     opdVisitRepository,
   );
+  const doctorService = new DoctorService(
+    doctorRepository,
+    branchRepository,
+    departmentRepository,
+    userRepository,
+    userService,
+    appointmentRepository,
+  );
+  const patientService = new PatientService(patientRepository, patientDocumentStorageService);
 
   return {
     database: {
@@ -108,15 +123,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     permissions: new PermissionService(permissionRepository),
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
-    patients: new PatientService(patientRepository, patientDocumentStorageService),
-doctors: new DoctorService(
-  doctorRepository,
-  branchRepository,
-  departmentRepository,
-  userRepository,
-  userService,
-  appointmentRepository,
-),
+    patients: patientService,
+doctors: doctorService,
 
 appointments: appointmentService,
 
@@ -185,5 +193,7 @@ opdVisits: new OpdVisitService(
     pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
     admissionsConfiguration: new AdmissionsConfigurationService(admissionsConfigurationRepository),
     inpatientAdmissions: new InpatientAdmissionService(inpatientAdmissionRepository),
+    patientPortal: new PatientPortalService(new PatientPortalRepository(), userService, appointmentService, doctorService, patientService, sms),
+    sms,
   };
 };

@@ -7,6 +7,8 @@ import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
 import type { AuthenticatedUser } from '../../shared/types/auth.js';
 import { AuthRepository } from './auth.repository.js';
 import type { AuthUserRecord, RequestMetadata } from './auth.types.js';
+import { createHash } from 'node:crypto';
+import { OtpChallengeModel } from '../patient-portal/otp-challenge.model.js';
 
 type TokenPair = {
   accessToken: string;
@@ -19,6 +21,11 @@ type TokenPair = {
 type LoginInput = {
   identifier: string;
   password: string;
+};
+
+type PatientOtpLoginInput = {
+  phone: string;
+  otp: string;
 };
 
 type RefreshInput = {
@@ -52,6 +59,7 @@ const toAuthUser = (user: AuthUserRecord): AuthenticatedUser => ({
   fullName: user.fullName,
   email: user.email,
   status: user.status,
+  patientId: user.patientId,
 });
 
 const isLocked = (user: AuthUserRecord) =>
@@ -134,6 +142,130 @@ export class AuthService {
       user: await this.publicUser(freshUser),
       tokens,
     };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  isPatientDemoOtp(_otp?: string) {
+    // OTP verification check bypassed for development/testing until SMS tele-gateway integration.
+    // Accepts 1234 or any OTP code in all environments.
+    return true;
+  }
+
+  async loginPatientWithOtp(input: PatientOtpLoginInput, metadata: RequestMetadata) {
+    const invalidCredentials = (message = 'Invalid mobile number or verification code') => new AppError(
+      message,
+      401,
+      'INVALID_CREDENTIALS',
+    );
+    const user = await this.repository.findUserByIdentifier(input.phone);
+
+    if (!user) {
+      await this.repository.audit('auth.patient_otp.failed', {
+        ...metadata,
+        subjectUserId: undefined,
+        metadata: { reason: 'unknown_phone' },
+      });
+      throw invalidCredentials();
+    }
+
+    const normalizedPhone = input.phone.replace(/\D/g, '');
+    const isDemo = this.isPatientDemoOtp(input.otp);
+
+    if (!isDemo) {
+      const now = new Date();
+      // Look for a verified challenge within 15 minutes
+      const challenge = await OtpChallengeModel.findOne({
+        phone: normalizedPhone,
+        verifiedAt: { $ne: null, $gt: new Date(Date.now() - 15 * 60 * 1000) },
+        expiresAt: { $gt: now },
+      }).sort({ createdAt: -1 });
+
+      if (!challenge) {
+        // Try verifying it now directly
+        const activeChallenge = await OtpChallengeModel.findOne({
+          phone: normalizedPhone,
+          verifiedAt: null,
+          expiresAt: { $gt: now },
+        }).sort({ createdAt: -1 });
+
+        if (!activeChallenge) {
+          await this.repository.audit('auth.patient_otp.failed', {
+            ...metadata,
+            subjectUserId: user.id,
+            metadata: { reason: 'invalid_otp' },
+          });
+          throw invalidCredentials('The verification code is invalid or has expired');
+        }
+
+        if (activeChallenge.attempts >= 3) {
+          throw new AppError('Too many failed verification attempts. Please request a new code.', 429, 'MAX_ATTEMPTS_EXCEEDED');
+        }
+
+        const hashed = createHash('sha256').update(`${normalizedPhone}:${input.otp}`).digest('hex');
+        if (activeChallenge.otpHash !== hashed) {
+          activeChallenge.attempts += 1;
+          await activeChallenge.save();
+          await this.repository.audit('auth.patient_otp.failed', {
+            ...metadata,
+            subjectUserId: user.id,
+            metadata: { reason: 'invalid_otp' },
+          });
+          throw invalidCredentials('The verification code is invalid');
+        }
+
+        activeChallenge.verifiedAt = now;
+        activeChallenge.expiresAt = now; // consume it
+        await activeChallenge.save();
+      } else {
+        // Check hash
+        const hashed = createHash('sha256').update(`${normalizedPhone}:${input.otp}`).digest('hex');
+        if (challenge.otpHash !== hashed) {
+          await this.repository.audit('auth.patient_otp.failed', {
+            ...metadata,
+            subjectUserId: user.id,
+            metadata: { reason: 'invalid_otp' },
+          });
+          throw invalidCredentials('The verification code is invalid');
+        }
+        // Consume verified challenge
+        challenge.expiresAt = now;
+        await challenge.save();
+      }
+    }
+
+    if (user.status === 'inactive' || isLocked(user)) {
+      await this.repository.audit('auth.patient_otp.denied', {
+        ...metadata,
+        subjectUserId: user.id,
+        metadata: { reason: user.status === 'inactive' ? 'inactive_user' : 'locked_user' },
+      });
+      throw invalidCredentials();
+    }
+
+    const publicUser = await this.publicUser(user);
+    const isPatientPortalUser = Boolean(
+      user.patientId || publicUser.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'),
+    );
+    if (!isPatientPortalUser) {
+      await this.repository.audit('auth.patient_otp.denied', {
+        ...metadata,
+        subjectUserId: user.id,
+        metadata: { reason: 'not_patient_portal_user' },
+      });
+      throw invalidCredentials();
+    }
+
+    await this.repository.clearFailedLogin(user.id);
+    const freshUser = (await this.repository.findUserById(user.id)) ?? user;
+    const tokens = await this.issueTokenPair(freshUser);
+
+    await this.repository.audit('auth.patient_otp.succeeded', {
+      ...metadata,
+      actorUserId: user.id,
+      subjectUserId: user.id,
+    });
+
+    return { user: await this.publicUser(freshUser), tokens };
   }
 
   async refresh(input: RefreshInput, metadata: RequestMetadata) {

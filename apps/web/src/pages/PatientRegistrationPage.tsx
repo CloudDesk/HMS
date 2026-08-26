@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
-import { branchesApi, type BranchResponse } from '../api/branches';
+import { branchesApi } from '../api/branches';
 import {
   patientsApi,
   type ApiPatientGender,
@@ -161,7 +161,6 @@ export function PatientRegistrationPage() {
     branchesApi
       .list({ status: 'ACTIVE', limit: 100 })
       .then((res) => {
-        setBranches(res.data);
         const activeId = localStorage.getItem('activeBranchId');
         const userBranchId = user?.branches?.[0]?.id;
         const targetBranchId = activeId || userBranchId;

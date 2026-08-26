@@ -71,7 +71,11 @@ const toPatient = (patient: PatientLean): Patient => ({
   updated_at: patient.updatedAt,
 });
 
-const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string | null = null): PatientDocument => ({
+const toPatientDocument = (
+  document: PatientDocumentLean,
+  uploadedByName: string | null = null,
+  reviewedByName: string | null = null,
+): PatientDocument => ({
   id: document._id.toString(),
   patient_id: document.patientId.toString(),
   visit_id: document.visitId?.toString() ?? null,
@@ -86,6 +90,14 @@ const toPatientDocument = (document: PatientDocumentLean, uploadedByName: string
   signed_at: document.signedAt ?? null,
   valid_until: document.validUntil ?? null,
   signed_by_name: document.signedByName ?? null,
+  source: document.source ?? 'HOSPITAL',
+  review_status: document.reviewStatus ?? 'NOT_REQUIRED',
+  reviewed_by: document.reviewedBy?.toString() ?? null,
+  reviewed_by_name: reviewedByName,
+  reviewed_at: document.reviewedAt ?? null,
+  review_notes: document.reviewNotes ?? null,
+  document_date: document.documentDate ?? null,
+  provider_name: document.providerName ?? null,
   status: document.status,
   uploaded_by: document.uploadedBy?.toString() ?? null,
   uploaded_by_name: uploadedByName,
@@ -370,15 +382,22 @@ export class PatientRepository {
         .lean<PatientDocumentLean[]>(),
       PatientDocumentModel.countDocuments(filter),
     ]);
-    const uploaderIds = documents.flatMap((document) => (document.uploadedBy ? [document.uploadedBy] : []));
-    const uploaders = await UserModel.find({ _id: { $in: uploaderIds } })
+    const userIds = documents.flatMap((document) => [
+      ...(document.uploadedBy ? [document.uploadedBy] : []),
+      ...(document.reviewedBy ? [document.reviewedBy] : []),
+    ]);
+    const users = await UserModel.find({ _id: { $in: userIds } })
       .select({ fullName: 1 })
       .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
-    const uploaderNames = new Map(uploaders.map((user) => [user._id.toString(), user.fullName]));
+    const userNames = new Map(users.map((user) => [user._id.toString(), user.fullName]));
 
     return {
       data: documents.map((document) =>
-        toPatientDocument(document, document.uploadedBy ? uploaderNames.get(document.uploadedBy.toString()) ?? null : null),
+        toPatientDocument(
+          document,
+          document.uploadedBy ? userNames.get(document.uploadedBy.toString()) ?? null : null,
+          document.reviewedBy ? userNames.get(document.reviewedBy.toString()) ?? null : null,
+        ),
       ),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
@@ -409,6 +428,10 @@ export class PatientRepository {
       signedAt: data.signed_at ? new Date(data.signed_at) : null,
       validUntil: data.valid_until ? new Date(data.valid_until) : null,
       signedByName: nullableString(data.signed_by_name),
+      source: data.source ?? 'HOSPITAL',
+      reviewStatus: data.review_status ?? 'NOT_REQUIRED',
+      documentDate: data.document_date ? new Date(data.document_date) : null,
+      providerName: nullableString(data.provider_name),
       uploadedBy: new Types.ObjectId(userId),
       status: 'ACTIVE',
     });
@@ -431,6 +454,10 @@ export class PatientRepository {
           signedAt: data.signed_at ? new Date(data.signed_at) : null,
           validUntil: data.valid_until ? new Date(data.valid_until) : null,
           signedByName: nullableString(data.signed_by_name),
+          source: data.source ?? 'HOSPITAL',
+          reviewStatus: data.review_status ?? 'NOT_REQUIRED',
+          documentDate: data.document_date ? new Date(data.document_date) : null,
+          providerName: nullableString(data.provider_name),
           uploadedBy: new Types.ObjectId(userId),
         },
       },
@@ -438,6 +465,37 @@ export class PatientRepository {
     ).lean<PatientDocumentLean>();
 
     return document ? toPatientDocument(document) : undefined;
+  }
+
+  async reviewDocument(
+    patientId: string,
+    documentId: string,
+    reviewStatus: 'VERIFIED' | 'REJECTED',
+    reviewNotes: string | null,
+    userId: string,
+  ) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      {
+        _id: documentId,
+        patientId: new Types.ObjectId(patientId),
+        status: 'ACTIVE',
+        reviewStatus: 'PENDING',
+        source: { $in: ['PATIENT', 'GUARDIAN'] },
+      },
+      {
+        $set: {
+          reviewStatus,
+          reviewNotes: nullableString(reviewNotes),
+          reviewedBy: new Types.ObjectId(userId),
+          reviewedAt: new Date(),
+        },
+      },
+      { new: true, lean: true },
+    ).lean<PatientDocumentLean>();
+
+    if (!document) return undefined;
+    const reviewer = await UserModel.findById(userId).select({ fullName: 1 }).lean<{ fullName: string }>();
+    return toPatientDocument(document, null, reviewer?.fullName ?? null);
   }
 
   async deleteDocument(patientId: string, documentId: string, userId: string) {

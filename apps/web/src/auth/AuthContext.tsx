@@ -189,6 +189,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     try {
       const session = await authApi.login(identifier, password);
+      const isPatientAccount = session.user.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN');
+      if (isPatientAccount) {
+        throw new ApiError('Patient and guardian accounts must sign in through the patient website.', 403);
+      }
       tokenStorage.setTokens(session.tokens);
       setUser(session.user);
       setStatus('authenticated');

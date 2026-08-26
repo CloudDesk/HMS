@@ -1,4 +1,4 @@
-import { Types, type SortOrder } from 'mongoose';
+import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -48,6 +48,9 @@ const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$
 
 const toObjectId = (value: string) => new Types.ObjectId(value);
 
+const activeSlotKey = (doctorId: string, appointmentDate: Date, startTime: string) =>
+  `${doctorId}:${appointmentDate.toISOString().slice(0, 10)}:${startTime}`;
+
 const toAppointment = (appointment: AppointmentLean): Appointment => ({
   id: appointment._id.toString(),
   appointment_number: appointment.appointmentNumber,
@@ -68,6 +71,9 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   status: appointment.status,
   reason: appointment.reason ?? null,
   notes: appointment.notes ?? null,
+  rescheduled_from_id: appointment.rescheduledFromId?.toString() ?? null,
+  rescheduled_to_id: appointment.rescheduledToId?.toString() ?? null,
+  rescheduled_at: appointment.rescheduledAt ?? null,
   created_by: appointment.createdBy?.toString() ?? null,
   updated_by: appointment.updatedBy?.toString() ?? null,
   created_at: appointment.createdAt,
@@ -98,9 +104,10 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   durationMinutes: data.duration_minutes,
   visitType: data.visit_type,
   priority: data.priority,
-    status: 'SCHEDULED' as const,
+  status: 'SCHEDULED' as const,
   reason: nullableString(data.reason),
   notes: nullableString(data.notes),
+  activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.start_time),
   createdBy: toObjectId(userId),
   updatedBy: toObjectId(userId),
 });
@@ -119,6 +126,9 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.priority !== undefined ? { priority: data.priority } : {}),
   ...(data.reason !== undefined ? { reason: nullableString(data.reason) } : {}),
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+  ...(data.doctor_id && data.appointmentDate && data.start_time
+    ? { activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.start_time) }
+    : {}),
   updatedBy: toObjectId(userId),
 });
 
@@ -214,8 +224,10 @@ export class AppointmentRepository {
     return appointment ? toAppointment(appointment) : undefined;
   }
 
-  async create(data: AppointmentCreateRecord, userId: string): Promise<Appointment> {
-    const created = await AppointmentModel.create(buildCreatePayload(data, userId));
+  async create(data: AppointmentCreateRecord, userId: string, session?: ClientSession): Promise<Appointment> {
+    const created = session
+      ? (await AppointmentModel.create([buildCreatePayload(data, userId)], { session }))[0]!
+      : await AppointmentModel.create(buildCreatePayload(data, userId));
     return toAppointment(created.toObject<AppointmentLean>());
   }
 
@@ -240,6 +252,9 @@ export class AppointmentRepository {
       {
         $set: {
           status: data.status,
+          ...(['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'].includes(data.status)
+            ? { activeSlotKey: null }
+            : {}),
           ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
           updatedBy: toObjectId(userId),
         },
@@ -261,7 +276,7 @@ export class AppointmentRepository {
       doctorId: toObjectId(doctorId),
       appointmentDate,
       deletedAt: null,
-    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
       startTime: { $lt: endTime },
       endTime: { $gt: startTime },
     };
@@ -302,7 +317,7 @@ async findPatientConflict(
     patientId: toObjectId(patientId),
     appointmentDate,
     deletedAt: null,
-    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
     startTime: { $lt: endTime },
     endTime: { $gt: startTime },
   };
@@ -346,6 +361,123 @@ async auditCreated(appointment: Appointment, actorUserId: string) {
     },
   });
 }
+
+  async listPastOpen(patientId?: string) {
+    const now = new Date();
+    const startOfToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const appointments = await AppointmentModel.find({
+      ...(patientId ? { patientId: toObjectId(patientId) } : {}),
+      $or: [
+        { appointmentDate: { $lt: startOfToday } },
+        { appointmentDate: startOfToday, endTime: { $lte: currentTimeStr } },
+      ],
+      status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
+      deletedAt: null,
+    }).lean<AppointmentLean[]>();
+    return appointments.map(toAppointment);
+  }
+
+  async updateStatusBySystem(id: string, status: Appointment['status']) {
+    const appointment = await AppointmentModel.findOneAndUpdate(
+      { _id: id, deletedAt: null, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] } },
+      { $set: { status, activeSlotKey: null } },
+      { new: true, lean: true },
+    ).lean<AppointmentLean>();
+    return appointment ? toAppointment(appointment) : undefined;
+  }
+
+  async auditSystemStatusTransition(appointment: Appointment, previousStatus: Appointment['status']) {
+    await AuditLogModel.create({
+      eventType: 'appointment.status.reconciled',
+      metadataJson: {
+        appointmentId: appointment.id,
+        appointmentNumber: appointment.appointment_number,
+        fromStatus: previousStatus,
+        patientId: appointment.patient_id,
+        source: 'system_overdue_reconciliation',
+        toStatus: appointment.status,
+      },
+    });
+  }
+
+  async rescheduleAtomically(
+    original: Appointment,
+    replacement: AppointmentCreateRecord,
+    userId: string,
+  ) {
+    const session = await mongoose.startSession();
+    let created: Appointment | undefined;
+    try {
+      await session.withTransaction(async () => {
+        const current = await AppointmentModel.findOne({
+          _id: toObjectId(original.id),
+          status: original.status,
+          deletedAt: null,
+        }).session(session).lean<AppointmentLean>();
+        if (!current) {
+          throw new AppError('Appointment changed while rescheduling. Refresh and try again.', 409, 'APPOINTMENT_CHANGED');
+        }
+
+        created = await this.create(replacement, userId, session);
+        const changedAt = new Date();
+        const updated = await AppointmentModel.findOneAndUpdate(
+          { _id: current._id, status: original.status, deletedAt: null },
+          {
+            $set: {
+              status: 'RESCHEDULED',
+              activeSlotKey: null,
+              rescheduledToId: toObjectId(created.id),
+              rescheduledAt: changedAt,
+              updatedBy: toObjectId(userId),
+            },
+          },
+          { new: true, session },
+        ).lean<AppointmentLean>();
+        if (!updated) {
+          throw new AppError('Appointment changed while rescheduling. Refresh and try again.', 409, 'APPOINTMENT_CHANGED');
+        }
+        await AppointmentModel.updateOne(
+          { _id: toObjectId(created.id) },
+          { $set: { rescheduledFromId: current._id, rescheduledAt: changedAt } },
+          { session },
+        );
+        await AuditLogModel.create([{
+          actorUserId: userId,
+          eventType: 'appointment.rescheduled',
+          metadataJson: {
+            appointmentId: original.id,
+            appointmentNumber: original.appointment_number,
+            from: {
+              doctorId: original.doctor_id,
+              appointmentDate: original.appointment_date,
+              startTime: original.start_time,
+              endTime: original.end_time,
+            },
+            patientId: original.patient_id,
+            replacementAppointmentId: created.id,
+            replacementAppointmentNumber: created.appointment_number,
+            to: {
+              doctorId: created.doctor_id,
+              appointmentDate: created.appointment_date,
+              startTime: created.start_time,
+              endTime: created.end_time,
+            },
+          },
+        }], { session });
+      });
+    } catch (error) {
+      const databaseError = error as { code?: unknown; keyPattern?: Record<string, unknown> };
+      if (databaseError.code === 11000 && databaseError.keyPattern?.activeSlotKey) {
+        throw new AppError('This slot is no longer available. Select another time.', 409, 'APPOINTMENT_SLOT_CONFLICT');
+      }
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+    if (!created) throw new AppError('Appointment could not be rescheduled', 500, 'RESCHEDULE_FAILED');
+    return created;
+  }
 
   async nextAppointmentSequence() {
     return AppointmentModel.countDocuments();

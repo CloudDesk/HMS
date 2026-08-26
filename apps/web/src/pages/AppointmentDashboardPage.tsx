@@ -14,6 +14,10 @@ import {
 } from './appointment-utils';
 import { useAppointmentDashboardFeature } from '../hooks/appointments/useAppointmentDashboardFeature';
 
+type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
+type SortDirection = 'asc' | 'desc';
+
+
 const countByStatus = (appointments: AppointmentResponse[], status: ApiAppointmentStatus) =>
   appointments.filter((appointment) => appointment.status === status).length;
 

@@ -27,3 +27,6 @@ recovered_part1.txt
 *.py
 *.py
 clean_user.py
+
+# Local Netlify folder
+.netlify

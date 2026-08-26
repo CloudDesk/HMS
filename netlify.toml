@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build --workspace=@hms/patient-web"
+  publish = "apps/patient-web/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--include=dev"
+  VITE_APP_ENV = "prod"
+  VITE_API_BASE_URL = "/api"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

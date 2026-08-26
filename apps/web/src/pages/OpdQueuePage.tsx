@@ -144,6 +144,26 @@ export function OpdQueuePage() {
   } = useForm<VitalsForm>({
     resolver: zodResolver(vitalsSchema),
     defaultValues: {
+  const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
+  const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
+  const [vitalsForm, setVitalsForm] = useState({
+    blood_pressure_systolic: '',
+    blood_pressure_diastolic: '',
+    weight_kg: '',
+    height_cm: '',
+    temperature_c: '',
+    pulse_bpm: '',
+    respiratory_rate_per_min: '',
+    oxygen_saturation_percent: '',
+    notes: '',
+  });
+  const [vitalsSubmitting, setVitalsSubmitting] = useState(false);
+  const [vitalsError, setVitalsError] = useState('');
+
+
+  const openVitalsModal = (visit: OpdVisitResponse) => {
+    setVitalsVisit(visit);
+    setVitalsForm({
       blood_pressure_systolic: '',
       blood_pressure_diastolic: '',
       weight_kg: '',
@@ -153,6 +173,40 @@ export function OpdQueuePage() {
       respiratory_rate_per_min: '',
       oxygen_saturation_percent: '',
       notes: '',
+    });
+    setVitalsError('');
+    setVitalsModalOpen(true);
+  };
+
+  const saveVitals = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vitalsVisit) return;
+
+    setVitalsSubmitting(true);
+    setVitalsError('');
+    try {
+      await opdApi.createVitals(vitalsVisit.id, {
+        blood_pressure_systolic: vitalsForm.blood_pressure_systolic.trim() ? Number(vitalsForm.blood_pressure_systolic) : null,
+        blood_pressure_diastolic: vitalsForm.blood_pressure_diastolic.trim() ? Number(vitalsForm.blood_pressure_diastolic) : null,
+        weight_kg: vitalsForm.weight_kg.trim() ? Number(vitalsForm.weight_kg) : null,
+        height_cm: vitalsForm.height_cm.trim() ? Number(vitalsForm.height_cm) : null,
+        temperature_c: vitalsForm.temperature_c.trim() ? Number(vitalsForm.temperature_c) : null,
+        pulse_bpm: vitalsForm.pulse_bpm.trim() ? Number(vitalsForm.pulse_bpm) : null,
+        respiratory_rate_per_min: vitalsForm.respiratory_rate_per_min.trim() ? Number(vitalsForm.respiratory_rate_per_min) : null,
+        oxygen_saturation_percent: vitalsForm.oxygen_saturation_percent.trim() ? Number(vitalsForm.oxygen_saturation_percent) : null,
+        notes: vitalsForm.notes.trim() || null,
+      });
+      await opdApi.updateVisitStatus(vitalsVisit.id, { status: 'READY_FOR_CONSULTATION' }).catch(() => null);
+      setVitalsModalOpen(false);
+      setVitalsVisit(null);
+      await loadQueue();
+      showToast(`Vitals recorded for ${vitalsVisit.patient_name}`, 'success');
+    } catch (err) {
+      const errorMsg = getOpdErrorMessage(err);
+      setVitalsError('');
+      showToast(errorMsg, 'error');
+    } finally {
+      setVitalsSubmitting(false);
     }
   });
 

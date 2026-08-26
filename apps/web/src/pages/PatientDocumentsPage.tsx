@@ -9,6 +9,17 @@ import { toast } from 'sonner';
 import { usePatientDocumentsFeature, type PatientDocumentRecord } from '../hooks/patients/usePatientDocumentsFeature';
 
 
+const toDocumentRecord = (document: PatientDocumentResponse): PatientDocumentRecord => ({
+  id: document.id,
+  name: document.title || document.file_name,
+  type: document.document_type,
+  category: detectCategoryFromFileName(document.file_name),
+  uploadedBy: document.uploaded_by_name ?? 'Unknown user',
+  uploadedDate: formatDate(document.created_at),
+  status: document.review_status === 'REJECTED' ? 'Rejected' : document.review_status === 'PENDING' ? 'Pending' : 'Verified',
+  fileName: document.file_name,
+  createdAt: document.created_at,
+});
 
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;

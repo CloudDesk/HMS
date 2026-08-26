@@ -12,8 +12,8 @@ import type { OpdConsultationRepository } from './opd-consultation.repository.js
 const terminalAppointmentStatuses = ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'];
 
 const allowedVisitStatusTransitions: Record<OpdVisit['status'], OpdVisit['status'][]> = {
-  CHECKED_IN: ['WAITING_FOR_VITALS', 'CANCELLED', 'NO_SHOW'],
-  WAITING_FOR_VITALS: ['READY_FOR_CONSULTATION', 'CANCELLED', 'NO_SHOW'],
+  CHECKED_IN: ['WAITING_FOR_VITALS', 'SKIPPED', 'CANCELLED', 'NO_SHOW'],
+  WAITING_FOR_VITALS: ['READY_FOR_CONSULTATION', 'SKIPPED', 'CANCELLED', 'NO_SHOW'],
   READY_FOR_CONSULTATION: ['IN_CONSULTATION', 'SKIPPED', 'CANCELLED', 'NO_SHOW'],
   SKIPPED: ['IN_CONSULTATION', 'CANCELLED', 'NO_SHOW'],
   IN_CONSULTATION: ['COMPLETED', 'CANCELLED'],

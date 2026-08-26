@@ -27,6 +27,8 @@ import type { NotificationService } from '../../modules/notifications/notificati
 import type { PharmacyDispensingService } from '../../modules/pharmacy-dispensing/pharmacy-dispensing.service.js';
 import type { AdmissionsConfigurationService } from '../../modules/admissions-configuration/admissions-configuration.service.js';
 import type { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
+import type { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
+import type { SmsService } from '../services/sms.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -60,4 +62,6 @@ export type ServiceRegistry = {
   pharmacyDispensing: PharmacyDispensingService;
   admissionsConfiguration: AdmissionsConfigurationService;
   inpatientAdmissions: InpatientAdmissionService;
+  patientPortal: PatientPortalService;
+  sms: SmsService;
 };

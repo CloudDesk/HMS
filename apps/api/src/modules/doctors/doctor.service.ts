@@ -367,6 +367,21 @@ export class DoctorService {
       return result;
     }
 
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    const isToday = query.date === todayStr;
+    const isPastDate = query.date < todayStr;
+
+    if (isPastDate) {
+      result.unavailable_reason = 'Cannot book appointments for past dates';
+      return result;
+    }
+
+    const currentMinutesNow = now.getHours() * 60 + now.getMinutes();
+
     const exception = await this.repository.getExceptionByDate(id, date);
     const recurring = doctor.availability.find((item) => item.day_of_week === dayNames[date.getUTCDay()]);
     const schedule = exception
@@ -385,6 +400,9 @@ export class DoctorService {
       const duration = block.slot_duration_minutes;
       const blockSlots: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }> = [];
       for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += duration) {
+        if (isToday && current <= currentMinutesNow) {
+          continue;
+        }
         const startTime = toTime(current);
         const endTime = toTime(current + duration);
         const conflict = appointments.some(
@@ -396,6 +414,9 @@ export class DoctorService {
     });
     result.is_available = true;
     result.slots = slots;
+    if (slots.length === 0 && isToday) {
+      result.unavailable_reason = 'No remaining appointment times for today';
+    }
     return result;
   }
 

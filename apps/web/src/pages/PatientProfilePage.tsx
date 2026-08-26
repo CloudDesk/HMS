@@ -4,6 +4,12 @@ import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
 import {
     type ApiPatientDocumentType,
+  patientsApi,
+  type ApiPatientGender,
+  type ApiPatientStatus,
+  type ApiPatientDocumentType,
+  type PatientHistoryResponse,
+  type PatientDocumentResponse,
   type PatientResponse,
   type PatientTimelineEventResponse,
   } from '../api/patients';
@@ -72,6 +78,7 @@ const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => 
   if (eventType === 'CONSENT_ADDED') return 'ph ph-pill';
   if (eventType === 'DOCUMENT_ADDED') return 'ph ph-flask';
   if (eventType === 'DOCUMENT_DELETED') return 'ph ph-trash';
+  if (eventType === 'DOCUMENT_REVIEWED') return 'ph ph-file-check';
   return 'ph ph-file-text';
 };
 
@@ -81,12 +88,14 @@ const getEventCategoryName = (eventType: PatientTimelineEventResponse['event_typ
   if (eventType === 'CONSENT_ADDED') return 'Prescription';
   if (eventType === 'DOCUMENT_ADDED') return 'Lab Results';
   if (eventType === 'DOCUMENT_DELETED') return 'Document Removed';
+  if (eventType === 'DOCUMENT_REVIEWED') return 'Document Review';
   return 'Clinical Note';
 };
 
 const getEventStatusBadge = (eventType: PatientTimelineEventResponse['event_type']) => {
   if (eventType === 'REGISTRATION') return { label: 'Completed', class: 'completed' };
   if (eventType === 'DOCUMENT_ADDED') return { label: 'Results Ready', class: 'completed' };
+  if (eventType === 'DOCUMENT_REVIEWED') return { label: 'Reviewed', class: 'completed' };
   if (eventType === 'CONSENT_ADDED') return { label: 'Active', class: 'active' };
   return { label: 'Recorded', class: 'draft' };
 };
@@ -366,6 +375,25 @@ export function PatientProfilePage() {
   const [viewingImagingOrder, setViewingImagingOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<BillingInvoice | null>(null);
 
+  // Pagination & Filter States
+  const [timelineData, setTimelineData] = useState<PatientTimelineEventResponse[]>([]);
+  const [timelineMeta, setTimelineMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
+  const [timelineFilters, setTimelineFilters] = useState({ from: '', to: '' });
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
+  const [visitsData, setVisitsData] = useState<OpdVisitResponse[]>([]);
+  const [visitsMeta, setVisitsMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
+  const [visitsFilters, setVisitsFilters] = useState({ date_from: '', date_to: '' });
+  const [visitsLoading, setVisitsLoading] = useState(false);
+
+  const [appointmentsMeta, setAppointmentsMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
+  const [appointmentFilters, setAppointmentFilters] = useState({ date_from: '', date_to: '', doctor_id: '' });
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [doctorsList, setDoctorsList] = useState<DoctorResponse[]>([]);
+
+  const [activeTab, setActiveTab] = useState<Tab>('Overview');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -381,6 +409,10 @@ export function PatientProfilePage() {
   const [docType, setDocType] = useState<ApiPatientDocumentType>('CLINICAL');
   const [docCategory, setDocCategory] = useState('PDF');
   const [uploadMode, setUploadMode] = useState<'DOCUMENT' | 'CONSENT'>('DOCUMENT');
+  const [documentReviewTarget, setDocumentReviewTarget] = useState<PatientDocumentResponse | null>(null);
+  const [documentReviewDecision, setDocumentReviewDecision] = useState<'VERIFIED' | 'REJECTED'>('VERIFIED');
+  const [documentReviewNotes, setDocumentReviewNotes] = useState('');
+  const [submittingDocumentReview, setSubmittingDocumentReview] = useState(false);
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -442,6 +474,67 @@ export function PatientProfilePage() {
     }
   };
 
+  const handleDownloadDocument = async (document: PatientDocumentResponse) => {
+    if (!requestedPatientId) return;
+    try {
+      const result = await patientsApi.downloadDocument(requestedPatientId, document.id);
+      const url = URL.createObjectURL(result.blob);
+      const anchor = window.document.createElement('a');
+      anchor.href = url;
+      anchor.download = result.fileName ?? document.file_name;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      showToast(getPatientErrorMessage(error), 'error');
+    }
+  };
+
+  const handleViewDocument = async (document: PatientDocumentResponse) => {
+    if (!requestedPatientId) return;
+    try {
+      const result = await patientsApi.downloadDocument(requestedPatientId, document.id);
+      const url = URL.createObjectURL(result.blob);
+      const opened = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!opened) showToast('Allow pop-ups to preview this document.', 'error');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      showToast(getPatientErrorMessage(error), 'error');
+    }
+  };
+
+  const openDocumentReview = (
+    document: PatientDocumentResponse,
+    decision: 'VERIFIED' | 'REJECTED',
+  ) => {
+    setDocumentReviewTarget(document);
+    setDocumentReviewDecision(decision);
+    setDocumentReviewNotes('');
+  };
+
+  const handleDocumentReview = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!requestedPatientId || !documentReviewTarget) return;
+    if (documentReviewDecision === 'REJECTED' && !documentReviewNotes.trim()) {
+      showToast('Please enter a reason for rejecting this document.', 'error');
+      return;
+    }
+    setSubmittingDocumentReview(true);
+    try {
+      await patientsApi.reviewDocument(requestedPatientId, documentReviewTarget.id, {
+        review_status: documentReviewDecision,
+        review_notes: documentReviewNotes.trim() || null,
+      });
+      showToast(documentReviewDecision === 'VERIFIED' ? 'Document approved.' : 'Document rejected.');
+      setDocumentReviewTarget(null);
+      setDocumentReviewNotes('');
+      await load();
+    } catch (error) {
+      showToast(getPatientErrorMessage(error), 'error');
+    } finally {
+      setSubmittingDocumentReview(false);
+    }
+  };
+
   const printPatientCard = (p: PatientResponse) => {
     const fullName = patientFullName(p);
     const initials = patientInitials(fullName);
@@ -485,7 +578,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 <div class="card-header">
 <div class="hospital-row"><div class="hospital-logo">H</div><div><div class="hospital-name">HMS Enterprise</div><div class="hospital-sub">Hospital Management System</div></div></div>
 <span class="card-type-badge">Patient ID</span>
-<div class="avatar-row"><div class="avatar">${initials}</div><div class="avatar-info"><div class="name">${fullName}</div><span class="mrn">MRN-${p.patient_number}</span></div></div>
+<div class="avatar-row"><div class="avatar">${initials}</div><div class="avatar-info"><div class="name">${fullName}</div><span class="mrn">${p.patient_number}</span></div></div>
 </div>
 <div class="card-body">
 <div class="info-grid">
@@ -582,7 +675,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             <div className="profile-hero-info">
               <div className="profile-hero-title">
                 <h2>{patientFullName(patient)}</h2>
-                <span className="profile-mrn-badge">MRN-{patient.patient_number}</span>
+                <span className="profile-mrn-badge">{patient.patient_number}</span>
                 <span className={`doc-status ${patient.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
                   {patient.status}
                 </span>
@@ -1066,16 +1159,77 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
-                    <tr><th>DATE</th><th>TITLE</th><th>FILE</th><th>TYPE</th><th>UPLOADED BY</th></tr>
+                    <tr>
+                      <th>DATE</th><th>TITLE</th><th>TYPE</th><th>SOURCE</th><th>UPLOADED BY</th>
+                      <th>REVIEW STATUS</th><th className="align-right">ACTIONS</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {documents.map((document) => (
                       <tr key={document.id}>
                         <td>{formatDate(document.created_at)}</td>
-                        <td><strong>{document.title}</strong></td>
-                        <td>{document.file_name}</td>
+                        <td>
+                          <strong>{document.title}</strong>
+                          <small className="patient-document-file-name">{document.file_name}</small>
+                        </td>
                         <td>{document.document_type}</td>
+                        <td>{document.source === 'HOSPITAL' ? 'Hospital' : document.source === 'GUARDIAN' ? 'Guardian' : 'Patient'}</td>
                         <td>{document.uploaded_by_name || 'Recorded user'}</td>
+                        <td>
+                          <span className={`doc-status ${
+                            document.review_status === 'VERIFIED' || document.review_status === 'NOT_REQUIRED'
+                              ? 'verified'
+                              : document.review_status.toLowerCase()
+                          }`}>
+                            {document.review_status === 'NOT_REQUIRED' ? 'Hospital record' : document.review_status}
+                          </span>
+                          {document.reviewed_by_name ? (
+                            <small className="patient-document-reviewer">
+                              By {document.reviewed_by_name}{document.reviewed_at ? ` · ${formatDate(document.reviewed_at)}` : ''}
+                            </small>
+                          ) : null}
+                          {document.review_notes ? (
+                            <small className="patient-document-reviewer">Note: {document.review_notes}</small>
+                          ) : null}
+                        </td>
+                        <td className="align-right">
+                          <div className="patient-document-review-actions">
+                            <button
+                              className="doc-icon-action"
+                              onClick={() => void handleViewDocument(document)}
+                              title="Preview document"
+                              type="button"
+                            >
+                              <i className="ph ph-eye" aria-hidden="true" />
+                            </button>
+                            <button
+                              className="doc-icon-action"
+                              onClick={() => void handleDownloadDocument(document)}
+                              title="Download document"
+                              type="button"
+                            >
+                              <i className="ph ph-download-simple" aria-hidden="true" />
+                            </button>
+                            {document.review_status === 'PENDING' && document.source !== 'HOSPITAL' ? (
+                              <>
+                                <button
+                                  className="doc-btn small patient-document-approve"
+                                  onClick={() => openDocumentReview(document, 'VERIFIED')}
+                                  type="button"
+                                >
+                                  <i className="ph ph-check" aria-hidden="true" /> Approve
+                                </button>
+                                <button
+                                  className="doc-btn small patient-document-reject"
+                                  onClick={() => openDocumentReview(document, 'REJECTED')}
+                                  type="button"
+                                >
+                                  <i className="ph ph-x" aria-hidden="true" /> Reject
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1361,7 +1515,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(patient)}</div>
-                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>MRN-{patient.patient_number}</span>
+                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>{patient.patient_number}</span>
                   </div>
                 </div>
               </div>
@@ -1515,6 +1669,56 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </button>
             <button className="doc-btn primary" disabled={submittingUpload} type="submit">
               {submittingUpload ? 'Uploading...' : 'Upload Document'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(documentReviewTarget)}
+        onClose={() => {
+          if (!submittingDocumentReview) setDocumentReviewTarget(null);
+        }}
+        title={documentReviewDecision === 'VERIFIED' ? 'Approve patient document' : 'Reject patient document'}
+      >
+        <form className="modal-form" onSubmit={handleDocumentReview}>
+          <div className={`patient-document-review-summary ${documentReviewDecision.toLowerCase()}`}>
+            <i className={`ph ${documentReviewDecision === 'VERIFIED' ? 'ph-check-circle' : 'ph-warning-circle'}`} aria-hidden="true" />
+            <div>
+              <strong>{documentReviewTarget?.title}</strong>
+              <span>
+                {documentReviewDecision === 'VERIFIED'
+                  ? 'Confirm that staff have reviewed this patient-supplied document and it is suitable for the patient record.'
+                  : 'The document will remain available with a rejected status and the reason will be recorded.'}
+              </span>
+            </div>
+          </div>
+          <div className="doc-field">
+            <label htmlFor="document-review-notes">
+              Review note {documentReviewDecision === 'REJECTED' ? <span className="required-asterisk">*</span> : '(optional)'}
+            </label>
+            <textarea
+              id="document-review-notes"
+              onChange={(event) => setDocumentReviewNotes(event.target.value)}
+              placeholder={documentReviewDecision === 'REJECTED' ? 'Explain why this document was rejected' : 'Add a note for the patient record'}
+              rows={4}
+              value={documentReviewNotes}
+            />
+          </div>
+          <div className="modal-actions">
+            <button className="doc-btn" disabled={submittingDocumentReview} onClick={() => setDocumentReviewTarget(null)} type="button">
+              Cancel
+            </button>
+            <button
+              className={`doc-btn ${documentReviewDecision === 'VERIFIED' ? 'primary' : 'danger'}`}
+              disabled={submittingDocumentReview}
+              type="submit"
+            >
+              {submittingDocumentReview
+                ? 'Saving...'
+                : documentReviewDecision === 'VERIFIED'
+                  ? 'Approve document'
+                  : 'Reject document'}
             </button>
           </div>
         </form>

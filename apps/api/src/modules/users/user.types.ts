@@ -30,6 +30,7 @@ export type UserRecord = {
   updatedBy: string | null;
   deletedBy: string | null;
   roleIds: string[];
+  patientId: string | null;
 };
 
 export type UserAssignment = {
@@ -85,4 +86,23 @@ export type ProvisionDoctorAccountInput = {
   phone?: string | null;
   branchId: string;
   departmentId: string;
+};
+
+export type ProvisionPatientAccountInput = {
+  patientId: string;
+  patientNumber: string;
+  username: string;
+  email: string;
+  password: string;
+  fullName: string;
+  phone?: string | null;
+  branchId?: string | null;
+};
+
+export type RegisterPortalAccountInput = {
+  accountType: 'PATIENT' | 'GUARDIAN';
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
 };

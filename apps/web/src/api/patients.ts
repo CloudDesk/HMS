@@ -95,6 +95,14 @@ export type PatientDocumentResponse = {
   signed_at: string | null;
   valid_until: string | null;
   signed_by_name: string | null;
+  source: 'HOSPITAL' | 'PATIENT' | 'GUARDIAN';
+  review_status: 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+  reviewed_by: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  document_date: string | null;
+  provider_name: string | null;
   status: 'ACTIVE' | 'DELETED';
   uploaded_by: string | null;
   uploaded_by_name: string | null;
@@ -134,6 +142,7 @@ export type PatientTimelineEventResponse = {
     | 'PROFILE_UPDATED'
     | 'DOCUMENT_ADDED'
     | 'DOCUMENT_DELETED'
+    | 'DOCUMENT_REVIEWED'
   | 'CONSENT_ADDED'
   | 'OPD_VISIT_CREATED'
   | 'OPD_VISIT_STATUS_UPDATED'
@@ -265,6 +274,17 @@ export const patientsApi = {
   downloadDocument(patientId: string, documentId: string) {
     return apiClient.download(
       `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/download`,
+    );
+  },
+
+  reviewDocument(
+    patientId: string,
+    documentId: string,
+    payload: { review_status: 'VERIFIED' | 'REJECTED'; review_notes?: string | null },
+  ) {
+    return apiClient.request<PatientDocumentResponse>(
+      `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/review`,
+      { body: payload, method: 'PATCH' },
     );
   },
 

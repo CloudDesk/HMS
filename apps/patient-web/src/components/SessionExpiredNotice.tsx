@@ -1,0 +1,1 @@
+export function SessionExpiredNotice({ visible }: { visible: boolean }) { return visible ? <div className="auth-alert auth-alert--warning" role="status">Your session has expired. Sign in again to continue.</div> : null; }

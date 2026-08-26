@@ -170,6 +170,14 @@ export function PatientSearchPage() {
       <div className="hero-info">
         <h2>${fullName}</h2>
         <span className="mrn-pill">${p.patient_number}</span>
+  <div class="card">
+    <div class="header">
+      <div class="header-left">
+        <div class="avatar">${initials}</div>
+        <div class="name-block">
+          <div class="name">${fullName}</div>
+          <div class="mrn">${p.patient_number}</div>
+        </div>
       </div>
     </div>
   </div>
@@ -215,7 +223,6 @@ export function PatientSearchPage() {
       notes: patient.notes ?? '',
     });
     setEditFormError('');
-    setActiveMenuId(null);
   };
 
   const onSubmitEdit = async () => {
@@ -315,6 +322,9 @@ export function PatientSearchPage() {
     <div className="appointment-page full-height-layout" onClick={() => setActiveMenuId(null)}>
       {/* Patient Search Form Card (Compact Streamlined Toolbar) */}
       <section className="doc-card patient-search-card-compact">
+    <div className="appointment-page full-height-layout">
+      {/* Patient Search Form Card (Compact 5 Basic Filters + Advanced Toggle) */}
+      <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -851,7 +861,7 @@ export function PatientSearchPage() {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(cardPatient)}</div>
-                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>MRN-{cardPatient.patient_number}</span>
+                    <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>{cardPatient.patient_number}</span>
                   </div>
                 </div>
               </div>

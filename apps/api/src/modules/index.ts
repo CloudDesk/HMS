@@ -29,10 +29,12 @@ import { registerNotificationRoutes } from './notifications/index.js';
 import { registerPharmacyDispensingRoutes } from './pharmacy-dispensing/pharmacy-dispensing.routes.js';
 import { registerAdmissionsConfigurationRoutes } from './admissions-configuration/admissions-configuration.routes.js';
 import { registerInpatientAdmissionRoutes } from './inpatient-admissions/inpatient-admission.routes.js';
+import { registerPatientPortalRoutes } from './patient-portal/patient-portal.routes.js';
 
 export const registerModules = async (app: FastifyInstance, services: ServiceRegistry) => {
   await registerHealthRoutes(app, services);
   await registerAuthRoutes(app, services);
+  await registerPatientPortalRoutes(app, services);
   await registerAdministrationDashboardRoutes(app, services);
   await registerUserRoutes(app, services);
   await registerRoleRoutes(app, services);

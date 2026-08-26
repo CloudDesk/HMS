@@ -18,7 +18,7 @@ async function main() {
     // Since department is cardiology in the screenshot, let's keep the user's existing department if valid for main branch, or find Cardiology in Main Branch.
     const dept = await DepartmentModel.findOne({ name: 'Cardiology', branchId: mainBranch._id });
 
-    const updateData: any = { 
+    const updateData: Record<string, unknown> = { 
       branchIds: [mainBranch._id],
     };
 
