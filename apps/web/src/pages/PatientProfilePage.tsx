@@ -7,7 +7,6 @@ import {
   patientsApi,
   type ApiPatientGender,
   type ApiPatientStatus,
-  type ApiPatientDocumentType,
   type PatientHistoryResponse,
   type PatientDocumentResponse,
   type PatientResponse,
@@ -375,25 +374,7 @@ export function PatientProfilePage() {
   const [viewingImagingOrder, setViewingImagingOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<BillingInvoice | null>(null);
 
-  // Pagination & Filter States
-  const [timelineData, setTimelineData] = useState<PatientTimelineEventResponse[]>([]);
-  const [timelineMeta, setTimelineMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
-  const [timelineFilters, setTimelineFilters] = useState({ from: '', to: '' });
-  const [timelineLoading, setTimelineLoading] = useState(false);
 
-  const [visitsData, setVisitsData] = useState<OpdVisitResponse[]>([]);
-  const [visitsMeta, setVisitsMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
-  const [visitsFilters, setVisitsFilters] = useState({ date_from: '', date_to: '' });
-  const [visitsLoading, setVisitsLoading] = useState(false);
-
-  const [appointmentsMeta, setAppointmentsMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
-  const [appointmentFilters, setAppointmentFilters] = useState({ date_from: '', date_to: '', doctor_id: '' });
-  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
-  const [doctorsList, setDoctorsList] = useState<DoctorResponse[]>([]);
-
-  const [activeTab, setActiveTab] = useState<Tab>('Overview');
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -527,7 +508,6 @@ export function PatientProfilePage() {
       showToast(documentReviewDecision === 'VERIFIED' ? 'Document approved.' : 'Document rejected.');
       setDocumentReviewTarget(null);
       setDocumentReviewNotes('');
-      await load();
     } catch (error) {
       showToast(getPatientErrorMessage(error), 'error');
     } finally {

@@ -320,9 +320,6 @@ export function PatientSearchPage() {
 
   return (
     <div className="appointment-page full-height-layout" onClick={() => setActiveMenuId(null)}>
-      {/* Patient Search Form Card (Compact Streamlined Toolbar) */}
-      <section className="doc-card patient-search-card-compact">
-    <div className="appointment-page full-height-layout">
       {/* Patient Search Form Card (Compact 5 Basic Filters + Advanced Toggle) */}
       <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
         <form

@@ -23,44 +23,7 @@ export function PrescriptionQueuePage() {
 
   const [dispenseModalOpen, setDispenseModalOpen] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<OpdPrescriptionResponse | null>(null);
-  const canDispense = Boolean(
-    user?.roles.some((role) => role.code === 'SUPER_ADMIN') ||
-    hasPermission(user?.permissions ?? [], {
-      module: 'Pharmacy',
-      screen: 'Dispensing',
-      action: 'Dispense',
-    }),
-  );
 
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 3500);
-  };
-
-  const loadQueue = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-
-    try {
-      const response = await opdApi.listPrescriptions({
-        search: searchTerm.trim() || undefined,
-        status: statusFilter || undefined,
-        limit: 100,
-        sortBy: 'submitted_at',
-        sortOrder: 'desc',
-      });
-      setPrescriptions(response.data);
-    } catch (error: unknown) {
-      setPrescriptions([]);
-      const message = error instanceof Error ? error.message : 'Failed to load prescription queue';
-      setLoadError(message);
-      showToast(message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     const params = new URLSearchParams();

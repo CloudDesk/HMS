@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
-import { branchesApi } from '../api/branches';
+import { branchesApi, type BranchResponse } from '../api/branches';
 import {
   patientsApi,
   type ApiPatientGender,

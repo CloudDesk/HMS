@@ -60,8 +60,6 @@ import { InpatientAdmissionRepository } from '../../modules/inpatient-admissions
 import { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
 import { PatientPortalRepository } from '../../modules/patient-portal/patient-portal.repository.js';
 import { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
-import { PatientDocumentStorageService } from '../storage/patient-document-storage.service.js';
-import type { ServiceRegistry } from '../types/service-registry.js';
 import { createSmsService } from './sms.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {

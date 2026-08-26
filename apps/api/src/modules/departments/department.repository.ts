@@ -39,7 +39,7 @@ export class DepartmentRepository {
       data: data.map((d) => ({
         ...d,
         id: d._id.toString(),
-        branch_ids: (d.branchIds || (d.branchId ? [d.branchId] : [])).map((id: any) => id.toString()),
+        branch_ids: d.branchIds.map((id) => id.toString()),
       })) as unknown as Department[],
       meta: {
         total: count,
@@ -56,7 +56,7 @@ export class DepartmentRepository {
       ? ({
           ...department,
           id: department._id.toString(),
-          branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
+          branch_ids: department.branchIds.map((id) => id.toString()),
         } as unknown as Department)
       : undefined;
   }
@@ -67,7 +67,7 @@ export class DepartmentRepository {
       ? ({
           ...department,
           id: department._id.toString(),
-          branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
+          branch_ids: department.branchIds.map((id) => id.toString()),
         } as unknown as Department)
       : undefined;
   }
@@ -83,7 +83,7 @@ export class DepartmentRepository {
     return {
       ...department.toJSON(),
       id: department._id.toString(),
-      branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
+      branch_ids: department.branchIds.map((id) => id.toString()),
     } as unknown as Department;
   }
 
@@ -105,7 +105,7 @@ export class DepartmentRepository {
     return {
       ...department,
       id: department._id.toString(),
-      branch_ids: (department.branchIds || (department.branchId ? [department.branchId] : [])).map((id: any) => id.toString()),
+      branch_ids: department.branchIds.map((id) => id.toString()),
     } as unknown as Department;
   }
 

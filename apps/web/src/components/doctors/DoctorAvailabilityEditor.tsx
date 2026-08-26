@@ -57,7 +57,10 @@ export const doctorAvailabilityToForm = (doctor: DoctorResponse): AvailabilityDa
             start_time: block.start_time,
             end_time: block.end_time,
             slot_duration_minutes: block.slot_duration_minutes || 30,
-            max_patients_per_slot: block.max_patients_per_slot ?? value.max_patients_per_slot ?? 2,
+            max_patients_per_slot:
+              'max_patients_per_slot' in block && typeof block.max_patients_per_slot === 'number'
+                ? block.max_patients_per_slot
+                : 2,
           })),
         }
       : unavailableDay(day);

@@ -9,8 +9,6 @@ import {
 } from '../hooks/doctors/useDoctorDashboard';
 import { navigate } from '../routing/navigation';
 import { todayInputValue } from './appointment-utils';
-import { Toast } from '../components/ui/Toast';
-import { getAppointmentErrorMessage, todayInputValue } from './appointment-utils';
 import {
   appointmentStatusText,
   patientInitialsFromName,

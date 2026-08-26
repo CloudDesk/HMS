@@ -135,7 +135,7 @@ export class PatientPortalRepository {
     if (query.departmentId) filter.departmentId = objectId(query.departmentId);
     if (query.branchId) {
       const departmentIds = await DepartmentModel.distinct('_id', {
-        branchId: objectId(query.branchId),
+        branchIds: objectId(query.branchId),
         deletedAt: null,
       });
       filter.departmentId = query.departmentId
@@ -157,9 +157,9 @@ export class PatientPortalRepository {
     ]);
     const departmentIds = validObjectIds(services.map((item) => item.departmentId));
     const departments = departmentIds.length
-      ? await DepartmentModel.find({ _id: { $in: departmentIds }, deletedAt: null }).select('name branchId').lean()
+      ? await DepartmentModel.find({ _id: { $in: departmentIds }, deletedAt: null }).select('name branchIds').lean()
       : [];
-    const branchIds = validObjectIds(departments.map((department) => department.branchId));
+    const branchIds = validObjectIds(departments.flatMap((department) => department.branchIds));
     const branches = branchIds.length
       ? await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city').lean()
       : [];
@@ -168,7 +168,10 @@ export class PatientPortalRepository {
     return {
       data: services.map((service) => {
         const department = departmentById.get(String(service.departmentId));
-        const branch = department ? branchById.get(String(department.branchId)) : null;
+        const departmentBranchId = department?.branchIds.find(
+          (branchId) => !query.branchId || String(branchId) === query.branchId,
+        );
+        const branch = departmentBranchId ? branchById.get(String(departmentBranchId)) : null;
         return {
           id: String(service._id),
           code: service.code,
