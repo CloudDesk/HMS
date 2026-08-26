@@ -6,6 +6,12 @@ import { useDoctorAvailableSlots } from '../doctors/useDoctors';
 import { useAppointmentsList } from '../appointments/useAppointments';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 import { toast } from 'sonner';
+import type { InventoryItem } from '../../api/pharmacy-inventory';
+import type { MedicineResponse } from '../../api/medicines';
+import type { ServiceResponse } from '../../api/services';
+import type { ConsultationForm } from '../../components/opd/OpdConsultationTab';
+import type { ApiClinicalOrderPriority } from '../../api/opd';
+import type { SaveBillingInvoiceItem } from '../../api/billing';
 
 const WORKSPACE_TABS = [
   { id: '1', label: '1 Consultation', name: 'Consultation' },
@@ -50,6 +56,230 @@ export function useOpdVisitFeature() {
   }, [activeVisitId, recentVisits]);
 
   const workspace = useOpdWorkspace(activeVisitId || null);
+
+  const masterMedicines = useMemo(() => {
+    const invMapId: Record<string, { available: number; unit?: string }> = {};
+    const invMapName: Record<string, { available: number; unit?: string }> = {};
+    workspace.inventory.forEach((item: InventoryItem) => {
+      const info = { available: item.available_quantity, unit: item.medicine?.name };
+      invMapId[item.medicine_id] = info;
+      if (item.medicine?.name) invMapName[item.medicine.name] = info;
+    });
+
+    return workspace.medicines.map((m: MedicineResponse) => {
+      const invMatch = invMapId[m.id] || invMapName[m.name];
+      return {
+        id: m.id,
+        name: m.name,
+        generic_name: m.generic_name ?? undefined,
+        strength: m.strength ?? undefined,
+        dosage_form: m.dosage_form ?? undefined,
+        unit: invMatch?.unit || m.unit || 'units',
+        available_quantity: invMatch?.available ?? 120,
+      };
+    });
+  }, [workspace.medicines, workspace.inventory]);
+
+  const labTestServices = useMemo(() => workspace.services.filter((s: ServiceResponse) => s.service_type === 'LAB_TEST'), [workspace.services]);
+  const imagingServices = useMemo(() => workspace.services.filter((s: ServiceResponse) => s.service_type === 'IMAGING_SERVICE'), [workspace.services]);
+
+  type CompleteConsultationPayload = {
+    consultationForm: ConsultationForm;
+    prescriptionForm: { items: Array<{ medicine_name: string; strength?: string | null; dosage: string; route?: string; frequency: string; duration: string; quantity?: number | string; intake_time?: string | null; instructions?: string | null }>; follow_up_date?: string | null; doctor_instructions?: string | null; patient_instructions?: string | null };
+    labOrders: Array<{ id: string; name: string; local_id: string }>;
+    selectedLabTest: string;
+    labPriority: ApiClinicalOrderPriority;
+    imagingOrders: Array<{ id: string; name: string; local_id: string }>;
+    selectedImagingTest: string;
+    imagingPriority: ApiClinicalOrderPriority;
+    onSuccess?: () => void;
+  };
+
+  const handleCompleteConsultation = async (payload: CompleteConsultationPayload) => {
+    if (!workspace.visit) return;
+    const visit = workspace.visit;
+    const {
+      consultationForm,
+      prescriptionForm,
+      labOrders,
+      selectedLabTest,
+      labPriority,
+      imagingOrders,
+      selectedImagingTest,
+      imagingPriority,
+      onSuccess
+    } = payload;
+
+    try {
+      const consultationPayload = {
+        allergies: consultationForm.allergies?.trim() || null,
+        assessment: consultationForm.assessment?.trim() || null,
+        chief_complaint: consultationForm.chief_complaint?.trim() || null,
+        doctor_notes: consultationForm.doctor_notes?.trim() || null,
+        family_history: consultationForm.family_history?.trim() || null,
+        history_present_illness: consultationForm.history_present_illness?.trim() || null,
+        past_history: consultationForm.past_history?.trim() || null,
+        physical_examination: consultationForm.physical_examination?.trim() || null,
+        treatment_plan: consultationForm.treatment_plan?.trim() || null,
+      };
+
+      if (prescriptionForm.items.length > 0) {
+        await workspace.mutations.submitPrescription({
+          visitId: visit.id,
+          payload: {
+            items: prescriptionForm.items.map((i) => ({
+              medicine_name: i.medicine_name,
+              strength: i.strength || null,
+              dosage: i.dosage,
+              route: i.route || 'ORAL',
+              frequency: i.frequency,
+              duration: i.duration,
+              quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+              intake_time: i.intake_time || null,
+              instructions: i.instructions || null,
+            })),
+            follow_up_date: prescriptionForm.follow_up_date || null,
+            doctor_instructions: prescriptionForm.doctor_instructions || null,
+            patient_instructions: prescriptionForm.patient_instructions || null,
+          }
+        }).catch(() => null);
+      }
+
+      const pendingLabName = selectedLabTest || '';
+      const matchedPendingLab = pendingLabName ? labTestServices.find((s: ServiceResponse) => s.name === pendingLabName) : undefined;
+      const allLabItems = [...labOrders.map((o: { id: string; name: string; local_id: string }) => ({
+        service_id: o.id,
+        investigation_name: o.name,
+        category: labTestServices.find((s: ServiceResponse) => s.id === o.id)?.category || 'General Lab',
+      }))];
+
+      if (matchedPendingLab && !allLabItems.find(i => i.service_id === matchedPendingLab.id)) {
+        allLabItems.push({
+          service_id: matchedPendingLab.id,
+          investigation_name: pendingLabName,
+          category: matchedPendingLab.category || 'General Lab',
+        });
+      }
+
+      if (allLabItems.length > 0) {
+        await workspace.mutations.submitClinicalOrder({
+          visitId: visit.id,
+          type: 'LABORATORY',
+          payload: {
+            priority: labPriority || 'ROUTINE',
+            specimen_type: 'Not Specified',
+            items: allLabItems,
+          }
+        }).catch(() => null);
+      }
+
+      const pendingImagingName = selectedImagingTest || '';
+      const matchedPendingImaging = pendingImagingName ? imagingServices.find((s: ServiceResponse) => s.name === pendingImagingName) : undefined;
+      const allImagingItems = [...imagingOrders.map((o: { id: string; name: string; local_id: string }) => ({
+        service_id: o.id,
+        investigation_name: o.name,
+        category: imagingServices.find((s: ServiceResponse) => s.id === o.id)?.category || 'Radiology',
+      }))];
+
+      if (matchedPendingImaging && !allImagingItems.find(i => i.service_id === matchedPendingImaging.id)) {
+        allImagingItems.push({
+          service_id: matchedPendingImaging.id,
+          investigation_name: pendingImagingName,
+          category: matchedPendingImaging.category || 'Radiology',
+        });
+      }
+
+      if (allImagingItems.length > 0) {
+        await workspace.mutations.submitClinicalOrder({
+          visitId: visit.id,
+          type: 'IMAGING',
+          payload: {
+            priority: imagingPriority || 'ROUTINE',
+            items: allImagingItems,
+          }
+        }).catch(() => null);
+      }
+
+      const matchedConsultationService =
+        workspace.services.find(
+          (s: ServiceResponse) =>
+            (s.category && s.category.toLowerCase().includes('consultation')) ||
+            s.name.toLowerCase().includes('consultation') ||
+            s.name.toLowerCase().includes((visit.doctor_specialization || '').toLowerCase()),
+        ) || workspace.services[0];
+
+      const invoiceItems: SaveBillingInvoiceItem[] = [];
+      if (matchedConsultationService) {
+        invoiceItems.push({
+          service_id: matchedConsultationService.id,
+          service_type: 'CONSULTATION',
+          quantity: 1,
+        });
+      }
+      for (const item of allLabItems) {
+        invoiceItems.push({
+          service_id: item.service_id,
+          service_type: 'LAB_TEST',
+          quantity: 1,
+        });
+      }
+      for (const item of allImagingItems) {
+        invoiceItems.push({
+          service_id: item.service_id,
+          service_type: 'IMAGING_SERVICE',
+          quantity: 1,
+        });
+      }
+
+      if (invoiceItems.length > 0) {
+        await workspace.mutations.createBillingInvoice({
+          patient_id: visit.patient_id,
+          visit_id: visit.id,
+          branch_id: visit.branch_id || localStorage.getItem('activeBranchId') || '',
+          items: invoiceItems,
+        }).catch(() => null);
+      }
+
+      await workspace.mutations.completeConsultation({
+        visitId: visit.id,
+        payload: consultationPayload
+      });
+
+      await workspace.mutations.updateVisitStatus({
+        id: visit.id,
+        payload: { status: 'COMPLETED', notes: 'Consultation completed.' }
+      });
+
+      toast.success('Consultation completed successfully & billing invoice generated.');
+      if (onSuccess) onSuccess();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    }
+  };
+
+  const handleSaveConsultationDraft = async (consultationForm: ConsultationForm) => {
+    if (!workspace.visit) return;
+    try {
+      await workspace.mutations.saveConsultationDraft({
+        visitId: workspace.visit.id,
+        payload: {
+          allergies: consultationForm.allergies?.trim() || null,
+          assessment: consultationForm.assessment?.trim() || null,
+          chief_complaint: consultationForm.chief_complaint?.trim() || null,
+          doctor_notes: consultationForm.doctor_notes?.trim() || null,
+          family_history: consultationForm.family_history?.trim() || null,
+          history_present_illness: consultationForm.history_present_illness?.trim() || null,
+          past_history: consultationForm.past_history?.trim() || null,
+          physical_examination: consultationForm.physical_examination?.trim() || null,
+          treatment_plan: consultationForm.treatment_plan?.trim() || null,
+        }
+      });
+      toast.success('Consultation draft saved.');
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    }
+  };
+
 
   const [referralSpecialty, setReferralSpecialty] = useState('');
   const [referralDoctorId, setReferralDoctorId] = useState('');
@@ -156,6 +386,9 @@ export function useOpdVisitFeature() {
 
   return {
     state: {
+      masterMedicines,
+      labTestServices,
+      imagingServices,
       activeVisitId,
       activeTab,
       recentVisits,
@@ -171,6 +404,8 @@ export function useOpdVisitFeature() {
       referralSlotLoading,
     },
     actions: {
+      handleCompleteConsultation,
+      handleSaveConsultationDraft,
       setReferralSpecialty,
       setReferralDoctorId,
       setReferralDate,

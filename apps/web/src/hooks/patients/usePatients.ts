@@ -10,6 +10,7 @@ import {
   type UploadPatientDocumentPayload,
 } from '../../api/patients';
 import { patientDocumentsService } from '../../services/patient-documents.service';
+import { patientRegistrationService } from '../../services/patient-registration.service';
 
 export const getPatientErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -77,16 +78,23 @@ export function usePatientDocuments(id: string | null, params: PatientDocumentLi
   });
 }
 
-export function useCreatePatient() {
+type CreatePatientOptions = {
+  notify?: boolean;
+};
+
+export function useCreatePatient(options: CreatePatientOptions = {}) {
   const queryClient = useQueryClient();
+  const notify = options.notify ?? true;
 
   return useMutation({
-    mutationFn: (payload: SavePatientPayload) => patientsApi.create(payload),
+    mutationFn: (payload: SavePatientPayload) => patientRegistrationService.create(payload),
     onSuccess: async () => {
-      toast.success('Patient created successfully.');
+      if (notify) toast.success('Patient created successfully.');
       await queryClient.invalidateQueries({ queryKey: patientsKeys.lists() });
     },
-    onError: (error) => toast.error(getPatientErrorMessage(error)),
+    onError: (error) => {
+      if (notify) toast.error(getPatientErrorMessage(error));
+    },
   });
 }
 

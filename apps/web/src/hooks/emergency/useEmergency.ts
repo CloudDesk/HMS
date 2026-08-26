@@ -1,8 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateEmergencyPayload,
+  EmergencyEncounter,
   EmergencyListParams,
   EmergencyTriageLevel,
+  TriagePayload,
+  ConsultationPayload,
+  EmergencyOrderPayload,
+  DispositionPayload,
 } from '../../api/emergency';
 import { emergencyService } from '../../services/emergency.service';
 const keys = {
@@ -17,8 +22,11 @@ export function useEmergency(
   enabled: boolean,
 ) {
   const client = useQueryClient();
-  const refresh = async () => {
-    await client.invalidateQueries({ queryKey: keys.all });
+
+  const updateEncounter = (data: EmergencyEncounter) => {
+    client.setQueryData(keys.detail(data.id, params.branch_id), data);
+    client.invalidateQueries({ queryKey: ['emergency', 'list'] });
+    client.invalidateQueries({ queryKey: ['emergency', 'summary'] });
   };
   const list = useQuery({
     queryKey: keys.list(params),
@@ -41,17 +49,20 @@ export function useEmergency(
     detail,
     create: useMutation({
       mutationFn: (body: CreateEmergencyPayload) => emergencyService.create(body),
-      onSuccess: refresh,
+      onSuccess: () => {
+        client.invalidateQueries({ queryKey: ['emergency', 'list'] });
+        client.invalidateQueries({ queryKey: ['emergency', 'summary'] });
+      },
     }),
     linkPatient: useMutation({
       mutationFn: ({ id, patientId, reason }: { id: string; patientId: string; reason?: string }) =>
         emergencyService.linkPatient(id, params.branch_id, patientId, reason),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
     triage: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: unknown }) =>
+      mutationFn: ({ id, body }: { id: string; body: TriagePayload }) =>
         emergencyService.triage(id, params.branch_id, body),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
     overridePriority: useMutation({
       mutationFn: ({
@@ -63,26 +74,26 @@ export function useEmergency(
         level: EmergencyTriageLevel;
         reason: string;
       }) => emergencyService.overridePriority(id, params.branch_id, level, reason),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
     call: useMutation({
       mutationFn: (id: string) => emergencyService.call(id, params.branch_id),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
     consultation: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: unknown }) =>
+      mutationFn: ({ id, body }: { id: string; body: ConsultationPayload }) =>
         emergencyService.consultation(id, params.branch_id, body),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
     order: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: unknown }) =>
+      mutationFn: ({ id, body }: { id: string; body: EmergencyOrderPayload }) =>
         emergencyService.order(id, params.branch_id, body),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
     disposition: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: unknown }) =>
+      mutationFn: ({ id, body }: { id: string; body: DispositionPayload }) =>
         emergencyService.disposition(id, params.branch_id, body),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
     reasonAction: useMutation({
       mutationFn: ({
@@ -94,7 +105,7 @@ export function useEmergency(
         action: 'skip' | 'no-show' | 'left' | 'cancel';
         reason: string;
       }) => emergencyService.reasonAction(id, params.branch_id, action, reason),
-      onSuccess: refresh,
+      onSuccess: updateEncounter,
     }),
   };
 }

@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+const LOOKUP_STALE_TIME = 5 * 60 * 1000;
 import { admissionsConfigurationApi } from '../api/admissions-configuration';
 import { branchesApi } from '../api/branches';
 import { departmentsApi } from '../api/departments';
@@ -18,11 +20,11 @@ export const useInpatientAdmissions = (branchId: string, patientSearch: string, 
     client.invalidateQueries({ queryKey: ['admissions', 'available-beds'] }),
     client.invalidateQueries({ queryKey: ['admissions', 'configuration'] }),
   ]);
-  const branches = useQuery({ queryKey: ['admissions', 'branches'], queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100 }) });
+  const branches = useQuery({ queryKey: ['admissions', 'branches'], queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100 }), staleTime: LOOKUP_STALE_TIME });
   const patients = useQuery({ queryKey: ['admissions', 'patients', patientSearch], queryFn: () => patientsApi.list({ search: patientSearch, status: 'ACTIVE', page: 1, limit: 20 }), enabled: patientSearch.length >= 2 });
-  const doctors = useQuery({ queryKey: ['admissions', 'doctors', branchId], queryFn: () => doctorsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && createOpen });
-  const departments = useQuery({ queryKey: ['admissions', 'departments', branchId], queryFn: () => departmentsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && createOpen });
-  const wards = useQuery({ queryKey: ['admissions', 'wards', branchId], queryFn: () => admissionsConfigurationApi.wards({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && allocationOpen });
+  const doctors = useQuery({ queryKey: ['admissions', 'doctors', branchId], queryFn: () => doctorsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && createOpen, staleTime: LOOKUP_STALE_TIME });
+  const departments = useQuery({ queryKey: ['admissions', 'departments', branchId], queryFn: () => departmentsApi.list({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && createOpen, staleTime: LOOKUP_STALE_TIME });
+  const wards = useQuery({ queryKey: ['admissions', 'wards', branchId], queryFn: () => admissionsConfigurationApi.wards({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) && allocationOpen, staleTime: LOOKUP_STALE_TIME });
   const beds = useQuery({ queryKey: ['admissions', 'available-beds', branchId], queryFn: () => admissionsConfigurationApi.beds({ branch_id: branchId, status: 'AVAILABLE', page: 1, limit: 100 }), enabled: Boolean(branchId) && allocationOpen });
   const policy = useQuery({ queryKey: ['admissions', 'policy', branchId], queryFn: () => admissionsConfigurationApi.policy(branchId), enabled: Boolean(branchId), retry: false });
   const requests = useQuery({ queryKey: ['admissions', 'requests', branchId, requestSearch], queryFn: () => inpatientAdmissionsService.requests({ branch_id: branchId, search: requestSearch || undefined, page: 1, limit: 50 }), enabled: Boolean(branchId) });

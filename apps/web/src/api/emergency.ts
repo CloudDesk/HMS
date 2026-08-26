@@ -129,6 +129,66 @@ export type CreateEmergencyPayload = {
   chief_complaint: string;
   arrival_notes?: string | null;
 };
+export type TriagePayload = {
+  level: EmergencyTriageLevel;
+  area: string;
+  pain_score?: number | null;
+  vitals: {
+    systolic_bp?: number | null;
+    diastolic_bp?: number | null;
+    pulse?: number | null;
+    temperature_c?: number | null;
+    spo2?: number | null;
+    respiratory_rate?: number | null;
+    gcs?: number | null;
+  };
+  abcde: {
+    airway: string;
+    breathing: string;
+    circulation: string;
+    disability: string;
+    exposure: string;
+  };
+  notes?: string | null;
+};
+export type ConsultationPayload = {
+  doctor_id: string;
+  chief_complaint: string;
+  history: string;
+  examination: string;
+  diagnosis: string;
+  plan: string;
+  treatment?: string | null;
+  notes?: string | null;
+  ready_for_disposition?: boolean;
+};
+export type EmergencyOrderItem = {
+  service_id?: string;
+  medicine_name?: string;
+  name: string;
+  category: string;
+  dosage?: string;
+  route?: string;
+  frequency?: string;
+  duration?: string;
+  quantity?: number | null;
+};
+export type EmergencyOrderPayload = {
+  order_type: 'PHARMACY' | 'LABORATORY' | 'IMAGING';
+  priority: 'ROUTINE' | 'URGENT' | 'STAT';
+  items: EmergencyOrderItem[];
+  destination?: string | null;
+  specimen_type?: string | null;
+  clinical_notes?: string | null;
+  instructions?: string | null;
+};
+export type DispositionPayload = {
+  decision: 'DISCHARGE' | 'ADMIT' | 'TRANSFER' | 'LEFT';
+  reason?: string | null;
+  summary?: string | null;
+  instructions?: string | null;
+  transfer_destination?: string | null;
+};
 const qs = (params: Record<string, string | number | undefined>) => {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -152,7 +212,7 @@ export const emergencyApi = {
       `/emergency/encounters/${id}/link-patient${qs({ branch_id: branchId })}`,
       { method: 'POST', body: { patient_id: patientId, reason } },
     ),
-  triage: (id: string, branchId: string, body: unknown) =>
+  triage: (id: string, branchId: string, body: TriagePayload) =>
     apiClient.request<EmergencyEncounter>(
       `/emergency/encounters/${id}/triage${qs({ branch_id: branchId })}`,
       { method: 'POST', body },
@@ -172,17 +232,17 @@ export const emergencyApi = {
       `/emergency/encounters/${id}/skip${qs({ branch_id: branchId })}`,
       { method: 'POST', body: { reason } },
     ),
-  consultation: (id: string, branchId: string, body: unknown) =>
+  consultation: (id: string, branchId: string, body: ConsultationPayload) =>
     apiClient.request<EmergencyEncounter>(
       `/emergency/encounters/${id}/consultation${qs({ branch_id: branchId })}`,
       { method: 'PUT', body },
     ),
-  order: (id: string, branchId: string, body: unknown) =>
+  order: (id: string, branchId: string, body: EmergencyOrderPayload) =>
     apiClient.request<EmergencyEncounter>(
       `/emergency/encounters/${id}/orders${qs({ branch_id: branchId })}`,
       { method: 'POST', body },
     ),
-  disposition: (id: string, branchId: string, body: unknown) =>
+  disposition: (id: string, branchId: string, body: DispositionPayload) =>
     apiClient.request<EmergencyEncounter>(
       `/emergency/encounters/${id}/disposition${qs({ branch_id: branchId })}`,
       { method: 'POST', body },

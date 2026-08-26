@@ -84,13 +84,16 @@ export function useEmergencyWorkspaceFeature() {
       page: 1,
       limit: 100,
     },
-    Boolean(branchId),
+    Boolean(branchId) && (view === 'queue' || view === 'workspace'),
   );
   const patients = usePatientsList(
     { search: patientSearch, status: 'ACTIVE', page: 1, limit: 20 },
     patientSearch.trim().length >= 2,
   );
-  const services = useServicesList({ status: 'ACTIVE', page: 1, limit: 100 });
+  const services = useServicesList(
+    { status: 'ACTIVE', page: 1, limit: 100 },
+    view === 'workspace',
+  );
   const setSelectedId = (id: string | null) => {
     setSelectedIdState(id);
     if (id && view !== 'workspace')

@@ -19,6 +19,7 @@ const consultationSchema = z.object({
 export type ConsultationForm = z.infer<typeof consultationSchema>;
 
 interface OpdConsultationTabProps {
+  onChange?: (data: ConsultationForm) => void;
   consultation: OpdConsultationResponse | null;
   onSaveDraft: (data: ConsultationForm) => void;
   onComplete: (data: ConsultationForm) => void;
@@ -27,8 +28,8 @@ interface OpdConsultationTabProps {
   canEdit: boolean;
 }
 
-export function OpdConsultationTab({ consultation, onSaveDraft, onComplete, isSaving, isCompleting, canEdit }: OpdConsultationTabProps) {
-  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<ConsultationForm>({
+export function OpdConsultationTab({ consultation, onSaveDraft, onComplete, isSaving, isCompleting, canEdit, onChange }: OpdConsultationTabProps) {
+  const { register, handleSubmit, reset, watch, formState: { errors, isDirty } } = useForm<ConsultationForm>({
     resolver: zodResolver(consultationSchema),
     defaultValues: {
       chief_complaint: consultation?.chief_complaint ?? '',
@@ -42,6 +43,13 @@ export function OpdConsultationTab({ consultation, onSaveDraft, onComplete, isSa
       doctor_notes: consultation?.doctor_notes ?? '',
     }
   });
+
+  useEffect(() => {
+    const sub = watch((value) => {
+      if (onChange) onChange(value as ConsultationForm);
+    });
+    return () => sub.unsubscribe();
+  }, [watch, onChange]);
 
   useEffect(() => {
     if (consultation) {

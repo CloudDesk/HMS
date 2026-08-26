@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+const LOOKUP_STALE_TIME = 5 * 60 * 1000;
 import { toast } from 'sonner';
 import {
   departmentsApi,
@@ -22,6 +24,7 @@ export function useDepartmentsList(params: DepartmentListParams, enabled = true)
     queryKey: departmentsKeys.list(params),
     queryFn: () => departmentsApi.list(params),
     enabled,
+    staleTime: LOOKUP_STALE_TIME,
   });
 }
 

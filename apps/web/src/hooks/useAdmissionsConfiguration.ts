@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+const LOOKUP_STALE_TIME = 5 * 60 * 1000;
 import { admissionsConfigurationService } from '../services/admissions-configuration.service';
 import type {
   AdmissionPolicyPayload,
@@ -63,6 +65,7 @@ export const useAdmissionsConfiguration = ({
     queryKey: admissionsConfigurationKeys.wardList(branchId, wardParams),
     queryFn: () => admissionsConfigurationService.wards(wardParams),
     enabled: Boolean(branchId),
+    staleTime: LOOKUP_STALE_TIME,
   });
 
   const bedsQuery = useQuery({
@@ -254,6 +257,7 @@ export const useBedTransferOptions = (
     ),
     queryFn: () => admissionsConfigurationService.wards(wardParams),
     enabled: enabled && Boolean(branchId),
+    staleTime: LOOKUP_STALE_TIME,
   });
 
   const bedsQuery = useQuery({

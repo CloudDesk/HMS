@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+const LOOKUP_STALE_TIME = 5 * 60 * 1000;
 import { toast } from 'sonner';
 import {
   servicesApi,
@@ -23,6 +25,7 @@ export function useServicesList(params: ServiceListParams, enabled = true) {
     queryKey: servicesKeys.list(params),
     queryFn: () => servicesApi.list(params),
     enabled,
+    staleTime: LOOKUP_STALE_TIME,
   });
 }
 

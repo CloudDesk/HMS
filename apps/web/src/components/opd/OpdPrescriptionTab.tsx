@@ -27,6 +27,7 @@ const prescriptionSchema = z.object({
 export type PrescriptionForm = z.infer<typeof prescriptionSchema>;
 
 interface OpdPrescriptionTabProps {
+  onChange?: (data: PrescriptionForm) => void;
   prescription: OpdPrescriptionResponse | null;
   masterMedicines: Array<{ id: string; name: string; generic_name?: string; strength?: string; dosage_form?: string; unit?: string; available_quantity: number; }>;
   onSave: (data: PrescriptionForm) => void;
@@ -34,8 +35,8 @@ interface OpdPrescriptionTabProps {
   canEdit: boolean;
 }
 
-export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSaving, canEdit }: OpdPrescriptionTabProps) {
-  const { register, control, handleSubmit, reset, formState: { isDirty } } = useForm<PrescriptionForm>({
+export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSaving, canEdit, onChange }: OpdPrescriptionTabProps) {
+  const { register, control, handleSubmit, reset, watch, formState: { isDirty } } = useForm<PrescriptionForm>({
     resolver: zodResolver(prescriptionSchema),
     defaultValues: {
       items: prescription?.items?.map((i) => ({
@@ -60,6 +61,13 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
     control,
     name: 'items'
   });
+
+  useEffect(() => {
+    const sub = watch((value) => {
+      if (onChange) onChange(value as PrescriptionForm);
+    });
+    return () => sub.unsubscribe();
+  }, [watch, onChange]);
 
   useEffect(() => {
     if (prescription) {
