@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { type SaveBillingInvoiceItem } from '../../api/billing';
-import { useOpdConsultation, useOpdClinicalOrder, useOpdPrescription } from '../opd/useOpd';
+import { useOpdConsultation, useOpdClinicalOrder } from '../opd/useOpd';
 import { useServicesList } from '../services/useServices';
-import { usePharmacyBatches } from '../pharmacy/usePharmacy';
 
 export type DraftItem = SaveBillingInvoiceItem & {
   service_name: string;
@@ -12,12 +11,10 @@ export type DraftItem = SaveBillingInvoiceItem & {
 
 export function useBillingAutoPopulate({
   visitId,
-  branchId,
   createMode,
   onPopulate,
 }: {
   visitId: string;
-  branchId: string;
   createMode: boolean;
   onPopulate: (items: DraftItem[]) => void;
 }) {
@@ -26,21 +23,15 @@ export function useBillingAutoPopulate({
   const { data: consultation } = useOpdConsultation(visitId, enabled);
   const { data: labOrder } = useOpdClinicalOrder(visitId, 'LABORATORY', enabled);
   const { data: imagingOrder } = useOpdClinicalOrder(visitId, 'IMAGING', enabled);
-  const { data: prescription } = useOpdPrescription(visitId, enabled);
-  
+
   const { data: servicesResponse } = useServicesList({ status: 'ACTIVE', limit: 100 }, enabled);
-  const { data: batchesResponse } = usePharmacyBatches(
-    { branch_id: branchId, status: 'ACTIVE', limit: 100 },
-    enabled && Boolean(branchId)
-  );
 
   useEffect(() => {
     if (!enabled) return;
-    if (!servicesResponse || !batchesResponse) return; // Wait for base data to resolve
+    if (!servicesResponse) return;
 
     try {
       const services = servicesResponse.data;
-      const batches = batchesResponse.data;
       const newDraftItems: DraftItem[] = [];
 
       // Auto-add Consultation if completed
@@ -94,26 +85,9 @@ export function useBillingAutoPopulate({
         }
       }
 
-      // Auto-add Pharmacy
-      if (prescription && prescription.status !== 'DRAFT') {
-        for (const item of prescription.items) {
-          const batch = batches.find((b) => b.medicine?.name === item.medicine_name);
-          if (batch) {
-            newDraftItems.push({
-              service_id: batch.id,
-              service_type: 'PHARMACY',
-              quantity: item.quantity || 1,
-              service_name: `${batch.medicine?.name} (Batch: ${batch.batch_number})`,
-              unit_price: batch.unit_price,
-              line_total: batch.unit_price * (item.quantity || 1),
-            });
-          }
-        }
-      }
-
       onPopulate(newDraftItems);
     } catch (error) {
       console.error('Failed to auto-populate services', error);
     }
-  }, [consultation, labOrder, imagingOrder, prescription, servicesResponse, batchesResponse, enabled, onPopulate]);
+  }, [consultation, labOrder, imagingOrder, servicesResponse, enabled, onPopulate]);
 }

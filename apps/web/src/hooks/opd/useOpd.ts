@@ -50,11 +50,12 @@ export function useOpdLatestVitals(visitId: string | null, enabled = true) {
   });
 }
 
-export function useOpdVisits(params: OpdVisitListParams, enabled = true) {
+export function useOpdVisits(params: OpdVisitListParams, enabled = true, refetchInterval?: number) {
   return useQuery({
     queryKey: opdKeys.visitList(params),
     queryFn: () => opdApi.listVisits(params),
     enabled,
+    refetchInterval,
   });
 }
 
@@ -116,6 +117,17 @@ export function useUpdateOpdVisitStatus() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateOpdVisitStatusPayload }) =>
       opdApi.updateVisitStatus(id, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useCallNextOpdPatient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (visitId: string) => opdApi.callNextPatient(visitId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
     },

@@ -1,16 +1,23 @@
 import { Types, type ClientSession } from 'mongoose';
 import { LaboratoryResultModel, type LaboratoryResultFields } from './laboratory-result.model.js';
 import type { SaveLaboratoryResultDTO } from './laboratory.types.js';
+import type { OpdClinicalOrder } from '../opd/opd-clinical-order.types.js';
 
 type LaboratoryResultLean = LaboratoryResultFields & { _id: Types.ObjectId };
+type LaboratoryOrderContext = Pick<OpdClinicalOrder,
+  'id' | 'patient_id' | 'visit_id' | 'source_type' | 'source_id'> & { encounter_id: string | null; admission_id: string | null; procedure_id: string | null; };
 const objectId = (value: string) => new Types.ObjectId(value);
 const nullable = (value?: string | null) => value?.trim() || null;
 
 const toResult = (record: LaboratoryResultLean) => ({
   id: record._id.toString(),
   order_id: record.orderId.toString(),
+  source_type: record.sourceType ?? 'OPD_VISIT',
+  encounter_id: record.encounterId?.toString() ?? record.visitId?.toString() ?? null,
+  admission_id: record.admissionId?.toString() ?? null,
+  procedure_id: record.procedureId?.toString() ?? null,
   patient_id: record.patientId.toString(),
-  visit_id: record.visitId.toString(),
+  visit_id: record.visitId?.toString() ?? null,
   result_items: record.resultItems.map((item) => ({
     service_id: item.serviceId.toString(),
     service_name: item.serviceName,
@@ -47,14 +54,18 @@ export class LaboratoryRepository {
   }
 
   async createResult(
-    order: { id: string; patient_id: string; visit_id: string },
+    order: LaboratoryOrderContext,
     data: SaveLaboratoryResultDTO,
     actorUserId: string,
     session: ClientSession,
   ) {
     const now = new Date();
     const record = new LaboratoryResultModel({
-      orderId: objectId(order.id), patientId: objectId(order.patient_id), visitId: objectId(order.visit_id),
+      orderId: objectId(order.id), patientId: objectId(order.patient_id), visitId: order.visit_id ? objectId(order.visit_id) : null,
+      sourceType: order.source_type,
+      encounterId: order.encounter_id ? objectId(order.encounter_id) : null,
+      admissionId: order.admission_id ? objectId(order.admission_id) : null,
+      procedureId: order.procedure_id ? objectId(order.procedure_id) : null,
       resultItems: resultItems(data), remarks: nullable(data.remarks), enteredBy: objectId(actorUserId), enteredAt: now,
       createdBy: objectId(actorUserId), updatedBy: objectId(actorUserId),
     });
@@ -62,10 +73,16 @@ export class LaboratoryRepository {
     return toResult(record.toObject() as LaboratoryResultLean);
   }
 
-  async updateResult(orderId: string, data: SaveLaboratoryResultDTO, actorUserId: string, session: ClientSession) {
+  async updateResult(order: LaboratoryOrderContext, data: SaveLaboratoryResultDTO, actorUserId: string, session: ClientSession) {
     const record = await LaboratoryResultModel.findOneAndUpdate(
-      { orderId: objectId(orderId), deletedAt: null, verifiedAt: null },
-      { $set: { resultItems: resultItems(data), remarks: nullable(data.remarks), updatedBy: objectId(actorUserId) } },
+      { orderId: objectId(order.id), deletedAt: null, verifiedAt: null },
+      { $set: {
+        sourceType: order.source_type,
+        encounterId: order.encounter_id ? objectId(order.encounter_id) : null,
+        admissionId: order.admission_id ? objectId(order.admission_id) : null,
+        procedureId: order.procedure_id ? objectId(order.procedure_id) : null,
+        resultItems: resultItems(data), remarks: nullable(data.remarks), updatedBy: objectId(actorUserId),
+      } },
       { returnDocument: 'after', lean: true, runValidators: true, session },
     ).lean<LaboratoryResultLean>();
     return record ? toResult(record) : null;

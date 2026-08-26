@@ -34,10 +34,13 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/billing/history': [{ module: 'Billing', screen: 'Invoices' }],
   '/administration/branches': [{ module: 'Administration', screen: 'Branches' }],
   '/administration/settings': [{ module: 'Administration', screen: 'Settings' }],
+  '/administration/consent-templates': [{ module: 'Administration', screen: 'Consent Templates' }],
   '/patients': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/search': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/register': [{ module: 'Patients', screen: 'Patient Records', action: 'Create' }],
   '/patients/profile': [{ module: 'Patients', screen: 'Patient Records' }],
+  '/patients/consent': [{ module: 'Patients', screen: 'Consent' }],
+  '/patients/consents': [{ module: 'Patients', screen: 'Consent' }],
   '/doctors': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/directory': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/profile': [{ module: 'Doctors', screen: 'Doctor Directory' }],
@@ -55,26 +58,42 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/appointments/book': [{ module: 'Appointments', screen: 'Appointment Booking' }],
   '/appointments/calendar': [{ module: 'Appointments', screen: 'Appointment Records' }],
   '/appointments/queue': [{ module: 'Appointments', screen: 'Appointment Records' }],
+  '/appointments/referrals': [
+    { module: 'Appointments', screen: 'Appointment Booking' },
+    { module: 'OPD', screen: 'OPD Referral' },
+  ],
   '/opd': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/queue': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/visit': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
-  '/admissions/beds': [{ module: 'Admissions', screen: 'Beds' }],
+  '/admissions/bed-availability': [{ module: 'Admissions', screen: 'Beds' }],
+  '/admissions/beds': [{ module: 'Admissions', screen: 'Beds', action: 'ChangeStatus' }],
   '/admissions/inpatients': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
+  '/reports/library': [{ module: 'Reports', screen: 'Phase 2 Reports' }],
+  '/surgery': [
+    { module: 'Surgery', screen: 'Recommendations' },
+    { module: 'Surgery', screen: 'Bookings' },
+    { module: 'Surgery', screen: 'Schedule' },
+  ],
+  '/surgery/recommendations': [{ module: 'Surgery', screen: 'Recommendations' }],
+  '/surgery/bookings': [{ module: 'Surgery', screen: 'Bookings' }],
+  '/surgery/schedule': [{ module: 'Surgery', screen: 'Schedule' }],
+  '/emergency': [{ module: 'Emergency', screen: 'Encounters' }],
+  '/emergency/queue': [{ module: 'Emergency', screen: 'Encounters' }],
+  '/emergency/workspace': [{ module: 'Emergency', screen: 'Encounters' }],
 };
 
 const normalize = (value: string) => value.trim().toLowerCase();
-const isSuperAdministrator = (roles: AuthRole[]) => roles.some((role) => role.code === 'SUPER_ADMIN');
+const isSuperAdministrator = (roles: AuthRole[]) =>
+  roles.some((role) => role.code === 'SUPER_ADMIN');
 
-export const hasPermission = (
-  permissions: AuthPermission[],
-  requirement: PermissionRequirement,
-) => permissions.some(
-  (permission) =>
-    normalize(permission.module) === normalize(requirement.module) &&
-    normalize(permission.screen) === normalize(requirement.screen) &&
-    normalize(permission.action) === normalize(requirement.action ?? 'View'),
-);
+export const hasPermission = (permissions: AuthPermission[], requirement: PermissionRequirement) =>
+  permissions.some(
+    (permission) =>
+      normalize(permission.module) === normalize(requirement.module) &&
+      normalize(permission.screen) === normalize(requirement.screen) &&
+      normalize(permission.action) === normalize(requirement.action ?? 'View'),
+  );
 
 export const isPermissionControlledRoute = (pathname: string) => pathname in routeRequirements;
 

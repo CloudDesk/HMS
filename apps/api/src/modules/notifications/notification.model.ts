@@ -4,6 +4,7 @@ import type { NotificationType } from './notification.types.js';
 export type NotificationDocumentFields = {
   recipientRole?: string | null;
   recipientUserId?: Types.ObjectId | null;
+  recipientBranchId?: Types.ObjectId | null;
   title: string;
   message: string;
   type: NotificationType;
@@ -17,6 +18,7 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
   {
     recipientRole: { type: String, default: null },
     recipientUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    recipientBranchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
     title: { type: String, required: true },
     message: { type: String, required: true },
     type: { type: String, enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL'], required: true },
@@ -29,6 +31,7 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
 );
 
 notificationSchema.index({ recipientRole: 1, isRead: 1 });
+notificationSchema.index({ recipientRole: 1, recipientBranchId: 1, isRead: 1 });
 notificationSchema.index({ recipientUserId: 1, isRead: 1 });
 notificationSchema.index({ createdAt: -1 });
 

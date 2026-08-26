@@ -5,6 +5,7 @@ import {
   type AppointmentListParams,
   type SaveAppointmentPayload,
   type UpdateAppointmentStatusPayload,
+  type UpdateAppointmentPayload,
 } from '../../api/appointments';
 import { getAppointmentErrorMessage } from '../../pages/appointment-utils';
 
@@ -49,7 +50,7 @@ export function useUpdateAppointment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Partial<SaveAppointmentPayload> }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateAppointmentPayload }) =>
       appointmentsApi.update(id, payload),
     onSuccess: async (result) => {
       toast.success('Appointment updated successfully.');

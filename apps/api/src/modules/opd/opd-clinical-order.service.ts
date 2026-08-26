@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdClinicalOrderRepository } from './opd-clinical-order.repository.js';
@@ -7,6 +7,8 @@ import type { OpdConsultationRepository } from './opd-consultation.repository.js
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
 import type { ServiceRepository } from '../services/service.repository.js';
+import type { ClinicalSourceContext } from './clinical-context.types.js';
+import type { OpdClinicalOrder } from './opd-clinical-order.types.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
@@ -69,12 +71,15 @@ export class OpdClinicalOrderService {
     );
 
     const isLaboratory = orderType === 'LABORATORY';
+    const sourceLabel = order.source_type === 'EMERGENCY_ENCOUNTER'
+      ? 'Emergency encounter'
+      : 'OPD encounter';
     await this.patientRepository.addTimelineEvent(
       visit.patient_id,
       {
         event_type: isLaboratory ? 'OPD_LAB_ORDER_SUBMITTED' : 'OPD_IMAGING_ORDER_SUBMITTED',
         title: isLaboratory ? 'Laboratory order submitted' : 'Imaging order submitted',
-        description: `${visit.visit_number}: ${data.items.length} ${isLaboratory ? 'laboratory' : 'imaging'} investigation${data.items.length === 1 ? '' : 's'} ordered by ${visit.doctor_name}.`,
+        description: `${sourceLabel} ${visit.visit_number}: ${data.items.length} ${isLaboratory ? 'laboratory' : 'imaging'} investigation${data.items.length === 1 ? '' : 's'} ordered by ${visit.doctor_name}.`,
       },
       userId,
     );
@@ -85,9 +90,40 @@ export class OpdClinicalOrderService {
       orderType,
       patientId: visit.patient_id,
       visitId: visit.id,
+      sourceType: order.source_type,
+      encounterId: order.visit_id ?? order.source_id,
+      admissionId: null,
+      procedureId: null,
     });
 
     return order;
+  }
+
+  async getForContext(
+    context: Pick<ClinicalSourceContext, 'source_type' | 'source_id'>,
+    orderType: ClinicalOrderType,
+    session?: ClientSession,
+  ) {
+    return this.repository.getBySourceAndType(context.source_type, context.source_id, orderType, session);
+  }
+
+  async submitForContext(
+    context: ClinicalSourceContext,
+    orderType: ClinicalOrderType,
+    data: SaveOpdClinicalOrderDTO,
+    actor: string,
+    session: ClientSession,
+  ) {
+    if (data.items.length === 0) throw new AppError('Add at least one investigation before submitting', 400, 'INVESTIGATION_REQUIRED');
+    this.validateLaboratoryFields(orderType, data);
+    const items = await this.normalizeServices(orderType, data);
+    const normalized = { ...data, items };
+    const current = await this.repository.getBySourceAndType(context.source_type, context.source_id, orderType, session);
+    if (current) {
+      if (current.status === 'SUBMITTED' && this.sameClinicalOrder(current, normalized)) return current;
+      throw new AppError('A different clinical order already exists for this source and department', 409, 'CONTEXT_CLINICAL_ORDER_CONFLICT');
+    }
+    return this.repository.submitForContext(context, orderType, normalized, actor, session);
   }
 
   private async getVisit(visitId: string, userId: string) {
@@ -136,5 +172,20 @@ export class OpdClinicalOrderService {
     }
     const names = new Map(services.map((service) => [String(service._id), service.name]));
     return data.items.map((item) => ({ ...item, investigation_name: names.get(item.service_id)! }));
+  }
+
+  private sameClinicalOrder(current: OpdClinicalOrder, data: SaveOpdClinicalOrderDTO) {
+    const normalize = (value?: string | null) => value?.trim() || null;
+    if (current.items.length !== data.items.length) return false;
+    const itemsMatch = current.items.every((item, index) => {
+      const requested = data.items[index];
+      return requested != null && item.service_id === requested.service_id
+        && item.investigation_name === requested.investigation_name.trim()
+        && item.category === requested.category.trim();
+    });
+    return itemsMatch && current.priority === data.priority && current.destination === normalize(data.destination)
+      && current.specimen_type === normalize(data.specimen_type)
+      && current.clinical_notes === normalize(data.clinical_notes)
+      && current.instructions === normalize(data.instructions);
   }
 }

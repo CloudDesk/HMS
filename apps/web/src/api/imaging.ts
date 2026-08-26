@@ -1,9 +1,11 @@
 import { apiClient } from './client';
-import { diagnosticQuery, type DiagnosticListParams, type DiagnosticOrder, type DiagnosticPage, type DiagnosticSummary, type ImagingStatus } from './laboratory';
+import { diagnosticQuery, type DiagnosticListParams, type DiagnosticOrder, type DiagnosticPage, type DiagnosticSourceType, type DiagnosticSummary, type ImagingStatus } from './laboratory';
 
 export type ImagingReportPayload = { findings: string; impression: string; recommendations?: string | null };
 export type ImagingReport = ImagingReportPayload & {
-  id: string; order_id: string; patient_id: string; visit_id: string; entered_by: string; entered_at: string;
+  id: string; order_id: string; source_type: DiagnosticSourceType; encounter_id: string | null;
+  admission_id: string | null; procedure_id: string | null;
+  patient_id: string; visit_id: string; entered_by: string; entered_at: string;
   verified_by: string | null; verified_at: string | null; created_at: string; updated_at: string;
 };
 

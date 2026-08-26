@@ -8,6 +8,8 @@ import type { Patient } from '../patients/patient.types.js';
 import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
+import type { SequenceService } from '../../shared/sequence/sequence.service.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 
 const terminalAppointmentStatuses = ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'];
 
@@ -47,10 +49,6 @@ const todayUtc = () => {
 const patientName = (patient: Patient) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
 
-const createVisitNumber = (sequence: number) => {
-  const year = new Date().getFullYear();
-  return `OPD-${year}-${String(sequence + 1).padStart(6, '0')}`;
-};
 
 const appointmentVisitType = (appointment: Appointment) => {
   if (appointment.visit_type === 'NEW_CONSULTATION') return 'NEW_CONSULTATION';
@@ -67,10 +65,13 @@ export class OpdVisitService {
     private readonly patientRepository: PatientRepository,
     private readonly doctorRepository: DoctorRepository,
     private readonly consultationRepository: OpdConsultationRepository,
+    private readonly sequenceService: SequenceService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async list(query: OpdVisitListQuery, userId?: string) {
     this.validateListQuery(query);
+    await this.repository.reconcileStaleVisits().catch(() => 0);
     const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
     return this.repository.list(this.normalizeListDates(query), scope);
   }
@@ -148,6 +149,64 @@ export class OpdVisitService {
     return visit;
   }
 
+  async callNextPatient(id: string, userId: string) {
+    const current = await this.getById(id, userId);
+    if (current.status !== 'COMPLETED') {
+      throw new AppError('Complete the current consultation before calling the next patient', 409, 'CURRENT_VISIT_NOT_COMPLETED');
+    }
+
+    const session = await this.repository.session();
+    let nextVisit: OpdVisit | undefined;
+    try {
+      await session.withTransaction(async () => {
+        nextVisit = await this.repository.startNextReadyVisit(current, userId, session);
+        if (!nextVisit) {
+          throw new AppError('No patient is ready for consultation in this doctor queue', 404, 'NO_READY_PATIENT');
+        }
+        const claimed = await this.repository.claimNextPatientCall(current.id, nextVisit.id, userId, session);
+        if (!claimed) {
+          throw new AppError('The next patient has already been called for this consultation', 409, 'NEXT_PATIENT_ALREADY_CALLED');
+        }
+
+        await this.repository.auditStatusTransition(nextVisit, 'READY_FOR_CONSULTATION', userId, session);
+        await this.patientRepository.addTimelineEvent(
+          nextVisit.patient_id,
+          {
+            event_type: 'OPD_VISIT_STATUS_UPDATED',
+            title: 'Patient called for consultation',
+            description: `${nextVisit.visit_number} was called for consultation with ${nextVisit.doctor_name}.`,
+          },
+          userId,
+          session,
+        );
+        const message = `${nextVisit.patient_name} (${nextVisit.visit_number}) is called for consultation with ${nextVisit.doctor_name}.`;
+        await this.notificationService.createNotification({
+          recipient_role: 'RECEPTIONIST',
+          recipient_branch_id: nextVisit.branch_id,
+          title: 'Call Next OPD Patient',
+          message,
+          type: 'CALL_NEXT_PATIENT',
+          related_entity_id: nextVisit.id,
+        }, session);
+        await this.notificationService.createNotification({
+          recipient_role: 'NURSE',
+          recipient_branch_id: nextVisit.branch_id,
+          title: 'Call Next OPD Patient',
+          message,
+          type: 'CALL_NEXT_PATIENT',
+          related_entity_id: nextVisit.id,
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    if (!nextVisit) {
+      throw new AppError('No patient is ready for consultation in this doctor queue', 404, 'NO_READY_PATIENT');
+    }
+    return nextVisit;
+  }
+
   private async createFromAppointment(data: CreateOpdVisitDTO, userId: string) {
     this.validateId(data.appointment_id, 'Appointment id is invalid');
     const scope = await this.appointmentRepository.resolveBranchScope(userId);
@@ -169,11 +228,12 @@ export class OpdVisitService {
     }
 
     await this.ensureNoActiveVisit(appointment.patient_id);
-    const sequence = await this.repository.nextVisitSequence();
+    const sequence = await this.sequenceService.getNextSequence('opd_visit');
     const visit = await this.repository.create(
       {
         appointmentId: appointment.id,
-        visitNumber: createVisitNumber(sequence),
+        visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
+        queueTokenNumber: sequence + 1,
         patientId: appointment.patient_id,
         patientNumber: appointment.patient_number,
         patientName: appointment.patient_name,
@@ -221,10 +281,11 @@ export class OpdVisitService {
     await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
     await this.ensureNoActiveVisit(patient.id);
-    const sequence = await this.repository.nextVisitSequence();
+    const sequence = await this.sequenceService.getNextSequence('opd_visit');
     const visit = await this.repository.create(
       {
-        visitNumber: createVisitNumber(sequence),
+        visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
+        queueTokenNumber: sequence + 1,
         patientId: patient.id,
         patientNumber: patient.patient_number,
         patientName: patientName(patient),

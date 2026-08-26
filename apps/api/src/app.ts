@@ -1,3 +1,4 @@
+import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import Fastify from 'fastify';
@@ -17,6 +18,10 @@ export const buildApp = async () => {
 
   registerErrorHandler(app);
   await registerRequestContext(app);
+
+  // HttpOnly refresh-token cookies. No signing required: the token is already
+  // a cryptographically opaque value that the server validates by hash lookup.
+  await app.register(cookie);
 
   await app.register(cors, {
     origin: (origin, cb) => {

@@ -30,3 +30,4 @@ clean_user.py
 
 # Local Netlify folder
 .netlify
+*.docx

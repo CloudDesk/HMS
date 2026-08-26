@@ -5,6 +5,7 @@ export const createNotificationBodySchema = {
   properties: {
     recipient_role: { type: ['string', 'null'] },
     recipient_user_id: { type: ['string', 'null'] },
+    recipient_branch_id: { type: ['string', 'null'] },
     title: { type: 'string', minLength: 1 },
     message: { type: 'string', minLength: 1 },
     type: { type: 'string', enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL'] },

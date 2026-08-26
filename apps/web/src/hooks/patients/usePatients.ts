@@ -9,6 +9,8 @@ import {
   type SavePatientPayload,
   type UploadPatientDocumentPayload,
 } from '../../api/patients';
+import { patientDocumentsService } from '../../services/patient-documents.service';
+import { patientRegistrationService } from '../../services/patient-registration.service';
 
 export const getPatientErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -71,21 +73,28 @@ export function usePatientTimeline(id: string | null, params: PatientTimelineLis
 export function usePatientDocuments(id: string | null, params: PatientDocumentListParams = {}, enabled = true) {
   return useQuery({
     queryKey: id ? patientsKeys.documents(id, params) : patientsKeys.documentsAll(),
-    queryFn: () => patientsApi.documents(id!, params),
+    queryFn: () => patientDocumentsService.list(id!, params),
     enabled: enabled && Boolean(id),
   });
 }
 
-export function useCreatePatient() {
+type CreatePatientOptions = {
+  notify?: boolean;
+};
+
+export function useCreatePatient(options: CreatePatientOptions = {}) {
   const queryClient = useQueryClient();
+  const notify = options.notify ?? true;
 
   return useMutation({
-    mutationFn: (payload: SavePatientPayload) => patientsApi.create(payload),
+    mutationFn: (payload: SavePatientPayload) => patientRegistrationService.create(payload),
     onSuccess: async () => {
-      toast.success('Patient created successfully.');
+      if (notify) toast.success('Patient created successfully.');
       await queryClient.invalidateQueries({ queryKey: patientsKeys.lists() });
     },
-    onError: (error) => toast.error(getPatientErrorMessage(error)),
+    onError: (error) => {
+      if (notify) toast.error(getPatientErrorMessage(error));
+    },
   });
 }
 
@@ -110,7 +119,7 @@ export function useUploadPatientDocument() {
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UploadPatientDocumentPayload }) =>
-      patientsApi.uploadDocument(id, payload),
+      patientDocumentsService.upload(id, payload),
     onSuccess: async (_, { id }) => {
       await queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() });
       await queryClient.invalidateQueries({ queryKey: patientsKeys.history(id) });
@@ -125,7 +134,7 @@ export function useReplacePatientDocument() {
 
   return useMutation({
     mutationFn: ({ id, documentId, payload }: { id: string; documentId: string; payload: UploadPatientDocumentPayload }) =>
-      patientsApi.replaceDocument(id, documentId, payload),
+      patientDocumentsService.replace(id, documentId, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() });
     },
@@ -138,7 +147,7 @@ export function useDeletePatientDocument() {
 
   return useMutation({
     mutationFn: ({ id, documentId }: { id: string; documentId: string }) =>
-      patientsApi.deleteDocument(id, documentId),
+      patientDocumentsService.delete(id, documentId),
     onSuccess: async (_r, { id }) => {
       await queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() });
       await queryClient.invalidateQueries({ queryKey: patientsKeys.history(id) });
@@ -147,9 +156,22 @@ export function useDeletePatientDocument() {
   });
 }
 
+export function useVerifyPatientConsent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, documentId }: { id: string; documentId: string }) => patientsApi.verifyConsent(id, documentId),
+    onSuccess: async (_, { id }) => {
+      await queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() });
+      await queryClient.invalidateQueries({ queryKey: patientsKeys.history(id) });
+      await queryClient.invalidateQueries({ queryKey: patientsKeys.timeline(id, {}) });
+    },
+    onError: (error) => toast.error(getPatientErrorMessage(error)),
+  });
+}
+
 export function useDownloadPatientDocument() {
   return useMutation({
     mutationFn: ({ patientId, docId }: { patientId: string; docId: string }) =>
-      patientsApi.downloadDocument(patientId, docId),
+      patientDocumentsService.download(patientId, docId),
   });
 }

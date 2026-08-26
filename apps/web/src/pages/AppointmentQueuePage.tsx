@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
 import { navigate } from '../routing/navigation';
 import {
@@ -10,11 +10,14 @@ import {
 } from './appointment-utils';
 import { useAppointmentQueueFeature, type QueueStatusFilter, type QueuePriorityFilter } from '../hooks/appointments/useAppointmentQueueFeature';
 import { toast } from 'sonner';
+import type { OpdVisitResponse } from '../api/opd';
+import { VitalsCaptureModal } from '../components/opd/VitalsCaptureModal';
+import { getOpdErrorMessage } from './opd-utils';
 
 const waitingStatuses = new Set<ApiAppointmentStatus>(['SCHEDULED', 'CONFIRMED', 'SKIPPED']);
 
-const tokenFor = (appointment: AppointmentResponse, index: number) =>
-  `${appointment.priority === 'EMERGENCY' ? 'E' : 'A'}${String(index + 1).padStart(3, '0')}`;
+const tokenFor = (appointment: AppointmentResponse, index: number, visit?: OpdVisitResponse | null) =>
+  `${appointment.priority === 'EMERGENCY' ? 'E' : 'A'}${String(visit?.queue_token_number ?? index + 1).padStart(3, '0')}`;
 
 const waitMinutes = (appointment: AppointmentResponse, index: number) => {
   if (appointment.status === 'CHECKED_IN') return Math.max(0, index * 8);
@@ -49,6 +52,9 @@ export function AppointmentQueuePage() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completionNote, setCompletionNote] = useState('');
   const [completionError, setCompletionError] = useState('');
+  const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
+  const [vitalsError, setVitalsError] = useState('');
+  const lastCallNotificationId = useRef<string | null>(null);
 
   const {
     state: {
@@ -62,12 +68,15 @@ export function AppointmentQueuePage() {
       doctors,
       branches,
       appointments,
+      callNotifications,
       loading,
       loadError,
       opdLoadError,
       updating,
       currentAppointment,
       nextAppointment,
+      canCreateVitals,
+      canEditVisit,
     },
     actions: {
       setDepartmentFilter,
@@ -80,8 +89,17 @@ export function AppointmentQueuePage() {
       handleSkip,
       handleNoShow,
       handleComplete,
+      handleSaveVitals,
+      visitForAppointment,
     }
   } = useAppointmentQueueFeature();
+
+  useEffect(() => {
+    const latest = callNotifications[0];
+    if (!latest || latest.id === lastCallNotificationId.current) return;
+    lastCallNotificationId.current = latest.id;
+    toast.info(latest.message);
+  }, [callNotifications]);
 
   const currentIndex = currentAppointment ? appointments.findIndex((appointment) => appointment.id === currentAppointment.id) : -1;
   const nextIndex = nextAppointment ? appointments.findIndex((appointment) => appointment.id === nextAppointment.id) : -1;
@@ -102,7 +120,7 @@ export function AppointmentQueuePage() {
       toast.error('No active patient is currently called.');
       return;
     }
-    toast.success(`Recalled ${currentAppointment.patient_name} for token ${tokenFor(currentAppointment, currentIndex)}.`);
+    toast.success(`Recalled ${currentAppointment.patient_name} for token ${tokenFor(currentAppointment, currentIndex, visitForAppointment(currentAppointment.id))}.`);
   };
 
   const submitCompletion = async () => {
@@ -127,10 +145,10 @@ export function AppointmentQueuePage() {
           <p>Coordinate patient flow and consultation status</p>
         </div>
         <div className="appointment-page-actions">
-          <button className="doc-btn primary" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
+          {/* <button className="doc-btn primary" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
             <i className="ph ph-person-simple-walk" aria-hidden="true" />
             Register Walk-in
-          </button>
+          </button> */}
         </div>
       </section>
 
@@ -272,10 +290,13 @@ export function AppointmentQueuePage() {
                     </td>
                   </tr>
                 ) : (
-                  appointments.map((appointment, index) => (
+                  appointments.map((appointment, index) => {
+                    const linkedVisit = visitForAppointment(appointment.id);
+                    const canTakeVitals = linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS';
+                    return (
                     <tr className={appointment.id === currentAppointment?.id ? 'queue-current-row' : ''} key={appointment.id}>
                       <td>
-                        <span className="queue-token-chip">{tokenFor(appointment, index)}</span>
+                        <span className="queue-token-chip">{tokenFor(appointment, index, linkedVisit)}</span>
                       </td>
                       <td>{appointment.patient_name}</td>
                       <td>{appointment.patient_number}</td>
@@ -294,17 +315,35 @@ export function AppointmentQueuePage() {
                         </span>
                       </td>
                       <td>
-                        <button
-                          className="doc-action"
-                          onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
-                          title="Open patient"
-                          type="button"
-                        >
-                          <i className="ph ph-arrow-square-out" aria-hidden="true" />
-                        </button>
+                        <div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
+                          {canTakeVitals ? (
+                            <button
+                              className="doc-btn primary compact"
+                              disabled={updating || !canCreateVitals || !canEditVisit}
+                              onClick={() => {
+                                setVitalsError('');
+                                setVitalsVisit(linkedVisit);
+                              }}
+                              title="Record patient vitals"
+                              type="button"
+                            >
+                              <i className="ph ph-heartbeat" aria-hidden="true" />
+                              Take Vitals
+                            </button>
+                          ) : null}
+                          <button
+                            className="doc-action"
+                            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
+                            title="Open patient"
+                            type="button"
+                          >
+                            <i className="ph ph-arrow-square-out" aria-hidden="true" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -320,13 +359,13 @@ export function AppointmentQueuePage() {
           </div>
           <div className="appointment-call-display">
             <span>Current Token</span>
-            <strong>{currentAppointment ? tokenFor(currentAppointment, currentIndex) : '-'}</strong>
+            <strong>{currentAppointment ? tokenFor(currentAppointment, currentIndex, visitForAppointment(currentAppointment.id)) : '-'}</strong>
             <p>{currentAppointment?.patient_name ?? 'No patient called'}</p>
           </div>
           <div className="appointment-queue-summary">
             <div className="appointment-queue-stat">
               <span>Next Token</span>
-              <strong>{nextAppointment ? tokenFor(nextAppointment, nextIndex) : '-'}</strong>
+              <strong>{nextAppointment ? tokenFor(nextAppointment, nextIndex, visitForAppointment(nextAppointment.id)) : '-'}</strong>
             </div>
             <div className="appointment-queue-stat">
               <span>Average Wait</span>
@@ -405,6 +444,25 @@ export function AppointmentQueuePage() {
           </section>
         </div>
       ) : null}
+      <VitalsCaptureModal
+        error={vitalsError}
+        onClose={() => {
+          setVitalsVisit(null);
+          setVitalsError('');
+        }}
+        onSave={async (payload) => {
+          if (!vitalsVisit) return;
+          try {
+            await handleSaveVitals(vitalsVisit, payload);
+            toast.success(`Vitals recorded for ${vitalsVisit.patient_name}. Patient is ready for consultation.`);
+            setVitalsVisit(null);
+          } catch (error) {
+            setVitalsError(getOpdErrorMessage(error));
+          }
+        }}
+        open={Boolean(vitalsVisit)}
+        visit={vitalsVisit}
+      />
     </div>
   );
 }

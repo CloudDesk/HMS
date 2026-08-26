@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import type { DiagnosticListParams, DiagnosticOrder } from '../../api/laboratory';
 import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
 import { useBranchesList } from '../branches/useBranches';
 import { useImagingOrders, useImagingSummary } from './useImaging';
 import { navigate, useAppLocation } from '../../routing/navigation';
@@ -50,7 +51,9 @@ export function useImagingQueueFeature() {
     limit,
   }), [dateFrom, dateTo, limit, page, priority, search, selectedBranch, status]);
 
-  const hasAccess = superAdmin || Boolean(user?.permissions.some(p => p.module === 'IMAGING'));
+  const hasAccess = superAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Imaging', screen: 'Orders', action: 'View',
+  });
 
   const listQuery = useImagingOrders(listParams, hasAccess);
   const summaryQuery = useImagingSummary(selectedBranch || undefined, hasAccess);

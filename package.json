@@ -26,7 +26,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "benchmark": "k6 run benchmark/baseline.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -44,5 +45,9 @@
   },
   "overrides": {
     "@opentelemetry/api": "1.8.0"
+    "typescript-eslint": "^8.66.0"
+  },
+  "overrides": {
+    "nanoid": "^3.3.18"
   }
 }

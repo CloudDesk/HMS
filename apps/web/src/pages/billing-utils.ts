@@ -1,4 +1,4 @@
-import type { BillingInvoiceStatus, BillingServiceType } from '../api/billing';
+import type { BillingInvoiceStatus, BillingServiceType, BillingSourceType } from '../api/billing';
 import { ApiError } from '../api/api-error';
 
 export const formatBillingDate = (value: string) => new Intl.DateTimeFormat('en', {
@@ -22,6 +22,12 @@ export const billingServiceLabel: Record<BillingServiceType, string> = {
   LAB_TEST: 'Laboratory Test',
   IMAGING_SERVICE: 'Imaging Service',
   PHARMACY: 'Pharmacy',
+};
+
+export const billingSourceLabel: Record<BillingSourceType, string> = {
+  OPD: 'OPD Encounter',
+  EMERGENCY: 'Emergency Encounter',
+  PROCEDURE: 'Procedure Encounter',
 };
 
 export const billingErrorMessage = (error: unknown) => {

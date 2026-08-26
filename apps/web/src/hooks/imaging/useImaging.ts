@@ -1,11 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import {
-  imagingApi,
-  type ImagingReportPayload,
-} from '../../api/imaging';
+import type { ImagingReportPayload } from '../../api/imaging';
 import { type DiagnosticListParams, type ImagingStatus } from '../../api/laboratory';
-import { getOpdErrorMessage } from '../../pages/opd-utils'; // Shared error handler
+import { getOpdErrorMessage } from '../../pages/opd-utils';
+import { imagingService } from '../../services/imaging.service';
 
 export const imagingKeys = {
   all: ['imaging'] as const,
@@ -22,7 +20,7 @@ export const imagingKeys = {
 export function useImagingOrders(params: DiagnosticListParams, enabled = true) {
   return useQuery({
     queryKey: imagingKeys.list(params),
-    queryFn: () => imagingApi.list(params),
+    queryFn: () => imagingService.list(params),
     enabled,
   });
 }
@@ -30,7 +28,7 @@ export function useImagingOrders(params: DiagnosticListParams, enabled = true) {
 export function useImagingSummary(branchId?: string, enabled = true) {
   return useQuery({
     queryKey: imagingKeys.summary(branchId),
-    queryFn: () => imagingApi.summary(branchId),
+    queryFn: () => imagingService.summary(branchId),
     enabled,
   });
 }
@@ -38,7 +36,7 @@ export function useImagingSummary(branchId?: string, enabled = true) {
 export function useImagingOrderDetails(id: string | null, enabled = true) {
   return useQuery({
     queryKey: id ? imagingKeys.detail(id) : imagingKeys.details(),
-    queryFn: () => imagingApi.get(id as string),
+    queryFn: () => imagingService.get(id as string),
     enabled: enabled && Boolean(id),
   });
 }
@@ -46,7 +44,7 @@ export function useImagingOrderDetails(id: string | null, enabled = true) {
 export function useImagingReport(id: string | null, enabled = true) {
   return useQuery({
     queryKey: id ? imagingKeys.report(id) : imagingKeys.reports(),
-    queryFn: () => imagingApi.getReport(id as string),
+    queryFn: () => imagingService.getReport(id as string),
     enabled: enabled && Boolean(id),
   });
 }
@@ -56,7 +54,7 @@ export function useUpdateImagingStatus() {
 
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: Exclude<ImagingStatus, 'SUBMITTED' | 'REPORT_ENTERED'> }) =>
-      imagingApi.updateStatus(id, status),
+      imagingService.updateStatus(id, status),
     onSuccess: async (_, { id }) => {
       toast.success('Imaging order status updated.');
       await queryClient.invalidateQueries({ queryKey: imagingKeys.lists() });
@@ -73,7 +71,7 @@ export function useEnterImagingReport() {
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ImagingReportPayload }) =>
-      imagingApi.enterReport(id, payload),
+      imagingService.enterReport(id, payload),
     onSuccess: async (_, { id }) => {
       toast.success('Imaging report entered successfully.');
       await queryClient.invalidateQueries({ queryKey: imagingKeys.lists() });
@@ -90,7 +88,7 @@ export function useUpdateImagingReport() {
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ImagingReportPayload }) =>
-      imagingApi.updateReport(id, payload),
+      imagingService.updateReport(id, payload),
     onSuccess: async (_, { id }) => {
       toast.success('Imaging report updated successfully.');
       await queryClient.invalidateQueries({ queryKey: imagingKeys.lists() });

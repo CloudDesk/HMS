@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { env } from '../../config/env.js';
 import type { Doctor, DoctorAvailabilityDay } from '../doctors/doctor.types.js';
@@ -6,7 +6,10 @@ import type { DoctorRepository } from '../doctors/doctor.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { Patient } from '../patients/patient.types.js';
 import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
+import type { SettingsRepository } from '../settings/settings.repository.js';
+import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { AppointmentRepository } from './appointment.repository.js';
+import { formatInTimeZone } from 'date-fns-tz';
 import type {
   Appointment,
   AppointmentListQuery,
@@ -85,13 +88,17 @@ const appointmentStart = (appointment: Appointment) => {
   );
 };
 
-const createAppointmentNumber = (sequence: number) => {
-  const year = new Date().getFullYear();
-  return `APT-${year}-${String(sequence + 1).padStart(6, '0')}`;
-};
+
 
 const patientName = (patient: Patient) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
+
+const scheduledDateTime = (date: Date, time: string) => {
+  const [hours = 0, minutes = 0] = time.split(':').map(Number);
+  const scheduled = new Date(date);
+  scheduled.setUTCHours(hours, minutes, 0, 0);
+  return scheduled;
+};
 
 export class AppointmentService {
   constructor(
@@ -99,6 +106,8 @@ export class AppointmentService {
     private readonly patientRepository: PatientRepository,
     private readonly doctorRepository: DoctorRepository,
     private readonly opdVisitRepository: OpdVisitRepository,
+    private readonly settingsRepository: SettingsRepository,
+    private readonly sequenceService: SequenceService,
   ) {}
 
   async list(query: AppointmentListQuery, userId?: string) {
@@ -227,34 +236,104 @@ export class AppointmentService {
     const appointmentDate = this.validateAppointmentDate(data.appointment_date);
     const endTime = this.validateAppointmentWindow(data.start_time, data.duration_minutes);
     this.validateAppointmentStart(appointmentDate, data.start_time);
+    if (!data.utc_datetime) {
+      throw new AppError('UTC datetime is required for new appointments', 400, 'VALIDATION_ERROR');
+    }
+    const settings = await this.settingsRepository.get();
+    const tz = settings.localization.timezone;
+    const appointmentUtc = new Date(data.utc_datetime);
+    
+    const appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
+    const startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
+
+    const appointmentDate = this.validateAppointmentDate(appointmentDateStr);
+    const endTime = this.validateAppointmentWindow(startTimeStr, data.duration_minutes);
+    
+    const utcEndTime = new Date(appointmentUtc.getTime() + data.duration_minutes * 60000);
+
     const [patient, doctor] = await Promise.all([
       this.getActivePatient(data.patient_id),
       this.getActiveDoctor(data.doctor_id),
     ]);
     if (enforceBranchScope) await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
-    await this.validateDoctorAvailability(doctor, appointmentDate, data.start_time, endTime, data.duration_minutes);
-    await this.validateDoctorConflict(doctor.id, appointmentDate, data.start_time, endTime);
-    await this.validatePatientConflict(patient.id, appointmentDate, data.start_time, endTime);
+    await this.validateDoctorAvailability(doctor, appointmentDate, startTimeStr, endTime, data.duration_minutes);
+    await this.validateDoctorConflict(doctor.id, appointmentDate, startTimeStr, endTime, undefined, appointmentUtc, utcEndTime);
+    await this.validatePatientConflict(patient.id, appointmentDate, startTimeStr, endTime, undefined, appointmentUtc, utcEndTime);
 
-    const sequence = await this.repository.nextAppointmentSequence();
-    const appointment = await this.repository.create(
-      {
-        ...data,
-        appointmentNumber: createAppointmentNumber(sequence),
-        patientNumber: patient.patient_number,
-        patientName: patientName(patient),
-        doctorName: doctor.display_name,
-        doctorSpecialization: doctor.specialization,
-        branchId: doctor.branch_id,
-        departmentId: doctor.department_id,
-        appointmentDate,
-        endTime,
-        priority: data.priority ?? 'ROUTINE',
-      },
-      userId,
-    );
-    await this.repository.auditCreated(appointment, userId);
+    const session = await mongoose.startSession();
+    let appointment: Appointment | undefined;
+
+    try {
+      await session.withTransaction(async () => {
+        const appointmentSequence = await this.sequenceService.getNextSequence('appointment', session);
+        const createdAppointment = await this.repository.create(
+          {
+            ...data,
+            appointmentNumber: this.sequenceService.formatStandardSequence('APT', appointmentSequence),
+            patientNumber: patient.patient_number,
+            patientName: patientName(patient),
+            doctorName: doctor.display_name,
+            doctorSpecialization: doctor.specialization,
+            branchId: doctor.branch_id,
+            departmentId: doctor.department_id,
+            utcDateTime: appointmentUtc,
+            utcEndTime,
+            appointmentDate,
+            startTime: startTimeStr,
+            endTime,
+            priority: data.priority ?? 'ROUTINE',
+          },
+          userId,
+          session,
+        );
+        appointment = createdAppointment;
+
+        const visitSequence = await this.opdVisitRepository.nextVisitSequence(session);
+        const visit = await this.opdVisitRepository.create(
+          {
+            appointmentId: createdAppointment.id,
+            visitNumber: `OPD-${new Date().getFullYear()}-${String(visitSequence + 1).padStart(6, '0')}`,
+            queueTokenNumber: visitSequence + 1,
+            patientId: createdAppointment.patient_id,
+            patientNumber: createdAppointment.patient_number,
+            patientName: createdAppointment.patient_name,
+            doctorId: createdAppointment.doctor_id,
+            doctorName: createdAppointment.doctor_name,
+            doctorSpecialization: createdAppointment.doctor_specialization,
+            branchId: createdAppointment.branch_id,
+            departmentId: createdAppointment.department_id,
+            visitDate: appointmentDate,
+            checkInTime: scheduledDateTime(appointmentDate, startTimeStr),
+            visit_type: createdAppointment.visit_type,
+            priority: createdAppointment.priority,
+            reason: createdAppointment.reason,
+            notes: 'OPD queue record created from appointment booking.',
+          },
+          userId,
+          session,
+        );
+
+        await this.repository.auditCreated(createdAppointment, userId, session);
+        await this.opdVisitRepository.auditCreated(visit, userId, session);
+        await this.patientRepository.addTimelineEvent(
+          createdAppointment.patient_id,
+          {
+            event_type: 'OPD_VISIT_CREATED',
+            title: 'OPD visit queued',
+            description: `${visit.visit_number} was queued for ${createdAppointment.doctor_name}.`,
+          },
+          userId,
+          session,
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    if (!appointment) {
+      throw new AppError('Appointment could not be created', 500, 'APPOINTMENT_CREATE_FAILED');
+    }
     return appointment;
   }
 
@@ -262,17 +341,45 @@ export class AppointmentService {
     const existing = await this.getById(id, userId);
     const doctor = await this.getActiveDoctor(data.doctor_id ?? existing.doctor_id);
     const scope = await this.repository.resolveBranchScope(userId, doctor.branch_id);
-    const appointmentDate = data.appointment_date
-      ? this.validateAppointmentDate(data.appointment_date)
-      : existing.appointment_date;
-    const startTime = data.start_time ?? existing.start_time;
+    
+    const settings = await this.settingsRepository.get();
+    const tz = settings.localization.timezone;
+
+    let appointmentUtc: Date;
+    let appointmentDateStr: string;
+    let startTimeStr: string;
+    
+    if (data.utc_datetime) {
+      appointmentUtc = new Date(data.utc_datetime);
+      appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
+      startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
+    } else {
+      appointmentUtc = existing.utc_datetime ? new Date(existing.utc_datetime) : new Date();
+      if (existing.appointment_date) {
+        const d = existing.appointment_date instanceof Date ? existing.appointment_date : new Date(existing.appointment_date as string | Date);
+        appointmentDateStr = d.toISOString().split('T')[0] ?? '';
+      } else {
+        appointmentDateStr = '';
+      }
+      startTimeStr = existing.start_time || '';
+    }
+
+    const appointmentDate = this.validateAppointmentDate(appointmentDateStr);
     const durationMinutes = data.duration_minutes ?? existing.duration_minutes;
-    const endTime = this.validateAppointmentWindow(startTime, durationMinutes);
+    const endTime = this.validateAppointmentWindow(startTimeStr, durationMinutes);
+    const utcEndTime = new Date(appointmentUtc.getTime() + durationMinutes * 60000);
+
+    const scheduleChanged = doctor.id !== existing.doctor_id
+      || appointmentDate.getTime() !== new Date(existing.appointment_date || 0).getTime()
+      || startTimeStr !== existing.start_time || durationMinutes !== existing.duration_minutes;
 
     this.ensureCanChangeSchedule(existing);
-    await this.validateDoctorAvailability(doctor, appointmentDate, startTime, endTime, durationMinutes);
-    await this.validateDoctorConflict(doctor.id, appointmentDate, startTime, endTime, id);
-    await this.validatePatientConflict(existing.patient_id, appointmentDate, startTime, endTime, id);
+    if (scheduleChanged && !data.reschedule_reason?.trim()) {
+      throw new AppError('A reschedule reason is required when changing the appointment slot', 400, 'RESCHEDULE_REASON_REQUIRED');
+    }
+    await this.validateDoctorAvailability(doctor, appointmentDate, startTimeStr, endTime, durationMinutes);
+    await this.validateDoctorConflict(doctor.id, appointmentDate, startTimeStr, endTime, id, appointmentUtc, utcEndTime);
+    await this.validatePatientConflict(existing.patient_id, appointmentDate, startTimeStr, endTime, id, appointmentUtc, utcEndTime);
 
     const appointment = await this.repository.update(
       id,
@@ -283,8 +390,10 @@ export class AppointmentService {
         doctorSpecialization: doctor.specialization,
         branchId: doctor.branch_id,
         departmentId: doctor.department_id,
+        utcDateTime: appointmentUtc,
+        utcEndTime,
         appointmentDate,
-        start_time: startTime,
+        startTime: startTimeStr,
         endTime,
         duration_minutes: durationMinutes,
       },
@@ -294,6 +403,10 @@ export class AppointmentService {
 
     if (!appointment) {
       throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+    }
+
+    if (scheduleChanged) {
+      await this.repository.auditRescheduled(existing, appointment, data.reschedule_reason!.trim(), userId);
     }
 
     return appointment;
@@ -489,6 +602,8 @@ export class AppointmentService {
     startTime: string,
     endTime: string,
     excludeAppointmentId?: string,
+    utcStart?: Date,
+    utcEnd?: Date,
   ) {
     const conflict = await this.repository.findDoctorConflict(
       doctorId,
@@ -496,6 +611,8 @@ export class AppointmentService {
       startTime,
       endTime,
       excludeAppointmentId,
+      utcStart,
+      utcEnd,
     );
 
     if (conflict) {
@@ -511,6 +628,8 @@ export class AppointmentService {
     startTime: string,
     endTime: string,
     excludeAppointmentId?: string,
+    utcStart?: Date,
+    utcEnd?: Date,
   ) {
     const conflict = await this.repository.findPatientConflict(
       patientId,
@@ -518,6 +637,8 @@ export class AppointmentService {
       startTime,
       endTime,
       excludeAppointmentId,
+      utcStart,
+      utcEnd,
     );
     if (conflict) {
       throw new AppError('Patient already has an appointment in this time slot', 409, 'PATIENT_APPOINTMENT_CONFLICT', {

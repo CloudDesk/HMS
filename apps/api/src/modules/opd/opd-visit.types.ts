@@ -21,6 +21,7 @@ export type OpdVisitPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type OpdVisit = {
   id: string;
   visit_number: string;
+  queue_token_number: number | null;
   appointment_id: string | null;
   patient_id: string;
   patient_number: string;

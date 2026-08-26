@@ -5,7 +5,7 @@ const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Object id is invalid');
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use YYYY-MM-DD');
 const money = z.number().finite().min(0).max(1_000_000_000).multipleOf(0.01);
 const positiveMoney = z.number().finite().positive().max(1_000_000_000).multipleOf(0.01);
-const serviceType = z.enum(['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE', 'PHARMACY']);
+const serviceType = z.enum(['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE']);
 
 const invoiceItemSchema = z.object({
   service_id: objectId,
@@ -81,6 +81,8 @@ const paymentSchema = z.object({
 
 const invoiceParamsSchema = z.object({ id: objectId }).strict();
 const paymentParamsSchema = z.object({ id: objectId }).strict();
+const admissionContextSchema = z.object({ patient_id: objectId, branch_id: objectId, request_id: objectId }).strict();
+const procedureContextSchema = z.object({ patient_id: objectId, branch_id: objectId, booking_id: objectId }).strict();
 
 const parse = <T>(schema: z.ZodType<T>, value: unknown): T => {
   const result = schema.safeParse(value);
@@ -97,4 +99,6 @@ export const parseUpdateBillingInvoiceBody = (value: unknown) => parse(updateInv
 export const parseCollectBillingPaymentBody = (value: unknown) => parse(paymentSchema, value);
 export const parseBillingInvoiceParams = (value: unknown) => parse(invoiceParamsSchema, value);
 export const parseBillingPaymentParams = (value: unknown) => parse(paymentParamsSchema, value);
+export const parseAdmissionContextBody = (value: unknown) => parse(admissionContextSchema, value);
+export const parseProcedureContextBody = (value: unknown) => parse(procedureContextSchema, value);
 

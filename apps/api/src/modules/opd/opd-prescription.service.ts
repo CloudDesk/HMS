@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
@@ -6,6 +6,8 @@ import type { OpdPrescriptionRepository } from './opd-prescription.repository.js
 import type { SaveOpdPrescriptionDTO } from './opd-prescription.types.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
+import type { ClinicalSourceContext } from './clinical-context.types.js';
+import type { OpdPrescription } from './opd-prescription.types.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
@@ -89,11 +91,30 @@ export class OpdPrescriptionService {
     return this.repository.list(params, scope);
   }
 
-  async updateStatus(id: string, status: import('./opd-prescription.types.js').OpdPrescriptionStatus, userId: string) {
+  async getForContext(context: Pick<ClinicalSourceContext, 'source_type' | 'source_id'>, session?: ClientSession) {
+    return this.repository.getBySource(context.source_type, context.source_id, session);
+  }
+
+  async submitForContext(context: ClinicalSourceContext, data: SaveOpdPrescriptionDTO, actor: string, session: ClientSession) {
+    if (data.items.length === 0) throw new AppError('Add at least one medication before submitting', 400, 'MEDICATION_REQUIRED');
+    this.validateFollowUpDate(data.follow_up_date);
+    const current = await this.repository.getBySource(context.source_type, context.source_id, session);
+    if (current) {
+      if (current.status === 'SUBMITTED' && this.samePrescription(current, data)) return current;
+      throw new AppError('A different prescription already exists for this clinical context', 409, 'CONTEXT_PRESCRIPTION_CONFLICT');
+    }
+    return this.repository.submitForContext(context, data, actor, session);
+  }
+
+  async updateStatusIf(id: string, currentStatus: import('./opd-prescription.types.js').OpdPrescriptionStatus, newStatus: import('./opd-prescription.types.js').OpdPrescriptionStatus, actor: string, session?: import('mongoose').ClientSession) {
     const prescription = await this.repository.getById(id);
     if (!prescription) throw new AppError('Prescription not found', 404, 'PRESCRIPTION_NOT_FOUND');
-    await this.getVisit(prescription.visit_id, userId);
-    return this.repository.updateStatus(id, status, userId);
+    if (prescription.visit_id) await this.getVisit(prescription.visit_id, actor);
+    else {
+      const scope = await this.visitRepository.resolveBranchScope(actor, prescription.branch_id);
+      if (scope && !scope.includes(prescription.branch_id)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+    }
+    return this.repository.updateStatusIf(id, currentStatus, newStatus, actor, session);
   }
 
   private async getVisit(visitId: string, userId: string) {
@@ -127,5 +148,23 @@ export class OpdPrescriptionService {
     if (value && Number.isNaN(Date.parse(value))) {
       throw new AppError('Follow-up date is invalid', 400, 'VALIDATION_ERROR');
     }
+  }
+
+  private samePrescription(current: OpdPrescription, data: SaveOpdPrescriptionDTO) {
+    const normalize = (value?: string | null) => value?.trim() || null;
+    if (current.items.length !== data.items.length) return false;
+    const itemsMatch = current.items.every((item, index) => {
+      const requested = data.items[index];
+      return requested != null && item.medicine_name === requested.medicine_name.trim()
+        && item.strength === normalize(requested.strength) && item.dosage === requested.dosage.trim()
+        && item.route === requested.route.trim() && item.frequency === requested.frequency.trim()
+        && item.duration === requested.duration.trim() && item.quantity === (requested.quantity ?? null)
+        && item.intake_time === normalize(requested.intake_time)
+        && item.instructions === normalize(requested.instructions);
+    });
+    const followUp = data.follow_up_date ? new Date(data.follow_up_date).getTime() : null;
+    return itemsMatch && (current.follow_up_date?.getTime() ?? null) === followUp
+      && current.doctor_instructions === normalize(data.doctor_instructions)
+      && current.patient_instructions === normalize(data.patient_instructions);
   }
 }

@@ -1,14 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/api-error';
-import { branchesApi, type BranchResponse } from '../api/branches';
 import {
-  patientsApi,
   type ApiPatientGender,
   type PatientResponse,
   type SavePatientPayload,
 } from '../api/patients';
-import { useAuth } from '../auth/useAuth';
 import { Toast } from '../components/ui/Toast';
+import { usePatientRegistrationFeature } from '../hooks/patients/usePatientRegistrationFeature';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, patientFullName } from './patient-utils';
 
@@ -146,13 +144,10 @@ function RegistrationSection({ children, description, number, title }: Registrat
 }
 
 export function PatientRegistrationPage() {
-  const { user } = useAuth();
   const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
-  const [, setBranches] = useState<BranchResponse[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState('');
   const [duplicatePatients, setDuplicatePatients] = useState<PatientResponse[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
@@ -175,6 +170,15 @@ export function PatientRegistrationPage() {
       })
       .catch(() => null);
   }, [user]);
+  const handleRegistrationBranchChange = useCallback((branchId: string) => {
+    setForm((previous) => ({ ...previous, registrationBranchId: branchId }));
+  }, []);
+  const feature = usePatientRegistrationFeature({
+    registrationBranchId: form.registrationBranchId,
+    onRegistrationBranchChange: handleRegistrationBranchChange,
+  });
+  const { submitting } = feature.state;
+  const { registerPatient } = feature.actions;
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -216,12 +220,11 @@ export function PatientRegistrationPage() {
       return;
     }
 
-    setSubmitting(true);
     setFormError('');
     setDuplicatePatients([]);
 
     try {
-      const patient = await patientsApi.create(toPatientPayload(form));
+      const patient = await registerPatient(toPatientPayload(form));
       showToast(`Patient ${patient.patient_number} registered successfully.`);
       if (saveMode === 'continue') {
         navigate(`/patients/documents?id=${encodeURIComponent(patient.id)}`);
@@ -235,8 +238,6 @@ export function PatientRegistrationPage() {
         setFormError(getPatientErrorMessage(error));
       }
       showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setSubmitting(false);
     }
   };
 

@@ -38,11 +38,21 @@ export function useSettings() {
 export function useCurrencyFormatter() {
   const settings = useSettings();
   return (value: number) => {
-    const currency = settings?.localization.currency || 'USD';
-    return new Intl.NumberFormat('en', {
+    const currency = settings?.localization.currency || 'KES';
+    const numberFormat = settings?.localization.numberFormat || '1,000.00';
+    
+    // Choose a locale that enforces the correct thousands and decimal separators
+    const locale = numberFormat === '1.000,00' ? 'de-DE' : 'en-US';
+
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
       minimumFractionDigits: 2,
     }).format(value);
   };
+}
+
+export function useTimezone() {
+  const settings = useSettings();
+  return settings?.localization.timezone || 'Africa/Nairobi';
 }

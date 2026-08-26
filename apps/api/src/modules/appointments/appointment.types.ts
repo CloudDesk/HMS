@@ -27,9 +27,11 @@ export type Appointment = {
   doctor_specialization: string;
   branch_id: string;
   department_id: string;
-  appointment_date: Date;
-  start_time: string;
-  end_time: string;
+  utc_datetime?: string;
+  utc_end_time?: string;
+  appointment_date?: Date;
+  start_time?: string;
+  end_time?: string;
   duration_minutes: number;
   visit_type: AppointmentVisitType;
   priority: AppointmentPriority;
@@ -70,8 +72,9 @@ export type AppointmentListQuery = {
 export type CreateAppointmentDTO = {
   patient_id: string;
   doctor_id: string;
-  appointment_date: string;
-  start_time: string;
+  utc_datetime?: string;
+  appointment_date?: string;
+  start_time?: string;
   duration_minutes: number;
   visit_type: AppointmentVisitType;
   priority?: AppointmentPriority;
@@ -82,9 +85,9 @@ export type CreateAppointmentDTO = {
 export type UpdateAppointmentDTO = Partial<
   Pick<
     CreateAppointmentDTO,
-    'doctor_id' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes'
+    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes'
   >
->;
+> & { reschedule_reason?: string | null };
 
 export type UpdateAppointmentStatusDTO = {
   status: AppointmentStatus;

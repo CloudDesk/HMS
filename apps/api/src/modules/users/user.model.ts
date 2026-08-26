@@ -20,6 +20,11 @@ export interface IUser extends Document {
   address?: string;
   patientId?: Types.ObjectId | null;
 
+  failedLoginAttempts?: number;
+  lockedUntil?: Date;
+  passwordChangedAt?: Date;
+  lastLoginAt?: Date;
+
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -50,6 +55,11 @@ const userSchema = new Schema<IUser>(
     address: { type: String },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', default: null },
 
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockedUntil: { type: Date },
+    passwordChangedAt: { type: Date },
+    lastLoginAt: { type: Date },
+
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -59,9 +69,9 @@ const userSchema = new Schema<IUser>(
     timestamps: true,
     toJSON: {
       virtuals: true,
-      transform: (_, ret) => {
-        delete (ret as any)._id;
-        delete (ret as any).__v;
+      transform: (_, ret: Record<string, unknown>) => {
+        delete ret._id;
+        delete ret.__v;
         return ret;
       },
     },

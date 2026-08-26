@@ -1,6 +1,7 @@
 
 import type { LaboratoryStatus } from '../../api/laboratory';
 import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
 import { useLaboratoryOrderDetails, useUpdateLaboratoryStatus } from './useLaboratory';
 import { useAppLocation } from '../../routing/navigation';
 
@@ -24,11 +25,9 @@ export function useLaboratoryWorkspaceFeature() {
 
   const superAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
 
-  const hasAction = (action: string) => superAdmin || Boolean(user?.permissions.some((permission) =>
-    permission.module.toLowerCase() === 'laboratory' &&
-    permission.screen.toLowerCase() === 'orders' &&
-    permission.action.toLowerCase() === action.toLowerCase()
-  ));
+  const hasAction = (action: string) => superAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Laboratory', screen: 'Orders', action,
+  });
 
   const statusMutation = useUpdateLaboratoryStatus();
 

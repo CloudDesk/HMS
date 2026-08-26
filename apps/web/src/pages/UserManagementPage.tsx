@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -334,26 +334,6 @@ export function UserManagementPage() {
   };
 
 
-  const generateEmployeeId = useCallback((deptId: string, roleId: string) => {
-    const dept = departmentOptions.find((d) => d.id === deptId);
-    const role = roleOptions.find((r) => r.id === roleId);
-
-    const deptCode = dept?.code
-      ? dept.code.toUpperCase()
-      : dept?.name
-        ? dept.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase()
-        : 'GEN';
-
-    const roleCode = role?.code
-      ? role.code.replace(/_/g, '').slice(0, 4).toUpperCase()
-      : role?.name
-        ? role.name.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase()
-        : 'EMP';
-
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    return `EMP-${deptCode}-${roleCode}-${randomSuffix}`;
-  }, [departmentOptions, roleOptions]);
-
   useEffect(() => {
     if (canCreate && new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
       openModal('create');
@@ -500,19 +480,6 @@ export function UserManagementPage() {
       closeModal();
     } catch (error) {
       setFormError(getErrorMessage(error));
-    }
-  };
-
-  const toggleStatus = async (user: UiUser) => {
-    if (!canEdit || submitting) return;
-    try {
-      if (user.status === 'Active') {
-        await mutations.updateStatus.mutateAsync({ id: user.apiId, status: 'inactive' });
-      } else {
-        await mutations.updateStatus.mutateAsync({ id: user.apiId, status: 'active' });
-      }
-    } catch {
-      // Error handled by mutation toast
     }
   };
 

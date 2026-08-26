@@ -71,6 +71,9 @@ export const listPatientDocumentsQuerySchema = {
   properties: {
     document_type: { type: 'string', enum: ['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER'] },
     visit_id: { type: 'string', minLength: 1 },
+    admission_id: { type: 'string', minLength: 1 },
+    procedure_id: { type: 'string', minLength: 1 },
+    context_type: { type: 'string', enum: ['PATIENT', 'PROCEDURE', 'ADMISSION'] },
     page: { type: 'integer', minimum: 1 },
     limit: { type: 'integer', minimum: 1, maximum: 100 },
   },
@@ -82,7 +85,7 @@ export const listPatientTimelineQuerySchema = {
   properties: {
     event_type: {
       type: 'string',
-      enum: ['REGISTRATION', 'PROFILE_UPDATED', 'DOCUMENT_ADDED', 'DOCUMENT_DELETED', 'DOCUMENT_REVIEWED', 'CONSENT_ADDED'],
+      enum: ['REGISTRATION', 'PROFILE_UPDATED', 'DOCUMENT_ADDED', 'DOCUMENT_DELETED', 'CONSENT_ADDED', 'CONSENT_VERIFIED', 'OPD_REFERRAL_BOOKED'],
     },
     from: { type: 'string', minLength: 1 },
     to: { type: 'string', minLength: 1 },

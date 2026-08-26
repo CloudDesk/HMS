@@ -121,6 +121,15 @@ export const env = {
       requireNumber: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_NUMBER, true),
       requireSymbol: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_SYMBOL, false),
     },
+    cookie: {
+      // In production, cookies must be Secure (HTTPS). In dev (HTTP localhost), false is acceptable.
+      secure: parseBoolean(process.env.COOKIE_SECURE, process.env.APP_ENV === 'prod'),
+      // Optional domain scoping (e.g. ".hms.example.com"). Leave unset for same-origin/same-site.
+      domain: process.env.COOKIE_DOMAIN,
+      // SameSite=Lax blocks cross-site POST requests (the CSRF attack vector for cookie-based auth)
+      // while allowing same-site requests. Correct for same-site frontend/API deployments.
+      sameSite: (process.env.COOKIE_SAME_SITE ?? 'lax') as 'lax' | 'strict' | 'none',
+    },
   },
   patientPortal: {
     rescheduleAllowedStatuses: parseCsv(

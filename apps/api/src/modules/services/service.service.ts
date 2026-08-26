@@ -27,6 +27,7 @@ export class ServiceCatalogueService {
   }
 
   async create(data: CreateServiceDTO, userId: string, metadata: ServiceRequestMetadata) {
+    this.validateProcedureConfiguration(data);
     const existing = await this.repository.getByCode(data.code);
     if (existing) {
       throw new AppError(`Service with code ${data.code} already exists`, 409, 'CONFLICT');
@@ -45,6 +46,7 @@ export class ServiceCatalogueService {
 
   async update(id: string, data: UpdateServiceDTO, userId: string, metadata: ServiceRequestMetadata) {
     const service = await this.getById(id);
+    this.validateProcedureConfiguration({ ...service, ...data, service_type: data.service_type ?? service.service_type, department_id: data.department_id ?? service.department_id, standard_price: data.standard_price ?? service.standard_price, code: data.code ?? service.code, name: data.name ?? service.name });
 
     if (data.code && data.code.toLowerCase() !== service.code.toLowerCase()) {
       const existing = await this.repository.getByCode(data.code);
@@ -126,6 +128,16 @@ export class ServiceCatalogueService {
     }
     if (department.status !== 'ACTIVE') {
       throw new AppError('Inactive department cannot be assigned', 400, 'INACTIVE_DEPARTMENT');
+    }
+  }
+
+  private validateProcedureConfiguration(data: CreateServiceDTO) {
+    if (data.service_type !== 'PROCEDURE') return;
+    if (data.default_duration_minutes == null || data.booking_capacity == null) {
+      throw new AppError('Procedure duration and booking capacity are required', 400, 'INVALID_PROCEDURE_CONFIGURATION');
+    }
+    if (data.requires_advance_deposit && data.minimum_advance_deposit_amount == null) {
+      throw new AppError('Minimum advance deposit amount is required', 400, 'INVALID_PROCEDURE_CONFIGURATION');
     }
   }
 }

@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
@@ -7,7 +7,7 @@ import {
   listNotificationsQuerySchema,
   notificationIdParamsSchema,
 } from './notification.schemas.js';
-import type { CreateNotificationDTO } from './notification.types.js';
+import type { CreateNotificationDTO, NotificationListQuery } from './notification.types.js';
 
 export const registerNotificationRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
   app.post<{ Body: CreateNotificationDTO }>(
@@ -21,7 +21,7 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
     async (request) => ok(await services.notification.createNotification(request.body)),
   );
 
-  app.get(
+  app.get<{ Querystring: NotificationListQuery }>(
     '/api/notifications',
     {
       preHandler: authenticate(services),
@@ -29,13 +29,10 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
         querystring: listNotificationsQuerySchema,
       },
     },
-    async (request) => {
-      const query = request.query as any;
-      return ok(await services.notification.listNotifications(query));
-    },
+    async (request) => ok(await services.notification.listNotifications(request.query)),
   );
 
-  app.get(
+  app.get<{ Querystring: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit'> }>(
     '/api/notifications/me',
     {
       preHandler: authenticate(services),
@@ -51,9 +48,7 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
       },
     },
     async (request) => {
-      const query = request.query as any;
-      query.recipient_user_id = request.user!.id;
-      return ok(await services.notification.listNotifications(query));
+      return ok(await services.notification.listForUser(request.user!.id, request.query));
     },
   );
 
@@ -67,7 +62,7 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const notification = await services.notification.markAsRead(id);
+      const notification = await services.notification.markAsRead(id, request.user!.id);
       if (!notification) {
         return reply.status(404).send({ error: { message: 'Notification not found' } });
       }

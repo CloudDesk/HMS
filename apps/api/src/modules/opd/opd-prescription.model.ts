@@ -1,4 +1,5 @@
 import mongoose, { Schema, Types } from 'mongoose';
+import type { ClinicalContextSourceType } from './clinical-context.types.js';
 import type { OpdPrescriptionStatus } from './opd-prescription.types.js';
 
 export type OpdPrescriptionItemFields = {
@@ -10,12 +11,19 @@ export type OpdPrescriptionItemFields = {
   frequency: string;
   duration: string;
   quantity?: number | null;
+  intakeTime?: string | null;
   instructions?: string | null;
 };
 
 export type OpdPrescriptionFields = {
-  visitId: Types.ObjectId;
-  consultationId: Types.ObjectId;
+  sourceType: ClinicalContextSourceType;
+  sourceId: Types.ObjectId;
+  encounterId?: Types.ObjectId | null;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
+  visitId?: Types.ObjectId | null;
+  consultationId?: Types.ObjectId | null;
+  branchId: Types.ObjectId;
   patientId: Types.ObjectId;
   patientNumber: string;
   patientName: string;
@@ -44,6 +52,7 @@ const prescriptionItemSchema = new Schema<OpdPrescriptionItemFields>(
     frequency: { type: String, required: true, trim: true },
     duration: { type: String, required: true, trim: true },
     quantity: { type: Number, default: null },
+    intakeTime: { type: String, default: null, trim: true },
     instructions: { type: String, default: null, trim: true },
   },
   { _id: true },
@@ -51,14 +60,30 @@ const prescriptionItemSchema = new Schema<OpdPrescriptionItemFields>(
 
 const opdPrescriptionSchema = new Schema<OpdPrescriptionFields>(
   {
-    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
-    consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', required: true },
+    sourceType: {
+      type: String,
+      enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'],
+      default: 'OPD_VISIT',
+      required: true,
+    },
+    sourceId: { type: Schema.Types.ObjectId, required: true },
+    encounterId: { type: Schema.Types.ObjectId, default: null },
+    admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    procedureId: { type: Schema.Types.ObjectId, ref: 'ProcedureBooking', default: null },
+    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
+    consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', default: null },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     patientNumber: { type: String, required: true },
     patientName: { type: String, required: true },
     doctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true },
     doctorName: { type: String, required: true },
-    status: { type: String, enum: ['DRAFT', 'SUBMITTED', 'DISPENSED', 'CANCELLED'], default: 'DRAFT', required: true },
+    status: {
+      type: String,
+      enum: ['DRAFT', 'SUBMITTED', 'DISPENSED', 'CANCELLED'],
+      default: 'DRAFT',
+      required: true,
+    },
     items: { type: [prescriptionItemSchema], default: [] },
     followUpDate: { type: Date, default: null },
     doctorInstructions: { type: String, default: null },
@@ -72,7 +97,17 @@ const opdPrescriptionSchema = new Schema<OpdPrescriptionFields>(
   { timestamps: true },
 );
 
-opdPrescriptionSchema.index({ visitId: 1 }, { unique: true });
+opdPrescriptionSchema.index(
+  { visitId: 1 },
+  { unique: true, partialFilterExpression: { visitId: { $type: 'objectId' } } },
+);
+opdPrescriptionSchema.index(
+  { sourceType: 1, sourceId: 1 },
+  { unique: true, partialFilterExpression: { sourceId: { $type: 'objectId' } } },
+);
+opdPrescriptionSchema.index({ branchId: 1, status: 1, submittedAt: -1 });
+opdPrescriptionSchema.index({ admissionId: 1, status: 1, submittedAt: -1 });
+opdPrescriptionSchema.index({ procedureId: 1, status: 1, submittedAt: -1 });
 opdPrescriptionSchema.index({ patientId: 1, createdAt: -1 });
 opdPrescriptionSchema.index({ doctorId: 1, status: 1, createdAt: -1 });
 opdPrescriptionSchema.index({ status: 1, submittedAt: -1 });

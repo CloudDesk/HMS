@@ -13,6 +13,7 @@ const prescriptionItemSchema = z.object({
   frequency: z.string().min(1, "Frequency is required"),
   duration: z.string().min(1, "Duration is required"),
   quantity: z.string().optional(),
+  intake_time: z.string().optional(),
   instructions: z.string().optional(),
 });
 
@@ -26,6 +27,7 @@ const prescriptionSchema = z.object({
 export type PrescriptionForm = z.infer<typeof prescriptionSchema>;
 
 interface OpdPrescriptionTabProps {
+  onChange?: (data: PrescriptionForm) => void;
   prescription: OpdPrescriptionResponse | null;
   masterMedicines: Array<{ id: string; name: string; generic_name?: string; strength?: string; dosage_form?: string; unit?: string; available_quantity: number; }>;
   onSave: (data: PrescriptionForm) => void;
@@ -33,8 +35,8 @@ interface OpdPrescriptionTabProps {
   canEdit: boolean;
 }
 
-export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSaving, canEdit }: OpdPrescriptionTabProps) {
-  const { register, control, handleSubmit, reset, formState: { isDirty } } = useForm<PrescriptionForm>({
+export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSaving, canEdit, onChange }: OpdPrescriptionTabProps) {
+  const { register, control, handleSubmit, reset, watch, formState: { isDirty } } = useForm<PrescriptionForm>({
     resolver: zodResolver(prescriptionSchema),
     defaultValues: {
       items: prescription?.items?.map((i) => ({
@@ -46,6 +48,7 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
         frequency: i.frequency,
         duration: i.duration,
         quantity: i.quantity?.toString() ?? '',
+        intake_time: i.intake_time ?? '',
         instructions: i.instructions ?? '',
       })) ?? [],
       follow_up_date: prescription?.follow_up_date?.slice(0, 10) ?? '',
@@ -60,6 +63,13 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
   });
 
   useEffect(() => {
+    const sub = watch((value) => {
+      if (onChange) onChange(value as PrescriptionForm);
+    });
+    return () => sub.unsubscribe();
+  }, [watch, onChange]);
+
+  useEffect(() => {
     if (prescription) {
       reset({
         items: prescription.items?.map(i => ({
@@ -71,6 +81,7 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
           frequency: i.frequency,
           duration: i.duration,
           quantity: i.quantity?.toString() ?? '',
+          intake_time: i.intake_time ?? '',
           instructions: i.instructions ?? '',
         })) ?? [],
         follow_up_date: prescription.follow_up_date?.slice(0, 10) ?? '',
@@ -105,6 +116,7 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
               <th>Frequency</th>
               <th>Duration</th>
               <th style={{ width: '80px' }}>Qty</th>
+              <th>Intake Time</th>
               <th>Instructions</th>
               {canEdit && <th style={{ width: '50px' }} />}
             </tr>
@@ -112,7 +124,7 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
           <tbody>
             {fields.length === 0 ? (
               <tr>
-                <td className="um-state-cell" colSpan={canEdit ? 7 : 6}>
+                <td className="um-state-cell" colSpan={canEdit ? 8 : 7}>
                   No medications prescribed yet.
                 </td>
               </tr>
@@ -168,6 +180,26 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
                     />
                   </td>
                   <td>
+                    {canEdit ? (
+                      <select
+                        className="inline-input"
+                        {...register(`items.${index}.intake_time`)}
+                      >
+                        <option value="">Select Time</option>
+                        <option value="Before Food">Before Food</option>
+                        <option value="After Food">After Food</option>
+                        <option value="Empty Stomach">Empty Stomach</option>
+                        <option value="At Bed Time">At Bed Time</option>
+                      </select>
+                    ) : (
+                      <input
+                        className="inline-input"
+                        readOnly
+                        {...register(`items.${index}.intake_time`)}
+                      />
+                    )}
+                  </td>
+                  <td>
                     <input
                       className="inline-input"
                       readOnly={!canEdit}
@@ -192,7 +224,7 @@ export function OpdPrescriptionTab({ prescription, masterMedicines, onSave, isSa
         <div style={{ padding: '1rem' }}>
           <button
             className="doc-btn"
-            onClick={() => append({ local_id: Date.now().toString(), medicine_name: '', dosage: '', route: 'Oral', frequency: '', duration: '', quantity: '', instructions: '' })}
+            onClick={() => append({ local_id: Date.now().toString(), medicine_name: '', dosage: '', route: 'Oral', frequency: '', duration: '', quantity: '', intake_time: '', instructions: '' })}
             type="button"
           >
             <i className="ph ph-plus" /> Add Medication

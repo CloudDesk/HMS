@@ -6,14 +6,13 @@ import type { OpdConsultationRepository } from '../opd/opd-consultation.reposito
 import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { ServiceRepository } from '../services/service.repository.js';
-import type { PharmacyInventoryRepository } from '../pharmacy-inventory/pharmacy-inventory.repository.js';
 import type { BillingRepository } from './billing.repository.js';
 import { createBillingNumber } from './billing-number.js';
 import type {
   BillingInvoice,
   BillingInvoiceListQuery,
   BillingRequestMetadata,
-  BillingServiceType,
+  BillingSourceType,
   BillingSummaryQuery,
   CollectBillingPaymentDTO,
   CreateBillingInvoiceDTO,
@@ -21,13 +20,20 @@ import type {
   SaveBillingInvoiceItemDTO,
   UpdateBillingInvoiceDTO,
 } from './billing.types.js';
+import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-const catalogueTypeByBillingType: Record<Exclude<BillingServiceType, 'PHARMACY'>, 'GENERAL' | 'LAB_TEST' | 'IMAGING_SERVICE'> = {
+const catalogueTypeByBillingType = {
   CONSULTATION: 'GENERAL',
   LAB_TEST: 'LAB_TEST',
   IMAGING_SERVICE: 'IMAGING_SERVICE',
+} as const;
+
+const sourceTypeForVisit = (visitType: string): BillingSourceType => {
+  if (visitType === 'EMERGENCY') return 'EMERGENCY';
+  if (visitType === 'PROCEDURE') return 'PROCEDURE';
+  return 'OPD';
 };
 
 export class BillingService {
@@ -39,7 +45,7 @@ export class BillingService {
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly clinicalOrderRepository: OpdClinicalOrderRepository,
     private readonly serviceRepository: ServiceRepository,
-    private readonly pharmacyInventoryRepository: PharmacyInventoryRepository,
+    private readonly advancePaymentService: AdvancePaymentService,
   ) {}
 
   async list(query: BillingInvoiceListQuery, actorUserId: string) {
@@ -60,6 +66,51 @@ export class BillingService {
     return this.repository.summary(query, scope);
   }
 
+  async isEncounterFinanciallyClosed(encounterId: string, session?: import('mongoose').ClientSession) {
+    const hasUnresolved = await this.repository.hasUnresolvedInvoicesForEncounter(encounterId, session);
+    return !hasUnresolved;
+  }
+
+  async verifyAdmissionDeposit(patientId: string, branchId: string, requestId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session: import('mongoose').ClientSession) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, branchId);
+    if (requiredAmount === 0) return { required_amount: 0, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    if (!invoiceId) return { required_amount: requiredAmount, paid_amount: 0, remaining_amount: requiredAmount, satisfied: false, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    const invoice = await this.repository.getById(invoiceId, scope, session);
+    if (!invoice || invoice.patient_id !== patientId || invoice.branch_id !== branchId || invoice.context_type !== 'ADMISSION_REQUEST' || invoice.context_id !== requestId || invoice.status === 'CANCELLED') throw new AppError('The selected deposit invoice is not linked to this admission request', 409, 'ADVANCE_DEPOSIT_REQUIRED');
+    const payments = await this.repository.listPayments(invoiceId, scope, session);
+    const paidAmount = invoice.paid_amount;
+    return { required_amount: requiredAmount, paid_amount: paidAmount, remaining_amount: Math.max(0, requiredAmount - paidAmount), satisfied: paidAmount >= requiredAmount, invoice_id: invoice.id, payment_ids: payments.map((item) => item.id), verified_at: new Date() };
+  }
+
+  async verifyProcedureDeposit(patientId: string, branchId: string, bookingId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session: import('mongoose').ClientSession) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, branchId);
+    if (requiredAmount === 0) return { required_amount: 0, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    if (!invoiceId) return { required_amount: requiredAmount, paid_amount: 0, remaining_amount: requiredAmount, satisfied: false, invoice_id: null, payment_ids: [], verified_at: new Date() };
+    const invoice = await this.repository.getById(invoiceId, scope, session);
+    if (!invoice || invoice.patient_id !== patientId || invoice.branch_id !== branchId || invoice.context_type !== 'PROCEDURE_BOOKING' || invoice.context_id !== bookingId || invoice.status === 'CANCELLED') throw new AppError('The selected deposit invoice is not linked to this procedure booking', 409, 'ADVANCE_DEPOSIT_REQUIRED');
+    const payments = await this.repository.listPayments(invoiceId, scope, session);
+    const paidAmount = invoice.paid_amount;
+    return { required_amount: requiredAmount, paid_amount: paidAmount, remaining_amount: Math.max(0, requiredAmount - paidAmount), satisfied: paidAmount >= requiredAmount, invoice_id: invoice.id, payment_ids: payments.map((item) => item.id), verified_at: new Date() };
+  }
+
+  async linkProcedureContext(invoiceId: string, data: { patient_id: string; branch_id: string; booking_id: string }, actorUserId: string, metadata: BillingRequestMetadata) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, data.branch_id);
+    if (scope && !scope.includes(data.branch_id)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+    const invoice = await this.repository.linkContext(invoiceId, data.patient_id, data.branch_id, 'PROCEDURE_BOOKING', data.booking_id, actorUserId);
+    if (!invoice) throw new AppError('Invoice could not be linked to this procedure booking', 409, 'BILLING_CONTEXT_CONFLICT');
+    await this.repository.audit('billing.invoice.procedure_context_linked', actorUserId, metadata, { invoiceId, patientId: data.patient_id, branchId: data.branch_id, procedureBookingId: data.booking_id });
+    return invoice;
+  }
+
+  async linkAdmissionContext(invoiceId: string, data: { patient_id: string; branch_id: string; request_id: string }, actorUserId: string, metadata: BillingRequestMetadata) {
+    const scope = await this.repository.resolveBranchScope(actorUserId, data.branch_id);
+    if (scope && !scope.includes(data.branch_id)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+    const invoice = await this.repository.linkContext(invoiceId, data.patient_id, data.branch_id, 'ADMISSION_REQUEST', data.request_id, actorUserId);
+    if (!invoice) throw new AppError('Invoice could not be linked to this admission request', 409, 'BILLING_CONTEXT_CONFLICT');
+    await this.repository.audit('billing.invoice.admission_context_linked', actorUserId, metadata, { invoiceId, patientId: data.patient_id, branchId: data.branch_id, admissionRequestId: data.request_id });
+    return invoice;
+  }
+
   async create(data: CreateBillingInvoiceDTO, actorUserId: string, metadata: BillingRequestMetadata) {
     const context = await this.validateInvoiceContext(data, actorUserId);
     const items = await this.resolveItems(data.visit_id, data.items);
@@ -71,6 +122,10 @@ export class BillingService {
           invoiceNumber: createBillingNumber('INV'),
           patientId: data.patient_id,
           visitId: data.visit_id,
+          sourceType: context.sourceType,
+          encounterId: data.visit_id,
+          admissionId: null,
+          procedureId: null,
           appointmentId: context.appointmentId,
           branchId: data.branch_id,
           invoiceDate: data.invoice_date ? new Date(data.invoice_date) : new Date(),
@@ -81,6 +136,8 @@ export class BillingService {
           invoiceNumber: created.invoice_number,
           patientId: data.patient_id,
           visitId: data.visit_id,
+          sourceType: context.sourceType,
+          encounterId: data.visit_id,
           branchId: data.branch_id,
           totalAmount: totals.totalAmount,
           itemCount: items.length,
@@ -101,6 +158,7 @@ export class BillingService {
     metadata: BillingRequestMetadata,
   ) {
     const existing = await this.getById(id, actorUserId);
+    this.assertNotDispensingManaged(existing);
     this.assertFinanciallyMutable(existing);
 
     const items = data.items ? await this.resolveItems(existing.visit_id, data.items) : existing.items.map((item) => ({
@@ -151,6 +209,7 @@ export class BillingService {
 
   async cancel(id: string, actorUserId: string, metadata: BillingRequestMetadata) {
     const existing = await this.getById(id, actorUserId);
+    this.assertNotDispensingManaged(existing);
     if (existing.status === 'CANCELLED') throw new AppError('Invoice is already cancelled', 409, 'INVOICE_CANCELLED');
     if (existing.status === 'PAID' || existing.paid_amount > 0) {
       throw new AppError('Invoices with collected payments cannot be cancelled because refunds are out of scope', 409, 'PAID_INVOICE_CANNOT_CANCEL');
@@ -199,6 +258,13 @@ export class BillingService {
         const payment = await this.repository.createPayment(invoice, createBillingNumber('PAY'), data, actorUserId, session);
         const updated = await this.repository.applyPayment(invoice, data.amount, actorUserId, session);
         if (!updated) throw new AppError('Invoice balance changed; refresh and retry', 409, 'PAYMENT_CONFLICT');
+
+        if (updated.context_type === 'ADMISSION_REQUEST' || updated.context_type === 'PROCEDURE_BOOKING') {
+          if (updated.context_id) {
+            await this.advancePaymentService.processPayment(updated.context_type, updated.context_id, data.amount, actorUserId, session);
+          }
+        }
+
         paymentId = payment.id;
         await this.repository.audit('billing.payment.collected', actorUserId, metadata, {
           invoiceId: invoice.id,
@@ -268,14 +334,14 @@ export class BillingService {
         throw new AppError('Appointment context is invalid', 409, 'INVALID_APPOINTMENT_CONTEXT');
       }
     }
-    return { appointmentId: appointmentId ?? null };
+    return {
+      appointmentId: appointmentId ?? null,
+      sourceType: sourceTypeForVisit(visit.visit_type),
+    };
   }
 
   private async resolveItems(visitId: string, requestedItems: SaveBillingInvoiceItemDTO[]): Promise<ResolvedBillingItem[]> {
-    const nonPharmacyItems = requestedItems.filter((i) => i.service_type !== 'PHARMACY');
-    const pharmacyItems = requestedItems.filter((i) => i.service_type === 'PHARMACY');
-
-    const serviceIds = nonPharmacyItems.map((item) => item.service_id);
+    const serviceIds = requestedItems.map((item) => item.service_id);
     const services = await this.serviceRepository.getActiveBillingServices(serviceIds);
     const serviceById = new Map(services.map((service) => [service._id.toString(), service]));
     if (serviceById.size !== new Set(serviceIds).size) {
@@ -287,6 +353,9 @@ export class BillingService {
     const batchById = new Map(batches.map((batch) => batch ? [batch._id.toString(), batch as unknown as { unitPrice: number; batchNumber: string; medicine?: { name: string } }] : ['', null]));
     if (batchIds.some((id) => !batchById.get(id))) {
       throw new AppError('Every pharmacy invoice item must reference a valid inventory batch', 409, 'INVALID_PHARMACY_BATCH');
+    const pharmacyItems = requestedItems.filter((item) => (item.service_type as string) === 'PHARMACY');
+    if (pharmacyItems.length > 0) {
+      throw new AppError('Pharmacy items cannot be added manually to an invoice. They are managed by the dispensing workflow.', 409, 'PHARMACY_MANAGED_BY_DISPENSING');
     }
 
     const types = new Set(requestedItems.map((item) => item.service_type));
@@ -304,21 +373,8 @@ export class BillingService {
       : null;
 
     return requestedItems.map((item) => {
-      if (item.service_type === 'PHARMACY') {
-        const batch = batchById.get(item.service_id)!;
-        const unitPrice = roundMoney(batch.unitPrice);
-        return {
-          serviceId: item.service_id,
-          serviceName: batch.medicine?.name ? `${batch.medicine.name} (Batch: ${batch.batchNumber})` : `Batch: ${batch.batchNumber}`,
-          serviceType: item.service_type,
-          quantity: item.quantity,
-          unitPrice,
-          lineTotal: roundMoney(unitPrice * item.quantity),
-        };
-      }
-
       const service = serviceById.get(item.service_id)!;
-      const expectedCatalogueType = catalogueTypeByBillingType[item.service_type as Exclude<BillingServiceType, 'PHARMACY'>];
+      const expectedCatalogueType = catalogueTypeByBillingType[item.service_type];
       if (service.serviceType !== expectedCatalogueType) {
         throw new AppError(`Service ${service.name} is not valid for ${item.service_type}`, 409, 'BILLING_SERVICE_TYPE_MISMATCH');
       }
@@ -333,6 +389,9 @@ export class BillingService {
         serviceId: item.service_id,
         serviceName: service.name,
         serviceType: item.service_type,
+        originatingOrderId: item.service_type === 'LAB_TEST'
+          ? laboratoryOrder?.id ?? null
+          : item.service_type === 'IMAGING_SERVICE' ? imagingOrder?.id ?? null : null,
         quantity: item.quantity,
         unitPrice,
         lineTotal: roundMoney(unitPrice * item.quantity),
@@ -355,6 +414,16 @@ export class BillingService {
     if (invoice.status === 'PAID') throw new AppError('Paid invoices cannot be modified', 409, 'INVOICE_PAID');
     if (invoice.status === 'CANCELLED') throw new AppError('Cancelled invoices cannot be modified', 409, 'INVOICE_CANCELLED');
     if (invoice.paid_amount > 0) throw new AppError('Invoices with payments cannot be modified', 409, 'INVOICE_HAS_PAYMENTS');
+  }
+
+  private assertNotDispensingManaged(invoice: BillingInvoice) {
+    if (invoice.items.some((item) => item.service_type === 'PHARMACY')) {
+      throw new AppError(
+        'Pharmacy invoices are managed by the dispensing workflow',
+        409,
+        'PHARMACY_INVOICE_MANAGED_BY_DISPENSING',
+      );
+    }
   }
 
   private requireObjectId(value: string, message: string) {

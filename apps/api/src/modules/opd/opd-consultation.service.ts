@@ -93,10 +93,7 @@ export class OpdConsultationService {
     if (visit.appointment_id) {
       await this.appointmentRepository.updateStatus(
         visit.appointment_id,
-        {
-          status: 'COMPLETED',
-          notes: 'OPD consultation completed.',
-        },
+        { status: 'COMPLETED', notes: 'Consultation completed by doctor.' },
         userId,
       );
     }

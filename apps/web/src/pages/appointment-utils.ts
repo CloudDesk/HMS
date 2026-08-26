@@ -1,4 +1,5 @@
 import { ApiError } from '../api/api-error';
+import { formatInTimeZone } from 'date-fns-tz';
 import type {
   ApiAppointmentPriority,
   ApiAppointmentStatus,
@@ -27,13 +28,16 @@ export const appointmentVisitTypeLabels: Record<ApiAppointmentVisitType, string>
 export const appointmentPriorityLabels: Record<ApiAppointmentPriority, string> = {
   ROUTINE: 'Routine',
   EMERGENCY: 'Emergency',
-  URGENT: 'Emergency',
+  URGENT: 'Urgent',
 };
 
-export const formatAppointmentDate = (value: string | null | undefined) => {
+export const formatAppointmentDate = (value: string | null | undefined, timezone?: string) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
+  if (timezone) {
+    return formatInTimeZone(date, timezone, 'dd MMM yyyy');
+  }
   return new Intl.DateTimeFormat('en', {
     day: '2-digit',
     month: 'short',
@@ -41,8 +45,10 @@ export const formatAppointmentDate = (value: string | null | undefined) => {
   }).format(date);
 };
 
-export const formatAppointmentTime = (appointment: AppointmentResponse) =>
-  `${appointment.start_time} - ${appointment.end_time}`;
+export const formatAppointmentTime = (appointment: AppointmentResponse) => {
+  // If backend starts returning real start timestamps we could convert. For now it's often string times.
+  return `${appointment.start_time} - ${appointment.end_time}`;
+};
 
 export const appointmentStatusClass = (status: ApiAppointmentStatus) => {
   if (status === 'CONFIRMED' || status === 'CHECKED_IN' || status === 'COMPLETED') return 'status-active';
@@ -83,14 +89,19 @@ export const parseInputDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? new Date(`${todayInputValue()}T00:00:00`) : date;
 };
 
-export const startOfWeek = (value: string) => {
+export const startOfWeek = (value: string, firstDayOfWeek: 'Monday' | 'Sunday' = 'Sunday') => {
   const date = parseInputDate(value);
-  date.setDate(date.getDate() - date.getDay());
+  const day = date.getDay();
+  let diff = day;
+  if (firstDayOfWeek === 'Monday') {
+    diff = day === 0 ? 6 : day - 1;
+  }
+  date.setDate(date.getDate() - diff);
   return date;
 };
 
-export const endOfWeek = (value: string) => {
-  const date = startOfWeek(value);
+export const endOfWeek = (value: string, firstDayOfWeek: 'Monday' | 'Sunday' = 'Sunday') => {
+  const date = startOfWeek(value, firstDayOfWeek);
   date.setDate(date.getDate() + 6);
   return date;
 };

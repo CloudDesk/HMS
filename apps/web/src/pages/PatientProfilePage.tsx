@@ -15,38 +15,30 @@ import {
 import { usePatientProfileFeature } from '../hooks/patients/usePatientProfileFeature';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Modal } from '../components/ui/Modal';
-import { Toast } from '../components/ui/Toast';
-import { PrintPrescriptionModal } from '../components/print/PrintPrescriptionModal';
-import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
-import { PrintImagingOrderModal } from '../components/print/PrintImagingOrderModal';
-import { PrintBillingModal } from '../components/print/PrintBillingModal';
-import { navigate, useAppLocation } from '../routing/navigation';
+import { useForm } from 'react-hook-form';
+import type { BillingInvoice } from '../api/billing';
+import type { DiagnosticOrder } from '../api/laboratory';
+import type { OpdPrescriptionResponse } from '../api/opd';
+import type { ApiPatientDocumentType } from '../api/patients';
+import { useCurrencyFormatter } from '../api/useSettings';
 import { useAuth } from '../auth/useAuth';
-import { patientInitials } from './opd-utils';
-import { formatDate, formatDateTime, getPatientErrorMessage, getPatientIdFromSearch, patientFullName } from './patient-utils';
-
-const updatePatientSchema = z.object({
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  email: z.string().email('Invalid email').or(z.literal('')),
-  phone: z.string().optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'DECEASED']),
-  gender: z.enum(['UNKNOWN', 'MALE', 'FEMALE', 'OTHER']),
-  bloodGroup: z.string().optional(),
-  addressLine1: z.string().optional(),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  notes: z.string().optional(),
-});
-type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
+import { PatientCardModal } from '../components/patients/PatientCardModal';
+import { PatientDocumentUploadModal } from '../components/patients/PatientDocumentUploadModal';
+import { PatientEditModal, updatePatientSchema, type UpdatePatientForm } from '../components/patients/PatientEditModal';
+import { PatientProfileHeader } from '../components/patients/PatientProfileHeader';
+import { PatientProfileTabContent } from '../components/patients/PatientProfileTabContent';
+import { PrintBillingModal } from '../components/print/PrintBillingModal';
+import { PrintImagingOrderModal } from '../components/print/PrintImagingOrderModal';
+import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
+import { PrintPrescriptionModal } from '../components/print/PrintPrescriptionModal';
+import { Toast } from '../components/ui/Toast';
+import { usePatientProfileFeature, type PatientProfileTab } from '../hooks/patients/usePatientProfileFeature';
+import { navigate, useAppLocation } from '../routing/navigation';
+import { getPatientErrorMessage, getPatientIdFromSearch } from './patient-utils';
 
 const tabs = [
   'Overview',
   'EMR Timeline',
-  'Medical History',
   'Visits',
   'Appointments',
   'Prescriptions',
@@ -292,83 +284,34 @@ const formatFileSize = (bytes: number): string => {
 };
 
 const detectCategoryFromFileName = (fileName: string): string => {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  if (ext === 'pdf') return 'PDF';
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'Image';
-  if (['doc', 'docx'].includes(ext)) return 'Word';
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'Excel';
-  if (['txt', 'rtf'].includes(ext)) return 'Scanned File';
+  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  if (extension === 'pdf') return 'PDF';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(extension)) return 'Image';
+  if (['doc', 'docx'].includes(extension)) return 'Word';
+  if (['xls', 'xlsx', 'csv'].includes(extension)) return 'Excel';
+  if (['txt', 'rtf'].includes(extension)) return 'Scanned File';
   return 'PDF';
 };
-
-const getFileIconClass = (fileName: string): string => {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  if (ext === 'pdf') return 'ph ph-file-pdf';
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'ph ph-file-image';
-  if (['doc', 'docx'].includes(ext)) return 'ph ph-file-doc';
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'ph ph-file-xls';
-  return 'ph ph-file-text';
-};
-
-// â”€â”€ Main Patient Workspace â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function PatientProfilePage() {
   const { user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
   const canEditAllDetails = isSuperAdmin || isAdmin;
+  const formatCurrency = useCurrencyFormatter();
 
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
-  const {
-    state: {
-      activeTab,
-      patient,
-      loadingDetails,
-      detailsError,
-      timeline,
-      timelineMeta,
-      loadingTimeline,
-      loadingHistory,
-      visits: visitsData,
-      visitsMeta,
-      loadingVisits,
-      appointments,
-      appointmentsMeta,
-      loadingAppointments,
-      labOrders,
-      imagingOrders,
-      documents,
-      consents,
-      billingInvoices,
-      doctors: doctorsList,
-      filters: { timeline: timelineFilters, visits: visitsFilters, appointments: appointmentFilters },
-      pageInfo: { timeline: timelinePageInfo },
-      isSubmittingUpdate: submitting,
-      isSubmittingUpload: submittingUpload,
-    },
-    actions: {
-      setActiveTab,
-      setTimelineFilters,
-      setTimelinePage,
-      setVisitsFilters,
-      setVisitsPage,
-      setAppointmentFilters,
-      setAppointmentsPage,
-      handleUpdateProfile,
-      handleUploadDocument,
-    },
-  } = usePatientProfileFeature(requestedPatientId);
+  const searchParams = new URLSearchParams(search);
+  const initialTab = (searchParams.get('tab') as PatientProfileTab) || 'Overview';
+  const feature = usePatientProfileFeature(requestedPatientId, initialTab);
 
+  const { activeTab, patient, loadingDetails, loadingHistory, detailsError, isSubmittingUpdate: submitting, isSubmittingUpload: submittingUpload } = feature.state;
+  const { setActiveTab, handleUpdateProfile, handleUploadDocument } = feature.actions;
   const loading = loadingDetails || (loadingHistory && activeTab === 'Medical History');
   const loadError = detailsError?.message || '';
 
-  const setTimelineMeta = (val: Partial<{ page: number; limit: number }>) => setTimelinePage((prev) => ({ ...prev, ...val }));
-  const setVisitsMeta = (val: Partial<{ page: number; limit: number }>) => setVisitsPage((prev) => ({ ...prev, ...val }));
-  const setAppointmentsMeta = (val: Partial<{ page: number; limit: number }>) => setAppointmentsPage((prev) => ({ ...prev, ...val }));
-
-  const prescriptions: import('../api/opd').OpdPrescriptionResponse[] = []; // Quick fallback since scripts are nested
-
+  const prescriptions: OpdPrescriptionResponse[] = [];
   const [viewingPrescription, setViewingPrescription] = useState<OpdPrescriptionResponse | null>(null);
   const [viewingLabOrder, setViewingLabOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingImagingOrder, setViewingImagingOrder] = useState<DiagnosticOrder | null>(null);
@@ -379,10 +322,7 @@ export function PatientProfilePage() {
   const [showCardModal, setShowCardModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<UpdatePatientForm>({
-    resolver: zodResolver(updatePatientSchema)
-  });
+  const editForm = useForm<UpdatePatientForm>({ resolver: zodResolver(updatePatientSchema) });
 
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -404,12 +344,10 @@ export function PatientProfilePage() {
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const newFiles = Array.from(files);
-    setStagedFiles((prev: File[]) => [...prev, ...newFiles]);
-
+    setStagedFiles((previous) => [...previous, ...newFiles]);
     const firstFile = newFiles[0];
     if (firstFile) {
-      const autoCategory = detectCategoryFromFileName(firstFile.name);
-      setDocCategory(autoCategory);
+      setDocCategory(detectCategoryFromFileName(firstFile.name));
       if (!docName.trim()) {
         const baseName = firstFile.name.substring(0, firstFile.name.lastIndexOf('.')) || firstFile.name;
         setDocName(baseName);
@@ -417,12 +355,8 @@ export function PatientProfilePage() {
     }
   };
 
-  const removeStagedFile = (index: number) => {
-    setStagedFiles((prev: File[]) => prev.filter((_: File, i: number) => i !== index));
-  };
-
-  const handleUploadSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleUploadSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     if (stagedFiles.length === 0) {
       showToast('Please select at least one document to upload.', 'error');
       return;
@@ -431,21 +365,14 @@ export function PatientProfilePage() {
       showToast('Please enter a document name.', 'error');
       return;
     }
-
     try {
-      for (let i = 0; i < stagedFiles.length; i++) {
-        const file = stagedFiles[i];
+      for (let index = 0; index < stagedFiles.length; index++) {
+        const file = stagedFiles[index];
         if (!file) continue;
-        const title = stagedFiles.length > 1 ? `${docName.trim()} (${i + 1})` : docName.trim();
+        const title = stagedFiles.length > 1 ? `${docName.trim()} (${index + 1})` : docName.trim();
         if (!requestedPatientId) throw new Error('No patient selected.');
-
-        await handleUploadDocument({
-          document_type: uploadMode === 'CONSENT' ? 'CONSENT' : docType,
-          title,
-          file,
-        });
+        await handleUploadDocument({ document_type: uploadMode === 'CONSENT' ? 'CONSENT' : docType, title, file });
       }
-
       setUploadModalOpen(false);
       setStagedFiles([]);
       setDocName('');
@@ -612,37 +539,46 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
     return (
       <div className="appointment-page">
         <section className="appointment-page-header">
-          <div className="appointment-page-title">
-            <h2>Patient Workspace</h2>
-            <p>Select a patient from search to open their workspace</p>
-          </div>
+          <div className="appointment-page-title"><h2>Patient Workspace</h2><p>Select a patient from search to open their workspace</p></div>
           <div className="appointment-page-actions">
-            <button className="doc-btn primary" onClick={() => navigate('/patients/search')} type="button">
-              <i className="ph ph-magnifying-glass" aria-hidden="true" /> Search Patients
-            </button>
+            <button className="doc-btn primary" onClick={() => navigate('/patients/search')} type="button"><i className="ph ph-magnifying-glass" aria-hidden="true" /> Search Patients</button>
           </div>
         </section>
-        <div className="patient-empty-inline" style={{ marginTop: '2rem' }}>
-          No patient selected. Use <strong>Search Patients</strong> and click <strong>View Patient</strong> to open a workspace.
-        </div>
+        <div className="patient-empty-inline" style={{ marginTop: '2rem' }}>No patient selected. Use <strong>Search Patients</strong> and click <strong>View Patient</strong> to open a workspace.</div>
       </div>
     );
   }
 
+  const openEditModal = () => {
+    editForm.reset({
+      firstName: patient.first_name ?? '',
+      lastName: patient.last_name,
+      dateOfBirth: patient.date_of_birth.slice(0, 10),
+      phone: patient.phone ?? '',
+      email: patient.email ?? '',
+      status: patient.status,
+      gender: patient.gender,
+      bloodGroup: patient.blood_group ?? '',
+      addressLine1: patient.address?.line1 ?? '',
+      city: patient.address?.city ?? '',
+      postalCode: patient.address?.postal_code ?? '',
+      notes: patient.notes ?? '',
+    });
+    setEditOpen(true);
+  };
+
+  const openUploadModal = (mode: 'DOCUMENT' | 'CONSENT') => {
+    setUploadMode(mode);
+    setUploadModalOpen(true);
+  };
+
   return (
     <>
       <div className="appointment-page">
-        {/* Page Header */}
         <section className="appointment-page-header">
-          <div className="appointment-page-title">
-            <h2>Patient Workspace</h2>
-            <p>Complete patient record and clinical history</p>
-          </div>
+          <div className="appointment-page-title"><h2>Patient Workspace</h2><p>Complete patient record and clinical history</p></div>
           <div className="appointment-page-actions">
-            <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
-              <i className="ph ph-magnifying-glass" aria-hidden="true" />
-              Search Patients
-            </button>
+            <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button"><i className="ph ph-magnifying-glass" aria-hidden="true" /> Search Patients</button>
           </div>
         </section>
 
@@ -677,53 +613,16 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               </div>
             </div>
           </div>
+        <PatientProfileHeader
+          onBookAppointment={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)}
+          onEdit={openEditModal}
+          onViewCard={() => setShowCardModal(true)}
+          patient={patient}
+        />
 
-          <div className="profile-hero-actions">
-            <button className="doc-btn" onClick={() => { 
-                reset({ 
-                  firstName: patient.first_name ?? '', 
-                  lastName: patient.last_name, 
-                  dateOfBirth: patient.date_of_birth.slice(0, 10), 
-                  phone: patient.phone ?? '', 
-                  email: patient.email ?? '', 
-                  status: patient.status, 
-                  gender: patient.gender, 
-                  bloodGroup: patient.blood_group ?? '', 
-                  addressLine1: patient.address?.line1 ?? '',
-                  city: patient.address?.city ?? '',
-                  postalCode: patient.address?.postal_code ?? '',
-                  notes: patient.notes ?? '' 
-                }); 
-                setEditOpen(true); 
-              }} type="button">
-              <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
-            </button>
-            {/* Register Visit — temporarily disabled */}
-            {/* <button className="doc-btn" onClick={() => navigate(`/opd/visit?patient_id=${encodeURIComponent(patient.id)}`)} type="button">
-              <i className="ph ph-clipboard-text" aria-hidden="true" /> Register Visit
-            </button> */}
-            <button className="doc-btn primary" onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)} type="button">
-              <i className="ph ph-calendar-plus" aria-hidden="true" /> Book Appointment
-            </button>
-            <button className="doc-btn" onClick={() => setShowCardModal(true)} type="button">
-              <i className="ph ph-identification-card" aria-hidden="true" /> View Card
-            </button>
-          </div>
-        </section>
-
-        {/* 11 Workspace Tabs */}
         <section className="doc-card" style={{ marginTop: '1.25rem', padding: '0.5rem 1rem 0' }}>
           <div className="opd-workspace-tabs" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-            {tabs.map((tab) => (
-              <button
-                className={`opd-workspace-tab ${activeTab === tab ? 'active' : ''}`}
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                type="button"
-              >
-                {tab}
-              </button>
-            ))}
+            {tabs.map((tab) => <button className={`opd-workspace-tab ${activeTab === tab ? 'active' : ''}`} key={tab} onClick={() => setActiveTab(tab)} type="button">{tab}</button>)}
           </div>
         </section>
 
@@ -1653,6 +1552,38 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           </div>
         </form>
       </Modal>
+        <PatientProfileTabContent
+          actions={feature.actions}
+          formatCurrency={formatCurrency}
+          onOpenUpload={openUploadModal}
+          onViewImagingOrder={setViewingImagingOrder}
+          onViewInvoice={setViewingInvoice}
+          onViewLabOrder={setViewingLabOrder}
+          onViewPrescription={setViewingPrescription}
+          patient={patient}
+          prescriptions={prescriptions}
+          state={feature.state}
+        />
+      </div>
+
+      <PatientEditModal canEditAllDetails={canEditAllDetails} form={editForm} onClose={() => setEditOpen(false)} onSubmit={saveProfile} open={editOpen} patient={patient} submitting={submitting} />
+      <PatientCardModal onClose={() => setShowCardModal(false)} open={showCardModal} patient={patient} />
+      <PatientDocumentUploadModal
+        docCategory={docCategory}
+        docName={docName}
+        docType={docType}
+        onClose={() => setUploadModalOpen(false)}
+        onDocCategoryChange={setDocCategory}
+        onDocNameChange={setDocName}
+        onDocTypeChange={setDocType}
+        onFileSelect={handleFileSelect}
+        onRemoveFile={(index) => setStagedFiles((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}
+        onSubmit={handleUploadSubmit}
+        open={uploadModalOpen}
+        stagedFiles={stagedFiles}
+        submitting={submittingUpload}
+        uploadMode={uploadMode}
+      />
 
       <Modal
         open={Boolean(documentReviewTarget)}
@@ -1708,7 +1639,6 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
       <PrintLabOrderModal onClose={() => setViewingLabOrder(null)} order={viewingLabOrder} patient={patient} />
       <PrintImagingOrderModal onClose={() => setViewingImagingOrder(null)} order={viewingImagingOrder} patient={patient} />
       <PrintBillingModal invoice={viewingInvoice} onClose={() => setViewingInvoice(null)} patient={patient} />
-
       <Toast message={toastMessage} tone={toastTone} visible={Boolean(toastMessage)} />
     </>
   );

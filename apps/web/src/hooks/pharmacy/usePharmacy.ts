@@ -1,10 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  opdApi,
-  type ApiOpdPrescriptionStatus,
-} from '../../api/opd';
 import { 
-  pharmacyInventoryApi, 
+  pharmacyInventoryApi,
   type BatchListParams, 
   type InventoryListParams,
   type MovementListParams,
@@ -12,15 +8,6 @@ import {
   type StockMovementPayload
 } from '../../api/pharmacy-inventory';
 import { toast } from 'sonner';
-
-export type PrescriptionListParams = Partial<{
-  status: ApiOpdPrescriptionStatus;
-  limit: number;
-  skip: number;
-  search: string;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-}>;
 
 export const pharmacyKeys = {
   all: ['pharmacy'] as const,
@@ -33,8 +20,6 @@ export const pharmacyKeys = {
   inventoryDetail: (medicineId: string, branchId: string) => [...pharmacyKeys.inventory(), 'detail', medicineId, branchId] as const,
   movements: () => [...pharmacyKeys.all, 'movements'] as const,
   movementList: (params: MovementListParams) => [...pharmacyKeys.movements(), params] as const,
-  prescriptions: () => [...pharmacyKeys.all, 'prescriptions'] as const,
-  prescriptionList: (params: PrescriptionListParams) => [...pharmacyKeys.prescriptions(), 'list', params] as const,
 };
 
 export function usePharmacyInventoryList(params: InventoryListParams, enabled = true) {
@@ -82,26 +67,6 @@ export function usePharmacyMovements(params: MovementListParams, enabled = true)
     queryKey: pharmacyKeys.movementList(params),
     queryFn: () => pharmacyInventoryApi.movements(params),
     enabled,
-  });
-}
-
-export function usePharmacyPrescriptions(params: PrescriptionListParams, enabled = true) {
-  return useQuery({
-    queryKey: pharmacyKeys.prescriptionList(params),
-    queryFn: () => opdApi.listPrescriptions(params),
-    enabled,
-  });
-}
-
-export function useUpdatePharmacyPrescriptionStatus() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: ApiOpdPrescriptionStatus }) =>
-      opdApi.updatePrescriptionStatus(id, status),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: pharmacyKeys.prescriptions() });
-    },
   });
 }
 

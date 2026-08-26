@@ -15,6 +15,7 @@ const auditEvents: Record<UpdateLaboratoryStatusDTO['status'], string> = {
   IN_PROGRESS: 'laboratory.order.in_progress', VERIFIED: 'laboratory.result.verified',
   COMPLETED: 'laboratory.order.completed',
 };
+const downstreamContext = (order: OpdClinicalOrder) => ({ ...order, encounter_id: order.encounter_id, admission_id: order.admission_id, procedure_id: order.procedure_id });
 
 export class LaboratoryService {
   constructor(
@@ -29,8 +30,7 @@ export class LaboratoryService {
   }
 
   async getById(id: string, actorUserId: string) {
-    const order = await this.requireOrder(id, actorUserId);
-    return order;
+    return this.requireOrder(id, actorUserId);
   }
 
   async getResult(id: string, actorUserId: string) {
@@ -77,6 +77,8 @@ export class LaboratoryService {
         if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
           previousStatus: order.status, status: data.status,
         }, session);
       });
@@ -99,11 +101,13 @@ export class LaboratoryService {
         if (order.status !== 'IN_PROGRESS') throw new AppError('Results can only be entered for an in-progress order', 409, 'RESULT_ENTRY_NOT_ALLOWED');
         const normalized = await this.validateAndNormalizeResults(order, data);
         if (await this.repository.getResult(id, session)) throw new AppError('Laboratory result already exists', 409, 'LABORATORY_RESULT_EXISTS');
-        saved = await this.repository.createResult(order, normalized, actorUserId, session);
+        saved = await this.repository.createResult(downstreamContext(order), normalized, actorUserId, session);
         const updated = await this.orderRepository.updateOperationalStatus(id, 'LABORATORY', 'IN_PROGRESS', 'RESULT_ENTERED', actorUserId, session);
         if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
         await this.orderRepository.audit('laboratory.result.entered', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
         }, session);
       });
       if (!saved) throw new AppError('Laboratory result entry failed', 500, 'LABORATORY_RESULT_SAVE_FAILED');
@@ -122,10 +126,12 @@ export class LaboratoryService {
         this.assertMutable(order);
         if (order.status !== 'RESULT_ENTERED') throw new AppError('Only unverified results can be updated', 409, 'RESULT_UPDATE_NOT_ALLOWED');
         const normalized = await this.validateAndNormalizeResults(order, data);
-        saved = await this.repository.updateResult(id, normalized, actorUserId, session);
+        saved = await this.repository.updateResult(downstreamContext(order), normalized, actorUserId, session);
         if (!saved) throw new AppError('Laboratory result not found or already verified', 409, 'RESULT_UPDATE_NOT_ALLOWED');
         await this.orderRepository.audit('laboratory.result.updated', actorUserId, metadata, {
           orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
+          sourceType: order.source_type, encounterId: order.encounter_id,
+          admissionId: order.admission_id, procedureId: order.procedure_id,
         }, session);
       });
       return saved;

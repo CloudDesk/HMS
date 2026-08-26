@@ -1,4 +1,5 @@
 import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
+import { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -15,7 +16,7 @@ import type {
 
 type AppointmentLean = AppointmentFields & { _id: Types.ObjectId };
 
-type AppointmentCreateRecord = Omit<CreateAppointmentDTO, 'appointment_date' | 'priority'> & {
+type AppointmentCreateRecord = Omit<CreateAppointmentDTO, 'appointment_date' | 'start_time' | 'utc_datetime' | 'priority'> & {
   appointmentNumber: string;
   patientNumber: string;
   patientName: string;
@@ -23,19 +24,25 @@ type AppointmentCreateRecord = Omit<CreateAppointmentDTO, 'appointment_date' | '
   doctorSpecialization: string;
   branchId: string;
   departmentId: string;
+  utcDateTime: Date;
+  utcEndTime: Date;
   appointmentDate: Date;
+  startTime: string;
   endTime: string;
   priority: NonNullable<CreateAppointmentDTO['priority']>;
 };
 
-type AppointmentUpdateRecord = Omit<UpdateAppointmentDTO, 'appointment_date'> & {
+type AppointmentUpdateRecord = Omit<UpdateAppointmentDTO, 'appointment_date' | 'start_time' | 'utc_datetime'> & {
   patientNumber?: string;
   patientName?: string;
   doctorName?: string;
   doctorSpecialization?: string;
   branchId?: string;
   departmentId?: string;
+  utcDateTime?: Date;
+  utcEndTime?: Date;
   appointmentDate?: Date;
+  startTime?: string;
   endTime?: string;
 };
 
@@ -62,6 +69,8 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   doctor_specialization: appointment.doctorSpecialization,
   branch_id: appointment.branchId.toString(),
   department_id: appointment.departmentId.toString(),
+  utc_datetime: appointment.utcDateTime?.toISOString(),
+  utc_end_time: appointment.utcEndTime?.toISOString(),
   appointment_date: appointment.appointmentDate,
   start_time: appointment.startTime,
   end_time: appointment.endTime,
@@ -98,8 +107,10 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   doctorSpecialization: data.doctorSpecialization,
   branchId: toObjectId(data.branchId),
   departmentId: toObjectId(data.departmentId),
+  utcDateTime: data.utcDateTime,
+  utcEndTime: data.utcEndTime,
   appointmentDate: data.appointmentDate,
-  startTime: data.start_time,
+  startTime: data.startTime,
   endTime: data.endTime,
   durationMinutes: data.duration_minutes,
   visitType: data.visit_type,
@@ -118,8 +129,10 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.doctorSpecialization !== undefined ? { doctorSpecialization: data.doctorSpecialization } : {}),
   ...(data.branchId !== undefined ? { branchId: toObjectId(data.branchId) } : {}),
   ...(data.departmentId !== undefined ? { departmentId: toObjectId(data.departmentId) } : {}),
+  ...(data.utcDateTime !== undefined ? { utcDateTime: data.utcDateTime } : {}),
+  ...(data.utcEndTime !== undefined ? { utcEndTime: data.utcEndTime } : {}),
   ...(data.appointmentDate !== undefined ? { appointmentDate: data.appointmentDate } : {}),
-  ...(data.start_time !== undefined ? { startTime: data.start_time } : {}),
+  ...(data.startTime !== undefined ? { startTime: data.startTime } : {}),
   ...(data.endTime !== undefined ? { endTime: data.endTime } : {}),
   ...(data.duration_minutes !== undefined ? { durationMinutes: data.duration_minutes } : {}),
   ...(data.visit_type !== undefined ? { visitType: data.visit_type } : {}),
@@ -228,6 +241,12 @@ export class AppointmentRepository {
     const created = session
       ? (await AppointmentModel.create([buildCreatePayload(data, userId)], { session }))[0]!
       : await AppointmentModel.create(buildCreatePayload(data, userId));
+    const records = await AppointmentModel.create(
+      [buildCreatePayload(data, userId)],
+      session ? { session } : undefined,
+    );
+    const created = records[0];
+    if (!created) throw new AppError('Appointment could not be created', 500, 'APPOINTMENT_CREATE_FAILED');
     return toAppointment(created.toObject<AppointmentLean>());
   }
 
@@ -271,14 +290,35 @@ export class AppointmentRepository {
     startTime: string,
     endTime: string,
     excludeAppointmentId?: string,
+    utcStart?: Date,
+    utcEnd?: Date,
   ) {
-    const filter: Record<string, unknown> = {
-      doctorId: toObjectId(doctorId),
+    const timeFilter = utcStart && utcEnd ? {
+      $or: [
+        {
+          utcDateTime: { $lt: utcEnd },
+          utcEndTime: { $gt: utcStart },
+        },
+        {
+          utcDateTime: { $exists: false },
+          appointmentDate,
+          startTime: { $lt: endTime },
+          endTime: { $gt: startTime },
+        }
+      ]
+    } : {
       appointmentDate,
       deletedAt: null,
       status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
       startTime: { $lt: endTime },
       endTime: { $gt: startTime },
+    };
+
+    const filter: Record<string, unknown> = {
+      doctorId: toObjectId(doctorId),
+      deletedAt: null,
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+      ...timeFilter,
     };
 
     if (excludeAppointmentId) {
@@ -312,14 +352,35 @@ async findPatientConflict(
   startTime: string,
   endTime: string,
   excludeAppointmentId?: string,
+  utcStart?: Date,
+  utcEnd?: Date,
 ) {
-  const filter: Record<string, unknown> = {
-    patientId: toObjectId(patientId),
+  const timeFilter = utcStart && utcEnd ? {
+    $or: [
+      {
+        utcDateTime: { $lt: utcEnd },
+        utcEndTime: { $gt: utcStart },
+      },
+      {
+        utcDateTime: { $exists: false },
+        appointmentDate,
+        startTime: { $lt: endTime },
+        endTime: { $gt: startTime },
+      }
+    ]
+  } : {
     appointmentDate,
     deletedAt: null,
     status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
     startTime: { $lt: endTime },
     endTime: { $gt: startTime },
+  };
+
+  const filter: Record<string, unknown> = {
+    patientId: toObjectId(patientId),
+    deletedAt: null,
+    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+    ...timeFilter,
   };
 
   if (excludeAppointmentId) {
@@ -344,12 +405,13 @@ async auditStatusTransition(
       fromStatus: previousStatus,
       patientId: appointment.patient_id,
       toStatus: appointment.status,
+      reason: appointment.notes,
     },
   });
 }
 
-async auditCreated(appointment: Appointment, actorUserId: string) {
-  await AuditLogModel.create({
+async auditCreated(appointment: Appointment, actorUserId: string, session?: ClientSession) {
+  await AuditLogModel.create([{
     actorUserId,
     eventType: 'appointment.created',
     metadataJson: {
@@ -359,7 +421,7 @@ async auditCreated(appointment: Appointment, actorUserId: string) {
       doctorId: appointment.doctor_id,
       patientId: appointment.patient_id,
     },
-  });
+  }], session ? { session } : undefined);
 }
 
   async listPastOpen(patientId?: string) {
@@ -481,5 +543,18 @@ async auditCreated(appointment: Appointment, actorUserId: string) {
 
   async nextAppointmentSequence() {
     return AppointmentModel.countDocuments();
+async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
+  await AuditLogModel.create({ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
+    appointmentId: appointment.id, appointmentNumber: appointment.appointment_number, patientId: appointment.patient_id,
+    reason, previous: { doctorId: previous.doctor_id, appointmentDate: previous.appointment_date,
+      startTime: previous.start_time, durationMinutes: previous.duration_minutes },
+    next: { doctorId: appointment.doctor_id, appointmentDate: appointment.appointment_date,
+      startTime: appointment.start_time, durationMinutes: appointment.duration_minutes },
+  } });
+}
+
+  async nextAppointmentSequence(session?: ClientSession) {
+    const query = AppointmentModel.countDocuments();
+    return session ? query.session(session) : query;
   }
 }

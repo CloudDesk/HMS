@@ -13,6 +13,7 @@ import {
   toInputDate,
 } from './appointment-utils';
 import { useAppointmentDashboardFeature } from '../hooks/appointments/useAppointmentDashboardFeature';
+import { useTimezone } from '../api/useSettings';
 
 type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -59,6 +60,8 @@ export function AppointmentDashboardPage() {
       refetch,
     }
   } = useAppointmentDashboardFeature();
+  
+  const timezone = useTimezone();
 
   const kpis = useMemo(
     () => [
@@ -383,7 +386,7 @@ export function AppointmentDashboardPage() {
                     <td>
                       <strong>{formatAppointmentTime(appointment)}</strong>
                       <br />
-                      <small>{formatAppointmentDate(appointment.appointment_date)}</small>
+                      <small>{formatAppointmentDate(appointment.appointment_date, timezone)}</small>
                     </td>
                     <td>
                       <div className="doc-person">
@@ -410,7 +413,7 @@ export function AppointmentDashboardPage() {
                         {appointmentStatusLabels[appointment.status]}
                       </span>
                     </td>
-                    <td>{formatAppointmentDate(appointment.created_at)}</td>
+                    <td>{formatAppointmentDate(appointment.created_at, timezone)}</td>
                     <td>
                       <div className="doc-actions">
                         <button

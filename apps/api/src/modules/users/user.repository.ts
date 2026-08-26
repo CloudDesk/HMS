@@ -12,8 +12,34 @@ import type {
   UserStatus,
 } from './user.types.js';
 
-const mapUser = (user: any): UserRecord => ({
-  id: user._id.toString(),
+type UserDoc = {
+  _id: unknown;
+  employeeCode?: string | null;
+  username: string;
+  email?: string | null;
+  fullName?: string;
+  phone?: string | null;
+  jobTitle?: string | null;
+  employeeType?: string | null;
+  hireDate?: Date | null;
+  profilePhotoUrl?: string | null;
+  address?: string | null;
+  status: string;
+  failedLoginAttempts?: number;
+  lockedUntil?: Date | null;
+  passwordChangedAt?: Date | null;
+  lastLoginAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+  createdBy?: unknown;
+  updatedBy?: unknown;
+  deletedBy?: unknown;
+  roleIds?: unknown[];
+};
+
+const mapUser = (user: UserDoc): UserRecord => ({
+  id: String(user._id),
   employeeCode: user.employeeCode ?? null,
   username: user.username,
   email: user.email ?? null,
@@ -21,7 +47,7 @@ const mapUser = (user: any): UserRecord => ({
   phone: user.phone ?? null,
   jobTitle: user.jobTitle ?? null,
   employeeType: user.employeeType ?? null,
-  hireDate: user.hireDate ?? null,
+  hireDate: user.hireDate ? (typeof user.hireDate === 'string' ? user.hireDate : (user.hireDate as Date).toISOString()) : null,
   profilePhotoUrl: user.profilePhotoUrl ?? null,
   address: user.address ?? null,
   status: user.status as UserStatus,
@@ -32,9 +58,9 @@ const mapUser = (user: any): UserRecord => ({
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
   deletedAt: user.deletedAt ?? null,
-  createdBy: user.createdBy?.toString() ?? null,
-  updatedBy: user.updatedBy?.toString() ?? null,
-  deletedBy: user.deletedBy?.toString() ?? null,
+  createdBy: user.createdBy ? String(user.createdBy) : null,
+  updatedBy: user.updatedBy ? String(user.updatedBy) : null,
+  deletedBy: user.deletedBy ? String(user.deletedBy) : null,
   roleIds: (user.roleIds ?? []).map((id: unknown) => String(id)),
   patientId: user.patientId?.toString() ?? null,
 });
@@ -42,7 +68,7 @@ const mapUser = (user: any): UserRecord => ({
 export class UserRepository {
   async findById(id: string) {
     const user = await UserModel.findOne({ _id: id, deletedAt: null }).lean();
-    return user ? mapUser(user) : null;
+    return user ? mapUser(user as unknown as UserDoc) : null;
   }
 
   async findPasswordHashById(id: string) {
@@ -62,13 +88,13 @@ export class UserRepository {
     employeeCode?: string | null;
     excludeUserId?: string;
   }, session?: ClientSession) {
-    const filter: Record<string, any> = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
     
     if (fields.excludeUserId) {
       filter._id = { $ne: fields.excludeUserId };
     }
 
-    const orConditions: any[] = [];
+    const orConditions: Array<Record<string, unknown>> = [];
     if (fields.username) {
       orConditions.push({ username: new RegExp(`^${fields.username}$`, 'i') });
     }
@@ -91,7 +117,7 @@ export class UserRepository {
     const query = UserModel.findOne(filter);
     if (session) query.session(session);
     const user = await query.lean();
-    return user ? mapUser(user) : null;
+    return user ? mapUser(user as unknown as UserDoc) : null;
   }
 
   async list(query: UserListQuery) {
@@ -99,7 +125,7 @@ export class UserRepository {
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
-    const filter: Record<string, any> = { deletedAt: null };
+    const filter: Record<string, unknown> = { deletedAt: null };
     
     if (query.status) {
       filter.status = query.status;
@@ -140,7 +166,7 @@ export class UserRepository {
     ]);
 
     return {
-      users: data.map(mapUser),
+      users: data.map(u => mapUser(u as unknown as UserDoc)),
       total: count,
     };
   }
@@ -162,7 +188,7 @@ export class UserRepository {
     roleIds: string[];
     patientId?: string | null;
   }, session?: ClientSession) {
-    const [user] = await UserModel.create([{
+    const created = await UserModel.create([{
       employeeCode: input.employeeCode,
       username: input.username,
       email: input.email,
@@ -170,7 +196,7 @@ export class UserRepository {
       phone: input.phone,
       jobTitle: input.jobTitle,
       employeeType: input.employeeType,
-      hireDate: input.hireDate,
+      hireDate: input.hireDate ? new Date(input.hireDate) : null,
       profilePhotoUrl: input.profilePhotoUrl,
       address: input.address,
       status: input.status,
@@ -179,13 +205,14 @@ export class UserRepository {
       patientId: input.patientId,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
-    } as any], session ? { session } : {});
+    } as unknown as Partial<import('./user.model.js').IUser>], session ? { session } : {});
+    const user = created[0];
 
     if (!user) {
       throw new Error('User account could not be created');
     }
     
-    return mapUser(user.toObject());
+    return mapUser(user.toObject() as unknown as UserDoc);
   }
 
   async update(
@@ -205,7 +232,7 @@ export class UserRepository {
       roleIds?: string[];
     },
   ) {
-    const updatePayload: any = { updatedBy: input.actorUserId };
+    const updatePayload: Record<string, unknown> = { updatedBy: input.actorUserId };
     for (const [key, value] of Object.entries(input)) {
       if (value !== undefined && key !== 'actorUserId' && key !== 'branches' && key !== 'departments') {
         updatePayload[key] = value;
@@ -222,7 +249,7 @@ export class UserRepository {
   }
 
   async updateStatus(id: string, status: UserStatus, actorUserId: string, lockedUntil?: Date | null) {
-    const updatePayload: any = { 
+    const updatePayload: Record<string, unknown> = { 
       status, 
       updatedBy: actorUserId 
     };
@@ -320,15 +347,15 @@ export class UserRepository {
     for (const user of users) {
       const userIdStr = user._id.toString();
       
-      const userBranches = (user.branchIds as any[] || []).map((b, i) => ({
-        id: b._id.toString(),
+      const userBranches = ((user.branchIds as unknown as Array<{ _id: unknown; name: string }>) ?? []).map((b, i) => ({
+        id: String(b._id),
         name: b.name,
         isPrimary: i === 0,
       }));
       branchesByUserId.set(userIdStr, userBranches);
       
-      const userDepts = (user.departmentIds as any[] || []).map((d, i) => ({
-        id: d._id.toString(),
+      const userDepts = ((user.departmentIds as unknown as Array<{ _id: unknown; name: string }>) ?? []).map((d, i) => ({
+        id: String(d._id),
         name: d.name,
         isPrimary: i === 0,
       }));

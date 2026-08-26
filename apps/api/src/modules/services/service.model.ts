@@ -7,9 +7,16 @@ export interface IService extends Document {
   name: string;
   serviceType: ServiceType;
   category?: string;
+  sampleType?: string | null;
   description?: string;
   departmentId: Types.ObjectId;
   standardPrice: number;
+  defaultDurationMinutes?: number | null;
+  bookingCapacity?: number | null;
+  requiresBed: boolean;
+  requiresConsent: boolean;
+  requiresAdvanceDeposit: boolean;
+  minimumAdvanceDepositAmount?: number | null;
   status: 'ACTIVE' | 'INACTIVE';
   
   createdBy?: Types.ObjectId;
@@ -27,14 +34,21 @@ const serviceSchema = new Schema<IService>(
     name: { type: String, required: true },
     serviceType: {
       type: String,
-      enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE'],
+      enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE', 'PROCEDURE'],
       default: 'GENERAL',
       required: true,
     },
     category: { type: String },
+    sampleType: { type: String, default: null },
     description: { type: String },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
     standardPrice: { type: Number, required: true },
+    defaultDurationMinutes: { type: Number, min: 5, max: 720, default: null },
+    bookingCapacity: { type: Number, min: 1, max: 100, default: null },
+    requiresBed: { type: Boolean, default: false },
+    requiresConsent: { type: Boolean, default: false },
+    requiresAdvanceDeposit: { type: Boolean, default: false },
+    minimumAdvanceDepositAmount: { type: Number, min: 0, default: null },
     status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -46,9 +60,9 @@ const serviceSchema = new Schema<IService>(
     timestamps: true,
     toJSON: {
       virtuals: true,
-      transform: (_, ret) => {
-        delete (ret as any)._id;
-        delete (ret as any).__v;
+      transform: (_, ret: Record<string, unknown>) => {
+        delete ret._id;
+        delete ret.__v;
         return ret;
       },
     },

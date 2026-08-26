@@ -1,5 +1,8 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { NotificationModel, type NotificationDocumentFields } from './notification.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { UserModel } from '../users/user.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import type { CreateNotificationDTO, Notification, NotificationListQuery } from './notification.types.js';
 
 type NotificationLean = NotificationDocumentFields & { _id: Types.ObjectId };
@@ -8,6 +11,7 @@ const toNotification = (doc: NotificationLean): Notification => ({
   id: doc._id.toString(),
   recipient_role: doc.recipientRole ?? null,
   recipient_user_id: doc.recipientUserId?.toString() ?? null,
+  recipient_branch_id: doc.recipientBranchId?.toString() ?? null,
   title: doc.title,
   message: doc.message,
   type: doc.type,
@@ -18,19 +22,62 @@ const toNotification = (doc: NotificationLean): Notification => ({
 });
 
 export class NotificationRepository {
-  async create(data: CreateNotificationDTO): Promise<Notification> {
-    const created = await NotificationModel.create({
+  private async recipientFilter(userId: string): Promise<Record<string, unknown>> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('roleIds branchIds')
+      .lean<{ roleIds: Types.ObjectId[]; branchIds: Types.ObjectId[] }>();
+    if (!user) return { recipientUserId: new Types.ObjectId(userId) };
+
+    const roles = await RoleModel.find({ _id: { $in: user.roleIds }, status: 'active', deletedAt: null })
+      .select('code')
+      .lean<Array<{ code: string }>>();
+    return {
+      $or: [
+        { recipientUserId: new Types.ObjectId(userId) },
+        {
+          recipientRole: { $in: roles.map((role) => role.code) },
+          $or: [
+            { recipientBranchId: null },
+            { recipientBranchId: { $in: user.branchIds } },
+          ],
+        },
+      ],
+    };
+  }
+
+  async create(data: CreateNotificationDTO, session?: ClientSession): Promise<Notification> {
+    const records = await NotificationModel.create([{
       recipientRole: data.recipient_role ?? null,
       recipientUserId: data.recipient_user_id ? new Types.ObjectId(data.recipient_user_id) : null,
+      recipientBranchId: data.recipient_branch_id ? new Types.ObjectId(data.recipient_branch_id) : null,
       title: data.title,
       message: data.message,
       type: data.type,
       relatedEntityId: data.related_entity_id ? new Types.ObjectId(data.related_entity_id) : null,
-    });
+    }], session ? { session } : undefined);
+    const created = records[0];
+    if (!created) throw new AppError('Notification could not be created', 500, 'NOTIFICATION_CREATE_FAILED');
     return toNotification(created.toObject<NotificationLean>());
   }
 
-  async list(query: NotificationListQuery): Promise<{ data: Notification[]; meta: any }> {
+  async listForUser(userId: string, query: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit'>) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const filter: Record<string, unknown> = {
+      ...(query.is_read !== undefined ? { isRead: query.is_read } : {}),
+      ...await this.recipientFilter(userId),
+    };
+    const [data, count] = await Promise.all([
+      NotificationModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean<NotificationLean[]>(),
+      NotificationModel.countDocuments(filter),
+    ]);
+    return { data: data.map(toNotification), meta: { total: count, page, limit, totalPages: Math.ceil(count / limit) || 1 } };
+  }
+
+  async list(query: NotificationListQuery): Promise<{
+    data: Notification[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
@@ -83,6 +130,15 @@ export class NotificationRepository {
       id,
       { $set: { isRead: true } },
       { new: true, lean: true }
+    ).lean<NotificationLean>();
+    return doc ? toNotification(doc) : undefined;
+  }
+
+  async markAsReadForUser(id: string, userId: string): Promise<Notification | undefined> {
+    const doc = await NotificationModel.findOneAndUpdate(
+      { _id: id, ...await this.recipientFilter(userId) },
+      { $set: { isRead: true } },
+      { new: true, lean: true },
     ).lean<NotificationLean>();
     return doc ? toNotification(doc) : undefined;
   }

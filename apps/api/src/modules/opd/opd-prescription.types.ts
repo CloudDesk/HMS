@@ -9,13 +9,20 @@ export type OpdPrescriptionItem = {
   frequency: string;
   duration: string;
   quantity: number | null;
-  instructions: string | null;
+  intake_time?: string | null;
+  instructions?: string | null;
 };
 
 export type OpdPrescription = {
   id: string;
-  visit_id: string;
-  consultation_id: string;
+  source_type: ClinicalContextSourceType;
+  source_id: string;
+  encounter_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
+  visit_id: string | null;
+  consultation_id: string | null;
+  branch_id: string;
   patient_id: string;
   patient_number: string;
   patient_name: string;
@@ -50,3 +57,4 @@ export type ListPrescriptionsParams = {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 };
+import type { ClinicalContextSourceType } from './clinical-context.types.js';

@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useImagingReportFeature } from '../hooks/imaging/useImagingReportFeature';
 import { navigate } from '../routing/navigation';
+import { ImagingAttachmentsPanel } from '../components/imaging/ImagingAttachmentsPanel';
+import { PrintImagingReportModal } from '../components/print/PrintImagingReportModal';
 
 const schema = z.object({
   findings: z.string().trim().min(1, 'Findings are required.').max(10000),
@@ -14,7 +16,12 @@ type FormData = z.infer<typeof schema>;
 
 export function ImagingReportEntryPage() {
   const feature = useImagingReportFeature();
-  const { id, order, report, isLoading, isError, isSaving, readOnly, canEdit, canEnterReport, actions } = feature;
+  const [printOpen, setPrintOpen] = useState(false);
+  const {
+    id, order, report, isLoading, isError, isSaving, readOnly, canEdit, canEnterReport,
+    canViewAttachments, canUploadAttachments, attachments, attachmentsLoading, attachmentsError,
+    uploadingAttachments, downloadingAttachment, actions,
+  } = feature;
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { findings: '', impression: '', recommendations: '' } });
 
@@ -44,6 +51,7 @@ export function ImagingReportEntryPage() {
       <div>
         <span className="eyebrow">Imaging report</span>
         <h2>{order.patient_name}</h2>
+        <span className="status-badge">{order.source_type.replaceAll('_', ' ')}</span>
         <p>{order.patient_number} — {order.items.map((item) => item.service_name).join(', ')}</p>
       </div>
       <span className={`diagnostic-status status-${order.status.toLowerCase().replaceAll('_', '-')}`}>{order.status.replaceAll('_', ' ')}</span>
@@ -71,8 +79,21 @@ export function ImagingReportEntryPage() {
 
       <div className="diagnostic-form-actions">
         <button className="btn-secondary" type="button" onClick={() => navigate(`/imaging/workspace?id=${id}`)}>Back</button>
+        {readOnly && report ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
         {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterReport} type="submit">{isSaving ? 'Saving...' : 'Save Report'}</button> : null}
       </div>
     </form>
+    <ImagingAttachmentsPanel
+      attachments={attachments}
+      canUpload={canUploadAttachments}
+      canView={canViewAttachments}
+      isDownloading={downloadingAttachment}
+      isError={attachmentsError}
+      isLoading={attachmentsLoading}
+      isUploading={uploadingAttachments}
+      onDownload={actions.downloadAttachment}
+      onUpload={actions.uploadAttachments}
+    />
+    {printOpen && report ? <PrintImagingReportModal onClose={() => setPrintOpen(false)} order={order} report={report} /> : null}
   </div>;
 }

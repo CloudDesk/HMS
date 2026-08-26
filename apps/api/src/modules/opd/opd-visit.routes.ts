@@ -62,4 +62,13 @@ export const registerOpdVisitRoutes = async (app: FastifyInstance, services: Ser
     },
     async (request) => ok(await services.opdVisits.updateStatus(request.params.id, request.body, request.user!.id)),
   );
+
+  app.post<{ Params: OpdVisitIdParams }>(
+    '/api/opd/visits/:id/call-next',
+    {
+      preHandler: requirePermission(services, 'OPD', 'OPD Visits', 'Edit'),
+      schema: { params: opdVisitIdParamsSchema },
+    },
+    async (request) => ok(await services.opdVisits.callNextPatient(request.params.id, request.user!.id)),
+  );
 };

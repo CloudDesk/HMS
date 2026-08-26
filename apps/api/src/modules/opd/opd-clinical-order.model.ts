@@ -1,4 +1,5 @@
 import mongoose, { Schema, Types } from 'mongoose';
+import type { ClinicalContextSourceType } from './clinical-context.types.js';
 import type {
   ClinicalOrderPriority,
   ClinicalOrderStatus,
@@ -14,8 +15,13 @@ export type ClinicalOrderItemFields = {
 };
 
 export type OpdClinicalOrderFields = {
-  visitId: Types.ObjectId;
-  consultationId: Types.ObjectId;
+  sourceType: ClinicalContextSourceType;
+  sourceId: Types.ObjectId;
+  encounterId?: Types.ObjectId | null;
+  admissionId?: Types.ObjectId | null;
+  procedureId?: Types.ObjectId | null;
+  visitId?: Types.ObjectId | null;
+  consultationId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
   patientNumber: string;
   patientName: string;
@@ -51,8 +57,18 @@ const clinicalOrderItemSchema = new Schema<ClinicalOrderItemFields>(
 
 const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
   {
-    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
-    consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', required: true },
+    sourceType: {
+      type: String,
+      enum: ['OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'],
+      default: 'OPD_VISIT',
+      required: true,
+    },
+    sourceId: { type: Schema.Types.ObjectId, required: true },
+    encounterId: { type: Schema.Types.ObjectId, default: null },
+    admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    procedureId: { type: Schema.Types.ObjectId, ref: 'ProcedureBooking', default: null },
+    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
+    consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', default: null },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     patientNumber: { type: String, required: true },
     patientName: { type: String, required: true },
@@ -63,13 +79,25 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
     status: {
       type: String,
       enum: [
-        'DRAFT', 'SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS',
-        'RESULT_ENTERED', 'REPORT_ENTERED', 'VERIFIED', 'COMPLETED',
+        'DRAFT',
+        'SUBMITTED',
+        'RECEIVED',
+        'SAMPLE_COLLECTED',
+        'IN_PROGRESS',
+        'RESULT_ENTERED',
+        'REPORT_ENTERED',
+        'VERIFIED',
+        'COMPLETED',
       ],
       default: 'DRAFT',
       required: true,
     },
-    priority: { type: String, enum: ['ROUTINE', 'URGENT', 'STAT'], default: 'ROUTINE', required: true },
+    priority: {
+      type: String,
+      enum: ['ROUTINE', 'URGENT', 'STAT'],
+      default: 'ROUTINE',
+      required: true,
+    },
     destination: { type: String, default: null },
     specimenType: { type: String, default: null },
     items: { type: [clinicalOrderItemSchema], default: [] },
@@ -84,11 +112,20 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
   { timestamps: true },
 );
 
-opdClinicalOrderSchema.index({ visitId: 1, orderType: 1 }, { unique: true });
+opdClinicalOrderSchema.index(
+  { visitId: 1, orderType: 1 },
+  { unique: true, partialFilterExpression: { visitId: { $type: 'objectId' } } },
+);
+opdClinicalOrderSchema.index(
+  { sourceType: 1, sourceId: 1, orderType: 1 },
+  { unique: true, partialFilterExpression: { sourceId: { $type: 'objectId' } } },
+);
 opdClinicalOrderSchema.index({ patientId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ doctorId: 1, orderType: 1, createdAt: -1 });
 opdClinicalOrderSchema.index({ orderType: 1, status: 1, priority: 1, submittedAt: -1 });
 opdClinicalOrderSchema.index({ branchId: 1, orderType: 1, status: 1, submittedAt: -1 });
+opdClinicalOrderSchema.index({ admissionId: 1, orderType: 1, status: 1, submittedAt: -1 });
+opdClinicalOrderSchema.index({ procedureId: 1, orderType: 1, status: 1, submittedAt: -1 });
 
 export const OpdClinicalOrderModel = mongoose.model<OpdClinicalOrderFields>(
   'OpdClinicalOrder',

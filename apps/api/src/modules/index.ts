@@ -4,6 +4,7 @@ import { registerAuthRoutes } from './auth/auth.routes.js';
 import { registerHealthRoutes } from './health/health.routes.js';
 import { registerPermissionRoutes } from './permissions/permission.routes.js';
 import { registerPatientRoutes } from './patients/patient.routes.js';
+import { registerConsentRoutes } from './consents/consent.routes.js';
 import { registerRoleRoutes } from './roles/role.routes.js';
 import { registerUserRoutes } from './users/user.routes.js';
 import { registerBranchRoutes } from './branches/branch.routes.js';
@@ -30,6 +31,9 @@ import { registerPharmacyDispensingRoutes } from './pharmacy-dispensing/pharmacy
 import { registerAdmissionsConfigurationRoutes } from './admissions-configuration/admissions-configuration.routes.js';
 import { registerInpatientAdmissionRoutes } from './inpatient-admissions/inpatient-admission.routes.js';
 import { registerPatientPortalRoutes } from './patient-portal/patient-portal.routes.js';
+import { registerSurgeryRoutes } from './surgery/surgery.routes.js';
+import { registerEmergencyRoutes } from './emergency/emergency.routes.js';
+import { registerAdvancePaymentRoutes } from './advance-payment/advance-payment.routes.js';
 
 export const registerModules = async (app: FastifyInstance, services: ServiceRegistry) => {
   await registerHealthRoutes(app, services);
@@ -49,6 +53,7 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerBillingRoutes(app, services);
   await registerSettingsRoutes(app, services);
   await registerPatientRoutes(app, services);
+  await registerConsentRoutes(app, services);
   await registerDoctorRoutes(app, services);
   await registerAppointmentRoutes(app, services);
   await registerOpdVisitRoutes(app, services);
@@ -62,4 +67,7 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerPharmacyDispensingRoutes(app, services);
   await registerAdmissionsConfigurationRoutes(app, services);
   await registerInpatientAdmissionRoutes(app, services);
+  await registerSurgeryRoutes(app, services);
+  await registerEmergencyRoutes(app, services);
+  await registerAdvancePaymentRoutes(app, services);
 };

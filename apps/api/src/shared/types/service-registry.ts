@@ -29,6 +29,10 @@ import type { AdmissionsConfigurationService } from '../../modules/admissions-co
 import type { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
 import type { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
 import type { SmsService } from '../services/sms.service.js';
+import type { ConsentService } from '../../modules/consents/consent.service.js';
+import type { SurgeryService } from '../../modules/surgery/surgery.service.js';
+import type { EmergencyService } from '../../modules/emergency/emergency.service.js';
+import type { AdvancePaymentService } from '../../modules/advance-payment/advance-payment.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -42,6 +46,7 @@ export type ServiceRegistry = {
   branches: BranchService;
   departments: DepartmentService;
   patients: PatientService;
+  consents: ConsentService;
   doctors: DoctorService;
   appointments: AppointmentService;
   opdVisits: OpdVisitService;
@@ -64,4 +69,7 @@ export type ServiceRegistry = {
   inpatientAdmissions: InpatientAdmissionService;
   patientPortal: PatientPortalService;
   sms: SmsService;
+  surgery: SurgeryService;
+  emergency: EmergencyService;
+  advancePayment: AdvancePaymentService;
 };

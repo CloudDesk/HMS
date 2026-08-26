@@ -2,12 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ApiError } from '../../api/api-error';
 import {
-  billingApi,
   type BillingInvoiceListParams,
   type CollectBillingPaymentPayload,
   type CreateBillingInvoicePayload,
+  type LinkAdmissionBillingContextPayload,
+  type LinkProcedureBillingContextPayload,
   type UpdateBillingInvoicePayload,
 } from '../../api/billing';
+import { billingService } from '../../services/billing.service';
 
 export const getBillingErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -37,7 +39,7 @@ export const billingKeys = {
 export function useBillingInvoices(params: BillingInvoiceListParams, enabled = true) {
   return useQuery({
     queryKey: billingKeys.list(params),
-    queryFn: () => billingApi.list(params),
+    queryFn: () => billingService.list(params),
     enabled,
   });
 }
@@ -48,7 +50,7 @@ export function useBillingSummary(
 ) {
   return useQuery({
     queryKey: billingKeys.summary(params),
-    queryFn: () => billingApi.summary(params),
+    queryFn: () => billingService.summary(params),
     enabled,
   });
 }
@@ -56,7 +58,7 @@ export function useBillingSummary(
 export function useBillingInvoiceDetails(id: string | null) {
   return useQuery({
     queryKey: id ? billingKeys.detail(id) : billingKeys.details(),
-    queryFn: () => billingApi.getById(id!),
+    queryFn: () => billingService.getById(id!),
     enabled: Boolean(id),
   });
 }
@@ -64,7 +66,7 @@ export function useBillingInvoiceDetails(id: string | null) {
 export function useBillingPayments(invoiceId: string | null) {
   return useQuery({
     queryKey: invoiceId ? billingKeys.paymentList(invoiceId) : billingKeys.payments(),
-    queryFn: () => billingApi.payments(invoiceId!),
+    queryFn: () => billingService.payments(invoiceId!),
     enabled: Boolean(invoiceId),
   });
 }
@@ -73,7 +75,7 @@ export function useCreateBillingInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: CreateBillingInvoicePayload) => billingApi.create(payload),
+    mutationFn: (payload: CreateBillingInvoicePayload) => billingService.create(payload),
     onSuccess: async () => {
       toast.success('Invoice draft created.');
       // Creating a new invoice affects the list view and summary totals only.
@@ -96,7 +98,7 @@ export function useUpdateBillingInvoice() {
       id: string;
       payload: UpdateBillingInvoicePayload;
       finalize?: boolean;
-    }) => billingApi.update(id, { ...payload, ...(finalize ? { status: 'PENDING' } : {}) }),
+    }) => billingService.update(id, { ...payload, ...(finalize ? { status: 'PENDING' } : {}) }),
     onSuccess: async (_result, { id, finalize }) => {
       toast.success(finalize ? 'Invoice finalized and ready for payment.' : 'Invoice updated.');
       // The specific invoice detail changed; lists and summaries may reflect status/amount changes.
@@ -112,7 +114,7 @@ export function useCancelBillingInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => billingApi.cancel(id),
+    mutationFn: (id: string) => billingService.cancel(id),
     onSuccess: async (_result, id) => {
       toast.success('Invoice cancelled.');
       // Cancellation changes both the invoice detail and list/summary aggregates.
@@ -124,12 +126,38 @@ export function useCancelBillingInvoice() {
   });
 }
 
+export function useLinkAdmissionBillingContext() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: LinkAdmissionBillingContextPayload }) =>
+      billingService.linkAdmissionContext(id, payload),
+    onSuccess: async (invoice) => {
+      await queryClient.invalidateQueries({ queryKey: billingKeys.detail(invoice.id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+    },
+    onError: (error) => toast.error(getBillingErrorMessage(error)),
+  });
+}
+
+export function useLinkProcedureBillingContext() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: LinkProcedureBillingContextPayload }) =>
+      billingService.linkProcedureContext(id, payload),
+    onSuccess: async (invoice) => {
+      await queryClient.invalidateQueries({ queryKey: billingKeys.detail(invoice.id) });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+    },
+    onError: (error) => toast.error(getBillingErrorMessage(error)),
+  });
+}
+
 export function useCollectBillingPayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: CollectBillingPaymentPayload }) =>
-      billingApi.collectPayment(id, payload),
+      billingService.collectPayment(id, payload),
     onSuccess: async (result) => {
       toast.success(result.invoice.status === 'PAID' ? 'Invoice paid in full.' : 'Partial payment collected.');
       const id = result.invoice.id;
@@ -145,7 +173,7 @@ export function useCollectBillingPayment() {
 
 export function useBillingReceipt() {
   return useMutation({
-    mutationFn: (paymentId: string) => billingApi.receipt(paymentId),
+    mutationFn: (paymentId: string) => billingService.receipt(paymentId),
     onError: (error) => toast.error(getBillingErrorMessage(error)),
   });
 }

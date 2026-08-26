@@ -10,22 +10,19 @@ import {
   startOfWeek,
   startOfMonth,
   endOfMonth,
+  formatAppointmentTime,
 } from './appointment-utils';
 import { patientInitials } from './opd-utils';
 import { toast } from 'sonner';
 import { useAppointmentCalendarFeature } from '../hooks/appointments/useAppointmentCalendarFeature';
+import { useSettings, useTimezone } from '../api/useSettings';
+import { formatInTimeZone } from 'date-fns-tz';
 
 const timeSlots = Array.from({ length: 11 }).map((_, index) => `${String(index + 8).padStart(2, '0')}:00`);
 
 const dateKey = (value: string) => toInputDate(parseInputDate(value));
 
 const appointmentDateKey = (appointment: AppointmentResponse) => appointment.appointment_date.slice(0, 10);
-
-const formatDayHeader = (value: string) =>
-  new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', weekday: 'short' }).format(parseInputDate(value));
-
-const formatMonthDay = (value: string) =>
-  new Intl.DateTimeFormat('en', { day: 'numeric', weekday: 'short' }).format(parseInputDate(value));
 
 const isReferral = (appointment: AppointmentResponse) => {
   return Boolean(
@@ -43,8 +40,8 @@ const eventClass = (appointment: AppointmentResponse) => {
   return '';
 };
 
-const buildWeekDays = (selectedDate: string) => {
-  const weekStart = startOfWeek(selectedDate);
+const buildWeekDays = (selectedDate: string, firstDayOfWeek: 'Monday' | 'Sunday') => {
+  const weekStart = startOfWeek(selectedDate, firstDayOfWeek);
   return Array.from({ length: 7 }).map((_, index) => {
     const date = new Date(weekStart);
     date.setDate(date.getDate() + index);
@@ -117,6 +114,28 @@ export function AppointmentCalendarPage() {
     }
   } = useAppointmentCalendarFeature();
 
+  const timezone = useTimezone();
+
+  const getDayHeader = (value: string) => {
+    try {
+      const parsed = parseInputDate(value);
+      if (Number.isNaN(parsed.getTime())) return value;
+      return formatInTimeZone(parsed, timezone, 'd MMM, EEE');
+    } catch {
+      return value;
+    }
+  };
+
+  const getMobileDayHeader = (value: string) => {
+    try {
+      const parsed = parseInputDate(value);
+      if (Number.isNaN(parsed.getTime())) return value;
+      return formatInTimeZone(parsed, timezone, 'd EEE');
+    } catch {
+      return value;
+    }
+  };
+
   // Drag and Drop State & Active Modal State
   const [draggedAppointmentId, setDraggedAppointmentId] = useState<string | null>(null);
   const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
@@ -125,8 +144,14 @@ export function AppointmentCalendarPage() {
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
 
-  const weekDays = useMemo(() => buildWeekDays(calendarDate), [calendarDate]);
+  const settings = useSettings();
+  const firstDayOfWeek = settings?.localization.firstDayOfWeek || 'Sunday';
+
+  const weekDays = useMemo(() => buildWeekDays(calendarDate, firstDayOfWeek), [calendarDate, firstDayOfWeek]);
   const monthDays = useMemo(() => buildMonthDays(calendarDate), [calendarDate]);
 
   const appointmentsFor = (day: string, slot?: string) =>
@@ -157,31 +182,31 @@ export function AppointmentCalendarPage() {
       return;
     }
 
-    try {
-      await handleUpdateAppointment(draggedAppointmentId, {
-        appointment_date: targetDate,
-        start_time: newStartTime,
-      });
-      // success toast is handled by mutation
-    } finally {
-      setDraggedAppointmentId(null);
-    }
+    setSelectedAppointmentId(draggedAppointmentId);
+    setRescheduleDate(targetDate);
+    setRescheduleTime(newStartTime);
+    setRescheduleReason('');
+    setIsRescheduling(true);
+    setDraggedAppointmentId(null);
   };
 
   const handleCancelAppointment = async (appointmentId: string) => {
+    if (!cancellationReason.trim()) { toast.error('Cancellation reason is required.'); return; }
     await handleUpdateStatus(appointmentId, {
       status: 'CANCELLED',
-      notes: 'Cancelled by patient request from calendar view'
+      notes: cancellationReason.trim(),
     });
+    setIsCancelling(false); setCancellationReason('');
   };
 
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAppointment || !rescheduleDate || !rescheduleTime) return;
+    if (!selectedAppointment || !rescheduleDate || !rescheduleTime || !rescheduleReason.trim()) return;
 
     await handleUpdateAppointment(selectedAppointment.id, {
       appointment_date: rescheduleDate,
       start_time: rescheduleTime,
+      reschedule_reason: rescheduleReason.trim(),
     });
     setIsRescheduling(false);
   };
@@ -310,7 +335,7 @@ export function AppointmentCalendarPage() {
                   <span>Time</span>
                   {(mode === 'day' ? [dateKey(calendarDate)] : weekDays).map((day) => (
                     <span className={day === todayInputValue() ? 'today' : ''} key={day}>
-                      {formatDayHeader(day)}
+                      {getDayHeader(day)}
                     </span>
                   ))}
                 </div>
@@ -346,12 +371,11 @@ export function AppointmentCalendarPage() {
                               }}
                               type="button"
                             >
-                              <strong>
-                                {appointment.start_time} - {appointment.patient_name}
-                              </strong>
-                              <span>
-                                {appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}
-                              </span>
+                              <strong>{formatAppointmentTime(appointment)}</strong>
+                              <div>
+                                <strong>{appointment.patient_name}</strong>
+                                <span>{appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}</span>
+                              </div>
                             </button>
                           ))}
                         </div>
@@ -382,7 +406,7 @@ export function AppointmentCalendarPage() {
                       }}
                       onDrop={() => void handleDrop(day)}
                     >
-                      <strong>{formatMonthDay(day)}</strong>
+                      <strong>{getMobileDayHeader(day)}</strong>
                       {appointmentsFor(day).slice(0, 4).map((appointment) => (
                         <button
                           className={`appointment-calendar-event ${eventClass(appointment)}`}
@@ -498,6 +522,7 @@ export function AppointmentCalendarPage() {
                         value={rescheduleDate}
                       />
                     </div>
+                    <div className="doc-field"><label htmlFor="reschedule-reason-input">Reason</label><textarea id="reschedule-reason-input" onChange={(e) => setRescheduleReason(e.target.value)} required value={rescheduleReason} /></div>
                     <div className="doc-field">
                       <label htmlFor="reschedule-time-input">New Time</label>
                       <input
@@ -519,6 +544,7 @@ export function AppointmentCalendarPage() {
                   </div>
                 </form>
               ) : null}
+              {isCancelling ? <form className="apt-modal-reschedule-form" onSubmit={(e) => { e.preventDefault(); void handleCancelAppointment(selectedAppointment.id); }}><h4>Cancel Appointment</h4><div className="doc-field"><label htmlFor="cancellation-reason-input">Cancellation reason</label><textarea id="cancellation-reason-input" onChange={(e) => setCancellationReason(e.target.value)} required value={cancellationReason} /></div><div className="apt-modal-reschedule-actions"><button className="doc-btn" onClick={() => setIsCancelling(false)} type="button">Back</button><button className="doc-btn danger-outline" disabled={isUpdatingStatus} type="submit">Confirm Cancellation</button></div></form> : null}
             </div>
 
             <div className="modal-footer apt-modal-footer">
@@ -532,7 +558,7 @@ export function AppointmentCalendarPage() {
               <button
                 className="doc-btn danger-outline"
                 disabled={selectedAppointment.status === 'CANCELLED' || isUpdatingStatus}
-                onClick={() => void handleCancelAppointment(selectedAppointment.id)}
+                onClick={() => { setIsCancelling(true); setIsRescheduling(false); }}
                 type="button"
               >
                 Cancel Appointment
@@ -542,6 +568,8 @@ export function AppointmentCalendarPage() {
                 onClick={() => {
                   setRescheduleDate(selectedAppointment.appointment_date.slice(0, 10));
                   setRescheduleTime(selectedAppointment.start_time);
+                  setRescheduleReason('');
+                  setIsCancelling(false);
                   setIsRescheduling(true);
                 }}
                 type="button"

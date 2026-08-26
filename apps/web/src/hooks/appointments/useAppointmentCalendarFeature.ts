@@ -7,6 +7,8 @@ import { useDoctorsList } from '../doctors/useDoctors';
 import { useBranchesList } from '../branches/useBranches';
 import { type ApiAppointmentStatus, isApiAppointmentStatus } from '../../api/appointments';
 import { todayInputValue, toInputDate, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from '../../pages/appointment-utils';
+import { useTimezone } from '../../api/useSettings';
+import { fromZonedTime } from 'date-fns-tz';
 
 export type CalendarMode = 'day' | 'week' | 'month';
 
@@ -69,6 +71,7 @@ export function useAppointmentCalendarFeature() {
 
   const updateAppointment = useUpdateAppointment();
   const updateStatus = useUpdateAppointmentStatus();
+  const timezone = useTimezone();
 
   const loggedInDoctor = useMemo(
     () => (user ? allDoctors.find((doctor) => doctor.user_id === user.id) : undefined),
@@ -104,8 +107,13 @@ export function useAppointmentCalendarFeature() {
     }
   }, [calendarDate, departmentFilter, doctorFilter, mode, statusFilter]);
 
-  const handleUpdateAppointment = async (id: string, payload: { appointment_date: string; start_time: string }) => {
-    return updateAppointment.mutateAsync({ id, payload });
+  const handleUpdateAppointment = async (id: string, payload: { appointment_date: string; start_time: string; reschedule_reason: string }) => {
+    let utc_datetime: string | undefined;
+    if (payload.appointment_date && payload.start_time) {
+      const localDateTimeString = `${payload.appointment_date}T${payload.start_time}:00`;
+      utc_datetime = fromZonedTime(localDateTimeString, timezone).toISOString();
+    }
+    return updateAppointment.mutateAsync({ id, payload: { ...payload, utc_datetime } });
   };
 
   const handleUpdateStatus = async (id: string, payload: { status: ApiAppointmentStatus; notes?: string }) => {

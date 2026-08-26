@@ -17,6 +17,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-users',
     links: [
       { href: '/patients/search', label: 'Patients' },
+      { href: '/patients/consent', label: 'Consent Attachment' },
     ],
   },
   {
@@ -36,7 +37,9 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-calendar-blank',
     links: [
       { href: '/appointments/book', label: 'Book Appointment' },
+      { href: '/appointments/referrals', label: 'Referral Booking' },
       { href: '/appointments/calendar', label: 'Calendar View' },
+      { href: '/appointments/queue', label: 'Queue Management' },
     ],
   },
   {
@@ -45,27 +48,34 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-first-aid',
     links: [
       { href: '/opd/consultation', label: 'Consultation' },
-      { href: '/opd/queue', label: 'Queue Management' },
+      { href: '/opd/queue', label: 'Waiting Queue' },
     ],
   },
-  // Emergency remains deferred. Admissions configuration is enabled for R2.
-  // {
-  //   key: 'emergency',
-  //   label: 'Emergency',
-  //   icon: 'ph-star',
-  //   links: [
-  //     { href: '/emergency', label: 'Dashboard' },
-  //     { href: '/emergency/queue', label: 'Emergency Queue' },
-  //     { href: '/emergency/workspace', label: 'Emergency Workspace' },
-  //   ],
-  // },
+  {
+    key: 'emergency',
+    label: 'Emergency',
+    icon: 'ph-warning-circle',
+    links: [
+      { href: '/emergency', label: 'Dashboard' },
+      { href: '/emergency/queue', label: 'Emergency Queue' },
+      { href: '/emergency/workspace', label: 'Emergency Workspace' },
+    ],
+  },
   {
     key: 'admissions',
     label: 'Admissions',
     icon: 'ph-bed',
     links: [
-      { href: '/admissions/inpatients', label: 'Inpatient Admission' },
+      { href: '/admissions/inpatients', label: 'Admission Requests' },
       { href: '/admissions/beds', label: 'Bed Management' },
+    ],
+  },
+  {
+    key: 'surgery',
+    label: 'Surgery',
+    icon: 'ph-scissors',
+    links: [
+      { href: '/surgery', label: 'Procedure Workflow' },
     ],
   },
   {
@@ -125,10 +135,7 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Reports',
     icon: 'ph-chart-bar',
     links: [
-      { href: '/reports/library', label: 'Report Library' },
-      { href: '/reports/builder', label: 'Report Builder' },
-      { href: '/reports/scheduled', label: 'Scheduled Reports' },
-      { href: '/reports/history', label: 'Report History' },
+      { href: '/reports/library', label: 'Phase 2 Reports' },
     ],
   },
   {
@@ -142,6 +149,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/administration/services', label: 'Service Catalogue' },
       { href: '/administration/medicines', label: 'Medicine Master' },
       { href: '/administration/branches', label: 'Branch Management' },
+      { href: '/administration/consent-templates', label: 'Consent Templates' },
       { href: '/administration/settings', label: 'System Settings' },
     ],
   },

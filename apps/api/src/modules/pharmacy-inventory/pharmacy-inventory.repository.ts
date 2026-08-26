@@ -19,6 +19,11 @@ import type {
   RegisterMedicineBatchDTO,
   UpdateMedicineBatchDTO,
 } from './pharmacy-inventory.types.js';
+import type {
+  PharmacyMedicineInventoryFields,
+  PharmacyMedicineBatchFields,
+  PharmacyMedicineStockMovementFields,
+} from './pharmacy-inventory.model.js';
 
 const EXPIRY_WARNING_DAYS = 30;
 const objectId = (value: string) => new Types.ObjectId(value);
@@ -28,6 +33,34 @@ const expiryWarningEnd = (date = new Date()) => {
   const value = startOfUtcDay(date);
   value.setUTCDate(value.getUTCDate() + EXPIRY_WARNING_DAYS);
   return value;
+};
+
+/** Shape returned by the inventory aggregate pipeline (with medicine + branch lookups). */
+type InventoryAggregateRecord = PharmacyMedicineInventoryFields & {
+  _id: Types.ObjectId;
+  medicine: {
+    code: string;
+    name: string;
+    genericName?: string | null;
+    strength?: string | null;
+    dosageForm?: string | null;
+    unit?: string | null;
+    status: string;
+  };
+  branch?: { code: string; name: string } | null;
+};
+
+/** Shape returned by the batch aggregate pipeline with medicine populated. */
+type BatchWithMedicineRecord = PharmacyMedicineBatchFields & {
+  _id: Types.ObjectId;
+  medicine?: { _id: Types.ObjectId; name: string } | null;
+};
+
+/** Shape returned by the movement aggregate pipeline (with medicine + batch lookups). */
+type MovementAggregateRecord = PharmacyMedicineStockMovementFields & {
+  _id: Types.ObjectId;
+  medicine?: { code: string; name: string } | null;
+  batch?: { batchNumber: string } | null;
 };
 
 const stockStateFor = (availableQuantity: number, threshold: number): MedicineStockState => {
@@ -42,7 +75,7 @@ const expiryStateFor = (expiredBatchCount: number, nextExpiryDate?: Date | null)
   return 'VALID' as const;
 };
 
-const toInventory = (record: any) => ({
+const toInventory = (record: InventoryAggregateRecord) => ({
   id: String(record._id),
   medicine_id: String(record.medicineId),
   branch_id: String(record.branchId),
@@ -67,7 +100,7 @@ const toInventory = (record: any) => ({
   updated_at: record.updatedAt,
 });
 
-const toBatch = (record: any) => ({
+const toBatch = (record: PharmacyMedicineBatchFields & { _id: Types.ObjectId }) => ({
   id: String(record._id),
   medicine_id: String(record.medicineId),
   branch_id: String(record.branchId),
@@ -84,7 +117,7 @@ const toBatch = (record: any) => ({
   updated_at: record.updatedAt,
 });
 
-const toMovement = (record: any) => ({
+const toMovement = (record: MovementAggregateRecord) => ({
   id: String(record._id),
   medicine_id: String(record.medicineId),
   branch_id: String(record.branchId),
@@ -138,6 +171,18 @@ export class PharmacyInventoryRepository {
   async findAvailableBatch(medicineId: string, branchId: string, session?: ClientSession) {
     const query = PharmacyMedicineBatchModel.findOne({ medicineId: objectId(medicineId), branchId: objectId(branchId), status: 'ACTIVE', quantityOnHand: { $gt: 0 }, expiryDate: { $gte: startOfUtcDay() } })
       .sort({ expiryDate: 1, _id: 1 }).lean();
+    if (session) query.session(session);
+    return query;
+  }
+
+  async getAvailableBatch(id: string, branchId: string, session?: ClientSession) {
+    const query = PharmacyMedicineBatchModel.findOne({
+      _id: objectId(id),
+      branchId: objectId(branchId),
+      status: 'ACTIVE',
+      quantityOnHand: { $gt: 0 },
+      expiryDate: { $gte: startOfUtcDay() },
+    }).lean();
     if (session) query.session(session);
     return query;
   }
@@ -324,7 +369,16 @@ export class PharmacyInventoryRepository {
   }
 
   async getBatchById(id: string) {
-    return PharmacyMedicineBatchModel.findById(id).populate('medicine').lean();
+    const batch = await PharmacyMedicineBatchModel.findById(id).lean();
+    if (!batch) return null;
+
+    const medicine = await MedicineModel.findById(batch.medicineId)
+      .select('_id name')
+      .lean<{ _id: Types.ObjectId; name: string }>();
+    return {
+      ...batch,
+      medicine: medicine ? { id: medicine._id.toString(), name: medicine.name } : null,
+    };
   }
 
   async updateBatchMetadata(
@@ -395,7 +449,7 @@ export class PharmacyInventoryRepository {
       PharmacyMedicineBatchModel.countDocuments(filter),
     ]);
     return {
-      data: records.map((record: any) => ({
+      data: records.map((record: BatchWithMedicineRecord) => ({
         ...toBatch(record),
         medicine: record.medicine ? { id: record.medicine._id.toString(), name: record.medicine.name } : null,
       })),
@@ -437,7 +491,7 @@ export class PharmacyInventoryRepository {
           updatedAt: '$$NOW',
         },
       }],
-      { returnDocument: 'after', lean: true, session },
+      { returnDocument: 'after', lean: true, session, updatePipeline: true },
     );
     return batch;
   }

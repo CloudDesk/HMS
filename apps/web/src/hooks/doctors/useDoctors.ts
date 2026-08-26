@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+const LOOKUP_STALE_TIME = 5 * 60 * 1000;
 import { toast } from 'sonner';
 import { ApiError } from '../../api/api-error';
 import {
@@ -55,6 +57,7 @@ export function useDoctorsList(params: DoctorListParams = {}, enabled = true) {
     queryKey: doctorKeys.list(params),
     queryFn: () => doctorsApi.list(params),
     enabled,
+    staleTime: LOOKUP_STALE_TIME,
   });
 }
 

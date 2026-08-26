@@ -1,7 +1,7 @@
 import { type BillingInvoiceStatus } from '../api/billing';
 import { useCurrencyFormatter } from '../api/useSettings';
 import { navigate } from '../routing/navigation';
-import { billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
+import { billingSourceLabel, billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
 import { useBillingHistoryFeature } from '../hooks/billing/useBillingHistoryFeature';
 
 const statuses: BillingInvoiceStatus[] = ['DRAFT', 'PENDING', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'];
@@ -36,13 +36,14 @@ export function BillingHistoryPage() {
 
     <section className="billing-card">
       {invoicesQuery.isError ? <div className="billing-state error"><i className="ph ph-warning-circle" /><strong>Invoice history could not be loaded.</strong><button onClick={() => void invoicesQuery.refetch()} type="button">Retry</button></div> : null}
-      <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Invoice Number</th><th>Patient</th><th>Visit</th><th>Invoice Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th aria-label="Actions" /></tr></thead><tbody>
-        {invoicesQuery.isLoading ? <tr><td className="um-state-cell" colSpan={9}>Loading billing history…</td></tr> : null}
-        {!invoicesQuery.isLoading && (invoicesQuery.data?.data.length ?? 0) === 0 ? <tr><td className="um-state-cell" colSpan={9}><i className="ph ph-receipt" /> No invoices match the selected filters.</td></tr> : null}
+      <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Invoice Number</th><th>Patient</th><th>Source</th><th>Encounter</th><th>Invoice Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th aria-label="Actions" /></tr></thead><tbody>
+        {invoicesQuery.isLoading ? <tr><td className="um-state-cell" colSpan={10}>Loading billing history…</td></tr> : null}
+        {!invoicesQuery.isLoading && (invoicesQuery.data?.data.length ?? 0) === 0 ? <tr><td className="um-state-cell" colSpan={10}><i className="ph ph-receipt" /> No invoices match the selected filters.</td></tr> : null}
         {invoicesQuery.data?.data.map((invoice) => <tr key={invoice.id}>
           <td><strong>{invoice.invoice_number}</strong><small>{invoice.branch_name ?? 'Branch'}</small></td>
           <td><strong>{invoice.patient_name ?? 'Patient'}</strong><small>{invoice.patient_number ?? invoice.patient_id}</small></td>
-          <td>{invoice.visit_number ?? invoice.visit_id}</td>
+          <td>{billingSourceLabel[invoice.source_type]}</td>
+          <td>{invoice.visit_number ?? invoice.encounter_id}</td>
           <td>{formatBillingDate(invoice.invoice_date)}</td>
           <td>{formatBillingMoney(invoice.total_amount)}</td><td>{formatBillingMoney(invoice.paid_amount)}</td>
           <td><strong className={invoice.balance_amount > 0 ? 'billing-balance-due' : 'billing-balance-clear'}>{formatBillingMoney(invoice.balance_amount)}</strong></td>

@@ -19,6 +19,7 @@ import type {
   BillingInvoiceStatus,
   BillingPayment,
   BillingRequestMetadata,
+  BillingSourceType,
   BillingSummaryQuery,
   CollectBillingPaymentDTO,
   ResolvedBillingItem,
@@ -34,12 +35,17 @@ type InvoiceListRow = InvoiceLean & {
   branchName?: string | null;
   visitNumber?: string | null;
   appointmentNumber?: string | null;
+  visitType?: string | null;
 };
 
 export type CreateInvoiceRecord = {
   invoiceNumber: string;
   patientId: string;
   visitId: string;
+  sourceType: BillingSourceType;
+  encounterId: string;
+  admissionId?: string | null;
+  procedureId?: string | null;
   appointmentId?: string | null;
   branchId: string;
   invoiceDate: Date;
@@ -63,6 +69,11 @@ type UpdateInvoiceRecord = {
 const objectId = (value: string) => new Types.ObjectId(value);
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const sourceTypeForVisit = (visitType?: string | null): BillingSourceType => {
+  if (visitType === 'EMERGENCY') return 'EMERGENCY';
+  if (visitType === 'PROCEDURE') return 'PROCEDURE';
+  return 'OPD';
+};
 
 const toItem = (item: InvoiceItemLean): BillingInvoiceItem => ({
   id: item._id.toString(),
@@ -70,6 +81,7 @@ const toItem = (item: InvoiceItemLean): BillingInvoiceItem => ({
   service_id: item.serviceId.toString(),
   service_name: item.serviceName,
   service_type: item.serviceType,
+  originating_order_id: item.originatingOrderId?.toString() ?? null,
   quantity: item.quantity,
   unit_price: item.unitPrice,
   line_total: item.lineTotal,
@@ -92,9 +104,15 @@ const toInvoice = (
     patient_name: row.patientName ?? null,
     visit_id: invoice.visitId.toString(),
     visit_number: row.visitNumber ?? null,
+    source_type: invoice.sourceType ?? sourceTypeForVisit(row.visitType),
+    encounter_id: invoice.encounterId?.toString() ?? invoice.visitId.toString(),
+    admission_id: invoice.admissionId?.toString() ?? null,
+    procedure_id: invoice.procedureId?.toString() ?? null,
     appointment_id: invoice.appointmentId?.toString() ?? null,
     appointment_number: row.appointmentNumber ?? null,
     branch_id: invoice.branchId.toString(),
+    context_type: invoice.contextType ?? null,
+    context_id: invoice.contextId?.toString() ?? null,
     branch_name: row.branchName ?? null,
     invoice_date: invoice.invoiceDate,
     status: invoice.status,
@@ -149,6 +167,22 @@ const invoiceLookupStages: PipelineStage[] = [
       patientNumber: { $arrayElemAt: ['$patient.patientNumber', 0] },
       branchName: { $arrayElemAt: ['$branch.name', 0] },
       visitNumber: { $arrayElemAt: ['$visit.visitNumber', 0] },
+      visitType: { $arrayElemAt: ['$visit.visitType', 0] },
+      sourceType: {
+        $ifNull: [
+          '$sourceType',
+          {
+            $switch: {
+              branches: [
+                { case: { $eq: [{ $arrayElemAt: ['$visit.visitType', 0] }, 'EMERGENCY'] }, then: 'EMERGENCY' },
+                { case: { $eq: [{ $arrayElemAt: ['$visit.visitType', 0] }, 'PROCEDURE'] }, then: 'PROCEDURE' },
+              ],
+              default: 'OPD',
+            },
+          },
+        ],
+      },
+      encounterId: { $ifNull: ['$encounterId', '$visitId'] },
       appointmentNumber: { $arrayElemAt: ['$appointment.appointmentNumber', 0] },
     },
   },
@@ -245,6 +279,15 @@ export class BillingRepository {
     return invoice ? toInvoice(invoice) : null;
   }
 
+  async hasUnresolvedInvoicesForEncounter(encounterId: string, session?: ClientSession) {
+    const unresolvedCount = await BillingInvoiceModel.countDocuments({
+      encounterId: objectId(encounterId),
+      status: { $in: ['DRAFT', 'PENDING', 'PARTIALLY_PAID'] },
+      deletedAt: null,
+    }).session(session ?? null);
+    return unresolvedCount > 0;
+  }
+
   async getHydratedById(id: string, branchIds?: string[]) {
     const filter: Record<string, unknown> = { _id: objectId(id), deletedAt: null };
     if (branchIds) filter.branchId = { $in: branchIds.map(objectId) };
@@ -256,6 +299,11 @@ export class BillingRepository {
     if (!invoice) return null;
     const items = await this.listItems(id);
     return toInvoice(invoice, items);
+  }
+
+  async linkContext(id: string, patientId: string, branchId: string, contextType: 'ADMISSION_REQUEST' | 'PROCEDURE_BOOKING', contextId: string, userId: string) {
+    const invoice = await BillingInvoiceModel.findOneAndUpdate({ _id: objectId(id), patientId: objectId(patientId), branchId: objectId(branchId), status: { $ne: 'CANCELLED' }, deletedAt: null, $or: [{ contextId: null }, { contextType, contextId: objectId(contextId) }] }, { $set: { contextType, contextId: objectId(contextId), updatedBy: objectId(userId) } }, { new: true, lean: true, runValidators: true }).lean<InvoiceLean>();
+    return invoice ? toInvoice(invoice) : null;
   }
 
   async listItems(invoiceId: string, session?: ClientSession) {
@@ -271,6 +319,10 @@ export class BillingRepository {
       invoiceNumber: data.invoiceNumber,
       patientId: objectId(data.patientId),
       visitId: objectId(data.visitId),
+      sourceType: data.sourceType,
+      encounterId: objectId(data.encounterId),
+      admissionId: data.admissionId ? objectId(data.admissionId) : null,
+      procedureId: data.procedureId ? objectId(data.procedureId) : null,
       appointmentId: data.appointmentId ? objectId(data.appointmentId) : null,
       branchId: objectId(data.branchId),
       invoiceDate: data.invoiceDate,
@@ -364,13 +416,14 @@ export class BillingRepository {
     return updated ? toInvoice(updated) : null;
   }
 
-  async listPayments(invoiceId: string, branchIds?: string[]) {
+  async listPayments(invoiceId: string, branchIds?: string[], session?: ClientSession) {
     const filter: Record<string, unknown> = { invoiceId: objectId(invoiceId), deletedAt: null };
     if (branchIds) filter.branchId = { $in: branchIds.map(objectId) };
-    const payments = await BillingPaymentModel.find(filter)
+    const query = BillingPaymentModel.find(filter)
       .sort({ paymentDate: -1, createdAt: -1 })
       .lean<PaymentLean[]>();
-    return payments.map(toPayment);
+    if (session) query.session(session);
+    return (await query).map(toPayment);
   }
 
   async getPaymentById(id: string, branchIds?: string[]) {
@@ -460,6 +513,7 @@ export class BillingRepository {
       serviceId: objectId(item.serviceId),
       serviceName: item.serviceName,
       serviceType: item.serviceType,
+      originatingOrderId: item.originatingOrderId ? objectId(item.originatingOrderId) : null,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       lineTotal: item.lineTotal,

@@ -1,5 +1,5 @@
 import type { MultipartFields, MultipartValue } from '@fastify/multipart';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { requirePermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
@@ -36,12 +36,28 @@ type PatientDocumentIdParams = {
 type PatientDocumentsQuery = {
   document_type?: string;
   visit_id?: string;
+  admission_id?: string;
+  procedure_id?: string;
+  context_type?: import('./patient.types.js').PatientConsentContextType;
   page?: number;
   limit?: number;
 };
 
 const patientDocumentTypes = ['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER'];
-const patientConsentStatuses = ['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED'];
+const patientConsentStatuses = ['NOT_REQUIRED', 'PENDING', 'ATTACHED', 'VERIFIED'];
+
+const requireConsentPermission = async (
+  services: ServiceRegistry,
+  request: FastifyRequest,
+  action: 'Attach' | 'Delete',
+) => {
+  if (await services.permissions.userHasPermission(request.user!.id, 'Patients', 'Consent', action)) return;
+  await services.permissions.auditDeniedAccess(request.user!.id, 'Patients', 'Consent', action, {
+    ipAddress: request.ip,
+    userAgent: request.headers['user-agent'],
+  });
+  throw new AppError('Permission required', 403, 'PERMISSION_REQUIRED');
+};
 
 const isPatientDocumentType = (value: string): value is PatientDocumentType => patientDocumentTypes.includes(value);
 const isPatientConsentStatus = (value: string): value is PatientConsentStatus => patientConsentStatuses.includes(value);
@@ -162,6 +178,9 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
             ? request.query.document_type
             : undefined,
           visit_id: request.query.visit_id,
+          admission_id: request.query.admission_id,
+          procedure_id: request.query.procedure_id,
+          context_type: request.query.context_type,
           page: request.query.page,
           limit: request.query.limit,
         }, request.user!.id),
@@ -186,9 +205,16 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       if (!isPatientDocumentType(documentType)) {
         throw new AppError('Document type is invalid', 400, 'VALIDATION_ERROR');
       }
+      if (documentType === 'CONSENT') await requireConsentPermission(services, request, 'Attach');
 
       const data = await file.toBuffer();
       const visitId = readMultipartField(file.fields, 'visit_id');
+      const admissionId = readMultipartField(file.fields, 'admission_id');
+      const procedureId = readMultipartField(file.fields, 'procedure_id');
+      const contextType = readMultipartField(file.fields, 'context_type');
+      const requestedContextId = readMultipartField(file.fields, 'context_id');
+      const templateId = readMultipartField(file.fields, 'consent_template_id');
+      const branchId = readMultipartField(file.fields, 'branch_id');
       const consentStatusValue = readMultipartField(file.fields, 'consent_status');
       if (consentStatusValue && !isPatientConsentStatus(consentStatusValue)) {
         throw new AppError('Consent status is invalid', 400, 'VALIDATION_ERROR');
@@ -200,11 +226,76 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
           throw new AppError('OPD visit does not belong to this patient', 400, 'VISIT_PATIENT_MISMATCH');
         }
       }
+      if (documentType !== 'CONSENT' && admissionId) {
+        if (!branchId) throw new AppError('Branch is required for an admission document', 400, 'VALIDATION_ERROR');
+        const admission = await services.inpatientAdmissions.get(admissionId, branchId, request.user!.id);
+        if (admission.patient_id !== request.params.id) {
+          throw new AppError('Admission does not belong to this patient', 400, 'ADMISSION_PATIENT_MISMATCH');
+        }
+      }
+      if (documentType !== 'CONSENT' && procedureId) {
+        const procedure = await services.opdVisits.getById(procedureId);
+        if (procedure.visit_type !== 'PROCEDURE' || procedure.patient_id !== request.params.id) {
+          throw new AppError('Procedure encounter does not belong to this patient', 400, 'INVALID_PROCEDURE_CONTEXT');
+        }
+        if (branchId && procedure.branch_id !== branchId) {
+          throw new AppError('Procedure encounter does not belong to the selected branch', 400, 'INVALID_PROCEDURE_CONTEXT');
+        }
+      }
+      let consentMetadata: Pick<CreatePatientDTO, never> & {
+        context_type?: import('./patient.types.js').PatientConsentContextType; context_id?: string;
+        admission_id?: string; procedure_id?: string; consent_template_id?: string;
+        consent_category?: string; consent_version?: number;
+      } = {};
+      if (documentType === 'CONSENT') {
+        const supportedConsentContexts = ['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING', 'PATIENT', 'PROCEDURE', 'ADMISSION'];
+        if (!templateId || !branchId || !contextType || !supportedConsentContexts.includes(contextType)) {
+          throw new AppError('Consent template, branch, and context are required', 400, 'VALIDATION_ERROR');
+        }
+        const typedContext = contextType as import('./patient.types.js').PatientConsentContextType;
+        const template = await services.consents.get(templateId, branchId, request.user!.id);
+        const expectedTemplateContext = typedContext === 'PROCEDURE_BOOKING'
+          ? 'PROCEDURE'
+          : typedContext === 'INPATIENT_ADMISSION'
+            ? 'ADMISSION'
+            : typedContext;
+        if (template.context_type !== expectedTemplateContext) throw new AppError('Consent template does not support this context', 400, 'CONSENT_CONTEXT_MISMATCH');
+        let contextId = requestedContextId ?? request.params.id;
+        if (typedContext === 'PROCEDURE_BOOKING') {
+          if (!requestedContextId) throw new AppError('Procedure booking is required', 400, 'VALIDATION_ERROR');
+          const booking = await services.surgery.getBooking(contextId, branchId, request.user!.id);
+          if (booking.patient_id !== request.params.id) throw new AppError('Procedure booking does not belong to this patient', 400, 'INVALID_PROCEDURE_CONTEXT');
+        } else if (typedContext === 'INPATIENT_ADMISSION') {
+          if (!requestedContextId) throw new AppError('Admission request is required', 400, 'VALIDATION_ERROR');
+          const admissionRequest = await services.inpatientAdmissions.getRequest(contextId, branchId, request.user!.id);
+          if (admissionRequest.patient_id !== request.params.id) throw new AppError('Admission request does not belong to this patient', 400, 'ADMISSION_PATIENT_MISMATCH');
+        } else if (typedContext === 'PROCEDURE') {
+          if (!visitId) throw new AppError('Procedure encounter is required', 400, 'VALIDATION_ERROR');
+          const visit = await services.opdVisits.getById(visitId);
+          if (visit.visit_type !== 'PROCEDURE' || visit.patient_id !== request.params.id || visit.branch_id !== branchId) throw new AppError('Valid procedure encounter is required in the selected branch', 400, 'INVALID_PROCEDURE_CONTEXT');
+          contextId = visitId;
+        } else if (typedContext === 'ADMISSION') {
+          if (!admissionId) throw new AppError('Admission is required', 400, 'VALIDATION_ERROR');
+          const admission = await services.inpatientAdmissions.get(admissionId, branchId, request.user!.id);
+          if (admission.patient_id !== request.params.id) throw new AppError('Admission does not belong to this patient', 400, 'ADMISSION_PATIENT_MISMATCH');
+          contextId = admissionId;
+        } else {
+          const patient = await services.patients.getById(request.params.id, request.user!.id);
+          if (patient.registration_branch_id !== branchId) throw new AppError('Patient is not registered in the selected branch', 400, 'PATIENT_BRANCH_MISMATCH');
+        }
+        consentMetadata = { context_type: typedContext, context_id: contextId,
+          admission_id: typedContext === 'ADMISSION' ? contextId : undefined,
+          procedure_id: typedContext === 'PROCEDURE_BOOKING' || typedContext === 'PROCEDURE' ? contextId : undefined,
+          consent_template_id: template.id, consent_category: template.category, consent_version: template.version };
+      }
       const document = await services.patients.uploadDocument(
         request.params.id,
         {
           document_type: documentType,
           visit_id: visitId,
+          admission_id: documentType === 'CONSENT' ? consentMetadata.admission_id : admissionId,
+          procedure_id: documentType === 'CONSENT' ? consentMetadata.procedure_id : procedureId,
+          ...consentMetadata,
           title: requireMultipartField(file.fields, 'title', 'Title'),
           file_name: file.filename,
           mime_type: file.mimetype,
@@ -214,6 +305,9 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
           signed_at: readMultipartField(file.fields, 'signed_at'),
           valid_until: readMultipartField(file.fields, 'valid_until'),
           signed_by_name: readMultipartField(file.fields, 'signed_by_name'),
+          context_type: readMultipartField(file.fields, 'context_type') as 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | undefined,
+          context_id: readMultipartField(file.fields, 'context_id'),
+          consent_kind: readMultipartField(file.fields, 'consent_kind'),
           data,
         },
         request.user!.id,
@@ -230,6 +324,14 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       schema: { params: patientDocumentIdParamsSchema },
     },
     async (request) => {
+      const existing = await services.patients.getDocument(
+        request.params.id,
+        request.params.documentId,
+        request.user!.id,
+      );
+      if (existing.document_type === 'CONSENT') {
+        await requireConsentPermission(services, request, 'Attach');
+      }
       const file = await request.file();
       if (!file) {
         throw new AppError('Replacement document file is required', 400, 'VALIDATION_ERROR');
@@ -237,6 +339,9 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       const documentType = requireMultipartField(file.fields, 'document_type', 'Document type');
       if (!isPatientDocumentType(documentType)) {
         throw new AppError('Document type is invalid', 400, 'VALIDATION_ERROR');
+      }
+      if (existing.document_type === 'CONSENT' && documentType !== 'CONSENT') {
+        throw new AppError('A consent document must remain a consent when replaced', 409, 'CONSENT_TYPE_IMMUTABLE');
       }
       const data = await file.toBuffer();
       const consentStatusValue = readMultipartField(file.fields, 'consent_status');
@@ -299,6 +404,10 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       request.body,
       request.user!.id,
     )),
+  app.patch<{ Params: PatientDocumentIdParams }>(
+    '/api/patients/:id/documents/:documentId/consent/verify',
+    { preHandler: requirePermission(services, 'Patients', 'Consent', 'Verify'), schema: { params: patientDocumentIdParamsSchema } },
+    async (request) => ok(await services.patients.verifyConsent(request.params.id, request.params.documentId, request.user!.id)),
   );
 
   app.delete<{ Params: PatientDocumentIdParams }>(
@@ -309,7 +418,16 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         params: patientDocumentIdParamsSchema,
       },
     },
-    async (request) =>
-      ok(await services.patients.deleteDocument(request.params.id, request.params.documentId, request.user!.id)),
+    async (request) => {
+      const existing = await services.patients.getDocument(
+        request.params.id,
+        request.params.documentId,
+        request.user!.id,
+      );
+      if (existing.document_type === 'CONSENT') {
+        await requireConsentPermission(services, request, 'Delete');
+      }
+      return ok(await services.patients.deleteDocument(request.params.id, request.params.documentId, request.user!.id));
+    },
   );
 };

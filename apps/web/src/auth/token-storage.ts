@@ -1,75 +1,68 @@
 import type { AuthTokens } from './auth-types';
 
-const refreshTokenKey = 'hms.auth.refreshToken';
-const refreshExpiresAtKey = 'hms.auth.refreshExpiresAt';
+// ---------------------------------------------------------------------------
+// In-memory access token (never persisted to any browser storage).
+// ---------------------------------------------------------------------------
 
 let accessToken: string | null = null;
 let accessExpiresAt: number | null = null;
 
+/**
+ * Tracks whether this browser session has successfully authenticated (either
+ * through login or a successful /auth/refresh). This is an optimisation flag
+ * only — it is NOT a source of truth for refresh-token validity. The backend
+ * is always authoritative.
+ *
+ * Stored in module memory only. Resets to false on page reload, at which
+ * point AuthContext will attempt /auth/refresh and let the server decide.
+ */
+let sessionKnown = false;
+
 const now = () => Date.now();
 const toExpiry = (seconds: number) => now() + seconds * 1000;
 
-const getSessionValue = (key: string) => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  return window.sessionStorage.getItem(key);
-};
-
-const setSessionValue = (key: string, value: string) => {
-  if (typeof window !== 'undefined') {
-    window.sessionStorage.setItem(key, value);
-  }
-};
-
-const removeSessionValue = (key: string) => {
-  if (typeof window !== 'undefined') {
-    window.sessionStorage.removeItem(key);
-  }
-};
+// ---------------------------------------------------------------------------
+// Public token storage interface
+// ---------------------------------------------------------------------------
 
 export const tokenStorage = {
+  /**
+   * Stores the access token in memory and marks the session as known.
+   * The refresh token is never passed here — it lives exclusively in the
+   * HttpOnly cookie set by the backend.
+   */
   setTokens(tokens: AuthTokens) {
     accessToken = tokens.accessToken;
     accessExpiresAt = toExpiry(tokens.expiresIn);
-    setSessionValue(refreshTokenKey, tokens.refreshToken);
-    setSessionValue(refreshExpiresAtKey, String(toExpiry(tokens.refreshExpiresIn)));
+    sessionKnown = true;
   },
 
   getAccessToken() {
     return accessToken;
   },
 
-  getRefreshToken() {
-    return getSessionValue(refreshTokenKey);
-  },
-
+  /**
+   * Returns true if the current module-memory session is known to be active.
+   * On a fresh page load this is always false — AuthContext will call
+   * /auth/refresh which lets the backend (via the HttpOnly cookie) decide
+   * whether the session can be restored.
+   */
   hasRefreshToken() {
-    return Boolean(getSessionValue(refreshTokenKey));
+    return sessionKnown;
   },
 
   isAccessTokenExpired(bufferMs = 15_000) {
     return !accessToken || !accessExpiresAt || accessExpiresAt - bufferMs <= now();
   },
 
-  isRefreshTokenExpired(bufferMs = 15_000) {
-    const storedExpiry = getSessionValue(refreshExpiresAtKey);
-    if (!storedExpiry) {
-      // Older sessions may not have client-side expiry metadata. The opaque
-      // refresh token is still validated authoritatively by the API.
-      return !getSessionValue(refreshTokenKey);
-    }
-
-    const expiresAt = Number(storedExpiry);
-
-    return !Number.isFinite(expiresAt) || expiresAt - bufferMs <= now();
-  },
-
+  /**
+   * Clears all in-memory authentication state.
+   * The HttpOnly refresh-token cookie is cleared server-side by the logout
+   * endpoint; this method only handles the client-side memory state.
+   */
   clear() {
     accessToken = null;
     accessExpiresAt = null;
-    removeSessionValue(refreshTokenKey);
-    removeSessionValue(refreshExpiresAtKey);
+    sessionKnown = false;
   },
 };

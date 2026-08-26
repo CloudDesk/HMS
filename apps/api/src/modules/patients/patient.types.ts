@@ -75,11 +75,20 @@ export type PatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSE
 export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
 export type PatientDocumentSource = 'HOSPITAL' | 'PATIENT' | 'GUARDIAN';
 export type PatientDocumentReviewStatus = 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED' | 'ATTACHED' | 'VERIFIED';
+export type PatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
 export type PatientDocument = {
   id: string;
   patient_id: string;
   visit_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
+  context_type: PatientConsentContextType | null;
+  context_id: string | null;
+  consent_template_id: string | null;
+  consent_category: string | null;
+  consent_version: number | null;
   document_type: PatientDocumentType;
   title: string;
   file_name: string;
@@ -88,6 +97,7 @@ export type PatientDocument = {
   storage_key: string;
   description: string | null;
   consent_status: PatientConsentStatus | null;
+  consent_kind: string | null;
   signed_at: Date | null;
   valid_until: Date | null;
   signed_by_name: string | null;
@@ -102,12 +112,22 @@ export type PatientDocument = {
   status: 'ACTIVE' | 'DELETED';
   uploaded_by: string | null;
   uploaded_by_name: string | null;
+  uploaded_at: Date;
+  verified_by: string | null;
+  verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };
 
 export type CreatePatientDocumentDTO = {
   visit_id?: string | null;
+  admission_id?: string | null;
+  procedure_id?: string | null;
+  context_type?: PatientConsentContextType | null;
+  context_id?: string | null;
+  consent_template_id?: string | null;
+  consent_category?: string | null;
+  consent_version?: number | null;
   document_type: PatientDocumentType;
   title: string;
   file_name: string;
@@ -116,6 +136,7 @@ export type CreatePatientDocumentDTO = {
   storage_key: string;
   description?: string | null;
   consent_status?: PatientConsentStatus | null;
+  consent_kind?: string | null;
   signed_at?: string | null;
   valid_until?: string | null;
   signed_by_name?: string | null;
@@ -128,6 +149,9 @@ export type CreatePatientDocumentDTO = {
 export type PatientDocumentListQuery = {
   document_type?: PatientDocumentType;
   visit_id?: string;
+  admission_id?: string;
+  procedure_id?: string;
+  context_type?: PatientConsentContextType;
   page?: number;
   limit?: number;
 };
@@ -148,6 +172,7 @@ export type PatientTimelineEventType =
   | 'DOCUMENT_DELETED'
   | 'DOCUMENT_REVIEWED'
   | 'CONSENT_ADDED'
+  | 'CONSENT_VERIFIED'
   | 'OPD_VISIT_CREATED'
   | 'OPD_VISIT_STATUS_UPDATED'
   | 'VITALS_RECORDED'
@@ -156,7 +181,38 @@ export type PatientTimelineEventType =
   | 'OPD_LAB_ORDER_SUBMITTED'
   | 'OPD_IMAGING_ORDER_SUBMITTED'
   | 'OPD_FOLLOW_UP_SCHEDULED'
-  | 'OPD_REFERRAL_SUBMITTED';
+  | 'OPD_REFERRAL_SUBMITTED'
+  | 'OPD_REFERRAL_BOOKED'
+  | 'INPATIENT_PRESCRIPTION_SUBMITTED'
+  | 'INPATIENT_LAB_ORDER_SUBMITTED'
+  | 'INPATIENT_IMAGING_ORDER_SUBMITTED'
+  | 'ADMISSION_REQUEST_CREATED'
+  | 'INPATIENT_ADMISSION_CONFIRMED'
+  | 'ADMISSION_REQUEST_CANCEL'
+  | 'ADMISSION_REQUEST_CANCELLED'
+  | 'PROCEDURE_RECOMMENDATION_CREATED'
+  | 'PROCEDURE_RECOMMENDATION_CANCELLED'
+  | 'PROCEDURE_BOOKING_CREATED'
+  | 'PROCEDURE_BOOKING_CONFIRMED'
+  | 'PROCEDURE_BOOKING_RESCHEDULED'
+  | 'PROCEDURE_BOOKING_CANCELLED'
+  | 'PROCEDURE_BOOKING_COMPLETED'
+  | 'PROCEDURE_PRESCRIPTION_SUBMITTED'
+  | 'PROCEDURE_LAB_ORDER_SUBMITTED'
+  | 'PROCEDURE_IMAGING_ORDER_SUBMITTED'
+  | 'PROCEDURE_RECOMMENDATION_CREATED'
+  | 'PROCEDURE_RECOMMENDATION_CANCELLED'
+  | 'PROCEDURE_BOOKING_CREATED'
+  | 'PROCEDURE_BOOKING_CONFIRMED'
+  | 'PROCEDURE_BOOKING_RESCHEDULED'
+  | 'PROCEDURE_BOOKING_CANCELLED'
+  | 'PROCEDURE_BOOKING_COMPLETED'
+  | 'EMERGENCY_ENCOUNTER_REGISTERED'
+  | 'EMERGENCY_PATIENT_LINKED'
+  | 'EMERGENCY_TRIAGE_COMPLETED'
+  | 'EMERGENCY_CONSULTATION_UPDATED'
+  | 'EMERGENCY_DISPOSITION_CONFIRMED'
+  | 'EMERGENCY_CONVERTED_TO_IP';
 
 export type PatientTimelineListQuery = {
   event_type?: PatientTimelineEventType;
@@ -174,6 +230,7 @@ export type PatientTimelineEvent = {
   description: string | null;
   occurred_at: Date;
   created_by: string | null;
+  created_by_name: string | null;
   created_at: Date;
 };
 

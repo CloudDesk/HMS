@@ -13,11 +13,12 @@ import {
 } from './appointment-utils';
 import { patientFullName, patientInitials } from './patient-utils';
 import { useAppointmentBookingFeature } from '../hooks/appointments/useAppointmentBookingFeature';
+import { useTimezone } from '../api/useSettings';
 
 type BookingStep = 1 | 2 | 3;
 
 const visitTypeOptions = Object.keys(appointmentVisitTypeLabels) as ApiAppointmentVisitType[];
-const priorityOptions: ApiAppointmentPriority[] = ['ROUTINE', 'EMERGENCY'];
+const priorityOptions: ApiAppointmentPriority[] = ['ROUTINE', 'URGENT', 'EMERGENCY'];
 
 export const isSlotInPast = (dateStr: string, slotStartTimeStr: string): boolean => {
   const today = todayInputValue();
@@ -38,7 +39,7 @@ const bookingSchema = z.object({
   appointment_date: z.string().min(1, 'Date is required'),
   start_time: z.string().min(1, 'Time slot is required'),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY']),
-  priority: z.enum(['ROUTINE', 'EMERGENCY']),
+  priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
   reason: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -48,10 +49,21 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 export function AppointmentBookingPage() {
   const { search } = useAppLocation();
   const initialPatientId = new URLSearchParams(search).get('patient') ?? '';
+  const referralVisitId = new URLSearchParams(search).get('referral_visit') ?? '';
   const [step, setStep] = useState<BookingStep>(1);
   const [patientSearch, setPatientSearch] = useState('');
+  const timezone = useTimezone();
   
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<BookingFormData>({
+const {
+  register,
+  handleSubmit,
+  watch,
+  setValue,
+  clearErrors,
+  trigger,
+  getValues,
+  formState: { errors },
+} = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
     defaultValues: {
       patient_id: initialPatientId,
@@ -74,6 +86,7 @@ export function AppointmentBookingPage() {
   const {
     state: {
       initialPatientData,
+      referral,
       patientResults,
       patientLoading,
       doctors,
@@ -88,7 +101,7 @@ export function AppointmentBookingPage() {
       searchPatientsRefetch,
       handleCreateAppointment,
     }
-  } = useAppointmentBookingFeature(initialPatientId, patientSearch, selectedDoctorId, appointmentDate);
+  } = useAppointmentBookingFeature(initialPatientId, patientSearch, selectedDoctorId, appointmentDate, referralVisitId);
 
   const selectedDoctor = useMemo(() => doctors.find((d) => d.id === selectedDoctorId), [doctors, selectedDoctorId]);
   
@@ -97,22 +110,40 @@ export function AppointmentBookingPage() {
   useEffect(() => {
     if (initialPatientData) {
       setSelectedPatient(initialPatientData);
+      setValue('patient_id', initialPatientData.id);
       setStep(2);
     }
-  }, [initialPatientData]);
+  }, [initialPatientData, setValue]);
+
+  useEffect(() => {
+    if (!referral) return;
+    if (referral.referred_doctor_id) setValue('doctor_id', referral.referred_doctor_id);
+    setValue('priority', referral.priority);
+    setValue('reason', referral.reason ?? '');
+    setValue('notes', referral.clinical_summary ?? '');
+  }, [referral, setValue]);
 
   // Set default doctor when loaded
   useEffect(() => {
-    if (doctors.length > 0 && !selectedDoctorId) {
+    if (doctors.length > 0 && !selectedDoctorId && !referral?.referred_doctor_id) {
       const firstDoctorId = doctors[0]?.id;
       if (firstDoctorId) setValue('doctor_id', firstDoctorId);
     }
-  }, [doctors, selectedDoctorId, setValue]);
+  }, [doctors, referral?.referred_doctor_id, selectedDoctorId, setValue]);
 
   // Clear slot on date/doctor change
   useEffect(() => {
-    setValue('start_time', '', { shouldValidate: step === 2 });
-  }, [appointmentDate, selectedDoctorId, setValue, step]);
+setValue('start_time', '', {
+  shouldDirty: false,
+  shouldValidate: false,
+});
+clearErrors('start_time');
+}, [
+  appointmentDate,
+  clearErrors,
+  selectedDoctorId,
+  setValue,
+]);
 
   const searchPatients = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -173,7 +204,7 @@ export function AppointmentBookingPage() {
   );
 
   const continueToConfirmation = async () => {
-    const isValid = await handleSubmit(() => {})();
+    const isValid = await trigger();
     if (isValid && selectedSlot) {
       setStep(3);
     }
@@ -262,7 +293,7 @@ export function AppointmentBookingPage() {
                   <div className="copy">
                     <h3>{patientFullName(patient)}</h3>
                     <p>
-                      {patient.patient_number} · {patient.gender} · {formatAppointmentDate(patient.date_of_birth)}
+                      {patient.patient_number} · {patient.gender} · {formatAppointmentDate(patient.date_of_birth, timezone)}
                     </p>
                     <div className="appointment-patient-meta">
                       <span>
@@ -289,7 +320,7 @@ export function AppointmentBookingPage() {
                 <h3>{patientFullName(selectedPatient)}</h3>
                 <p>
                   {selectedPatient.patient_number} · {selectedPatient.gender} ·{' '}
-                  {formatAppointmentDate(selectedPatient.date_of_birth)}
+                  {formatAppointmentDate(selectedPatient.date_of_birth, timezone)}
                 </p>
                 <div className="appointment-patient-meta">
                   <span>{selectedPatient.phone || 'No phone'}</span>
@@ -403,7 +434,11 @@ export function AppointmentBookingPage() {
                           key={slot.startTime}
                           onClick={() => {
                             if (!isDisabled) {
-                              setValue('start_time', slot.startTime, { shouldValidate: true });
+                              setValue('start_time', slot.startTime, {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                                shouldValidate: true,
+                              });
                             }
                           }}
                           style={isPast ? { opacity: 0.45, cursor: 'not-allowed', backgroundColor: '#f1f5f9', borderColor: '#cbd5e1' } : undefined}
@@ -486,7 +521,7 @@ export function AppointmentBookingPage() {
             </div>
             <div>
               <span>Date</span>
-              <strong>{formatAppointmentDate(appointmentDate)}</strong>
+              <strong>{formatAppointmentDate(appointmentDate, timezone)}</strong>
             </div>
             <div>
               <span>Time</span>
@@ -512,7 +547,7 @@ export function AppointmentBookingPage() {
               <button className="doc-btn" disabled={isSubmitting} onClick={() => navigate('/appointments')} type="button">
                 Cancel
               </button>
-              <button className="doc-btn primary" disabled={isSubmitting} onClick={() => handleSubmit(submitBooking)()} type="button">
+              <button className="doc-btn primary" disabled={isSubmitting} onClick={() => submitBooking(getValues())} type="button">
                 <i className="ph ph-check" aria-hidden="true" />
                 {isSubmitting ? 'Saving...' : 'Confirm Booking'}
               </button>

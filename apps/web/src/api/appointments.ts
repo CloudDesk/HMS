@@ -38,6 +38,8 @@ export type AppointmentResponse = {
   appointment_date: string;
   start_time: string;
   end_time: string;
+  utc_datetime?: string;
+  utc_end_time?: string;
   duration_minutes: number;
   visit_type: ApiAppointmentVisitType;
   priority: ApiAppointmentPriority;
@@ -78,14 +80,16 @@ export type AppointmentListParams = Partial<{
 export type SaveAppointmentPayload = {
   patient_id: string;
   doctor_id: string;
-  appointment_date: string;
-  start_time: string;
+  utc_datetime?: string;
+  appointment_date?: string;
+  start_time?: string;
   duration_minutes: number;
   visit_type: ApiAppointmentVisitType;
   priority?: ApiAppointmentPriority;
   reason?: string | null;
   notes?: string | null;
 };
+export type UpdateAppointmentPayload = Partial<SaveAppointmentPayload> & { reschedule_reason?: string | null };
 
 export type UpdateAppointmentStatusPayload = {
   status: ApiAppointmentStatus;
@@ -121,7 +125,7 @@ export const appointmentsApi = {
     });
   },
 
-  update(id: string, payload: Partial<SaveAppointmentPayload>) {
+  update(id: string, payload: UpdateAppointmentPayload) {
     return apiClient.request<AppointmentResponse>(`/appointments/${encodeURIComponent(id)}`, {
       body: payload,
       method: 'PATCH',

@@ -29,15 +29,7 @@ export function useDashboardOverviewFeature() {
   const data = useMemo(() => {
     const visitData = visitsQuery.data?.data || [];
     
-    const now = new Date();
-    const trendPoints = Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date(now);
-      d.setDate(now.getDate() - (6 - i));
-      const dayLabel = new Intl.DateTimeFormat('en', { weekday: 'short' }).format(d);
-      const dayVisits = visitData.length > 0 ? Math.floor(Math.random() * 8) + (i + 1) * 2 : (i + 1) * 3;
-      const dayRevenue = dayVisits * 450 + 500;
-      return { day: dayLabel, visits: dayVisits, revenue: dayRevenue };
-    });
+    const trendPoints: Array<{ day: string; visits: number; revenue: number }> = [];
 
     return {
       activeDoctors: doctorsQuery.data?.meta.total ?? 0,
@@ -45,8 +37,8 @@ export function useDashboardOverviewFeature() {
       completedVisits: visitData.filter((v) => v.status === 'COMPLETED').length,
       opdVisitsToday: visitData.length,
       registeredPatients: patientsQuery.data?.meta.total ?? 0,
-      billedTotal: billingQuery.data?.billed_amount ?? 14500,
-      collectedTotal: billingQuery.data?.collected_amount ?? 11200,
+      billedTotal: billingQuery.isLoading || billingQuery.isFetching ? null : (billingQuery.data?.billed_amount ?? 0),
+      collectedTotal: billingQuery.isLoading || billingQuery.isFetching ? null : (billingQuery.data?.collected_amount ?? 0),
       recentVisits: visitData.slice(0, 6),
       trend: trendPoints,
     };

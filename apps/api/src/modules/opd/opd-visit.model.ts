@@ -3,6 +3,7 @@ import type { OpdVisitPriority, OpdVisitStatus, OpdVisitType } from './opd-visit
 
 export type OpdVisitFields = {
   visitNumber: string;
+  queueTokenNumber?: number | null;
   appointmentId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
   patientNumber: string;
@@ -19,6 +20,10 @@ export type OpdVisitFields = {
   status: OpdVisitStatus;
   reason?: string | null;
   notes?: string | null;
+  inpatientAdmissionId?: Types.ObjectId | null;
+  admissionConvertedAt?: Date | null;
+  nextPatientCalledAt?: Date | null;
+  nextPatientVisitId?: Types.ObjectId | null;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -30,6 +35,7 @@ export type OpdVisitFields = {
 const opdVisitSchema = new Schema<OpdVisitFields>(
   {
     visitNumber: { type: String, required: true, unique: true },
+    queueTokenNumber: { type: Number, min: 1, default: null },
     appointmentId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     patientNumber: { type: String, required: true },
@@ -64,6 +70,10 @@ const opdVisitSchema = new Schema<OpdVisitFields>(
     },
     reason: { type: String, default: null },
     notes: { type: String, default: null },
+    inpatientAdmissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    admissionConvertedAt: { type: Date, default: null },
+    nextPatientCalledAt: { type: Date, default: null },
+    nextPatientVisitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -72,12 +82,23 @@ const opdVisitSchema = new Schema<OpdVisitFields>(
   { timestamps: true },
 );
 
-opdVisitSchema.index({ appointmentId: 1 }, { sparse: true, unique: true });
+opdVisitSchema.index(
+  { appointmentId: 1 },
+  { unique: true, partialFilterExpression: { appointmentId: { $type: 'objectId' } } },
+);
 opdVisitSchema.index({ patientId: 1, visitDate: -1 });
 opdVisitSchema.index({ doctorId: 1, visitDate: 1, status: 1 });
+opdVisitSchema.index({ branchId: 1, visitDate: 1, queueTokenNumber: 1 });
 opdVisitSchema.index({ branchId: 1, departmentId: 1, visitDate: 1 });
 opdVisitSchema.index({ status: 1, visitDate: 1 });
 opdVisitSchema.index({ patientNumber: 1 });
 opdVisitSchema.index({ patientName: 1 });
+opdVisitSchema.index(
+  { inpatientAdmissionId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { inpatientAdmissionId: { $type: 'objectId' } },
+  },
+);
 
 export const OpdVisitModel = mongoose.model<OpdVisitFields>('OpdVisit', opdVisitSchema);

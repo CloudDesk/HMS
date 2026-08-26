@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Repository Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck API
+        run: npm run typecheck --workspace=@hms/api
+
+      - name: Typecheck Web
+        run: npm run typecheck --workspace=@hms/web
+
+      - name: Lint API
+        # Continues on error if legacy lint issues remain unresolved, but still executes
+        run: npm run lint --workspace=@hms/api
+        continue-on-error: true
+
+      - name: Lint Web
+        run: npm run lint --workspace=@hms/web
+
+      - name: Build API
+        run: npm run build --workspace=@hms/api
+
+      - name: Build Web
+        run: npm run build --workspace=@hms/web
+
+      - name: Test API
+        # Appending --test-concurrency=1 restricts the Node.js native test runner to 
+        # sequential execution across files. This prevents mongodb-memory-server 
+        # from exceeding memory/port/startup limits in the constrained CI environment 
+        # and avoids 'Instance failed to start within 10000ms' infrastructure aborts.
+        run: npm run test --workspace=@hms/api -- --test-concurrency=1

@@ -1,4 +1,4 @@
-import { Types, type SortOrder } from 'mongoose';
+import { Types, type ClientSession, type SortOrder } from 'mongoose';
 import {
   PatientDocumentModel,
   PatientModel,
@@ -11,6 +11,7 @@ import type {
   CreatePatientDTO,
   CreatePatientDocumentDTO,
   Patient,
+  PatientConsentContextType,
   PatientDocument,
   PatientDocumentListQuery,
   PatientListQuery,
@@ -36,6 +37,12 @@ const nullableString = (value: string | null | undefined) => {
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const toObjectId = (value: string | null | undefined) => (value ? new Types.ObjectId(value) : null);
+const canonicalConsentStatus = (value: string | null | undefined) => {
+  if (!value) return null;
+  if (value === 'SIGNED') return 'ATTACHED' as const;
+  if (value === 'EXPIRED' || value === 'REJECTED') return 'PENDING' as const;
+  return value as PatientDocument['consent_status'];
+};
 
 const toPatient = (patient: PatientLean): Patient => ({
   id: patient._id.toString(),
@@ -79,6 +86,13 @@ const toPatientDocument = (
   id: document._id.toString(),
   patient_id: document.patientId.toString(),
   visit_id: document.visitId?.toString() ?? null,
+  admission_id: document.admissionId?.toString() ?? null,
+  procedure_id: document.procedureId?.toString() ?? null,
+  context_type: document.contextType ?? null,
+  context_id: document.contextId?.toString() ?? null,
+  consent_template_id: document.consentTemplateId?.toString() ?? null,
+  consent_category: document.consentCategory ?? null,
+  consent_version: document.consentVersion ?? null,
   document_type: document.documentType,
   title: document.title,
   file_name: document.fileName,
@@ -87,6 +101,8 @@ const toPatientDocument = (
   storage_key: document.storageKey,
   description: document.description ?? null,
   consent_status: document.consentStatus ?? null,
+
+  consent_kind: document.consentKind ?? null,
   signed_at: document.signedAt ?? null,
   valid_until: document.validUntil ?? null,
   signed_by_name: document.signedByName ?? null,
@@ -101,11 +117,14 @@ const toPatientDocument = (
   status: document.status,
   uploaded_by: document.uploadedBy?.toString() ?? null,
   uploaded_by_name: uploadedByName,
+  uploaded_at: document.createdAt,
+  verified_by: document.verifiedBy?.toString() ?? null,
+  verified_at: document.verifiedAt ?? null,
   created_at: document.createdAt,
   updated_at: document.updatedAt,
 });
 
-const toTimelineEvent = (event: PatientTimelineEventLean): PatientTimelineEvent => ({
+const toTimelineEvent = (event: PatientTimelineEventLean, createdByName: string | null = null): PatientTimelineEvent => ({
   id: event._id.toString(),
   patient_id: event.patientId.toString(),
   event_type: event.eventType,
@@ -113,6 +132,7 @@ const toTimelineEvent = (event: PatientTimelineEventLean): PatientTimelineEvent 
   description: event.description ?? null,
   occurred_at: event.occurredAt,
   created_by: event.createdBy?.toString() ?? null,
+  created_by_name: createdByName,
   created_at: event.createdAt,
 });
 
@@ -293,23 +313,24 @@ export class PatientRepository {
     return patient ? toPatient(patient) : undefined;
   }
 
-  async nextPatientSequence() {
-    return PatientModel.countDocuments();
-  }
+
 
   async addTimelineEvent(
     patientId: string,
     event: Pick<PatientTimelineEvent, 'event_type' | 'title' | 'description'>,
     userId: string,
+    session?: ClientSession,
   ) {
-    const created = await PatientTimelineEventModel.create({
+    const records = await PatientTimelineEventModel.create([{
       patientId: new Types.ObjectId(patientId),
       eventType: event.event_type,
       title: event.title,
       description: event.description,
       occurredAt: new Date(),
       createdBy: new Types.ObjectId(userId),
-    });
+    }], session ? { session } : undefined);
+    const created = records[0];
+    if (!created) throw new AppError('Patient timeline event could not be created', 500, 'TIMELINE_CREATE_FAILED');
     return toTimelineEvent(created.toObject<PatientTimelineEventLean>());
   }
 
@@ -334,10 +355,15 @@ export class PatientRepository {
     }
 
     if (query.from || query.to) {
-      filter.occurredAt = {
-        ...(query.from ? { $gte: new Date(query.from) } : {}),
-        ...(query.to ? { $lte: new Date(query.to) } : {}),
-      };
+      filter.occurredAt = {};
+      if (query.from) {
+        filter.occurredAt = { ...(filter.occurredAt as object), $gte: new Date(query.from) };
+      }
+      if (query.to) {
+        const toDate = new Date(query.to);
+        toDate.setUTCHours(23, 59, 59, 999);
+        filter.occurredAt = { ...(filter.occurredAt as object), $lte: toDate };
+      }
     }
 
     const [events, count] = await Promise.all([
@@ -349,8 +375,16 @@ export class PatientRepository {
       PatientTimelineEventModel.countDocuments(filter),
     ]);
 
+    const creatorIds = events.flatMap((event) => (event.createdBy ? [event.createdBy] : []));
+    const creators = await UserModel.find({ _id: { $in: creatorIds } })
+      .select({ fullName: 1 })
+      .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
+    const creatorNames = new Map(creators.map((user) => [user._id.toString(), user.fullName]));
+
     return {
-      data: events.map(toTimelineEvent),
+      data: events.map((event) =>
+        toTimelineEvent(event, event.createdBy ? creatorNames.get(event.createdBy.toString()) ?? null : null),
+      ),
       meta: {
         total: count,
         page,
@@ -373,6 +407,9 @@ export class PatientRepository {
     if (query.visit_id) {
       filter.visitId = new Types.ObjectId(query.visit_id);
     }
+    if (query.admission_id) filter.admissionId = new Types.ObjectId(query.admission_id);
+    if (query.procedure_id) filter.procedureId = new Types.ObjectId(query.procedure_id);
+    if (query.context_type) filter.contextType = query.context_type;
 
     const [documents, total] = await Promise.all([
       PatientDocumentModel.find(filter)
@@ -417,6 +454,13 @@ export class PatientRepository {
     const created = await PatientDocumentModel.create({
       patientId: new Types.ObjectId(patientId),
       visitId: toObjectId(data.visit_id),
+      admissionId: toObjectId(data.admission_id),
+      procedureId: toObjectId(data.procedure_id),
+      contextType: data.context_type ?? null,
+      contextId: toObjectId(data.context_id),
+      consentTemplateId: toObjectId(data.consent_template_id),
+      consentCategory: nullableString(data.consent_category),
+      consentVersion: data.consent_version ?? null,
       documentType: data.document_type,
       title: data.title.trim(),
       fileName: data.file_name.trim(),
@@ -425,6 +469,7 @@ export class PatientRepository {
       storageKey: data.storage_key.trim(),
       description: nullableString(data.description),
       consentStatus: data.consent_status ?? null,
+      consentKind: nullableString(data.consent_kind),
       signedAt: data.signed_at ? new Date(data.signed_at) : null,
       validUntil: data.valid_until ? new Date(data.valid_until) : null,
       signedByName: nullableString(data.signed_by_name),
@@ -433,6 +478,8 @@ export class PatientRepository {
       documentDate: data.document_date ? new Date(data.document_date) : null,
       providerName: nullableString(data.provider_name),
       uploadedBy: new Types.ObjectId(userId),
+      verifiedBy: null,
+      verifiedAt: null,
       status: 'ACTIVE',
     });
     return toPatientDocument(created.toObject<PatientDocumentLean>());
@@ -444,6 +491,13 @@ export class PatientRepository {
       {
         $set: {
           documentType: data.document_type,
+          admissionId: toObjectId(data.admission_id),
+          procedureId: toObjectId(data.procedure_id),
+          contextType: data.context_type ?? null,
+          contextId: toObjectId(data.context_id),
+          consentTemplateId: toObjectId(data.consent_template_id),
+          consentCategory: nullableString(data.consent_category),
+          consentVersion: data.consent_version ?? null,
           title: data.title.trim(),
           fileName: data.file_name.trim(),
           mimeType: data.mime_type.trim(),
@@ -451,6 +505,7 @@ export class PatientRepository {
           storageKey: data.storage_key.trim(),
           description: nullableString(data.description),
           consentStatus: data.consent_status ?? null,
+          consentKind: nullableString(data.consent_kind),
           signedAt: data.signed_at ? new Date(data.signed_at) : null,
           validUntil: data.valid_until ? new Date(data.valid_until) : null,
           signedByName: nullableString(data.signed_by_name),
@@ -459,6 +514,8 @@ export class PatientRepository {
           documentDate: data.document_date ? new Date(data.document_date) : null,
           providerName: nullableString(data.provider_name),
           uploadedBy: new Types.ObjectId(userId),
+          verifiedBy: null,
+          verifiedAt: null,
         },
       },
       { new: true, lean: true },
@@ -512,5 +569,33 @@ export class PatientRepository {
     ).lean<PatientDocumentLean>();
 
     return document ? toPatientDocument(document) : undefined;
+  }
+
+  async verifyConsent(patientId: string, documentId: string, userId: string) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      { _id: documentId, patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', status: 'ACTIVE', consentStatus: 'ATTACHED' },
+      { $set: { consentStatus: 'VERIFIED', verifiedBy: new Types.ObjectId(userId), verifiedAt: new Date() } },
+      { new: true, lean: true },
+    ).lean<PatientDocumentLean>();
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async consentStatuses(patientId: string, templateIds: string[], contextType: PatientConsentContextType, contextId: string) {
+    const records = await PatientDocumentModel.find({
+      patientId: new Types.ObjectId(patientId), consentTemplateId: { $in: templateIds.map((id) => new Types.ObjectId(id)) },
+      contextType, contextId: new Types.ObjectId(contextId), documentType: 'CONSENT', status: 'ACTIVE',
+    }).sort({ createdAt: -1 }).lean<PatientDocumentLean[]>();
+    const statuses = new Map<string, PatientDocument['consent_status']>();
+    for (const record of records) {
+      const templateId = record.consentTemplateId?.toString();
+      if (templateId && !statuses.has(templateId)) statuses.set(templateId, canonicalConsentStatus(record.consentStatus));
+    }
+    return statuses;
+  }
+
+  async getValidContextConsent(patientId: string, documentId: string, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, session: ClientSession) {
+    const now = new Date();
+    const document = await PatientDocumentModel.findOne({ _id: new Types.ObjectId(documentId), patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', contextType, contextId: new Types.ObjectId(contextId), consentStatus: 'SIGNED', signedAt: { $lte: now }, signedByName: { $type: 'string', $ne: '' }, status: 'ACTIVE', $or: [{ validUntil: null }, { validUntil: { $gte: now } }] }).session(session).lean<PatientDocumentLean>();
+    return document ? toPatientDocument(document) : null;
   }
 }

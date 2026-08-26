@@ -24,6 +24,7 @@ type Props = {
 };
 
 const label = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const sourceLabel = (value: DiagnosticOrder['source_type']) => value === 'IP_ADMISSION' ? 'IP / Admission' : label(value);
 
 export function DiagnosticWorkspace({ module, statuses, id, order, nextStatus, isLoading, isError, isUpdating, permissions, actions }: Props) {
   const moduleName = module === 'laboratory' ? 'Laboratory' : 'Imaging';
@@ -39,7 +40,11 @@ export function DiagnosticWorkspace({ module, statuses, id, order, nextStatus, i
   return <div className={`diagnostic-page ${module}`}>
     <section className="diagnostic-order-header card">
       <div><span className="eyebrow">{moduleName} order</span><h2>{order.patient_name}</h2><p>{order.patient_number} — Ordered by {order.doctor_name}</p></div>
-      <div className="diagnostic-header-facts"><div><span>Priority</span><strong>{order.priority}</strong></div><div><span>Status</span><strong>{label(order.status)}</strong></div><div><span>Visit</span><strong>{order.visit_id.slice(-8).toUpperCase()}</strong></div></div>
+      <div className="diagnostic-header-facts">
+        <div><span>Source</span><strong>{sourceLabel(order.source_type)}</strong></div>
+        <div><span>Priority</span><strong>{order.priority}</strong></div><div><span>Status</span><strong>{label(order.status)}</strong></div>
+        <div><span>Encounter</span><strong>{order.encounter_id?.slice(-8).toUpperCase() ?? '---'}</strong></div>
+      </div>
     </section>
     <div className="diagnostic-workflow" aria-label="Order workflow">{statuses.map((status, index) => {
       const currentIndex = statuses.indexOf(order.status);
