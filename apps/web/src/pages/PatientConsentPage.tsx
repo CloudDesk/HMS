@@ -15,7 +15,6 @@ const statusLabels: Record<string, string> = {
   REJECTED: 'Rejected',
   ATTACHED: 'Attached',
   VERIFIED: 'Verified',
-  SIGNED: 'Signed',
 };
 
 const fileAccept = '.pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx';

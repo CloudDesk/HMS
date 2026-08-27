@@ -1,5 +1,4 @@
 import { useState, useMemo, type FormEvent } from 'react';
-import { useCurrencyFormatter } from '../api/useSettings';
 import { type BillingInvoice } from '../api/billing';
 import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
@@ -302,8 +301,55 @@ export function PatientProfilePage() {
   const initialTab = (searchParams.get('tab') as PatientProfileTab) || 'Overview';
   const feature = usePatientProfileFeature(requestedPatientId, initialTab);
 
-  const { activeTab, patient, loadingDetails, loadingHistory, detailsError, isSubmittingUpdate: submitting, isSubmittingUpload: submittingUpload } = feature.state;
-  const { setActiveTab, handleUpdateProfile, handleUploadDocument } = feature.actions;
+  const {
+    activeTab,
+    patient,
+    loadingDetails,
+    loadingHistory,
+    detailsError,
+    timeline,
+    timelineMeta,
+    loadingTimeline,
+    history,
+    visits,
+    visitsMeta,
+    loadingVisits,
+    appointments,
+    appointmentsMeta,
+    loadingAppointments,
+    labOrders,
+    loadingLabOrders,
+    imagingOrders,
+    loadingImagingOrders,
+    documents,
+    loadingDocuments,
+    consents,
+    billingInvoices,
+    loadingBillingInvoices,
+    doctors: doctorsList,
+    filters,
+    pageInfo,
+    isSubmittingUpdate: submitting,
+    isSubmittingUpload: submittingUpload
+  } = feature.state;
+  
+  const { 
+    setActiveTab, 
+    handleUpdateProfile, 
+    handleUploadDocument,
+    setTimelineFilters,
+    setTimelinePage: setTimelineMeta,
+    setVisitsFilters,
+    setVisitsPage: setVisitsMeta,
+    setAppointmentFilters,
+    setAppointmentsPage: setAppointmentsMeta
+  } = feature.actions;
+  
+  // Extract specific filters to match component usage
+  const timelineFilters = filters.timeline;
+  const visitsFilters = filters.visits;
+  const appointmentFilters = filters.appointments;
+
   const loading = loadingDetails || (loadingHistory && activeTab === 'Medical History');
   const loadError = detailsError?.message || '';
 
@@ -316,6 +362,40 @@ export function PatientProfilePage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
+
+  const patientAllergies = useMemo(() => {
+    const list: string[] = [];
+    if (patient?.notes && (patient.notes.toLowerCase().includes('allerg') || patient.notes.toLowerCase().includes('sensitiv'))) {
+      list.push(patient.notes);
+    }
+    visits.forEach((v) => {
+      const vAny = v as unknown as { consultation?: { allergies?: string | null }; notes?: string | null; reason?: string | null };
+      if (vAny.consultation?.allergies && !list.includes(vAny.consultation.allergies)) {
+        list.push(vAny.consultation.allergies);
+      }
+      if (vAny.notes && vAny.notes.toLowerCase().includes('allerg') && !list.includes(vAny.notes)) {
+        list.push(vAny.notes);
+      }
+    });
+    timeline.forEach((ev) => {
+      if (ev.description && ev.description.toLowerCase().includes('allerg') && !list.includes(ev.description)) {
+        list.push(ev.description);
+      }
+    });
+    return list;
+  }, [patient?.notes, visits, timeline]);
+
+  const patientChronicConditions = useMemo(() => {
+    const list: string[] = [];
+    visits.forEach((v) => {
+      const vAny = v as unknown as { consultation?: { past_history?: string | null } };
+      if (vAny.consultation?.past_history && vAny.consultation.past_history.trim().toLowerCase() !== 'no' && !list.includes(vAny.consultation.past_history)) {
+        list.push(vAny.consultation.past_history);
+      }
+    });
+    return list;
+  }, [visits]);
+
   const [toastMessage, setToastMessage] = useState('');
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const editForm = useForm<UpdatePatientForm>({ resolver: zodResolver(updatePatientSchema) });
@@ -582,7 +662,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
         <section className="profile-hero-card">
           <div className="profile-hero-left">
             <div className="profile-hero-avatar">
-              <span>{patientInitials(patientFullName(patient))}</span>
+              <span>{patientInitials(patient)}</span>
             </div>
             <div className="profile-hero-info">
               <div className="profile-hero-title">
@@ -612,7 +692,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
           <div className="profile-hero-actions">
             <button className="doc-btn" onClick={() => { 
-                reset({ 
+                editForm.reset({ 
                   firstName: patient.first_name ?? '', 
                   lastName: patient.last_name, 
                   dateOfBirth: patient.date_of_birth.slice(0, 10), 
@@ -779,7 +859,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
           ) : null}
 
           {activeTab === 'EMR Timeline' ? (
-            <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timeline || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={timelinePageInfo.page} setCurrentPage={(p: number) => setTimelineMeta({ page: p })} />
+            <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timeline || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={pageInfo.timeline.page} setCurrentPage={(p: number) => setTimelineMeta(prev => ({ ...prev, page: p  }))} />
           ) : null}
 
           {/* â”€â”€ Medical History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
@@ -788,13 +868,13 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
-                  <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, from: e.target.value })); setTimelineMeta({ page: 1 }); }} />
+                  <input type="date" value={timelineFilters.from} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, from: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1  })); }} />
                 </div>
                 <div className="doc-field">
                   <label>To</label>
-                  <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, to: e.target.value })); setTimelineMeta({ page: 1 }); }} />
+                  <input type="date" value={timelineFilters.to} onChange={(e) => { setTimelineFilters((prev) => ({ ...prev, to: e.target.value })); setTimelineMeta(prev => ({ ...prev, page: 1  })); }} />
                 </div>
-                <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta({ page: 1 }); }}>
+                <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta(prev => ({ ...prev, page: 1  })); }}>
                   Reset
                 </button>
                 {loadingTimeline && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
@@ -826,13 +906,13 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                     {Math.min(timelineMeta.page * timelineMeta.limit, (timelineMeta.total) || 0)} of {(timelineMeta.total) || 0} events
                   </span>
                   <div className="um-page-controls">
-                    <button className="pg-btn" disabled={timelineMeta.page <= 1} onClick={() => setTimelineMeta({ page: timelineMeta.page - 1 })} type="button">
+                    <button className="pg-btn" disabled={timelineMeta.page <= 1} onClick={() => setTimelineMeta(prev => ({ ...prev, page: timelineMeta.page - 1  }))} type="button">
                       <i className="ph ph-caret-left" aria-hidden="true" />
                     </button>
                     <button className="pg-btn active" disabled type="button">
                       {timelineMeta.page}
                     </button>
-                    <button className="pg-btn" disabled={timelineMeta.page >= timelineMeta.totalPages} onClick={() => setTimelineMeta({ page: timelineMeta.page + 1 })} type="button">
+                    <button className="pg-btn" disabled={timelineMeta.page >= timelineMeta.totalPages} onClick={() => setTimelineMeta(prev => ({ ...prev, page: timelineMeta.page + 1  }))} type="button">
                       <i className="ph ph-caret-right" aria-hidden="true" />
                     </button>
                   </div>
@@ -847,18 +927,18 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
-                  <input type="date" value={visitsFilters.date_from} onChange={(e) => { setVisitsFilters((prev: typeof visitsFilters) => ({ ...prev, date_from: e.target.value })); setVisitsMeta({ page: 1 }); }} />
+                  <input type="date" value={visitsFilters.date_from} onChange={(e) => { setVisitsFilters((prev: typeof visitsFilters) => ({ ...prev, date_from: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1  })); }} />
                 </div>
                 <div className="doc-field">
                   <label>To</label>
-                  <input type="date" value={visitsFilters.date_to} onChange={(e) => { setVisitsFilters((prev: typeof visitsFilters) => ({ ...prev, date_to: e.target.value })); setVisitsMeta({ page: 1 }); }} />
+                  <input type="date" value={visitsFilters.date_to} onChange={(e) => { setVisitsFilters((prev: typeof visitsFilters) => ({ ...prev, date_to: e.target.value })); setVisitsMeta(prev => ({ ...prev, page: 1  })); }} />
                 </div>
-                <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta({ page: 1 }); }}>
+                <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta(prev => ({ ...prev, page: 1  })); }}>
                   Reset
                 </button>
                 {loadingVisits && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
               </div>
-              {visitsData.length === 0 ? (
+              {visits.length === 0 ? (
                 <EmptyRecords message="No OPD visit records found for this patient." />
               ) : (
                 <div className="table-responsive">
@@ -867,7 +947,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                       <tr><th>DATE</th><th>VISIT NUMBER</th><th>DOCTOR</th><th>TYPE</th><th>STATUS</th></tr>
                     </thead>
                     <tbody>
-                      {visitsData.map((visit) => (
+                      {visits.map((visit) => (
                         <tr key={visit.id}>
                           <td>{formatDate(visit.visit_date)}</td>
                           <td><strong>{visit.visit_number}</strong></td>
@@ -883,17 +963,17 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               {visitsMeta.totalPages > 1 && (
                 <div className="um-pagination" style={{ marginTop: '1rem' }}>
                   <span>
-                    Showing {visitsData.length === 0 ? 0 : (visitsMeta.page - 1) * visitsMeta.limit + 1}-
+                    Showing {visits.length === 0 ? 0 : (visitsMeta.page - 1) * visitsMeta.limit + 1}-
                     {Math.min(visitsMeta.page * visitsMeta.limit, (visitsMeta.total) || 0)} of {(visitsMeta.total) || 0} visits
                   </span>
                   <div className="um-page-controls">
-                    <button className="pg-btn" disabled={visitsMeta.page <= 1} onClick={() => setVisitsMeta({ page: visitsMeta.page - 1 })} type="button">
+                    <button className="pg-btn" disabled={visitsMeta.page <= 1} onClick={() => setVisitsMeta(prev => ({ ...prev, page: visitsMeta.page - 1  }))} type="button">
                       <i className="ph ph-caret-left" aria-hidden="true" />
                     </button>
                     <button className="pg-btn active" disabled type="button">
                       {visitsMeta.page}
                     </button>
-                    <button className="pg-btn" disabled={visitsMeta.page >= visitsMeta.totalPages} onClick={() => setVisitsMeta({ page: visitsMeta.page + 1 })} type="button">
+                    <button className="pg-btn" disabled={visitsMeta.page >= visitsMeta.totalPages} onClick={() => setVisitsMeta(prev => ({ ...prev, page: visitsMeta.page + 1  }))} type="button">
                       <i className="ph ph-caret-right" aria-hidden="true" />
                     </button>
                   </div>
@@ -908,22 +988,22 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               <div className="doc-toolbar">
                 <div className="doc-field">
                   <label>From</label>
-                  <input type="date" value={appointmentFilters.date_from} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, date_from: e.target.value })); setAppointmentsMeta({ page: 1 }); }} />
+                  <input type="date" value={appointmentFilters.date_from} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, date_from: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1  })); }} />
                 </div>
                 <div className="doc-field">
                   <label>To</label>
-                  <input type="date" value={appointmentFilters.date_to} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, date_to: e.target.value })); setAppointmentsMeta({ page: 1 }); }} />
+                  <input type="date" value={appointmentFilters.date_to} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, date_to: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1  })); }} />
                 </div>
                 <div className="doc-field">
                   <label>Doctor</label>
-                  <select value={appointmentFilters.doctor_id} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, doctor_id: e.target.value })); setAppointmentsMeta({ page: 1 }); }}>
+                  <select value={appointmentFilters.doctor_id} onChange={(e) => { setAppointmentFilters((prev: typeof appointmentFilters) => ({ ...prev, doctor_id: e.target.value })); setAppointmentsMeta(prev => ({ ...prev, page: 1  })); }}>
                     <option value="">All Doctors</option>
                     {doctorsList.map(doc => (
                       <option key={doc.id} value={doc.id}>{doc.display_name}</option>
                     ))}
                   </select>
                 </div>
-                <button className="doc-btn" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta({ page: 1 }); }}>
+                <button className="doc-btn" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta(prev => ({ ...prev, page: 1  })); }}>
                   Reset
                 </button>
                 {loadingAppointments && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
@@ -957,13 +1037,13 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                     {Math.min(appointmentsMeta.page * appointmentsMeta.limit, (appointmentsMeta.total) || 0)} of {(appointmentsMeta.total) || 0} appointments
                   </span>
                   <div className="um-page-controls">
-                    <button className="pg-btn" disabled={appointmentsMeta.page <= 1} onClick={() => setAppointmentsMeta({ page: appointmentsMeta.page - 1 })} type="button">
+                    <button className="pg-btn" disabled={appointmentsMeta.page <= 1} onClick={() => setAppointmentsMeta(prev => ({ ...prev, page: appointmentsMeta.page - 1  }))} type="button">
                       <i className="ph ph-caret-left" aria-hidden="true" />
                     </button>
                     <button className="pg-btn active" disabled type="button">
                       {appointmentsMeta.page}
                     </button>
-                    <button className="pg-btn" disabled={appointmentsMeta.page >= appointmentsMeta.totalPages} onClick={() => setAppointmentsMeta({ page: appointmentsMeta.page + 1 })} type="button">
+                    <button className="pg-btn" disabled={appointmentsMeta.page >= appointmentsMeta.totalPages} onClick={() => setAppointmentsMeta(prev => ({ ...prev, page: appointmentsMeta.page + 1  }))} type="button">
                       <i className="ph ph-caret-right" aria-hidden="true" />
                     </button>
                   </div>

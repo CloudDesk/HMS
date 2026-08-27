@@ -4,6 +4,7 @@ import { requirePermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
+import { clinicalContextBranchSchema, clinicalContextOrderSchema, clinicalContextParamsSchema, clinicalContextPrescriptionSchema } from '../opd/clinical-context.schemas.js';
 import { confirmBookingSchema, createBookingSchema, createRecommendationSchema, reasonSchema, rescheduleBookingSchema, surgeryAlternativesSchema, surgeryBranchSchema, surgeryIdSchema, surgeryListSchema } from './surgery.schemas.js';
 const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
   try {

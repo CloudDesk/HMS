@@ -10,7 +10,6 @@ import {
   type UserPreferenceSettings,
   localizationSchema,
 } from '../../api/settings';
-import { localizationSchema } from '../../api/settings';
 import { SettingsField, SettingsToggle } from './SettingsControls';
 
 export type FieldErrors = Record<string, string>;

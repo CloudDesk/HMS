@@ -11278,11 +11278,13 @@ textarea.has-error {
   padding: 0 4px !important;
   background: transparent !important;
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .vital-stepper-input::-webkit-outer-spin-button,
 .vital-stepper-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
@@ -11657,11 +11659,13 @@ textarea.has-error {
   padding: 0 4px;
   font-family: inherit;
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .clinical-vital-field-value::-webkit-outer-spin-button,
 .clinical-vital-field-value::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 

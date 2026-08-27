@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -8,6 +9,9 @@ import { medicinesApi, MedicineResponse } from '../api/medicines';
 import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
 import { servicesApi, ServiceResponse } from '../api/services';
 import { ICD10_DIAGNOSES, Icd10Diagnosis } from '../data/icd10-diagnoses';
+import { useEmergencyWorkspaceFeature } from '../hooks/emergency/useEmergencyWorkspaceFeature';
+import { Modal } from '../components/ui/Modal';
+import { EmergencyStatus, EmergencyTriageLevel } from '../api/emergency';
 
 const id = z.string().min(1, 'Required');
 const optionalNumber = z.number().optional();
@@ -165,6 +169,8 @@ export function EmergencyWorkspacePage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('Registration');
   const [linkPatientOpen, setLinkPatientOpen] = useState(false);
+  const [linkPatientId, setLinkPatientId] = useState('');
+  const [linkReason, setLinkReason] = useState('');
   const [priorityOpen, setPriorityOpen] = useState(false);
   const [priorityLevel, setPriorityLevel] = useState<EmergencyTriageLevel>('LEVEL_3_MEDIUM');
   const [priorityReason, setPriorityReason] = useState('');

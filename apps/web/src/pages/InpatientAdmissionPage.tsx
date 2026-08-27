@@ -346,7 +346,7 @@ export function InpatientAdmissionPage() {
           </div>
           <div className="adm-kpi-copy">
             <span>Pending</span>
-            <strong>{counts.pending}</strong>
+            <strong>{(counts.pendingValidation ?? 0) + (counts.readyForConfirmation ?? 0)}</strong>
             <small>Awaiting decision</small>
           </div>
         </div>
