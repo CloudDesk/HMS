@@ -152,24 +152,7 @@ export function PatientRegistrationPage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
-  useEffect(() => {
-    branchesApi
-      .list({ status: 'ACTIVE', limit: 100 })
-      .then((res) => {
-        const activeId = localStorage.getItem('activeBranchId');
-        const userBranchId = user?.branches?.[0]?.id;
-        const targetBranchId = activeId || userBranchId;
-        const matchedBranch = targetBranchId ? res.data.find((b) => b.id === targetBranchId) : undefined;
-        const defaultBranch = matchedBranch ? matchedBranch.id : (res.data[0]?.id || '');
-        if (defaultBranch) {
-          setForm((prev) => ({
-            ...prev,
-            registrationBranchId: defaultBranch,
-          }));
-        }
-      })
-      .catch(() => null);
-  }, [user]);
+
   const handleRegistrationBranchChange = useCallback((branchId: string) => {
     setForm((previous) => ({ ...previous, registrationBranchId: branchId }));
   }, []);

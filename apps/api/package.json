@@ -14,9 +14,6 @@
   },
   "dependencies": {
     "@fastify/aws-lambda": "^6.4.1",
-    "test": "node --env-file=.env.test --import tsx --test test/**/*.test.ts"
-  },
-  "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
     "@fastify/multipart": "^10.1.0",
@@ -27,7 +24,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
     "mongodb-memory-server": "^11.2.0"
   }
 }

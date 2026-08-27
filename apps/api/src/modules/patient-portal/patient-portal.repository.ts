@@ -938,6 +938,7 @@ export class PatientPortalRepository {
     }> = [];
 
     appointments.forEach((item) => {
+      if (!item.appointmentDate || !item.startTime || !item.endTime) return;
       const linkedVisit = opdVisitByAppointmentId.get(String(item._id));
       combinedItems.push({
         id: String(item._id),

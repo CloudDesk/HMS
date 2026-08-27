@@ -1,5 +1,4 @@
 import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
-import { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -118,7 +117,7 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   status: 'SCHEDULED' as const,
   reason: nullableString(data.reason),
   notes: nullableString(data.notes),
-  activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.start_time),
+  activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime),
   createdBy: toObjectId(userId),
   updatedBy: toObjectId(userId),
 });
@@ -139,8 +138,8 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.priority !== undefined ? { priority: data.priority } : {}),
   ...(data.reason !== undefined ? { reason: nullableString(data.reason) } : {}),
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
-  ...(data.doctor_id && data.appointmentDate && data.start_time
-    ? { activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.start_time) }
+  ...(data.doctor_id && data.appointmentDate && data.startTime
+    ? { activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime) }
     : {}),
   updatedBy: toObjectId(userId),
 });
@@ -238,9 +237,6 @@ export class AppointmentRepository {
   }
 
   async create(data: AppointmentCreateRecord, userId: string, session?: ClientSession): Promise<Appointment> {
-    const created = session
-      ? (await AppointmentModel.create([buildCreatePayload(data, userId)], { session }))[0]!
-      : await AppointmentModel.create(buildCreatePayload(data, userId));
     const records = await AppointmentModel.create(
       [buildCreatePayload(data, userId)],
       session ? { session } : undefined,
@@ -541,17 +537,15 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
     return created;
   }
 
-  async nextAppointmentSequence() {
-    return AppointmentModel.countDocuments();
-async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
-  await AuditLogModel.create({ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
-    appointmentId: appointment.id, appointmentNumber: appointment.appointment_number, patientId: appointment.patient_id,
-    reason, previous: { doctorId: previous.doctor_id, appointmentDate: previous.appointment_date,
-      startTime: previous.start_time, durationMinutes: previous.duration_minutes },
-    next: { doctorId: appointment.doctor_id, appointmentDate: appointment.appointment_date,
-      startTime: appointment.start_time, durationMinutes: appointment.duration_minutes },
-  } });
-}
+  async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
+    await AuditLogModel.create({ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
+      appointmentId: appointment.id, appointmentNumber: appointment.appointment_number, patientId: appointment.patient_id,
+      reason, previous: { doctorId: previous.doctor_id, appointmentDate: previous.appointment_date,
+        startTime: previous.start_time, durationMinutes: previous.duration_minutes },
+      next: { doctorId: appointment.doctor_id, appointmentDate: appointment.appointment_date,
+        startTime: appointment.start_time, durationMinutes: appointment.duration_minutes },
+    } });
+  }
 
   async nextAppointmentSequence(session?: ClientSession) {
     const query = AppointmentModel.countDocuments();

@@ -9,7 +9,7 @@ import type { AuthAccessContext, AuthUserRecord, AuthUserStatus, PasswordResetTo
 
 import type { IUser } from '../users/user.model.js';
 
-type UserLean = Pick<IUser, 'employeeCode' | 'username' | 'email' | 'fullName' | 'passwordHash' | 'status' | 'failedLoginAttempts' | 'lockedUntil' | 'passwordChangedAt' | 'lastLoginAt' | 'createdAt' | 'updatedAt'> & { _id: unknown };
+type UserLean = Pick<IUser, 'employeeCode' | 'username' | 'email' | 'fullName' | 'patientId' | 'passwordHash' | 'status' | 'failedLoginAttempts' | 'lockedUntil' | 'passwordChangedAt' | 'lastLoginAt' | 'createdAt' | 'updatedAt'> & { _id: unknown };
 
 const mapUser = (user: UserLean): AuthUserRecord => ({
   id: String(user._id),

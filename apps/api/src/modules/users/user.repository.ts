@@ -36,6 +36,7 @@ type UserDoc = {
   updatedBy?: unknown;
   deletedBy?: unknown;
   roleIds?: unknown[];
+  patientId?: unknown | null;
 };
 
 const mapUser = (user: UserDoc): UserRecord => ({
@@ -62,7 +63,7 @@ const mapUser = (user: UserDoc): UserRecord => ({
   updatedBy: user.updatedBy ? String(user.updatedBy) : null,
   deletedBy: user.deletedBy ? String(user.deletedBy) : null,
   roleIds: (user.roleIds ?? []).map((id: unknown) => String(id)),
-  patientId: user.patientId?.toString() ?? null,
+  patientId: user.patientId ? String(user.patientId) : null,
 });
 
 export class UserRepository {

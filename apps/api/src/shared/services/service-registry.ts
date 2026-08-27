@@ -135,7 +135,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     userService,
     appointmentRepository,
   );
-  const patientService = new PatientService(patientRepository, patientDocumentStorageService);
+  const patientService = new PatientService(patientRepository, patientDocumentStorageService, sequenceService);
   const opdClinicalOrderService = new OpdClinicalOrderService(
     opdClinicalOrderRepository,
     opdVisitRepository,
@@ -173,17 +173,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
     patients: patientService,
-doctors: doctorService,
-    patients: new PatientService(patientRepository, patientDocumentStorageService, sequenceService),
+    doctors: doctorService,
     consents: new ConsentService(consentRepository, patientRepository),
-doctors: new DoctorService(
-  doctorRepository,
-  branchRepository,
-  departmentRepository,
-  userRepository,
-  userService,
-  appointmentRepository,
-),
 
     appointments: appointmentService,
 
@@ -236,8 +227,6 @@ doctors: new DoctorService(
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
     notification: new NotificationService(notificationRepository),
     pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
-    admissionsConfiguration: new AdmissionsConfigurationService(admissionsConfigurationRepository),
-    inpatientAdmissions: new InpatientAdmissionService(inpatientAdmissionRepository),
     patientPortal: new PatientPortalService(new PatientPortalRepository(), userService, appointmentService, doctorService, patientService, sms),
     sms,
     admissionsConfiguration: admissionsConfigurationService,

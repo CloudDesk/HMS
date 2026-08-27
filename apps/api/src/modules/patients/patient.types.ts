@@ -72,7 +72,6 @@ export type UpdatePatientDTO = Partial<Omit<CreatePatientDTO, 'status'>> & {
 };
 
 export type PatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
-export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED';
 export type PatientDocumentSource = 'HOSPITAL' | 'PATIENT' | 'GUARDIAN';
 export type PatientDocumentReviewStatus = 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED' | 'ATTACHED' | 'VERIFIED';

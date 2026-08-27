@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import type { ApiOpdVisitPriority, ApiOpdVisitStatus, OpdVisitResponse } from '../api/opd';
 import { useOpdQueue, type OpdQueueFilters } from '../hooks/opd/useOpdQueue';
@@ -52,83 +52,7 @@ export function OpdQueuePage() {
     date: initialParams.get('date') ?? todayInputValue(),
   });
 
-  const {
-    visits,
-    appointments,
-    doctors,
-    departments,
-    patients,
-    isLoading,
-    error,
-    isUpdating,
-    createVisit,
-    updateVisitStatus,
-    createVitals,
-    canCreateVisit,
-    canEditVisit,
-    canCreateVitals,
-  } = useOpdQueue(filters);
 
-  const [walkInOpen, setWalkInOpen] = useState(false);
-  const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
-  const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [actionError, setActionError] = useState('');
-
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 3500);
-  };
-
-  const {
-    
-    handleSubmit: handleVitalsSubmit,
-    reset: resetVitals,
-    watch: watchVitals,
-    setValue: setValueVitals,
-    formState: { errors: actionErrors, isSubmitting: vitalsSubmitting }
-  } = useForm<VitalsForm>({
-    resolver: zodResolver(vitalsSchema),
-    defaultValues: {
-      blood_pressure_systolic: '',
-      blood_pressure_diastolic: '',
-      weight_kg: '',
-      height_cm: '',
-      temperature_c: '',
-      pulse_bpm: '',
-      respiratory_rate_per_min: '',
-      oxygen_saturation_percent: '',
-      notes: '',
-    },
-  });
-
-  const {
-    register: registerWalkIn,
-    handleSubmit: handleWalkInSubmit,
-    reset: resetWalkIn,
-    formState: { errors: walkInErrors }
-  } = useForm<WalkInForm>({
-    resolver: zodResolver(walkInSchema),
-    defaultValues: {
-      patient_id: '',
-      doctor_id: '',
-      reason: '',
-    }
-  });
-
-  useEffect(() => {
-    if (patients.length > 0 && doctors.length > 0) {
-      resetWalkIn({
-        patient_id: patients[0]?.id ?? "",
-        doctor_id: doctors[0]?.id ?? "",
-        reason: '',
-      });
-    }
-  }, [patients, doctors, resetWalkIn]);
   const { visits, doctors, departments, isLoading, error, isUpdating, updateVisitStatus, canEditVisit } = useOpdQueue(filters);
 
   useEffect(() => {

@@ -348,11 +348,7 @@ export class BillingService {
       throw new AppError('Every invoice item must reference an active Service Catalogue entry', 409, 'INVALID_BILLING_SERVICE');
     }
 
-    const batchIds = pharmacyItems.map((item) => item.service_id);
-    const batches = await Promise.all(batchIds.map((id) => this.pharmacyInventoryRepository.getBatchById(id)));
-    const batchById = new Map(batches.map((batch) => batch ? [batch._id.toString(), batch as unknown as { unitPrice: number; batchNumber: string; medicine?: { name: string } }] : ['', null]));
-    if (batchIds.some((id) => !batchById.get(id))) {
-      throw new AppError('Every pharmacy invoice item must reference a valid inventory batch', 409, 'INVALID_PHARMACY_BATCH');
+
     const pharmacyItems = requestedItems.filter((item) => (item.service_type as string) === 'PHARMACY');
     if (pharmacyItems.length > 0) {
       throw new AppError('Pharmacy items cannot be added manually to an invoice. They are managed by the dispensing workflow.', 409, 'PHARMACY_MANAGED_BY_DISPENSING');

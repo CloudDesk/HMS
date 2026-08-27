@@ -292,8 +292,6 @@ export class OpdVisitRepository {
     return result;
   }
 
-  async auditStatusTransition(visit: OpdVisit, previousStatus: OpdVisit['status'], actorUserId: string) {
-    await AuditLogModel.create({
   async startNextReadyVisit(current: OpdVisit, userId: string, session: ClientSession): Promise<OpdVisit | undefined> {
     const visit = await OpdVisitModel.findOneAndUpdate(
       {

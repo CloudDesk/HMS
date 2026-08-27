@@ -404,6 +404,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       request.body,
       request.user!.id,
     )),
+  );
   app.patch<{ Params: PatientDocumentIdParams }>(
     '/api/patients/:id/documents/:documentId/consent/verify',
     { preHandler: requirePermission(services, 'Patients', 'Consent', 'Verify'), schema: { params: patientDocumentIdParamsSchema } },

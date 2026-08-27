@@ -232,6 +232,8 @@ export class PatientService {
         : `${reviewed.title} was verified by hospital staff.`,
     }, userId);
     return reviewed;
+  }
+
   async getDocument(patientId: string, documentId: string, userId?: string) {
     await this.getById(patientId, userId);
     return this.getActiveDocument(patientId, documentId);

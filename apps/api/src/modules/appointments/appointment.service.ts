@@ -44,7 +44,8 @@ const allowedStatusTransitions: Record<Appointment['status'], Appointment['statu
   COMPLETED: [],
 };
 
-const isObjectId = (value: string | null | undefined) => Boolean(value && Types.ObjectId.isValid(value));
+const isObjectId = (value: string | null | undefined) =>
+  Boolean(value && Types.ObjectId.isValid(value));
 
 const toMinutes = (time: string) => {
   const [hours = 0, minutes = 0] = time.split(':').map(Number);
@@ -65,7 +66,11 @@ const parseDateOnly = (value: string) => {
   const [year = 0, month = 0, day = 0] = value.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
 
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
     return null;
   }
 
@@ -78,6 +83,9 @@ const todayDateOnly = () => {
 };
 
 const appointmentStart = (appointment: Appointment) => {
+  if (!appointment.start_time || !appointment.appointment_date) {
+    throw new AppError('Appointment is missing scheduling data', 500, 'INVALID_APPOINTMENT_DATA');
+  }
   const [hours = 0, minutes = 0] = appointment.start_time.split(':').map(Number);
   return new Date(
     appointment.appointment_date.getUTCFullYear(),
@@ -87,8 +95,6 @@ const appointmentStart = (appointment: Appointment) => {
     minutes,
   );
 };
-
-
 
 const patientName = (patient: Patient) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
@@ -113,7 +119,9 @@ export class AppointmentService {
   async list(query: AppointmentListQuery, userId?: string) {
     await this.reconcilePastAppointments();
     this.validateListQuery(query);
-    const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
+    const scope = userId
+      ? await this.repository.resolveBranchScope(userId, query.branch_id)
+      : undefined;
     return this.repository.list(this.normalizeListDates(query), scope);
   }
 
@@ -152,14 +160,19 @@ export class AppointmentService {
       };
     }
     if (['NO_SHOW', 'SKIPPED'].includes(appointment.status)) {
-      return { eligible: true, reason: null, minimum_notice_hours: env.patientPortal.rescheduleMinimumHours };
+      return {
+        eligible: true,
+        reason: null,
+        minimum_notice_hours: env.patientPortal.rescheduleMinimumHours,
+      };
     }
     if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
       return {
         eligible: false,
-        reason: appointment.status === 'CHECKED_IN'
-          ? 'Checked-in appointments must be completed by hospital staff.'
-          : `Appointments with status ${appointment.status.toLowerCase().replaceAll('_', ' ')} cannot be rescheduled.`,
+        reason:
+          appointment.status === 'CHECKED_IN'
+            ? 'Checked-in appointments must be completed by hospital staff.'
+            : `Appointments with status ${appointment.status.toLowerCase().replaceAll('_', ' ')} cannot be rescheduled.`,
         minimum_notice_hours: env.patientPortal.rescheduleMinimumHours,
       };
     }
@@ -171,42 +184,92 @@ export class AppointmentService {
         minimum_notice_hours: env.patientPortal.rescheduleMinimumHours,
       };
     }
-    return { eligible: true, reason: null, minimum_notice_hours: env.patientPortal.rescheduleMinimumHours };
+    return {
+      eligible: true,
+      reason: null,
+      minimum_notice_hours: env.patientPortal.rescheduleMinimumHours,
+    };
   }
 
   async rescheduleForPortal(id: string, data: PortalRescheduleAppointmentDTO, userId: string) {
     const original = await this.getForPortal(id);
     const eligibility = this.getPortalRescheduleEligibility(original);
     if (!eligibility.eligible) {
-      throw new AppError(eligibility.reason ?? 'Appointment cannot be rescheduled', 409, 'RESCHEDULE_NOT_ALLOWED');
+      throw new AppError(
+        eligibility.reason ?? 'Appointment cannot be rescheduled',
+        409,
+        'RESCHEDULE_NOT_ALLOWED',
+      );
     }
+    const settings = await this.settingsRepository.get();
+    const tz = settings.localization.timezone;
+    const [hours = 0, minutes = 0] = data.start_time.split(':').map(Number);
     const appointmentDate = this.validateAppointmentDate(data.appointment_date);
-    const endTime = this.validateAppointmentWindow(data.start_time, data.duration_minutes);
-    this.validateAppointmentStart(appointmentDate, data.start_time);
+
+    // Convert local strings back to UTC using the same time logic from old appointmentStart
+    const utcDateTime = new Date(
+      appointmentDate.getUTCFullYear(),
+      appointmentDate.getUTCMonth(),
+      appointmentDate.getUTCDate(),
+      hours,
+      minutes,
+    );
+    const utcEndTime = new Date(utcDateTime.getTime() + data.duration_minutes * 60000);
+    const endTimeStr = this.validateAppointmentWindow(data.start_time, data.duration_minutes);
+
     const doctor = await this.getActiveDoctor(data.doctor_id);
-    await this.validateDoctorAvailability(doctor, appointmentDate, data.start_time, endTime, data.duration_minutes);
-    await this.validateDoctorConflict(doctor.id, appointmentDate, data.start_time, endTime, original.id);
-    await this.validatePatientConflict(original.patient_id, appointmentDate, data.start_time, endTime, original.id);
-    const sequence = await this.repository.nextAppointmentSequence();
-    return this.repository.rescheduleAtomically(original, {
-      patient_id: original.patient_id,
-      doctor_id: doctor.id,
-      start_time: data.start_time,
-      duration_minutes: data.duration_minutes,
-      visit_type: original.visit_type,
-      priority: original.priority,
-      reason: original.reason,
-      notes: null,
-      appointmentNumber: createAppointmentNumber(sequence),
-      patientNumber: original.patient_number,
-      patientName: original.patient_name,
-      doctorName: doctor.display_name,
-      doctorSpecialization: doctor.specialization,
-      branchId: doctor.branch_id,
-      departmentId: doctor.department_id,
+    await this.validateDoctorAvailability(
+      doctor,
       appointmentDate,
-      endTime,
-    }, userId);
+      data.start_time,
+      endTimeStr,
+      data.duration_minutes,
+    );
+    await this.validateDoctorConflict(
+      doctor.id,
+      appointmentDate,
+      data.start_time,
+      endTimeStr,
+      original.id,
+      utcDateTime,
+      utcEndTime,
+    );
+    await this.validatePatientConflict(
+      original.patient_id,
+      appointmentDate,
+      data.start_time,
+      endTimeStr,
+      original.id,
+      utcDateTime,
+      utcEndTime,
+    );
+
+    const sequence = await this.sequenceService.getNextSequence('appointment');
+    return this.repository.rescheduleAtomically(
+      original,
+      {
+        patient_id: original.patient_id,
+        doctor_id: doctor.id,
+        startTime: data.start_time,
+        endTime: endTimeStr,
+        duration_minutes: data.duration_minutes,
+        visit_type: original.visit_type,
+        priority: original.priority,
+        reason: original.reason,
+        notes: null,
+        appointmentNumber: this.sequenceService.formatStandardSequence('APT', sequence),
+        patientNumber: original.patient_number,
+        patientName: original.patient_name,
+        doctorName: doctor.display_name,
+        doctorSpecialization: doctor.specialization,
+        branchId: doctor.branch_id,
+        departmentId: doctor.department_id,
+        appointmentDate,
+        utcDateTime,
+        utcEndTime,
+      },
+      userId,
+    );
   }
 
   async reconcilePastAppointments(patientId?: string) {
@@ -217,7 +280,16 @@ export class AppointmentService {
       if (visit?.status === 'COMPLETED') nextStatus = 'COMPLETED';
       else if (visit?.status === 'NO_SHOW') nextStatus = 'NO_SHOW';
       else if (visit?.status === 'IN_CONSULTATION') continue;
-      else if (visit && ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'SKIPPED', 'CANCELLED'].includes(visit.status)) {
+      else if (
+        visit &&
+        [
+          'CHECKED_IN',
+          'WAITING_FOR_VITALS',
+          'READY_FOR_CONSULTATION',
+          'SKIPPED',
+          'CANCELLED',
+        ].includes(visit.status)
+      ) {
         if (visit.status !== 'SKIPPED' && visit.status !== 'CANCELLED') {
           await this.opdVisitRepository.markSkippedBySystem(visit.id);
         }
@@ -232,23 +304,24 @@ export class AppointmentService {
     }
   }
 
-  private async createInternal(data: CreateAppointmentDTO, userId: string, enforceBranchScope: boolean) {
-    const appointmentDate = this.validateAppointmentDate(data.appointment_date);
-    const endTime = this.validateAppointmentWindow(data.start_time, data.duration_minutes);
-    this.validateAppointmentStart(appointmentDate, data.start_time);
+  private async createInternal(
+    data: CreateAppointmentDTO,
+    userId: string,
+    enforceBranchScope: boolean,
+  ) {
     if (!data.utc_datetime) {
       throw new AppError('UTC datetime is required for new appointments', 400, 'VALIDATION_ERROR');
     }
     const settings = await this.settingsRepository.get();
     const tz = settings.localization.timezone;
     const appointmentUtc = new Date(data.utc_datetime);
-    
+
     const appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
     const startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
 
     const appointmentDate = this.validateAppointmentDate(appointmentDateStr);
     const endTime = this.validateAppointmentWindow(startTimeStr, data.duration_minutes);
-    
+
     const utcEndTime = new Date(appointmentUtc.getTime() + data.duration_minutes * 60000);
 
     const [patient, doctor] = await Promise.all([
@@ -257,20 +330,48 @@ export class AppointmentService {
     ]);
     if (enforceBranchScope) await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
-    await this.validateDoctorAvailability(doctor, appointmentDate, startTimeStr, endTime, data.duration_minutes);
-    await this.validateDoctorConflict(doctor.id, appointmentDate, startTimeStr, endTime, undefined, appointmentUtc, utcEndTime);
-    await this.validatePatientConflict(patient.id, appointmentDate, startTimeStr, endTime, undefined, appointmentUtc, utcEndTime);
+    await this.validateDoctorAvailability(
+      doctor,
+      appointmentDate,
+      startTimeStr,
+      endTime,
+      data.duration_minutes,
+    );
+    await this.validateDoctorConflict(
+      doctor.id,
+      appointmentDate,
+      startTimeStr,
+      endTime,
+      undefined,
+      appointmentUtc,
+      utcEndTime,
+    );
+    await this.validatePatientConflict(
+      patient.id,
+      appointmentDate,
+      startTimeStr,
+      endTime,
+      undefined,
+      appointmentUtc,
+      utcEndTime,
+    );
 
     const session = await mongoose.startSession();
     let appointment: Appointment | undefined;
 
     try {
       await session.withTransaction(async () => {
-        const appointmentSequence = await this.sequenceService.getNextSequence('appointment', session);
+        const appointmentSequence = await this.sequenceService.getNextSequence(
+          'appointment',
+          session,
+        );
         const createdAppointment = await this.repository.create(
           {
             ...data,
-            appointmentNumber: this.sequenceService.formatStandardSequence('APT', appointmentSequence),
+            appointmentNumber: this.sequenceService.formatStandardSequence(
+              'APT',
+              appointmentSequence,
+            ),
             patientNumber: patient.patient_number,
             patientName: patientName(patient),
             doctorName: doctor.display_name,
@@ -341,14 +442,14 @@ export class AppointmentService {
     const existing = await this.getById(id, userId);
     const doctor = await this.getActiveDoctor(data.doctor_id ?? existing.doctor_id);
     const scope = await this.repository.resolveBranchScope(userId, doctor.branch_id);
-    
+
     const settings = await this.settingsRepository.get();
     const tz = settings.localization.timezone;
 
     let appointmentUtc: Date;
     let appointmentDateStr: string;
     let startTimeStr: string;
-    
+
     if (data.utc_datetime) {
       appointmentUtc = new Date(data.utc_datetime);
       appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
@@ -356,7 +457,10 @@ export class AppointmentService {
     } else {
       appointmentUtc = existing.utc_datetime ? new Date(existing.utc_datetime) : new Date();
       if (existing.appointment_date) {
-        const d = existing.appointment_date instanceof Date ? existing.appointment_date : new Date(existing.appointment_date as string | Date);
+        const d =
+          existing.appointment_date instanceof Date
+            ? existing.appointment_date
+            : new Date(existing.appointment_date as string | Date);
         appointmentDateStr = d.toISOString().split('T')[0] ?? '';
       } else {
         appointmentDateStr = '';
@@ -369,17 +473,45 @@ export class AppointmentService {
     const endTime = this.validateAppointmentWindow(startTimeStr, durationMinutes);
     const utcEndTime = new Date(appointmentUtc.getTime() + durationMinutes * 60000);
 
-    const scheduleChanged = doctor.id !== existing.doctor_id
-      || appointmentDate.getTime() !== new Date(existing.appointment_date || 0).getTime()
-      || startTimeStr !== existing.start_time || durationMinutes !== existing.duration_minutes;
+    const scheduleChanged =
+      doctor.id !== existing.doctor_id ||
+      appointmentDate.getTime() !== new Date(existing.appointment_date || 0).getTime() ||
+      startTimeStr !== existing.start_time ||
+      durationMinutes !== existing.duration_minutes;
 
     this.ensureCanChangeSchedule(existing);
     if (scheduleChanged && !data.reschedule_reason?.trim()) {
-      throw new AppError('A reschedule reason is required when changing the appointment slot', 400, 'RESCHEDULE_REASON_REQUIRED');
+      throw new AppError(
+        'A reschedule reason is required when changing the appointment slot',
+        400,
+        'RESCHEDULE_REASON_REQUIRED',
+      );
     }
-    await this.validateDoctorAvailability(doctor, appointmentDate, startTimeStr, endTime, durationMinutes);
-    await this.validateDoctorConflict(doctor.id, appointmentDate, startTimeStr, endTime, id, appointmentUtc, utcEndTime);
-    await this.validatePatientConflict(existing.patient_id, appointmentDate, startTimeStr, endTime, id, appointmentUtc, utcEndTime);
+    await this.validateDoctorAvailability(
+      doctor,
+      appointmentDate,
+      startTimeStr,
+      endTime,
+      durationMinutes,
+    );
+    await this.validateDoctorConflict(
+      doctor.id,
+      appointmentDate,
+      startTimeStr,
+      endTime,
+      id,
+      appointmentUtc,
+      utcEndTime,
+    );
+    await this.validatePatientConflict(
+      existing.patient_id,
+      appointmentDate,
+      startTimeStr,
+      endTime,
+      id,
+      appointmentUtc,
+      utcEndTime,
+    );
 
     const appointment = await this.repository.update(
       id,
@@ -406,7 +538,12 @@ export class AppointmentService {
     }
 
     if (scheduleChanged) {
-      await this.repository.auditRescheduled(existing, appointment, data.reschedule_reason!.trim(), userId);
+      await this.repository.auditRescheduled(
+        existing,
+        appointment,
+        data.reschedule_reason!.trim(),
+        userId,
+      );
     }
 
     return appointment;
@@ -417,20 +554,36 @@ export class AppointmentService {
     const scope = await this.repository.resolveBranchScope(userId, existing.branch_id);
 
     if (!this.isStatusTransitionAllowed(existing.status, data.status)) {
-      throw new AppError('Appointment status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
+      throw new AppError(
+        'Appointment status transition is not allowed',
+        400,
+        'INVALID_STATUS_TRANSITION',
+      );
     }
 
     if (['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(data.status) && !data.notes?.trim()) {
-      throw new AppError('A reason is required for this appointment status', 400, 'STATUS_REASON_REQUIRED');
+      throw new AppError(
+        'A reason is required for this appointment status',
+        400,
+        'STATUS_REASON_REQUIRED',
+      );
     }
 
     if (data.status === 'COMPLETED') {
       const visit = await this.opdVisitRepository.findByAppointmentId(existing.id);
       if (!visit) {
-        throw new AppError('An OPD visit is required before completing the appointment', 400, 'OPD_VISIT_REQUIRED');
+        throw new AppError(
+          'An OPD visit is required before completing the appointment',
+          400,
+          'OPD_VISIT_REQUIRED',
+        );
       }
       if (visit.status !== 'COMPLETED') {
-        throw new AppError('Complete the linked OPD visit before completing the appointment', 400, 'OPD_VISIT_NOT_COMPLETED');
+        throw new AppError(
+          'Complete the linked OPD visit before completing the appointment',
+          400,
+          'OPD_VISIT_NOT_COMPLETED',
+        );
       }
     }
 
@@ -496,7 +649,11 @@ export class AppointmentService {
     const patient = await this.patientRepository.getById(id);
 
     if (!patient || patient.status !== 'ACTIVE') {
-      throw new AppError('Active patient is required for appointment booking', 400, 'INVALID_PATIENT');
+      throw new AppError(
+        'Active patient is required for appointment booking',
+        400,
+        'INVALID_PATIENT',
+      );
     }
 
     return patient;
@@ -507,7 +664,11 @@ export class AppointmentService {
     const doctor = await this.doctorRepository.getById(id);
 
     if (!doctor || doctor.status !== 'ACTIVE') {
-      throw new AppError('Active doctor is required for appointment booking', 400, 'INVALID_DOCTOR');
+      throw new AppError(
+        'Active doctor is required for appointment booking',
+        400,
+        'INVALID_DOCTOR',
+      );
     }
 
     return doctor;
@@ -532,7 +693,11 @@ export class AppointmentService {
     }
 
     if (durationMinutes < 5 || durationMinutes > 240) {
-      throw new AppError('Appointment duration must be between 5 and 240 minutes', 400, 'VALIDATION_ERROR');
+      throw new AppError(
+        'Appointment duration must be between 5 and 240 minutes',
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     const endMinutes = toMinutes(startTime) + durationMinutes;
@@ -553,7 +718,11 @@ export class AppointmentService {
       minutes,
     );
     if (start.getTime() <= Date.now()) {
-      throw new AppError('Appointment start time must be in the future', 400, 'PAST_APPOINTMENT_TIME');
+      throw new AppError(
+        'Appointment start time must be in the future',
+        400,
+        'PAST_APPOINTMENT_TIME',
+      );
     }
   }
 
@@ -579,7 +748,11 @@ export class AppointmentService {
       : recurring;
 
     if (!availability || !availability.is_available) {
-      throw new AppError('Doctor is not available on the selected date', 400, 'DOCTOR_NOT_AVAILABLE');
+      throw new AppError(
+        'Doctor is not available on the selected date',
+        400,
+        'DOCTOR_NOT_AVAILABLE',
+      );
     }
 
     const slotStart = toMinutes(startTime);
@@ -588,11 +761,19 @@ export class AppointmentService {
       (block) => slotStart >= toMinutes(block.start_time) && slotEnd <= toMinutes(block.end_time),
     );
     if (!matchingBlock) {
-      throw new AppError('Appointment time is outside doctor availability', 400, 'OUTSIDE_DOCTOR_AVAILABILITY');
+      throw new AppError(
+        'Appointment time is outside doctor availability',
+        400,
+        'OUTSIDE_DOCTOR_AVAILABILITY',
+      );
     }
 
     if (durationMinutes !== matchingBlock.slot_duration_minutes) {
-      throw new AppError('Appointment duration must match the doctor slot duration', 400, 'INVALID_SLOT_DURATION');
+      throw new AppError(
+        'Appointment duration must match the doctor slot duration',
+        400,
+        'INVALID_SLOT_DURATION',
+      );
     }
   }
 
@@ -616,9 +797,14 @@ export class AppointmentService {
     );
 
     if (conflict) {
-      throw new AppError('Doctor already has an appointment in this time slot', 409, 'APPOINTMENT_SLOT_CONFLICT', {
-        appointment_number: conflict.appointment_number,
-      });
+      throw new AppError(
+        'Doctor already has an appointment in this time slot',
+        409,
+        'APPOINTMENT_SLOT_CONFLICT',
+        {
+          appointment_number: conflict.appointment_number,
+        },
+      );
     }
   }
 
@@ -641,15 +827,24 @@ export class AppointmentService {
       utcEnd,
     );
     if (conflict) {
-      throw new AppError('Patient already has an appointment in this time slot', 409, 'PATIENT_APPOINTMENT_CONFLICT', {
-        appointment_number: conflict.appointment_number,
-      });
+      throw new AppError(
+        'Patient already has an appointment in this time slot',
+        409,
+        'PATIENT_APPOINTMENT_CONFLICT',
+        {
+          appointment_number: conflict.appointment_number,
+        },
+      );
     }
   }
 
   private ensureCanChangeSchedule(appointment: Appointment) {
     if (!conflictStatuses.has(appointment.status)) {
-      throw new AppError('Only active appointments can be rescheduled', 400, 'APPOINTMENT_NOT_ACTIVE');
+      throw new AppError(
+        'Only active appointments can be rescheduled',
+        400,
+        'APPOINTMENT_NOT_ACTIVE',
+      );
     }
   }
 
