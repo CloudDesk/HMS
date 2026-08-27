@@ -4,8 +4,7 @@ import { requirePermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
-import { clinicalContextBranchSchema, clinicalContextOrderSchema, clinicalContextParamsSchema, clinicalContextPrescriptionSchema } from '../opd/clinical-context.schemas.js';
-import { confirmBookingSchema, createBookingSchema, createRecommendationSchema, reasonSchema, rescheduleBookingSchema, surgeryBranchSchema, surgeryIdSchema, surgeryListSchema } from './surgery.schemas.js';
+import { confirmBookingSchema, createBookingSchema, createRecommendationSchema, reasonSchema, rescheduleBookingSchema, surgeryAlternativesSchema, surgeryBranchSchema, surgeryIdSchema, surgeryListSchema } from './surgery.schemas.js';
 const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
   try {
     return schema.parse(value);
@@ -33,5 +32,5 @@ export const registerSurgeryRoutes = async (app: FastifyInstance, services: Serv
   app.post('/api/surgery/bookings/:id/cancel', { preHandler: requirePermission(services, 'Surgery', 'Bookings', 'Cancel') }, async (request) => { const params = parse(surgeryIdSchema, request.params); const query = parse(surgeryBranchSchema, request.query); return ok(await services.surgery.cancelBooking(params.id, query.branch_id, parse(reasonSchema, request.body), request.user!.id, metadata(request))); });
   app.post('/api/surgery/bookings/:id/complete', { preHandler: requirePermission(services, 'Surgery', 'Bookings', 'Complete') }, async (request) => { const params = parse(surgeryIdSchema, request.params); const query = parse(surgeryBranchSchema, request.query); return ok(await services.surgery.completeBooking(params.id, query.branch_id, request.user!.id, metadata(request))); });
   app.get('/api/surgery/schedule', { preHandler: requirePermission(services, 'Surgery', 'Schedule', 'View') }, async (request) => ok(await services.surgery.listBookings(parse(surgeryListSchema, request.query), request.user!.id)));
-  app.get('/api/surgery/availability/alternatives', { preHandler: requirePermission(services, 'Surgery', 'Schedule', 'View') }, async (request) => { const query = parse(surgeryBranchSchema.extend({ department_id: surgeryIdSchema.shape.id, service_id: surgeryIdSchema.shape.id, scheduled_start: rescheduleBookingSchema.shape.scheduled_start }), request.query); return ok(await services.surgery.alternatives(query.branch_id, query.department_id, query.service_id, query.scheduled_start, request.user!.id)); });
+  app.get('/api/surgery/availability/alternatives', { preHandler: requirePermission(services, 'Surgery', 'Schedule', 'View') }, async (request) => { const query = parse(surgeryAlternativesSchema, request.query); return ok(await services.surgery.alternatives(query.branch_id, query.department_id, query.service_id, query.scheduled_start, request.user!.id, query.doctor_id)); });
 };

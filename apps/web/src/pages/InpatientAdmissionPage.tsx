@@ -212,12 +212,14 @@ export function InpatientAdmissionPage() {
         document_type: 'CONSENT',
         title: values.title,
         file: fileToUpload,
-        consent_status: 'ATTACHED',
+        consent_status: 'SIGNED',
         signed_by_name: values.signed_by_name,
         signed_at: new Date(values.signed_at).toISOString(),
         valid_until: values.valid_until ? new Date(values.valid_until).toISOString() : undefined,
         context_type: 'INPATIENT_ADMISSION',
         context_id: selected.id,
+        admission_id: selected.id,
+        branch_id: branchId,
         consent_kind: 'INPATIENT_ADMISSION',
       });
       allocationForm.setValue('consent_document_id', document.id);
@@ -289,6 +291,7 @@ export function InpatientAdmissionPage() {
   const [filterDepartment, setFilterDepartment] = useState('');
   const [filterAdmissionType, setFilterAdmissionType] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filterSource, setFilterSource] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -297,133 +300,188 @@ export function InpatientAdmissionPage() {
       if (filterDepartment && r.department_id !== filterDepartment) return false;
       if (filterAdmissionType && r.admission_type !== filterAdmissionType) return false;
       if (filterPriority && r.priority !== filterPriority) return false;
+      if (filterSource && r.source_type !== filterSource) return false;
       if (filterStatus && r.status !== filterStatus) return false;
       return true;
     });
-  }, [requests, filterDepartment, filterAdmissionType, filterPriority, filterStatus]);
+  }, [requests, filterDepartment, filterAdmissionType, filterPriority, filterSource, filterStatus]);
 
-  return <div className="page-shell">
-    <div className="page-heading" style={{ marginBottom: '1.25rem' }}>
-      <div>
-        <h1>Admission Requests</h1>
-        <p>Review and action clinical admission requests</p>
-      </div>
-      <div className="page-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <select aria-label="Branch" value={branchId} onChange={(event) => { setBranchId(event.target.value); setSelected(null); }} style={{ height: '38px', borderRadius: '6px' }}>
-          {(data.branches.data?.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        <button className="btn-primary" onClick={() => setCreateOpen(true)} type="button">
-          <i className="ph ph-plus" /> New Admission Request
-        </button>
-      </div>
-    </div>
-
-    {/* 3 Metric Cards */}
-    <section className="admission-kpi-grid">
-      <div className="admission-kpi-card orange">
-        <div className="admission-kpi-icon"><i className="ph ph-hourglass-high" /></div>
-        <div className="admission-kpi-body">
-          <span>Pending</span>
-          <strong>{counts.pendingValidation}</strong>
-          <small>Awaiting decision</small>
+  return (
+    <div className="admissions-page">
+      {/* Header */}
+      <div className="adm-page-head">
+        <div>
+          <h2>Admission Requests</h2>
+          <p>Review and action clinical admission requests</p>
+        </div>
+        <div className="adm-actions">
+          {data.branches.data?.data && data.branches.data.data.length > 1 ? (
+            <select
+              aria-label="Branch"
+              value={branchId}
+              onChange={(event) => {
+                setBranchId(event.target.value);
+                setSelected(null);
+              }}
+              style={{ minWidth: '150px', height: '38px', borderRadius: '8px', padding: '0 10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.85rem' }}
+            >
+              {data.branches.data.data.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <button className="adm-btn primary" onClick={() => setCreateOpen(true)} type="button">
+            <i className="ph ph-plus" /> New Admission Request
+          </button>
         </div>
       </div>
-      <div className="admission-kpi-card green">
-        <div className="admission-kpi-icon"><i className="ph ph-check-circle" /></div>
-        <div className="admission-kpi-body">
-          <span>Approved Today</span>
-          <strong>{counts.confirmed}</strong>
-          <small>Confirmed admissions</small>
+
+      {/* 3 Metric KPI Cards */}
+      <section className="adm-kpis">
+        <div className="adm-kpi">
+          <div className="adm-kpi-icon orange">
+            <i className="ph ph-hourglass-high" />
+          </div>
+          <div className="adm-kpi-copy">
+            <span>Pending</span>
+            <strong>{counts.pending}</strong>
+            <small>Awaiting decision</small>
+          </div>
+        </div>
+        <div className="adm-kpi">
+          <div className="adm-kpi-icon green">
+            <i className="ph ph-check" />
+          </div>
+          <div className="adm-kpi-copy">
+            <span>Approved Today</span>
+            <strong>{counts.confirmed}</strong>
+            <small>Ready for allocation</small>
+          </div>
+        </div>
+        <div className="adm-kpi">
+          <div className="adm-kpi-icon red">
+            <i className="ph ph-x" />
+          </div>
+          <div className="adm-kpi-copy">
+            <span>Rejected Today</span>
+            <strong>{counts.cancelled}</strong>
+            <small>Clinical plan returned</small>
+          </div>
+        </div>
+      </section>
+
+      {data.policy.isError ? (
+        <div className="error-state" style={{ marginBottom: '1rem' }}>
+          Configure the branch admission policy before validating or confirming requests.
+        </div>
+      ) : null}
+
+      {/* 7-Field Filter Bar */}
+      <div className="adm-filters" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+        <div className="adm-field">
+          <label>Department</label>
+          <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}>
+            <option value="">All</option>
+            {departmentOptions.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="adm-field">
+          <label>Admission Type</label>
+          <select value={filterAdmissionType} onChange={(e) => setFilterAdmissionType(e.target.value)}>
+            <option value="">All</option>
+            <option value="INPATIENT">Inpatient</option>
+            <option value="OBSERVATION">Observation</option>
+            <option value="DAY_CARE">Day Care</option>
+            <option value="ICU">ICU</option>
+            <option value="HDU">HDU</option>
+          </select>
+        </div>
+        <div className="adm-field">
+          <label>Priority</label>
+          <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+            <option value="">All</option>
+            <option value="ROUTINE">Routine</option>
+            <option value="URGENT">Urgent</option>
+            <option value="EMERGENCY">Emergency</option>
+          </select>
+        </div>
+        <div className="adm-field">
+          <label>Source</label>
+          <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
+            <option value="">All</option>
+            <option value="DIRECT">Direct Admission</option>
+            <option value="OPD_VISIT">OPD</option>
+            <option value="EMERGENCY_ENCOUNTER">Emergency</option>
+          </select>
+        </div>
+        <div className="adm-field">
+          <label>Status</label>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="">All</option>
+            <option value="PENDING_VALIDATION">Pending</option>
+            <option value="READY_FOR_CONFIRMATION">Ready</option>
+            <option value="CONFIRMED">Approved</option>
+            <option value="CANCELLED">Rejected</option>
+          </select>
+        </div>
+        <div className="adm-field">
+          <label>Date Range</label>
+          <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
+        </div>
+        <div className="adm-field">
+          <label>Search Patient</label>
+          <input
+            placeholder="Name, MRN or request ID"
+            value={requestSearch}
+            onChange={(e) => setRequestSearch(e.target.value)}
+          />
         </div>
       </div>
-      <div className="admission-kpi-card red">
-        <div className="admission-kpi-icon"><i className="ph ph-x-circle" /></div>
-        <div className="admission-kpi-body">
-          <span>Rejected Today</span>
-          <strong>{counts.cancelled}</strong>
-          <small>Clinical plan returned</small>
-        </div>
-      </div>
-    </section>
 
-    {data.policy.isError ? <div className="error-state" style={{ marginBottom: '1rem' }}>Configure the branch admission policy before validating or confirming requests.</div> : null}
-
-    {/* Filter Bar */}
-    <div className="admission-filters-bar">
-      <div className="admission-filter-field">
-        <span>Department</span>
-        <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}>
-          <option value="">All</option>
-          {departmentOptions.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
-      </div>
-      <div className="admission-filter-field">
-        <span>Admission Type</span>
-        <select value={filterAdmissionType} onChange={(e) => setFilterAdmissionType(e.target.value)}>
-          <option value="">All</option>
-          <option value="INPATIENT">Inpatient</option>
-          <option value="OBSERVATION">Observation</option>
-          <option value="DAY_CARE">Day Care</option>
-          <option value="ICU">ICU</option>
-          <option value="HDU">HDU</option>
-        </select>
-      </div>
-      <div className="admission-filter-field">
-        <span>Priority</span>
-        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
-          <option value="">All</option>
-          <option value="ROUTINE">Routine</option>
-          <option value="URGENT">Urgent</option>
-          <option value="EMERGENCY">Emergency</option>
-        </select>
-      </div>
-      <div className="admission-filter-field">
-        <span>Status</span>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="">All</option>
-          <option value="PENDING_VALIDATION">Pending</option>
-          <option value="READY_FOR_CONFIRMATION">Ready</option>
-          <option value="CONFIRMED">Approved</option>
-          <option value="CANCELLED">Rejected</option>
-        </select>
-      </div>
-      <div className="admission-filter-field">
-        <span>Date Range</span>
-        <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-      </div>
-      <div className="admission-filter-field">
-        <span>Search Patient</span>
-        <input placeholder="Name, MRN or request ID" value={requestSearch} onChange={(e) => setRequestSearch(e.target.value)} />
-      </div>
-    </div>
-
-    {/* Split Layout: Table + Review Panel */}
-    <div className="admission-layout">
-      <div className="admission-table-container">
-        <div className="table-scroll">
-          <table className="data-table">
+      {/* Split Layout: Table + Review Panel */}
+      <div className="adm-requests-layout">
+        <div className="adm-card adm-table-wrap">
+          <table className="adm-table">
             <thead>
               <tr>
+                <th>REQUEST ID</th>
                 <th>MRN</th>
-                <th>Patient</th>
-                <th>Department</th>
-                <th>Requested By</th>
-                <th>Source</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th>Requested Time</th>
-                <th style={{ textAlign: 'center' }}>Actions</th>
+                <th>PATIENT</th>
+                <th>AGE</th>
+                <th>DEPARTMENT</th>
+                <th>REQUESTED BY</th>
+                <th>SOURCE</th>
+                <th>PRIORITY</th>
+                <th>STATUS</th>
+                <th>REQUESTED TIME</th>
+                <th style={{ textAlign: 'center' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {data.requests.isLoading ? (
-                <tr><td colSpan={9} className="empty-state">Loading admission requests...</td></tr>
+                <tr>
+                  <td colSpan={11} className="empty-state">
+                    Loading admission requests...
+                  </td>
+                </tr>
               ) : data.requests.isError ? (
-                <tr><td colSpan={9} className="empty-state">Unable to load admission requests. Retry after checking your branch access.</td></tr>
+                <tr>
+                  <td colSpan={11} className="empty-state">
+                    Unable to load admission requests. Retry after checking your branch access.
+                  </td>
+                </tr>
               ) : filteredRequests.length === 0 ? (
-                <tr><td colSpan={9} className="empty-state">No live admission requests found.</td></tr>
+                <tr>
+                  <td colSpan={11} className="empty-state">
+                    No live admission requests found.
+                  </td>
+                </tr>
               ) : (
                 filteredRequests.map((item) => {
                   const initials = (item.patient_name || 'PT')
@@ -434,43 +492,89 @@ export function InpatientAdmissionPage() {
                     .toUpperCase();
                   const isSelected = selected?.id === item.id;
                   const reqDate = new Date(item.created_at);
-                  const formattedTime = reqDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' · ' + reqDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const formattedTime =
+                    reqDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) +
+                    ' · ' +
+                    reqDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                   return (
-                    <tr key={item.id} style={{ background: isSelected ? '#f0f7ff' : undefined }}>
+                    <tr
+                      key={item.id}
+                      className={isSelected ? 'selected' : ''}
+                      onClick={() => setSelected(item)}
+                    >
                       <td>
-                        <strong style={{ color: '#475569', fontSize: '0.8rem' }}>{item.patient_number}</strong>
+                        <strong style={{ color: '#0f172a' }}>{item.request_number}</strong>
                       </td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#2563eb', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: '0.75rem', flexShrink: 0 }}>
+                        <span style={{ color: '#475569', fontSize: '0.8rem' }}>{item.patient_number}</span>
+                      </td>
+                      <td>
+                        <div className="adm-person">
+                          <div className="avatar-box" style={{ borderRadius: '50%' }}>
                             {initials}
                           </div>
                           <div>
-                            <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.84rem' }}>{item.patient_name}</strong>
-                            <small style={{ color: '#64748b' }}>{item.request_number}</small>
+                            <strong>{item.patient_name}</strong>
+                            <span>{item.patient_number}</span>
                           </div>
                         </div>
                       </td>
-                      <td style={{ fontSize: '0.82rem' }}>{item.department_name}</td>
-                      <td style={{ fontSize: '0.82rem' }}>{item.recommending_doctor_name}</td>
-                      <td style={{ fontSize: '0.82rem' }}>{item.source_type.replace('_', ' ')}</td>
+                      <td>-</td>
+                      <td>{item.department_name}</td>
+                      <td>{item.recommending_doctor_name}</td>
                       <td>
-                        <span className={`admission-priority-pill ${item.priority}`}>
-                          {item.priority === 'EMERGENCY' ? 'Critical' : item.priority === 'URGENT' ? 'High' : 'Low'}
+                        {item.source_type === 'DIRECT'
+                          ? 'Direct Admission'
+                          : item.source_type === 'OPD_VISIT'
+                          ? 'OPD'
+                          : 'Emergency'}
+                      </td>
+                      <td>
+                        <span
+                          className={`adm-status ${
+                            item.priority === 'EMERGENCY'
+                              ? 'critical'
+                              : item.priority === 'URGENT'
+                              ? 'high'
+                              : 'low'
+                          }`}
+                        >
+                          {item.priority === 'EMERGENCY'
+                            ? 'Critical'
+                            : item.priority === 'URGENT'
+                            ? 'High'
+                            : 'Low'}
                         </span>
                       </td>
                       <td>
-                        <span className={`admission-status-pill ${item.status}`}>
-                          {item.status === 'CONFIRMED' ? 'Approved' : item.status === 'CANCELLED' ? 'Rejected' : item.status === 'READY_FOR_CONFIRMATION' ? 'Ready' : 'Pending'}
+                        <span
+                          className={`adm-status ${
+                            item.status === 'CONFIRMED'
+                              ? 'approved'
+                              : item.status === 'CANCELLED'
+                              ? 'rejected'
+                              : 'pending'
+                          }`}
+                        >
+                          {item.status === 'CONFIRMED'
+                            ? 'Approved'
+                            : item.status === 'CANCELLED'
+                            ? 'Rejected'
+                            : item.status === 'READY_FOR_CONFIRMATION'
+                            ? 'Ready'
+                            : 'Pending'}
                         </span>
                       </td>
                       <td style={{ fontSize: '0.78rem', color: '#64748b' }}>{formattedTime}</td>
                       <td style={{ textAlign: 'center' }}>
                         <button
-                          className="btn-secondary compact"
-                          onClick={() => setSelected(item)}
-                          style={{ padding: '4px 8px' }}
+                          className="adm-btn icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelected(item);
+                          }}
+                          style={{ margin: '0 auto' }}
                           title="Review Request"
                           type="button"
                         >
@@ -484,11 +588,10 @@ export function InpatientAdmissionPage() {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Right Side Review Panel */}
-      <aside className="admission-side-panel">
-        {selected ? (
+        {/* Right Side Review Panel */}
+        <aside className="adm-card adm-side-panel">
+          {selected ? (
           <div>
             <div className="admission-drawer-header">
               <div className="admission-drawer-avatar">
@@ -1001,5 +1104,6 @@ export function InpatientAdmissionPage() {
         </div>
       </form>
     </Modal>
-  </div>;
+    </div>
+  );
 }

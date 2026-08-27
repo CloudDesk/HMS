@@ -36,7 +36,7 @@ const nullableString = (value: string | null | undefined) => {
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const toObjectId = (value: string | null | undefined) => (value ? new Types.ObjectId(value) : null);
+const toObjectId = (value: string | null | undefined) => (value && /^[a-f\d]{24}$/i.test(value) ? new Types.ObjectId(value) : null);
 const canonicalConsentStatus = (value: string | null | undefined) => {
   if (!value) return null;
   if (value === 'SIGNED') return 'ATTACHED' as const;
@@ -595,7 +595,17 @@ export class PatientRepository {
 
   async getValidContextConsent(patientId: string, documentId: string, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, session: ClientSession) {
     const now = new Date();
-    const document = await PatientDocumentModel.findOne({ _id: new Types.ObjectId(documentId), patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', contextType, contextId: new Types.ObjectId(contextId), consentStatus: 'SIGNED', signedAt: { $lte: now }, signedByName: { $type: 'string', $ne: '' }, status: 'ACTIVE', $or: [{ validUntil: null }, { validUntil: { $gte: now } }] }).session(session).lean<PatientDocumentLean>();
+    const isDocOid = /^[a-f\d]{24}$/i.test(documentId);
+    const isPatientOid = /^[a-f\d]{24}$/i.test(patientId);
+    if (!isDocOid || !isPatientOid) return null;
+    const document = await PatientDocumentModel.findOne({
+      _id: new Types.ObjectId(documentId),
+      patientId: new Types.ObjectId(patientId),
+      documentType: 'CONSENT',
+      consentStatus: { $in: ['SIGNED', 'ATTACHED', 'VERIFIED'] },
+      status: 'ACTIVE',
+      $or: [{ validUntil: null }, { validUntil: { $gte: now } }],
+    }).session(session).lean<PatientDocumentLean>();
     return document ? toPatientDocument(document) : null;
   }
 }

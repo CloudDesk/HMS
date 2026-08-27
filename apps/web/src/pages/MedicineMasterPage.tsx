@@ -11,15 +11,44 @@ import { Modal } from '../components/ui/Modal';
 import { downloadBlob } from '../utils/download';
 import { navigate } from '../routing/navigation';
 
+const COMMON_UNITS = [
+  'mg', 'g', 'mcg', 'kg', 'mL', 'L', 'IU', '%',
+  'mg/mL', 'mg/5mL'
+];
+
+const COMMON_DOSAGE_FORMS = [
+  'Tablet', 'Capsule', 'Syrup', 'Suspension', 'Injection', 'Infusion',
+  'Vial', 'Ampoule', 'Bottle', 'Sachet', 'Tube', 'Cream', 'Ointment',
+  'Gel', 'Drops', 'Eye Drops', 'Ear Drops', 'Nasal Drops', 'Patch',
+  'Suppository', 'Powder', 'Solution'
+];
+
 const medicineFormSchema = z.object({
   code: z.string().trim().min(1, 'Medicine code is required.').max(50),
   name: z.string().trim().min(1, 'Medicine name is required.').max(200),
   generic_name: z.string().trim().max(200),
   strength: z.string().trim().max(100),
-  dosage_form: z.string().trim().max(100),
-  unit: z.string().trim().max(50),
+  dosage_form_type: z.string().optional(),
+  custom_dosage_form: z.string().trim().max(100).optional(),
+  unit_type: z.string().optional(),
+  custom_unit: z.string().trim().max(50).optional(),
   description: z.string().trim().max(1000),
   status: z.enum(['ACTIVE', 'INACTIVE']),
+}).superRefine((data, ctx) => {
+  if (data.unit_type === 'Other' && !data.custom_unit) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Custom unit is required',
+      path: ['custom_unit'],
+    });
+  }
+  if (data.dosage_form_type === 'Other' && !data.custom_dosage_form) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Custom dosage form is required',
+      path: ['custom_dosage_form'],
+    });
+  }
 });
 
 type MedicineFormValues = z.infer<typeof medicineFormSchema>;
@@ -30,8 +59,10 @@ const emptyForm: MedicineFormValues = {
   name: '',
   generic_name: '',
   strength: '',
-  dosage_form: '',
-  unit: '',
+  dosage_form_type: '',
+  custom_dosage_form: '',
+  unit_type: '',
+  custom_unit: '',
   description: '',
   status: 'ACTIVE',
 };
@@ -57,7 +88,7 @@ export function MedicineMasterPage() {
   const [activeMedicine, setActiveMedicine] = useState<MedicineResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MedicineResponse | null>(null);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<MedicineFormValues>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<MedicineFormValues>({
     defaultValues: emptyForm,
     resolver: zodResolver(medicineFormSchema),
   });
@@ -71,16 +102,31 @@ export function MedicineMasterPage() {
   const openModal = (mode: ModalMode, medicine: MedicineResponse | null = null) => {
     setModalMode(mode);
     setActiveMedicine(medicine);
-    reset(medicine ? {
-      code: medicine.code,
-      name: medicine.name,
-      generic_name: medicine.generic_name ?? '',
-      strength: medicine.strength ?? '',
-      dosage_form: medicine.dosage_form ?? '',
-      unit: medicine.unit ?? '',
-      description: medicine.description ?? '',
-      status: medicine.status,
-    } : emptyForm);
+    
+    if (medicine) {
+      const isCommonUnit = !medicine.unit || COMMON_UNITS.includes(medicine.unit);
+      const unitType = isCommonUnit ? (medicine.unit ?? '') : 'Other';
+      const customUnit = isCommonUnit ? '' : medicine.unit;
+
+      const isCommonDosageForm = !medicine.dosage_form || COMMON_DOSAGE_FORMS.includes(medicine.dosage_form);
+      const dosageFormType = isCommonDosageForm ? (medicine.dosage_form ?? '') : 'Other';
+      const customDosageForm = isCommonDosageForm ? '' : medicine.dosage_form;
+
+      reset({
+        code: medicine.code,
+        name: medicine.name,
+        generic_name: medicine.generic_name ?? '',
+        strength: medicine.strength ?? '',
+        dosage_form_type: dosageFormType,
+        custom_dosage_form: customDosageForm ?? '',
+        unit_type: unitType,
+        custom_unit: customUnit ?? '',
+        description: medicine.description ?? '',
+        status: medicine.status,
+      });
+    } else {
+      reset(emptyForm);
+    }
   };
 
   useEffect(() => {
@@ -91,13 +137,16 @@ export function MedicineMasterPage() {
   }, [queryAction, modalMode, updateQuery]);
 
   const handleSave = (values: MedicineFormValues) => {
+    const finalUnit = values.unit_type === 'Other' ? values.custom_unit : values.unit_type;
+    const finalDosageForm = values.dosage_form_type === 'Other' ? values.custom_dosage_form : values.dosage_form_type;
+    
     const payload = {
       code: values.code,
       name: values.name,
       generic_name: optional(values.generic_name),
       strength: optional(values.strength),
-      dosage_form: optional(values.dosage_form),
-      unit: optional(values.unit),
+      dosage_form: optional(finalDosageForm ?? ''),
+      unit: optional(finalUnit ?? ''),
       description: optional(values.description),
       status: values.status,
     };
@@ -188,9 +237,44 @@ export function MedicineMasterPage() {
               <label className="form-field"><span>Medicine Code <span className="required">*</span></span><input {...register('code')} disabled={saveMutation.isPending} />{errors.code ? <small className="field-error">{errors.code.message}</small> : null}</label>
               <label className="form-field"><span>Medicine Name <span className="required">*</span></span><input {...register('name')} disabled={saveMutation.isPending} />{errors.name ? <small className="field-error">{errors.name.message}</small> : null}</label>
               <label className="form-field"><span>Generic Name</span><input {...register('generic_name')} disabled={saveMutation.isPending} /></label>
-              <label className="form-field"><span>Strength</span><input {...register('strength')} disabled={saveMutation.isPending} placeholder="e.g. 500 mg" /></label>
-              <label className="form-field"><span>Dosage Form</span><input {...register('dosage_form')} disabled={saveMutation.isPending} placeholder="e.g. Tablet" /></label>
-              <label className="form-field"><span>Unit</span><input {...register('unit')} disabled={saveMutation.isPending} placeholder="e.g. Tablet" /></label>
+              <label className="form-field"><span>Strength</span><input {...register('strength')} disabled={saveMutation.isPending} placeholder="e.g. 500" /></label>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: watch('dosage_form_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+                <label className="form-field">
+                  <span>Dosage Form</span>
+                  <select {...register('dosage_form_type')} disabled={saveMutation.isPending}>
+                    <option value="">Select dosage form</option>
+                    {COMMON_DOSAGE_FORMS.map(df => <option key={df} value={df}>{df}</option>)}
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                {watch('dosage_form_type') === 'Other' ? (
+                  <label className="form-field">
+                    <span>Custom Dosage Form <span className="required">*</span></span>
+                    <input {...register('custom_dosage_form')} disabled={saveMutation.isPending} placeholder="Enter dosage form" />
+                    {errors.custom_dosage_form ? <small className="field-error">{errors.custom_dosage_form.message}</small> : null}
+                  </label>
+                ) : null}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: watch('unit_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+                <label className="form-field">
+                  <span>Unit</span>
+                  <select {...register('unit_type')} disabled={saveMutation.isPending}>
+                    <option value="">Select unit</option>
+                    {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                {watch('unit_type') === 'Other' ? (
+                  <label className="form-field">
+                    <span>Custom Unit <span className="required">*</span></span>
+                    <input {...register('custom_unit')} disabled={saveMutation.isPending} placeholder="Enter custom unit" />
+                    {errors.custom_unit ? <small className="field-error">{errors.custom_unit.message}</small> : null}
+                  </label>
+                ) : null}
+              </div>
+
               <label className="form-field"><span>Status</span><select {...register('status')} disabled={saveMutation.isPending}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
               <label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Description</span><textarea {...register('description')} disabled={saveMutation.isPending} rows={3} /></label>
             </div>

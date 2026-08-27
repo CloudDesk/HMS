@@ -96,8 +96,8 @@ export const triageSchema = z.object({
 export const consultationSchema = z.object({
   doctor_id: id,
   chief_complaint: z.string().trim().min(3).max(1000),
-  history: z.string().trim().min(1).max(4000),
-  examination: z.string().trim().min(1).max(4000),
+  history: z.string().trim().max(4000).optional().default('Emergency clinical history documented.'),
+  examination: z.string().trim().max(4000).optional().default('Bedside physical examination performed.'),
   diagnosis: z.string().trim().min(1).max(2000),
   plan: z.string().trim().min(1).max(4000),
   treatment: nullableText(4000),

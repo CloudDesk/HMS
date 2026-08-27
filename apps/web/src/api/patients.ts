@@ -3,7 +3,7 @@ import { apiClient } from './client';
 export type ApiPatientGender = 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
 export type ApiPatientStatus = 'ACTIVE' | 'INACTIVE' | 'DECEASED';
 export type ApiPatientDocumentType = 'IDENTITY' | 'INSURANCE' | 'CLINICAL' | 'CONSENT' | 'OTHER';
-export type ApiPatientConsentStatus = 'NOT_REQUIRED' | 'PENDING' | 'ATTACHED' | 'VERIFIED';
+export type ApiPatientConsentStatus = 'NOT_REQUIRED' | 'PENDING' | 'ATTACHED' | 'VERIFIED' | 'SIGNED';
 export type ApiPatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
 export type PatientAddress = {

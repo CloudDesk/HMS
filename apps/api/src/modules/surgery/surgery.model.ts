@@ -4,20 +4,20 @@ import type { ProcedureBookingStatus, ProcedureRecommendationStatus } from './su
 export type ProcedureRecommendationFields = {
   recommendationNumber: string; patientId: Types.ObjectId; patientNumber: string; patientName: string;
   branchId: Types.ObjectId; departmentId: Types.ObjectId; departmentName: string; recommendingDoctorId: Types.ObjectId; recommendingDoctorName: string;
-  serviceId: Types.ObjectId; serviceName: string; encounterType: 'OPD_VISIT'; encounterId: Types.ObjectId; clinicalReason: string; notes?: string | null;
+  serviceId: Types.ObjectId; serviceName: string; encounterType?: 'OPD_VISIT' | 'DIRECT' | 'EMERGENCY' | null; encounterId?: Types.ObjectId | null; clinicalReason: string; notes?: string | null;
   status: ProcedureRecommendationStatus; bookingId?: Types.ObjectId | null; cancellationReason?: string | null; cancelledAt?: Date | null; cancelledBy?: Types.ObjectId | null;
   createdBy: Types.ObjectId; updatedBy: Types.ObjectId; createdAt: Date; updatedAt: Date;
 };
 const recommendationSchema = new Schema<ProcedureRecommendationFields>({
   recommendationNumber: { type: String, required: true, unique: true }, patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true }, patientNumber: { type: String, required: true }, patientName: { type: String, required: true },
   branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true }, departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true }, departmentName: { type: String, required: true }, recommendingDoctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true }, recommendingDoctorName: { type: String, required: true },
-  serviceId: { type: Schema.Types.ObjectId, ref: 'Service', required: true }, serviceName: { type: String, required: true }, encounterType: { type: String, enum: ['OPD_VISIT'], required: true }, encounterId: { type: Schema.Types.ObjectId, required: true }, clinicalReason: { type: String, required: true, trim: true }, notes: { type: String, default: null },
+  serviceId: { type: Schema.Types.ObjectId, ref: 'Service', required: true }, serviceName: { type: String, required: true }, encounterType: { type: String, enum: ['OPD_VISIT', 'DIRECT', 'EMERGENCY'], default: 'DIRECT' }, encounterId: { type: Schema.Types.ObjectId, default: null }, clinicalReason: { type: String, required: true, trim: true }, notes: { type: String, default: null },
   status: { type: String, enum: ['ACTIVE', 'BOOKED', 'CANCELLED'], default: 'ACTIVE', required: true }, bookingId: { type: Schema.Types.ObjectId, ref: 'ProcedureBooking', default: null }, cancellationReason: { type: String, default: null }, cancelledAt: { type: Date, default: null }, cancelledBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }, updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 recommendationSchema.index({ branchId: 1, status: 1, createdAt: -1 });
 recommendationSchema.index({ patientId: 1, status: 1, createdAt: -1 });
-recommendationSchema.index({ encounterType: 1, encounterId: 1, serviceId: 1 }, { unique: true, partialFilterExpression: { status: 'ACTIVE' } });
+recommendationSchema.index({ encounterType: 1, encounterId: 1, serviceId: 1 }, { unique: true, partialFilterExpression: { status: 'ACTIVE', encounterId: { $ne: null } } });
 export const ProcedureRecommendationModel = mongoose.model<ProcedureRecommendationFields>('ProcedureRecommendation', recommendationSchema);
 
 export type ProcedureBookingFields = {

@@ -17,7 +17,7 @@ export function useSurgeryWorkspaceFeature(consentOpen = false) {
   const initialTab = initial.get('tab');
   const [tab, setTab] = useState<SurgeryTab>(isTab(initialTab) ? initialTab : 'recommendations');
   const [branchId, setBranchId] = useState(initial.get('branch_id') ?? ''); const [status, setStatus] = useState(initial.get('status') ?? ''); const [date, setDate] = useState(initial.get('date') ?? new Date().toISOString().slice(0, 10)); const [searchText, setSearchText] = useState(initial.get('search') ?? ''); const [patientSearch, setPatientSearch] = useState('');
-  const [availability, setAvailability] = useState({ department_id: '', service_id: '', scheduled_start: '' });
+  const [availability, setAvailability] = useState<{ department_id: string; service_id: string; scheduled_start: string; doctor_id?: string }>({ department_id: '', service_id: '', scheduled_start: '', doctor_id: '' });
   const isSuperAdmin = user?.roles.some((role) => role.code === 'SUPER_ADMIN') ?? false;
   const branchQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }, isSuperAdmin); const branches = isSuperAdmin ? (branchQuery.data?.data ?? []) : (user?.branches ?? []);
   useEffect(() => { if (!branchId && branches[0]?.id) setBranchId(branches[0].id); }, [branchId, branches]);
@@ -37,5 +37,7 @@ export function useSurgeryWorkspaceFeature(consentOpen = false) {
     await linkProcedureBillingContext.mutateAsync({ id: invoiceId, payload: { patient_id: booking.patient_id, branch_id: branchId, booking_id: booking.id } });
   };
   const scheduleRows = useMemo(() => (surgery.bookings.data?.data ?? []).sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start)), [surgery.bookings.data]);
-  return { state: { tab, branchId, status, date, searchText, patientSearch, branches, departments: departments.data?.data ?? [], doctors: doctors.data?.data ?? [], services: services.data?.data ?? [], patients: patients.data?.data ?? [], recommendations: surgery.recommendations.data?.data ?? [], bookings: surgery.bookings.data?.data ?? [], scheduleRows, recommendationsQuery: surgery.recommendations, bookingsQuery: surgery.bookings, alternatives: alternatives.data ?? [], alternativesLoading: alternatives.isFetching, consentTemplates: consentTemplates.data ?? [], consentTemplatesLoading: consentTemplates.isLoading }, actions: { setTab, setBranchId, setStatus, setDate, setSearchText, setPatientSearch, setAvailability, linkDeposit }, mutations: { ...surgery, uploadConsent } };
+  const availableDoctors = alternatives.data?.available_doctors ?? [];
+  const recommendedSlots = alternatives.data?.recommended_slots ?? [];
+  return { state: { tab, branchId, status, date, searchText, patientSearch, branches, departments: departments.data?.data ?? [], doctors: doctors.data?.data ?? [], services: services.data?.data ?? [], patients: patients.data?.data ?? [], recommendations: surgery.recommendations.data?.data ?? [], bookings: surgery.bookings.data?.data ?? [], scheduleRows, recommendationsQuery: surgery.recommendations, bookingsQuery: surgery.bookings, alternatives: availableDoctors, recommendedSlots, alternativesLoading: alternatives.isFetching }, actions: { setTab, setBranchId, setStatus, setDate, setSearchText, setPatientSearch, setAvailability }, mutations: surgery };
 }

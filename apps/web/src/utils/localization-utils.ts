@@ -1,4 +1,4 @@
-import type { LocalizationSettings } from '../api/settings';
+﻿import type { LocalizationSettings } from '../api/settings';
 import { formatInTimeZone } from 'date-fns-tz';
 
 export type RegionalConfig = {
@@ -31,13 +31,13 @@ export const regionalConfig: Record<LocalizationSettings['country'], RegionalCon
     timezones: ['Africa/Lagos'],
     defaultTimezone: 'Africa/Lagos',
     defaultCurrency: 'NGN',
-    symbol: '₦',
+    symbol: 'Γéª',
   },
   India: {
     timezones: ['Asia/Kolkata'],
     defaultTimezone: 'Asia/Kolkata',
     defaultCurrency: 'INR',
-    symbol: '₹',
+    symbol: 'Γé╣',
   },
 };
 
@@ -45,8 +45,8 @@ export const currencySymbolMap: Record<LocalizationSettings['currency'], string>
   KES: 'KES',
   UGX: 'UGX',
   TZS: 'TSh',
-  NGN: '₦',
-  INR: '₹',
+  NGN: 'Γéª',
+  INR: 'Γé╣',
   USD: '$',
 };
 

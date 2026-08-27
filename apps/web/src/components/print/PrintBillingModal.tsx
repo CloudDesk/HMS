@@ -4,6 +4,7 @@ import type { PatientResponse } from '../../api/patients';
 import { PrintReceiptLayout } from './PrintReceiptLayout';
 import { Modal } from '../ui/Modal';
 import { formatDate } from '../../pages/patient-utils';
+import { useCurrencyFormatter } from '../../api/useSettings';
 
 type Props = {
   invoice: BillingInvoice | null;
@@ -15,7 +16,6 @@ import { useCurrencyFormatter } from '../../api/useSettings';
 
 export function PrintBillingModal({ invoice, patient, onClose }: Props) {
   const formatCurrency = useCurrencyFormatter();
-
   if (!invoice || !patient) return null;
 
   const handlePrint = () => {

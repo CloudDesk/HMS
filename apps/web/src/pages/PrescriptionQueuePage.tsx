@@ -163,7 +163,16 @@ export function PrescriptionQueuePage() {
                   <td><strong>{line.prescribedMedicineName}</strong>{line.medicineId && line.selectedMedicineName !== line.prescribedMedicineName ? <span className="dispensing-substitution">Substituted</span> : null}</td>
                   <td><strong>{line.requestedQuantity ?? 'Not specified'}</strong></td>
                   <td>{detail.status === 'DRAFT' ? <select aria-label={`Selected medicine for ${line.prescribedMedicineName}`} className="um-filter dispensing-control" disabled={draftDisabled} onChange={(event) => queue.actions.selectMedicine(line.id, event.target.value)} value={line.medicineId ?? ''}><option value="">Select medicine</option>{queue.medicineOptions.map((medicine) => <option key={medicine.id} value={medicine.id}>{medicine.name}</option>)}</select> : line.selectedMedicineName}</td>
-                  <td>{detail.status === 'DRAFT' ? <select aria-label={`Batch for ${line.prescribedMedicineName}`} className="um-filter dispensing-control" disabled={draftDisabled || !line.medicineId} onChange={(event) => queue.actions.selectBatch(line.id, event.target.value)} value={line.batchId ?? ''}><option value="">Select batch</option>{line.batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batch_number} · {batch.quantity_on_hand} available · exp {new Date(batch.expiry_date).toLocaleDateString()}</option>)}</select> : line.batchNumber || '—'}</td>
+                  <td>{detail.status === 'DRAFT' ? (
+                    line.medicineId && line.batchOptions.length === 0 && !queue.batchesLoading ? (
+                      <span className="diagnostic-status status-cancelled">No batch available</span>
+                    ) : (
+                      <select aria-label={`Batch for ${line.prescribedMedicineName}`} className="um-filter dispensing-control" disabled={draftDisabled || !line.medicineId} onChange={(event) => queue.actions.selectBatch(line.id, event.target.value)} value={line.batchId ?? ''}>
+                        <option value="">Select batch</option>
+                        {line.batchOptions.map((batch) => <option key={batch.id} value={batch.id}>{batch.batch_number} — {batch.quantity_on_hand} available — exp {new Date(batch.expiry_date).toLocaleDateString()}</option>)}
+                      </select>
+                    )
+                  ) : line.batchNumber || '—'}</td>
                   <td><span className={line.insufficientStock ? 'diagnostic-status status-cancelled' : 'diagnostic-status status-confirmed'}>{line.availableQuantity}</span>{line.insufficientStock ? <div className="field-error">Insufficient stock</div> : null}</td>
                   <td>{detail.status === 'DRAFT' ? <input aria-label={`Final quantity for ${line.prescribedMedicineName}`} className="dispensing-quantity" disabled={draftDisabled} min="1" onChange={(event) => queue.actions.setConfirmedQuantity(line.id, event.target.value ? Number(event.target.value) : null)} step="1" type="number" value={line.confirmedQuantity ?? ''} /> : line.confirmedQuantity ?? '—'}</td>
                   <td>{formatCurrency(line.lineTotal)}</td>

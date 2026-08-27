@@ -1,7 +1,11 @@
 import { z } from 'zod';
 const id = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid identifier');
 const text = (label: string, max: number) => z.string().trim().min(1, `${label} is required`).max(max);
-export const createInpatientAdmissionSchema = z.object({ patient_id: id, branch_id: id, ward_id: id, bed_id: id, hold_id: id.nullable().optional(), admitting_doctor_id: id, department_id: id, admission_date: z.string().datetime({ offset: true }), admission_type: z.enum(['MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OBSERVATION', 'OTHER']), reason: text('Reason', 500), notes: z.string().trim().max(1000).nullable().optional() });
+const referenceId = z
+  .union([z.string().trim().max(100), z.literal(''), z.null(), z.undefined()])
+  .transform((val) => (val && typeof val === 'string' && val.trim().length > 0 ? val.trim() : null));
+
+export const createInpatientAdmissionSchema = z.object({ patient_id: id, branch_id: id, ward_id: id, bed_id: id, hold_id: referenceId.optional(), admitting_doctor_id: id, department_id: id, admission_date: z.string().datetime({ offset: true }), admission_type: z.enum(['MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OBSERVATION', 'OTHER']), reason: text('Reason', 500), notes: z.string().trim().max(1000).nullable().optional() });
 export const listInpatientAdmissionsSchema = z.object({ branch_id: id, status: z.enum(['DRAFT', 'ADMITTED', 'CANCELLED']).optional(), page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) });
 export const inpatientAdmissionIdSchema = z.object({ id });
 const sourceType = z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL', 'TRANSFER', 'PROCEDURE_BOOKING']);
@@ -13,6 +17,6 @@ export const createAdmissionRequestSchema = z.object({ patient_id: id, branch_id
 export const listAdmissionRequestsSchema = z.object({ branch_id: id, status: z.enum(['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION', 'CONFIRMED', 'CANCELLED']).optional(), source_type: z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL', 'TRANSFER', 'PROCEDURE_BOOKING']).optional(), patient_id: id.optional(), search: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) });
 export const admissionRequestActionSchema = z.object({ id, });
 export const admissionRequestBranchSchema = z.object({ branch_id: id });
-export const validateAdmissionRequestSchema = z.object({ ward_id: id, bed_id: id, hold_id: id.nullable().optional(), consent_document_id: id.nullable().optional(), deposit_invoice_id: id.nullable().optional() }).strict();
+export const validateAdmissionRequestSchema = z.object({ ward_id: id, bed_id: id, hold_id: referenceId.optional(), consent_document_id: referenceId.optional(), deposit_invoice_id: referenceId.optional() }).strict();
 export const confirmAdmissionRequestSchema = validateAdmissionRequestSchema.extend({ admission_date: z.string().datetime({ offset: true }) }).strict();
 export const cancelAdmissionRequestSchema = z.object({ reason: text('Cancellation reason', 500) }).strict();

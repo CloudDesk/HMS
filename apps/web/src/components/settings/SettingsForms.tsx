@@ -3,11 +3,12 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { regionalConfig, currencySymbolMap } from '../../utils/localization-utils';
-import type {
-  GeneralSettings,
-  HospitalSettings,
-  LocalizationSettings,
-  UserPreferenceSettings,
+import {
+  type GeneralSettings,
+  type HospitalSettings,
+  type LocalizationSettings,
+  type UserPreferenceSettings,
+  localizationSchema,
 } from '../../api/settings';
 import { localizationSchema } from '../../api/settings';
 import { SettingsField, SettingsToggle } from './SettingsControls';
@@ -245,10 +246,6 @@ export function LocalizationSettingsForm({ value, onSubmit, serverErrors, ...act
         if (!config.timezones.includes(form.getValues('timezone'))) {
           form.setValue('timezone', config.defaultTimezone, { shouldValidate: true, shouldDirty: true });
         }
-        
-        // This effectively also updates the currency and symbol on country change if we want it to strictly follow default
-        // The instructions state: "When the administrator changes Country, automatically resolve the country's regional defaults."
-        // We'll track if country changed manually.
       }
     }
   }, [countryValue, form]);
