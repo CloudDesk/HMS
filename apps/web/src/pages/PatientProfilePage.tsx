@@ -1,4 +1,5 @@
 import { useState, useMemo, type FormEvent } from 'react';
+import { useCurrencyFormatter } from '../api/useSettings';
 import { type BillingInvoice } from '../api/billing';
 import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
@@ -309,6 +310,7 @@ export function PatientProfilePage() {
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
   const canEditAllDetails = isSuperAdmin || isAdmin;
+  const formatMoney = useCurrencyFormatter();
 
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
@@ -1145,8 +1147,8 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                         <td><strong>{inv.invoice_number}</strong></td>
                         <td>{formatDate(inv.invoice_date || inv.created_at)}</td>
                         <td>{inv.items.map((i: { service_name: string }) => i.service_name).join(', ') || 'OPD Services'}</td>
-                        <td>₹{inv.total_amount.toLocaleString()}</td>
-                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>₹{inv.balance_amount.toLocaleString()}</strong></td>
+                        <td>{formatMoney(inv.total_amount)}</td>
+                        <td><strong style={{ color: inv.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>{formatMoney(inv.balance_amount)}</strong></td>
                         <td><span className="doc-status active">{inv.status}</span></td>
                         <td style={{ textAlign: 'center' }}>
                           <button className="doc-btn small" onClick={() => setViewingInvoice(inv)} title="View Invoice" type="button">

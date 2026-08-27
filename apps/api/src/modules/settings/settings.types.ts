@@ -25,9 +25,9 @@ export type HospitalSettings = {
 };
 
 export type LocalizationSettings = {
-  country: 'Kenya' | 'Uganda' | 'Tanzania' | 'Nigeria';
-  timezone: 'Africa/Nairobi' | 'Africa/Lagos' | 'Africa/Cairo';
-  currency: 'KES' | 'UGX' | 'USD';
+  country: 'Kenya' | 'Uganda' | 'Tanzania' | 'Nigeria' | 'India';
+  timezone: 'Africa/Nairobi' | 'Africa/Lagos' | 'Africa/Cairo' | 'Africa/Kampala' | 'Africa/Dar_es_Salaam' | 'Asia/Kolkata';
+  currency: 'KES' | 'UGX' | 'USD' | 'TZS' | 'NGN' | 'INR';
   currencySymbol: string;
   numberFormat: '1,000.00' | '1.000,00';
   firstDayOfWeek: 'Monday' | 'Sunday';

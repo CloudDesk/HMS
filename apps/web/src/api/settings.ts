@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { z } from 'zod';
 
 export type GeneralSettings = {
   applicationName: string;
@@ -26,14 +27,16 @@ export type HospitalSettings = {
   logoContentType: string | null;
 };
 
-export type LocalizationSettings = {
-  country: 'Kenya' | 'Uganda' | 'Tanzania' | 'Nigeria';
-  timezone: 'Africa/Nairobi' | 'Africa/Lagos' | 'Africa/Cairo';
-  currency: 'KES' | 'UGX' | 'USD';
-  currencySymbol: string;
-  numberFormat: '1,000.00' | '1.000,00';
-  firstDayOfWeek: 'Monday' | 'Sunday';
-};
+export const localizationSchema = z.object({
+  country: z.enum(['Kenya', 'Uganda', 'Tanzania', 'Nigeria', 'India']),
+  timezone: z.enum(['Africa/Nairobi', 'Africa/Lagos', 'Africa/Cairo', 'Africa/Kampala', 'Africa/Dar_es_Salaam', 'Asia/Kolkata']),
+  currency: z.enum(['KES', 'UGX', 'USD', 'TZS', 'NGN', 'INR']),
+  currencySymbol: z.string().min(1).max(8),
+  numberFormat: z.enum(['1,000.00', '1.000,00']),
+  firstDayOfWeek: z.enum(['Monday', 'Sunday']),
+});
+
+export type LocalizationSettings = z.infer<typeof localizationSchema>;
 
 export type UserPreferenceSettings = {
   defaultRole: 'Nurse' | 'Receptionist' | 'Doctor';

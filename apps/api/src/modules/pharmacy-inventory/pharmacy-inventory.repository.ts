@@ -459,7 +459,7 @@ export class PharmacyInventoryRepository {
         },
       }],
       { returnDocument: 'after', lean: true, session },
-    );
+    ).setOptions({ updatePipeline: true });
     return batch;
   }
 

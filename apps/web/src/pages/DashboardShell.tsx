@@ -8,6 +8,7 @@ import { AppointmentDashboardPage } from './AppointmentDashboardPage';
 import { OpdDashboardPage } from './OpdDashboardPage';
 import { BillingDashboardPage } from './BillingDashboardPage';
 import { AdministrationDashboardPage } from './AdministrationDashboardPage';
+import { useCurrencyFormatter } from '../api/useSettings';
 
 
 type StatCardProps = {
@@ -37,6 +38,7 @@ function ExecutiveOverviewTab() {
   const { user } = useAuth();
   const firstName = user?.fullName?.split(' ')[0] ?? user?.username ?? 'User';
   const { data, isLoading: loading, isError, refresh } = useDashboardOverviewFeature();
+  const formatMoney = useCurrencyFormatter();
 
   const loadError = isError ? 'Executive dashboard metrics could not be updated.' : '';
   const maxRevenue = Math.max(1, ...data.trend.map((t) => t.revenue));
@@ -61,7 +63,7 @@ function ExecutiveOverviewTab() {
         <StatCard icon="ph-stethoscope" label="Active Doctors" note="On-duty clinical staff" tone="green" value={data.activeDoctors} />
         <StatCard icon="ph-calendar-check" label="Today's Appointments" note="Bookings & encounters" tone="orange" value={data.appointmentsToday} />
         <StatCard icon="ph-first-aid" label="OPD Visits Today" note="Checked-in patient visits" tone="purple" value={data.opdVisitsToday} />
-        <StatCard icon="ph-receipt" label="Today Billed Revenue" note="Live billing summary" tone="green" value={`₹${data.billedTotal.toLocaleString()}`} />
+        <StatCard icon="ph-receipt" label="Today Billed Revenue" note="Live billing summary" tone="green" value={formatMoney(data.billedTotal)} />
       </div>
 
       <div className="doc-grid dashboard-main" style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '1.25rem', marginTop: '1rem' }}>
@@ -89,7 +91,7 @@ function ExecutiveOverviewTab() {
             </svg>
             <div className="doc-chart-axis" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 1rem 0 1rem' }}>
               {data.trend.map((pt) => (
-                <span key={pt.day} style={{ fontSize: '0.8rem', color: '#64748b' }}>{pt.day} (₹{pt.revenue})</span>
+                <span key={pt.day} style={{ fontSize: '0.8rem', color: '#64748b' }}>{pt.day} ({formatMoney(pt.revenue)})</span>
               ))}
             </div>
           </div>
@@ -105,15 +107,15 @@ function ExecutiveOverviewTab() {
           <div className="opd-summary-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0' }}>
             <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
               <span>Total Billed Amount</span>
-              <strong style={{ color: '#0f172a' }}>₹{data.billedTotal.toLocaleString()}</strong>
+              <strong style={{ color: '#0f172a' }}>{formatMoney(data.billedTotal)}</strong>
             </div>
             <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
               <span>Collected Funds</span>
-              <strong style={{ color: '#16a34a' }}>₹{data.collectedTotal.toLocaleString()}</strong>
+              <strong style={{ color: '#16a34a' }}>{formatMoney(data.collectedTotal)}</strong>
             </div>
             <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Pending Outstanding</span>
-              <strong style={{ color: '#ea580c' }}>₹{Math.max(0, data.billedTotal - data.collectedTotal).toLocaleString()}</strong>
+              <strong style={{ color: '#ea580c' }}>{formatMoney(Math.max(0, data.billedTotal - data.collectedTotal))}</strong>
             </div>
           </div>
         </article>

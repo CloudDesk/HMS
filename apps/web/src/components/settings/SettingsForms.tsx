@@ -2,11 +2,13 @@ import { useRef, useEffect, type ChangeEvent } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type {
-  GeneralSettings,
-  HospitalSettings,
-  LocalizationSettings,
-  UserPreferenceSettings,
+import { regionalConfig, currencySymbolMap } from '../../utils/localization-utils';
+import {
+  type GeneralSettings,
+  type HospitalSettings,
+  type LocalizationSettings,
+  type UserPreferenceSettings,
+  localizationSchema,
 } from '../../api/settings';
 import { SettingsField, SettingsToggle } from './SettingsControls';
 
@@ -36,15 +38,6 @@ const hospitalSchema = z.object({
   address: z.string().min(1, 'Address is required.'),
   logoBlobName: z.string().nullable(),
   logoContentType: z.string().nullable(),
-});
-
-const localizationSchema = z.object({
-  country: z.enum(['Kenya', 'Uganda', 'Tanzania', 'Nigeria']),
-  timezone: z.enum(['Africa/Nairobi', 'Africa/Lagos', 'Africa/Cairo']),
-  currency: z.enum(['KES', 'UGX', 'USD']),
-  currencySymbol: z.string().min(1, 'Currency Symbol is required.'),
-  numberFormat: z.enum(['1,000.00', '1.000,00']),
-  firstDayOfWeek: z.enum(['Monday', 'Sunday']),
 });
 
 const userPreferencesSchema = z.object({
@@ -242,16 +235,85 @@ export function LocalizationSettingsForm({ value, onSubmit, serverErrors, ...act
     }
   }, [serverErrors, form]);
 
+  const countryValue = form.watch('country');
+  const currencyValue = form.watch('currency');
+
+  useEffect(() => {
+    if (countryValue) {
+      const config = regionalConfig[countryValue];
+      if (config) {
+        if (!config.timezones.includes(form.getValues('timezone'))) {
+          form.setValue('timezone', config.defaultTimezone, { shouldValidate: true, shouldDirty: true });
+        }
+      }
+    }
+  }, [countryValue, form]);
+
+  useEffect(() => {
+    if (currencyValue) {
+      const derivedSymbol = currencySymbolMap[currencyValue] || currencyValue;
+      if (form.getValues('currencySymbol') !== derivedSymbol) {
+        form.setValue('currencySymbol', derivedSymbol, { shouldValidate: true, shouldDirty: true });
+      }
+    }
+  }, [currencyValue, form]);
+
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCountry = e.target.value as keyof typeof regionalConfig;
+    const config = regionalConfig[newCountry];
+    if (config) {
+      form.setValue('country', newCountry, { shouldValidate: true, shouldDirty: true });
+      form.setValue('timezone', config.defaultTimezone, { shouldValidate: true, shouldDirty: true });
+      form.setValue('currency', config.defaultCurrency, { shouldValidate: true, shouldDirty: true });
+      form.setValue('currencySymbol', config.symbol, { shouldValidate: true, shouldDirty: true });
+    }
+  };
+
+  const currentCountryConfig = regionalConfig[countryValue] || regionalConfig['Kenya'];
+
   return (
     <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="ss-panel-header"><div className="ss-panel-title"><i className="ph ph-globe" aria-hidden="true" /> Localization</div><p className="ss-panel-desc">Regional and language settings.</p></div>
       <div className="ss-form-body"><div className="ss-form-grid">
-        <SettingsField label="Country"><select disabled={!actions.canEdit} {...form.register('country')}><option>Kenya</option><option>Uganda</option><option>Tanzania</option><option>Nigeria</option></select></SettingsField>
-        <SettingsField label="Timezone"><select disabled={!actions.canEdit} {...form.register('timezone')}><option value="Africa/Nairobi">Africa/Nairobi (EAT, UTC+3)</option><option>Africa/Lagos</option><option>Africa/Cairo</option></select></SettingsField>
-        <SettingsField label="Currency"><select disabled={!actions.canEdit} {...form.register('currency')}><option value="KES">KES — Kenyan Shilling</option><option value="UGX">UGX — Ugandan Shilling</option><option value="USD">USD — US Dollar</option></select></SettingsField>
-        <SettingsField error={form.formState.errors.currencySymbol?.message} label="Currency Symbol"><input disabled={!actions.canEdit} maxLength={8} {...form.register('currencySymbol')} /></SettingsField>
-        <SettingsField label="Number Format"><select disabled={!actions.canEdit} {...form.register('numberFormat')}><option>1,000.00</option><option>1.000,00</option></select></SettingsField>
-        <SettingsField label="First Day of Week"><select disabled={!actions.canEdit} {...form.register('firstDayOfWeek')}><option>Monday</option><option>Sunday</option></select></SettingsField>
+        <SettingsField label="Country">
+          <select disabled={!actions.canEdit} {...form.register('country')} onChange={handleCountryChange}>
+            {(Object.keys(regionalConfig) as Array<keyof typeof regionalConfig>).map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </SettingsField>
+        <SettingsField label="Timezone">
+          <select disabled={!actions.canEdit} {...form.register('timezone')}>
+            {currentCountryConfig.timezones.map((tz: string) => (
+              <option key={tz} value={tz}>{tz}</option>
+            ))}
+          </select>
+        </SettingsField>
+        <SettingsField label="Currency">
+          <select disabled={!actions.canEdit} {...form.register('currency')}>
+            <option value="KES">KES — Kenyan Shilling</option>
+            <option value="UGX">UGX — Ugandan Shilling</option>
+            <option value="TZS">TZS — Tanzanian Shilling</option>
+            <option value="NGN">NGN — Nigerian Naira</option>
+            <option value="INR">INR — Indian Rupee</option>
+            <option value="USD">USD — US Dollar</option>
+          </select>
+        </SettingsField>
+        <SettingsField error={form.formState.errors.currencySymbol?.message} label="Currency Symbol (Derived)">
+          <input disabled={true} readOnly={true} maxLength={8} {...form.register('currencySymbol')} />
+        </SettingsField>
+        <SettingsField label="Number Format">
+          <select disabled={!actions.canEdit} {...form.register('numberFormat')}>
+            <option>1,000.00</option>
+            <option>1.000,00</option>
+          </select>
+        </SettingsField>
+        <SettingsField label="First Day of Week">
+          <select disabled={!actions.canEdit} {...form.register('firstDayOfWeek')}>
+            <option>Monday</option>
+            <option>Sunday</option>
+          </select>
+        </SettingsField>
       </div></div>
       <FormFooter {...actions} />
     </form>

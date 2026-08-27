@@ -150,8 +150,8 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
   const lines: DispensingLineView[] = useMemo(() => draftLines.map((line) => {
     const batchOptions = activeBatches.filter((batch) => batch.medicine_id === line.medicineId);
     const batch = batchOptions.find((candidate) => candidate.id === line.batchId);
-    const availableQuantity = batch?.quantity_on_hand ?? line.availableQuantitySnapshot;
-    const unitPrice = batch?.unit_price ?? line.unitPriceSnapshot;
+    const availableQuantity = batch ? batch.quantity_on_hand : 0;
+    const unitPrice = batch ? batch.unit_price : 0;
     const confirmedQuantity = line.confirmedQuantity ?? 0;
     return {
       ...line,
@@ -161,7 +161,7 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
       unitPrice,
       lineTotal: unitPrice * confirmedQuantity,
       batchOptions,
-      insufficientStock: Boolean(batch) && confirmedQuantity > availableQuantity,
+      insufficientStock: !batch || confirmedQuantity > availableQuantity,
     };
   }), [activeBatches, draftLines, medicineOptions]);
 
@@ -217,8 +217,12 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
         setActionError(`Enter a valid final quantity for ${line.prescribedMedicineName}.`);
         return null;
       }
+      if (!line.batchId) {
+        setActionError('Please select a batch before confirming the dispensing.');
+        return null;
+      }
       if (line.insufficientStock) {
-        setActionError(`Insufficient stock for ${line.selectedMedicineName}. Available: ${line.availableQuantity}.`);
+        setActionError('The selected batch does not have enough stock for the requested quantity.');
         return null;
       }
       payloadItems.push({

@@ -251,62 +251,61 @@ export function PharmacyMedicineInventoryPage() {
       </header>
 
       {summary ? (
-        <div className="inventory-dashboard-cards">
+        <div className="stat-cards-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
           <div className="stat-card">
-            <div className="stat-icon stat-blue"><i className="ph ph-pill" /></div>
-            <div className="stat-content"><h3>Medicines Stocked</h3><div className="stat-value">{summary.stocked_medicines} / {summary.total_medicines}</div></div>
+            <div className="stat-icon stat-blue" style={{ color: '#2563eb', backgroundColor: '#eff6ff' }}><i className="ph-fill ph-pill" aria-hidden="true" /></div>
+            <div className="stat-info"><p>Medicines Stocked</p><h3>{summary.stocked_medicines}</h3><span className="text-muted">/ {summary.total_medicines} total</span></div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon stat-green"><i className="ph ph-stack" /></div>
-            <div className="stat-content"><h3>Total Units</h3><div className="stat-value">{summary.total_available_quantity.toLocaleString()}</div></div>
+            <div className="stat-icon stat-green" style={{ color: '#16a34a', backgroundColor: '#f0fdf4' }}><i className="ph-fill ph-stack" aria-hidden="true" /></div>
+            <div className="stat-info"><p>Total Units</p><h3>{summary.total_available_quantity.toLocaleString()}</h3><span className="text-muted">In inventory</span></div>
           </div>
-          <div className="stat-card" style={summary.low_stock_medicines > 0 ? { borderColor: 'var(--warning)', backgroundColor: 'var(--warning-light)' } : {}}>
-            <div className="stat-icon stat-yellow"><i className="ph ph-warning" /></div>
-            <div className="stat-content"><h3>Low Stock</h3><div className="stat-value">{summary.low_stock_medicines}</div></div>
+          <div className="stat-card" style={summary.low_stock_medicines > 0 ? { border: '1px solid var(--warning)' } : {}}>
+            <div className="stat-icon stat-yellow" style={{ color: '#ea580c', backgroundColor: '#fff7ed' }}><i className="ph-fill ph-warning" aria-hidden="true" /></div>
+            <div className="stat-info"><p>Low Stock</p><h3 style={summary.low_stock_medicines > 0 ? { color: 'var(--warning)' } : {}}>{summary.low_stock_medicines}</h3><span className="text-muted">Needs review</span></div>
           </div>
-          <div className="stat-card" style={summary.out_of_stock_medicines > 0 ? { borderColor: 'var(--danger)', backgroundColor: 'var(--danger-light)' } : {}}>
-            <div className="stat-icon stat-red"><i className="ph ph-warning-octagon" /></div>
-            <div className="stat-content"><h3>Out of Stock</h3><div className="stat-value">{summary.out_of_stock_medicines}</div></div>
+          <div className="stat-card" style={summary.out_of_stock_medicines > 0 ? { border: '1px solid var(--danger)' } : {}}>
+            <div className="stat-icon stat-red" style={{ color: '#dc2626', backgroundColor: '#fef2f2' }}><i className="ph-fill ph-warning-octagon" aria-hidden="true" /></div>
+            <div className="stat-info"><p>Out of Stock</p><h3 style={summary.out_of_stock_medicines > 0 ? { color: 'var(--danger)' } : {}}>{summary.out_of_stock_medicines}</h3><span className="text-muted">Needs restocking</span></div>
           </div>
-          <div className="stat-card" style={summary.expiring_soon_medicines > 0 || summary.expired_medicines > 0 ? { borderColor: 'var(--danger)', backgroundColor: 'var(--danger-light)' } : {}}>
-            <div className="stat-icon stat-red"><i className="ph ph-calendar-x" /></div>
-            <div className="stat-content"><h3>Expiring &lt;{summary.expiry_warning_days}d</h3><div className="stat-value">{summary.expiring_soon_medicines} <span>({summary.expired_medicines} expired)</span></div></div>
+          <div className="stat-card" style={summary.expiring_soon_medicines > 0 || summary.expired_medicines > 0 ? { border: '1px solid var(--danger)' } : {}}>
+            <div className="stat-icon stat-red" style={{ color: '#dc2626', backgroundColor: '#fef2f2' }}><i className="ph-fill ph-calendar-x" aria-hidden="true" /></div>
+            <div className="stat-info"><p>Expiring &lt;{summary.expiry_warning_days}d</p><h3 style={summary.expiring_soon_medicines > 0 || summary.expired_medicines > 0 ? { color: 'var(--danger)' } : {}}>{summary.expiring_soon_medicines}</h3><span className="text-muted">{summary.expired_medicines} expired</span></div>
           </div>
         </div>
       ) : null}
 
-      <div className="filters-bar">
-        <div className="search-box">
-          <i className="ph ph-magnifying-glass" />
-          <input
-            onChange={(e) => updateQuery({ search: e.target.value, page: 1 })}
-            placeholder="Search medicine name or code..."
-            type="search"
-            value={search}
-          />
-        </div>
-        <div className="filter-group">
-          <select onChange={(e) => updateQuery({ stock_state: e.target.value, page: 1 })} value={stockState}>
-            <option value="">All Stock States</option>
-            <option value="AVAILABLE">Available</option>
-            <option value="LOW_STOCK">Low Stock</option>
-            <option value="OUT_OF_STOCK">Out of Stock</option>
-          </select>
-          <select onChange={(e) => updateQuery({ expiry_state: e.target.value, page: 1 })} value={expiryState}>
-            <option value="">All Expiry States</option>
-            <option value="VALID">Valid</option>
-            <option value="EXPIRING_SOON">Expiring Soon</option>
-            <option value="EXPIRED">Expired</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="table-container">
-        <div className="table-actions-row">
-          <div className="table-controls">
-            <button className="um-add-btn" disabled={!activeBranchId || !canRegisterBatch} onClick={openBatch} type="button"><i className="ph ph-plus" /> Register Batch</button>
+      <div className="um-table-section card">
+        <div className="um-toolbar">
+          <div className="um-toolbar-row1">
+            <div className="um-search">
+              <i className="ph ph-magnifying-glass" aria-hidden="true" />
+              <input onChange={(e) => updateQuery({ search: e.target.value, page: 1 })} placeholder="Search medicine name or code..." type="search" value={search} />
+            </div>
+            <button className="um-add-btn" disabled={!activeBranchId || !canRegisterBatch} onClick={openBatch} type="button">
+              <i className="ph ph-plus" aria-hidden="true" /> Register Batch
+            </button>
+          </div>
+          <div className="um-toolbar-row2">
+            <span className="filter-label">Filter by:</span>
+            <select className="um-filter" onChange={(e) => updateQuery({ stock_state: e.target.value, page: 1 })} value={stockState}>
+              <option value="">All Stock States</option>
+              <option value="AVAILABLE">Available</option>
+              <option value="LOW_STOCK">Low Stock</option>
+              <option value="OUT_OF_STOCK">Out of Stock</option>
+            </select>
+            <select className="um-filter" onChange={(e) => updateQuery({ expiry_state: e.target.value, page: 1 })} value={expiryState}>
+              <option value="">All Expiry States</option>
+              <option value="VALID">Valid</option>
+              <option value="EXPIRING_SOON">Expiring Soon</option>
+              <option value="EXPIRED">Expired</option>
+            </select>
+            <button className="um-clear-btn" onClick={() => navigate('/pharmacy/inventory', { replace: true })} type="button">
+              <i className="ph ph-x" aria-hidden="true" /> Clear Filters
+            </button>
           </div>
         </div>
+
         <div className="table-responsive">
           <table className="data-table">
             <thead>
@@ -322,25 +321,29 @@ export function PharmacyMedicineInventoryPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td className="table-message" colSpan={7}>Loading inventory...</td></tr>
+                <tr><td className="um-state-cell" colSpan={7}><span className="loading-spinner" /> Loading inventory...</td></tr>
               ) : null}
               {!isLoading && inventory.length === 0 ? (
-                <tr><td className="table-message" colSpan={7}>No inventory matches your filters.</td></tr>
+                <tr><td className="um-state-cell" colSpan={7}><i className="ph ph-pill" aria-hidden="true" /> No inventory matches your filters.</td></tr>
               ) : null}
               {inventory.map((item) => (
                 <tr key={item.id}>
-                  <td className="monospace">{item.medicine.code}</td>
+                  <td><span className="emp-id">{item.medicine.code}</span></td>
                   <td>
-                    <div className="fw-600 cursor-pointer text-primary" onClick={() => openDetail(item)} onKeyDown={(e) => e.key === 'Enter' && openDetail(item)} role="button" tabIndex={0}>
-                      {item.medicine.name}
+                    <div className="user-cell-info">
+                      <span className="user-cell-name cursor-pointer" onClick={() => openDetail(item)} onKeyDown={(e) => e.key === 'Enter' && openDetail(item)} role="button" tabIndex={0}>
+                        {item.medicine.name}
+                      </span>
+                      {item.medicine.generic_name ? (
+                        <span className="muted-cell">{item.medicine.generic_name} {item.medicine.strength}</span>
+                      ) : null}
                     </div>
-                    {item.medicine.generic_name ? <div className="text-sm text-muted">{item.medicine.generic_name} {item.medicine.strength}</div> : null}
                   </td>
                   <td>{item.medicine.unit ?? '-'}</td>
                   <td>
                     <div className="inventory-stock-amount">
                       <strong className={`stock-${item.stock_state.toLowerCase().replaceAll('_', '-')}`}>{item.available_quantity.toLocaleString()}</strong>
-                      {item.low_stock_threshold > 0 ? <span className="text-xs text-muted">/ {item.low_stock_threshold} min</span> : null}
+                      {item.low_stock_threshold > 0 ? <span className="text-xs text-muted" style={{ display: 'block', fontSize: '0.75rem', marginTop: '2px' }}>Min: {item.low_stock_threshold}</span> : null}
                     </div>
                   </td>
                   <td>
@@ -355,23 +358,43 @@ export function PharmacyMedicineInventoryPage() {
                       <span className="inventory-batch-count cursor-pointer" onClick={() => openDetail(item)} onKeyDown={(e) => e.key === 'Enter' && openDetail(item)} role="button" tabIndex={0}>
                         {item.active_batch_count} Active
                       </span>
-                    ) : '-'}
-                    {item.expired_batch_count > 0 ? <span className="inventory-batch-count expiry-expired ms-2">{item.expired_batch_count} Expired</span> : null}
+                    ) : null}
+                    {item.expired_batch_count > 0 ? (
+                      <span className="inventory-batch-count expiry-expired ms-2" onClick={() => openDetail(item)} onKeyDown={(e) => e.key === 'Enter' && openDetail(item)} role="button" tabIndex={0}>
+                        {item.expired_batch_count} Expired
+                      </span>
+                    ) : null}
+                    {item.active_batch_count === 0 && item.expired_batch_count === 0 ? '-' : null}
                   </td>
                   <td className="action-col">
-                    <button className="action-icon-btn" disabled={!canRecordMovement && !canAdjustStock} onClick={() => openMovement(item)} title="Record stock movement" type="button"><i className="ph ph-arrows-down-up" /></button>
-                    <button className="action-icon-btn" disabled={!canConfigureLowStock} onClick={() => openThreshold(item)} title="Configure low-stock threshold" type="button"><i className="ph ph-gauge" /></button>
+                    <div className="action-icons">
+                      <button className="action-icon-btn" disabled={!canRecordMovement && !canAdjustStock} onClick={() => openMovement(item)} title="Record stock movement" type="button"><i className="ph ph-arrows-down-up" /></button>
+                      <button className="action-icon-btn" disabled={!canConfigureLowStock} onClick={() => openThreshold(item)} title="Configure low-stock threshold" type="button"><i className="ph ph-gauge" /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {meta && meta.totalPages > 1 ? (
-          <div className="pagination">
-            <button disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /> Prev</button>
-            <span className="page-info">Page {page} of {meta.totalPages}</span>
-            <button disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button">Next <i className="ph ph-caret-right" /></button>
+        
+        {meta ? (
+          <div className="um-pagination">
+            <div className="um-showing">{meta.total === 0 ? 'No inventory' : `Showing ${(meta.page - 1) * meta.limit + 1}—${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}`}</div>
+            <div className="um-page-size">
+              <span>Rows:</span>
+              <select onChange={(event) => updateQuery({ limit: event.target.value, page: 1 })} value={limit}>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+            <div className="um-page-controls">
+              <button className="pg-btn" disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button>
+              <span className="pg-btn active">{page}</span>
+              <button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button>
+            </div>
           </div>
         ) : null}
       </div>
