@@ -68,6 +68,7 @@ export const sidebarModules: SidebarModule[] = [
     links: [
       { href: '/admissions/inpatients', label: 'Admission Requests' },
       { href: '/admissions/beds', label: 'Bed Management' },
+      { href: '/admissions/workspace', label: 'Inpatient Workspace' },
     ],
   },
   {

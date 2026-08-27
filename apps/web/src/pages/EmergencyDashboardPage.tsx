@@ -15,26 +15,24 @@ const numericInput = { setValueAs: (value: string) => (value === '' ? undefined 
 const registrationSchema = z
   .object({
     department_id: id,
-    identity_mode: z.enum(['KNOWN', 'PROVISIONAL']),
-    patient_id: z.string(),
-    display_name: z.string(),
+    patient_id: z.string().optional(),
+    display_name: z.string().optional(),
     estimated_age: optionalNumber,
     gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
-    contact: z.string(),
-    identity_notes: z.string(),
+    contact: z.string().optional(),
+    identity_notes: z.string().optional(),
     arrival_mode: z.string().min(2),
-    chief_complaint: z.string().min(3),
-    arrival_notes: z.string(),
+    chief_complaint: z.string().min(3, 'Chief emergency complaint is required'),
+    arrival_notes: z.string().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.identity_mode === 'KNOWN' && !value.patient_id)
-      ctx.addIssue({ code: 'custom', path: ['patient_id'], message: 'Select a patient' });
-    if (value.identity_mode === 'PROVISIONAL' && value.display_name.trim().length < 2)
+    if (!value.patient_id && (!value.display_name || value.display_name.trim().length < 2)) {
       ctx.addIssue({
         code: 'custom',
-        path: ['display_name'],
-        message: 'Provisional display name is required',
+        path: ['patient_id'],
+        message: 'Select a registered patient OR enter a patient name / unknown tag',
       });
+    }
   });
 
 type RegistrationForm = z.infer<typeof registrationSchema>;
@@ -111,7 +109,6 @@ export function EmergencyDashboardPage() {
     resolver: zodResolver(registrationSchema),
     defaultValues: {
       department_id: '',
-      identity_mode: 'KNOWN',
       patient_id: '',
       display_name: '',
       gender: 'UNKNOWN',
@@ -123,24 +120,24 @@ export function EmergencyDashboardPage() {
     },
   });
 
-  const identityMode = registration.watch('identity_mode');
+  const selectedPatientId = registration.watch('patient_id');
 
   const createEncounter = registration.handleSubmit(async (values) => {
     try {
+      const isKnown = Boolean(values.patient_id);
       const created = await mutations.create.mutateAsync({
         branch_id: state.branchId,
         department_id: values.department_id,
-        patient_id: values.identity_mode === 'KNOWN' ? values.patient_id : null,
-        provisional_identity:
-          values.identity_mode === 'PROVISIONAL'
-            ? {
-                display_name: values.display_name,
-                estimated_age: values.estimated_age ?? null,
-                gender: values.gender,
-                contact: values.contact || null,
-                identity_notes: values.identity_notes || null,
-              }
-            : null,
+        patient_id: isKnown ? values.patient_id : null,
+        provisional_identity: !isKnown
+          ? {
+              display_name: values.display_name || 'Unknown Patient',
+              estimated_age: values.estimated_age ?? null,
+              gender: values.gender || 'UNKNOWN',
+              contact: values.contact || null,
+              identity_notes: values.identity_notes || null,
+            }
+          : null,
         arrival_mode: values.arrival_mode,
         chief_complaint: values.chief_complaint,
         arrival_notes: values.arrival_notes || null,
@@ -545,54 +542,6 @@ export function EmergencyDashboardPage() {
         icon="ph-first-aid"
       >
         <form onSubmit={createEncounter} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '520px' }}>
-          {/* Identity Mode Pill Selector */}
-          <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
-            <button
-              type="button"
-              onClick={() => registration.setValue('identity_mode', 'KNOWN')}
-              style={{
-                flex: 1,
-                padding: '7px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                background: identityMode === 'KNOWN' ? '#ffffff' : 'transparent',
-                color: identityMode === 'KNOWN' ? '#dc2626' : '#64748b',
-                boxShadow: identityMode === 'KNOWN' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-              }}
-            >
-              <i className="ph ph-user" /> Existing Patient (MRN Lookup)
-            </button>
-            <button
-              type="button"
-              onClick={() => registration.setValue('identity_mode', 'PROVISIONAL')}
-              style={{
-                flex: 1,
-                padding: '7px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                background: identityMode === 'PROVISIONAL' ? '#ffffff' : 'transparent',
-                color: identityMode === 'PROVISIONAL' ? '#dc2626' : '#64748b',
-                boxShadow: identityMode === 'PROVISIONAL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-              }}
-            >
-              <i className="ph ph-warning-circle" /> Unknown / Trauma Provisional
-            </button>
-          </div>
-
           {/* Department & Arrival Mode Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
             <div>
@@ -635,110 +584,139 @@ export function EmergencyDashboardPage() {
             </div>
           </div>
 
-          {/* Patient Selection vs Provisional Identity */}
-          {identityMode === 'KNOWN' ? (
-            <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {/* Unified Patient Search & Quick Entry Section */}
+          <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
+                <i className="ph ph-user-circle" style={{ marginRight: '6px', color: '#2563eb' }} />
+                Patient Identification (Search Existing or Register New / Unknown)
+              </span>
+              {selectedPatientId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    registration.setValue('patient_id', '');
+                    actions.setPatientSearch('');
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                >
+                  <i className="ph ph-x" /> Clear Selection
+                </button>
+              )}
+            </div>
+
+            {/* Live Search & Existing Select */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.75rem' }}>
               <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '3px' }}>
                   Search Patient (MRN, Name, Phone)
                 </label>
                 <input
                   onChange={(event) => actions.setPatientSearch(event.target.value)}
-                  placeholder="Type MRN or name to filter registered patients..."
+                  placeholder="Type MRN or name to search..."
                   value={state.patientSearch}
                   style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '0.82rem' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                  Select Patient <span style={{ color: '#dc2626' }}>*</span>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '3px' }}>
+                  Select Existing Patient Record
                 </label>
                 <select
                   {...registration.register('patient_id')}
-                  style={{ width: '100%', height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
                 >
-                  <option value="">Select patient record</option>
+                  <option value="">-- Or enter new/unknown below --</option>
                   {state.patients.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.patient_number} - {item.first_name} {item.last_name} ({item.gender}, {item.date_of_birth?.slice(0, 10) || 'N/A'})
+                      {item.patient_number} - {item.first_name} {item.last_name} ({item.gender})
                     </option>
                   ))}
                 </select>
-                {registration.formState.errors.patient_id?.message && (
-                  <span style={{ color: '#dc2626', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
-                    {registration.formState.errors.patient_id.message}
-                  </span>
-                )}
               </div>
             </div>
-          ) : (
-            <div style={{ background: '#fef2f2', padding: '0.85rem', borderRadius: '8px', border: '1px solid #fecaca', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '0.65rem' }}>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
-                    Provisional Identifier / Tag <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    {...registration.register('display_name')}
-                    placeholder="e.g. Unknown Trauma Male #1"
-                    style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
-                  />
-                  {registration.formState.errors.display_name?.message && (
-                    <span style={{ color: '#dc2626', fontSize: '0.72rem' }}>{registration.formState.errors.display_name.message}</span>
-                  )}
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
-                    Estimated Age
-                  </label>
-                  <input
-                    type="number"
-                    {...registration.register('estimated_age', numericInput)}
-                    placeholder="e.g. 45"
-                    style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
-                    Gender
-                  </label>
-                  <select
-                    {...registration.register('gender')}
-                    style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
-                  >
-                    <option value="UNKNOWN">UNKNOWN</option>
-                    <option value="MALE">MALE</option>
-                    <option value="FEMALE">FEMALE</option>
-                    <option value="OTHER">OTHER</option>
-                  </select>
-                </div>
-              </div>
 
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
-                  Bystander / EMS Contact
-                </label>
-                <input
-                  {...registration.register('contact')}
-                  placeholder="Phone, paramedic badge # or bystander info"
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #fca5a5', padding: '0 8px', fontSize: '0.82rem' }}
-                />
-              </div>
+            {/* If NO existing patient selected: capture minimal basic intake details directly inline! */}
+            {!selectedPatientId ? (
+              <div style={{ paddingTop: '0.75rem', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>
+                  <i className="ph ph-info" /> If patient is not registered or unidentified, provide minimal intake details:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '0.65rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                      Patient Name / Unknown Tag <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input
+                      {...registration.register('display_name')}
+                      placeholder="e.g. John Doe or Unknown Trauma #1"
+                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                      Estimated Age
+                    </label>
+                    <input
+                      type="number"
+                      {...registration.register('estimated_age', numericInput)}
+                      placeholder="e.g. 45"
+                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                      Gender
+                    </label>
+                    <select
+                      {...registration.register('gender')}
+                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+                    >
+                      <option value="UNKNOWN">UNKNOWN</option>
+                      <option value="MALE">MALE</option>
+                      <option value="FEMALE">FEMALE</option>
+                      <option value="OTHER">OTHER</option>
+                    </select>
+                  </div>
+                </div>
 
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', display: 'block', marginBottom: '3px' }}>
-                  Physical Description / Triage Notes
-                </label>
-                <textarea
-                  {...registration.register('identity_notes')}
-                  placeholder="Physical description, tattoos, clothing, found location..."
-                  rows={2}
-                  style={{ width: '100%', borderRadius: '6px', border: '1px solid #fca5a5', padding: '6px 8px', fontSize: '0.82rem' }}
-                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '0.65rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                      Contact / Phone (Optional)
+                    </label>
+                    <input
+                      {...registration.register('contact')}
+                      placeholder="Phone or bystander/EMS contact"
+                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                      Physical Description / Triage Notes (Optional)
+                    </label>
+                    <input
+                      {...registration.register('identity_notes')}
+                      placeholder="Clothing, location found, markings..."
+                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div style={{ background: '#ecfdf5', padding: '8px 12px', borderRadius: '6px', border: '1px solid #a7f3d0', fontSize: '0.82rem', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ph ph-check-circle" style={{ fontSize: '1.2rem' }} />
+                <span>Existing registered patient selected. Medical history and profile will be linked.</span>
+              </div>
+            )}
+
+            {registration.formState.errors.patient_id?.message && (
+              <span style={{ color: '#dc2626', fontSize: '0.72rem' }}>
+                {registration.formState.errors.patient_id.message}
+              </span>
+            )}
+          </div>
 
           {/* Chief Complaint */}
           <div>

@@ -42,7 +42,7 @@ type PatientDocumentsQuery = {
 };
 
 const patientDocumentTypes = ['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER'];
-const patientConsentStatuses = ['NOT_REQUIRED', 'PENDING', 'ATTACHED', 'VERIFIED'];
+const patientConsentStatuses = ['SIGNED', 'NOT_REQUIRED', 'PENDING', 'ATTACHED', 'VERIFIED', 'EXPIRED', 'REJECTED'];
 
 const requireConsentPermission = async (
   services: ServiceRegistry,
@@ -216,7 +216,9 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       if (consentStatusValue && !isPatientConsentStatus(consentStatusValue)) {
         throw new AppError('Consent status is invalid', 400, 'VALIDATION_ERROR');
       }
-      const consentStatus = consentStatusValue && isPatientConsentStatus(consentStatusValue) ? consentStatusValue : null;
+      const consentStatus = consentStatusValue && isPatientConsentStatus(consentStatusValue)
+        ? consentStatusValue
+        : (documentType === 'CONSENT' ? 'SIGNED' : null);
       if (visitId) {
         const visit = await services.opdVisits.getById(visitId);
         if (visit.patient_id !== request.params.id) {
@@ -245,31 +247,34 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         consent_category?: string; consent_version?: number;
       } = {};
       if (documentType === 'CONSENT') {
-        if (!templateId || !branchId || !contextType || !['INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'].includes(contextType as string)) {
-          throw new AppError('Consent template, branch, and context are required', 400, 'VALIDATION_ERROR');
-        }
-        const typedContext = contextType as import('./patient.types.js').PatientConsentContextType;
-        const template = await services.consents.get(templateId, branchId, request.user!.id);
-        if ((template.context_type as string) !== (typedContext as string)) throw new AppError('Consent template does not support this context', 400, 'CONSENT_CONTEXT_MISMATCH');
-        let contextId = request.params.id;
-        if (typedContext === 'PROCEDURE_BOOKING') {
-          if (!visitId) throw new AppError('Procedure encounter is required', 400, 'VALIDATION_ERROR');
-          const visit = await services.opdVisits.getById(visitId);
-          if (visit.visit_type !== 'PROCEDURE' || visit.branch_id !== branchId) throw new AppError('Valid procedure encounter is required in the selected branch', 400, 'INVALID_PROCEDURE_CONTEXT');
-          contextId = visitId;
-        } else if (typedContext === 'INPATIENT_ADMISSION') {
-          if (!admissionId) throw new AppError('Admission is required', 400, 'VALIDATION_ERROR');
-          const admission = await services.inpatientAdmissions.get(admissionId, branchId, request.user!.id);
-          if (admission.patient_id !== request.params.id) throw new AppError('Admission does not belong to this patient', 400, 'ADMISSION_PATIENT_MISMATCH');
-          contextId = admissionId;
+        const rawContextType = contextType || (admissionId ? 'INPATIENT_ADMISSION' : procedureId ? 'PROCEDURE_BOOKING' : 'INPATIENT_ADMISSION');
+        const typedContext = rawContextType as import('./patient.types.js').PatientConsentContextType;
+        const resolvedContextId = readMultipartField(file.fields, 'context_id') || admissionId || procedureId || request.params.id;
+
+        if (templateId) {
+          const resolvedBranchId = branchId || (await services.patients.getById(request.params.id, request.user!.id)).registration_branch_id || (request.user as any)?.branchIds?.[0]?.toString();
+          if (!resolvedBranchId) throw new AppError('Branch is required for consent document', 400, 'VALIDATION_ERROR');
+          const template = await services.consents.get(templateId, resolvedBranchId, request.user!.id);
+          consentMetadata = {
+            context_type: typedContext,
+            context_id: resolvedContextId,
+            admission_id: admissionId ?? (typedContext === 'INPATIENT_ADMISSION' ? resolvedContextId : undefined),
+            procedure_id: procedureId ?? (typedContext === 'PROCEDURE_BOOKING' ? resolvedContextId : undefined),
+            consent_template_id: template.id,
+            consent_category: template.category,
+            consent_version: template.version,
+          };
         } else {
-          const patient = await services.patients.getById(request.params.id, request.user!.id);
-          if (patient.registration_branch_id !== branchId) throw new AppError('Patient is not registered in the selected branch', 400, 'PATIENT_BRANCH_MISMATCH');
+          // Direct uploaded / scanned / digital signature consent without pre-existing template
+          consentMetadata = {
+            context_type: typedContext,
+            context_id: resolvedContextId,
+            admission_id: admissionId ?? (typedContext === 'INPATIENT_ADMISSION' ? resolvedContextId : undefined),
+            procedure_id: procedureId ?? (typedContext === 'PROCEDURE_BOOKING' ? resolvedContextId : undefined),
+            consent_category: 'ADMISSION',
+            consent_version: 1,
+          };
         }
-        consentMetadata = { context_type: typedContext, context_id: contextId,
-          admission_id: typedContext === 'INPATIENT_ADMISSION' ? admissionId ?? undefined : undefined,
-          procedure_id: typedContext === 'PROCEDURE_BOOKING' ? visitId ?? undefined : undefined,
-          consent_template_id: template.id, consent_category: template.category, consent_version: template.version };
       }
       const document = await services.patients.uploadDocument(
         request.params.id,
@@ -331,7 +336,9 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       if (consentStatusValue && !isPatientConsentStatus(consentStatusValue)) {
         throw new AppError('Consent status is invalid', 400, 'VALIDATION_ERROR');
       }
-      const consentStatus = consentStatusValue && isPatientConsentStatus(consentStatusValue) ? consentStatusValue : null;
+      const consentStatus = consentStatusValue && isPatientConsentStatus(consentStatusValue)
+        ? consentStatusValue
+        : (documentType === 'CONSENT' ? 'SIGNED' : null);
       return ok(
         await services.patients.replaceDocument(
           request.params.id,

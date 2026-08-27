@@ -356,9 +356,6 @@ export class PatientService {
     }
 
     if (data.document_type === 'CONSENT') {
-      if (!data.consent_template_id || !data.consent_category || !data.consent_version || !data.context_type) {
-        throw new AppError('Consent template, category, version, and context are required', 400, 'VALIDATION_ERROR');
-      }
       if (data.signed_at && !isValidDate(data.signed_at)) {
         throw new AppError('Consent signed date is invalid', 400, 'VALIDATION_ERROR');
       }
@@ -368,7 +365,6 @@ export class PatientService {
       if ((data.context_type && !data.context_id) || (!data.context_type && data.context_id)) {
         throw new AppError('Consent context type and id must be provided together', 400, 'VALIDATION_ERROR');
       }
-      if (data.context_id && !Types.ObjectId.isValid(data.context_id)) throw new AppError('Consent context id is invalid', 400, 'VALIDATION_ERROR');
     }
   }
 
