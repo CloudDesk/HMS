@@ -34,6 +34,7 @@ export type PharmacyDispensing = {
   version: number;
   items: PharmacyDispensingItem[];
   invoice_id: string | null;
+  invoice_number: string | null;
   submitted_at: Date | null;
   confirmed_at: Date | null;
   cancelled_at: Date | null;

@@ -57,7 +57,12 @@ export class PharmacyDispensingRepository {
     return query;
   }
 
-  private toDispensing(record: DispensingRecord, prescription: PrescriptionRecord, visit: { _id: Types.ObjectId; visitType?: string }): PharmacyDispensing {
+  private toDispensing(
+    record: DispensingRecord,
+    prescription: PrescriptionRecord,
+    visit: { _id: Types.ObjectId; visitType?: string },
+    invoiceNumber: string | null = null,
+  ): PharmacyDispensing {
     const prescribedMedicineByItem = new Map(
       prescription.items.map((item) => [item._id.toString(), item.medicineName]),
     );
@@ -70,7 +75,7 @@ export class PharmacyDispensingRepository {
       items: record.items.map((item) => toItem(
         item,
         prescribedMedicineByItem.get(item.prescriptionItemId.toString()) ?? item.medicineName,
-      )), invoice_id: record.invoiceId?.toString() ?? null,
+      )), invoice_id: record.invoiceId?.toString() ?? null, invoice_number: invoiceNumber,
       submitted_at: prescription.submittedAt ?? null, confirmed_at: record.confirmedAt ?? null,
       cancelled_at: record.cancelledAt ?? null, reversed_at: record.reversedAt ?? null,
       reversal_reason: record.reversalReason ?? null, created_at: record.createdAt, updated_at: record.updatedAt,
@@ -86,7 +91,10 @@ export class PharmacyDispensingRepository {
     if (!prescription) return null;
     const visit = prescription.visitId ? await this.getVisit(prescription.visitId.toString(), session) : null;
     const ctx: DispensingContext = visit ?? { _id: prescription.sourceId, branchId: prescription.branchId, visitType: prescription.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : 'OPD' };
-    return ctx ? this.toDispensing(record, prescription, ctx) : null;
+    if (!ctx) return null;
+    const invoiceId = record.invoiceId?.toString();
+    const invoiceNumbers = invoiceId ? await this.billing.getInvoiceNumberMap([invoiceId], session) : null;
+    return this.toDispensing(record, prescription, ctx, invoiceId ? invoiceNumbers?.get(invoiceId) ?? null : null);
   }
 
   async get(prescriptionId: string, actorUserId: string) {
@@ -199,7 +207,7 @@ if (query.status === 'PENDING') {
   filter._id = {
     $in: dispensingRecords.map((record) => record.prescriptionId),
   };
-  filter.status = 'DISPENSED';
+  filter.status = query.status === 'CONFIRMED' ? 'DISPENSED' : 'SUBMITTED';
 } else if (query.status === 'CANCELLED') {
   filter.status = 'CANCELLED';
 } else {
@@ -217,16 +225,23 @@ if (query.status === 'PENDING') {
     ]);
     const records = await PharmacyDispensingModel.find({ prescriptionId: { $in: prescriptions.map((item) => item._id) } }).lean<DispensingRecord[]>();
     const byPrescription = new Map(records.map((item) => [item.prescriptionId.toString(), item]));
+    const invoiceIds = records.flatMap((item) => item.invoiceId ? [item.invoiceId.toString()] : []);
+    const invoiceNumbers = await this.billing.getInvoiceNumberMap(invoiceIds);
     const mapped = prescriptions.map((prescription) => {
       const dispensing = byPrescription.get(prescription._id.toString());
       const visit = prescription.visitId ? visitById.get(prescription.visitId.toString()) : null;
       const ctx = visit ?? { _id: prescription.sourceId, branchId: objectId(query.branch_id), visitType: prescription.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : 'OPD' };
       if (!ctx) return null;
-      return dispensing ? this.toDispensing(dispensing, prescription, ctx) : {
+      return dispensing ? this.toDispensing(
+        dispensing,
+        prescription,
+        ctx,
+        dispensing.invoiceId ? invoiceNumbers.get(dispensing.invoiceId.toString()) ?? null : null,
+      ) : {
         id: '', prescription_id: prescription._id.toString(), patient_id: prescription.patientId.toString(),
         source_type: sourceTypeForVisit(ctx), encounter_id: ctx._id.toString(), admission_id: null, procedure_id: null,
         patient_number: prescription.patientNumber, patient_name: prescription.patientName, doctor_name: prescription.doctorName,
-        visit_id: prescription.visitId?.toString() ?? prescription.sourceId.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null,
+        visit_id: prescription.visitId?.toString() ?? prescription.sourceId.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null, invoice_number: null,
         submitted_at: prescription.submittedAt ?? null, confirmed_at: null, cancelled_at: null, reversed_at: null, reversal_reason: null,
         created_at: prescription.createdAt, updated_at: prescription.updatedAt,
       };

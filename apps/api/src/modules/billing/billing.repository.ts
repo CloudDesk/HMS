@@ -279,6 +279,17 @@ export class BillingRepository {
     return invoice ? toInvoice(invoice) : null;
   }
 
+  async getInvoiceNumberMap(ids: string[], session?: ClientSession) {
+    if (ids.length === 0) return new Map<string, string>();
+    const query = BillingInvoiceModel.find({
+      _id: { $in: ids.map(objectId) },
+      deletedAt: null,
+    }).select('_id invoiceNumber').lean<Array<{ _id: Types.ObjectId; invoiceNumber: string }>>();
+    if (session) query.session(session);
+    const invoices = await query;
+    return new Map(invoices.map((invoice) => [invoice._id.toString(), invoice.invoiceNumber]));
+  }
+
   async getHydratedById(id: string, branchIds?: string[]) {
     const filter: Record<string, unknown> = { _id: objectId(id), deletedAt: null };
     if (branchIds) filter.branchId = { $in: branchIds.map(objectId) };

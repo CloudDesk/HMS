@@ -65,6 +65,35 @@ export const registerPharmacyInventoryRoutes = async (app: FastifyInstance, serv
     return reply.status(result.replayed ? 200 : 201).send(ok(result));
   });
 
+  // Static-segment routes must be registered before parameterized /:medicineId routes.
+  // Fastify resolves routes in registration order: if /:medicineId is registered first,
+  // the literal word "batches" in GET /batches is captured as a medicineId value,
+  // causing a 400 ObjectId validation error and returning no batch data to dispensing.
+
+  app.get('/api/pharmacy/medicine-inventory/batches', {
+    preHandler: requirePermission(services, 'Pharmacy', 'Medicine Inventory', 'View'),
+  }, async (request) => {
+    return ok(await services.pharmacyInventory.listAllBatches(
+      parsePharmacyBatchListQuery(request.query),
+      request.user!.id,
+      metadataFromRequest(request),
+    ));
+  });
+
+  app.patch('/api/pharmacy/medicine-inventory/batches/:batchId', {
+    preHandler: requirePermission(services, 'Pharmacy', 'Medicine Inventory', 'EditBatch'),
+  }, async (request) => {
+    const { batchId } = parsePharmacyBatchParams(request.params);
+    return ok(await services.pharmacyInventory.updateBatch(
+      batchId,
+      parseUpdateMedicineBatchBody(request.body),
+      request.user!.id,
+      metadataFromRequest(request),
+    ));
+  });
+
+  // Parameterized /:medicineId routes — registered after all static routes above.
+
   app.get('/api/pharmacy/medicine-inventory/:medicineId', {
     preHandler: requirePermission(services, 'Pharmacy', 'Medicine Inventory', 'View'),
   }, async (request) => {
@@ -73,16 +102,6 @@ export const registerPharmacyInventoryRoutes = async (app: FastifyInstance, serv
     return ok(await services.pharmacyInventory.getDetail(
       medicineId,
       query.branch_id,
-      request.user!.id,
-      metadataFromRequest(request),
-    ));
-  });
-
-  app.get('/api/pharmacy/medicine-inventory/batches', {
-    preHandler: requirePermission(services, 'Pharmacy', 'Medicine Inventory', 'View'),
-  }, async (request) => {
-    return ok(await services.pharmacyInventory.listAllBatches(
-      parsePharmacyBatchListQuery(request.query),
       request.user!.id,
       metadataFromRequest(request),
     ));
@@ -111,18 +130,6 @@ export const registerPharmacyInventoryRoutes = async (app: FastifyInstance, serv
       metadataFromRequest(request),
     );
     return reply.status(201).send(ok(result));
-  });
-
-  app.patch('/api/pharmacy/medicine-inventory/batches/:batchId', {
-    preHandler: requirePermission(services, 'Pharmacy', 'Medicine Inventory', 'EditBatch'),
-  }, async (request) => {
-    const { batchId } = parsePharmacyBatchParams(request.params);
-    return ok(await services.pharmacyInventory.updateBatch(
-      batchId,
-      parseUpdateMedicineBatchBody(request.body),
-      request.user!.id,
-      metadataFromRequest(request),
-    ));
   });
 
   app.patch('/api/pharmacy/medicine-inventory/:medicineId/low-stock-threshold', {

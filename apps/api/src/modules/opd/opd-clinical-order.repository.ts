@@ -56,9 +56,13 @@ const toItem = (item: ClinicalOrderItemFields) => ({
 
 export const toClinicalOrder = (record: OpdClinicalOrderLean, visitType?: OpdVisitType): OpdClinicalOrder => ({
   id: record._id.toString(),
-  source_type: record.sourceType,
-  source_id: record.sourceId.toString(),
-  visit_id: record.visitId?.toString() ?? null,
+  originating_order_id: record._id.toString(),
+  source_type: record.sourceType === 'EMERGENCY_ENCOUNTER' ? 'EMERGENCY' : (visitType ? sourceTypeForVisit(visitType) : 'OPD'),
+  encounter_id: record.visitId?.toString() ?? record.sourceId?.toString() ?? null,
+  admission_id: null,
+  procedure_id: null,
+  source_id: record.sourceId?.toString() ?? record.visitId?.toString() ?? record._id.toString(),
+  visit_id: record.visitId?.toString() ?? record.sourceId?.toString() ?? null,
   consultation_id: record.consultationId?.toString() ?? null,
   patient_id: record.patientId.toString(),
   patient_number: record.patientNumber,
