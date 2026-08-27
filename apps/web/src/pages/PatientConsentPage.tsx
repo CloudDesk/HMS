@@ -15,6 +15,7 @@ const statusLabels: Record<ApiPatientConsentStatus, string> = {
   PENDING: 'Pending',
   ATTACHED: 'Attached',
   VERIFIED: 'Verified',
+  SIGNED: 'Signed',
 };
 
 const fileAccept = '.pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx';
@@ -117,9 +118,45 @@ export function PatientConsentPage() {
 
         <section className="doc-card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="doc-card-header"><div><h3>Consent Files</h3><p>Stored in Patient Documents with originating context</p></div></div>
-          <div className="table-responsive"><table className="data-table"><thead><tr><th>CONSENT</th><th>CONTEXT</th><th>VERSION</th><th>UPLOADED</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
+          <div className="table-responsive"><table className="data-table"><thead><tr><th>CONSENT</th><th>CONSENT DOCUMENT ID</th><th>ORIGINATING CONTEXT</th><th>VERSION</th><th>UPLOADED</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
             {loading ? <tr><td className="um-state-cell" colSpan={7}>Loading consent files...</td></tr> : consents.length === 0 ? <tr><td className="um-state-cell" colSpan={7}>No consent files are stored for this patient.</td></tr> : consents.map((document) => (
-              <tr key={document.id}><td><strong>{document.title}</strong><br /><small>{document.consent_category ?? document.description}</small></td><td>{document.context_type ?? 'PATIENT'}<br /><small>{document.context_id ?? document.patient_id}</small></td><td>{document.consent_version ? `v${document.consent_version}` : '-'}</td><td>{document.uploaded_by_name ?? 'Unknown'}<br /><small>{formatDate(document.uploaded_at)}</small></td><td><span className="doc-status active">{document.consent_status ? statusLabels[document.consent_status] : 'Pending'}</span></td><td><div className="table-actions">{canView ? <><button className="doc-icon-action" onClick={() => void handleView(document)} title="View" type="button"><i className="ph ph-eye" /></button><button className="doc-icon-action" onClick={() => void handleDownload(document)} title="Download" type="button"><i className="ph ph-download-simple" /></button></> : null}{canVerify && document.consent_status === 'ATTACHED' ? <button className="doc-icon-action" onClick={() => void handleVerify(document.id)} title="Verify" type="button"><i className="ph ph-check-circle" /></button> : null}{canEdit ? <button className="doc-icon-action" disabled={isSubmitting} onClick={() => { setReplacing(document); window.setTimeout(() => replacementInput.current?.click(), 0); }} title="Replace" type="button"><i className="ph ph-arrows-clockwise" /></button> : null}{canDelete ? <button className="doc-icon-action" onClick={() => setDeleting(document)} title="Delete" type="button"><i className="ph ph-trash" /></button> : null}</div></td></tr>
+              <tr key={document.id}>
+                <td><strong>{document.title}</strong><br /><small>{document.consent_category ?? document.description}</small></td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <code style={{ fontSize: '0.74rem', background: '#f1f5f9', color: '#0f172a', padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+                      {document.id}
+                    </code>
+                    <button
+                      className="doc-icon-action"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(document.id);
+                        toast.success('Consent Document ID copied!');
+                      }}
+                      title="Copy Consent Document ID"
+                      type="button"
+                    >
+                      <i className="ph ph-copy" />
+                    </button>
+                  </div>
+                </td>
+                <td>
+                  <span style={{ fontWeight: 600, color: '#334155' }}>{document.context_type ?? 'PATIENT'}</span>
+                  <br />
+                  <small style={{ color: '#64748b' }}>Ref: {document.context_id ?? document.patient_id}</small>
+                </td>
+                <td>{document.consent_version ? `v${document.consent_version}` : '-'}</td>
+                <td>{document.uploaded_by_name ?? 'Unknown'}<br /><small>{formatDate(document.uploaded_at)}</small></td>
+                <td><span className="doc-status active">{document.consent_status ? statusLabels[document.consent_status] : 'Pending'}</span></td>
+                <td>
+                  <div className="table-actions">
+                    {canView ? <><button className="doc-icon-action" onClick={() => void handleView(document)} title="View" type="button"><i className="ph ph-eye" /></button><button className="doc-icon-action" onClick={() => void handleDownload(document)} title="Download" type="button"><i className="ph ph-download-simple" /></button></> : null}
+                    {canVerify && document.consent_status === 'ATTACHED' ? <button className="doc-icon-action" onClick={() => void handleVerify(document.id)} title="Verify" type="button"><i className="ph ph-check-circle" /></button> : null}
+                    {canEdit ? <button className="doc-icon-action" disabled={isSubmitting} onClick={() => { setReplacing(document); window.setTimeout(() => replacementInput.current?.click(), 0); }} title="Replace" type="button"><i className="ph ph-arrows-clockwise" /></button> : null}
+                    {canDelete ? <button className="doc-icon-action" onClick={() => setDeleting(document)} title="Delete" type="button"><i className="ph ph-trash" /></button> : null}
+                  </div>
+                </td>
+              </tr>
             ))}
           </tbody></table></div>
         </section>

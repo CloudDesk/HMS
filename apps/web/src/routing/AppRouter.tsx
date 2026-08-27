@@ -44,6 +44,7 @@ import { SystemSettingsPage } from '../pages/SystemSettingsPage';
 import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
 import { BedManagementPage } from '../pages/BedManagementPage';
 import { InpatientAdmissionPage } from '../pages/InpatientAdmissionPage';
+import { InpatientWorkspacePage } from '../pages/InpatientWorkspacePage';
 import { ConsentTemplatesPage } from '../pages/ConsentTemplatesPage';
 import { ReferralBookingPage } from '../pages/ReferralBookingPage';
 import { BedAvailabilityPage } from '../pages/BedAvailabilityPage';
@@ -304,6 +305,10 @@ export function AppRouter() {
     title = 'Admission Requests';
     breadcrumbs = ['Home', 'Admissions', 'Admission Requests'];
     content = <InpatientAdmissionPage />;
+  } else if (pathname === '/admissions/workspace') {
+    title = 'Inpatient Workspace';
+    breadcrumbs = ['Home', 'Admissions', 'Inpatient Workspace'];
+    content = <InpatientWorkspacePage />;
   } else if (pathname === '/reports/library') {
     title = 'Phase 2 Reports';
     breadcrumbs = ['Home', 'Reports', 'Phase 2 Reports'];

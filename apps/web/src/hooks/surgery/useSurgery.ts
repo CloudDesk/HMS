@@ -15,4 +15,4 @@ export function useSurgery(params: SurgeryListParams, enabled = true) {
   const completeBooking = useMutation({ mutationFn: (id: string) => surgeryService.completeBooking(id, params.branch_id), onSuccess: refresh });
   return { recommendations, bookings, createRecommendation, cancelRecommendation, createBooking, confirmBooking, rescheduleBooking, cancelBooking, completeBooking };
 }
-export function useSurgeryAlternatives(params: { branch_id: string; department_id: string; service_id: string; scheduled_start: string }, enabled: boolean) { return useQuery({ queryKey: keys.alternatives(params), queryFn: () => surgeryService.alternatives(params), enabled }); }
+export function useSurgeryAlternatives(params: { branch_id: string; department_id: string; service_id: string; scheduled_start: string; doctor_id?: string }, enabled: boolean) { return useQuery({ queryKey: keys.alternatives(params), queryFn: () => surgeryService.alternatives(params), enabled }); }

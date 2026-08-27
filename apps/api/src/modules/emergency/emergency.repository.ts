@@ -191,16 +191,14 @@ export class EmergencyRepository {
       .session(session)
       .lean();
   }
-  async doctor(id: string, branchId: string, departmentId: string, session: ClientSession) {
-    return DoctorModel.findOne({
+  async doctor(id: string, branchId?: string, departmentId?: string, session?: ClientSession) {
+    const query = DoctorModel.findOne({
       _id: oid(id),
-      branchId: oid(branchId),
-      departmentId: oid(departmentId),
       status: 'ACTIVE',
       deletedAt: null,
-    })
-      .session(session)
-      .lean();
+    });
+    if (session) query.session(session);
+    return query.lean();
   }
   async create(
     data: CreateEmergencyDTO,
