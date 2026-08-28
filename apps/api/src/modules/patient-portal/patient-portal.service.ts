@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AppointmentService } from '../appointments/appointment.service.js';
@@ -9,11 +9,11 @@ import type { UploadPatientDocumentDTO } from '../patients/patient.types.js';
 import type { RequestMetadata } from '../users/user.types.js';
 import type { UserService } from '../users/user.service.js';
 import { PatientPortalRepository } from './patient-portal.repository.js';
-import { createHash, randomInt } from 'node:crypto';
 import { OtpChallengeModel } from './otp-challenge.model.js';
 import { RegistrationTokenModel } from './registration-token.model.js';
 import type { SmsService } from '../../shared/services/sms.service.js';
 import type { PatientAccessRelationship } from './patient-access-grant.model.js';
+import { verifyPatientOtp } from './otp-verification.js';
 
 type ProvisionInput = {
   patientId: string;
@@ -443,12 +443,16 @@ export class PatientPortalService {
       throw new AppError('Enter a valid mobile number.', 400, 'VALIDATION_ERROR');
     }
 
-    // Cooldown check bypassed until SMS tele-gateway integration
-    // const now = new Date();
-    // const latestChallenge = await OtpChallengeModel.findOne({ phone: normalizedPhone }).sort({ createdAt: -1 });
-    // if (latestChallenge && latestChallenge.resendAvailableAt > now) {
-    //   throw new AppError('Please wait before requesting another verification code.', 429, 'RESEND_COOLDOWN');
-    // }
+    const now = new Date();
+    const latestChallenge = await OtpChallengeModel.findOne({ phone: normalizedPhone })
+      .sort({ createdAt: -1 });
+    if (latestChallenge && latestChallenge.resendAvailableAt > now) {
+      throw new AppError(
+        'Please wait before requesting another verification code.',
+        429,
+        'RESEND_COOLDOWN',
+      );
+    }
 
     // Generate a 4-digit code (padded with zeros if needed)
     const code = randomInt(1000, 10000).toString();
@@ -516,18 +520,14 @@ export class PatientPortalService {
     return true;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async verifyOtp(phone: string, otp: string) {
-    // OTP verification check bypassed until SMS tele-gateway integration.
-    // Accepts 1234 or any OTP code in all environments.
+    await verifyPatientOtp(phone, otp);
     const registrationToken = await this.issueRegistrationToken(phone);
     return { registrationToken };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async verifyAndConsumeOtp(phone: string, otp: string) {
-    // OTP verification check bypassed until SMS tele-gateway integration.
-    return;
+    await verifyPatientOtp(phone, otp, true);
   }
 
   private validateOptionalId(value: string | undefined, message: string) {

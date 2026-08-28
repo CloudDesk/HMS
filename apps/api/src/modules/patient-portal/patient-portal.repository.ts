@@ -11,6 +11,7 @@ import { OpdVisitModel } from '../opd/opd-visit.model.js';
 import { PatientModel, PatientTimelineEventModel } from '../patients/patient.model.js';
 import { allocatePatientNumber } from '../patients/patient-number.service.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { RefreshTokenModel } from '../auth/refresh-token.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { UserModel } from '../users/user.model.js';
@@ -406,7 +407,15 @@ export class PatientPortalRepository {
     if (patients.length === 0) return 'NEW_PATIENT_REQUIRES_REGISTRATION' as const;
     if (patients.length > 1) return 'MULTIPLE_PATIENT_MATCHES' as const;
 
-    const adultDate = new Date(patients[0]!.dateOfBirth);
+    const patient = patients[0]!;
+    const linkedPortalOwnerExists = Boolean(await UserModel.exists({
+      patientId: patient._id,
+      status: 'active',
+      deletedAt: null,
+    }));
+    if (linkedPortalOwnerExists) return null;
+
+    const adultDate = new Date(patient.dateOfBirth);
     adultDate.setFullYear(adultDate.getFullYear() + 18);
     return adultDate > new Date() ? 'MINOR_REQUIRES_GUARDIAN' as const : 'ACCOUNT_NOT_LINKED' as const;
   }
@@ -729,7 +738,29 @@ export class PatientPortalRepository {
       { returnDocument: 'after' },
     ).select('_id patientNumber').lean();
     if (!patient) return null;
+    const portalOwner = await UserModel.findOne({
+      patientId: patient._id,
+      deletedAt: null,
+    }).select('_id').lean();
+    if (portalOwner) {
+      const ownerIsEditingSelf = String(portalOwner._id) === userId;
+      await UserModel.updateOne(
+        { _id: portalOwner._id, deletedAt: null },
+        {
+          $set: {
+            phone: ownerIsEditingSelf ? input.phone?.trim() || null : null,
+            updatedBy: objectId(userId),
+          },
+        },
+      );
+    }
     await Promise.all([
+      portalOwner
+        ? RefreshTokenModel.updateMany(
+            { userId: portalOwner._id, revokedAt: null },
+            { $set: { revokedAt: new Date() } },
+          )
+        : Promise.resolve(),
       PatientTimelineEventModel.create({
         patientId: patient._id,
         eventType: 'PROFILE_UPDATED',

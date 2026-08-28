@@ -64,6 +64,8 @@ button {
    ========================================================================== */
 
 .patient-login-page {
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
@@ -71,7 +73,7 @@ button {
   background: var(--patient-canvas);
   color: var(--patient-text);
   box-sizing: border-box;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .patient-login-brand {
@@ -84,8 +86,6 @@ button {
   padding: clamp(3rem, 7vw, 7rem);
   background: linear-gradient(145deg, var(--patient-navy) 0%, #111f3d 58%, var(--patient-navy-soft) 100%);
   color: #fff;
-  position: sticky;
-  top: 0;
   height: 100vh;
   height: 100dvh;
   box-sizing: border-box;
@@ -192,10 +192,14 @@ button {
   align-items: center;
   min-height: 100vh;
   min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   padding: clamp(2rem, 6vh, 4rem) clamp(2rem, 6vw, 5rem);
   background: var(--patient-surface);
   box-sizing: border-box;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 .patient-login-form-wrap {
@@ -387,6 +391,200 @@ button {
   border: 1px solid #bfdbfe;
   background: #eff6ff;
   color: #1e40af;
+}
+
+.patient-signup-page .patient-login-panel {
+  justify-content: flex-start;
+}
+
+.patient-signup-form-wrap {
+  max-width: 520px;
+  padding: 1rem 0;
+}
+
+.portal-registration-modes {
+  display: grid;
+  gap: 0.75rem;
+  margin: -0.25rem 0 1.5rem;
+}
+
+.portal-registration-modes--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.portal-registration-modes > button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.portal-registration-modes > button:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+.portal-registration-modes > button.active {
+  border-color: var(--patient-primary);
+  background: var(--patient-blue-soft);
+  color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.portal-registration-modes > button > i {
+  flex: none;
+  color: var(--patient-primary);
+  font-size: 1.35rem;
+}
+
+.portal-registration-modes > button > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.portal-registration-modes strong {
+  color: var(--patient-text);
+  font-size: 0.82rem;
+}
+
+.portal-registration-modes small {
+  color: var(--patient-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.portal-form-divider {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.45rem 0 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  background: #f8fbff;
+}
+
+.portal-form-divider strong {
+  color: #1e3a8a;
+  font-size: 0.8rem;
+}
+
+.portal-form-divider small {
+  color: var(--patient-muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.patient-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.patient-inline-fields > label {
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.patient-inline-fields > label > input,
+.patient-inline-fields > label > select {
+  width: 100%;
+  min-width: 0;
+  min-height: 49px;
+  padding: 0.75rem 0.85rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 9px;
+  outline: 0;
+  background: #fff;
+  color: var(--patient-text);
+  font: inherit;
+  font-weight: 500;
+}
+
+.patient-inline-fields > label > input:focus,
+.patient-inline-fields > label > select:focus {
+  border-color: var(--patient-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.portal-consent {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: flex-start;
+  gap: 0.7rem !important;
+  padding: 0.9rem 1rem;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  background: #f8fbff;
+  color: #475569 !important;
+  font-size: 0.76rem !important;
+  font-weight: 500 !important;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.portal-consent input {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin: 0.15rem 0 0;
+  accent-color: var(--patient-primary);
+}
+
+.patient-signup-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--patient-border);
+}
+
+.patient-signup-prompt button {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.patient-signup-prompt button:hover {
+  color: var(--patient-primary);
+}
+
+.portal-field-error,
+.patient-login-form label > .portal-field-error {
+  color: #b91c1c;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .patient-signup-form-wrap {
+    padding: 0;
+  }
+
+  .portal-registration-modes--two,
+  .patient-inline-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ==========================================================================
@@ -3355,13 +3553,18 @@ button {
 @media (max-width: 760px) {
   .patient-login-page {
     display: block;
+    height: auto;
+    overflow: visible;
   }
   .patient-login-brand {
     display: none;
   }
   .patient-login-panel {
+    height: auto;
     min-height: 100vh;
+    min-height: 100dvh;
     padding: 2rem 1.25rem;
+    overflow: visible;
   }
   .patient-login-mobile-mark {
     display: flex;
@@ -4717,4 +4920,3 @@ footer#contact span {
     grid-template-columns: 1fr;
   }
 }
-

@@ -25,6 +25,7 @@ export type AuthUserRecord = {
   username: string;
   email: string | null;
   fullName: string;
+  phone: string | null;
   patientId: string | null;
   passwordHash: string;
   status: AuthUserStatus;

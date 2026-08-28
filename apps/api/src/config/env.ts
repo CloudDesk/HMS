@@ -134,7 +134,8 @@ export const env = {
     failedLoginLimit: parseInteger(process.env.AUTH_FAILED_LOGIN_LIMIT, 5),
     lockoutMinutes: parseInteger(process.env.AUTH_LOCKOUT_MINUTES, 15),
     passwordResetTtlMinutes: parseInteger(process.env.AUTH_PASSWORD_RESET_TTL_MINUTES, 30),
-    patientPortalDemoOtp: process.env.PATIENT_PORTAL_DEMO_OTP ?? '1234',
+    patientPortalDemoOtp:
+      process.env.PATIENT_PORTAL_DEMO_OTP ?? (process.env.APP_ENV === 'prod' ? '' : '1234'),
     passwordPolicy: {
       minLength: parseInteger(process.env.AUTH_PASSWORD_MIN_LENGTH, 8),
       requireUppercase: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_UPPERCASE, true),
@@ -162,4 +163,8 @@ export const env = {
 
 if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {
   throw new Error('JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET are required');
+}
+
+if (env.app.environment === 'prod' && env.auth.patientPortalDemoOtp) {
+  throw new Error('PATIENT_PORTAL_DEMO_OTP must not be configured in production');
 }

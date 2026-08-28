@@ -20,6 +20,7 @@ import type {
   UpdatePatientDTO,
 } from './patient.types.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { RefreshTokenModel } from '../auth/refresh-token.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
@@ -290,6 +291,20 @@ export class PatientRepository {
     ).lean<PatientLean>();
 
     return patient ? toPatient(patient) : undefined;
+  }
+
+  async syncPortalOwnerPhone(patientId: string, phone: string | null) {
+    const owner = await UserModel.findOneAndUpdate(
+      { patientId: new Types.ObjectId(patientId), deletedAt: null },
+      { $set: { phone: nullableString(phone), updatedAt: new Date() } },
+      { returnDocument: 'after' },
+    ).select('_id').lean();
+    if (owner) {
+      await RefreshTokenModel.updateMany(
+        { userId: owner._id, revokedAt: null },
+        { $set: { revokedAt: new Date() } },
+      );
+    }
   }
 
   async nextPatientSequence() {

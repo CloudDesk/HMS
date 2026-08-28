@@ -40,6 +40,7 @@ describe('OTP Challenge System Tests', () => {
     // Mock the Mongoose model static methods
     vi.spyOn(OtpChallengeModel, 'create').mockImplementation(async (data: any) => {
       const record = {
+        _id: `challenge-${challengesDb.length + 1}`,
         ...data,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -90,6 +91,7 @@ describe('OTP Challenge System Tests', () => {
       const match = challengesDb
         .filter((c) => {
           if (filter.phone && c.phone !== filter.phone) return false;
+          if (filter.expiresAt?.$gt && c.expiresAt <= filter.expiresAt.$gt) return false;
           
           // Match verifiedAt condition
           if (filter.verifiedAt === null && c.verifiedAt !== null) return false;
@@ -118,6 +120,30 @@ describe('OTP Challenge System Tests', () => {
         }
       };
       return queryChain as any;
+    }) as any);
+
+    vi.spyOn(OtpChallengeModel, 'findOneAndUpdate').mockImplementation((async (
+      filter: any,
+      update: any,
+    ) => {
+      const candidates = challengesDb
+        .filter((challenge) => {
+          if (filter._id && challenge._id !== filter._id) return false;
+          if (filter.phone && challenge.phone !== filter.phone) return false;
+          if (filter.otpHash && challenge.otpHash !== filter.otpHash) return false;
+          if (filter.verifiedAt === null && challenge.verifiedAt !== null) return false;
+          if (filter.verifiedAt?.$ne === null && challenge.verifiedAt === null) return false;
+          if (filter.expiresAt?.$gt && challenge.expiresAt <= filter.expiresAt.$gt) return false;
+          if (filter.attempts?.$lt !== undefined && challenge.attempts >= filter.attempts.$lt) return false;
+          return true;
+        })
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const match = candidates[0];
+      if (!match) return null;
+      if (update.$inc?.attempts) match.attempts += update.$inc.attempts;
+      if (update.$set) Object.assign(match, update.$set);
+      match.updatedAt = new Date();
+      return { ...match };
     }) as any);
 
     smsService = new CapturedSmsService();
@@ -157,15 +183,15 @@ describe('OTP Challenge System Tests', () => {
     expect(challenge.verifiedAt).toBeNull();
   });
 
-  it('should allow resends without rate limiting during dev testing phase', async () => {
+  it('should enforce the resend cooldown', async () => {
     const phone = '+27821234567';
     const metadata = { ipAddress: '127.0.0.1', userAgent: 'test-agent' };
 
     await service.requestOtp(phone, metadata);
 
-    // Immediate second request must pass during testing phase
-    const secondRes = await service.requestOtp(phone, metadata);
-    expect(secondRes.success).toBe(true);
+    await expect(service.requestOtp(phone, metadata)).rejects.toThrow(
+      'Please wait before requesting another verification code.',
+    );
   });
 
   it('should verify active and matching OTP codes', async () => {
@@ -174,18 +200,39 @@ describe('OTP Challenge System Tests', () => {
 
     await service.requestOtp(phone, metadata);
 
-    // Verification should pass
-    await expect(service.verifyOtp(phone, '1234')).resolves.not.toThrow();
+    const otp = smsService.lastMessage.match(/code is: (\d{4})/)?.[1];
+    expect(otp).toBeDefined();
+    await expect(service.verifyOtp(phone, otp)).resolves.not.toThrow();
   });
 
-  it('should accept OTP codes without blocking during testing phase', async () => {
+  it('should reject an incorrect OTP code', async () => {
     const phone = '+27821234567';
     const metadata = { ipAddress: '127.0.0.1', userAgent: 'test-agent' };
 
     await service.requestOtp(phone, metadata);
 
-    // OTP verification bypassed during dev phase
-    await expect(service.verifyOtp(phone, '0000')).resolves.not.toThrow();
+    await expect(service.verifyOtp(phone, '0000')).rejects.toThrow('verification code is invalid');
+  });
+
+  it('should consume a real OTP only once', async () => {
+    const phone = '+27821234567';
+    await service.requestOtp(phone, { ipAddress: '127.0.0.1', userAgent: 'test-agent' });
+    const otp = smsService.lastMessage.match(/code is: (\d{4})/)?.[1];
+
+    await expect(service.verifyAndConsumeOtp(phone, otp)).resolves.not.toThrow();
+    await expect(service.verifyAndConsumeOtp(phone, otp)).rejects.toThrow(
+      'verification code is invalid or has expired',
+    );
+  });
+
+  it('should block a challenge after three incorrect attempts', async () => {
+    const phone = '+27821234567';
+    await service.requestOtp(phone, { ipAddress: '127.0.0.1', userAgent: 'test-agent' });
+
+    await expect(service.verifyOtp(phone, '0000')).rejects.toThrow('verification code is invalid');
+    await expect(service.verifyOtp(phone, '0000')).rejects.toThrow('verification code is invalid');
+    await expect(service.verifyOtp(phone, '0000')).rejects.toThrow('Too many failed verification attempts');
+    await expect(service.verifyOtp(phone, '0000')).rejects.toThrow('Too many failed verification attempts');
   });
 
   it('should support the demo OTP bypass in non-production environments', async () => {

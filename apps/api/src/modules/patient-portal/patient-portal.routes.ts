@@ -299,8 +299,8 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       } : undefined,
     }, metadataFromRequest(request));
 
-    const session = await services.auth.loginPatientWithOtp(
-      { phone: parsed.data.phone, otp: parsed.data.otp ?? '1234' },
+    const session = await services.auth.loginPatientWithVerifiedPhone(
+      parsed.data.phone,
       metadataFromRequest(request),
     );
     setRefreshTokenCookie(reply, session.tokens.refreshToken, session.tokens.refreshExpiresIn);
@@ -311,19 +311,15 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     const parsed = otpLoginSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid mobile number and 4-digit code', 400, 'VALIDATION_ERROR');
     
-    const isDemo = services.auth.isPatientDemoOtp(parsed.data.otp);
-    if (!isDemo) {
-      await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp);
-    }
+    const verification = await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp);
 
     const status = await services.patientPortal.getUnlinkedPatientLoginStatus(parsed.data.phone);
     if (status === 'MINOR_REQUIRES_GUARDIAN') {
-      const registrationToken = await services.patientPortal.issueRegistrationToken(parsed.data.phone, 'guardian');
       throw new AppError(
         'This patient is a minor. A parent or guardian account must be linked before signing in.',
         409,
         'MINOR_GUARDIAN_ACCOUNT_REQUIRED',
-        { registrationToken },
+        { registrationToken: verification.registrationToken },
       );
     }
     if (status === 'ACCOUNT_NOT_LINKED') {
@@ -337,12 +333,11 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       );
     }
     if (status === 'NEW_PATIENT_REQUIRES_REGISTRATION') {
-      const registrationToken = await services.patientPortal.issueRegistrationToken(parsed.data.phone, 'new');
       throw new AppError(
         'No portal account or patient record matches this number. Register as a new patient first.',
         409,
         'NEW_PATIENT_REQUIRES_REGISTRATION',
-        { registrationToken },
+        { registrationToken: verification.registrationToken },
       );
     }
 
@@ -383,8 +378,8 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       identification: parsed.data.identification,
       legalConsentAccepted: parsed.data.legal_consent_accepted,
     }, metadataFromRequest(request));
-    const result = await services.auth.loginPatientWithOtp(
-      { phone: parsed.data.phone, otp: parsed.data.otp ?? '1234' },
+    const result = await services.auth.loginPatientWithVerifiedPhone(
+      parsed.data.phone,
       metadataFromRequest(request),
     );
     setRefreshTokenCookie(reply, result.tokens.refreshToken, result.tokens.refreshExpiresIn);

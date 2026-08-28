@@ -14,6 +14,7 @@ const mapUser = (user: any): AuthUserRecord => ({
   username: user.username,
   email: user.email ?? null,
   fullName: user.fullName ?? user.username, // Provide fallback for auth mappings
+  phone: user.phone ?? null,
   patientId: user.patientId?.toString() ?? null,
   passwordHash: user.passwordHash,
   status: user.status as AuthUserStatus,

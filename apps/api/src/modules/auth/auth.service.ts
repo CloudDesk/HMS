@@ -7,8 +7,10 @@ import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
 import type { AuthenticatedUser } from '../../shared/types/auth.js';
 import { AuthRepository } from './auth.repository.js';
 import type { AuthUserRecord, RequestMetadata } from './auth.types.js';
-import { createHash } from 'node:crypto';
-import { OtpChallengeModel } from '../patient-portal/otp-challenge.model.js';
+import {
+  consumeVerifiedPatientOtp,
+  isPatientDemoOtp,
+} from '../patient-portal/otp-verification.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
 import { PatientModel } from '../patients/patient.model.js';
@@ -148,20 +150,54 @@ export class AuthService {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  isPatientDemoOtp(_otp?: string) {
-    // OTP verification check bypassed for development/testing until SMS tele-gateway integration.
-    // Accepts 1234 or any OTP code in all environments.
-    return true;
+  isPatientDemoOtp(otp?: string) {
+    return isPatientDemoOtp(otp);
   }
 
   async loginPatientWithOtp(input: PatientOtpLoginInput, metadata: RequestMetadata) {
+    try {
+      await consumeVerifiedPatientOtp(input.phone, input.otp);
+    } catch (error) {
+      await this.repository.audit('auth.patient_otp.failed', {
+        ...metadata,
+        metadata: { reason: 'invalid_otp' },
+      });
+      throw error;
+    }
+
+    return this.loginPatientWithVerifiedPhone(input.phone, metadata);
+  }
+
+  async loginPatientWithVerifiedPhone(phone: string, metadata: RequestMetadata) {
     const invalidCredentials = (message = 'Invalid mobile number or verification code') => new AppError(
       message,
       401,
       'INVALID_CREDENTIALS',
     );
-    let user = await this.repository.findUserByIdentifier(input.phone);
+    const phoneFilter = buildPhoneMongoFilter(phone);
+    const matchedPatients = await PatientModel.find({
+      deletedAt: null,
+      status: 'ACTIVE',
+      ...phoneFilter,
+    }).select('_id').limit(2).lean();
+    let user = await this.repository.findUserByIdentifier(phone);
+
+    // Patient contact details can change independently of the portal account.
+    // Resolve the existing owner through the patient record when the new phone
+    // no longer matches the user's stored login phone.
+    if (!user && matchedPatients.length === 1) {
+      const existingPatientUser = await UserModel.findOne({
+        patientId: matchedPatients[0]!._id,
+        deletedAt: null,
+      }).select('_id').lean();
+      if (existingPatientUser) {
+        await UserModel.updateOne(
+          { _id: existingPatientUser._id, deletedAt: null },
+          { $set: { phone: phone.trim() } },
+        );
+        user = await this.repository.findUserById(String(existingPatientUser._id));
+      }
+    }
 
     if (!user) {
       await this.repository.audit('auth.patient_otp.failed', {
@@ -170,71 +206,6 @@ export class AuthService {
         metadata: { reason: 'unknown_phone' },
       });
       throw invalidCredentials();
-    }
-
-    const normalizedPhone = input.phone.replace(/\D/g, '');
-    const isDemo = this.isPatientDemoOtp(input.otp);
-
-    if (!isDemo) {
-      const now = new Date();
-      // Look for a verified challenge within 15 minutes
-      const challenge = await OtpChallengeModel.findOne({
-        phone: normalizedPhone,
-        verifiedAt: { $ne: null, $gt: new Date(Date.now() - 15 * 60 * 1000) },
-        expiresAt: { $gt: now },
-      }).sort({ createdAt: -1 });
-
-      if (!challenge) {
-        // Try verifying it now directly
-        const activeChallenge = await OtpChallengeModel.findOne({
-          phone: normalizedPhone,
-          verifiedAt: null,
-          expiresAt: { $gt: now },
-        }).sort({ createdAt: -1 });
-
-        if (!activeChallenge) {
-          await this.repository.audit('auth.patient_otp.failed', {
-            ...metadata,
-            subjectUserId: user.id,
-            metadata: { reason: 'invalid_otp' },
-          });
-          throw invalidCredentials('The verification code is invalid or has expired');
-        }
-
-        if (activeChallenge.attempts >= 3) {
-          throw new AppError('Too many failed verification attempts. Please request a new code.', 429, 'MAX_ATTEMPTS_EXCEEDED');
-        }
-
-        const hashed = createHash('sha256').update(`${normalizedPhone}:${input.otp}`).digest('hex');
-        if (activeChallenge.otpHash !== hashed) {
-          activeChallenge.attempts += 1;
-          await activeChallenge.save();
-          await this.repository.audit('auth.patient_otp.failed', {
-            ...metadata,
-            subjectUserId: user.id,
-            metadata: { reason: 'invalid_otp' },
-          });
-          throw invalidCredentials('The verification code is invalid');
-        }
-
-        activeChallenge.verifiedAt = now;
-        activeChallenge.expiresAt = now; // consume it
-        await activeChallenge.save();
-      } else {
-        // Check hash
-        const hashed = createHash('sha256').update(`${normalizedPhone}:${input.otp}`).digest('hex');
-        if (challenge.otpHash !== hashed) {
-          await this.repository.audit('auth.patient_otp.failed', {
-            ...metadata,
-            subjectUserId: user.id,
-            metadata: { reason: 'invalid_otp' },
-          });
-          throw invalidCredentials('The verification code is invalid');
-        }
-        // Consume verified challenge
-        challenge.expiresAt = now;
-        await challenge.save();
-      }
     }
 
     if (user.status === 'inactive' || isLocked(user)) {
@@ -253,12 +224,6 @@ export class AuthService {
 
     if (!isPatientPortalUser) {
       const patientRole = await RoleModel.findOne({ code: 'PATIENT', status: 'active', deletedAt: null }).select('_id').lean();
-      const phoneFilter = buildPhoneMongoFilter(input.phone);
-      const matchedPatients = await PatientModel.find({
-        deletedAt: null,
-        status: 'ACTIVE',
-        ...phoneFilter,
-      }).select('_id').limit(2).lean();
 
       if (matchedPatients.length > 1) {
         throw new AppError(
@@ -312,6 +277,24 @@ export class AuthService {
         metadata: { reason: user.status === 'inactive' ? 'inactive_user' : 'locked_user' },
       });
       throw invalidCredentials();
+    }
+
+    if (user.patientId) {
+      const linkedPatientMatchesPhone = Boolean(await PatientModel.exists({
+        _id: user.patientId,
+        deletedAt: null,
+        status: 'ACTIVE',
+        ...phoneFilter,
+      }));
+      if (!linkedPatientMatchesPhone) {
+        await this.repository.revokeAllRefreshTokensForUser(user.id);
+        await this.repository.audit('auth.patient_otp.denied', {
+          ...metadata,
+          subjectUserId: user.id,
+          metadata: { reason: 'patient_phone_changed' },
+        });
+        throw invalidCredentials('This mobile number is no longer registered to this patient account');
+      }
     }
 
     if (!isPatientPortalUser) {
@@ -396,6 +379,18 @@ export class AuthService {
 
     if (!user || user.status === 'inactive' || isLocked(user)) {
       throw new AppError('Authentication required', 401, 'AUTHENTICATION_REQUIRED');
+    }
+
+    if (user.patientId) {
+      const linkedPatientMatchesAccountPhone = user.phone && Boolean(await PatientModel.exists({
+        _id: user.patientId,
+        status: 'ACTIVE',
+        deletedAt: null,
+        ...buildPhoneMongoFilter(user.phone),
+      }));
+      if (!linkedPatientMatchesAccountPhone) {
+        throw new AppError('Authentication required', 401, 'AUTHENTICATION_REQUIRED');
+      }
     }
 
     return toAuthUser(user);

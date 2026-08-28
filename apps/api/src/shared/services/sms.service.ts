@@ -5,8 +5,9 @@ export interface SmsService {
 }
 
 export class MockSmsService implements SmsService {
-  async sendSms(phone: string, message: string): Promise<void> {
-    console.log(`[SMS MOCK] To: ${phone} | Message: ${message}`);
+  async sendSms(phone: string): Promise<void> {
+    const suffix = phone.replace(/\D/g, '').slice(-4);
+    console.log(`[SMS MOCK] Verification message queued for phone ending ${suffix}`);
   }
 }
 
@@ -32,8 +33,8 @@ export class HttpSmsService implements SmsService {
       if (!response.ok) {
         throw new Error(`SMS gateway returned status ${response.status}`);
       }
-    } catch (error) {
-      console.error('[SMS ERROR] Failed to send SMS via HTTP gateway:', error);
+    } catch {
+      throw new Error('SMS verification code could not be delivered');
     }
   }
 }
