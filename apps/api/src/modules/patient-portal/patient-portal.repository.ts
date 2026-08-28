@@ -16,6 +16,7 @@ import { ServiceModel } from '../services/service.model.js';
 import { UserModel } from '../users/user.model.js';
 import { PatientAccessGrantModel, type PatientAccessRelationship } from './patient-access-grant.model.js';
 import { GuardianProfileModel, type GuardianRelationship } from './guardian-profile.model.js';
+import { buildPhoneMongoFilter } from '../../utils/phone.js';
 
 const objectId = (value?: string | null) => (value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined);
 const validObjectIds = (values: unknown[]) =>
@@ -379,29 +380,28 @@ export class PatientPortalRepository {
   }
 
   async hasPatientMatchingContact(email: string, phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
+    const phoneFilter = buildPhoneMongoFilter(phone);
     return Boolean(await PatientModel.exists({
       deletedAt: null,
       $or: [
         { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-        { phone: { $in: [phone, normalizedPhone, `+${normalizedPhone}`] } },
+        phoneFilter,
       ],
     }));
   }
 
   async getUnlinkedPatientLoginStatus(phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const phoneCandidates = [phone.trim(), normalizedPhone, `+${normalizedPhone}`];
+    const phoneFilter = buildPhoneMongoFilter(phone);
     const portalAccountExists = await UserModel.exists({
       deletedAt: null,
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     });
     if (portalAccountExists) return null;
 
     const patients = await PatientModel.find({
       deletedAt: null,
       status: 'ACTIVE',
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     }).select('dateOfBirth').limit(2).lean();
     if (patients.length === 0) return 'NEW_PATIENT_REQUIRES_REGISTRATION' as const;
     if (patients.length > 1) return 'MULTIPLE_PATIENT_MATCHES' as const;
@@ -412,12 +412,11 @@ export class PatientPortalRepository {
   }
 
   async getUniqueUnlinkedAdultPatientByPhone(phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const phoneCandidates = [phone.trim(), normalizedPhone, `+${normalizedPhone}`];
+    const phoneFilter = buildPhoneMongoFilter(phone);
     const patients = await PatientModel.find({
       deletedAt: null,
       status: 'ACTIVE',
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     }).select('firstName middleName lastName dateOfBirth email patientNumber').limit(2).lean();
     if (patients.length !== 1) return null;
 
@@ -445,14 +444,13 @@ export class PatientPortalRepository {
   }
 
   async getUnlinkedMinorByPhone(phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const phoneCandidates = [phone.trim(), normalizedPhone, `+${normalizedPhone}`];
-    if (await UserModel.exists({ deletedAt: null, phone: { $in: phoneCandidates } })) return null;
+    const phoneFilter = buildPhoneMongoFilter(phone);
+    if (await UserModel.exists({ deletedAt: null, ...phoneFilter })) return null;
 
     const patients = await PatientModel.find({
       deletedAt: null,
       status: 'ACTIVE',
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     }).select('firstName lastName dateOfBirth').limit(2).lean();
     if (patients.length !== 1) return null;
 

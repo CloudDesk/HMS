@@ -7,6 +7,7 @@ import {
   type PatientDocumentMetadataFields,
   type PatientTimelineEventFields,
 } from './patient.model.js';
+import { buildPhoneMongoFilter } from '../../utils/phone.js';
 import type {
   CreatePatientDTO,
   CreatePatientDocumentDTO,
@@ -254,7 +255,7 @@ export class PatientRepository {
     ];
 
     if (data.phone) {
-      filters.push({ phone: data.phone.trim() });
+      filters.push(buildPhoneMongoFilter(data.phone));
     }
 
     const patients = await PatientModel.find({

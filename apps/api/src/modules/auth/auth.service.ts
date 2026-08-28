@@ -9,6 +9,10 @@ import { AuthRepository } from './auth.repository.js';
 import type { AuthUserRecord, RequestMetadata } from './auth.types.js';
 import { createHash } from 'node:crypto';
 import { OtpChallengeModel } from '../patient-portal/otp-challenge.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { UserModel } from '../users/user.model.js';
+import { PatientModel } from '../patients/patient.model.js';
+import { buildPhoneMongoFilter } from '../../utils/phone.js';
 
 type TokenPair = {
   accessToken: string;
@@ -157,7 +161,7 @@ export class AuthService {
       401,
       'INVALID_CREDENTIALS',
     );
-    const user = await this.repository.findUserByIdentifier(input.phone);
+    let user = await this.repository.findUserByIdentifier(input.phone);
 
     if (!user) {
       await this.repository.audit('auth.patient_otp.failed', {
@@ -242,10 +246,74 @@ export class AuthService {
       throw invalidCredentials();
     }
 
-    const publicUser = await this.publicUser(user);
-    const isPatientPortalUser = Boolean(
+    let publicUser = await this.publicUser(user);
+    let isPatientPortalUser = Boolean(
       user.patientId || publicUser.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'),
     );
+
+    if (!isPatientPortalUser) {
+      const patientRole = await RoleModel.findOne({ code: 'PATIENT', status: 'active', deletedAt: null }).select('_id').lean();
+      const phoneFilter = buildPhoneMongoFilter(input.phone);
+      const matchedPatients = await PatientModel.find({
+        deletedAt: null,
+        status: 'ACTIVE',
+        ...phoneFilter,
+      }).select('_id').limit(2).lean();
+
+      if (matchedPatients.length > 1) {
+        throw new AppError(
+          'More than one patient record uses this mobile number. Contact hospital reception to verify and link the correct record.',
+          409,
+          'MULTIPLE_PATIENT_MATCHES',
+        );
+      }
+
+      const matchedPatient = matchedPatients[0];
+      const existingPatientUser = matchedPatient
+        ? await UserModel.findOne({ patientId: matchedPatient._id, deletedAt: null }).select('_id').lean()
+        : null;
+
+      // A patient record can have only one owning portal account. If one already
+      // exists, authenticate that account with the OTP sent to the patient's
+      // registered mobile instead of trying to attach the same patient twice.
+      if (existingPatientUser && String(existingPatientUser._id) !== user.id) {
+        const linkedUser = await this.repository.findUserById(String(existingPatientUser._id));
+        if (linkedUser) {
+          user = linkedUser;
+          isPatientPortalUser = true;
+        }
+      }
+
+      const updateFields: Record<string, unknown> = {};
+      if (!isPatientPortalUser && patientRole) {
+        updateFields.$addToSet = { roleIds: patientRole._id };
+      }
+      if (!isPatientPortalUser && matchedPatient && !user.patientId) {
+        updateFields.$set = { patientId: matchedPatient._id };
+      }
+
+      if (Object.keys(updateFields).length > 0) {
+        await UserModel.updateOne({ _id: user.id, deletedAt: null }, updateFields);
+        const reloaded = await this.repository.findUserById(user.id);
+        if (reloaded) {
+          user = reloaded;
+          publicUser = await this.publicUser(user);
+          isPatientPortalUser = Boolean(
+            user.patientId || publicUser.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'),
+          );
+        }
+      }
+    }
+
+    if (user.status === 'inactive' || isLocked(user)) {
+      await this.repository.audit('auth.patient_otp.denied', {
+        ...metadata,
+        subjectUserId: user.id,
+        metadata: { reason: user.status === 'inactive' ? 'inactive_user' : 'locked_user' },
+      });
+      throw invalidCredentials();
+    }
+
     if (!isPatientPortalUser) {
       await this.repository.audit('auth.patient_otp.denied', {
         ...metadata,

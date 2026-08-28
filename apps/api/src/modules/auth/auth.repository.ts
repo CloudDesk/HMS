@@ -5,6 +5,7 @@ import { RoleModel } from '../roles/role.model.js';
 import { RefreshTokenModel } from './refresh-token.model.js';
 import { PasswordResetTokenModel, AuditLogModel } from './auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { buildPhoneMongoFilter } from '../../utils/phone.js';
 import type { AuthAccessContext, AuthUserRecord, AuthUserStatus, PasswordResetTokenRecord, RefreshTokenRecord, RequestMetadata } from './auth.types.js';
 
 const mapUser = (user: any): AuthUserRecord => ({
@@ -85,12 +86,11 @@ export class AuthRepository {
     const normalizedIdentifier = identifier.trim().toLowerCase();
     const escapedIdentifier = normalizedIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const searchRegex = new RegExp(`^${escapedIdentifier}$`, 'i');
-    const normalizedPhone = identifier.trim().replace(/\D/g, '');
-    const phoneCandidates = [identifier.trim(), normalizedPhone, `+${normalizedPhone}`];
+    const phoneFilter = buildPhoneMongoFilter(identifier);
     
     const user = await UserModel.findOne({
       deletedAt: null,
-      $or: [{ username: searchRegex }, { email: searchRegex }, { phone: { $in: phoneCandidates } }]
+      $or: [{ username: searchRegex }, { email: searchRegex }, phoneFilter]
     }).lean();
 
     return user ? mapUser(user) : null;
