@@ -221,6 +221,22 @@ export function useAppointmentQueueFeature() {
     await queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() });
   };
 
+  const handleCheckIn = async (appointmentId: string) => {
+    try {
+      await createVisit.mutateAsync({
+        appointment_id: appointmentId,
+        notes: 'Patient checked in at reception.',
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.visits() }),
+      ]);
+      toast.success('Patient checked in and added to OPD queue.');
+    } catch {
+      // toast is handled in mutation
+    }
+  };
+
   const handleSaveVitals = async (visit: OpdVisitResponse, payload: CreateOpdVitalsPayload) => {
     if (!canCreateVitals || !canEditVisit) {
       throw new Error('You do not have permission to record vitals for this visit.');
@@ -267,6 +283,7 @@ export function useAppointmentQueueFeature() {
       setBranchFilter,
       setQueueDate,
       visitForAppointment,
+      handleCheckIn,
       handleCallNext,
       handleSkip,
       handleNoShow,

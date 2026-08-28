@@ -278,16 +278,16 @@ export function SurgeryWorkspacePage() {
       {/* Main Table Views */}
       {state.tab === 'recommendations' ? (
         <div className="surgery-table-card">
-          <table className="data-table">
+          <table className="data-table" style={{ minWidth: '960px' }}>
             <thead>
               <tr>
-                <th>Recommendation</th>
-                <th>Patient</th>
+                <th style={{ width: '180px' }}>Recommendation</th>
+                <th style={{ width: '180px' }}>Patient</th>
                 <th>Procedure</th>
                 <th>Doctor / Department</th>
                 <th>Clinical Reason</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style={{ width: '130px' }}>Status</th>
+                <th style={{ width: '150px', minWidth: '150px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -324,21 +324,21 @@ export function SurgeryWorkspacePage() {
                     <td>
                       <StatusBadge tone={statusTone(item.status)}>{item.status}</StatusBadge>
                     </td>
-                    <td>
-                      <div className="surgery-table-actions">
+                    <td style={{ textAlign: 'right' }}>
+                      <div className="surgery-table-actions" style={{ justifyContent: 'flex-end' }}>
                         {item.status === 'ACTIVE' ? (
                           <>
                             <button
                               className="btn-primary compact"
                               onClick={() => { setBookingFor(item); bookingForm.reset(); }}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '6px', fontSize: '0.78rem' }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', whiteSpace: 'nowrap' }}
                             >
                               <i className="ph ph-calendar-plus" /> Book
                             </button>
                             <button
                               className="btn-danger compact"
                               onClick={() => { setBookingFor(item); setActionMode('cancel-recommendation'); }}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '6px', fontSize: '0.78rem', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', whiteSpace: 'nowrap' }}
                             >
                               <i className="ph ph-x" /> Cancel
                             </button>
@@ -347,7 +347,7 @@ export function SurgeryWorkspacePage() {
                           <button
                             className="btn-secondary compact"
                             onClick={() => actions.setTab('bookings')}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '6px', fontSize: '0.78rem' }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', whiteSpace: 'nowrap' }}
                           >
                             <i className="ph ph-eye" /> View Booking
                           </button>
@@ -364,17 +364,17 @@ export function SurgeryWorkspacePage() {
 
       {state.tab === 'bookings' ? (
         <div className="surgery-table-card">
-          <table className="data-table">
+          <table className="data-table" style={{ minWidth: '980px' }}>
             <thead>
               <tr>
-                <th>Booking</th>
-                <th>Patient</th>
+                <th style={{ width: '180px' }}>Booking</th>
+                <th style={{ width: '180px' }}>Patient</th>
                 <th>Procedure</th>
                 <th>Schedule</th>
                 <th>Doctor</th>
                 <th>Prerequisites</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style={{ width: '130px' }}>Status</th>
+                <th style={{ width: '110px', minWidth: '110px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -410,11 +410,11 @@ export function SurgeryWorkspacePage() {
                     <td>
                       <StatusBadge tone={statusTone(item.status)}>{item.status.replaceAll('_', ' ')}</StatusBadge>
                     </td>
-                    <td>
+                    <td style={{ textAlign: 'right' }}>
                       <button
                         className="btn-secondary compact"
                         onClick={() => setSelected(item)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '6px', fontSize: '0.78rem' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                       >
                         <i className="ph ph-sliders" /> Review
                       </button>
@@ -428,35 +428,93 @@ export function SurgeryWorkspacePage() {
       ) : null}
 
       {state.tab === 'schedule' ? (
-        <section className="surgery-table-card" style={{ padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
+        <section className="surgery-table-card surgery-schedule-board">
+          <div className="surgery-schedule-header-bar">
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>Procedure Schedule</h3>
-              <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                All active bookings for {new Date(`${state.date}T00:00:00`).toLocaleDateString()}
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ph ph-calendar-check" style={{ color: '#0284c7' }} />
+                Procedure Schedule Board
+              </h3>
+              <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                All procedure schedules for <strong>{new Date(`${state.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong>
               </p>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ background: '#eff6ff', color: '#1e40af', padding: '4px 10px', borderRadius: '20px', fontSize: '0.76rem', fontWeight: 600 }}>
+                {state.scheduleRows.length} Scheduled
+              </span>
+            </div>
           </div>
+
           {state.bookingsQuery.isLoading ? (
-            <div className="empty-state">Loading schedule...</div>
+            <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+              <i className="ph ph-spinner-gap" style={{ fontSize: '1.5rem', animation: 'spin 1s linear infinite' }} />
+              <p style={{ marginTop: '0.5rem' }}>Loading surgical procedure schedule...</p>
+            </div>
           ) : state.bookingsQuery.isError ? (
-            <div className="error-state">Unable to load the procedure schedule.</div>
+            <div className="error-state" style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
+              Unable to load the procedure schedule.
+            </div>
           ) : state.scheduleRows.length === 0 ? (
-            <div className="empty-state">No procedures are scheduled for this date.</div>
+            <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+              <i className="ph ph-calendar-x" style={{ fontSize: '2rem', color: '#94a3b8', marginBottom: '8px', display: 'block' }} />
+              <strong style={{ color: '#334155', display: 'block', fontSize: '0.92rem' }}>No Procedures Scheduled for this Date</strong>
+              <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.8rem' }}>Select another date above or book a pending recommendation.</p>
+            </div>
           ) : (
-            <div className="schedule-timeline">
+            <div className="surgery-schedule-list">
               {state.scheduleRows.map((item) => (
-                <button
-                  type="button"
-                  className="schedule-event"
+                <div
+                  className={`surgery-schedule-card status-${item.status}`}
                   key={item.id}
-                  onClick={() => setSelected(item)}
                 >
-                  <span>{new Date(item.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  <strong>{item.patient_name} · {item.service_name}</strong>
-                  <small>{item.doctor_name} · {item.department_name}</small>
-                  <StatusBadge tone={statusTone(item.status)}>{item.status.replaceAll('_', ' ')}</StatusBadge>
-                </button>
+                  <div className="surgery-schedule-time">
+                    <strong>
+                      <i className="ph ph-clock" style={{ color: '#0284c7', fontSize: '1.1rem' }} />
+                      {new Date(item.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </strong>
+                    <small>Duration: {item.duration_minutes} min</small>
+                  </div>
+
+                  <div className="surgery-schedule-main">
+                    <div className="surgery-schedule-patient-row">
+                      <span className="surgery-schedule-patient-name">{item.patient_name}</span>
+                      <span className="surgery-schedule-mrn">{item.patient_number}</span>
+                      <span className="surgery-schedule-booking-num">{item.booking_number}</span>
+                    </div>
+
+                    <div className="surgery-schedule-meta">
+                      <span className="surgery-schedule-meta-item">
+                        <i className="ph ph-heartbeat" />
+                        <strong>{item.service_name}</strong>
+                      </span>
+                      <span className="surgery-schedule-meta-item">
+                        <i className="ph ph-user-md" />
+                        {item.doctor_name}
+                      </span>
+                      <span className="surgery-schedule-meta-item">
+                        <i className="ph ph-buildings" />
+                        {item.department_name}
+                      </span>
+                    </div>
+
+                    <div style={{ marginTop: '2px' }}>
+                      <RequirementFlags booking={item} service={state.services.find((service) => service.id === item.service_id)} />
+                    </div>
+                  </div>
+
+                  <div className="surgery-schedule-actions">
+                    <StatusBadge tone={statusTone(item.status)}>{item.status.replaceAll('_', ' ')}</StatusBadge>
+                    <button
+                      type="button"
+                      className="btn-secondary compact"
+                      onClick={() => setSelected(item)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, background: '#f8fafc' }}
+                    >
+                      <i className="ph ph-sliders" /> Review
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}

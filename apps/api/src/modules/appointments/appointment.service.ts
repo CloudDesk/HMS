@@ -390,39 +390,13 @@ export class AppointmentService {
         );
         appointment = createdAppointment;
 
-        const visitSequence = await this.opdVisitRepository.nextVisitSequence(session);
-        const visit = await this.opdVisitRepository.create(
-          {
-            appointmentId: createdAppointment.id,
-            visitNumber: `OPD-${new Date().getFullYear()}-${String(visitSequence + 1).padStart(6, '0')}`,
-            queueTokenNumber: visitSequence + 1,
-            patientId: createdAppointment.patient_id,
-            patientNumber: createdAppointment.patient_number,
-            patientName: createdAppointment.patient_name,
-            doctorId: createdAppointment.doctor_id,
-            doctorName: createdAppointment.doctor_name,
-            doctorSpecialization: createdAppointment.doctor_specialization,
-            branchId: createdAppointment.branch_id,
-            departmentId: createdAppointment.department_id,
-            visitDate: appointmentDate,
-            checkInTime: scheduledDateTime(appointmentDate, startTimeStr),
-            visit_type: createdAppointment.visit_type,
-            priority: createdAppointment.priority,
-            reason: createdAppointment.reason,
-            notes: 'OPD queue record created from appointment booking.',
-          },
-          userId,
-          session,
-        );
-
         await this.repository.auditCreated(createdAppointment, userId, session);
-        await this.opdVisitRepository.auditCreated(visit, userId, session);
         await this.patientRepository.addTimelineEvent(
           createdAppointment.patient_id,
           {
-            event_type: 'OPD_VISIT_CREATED',
-            title: 'OPD visit queued',
-            description: `${visit.visit_number} was queued for ${createdAppointment.doctor_name}.`,
+            event_type: 'APPOINTMENT_CREATED',
+            title: 'Appointment scheduled',
+            description: `Appointment ${createdAppointment.appointment_number} scheduled with ${createdAppointment.doctor_name} for ${appointmentDateStr} at ${startTimeStr}.`,
           },
           userId,
           session,

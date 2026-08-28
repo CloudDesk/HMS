@@ -167,6 +167,7 @@ export type ReviewPatientDocumentDTO = {
 export type PatientTimelineEventType =
   | 'REGISTRATION'
   | 'PROFILE_UPDATED'
+  | 'APPOINTMENT_CREATED'
   | 'DOCUMENT_ADDED'
   | 'DOCUMENT_DELETED'
   | 'DOCUMENT_REVIEWED'

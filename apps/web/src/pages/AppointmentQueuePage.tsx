@@ -86,6 +86,7 @@ export function AppointmentQueuePage() {
       setBranchFilter,
       setQueueDate,
       handleCallNext,
+      handleCheckIn,
       handleSkip,
       handleNoShow,
       handleComplete,
@@ -292,6 +293,7 @@ export function AppointmentQueuePage() {
                 ) : (
                   appointments.map((appointment, index) => {
                     const linkedVisit = visitForAppointment(appointment.id);
+                    const canCheckIn = !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
                     const canTakeVitals = linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS';
                     return (
                     <tr className={appointment.id === currentAppointment?.id ? 'queue-current-row' : ''} key={appointment.id}>
@@ -316,6 +318,19 @@ export function AppointmentQueuePage() {
                       </td>
                       <td>
                         <div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
+                          {canCheckIn ? (
+                            <button
+                              className="doc-btn success compact"
+                              disabled={updating}
+                              onClick={() => handleCheckIn(appointment.id)}
+                              title="Check in patient to OPD queue"
+                              type="button"
+                              style={{ background: '#16a34a', color: '#fff' }}
+                            >
+                              <i className="ph ph-user-check" aria-hidden="true" />
+                              Check In
+                            </button>
+                          ) : null}
                           {canTakeVitals ? (
                             <button
                               className="doc-btn primary compact"
