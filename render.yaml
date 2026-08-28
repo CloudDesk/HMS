@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: hms-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build --workspace=@hms/api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_NAME
+        value: hms-api
+      - key: APP_ENV
+        value: prod
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: info
+      - key: CORS_ORIGIN
+        value: https://hms-sit-3bc2e.web.app
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: none
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_TOKEN_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_TOKEN_SECRET
+        generateValue: true
