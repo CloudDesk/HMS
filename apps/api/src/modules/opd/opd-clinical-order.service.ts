@@ -71,7 +71,7 @@ export class OpdClinicalOrderService {
     );
 
     const isLaboratory = orderType === 'LABORATORY';
-    const sourceLabel = order.source_type === 'EMERGENCY'
+    const sourceLabel = order.source_type === 'EMERGENCY_ENCOUNTER'
       ? 'Emergency encounter'
       : 'OPD encounter';
     await this.patientRepository.addTimelineEvent(
