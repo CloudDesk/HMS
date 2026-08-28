@@ -19,22 +19,11 @@ export const buildApp = async () => {
   registerErrorHandler(app);
   await registerRequestContext(app);
 
-  // HttpOnly refresh-token cookies. No signing required: the token is already
-  // a cryptographically opaque value that the server validates by hash lookup.
+  // Refresh tokens are stored in HttpOnly cookies and validated by the auth service.
   await app.register(cookie);
 
   await app.register(cors, {
-    origin: (origin, cb) => {
-      if (!origin || env.cors.origins.includes('*') || env.app.environment !== 'prod') {
-        cb(null, true);
-        return;
-      }
-      if (env.cors.origins.includes(origin)) {
-        cb(null, true);
-        return;
-      }
-      cb(new Error('Not allowed by CORS'), false);
-    },
+    origin: env.cors.origins.includes('*') ? true : env.cors.origins,
     credentials: true,
     exposedHeaders: ['content-disposition'],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
