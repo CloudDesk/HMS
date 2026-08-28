@@ -441,18 +441,25 @@ export class PharmacyInventoryRepository {
     const sortOrder = query.sortOrder === 'desc' ? -1 : 1;
     const [records, total] = await Promise.all([
       PharmacyMedicineBatchModel.find(filter)
-        .populate('medicine')
         .sort({ [sortColumn]: sortOrder, _id: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
       PharmacyMedicineBatchModel.countDocuments(filter),
     ]);
+    const medicines = await MedicineModel.find({
+      _id: { $in: records.map((record) => record.medicineId) },
+      deletedAt: null,
+    }).select('_id name').lean();
+    const medicinesById = new Map(medicines.map((medicine) => [medicine._id.toString(), medicine]));
     return {
-      data: records.map((record: BatchWithMedicineRecord) => ({
-        ...toBatch(record),
-        medicine: record.medicine ? { id: record.medicine._id.toString(), name: record.medicine.name } : null,
-      })),
+      data: records.map((record) => {
+        const medicine = medicinesById.get(record.medicineId.toString());
+        return {
+          ...toBatch(record),
+          medicine: medicine ? { id: medicine._id.toString(), name: medicine.name } : null,
+        };
+      }),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
@@ -475,24 +482,28 @@ export class PharmacyInventoryRepository {
     const filter: Record<string, unknown> = { _id: batchId, branchId };
     if (!allowExpired) filter.status = { $ne: 'EXPIRED' };
     if (delta < 0) filter.quantityOnHand = { $gte: Math.abs(delta) };
-    const batch = await PharmacyMedicineBatchModel.findOneAndUpdate(
-      filter,
-      [{
-        $set: {
-          quantityOnHand: { $add: ['$quantityOnHand', delta] },
-          status: {
-            $cond: [
-              { $eq: ['$status', 'EXPIRED'] },
-              'EXPIRED',
-              { $cond: [{ $eq: [{ $add: ['$quantityOnHand', delta] }, 0] }, 'DEPLETED', 'ACTIVE'] },
-            ],
-          },
-          updatedBy: objectId(actorUserId),
-          updatedAt: '$$NOW',
+    const updatePipeline: PipelineStage[] = [{
+      $set: {
+        quantityOnHand: { $add: ['$quantityOnHand', delta] },
+        status: {
+          $cond: [
+            { $eq: ['$status', 'EXPIRED'] },
+            'EXPIRED',
+            { $cond: [{ $eq: [{ $add: ['$quantityOnHand', delta] }, 0] }, 'DEPLETED', 'ACTIVE'] },
+          ],
         },
-      }],
-      { returnDocument: 'after', lean: true, session },
-    ).setOptions({ updatePipeline: true });
+        updatedBy: objectId(actorUserId),
+        updatedAt: '$$NOW',
+      },
+    }];
+    const query = PharmacyMedicineBatchModel.findOneAndUpdate(filter).setOptions({
+      returnDocument: 'after',
+      lean: true,
+      session,
+      updatePipeline: true,
+    });
+    query.setUpdate(updatePipeline);
+    const batch = await query;
     return batch;
   }
 

@@ -192,7 +192,7 @@ export class PharmacyDispensingService {
       if (!cancelledInvoice) throw new AppError('Dispensing invoice could not be cancelled', 409, 'DISPENSING_REVERSAL_NOT_ALLOWED');
       const reversed = await this.repository.reverse(dispensing._id.toString(), version, actor, key, reason, session);
       if (!reversed) throw new AppError('Dispensing changed; refresh and retry', 409, 'STALE_VERSION');
-      const prescriptionStatus = await this.repository.getPrescriptionRepository().updateStatusIf(prescriptionId, 'DISPENSED', 'CANCELLED', actor, session);
+      const prescriptionStatus = await this.repository.getPrescriptionRepository().updateStatusIf(prescriptionId, 'DISPENSED', 'SUBMITTED', actor, session);
       if (!prescriptionStatus) throw new AppError('Prescription changed; retry', 409, 'INVALID_STATE_TRANSITION');
       await this.repository.audit('pharmacy.dispensing.reversed', actor, metadata, { dispensingId: dispensing._id.toString(), prescriptionId, invoiceId: invoice.id, reason }, session);
       return this.repository.getByPrescription(prescriptionId, session);

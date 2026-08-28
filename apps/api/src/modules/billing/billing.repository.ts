@@ -279,13 +279,33 @@ export class BillingRepository {
     return invoice ? toInvoice(invoice) : null;
   }
 
-  async hasUnresolvedInvoicesForEncounter(encounterId: string, session?: ClientSession) {
+    async hasUnresolvedInvoicesForEncounter(encounterId: string, session?: ClientSession) {
     const unresolvedCount = await BillingInvoiceModel.countDocuments({
       encounterId: objectId(encounterId),
       status: { $in: ['DRAFT', 'PENDING', 'PARTIALLY_PAID'] },
       deletedAt: null,
     }).session(session ?? null);
+
     return unresolvedCount > 0;
+  }
+
+  async getInvoiceNumberMap(ids: string[], session?: ClientSession) {
+    if (ids.length === 0) return new Map<string, string>();
+
+    const query = BillingInvoiceModel.find({
+      _id: { $in: ids.map(objectId) },
+      deletedAt: null,
+    })
+      .select('_id invoiceNumber')
+      .lean<Array<{ _id: Types.ObjectId; invoiceNumber: string }>>();
+
+    if (session) query.session(session);
+
+    const invoices = await query;
+
+    return new Map(
+      invoices.map((invoice) => [invoice._id.toString(), invoice.invoiceNumber]),
+    );
   }
 
   async getHydratedById(id: string, branchIds?: string[]) {

@@ -22,7 +22,11 @@ export type ClinicalOrderItem = {
 
 export type OpdClinicalOrder = {
   id: string;
-  source_type: ClinicalContextSourceType;
+  originating_order_id: string;
+  source_type: ClinicalOrderSourceType;
+  encounter_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
   source_id: string;
   encounter_id: string | null;
   admission_id: string | null;

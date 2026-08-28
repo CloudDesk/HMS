@@ -1,12 +1,23 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { ZodError } from 'zod';
 import { requirePermission } from '../../middleware/require-permission.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import { cancelSchema, confirmSchema, idSchema, listSchema, reverseSchema, saveSchema } from './pharmacy-dispensing.schemas.js';
 import type { PharmacyDispensingListQuery } from './pharmacy-dispensing.types.js';
 
 const metadata = (request: FastifyRequest) => ({ ipAddress: request.ip, userAgent: request.headers['user-agent'] });
-const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => schema.parse(value);
+const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
+  try {
+    return schema.parse(value);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new AppError('Request validation failed', 400, 'VALIDATION_ERROR', error.flatten());
+    }
+    throw error;
+  }
+};
 
 export const registerPharmacyDispensingRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
   app.get('/api/pharmacy/dispensings', { preHandler: requirePermission(services, 'Pharmacy', 'Dispensing', 'View') }, async (request) => {

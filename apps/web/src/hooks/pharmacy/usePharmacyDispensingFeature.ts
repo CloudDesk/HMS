@@ -69,9 +69,10 @@ const dispensingErrorMessage = (error: unknown) => {
     if (error.status === 403) return 'You do not have permission to perform this dispensing action.';
     if (error.code === 'INSUFFICIENT_STOCK') return error.message;
     if (error.code === 'STALE_VERSION') return 'This dispensing was changed by another user. Refresh and review it again.';
+    if (error.status >= 500) return 'Unable to complete dispensing. Please try again or contact support if the problem continues.';
     return error.message;
   }
-  return error instanceof Error ? error.message : 'The dispensing request could not be completed.';
+  return 'The dispensing request could not be completed. Please try again.';
 };
 
 const isToday = (value: string | null) => {
@@ -134,52 +135,29 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
   }, [detailQuery.data]);
 
   const activeBatches = batchesQuery.data?.data ?? [];
-  const medicineOptions = useMemo(() => {
-    const options = new Map<string, { id: string; name: string }>();
-    for (const batch of activeBatches) {
-      options.set(batch.medicine_id, { id: batch.medicine_id, name: batch.medicine?.name ?? batch.medicine_id });
-    }
-    for (const line of draftLines) {
-      if (line.medicineId && !options.has(line.medicineId)) {
-        options.set(line.medicineId, { id: line.medicineId, name: line.selectedMedicineName });
-      }
-    }
-    return [...options.values()].sort((left, right) => left.name.localeCompare(right.name));
-  }, [activeBatches, draftLines]);
-
+  const isDraft = detailQuery.data?.status === 'DRAFT';
   const lines: DispensingLineView[] = useMemo(() => draftLines.map((line) => {
-    const batchOptions = activeBatches.filter((batch) => batch.medicine_id === line.medicineId);
-    const batch = batchOptions.find((candidate) => candidate.id === line.batchId);
-    const availableQuantity = batch ? batch.quantity_on_hand : 0;
-    const unitPrice = batch ? batch.unit_price : 0;
+    const batchOptions = isDraft ? activeBatches.filter((batch) => batch.medicine_id === line.medicineId) : [];
+    const batch = isDraft ? batchOptions.find((candidate) => candidate.id === line.batchId) : undefined;
+    const availableQuantity = isDraft ? batch?.quantity_on_hand ?? 0 : line.availableQuantitySnapshot;
+    const unitPrice = isDraft ? batch?.unit_price ?? 0 : line.unitPriceSnapshot;
     const confirmedQuantity = line.confirmedQuantity ?? 0;
     return {
       ...line,
-      selectedMedicineName: medicineOptions.find((medicine) => medicine.id === line.medicineId)?.name ?? line.selectedMedicineName,
       batchNumber: batch?.batch_number ?? line.batchNumberSnapshot,
       availableQuantity,
       unitPrice,
       lineTotal: unitPrice * confirmedQuantity,
       batchOptions,
-      insufficientStock: !batch || confirmedQuantity > availableQuantity,
+      insufficientStock: isDraft && (!batch || confirmedQuantity > availableQuantity),
     };
-  }), [activeBatches, draftLines, medicineOptions]);
+  }), [activeBatches, draftLines, isDraft]);
 
   const updateLine = useCallback((id: string, update: (line: DispensingDraftLine) => DispensingDraftLine) => {
     setDraftLines((current) => current.map((line) => line.id === id ? update(line) : line));
     setIsDirty(true);
     setActionError('');
   }, []);
-
-  const selectMedicine = useCallback((id: string, medicineId: string) => updateLine(id, (line) => ({
-    ...line,
-    medicineId: medicineId || null,
-    selectedMedicineName: medicineOptions.find((medicine) => medicine.id === medicineId)?.name ?? '',
-    batchId: null,
-    batchNumberSnapshot: '',
-    availableQuantitySnapshot: 0,
-    unitPriceSnapshot: 0,
-  })), [medicineOptions, updateLine]);
 
   const selectBatch = useCallback((id: string, batchId: string) => updateLine(id, (line) => {
     const batch = activeBatches.find((candidate) => candidate.id === batchId);
@@ -350,12 +328,10 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
     isDirty,
     isMutating,
     batchesLoading: batchesQuery.isLoading,
-    medicineOptions,
     lines,
     actions: {
       openDispensing,
       closeDispensing,
-      selectMedicine,
       selectBatch,
       setConfirmedQuantity,
       setInstructions,
