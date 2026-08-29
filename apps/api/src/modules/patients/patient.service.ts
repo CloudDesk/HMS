@@ -1,5 +1,4 @@
 import { Types } from 'mongoose';
-import { UserModel } from '../users/user.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { env } from '../../config/env.js';
 import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
@@ -16,7 +15,6 @@ import type {
   UpdatePatientDTO,
   UploadPatientDocumentDTO,
 } from './patient.types.js';
-import { allocatePatientNumber } from './patient-number.service.js';
 
 const isValidDate = (value: string) => {
   const date = new Date(value);
@@ -58,8 +56,8 @@ export class PatientService {
       throw new AppError('Phone number must be a valid African regional phone number', 400, 'VALIDATION_ERROR');
     }
 
-    const user = await UserModel.findById(userId).lean();
-    const defaultBranchId = user?.branchIds?.[0]?.toString();
+    const user = await this.repository.findUserById(userId);
+    const defaultBranchId = user?.branchIds?.[0];
 
     const scope = await this.repository.resolveBranchScope(userId, data.registration_branch_id ?? undefined);
     const registrationBranchId = data.registration_branch_id ?? (scope?.length === 1 ? scope[0] : defaultBranchId);

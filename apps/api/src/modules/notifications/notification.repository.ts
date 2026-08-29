@@ -2,6 +2,7 @@ import { Types, type ClientSession } from 'mongoose';
 import { NotificationModel, type NotificationDocumentFields } from './notification.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { BranchModel } from '../branches/branch.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { CreateNotificationDTO, Notification, NotificationListQuery } from './notification.types.js';
 
@@ -45,7 +46,56 @@ export class NotificationRepository {
     };
   }
 
-  async create(data: CreateNotificationDTO, session?: ClientSession): Promise<Notification> {
+  async resolveActorBranchScope(userId: string) {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds')
+      .lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] },
+      code: 'SUPER_ADMIN',
+      status: 'active',
+      deletedAt: null,
+    }));
+    if (isSuperAdmin) return undefined;
+
+    const branches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] },
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).select('_id').lean();
+    return branches.map((branch) => branch._id.toString());
+  }
+
+  async activeBranchExists(branchId: string) {
+    return Boolean(await BranchModel.exists({
+      _id: branchId,
+      status: 'ACTIVE',
+      deletedAt: null,
+    }));
+  }
+
+  async activeRecipientRoleExists(roleCode: string) {
+    return Boolean(await RoleModel.exists({
+      code: roleCode,
+      status: 'active',
+      deletedAt: null,
+    }));
+  }
+
+  async getActiveRecipientUserBranchIds(userId: string) {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds')
+      .lean();
+    return user ? (user.branchIds ?? []).map((branchId) => branchId.toString()) : null;
+  }
+
+  async create(
+    data: CreateNotificationDTO,
+    session?: ClientSession,
+    actorUserId?: string,
+  ): Promise<Notification> {
     const records = await NotificationModel.create([{
       recipientRole: data.recipient_role ?? null,
       recipientUserId: data.recipient_user_id ? new Types.ObjectId(data.recipient_user_id) : null,
@@ -54,6 +104,7 @@ export class NotificationRepository {
       message: data.message,
       type: data.type,
       relatedEntityId: data.related_entity_id ? new Types.ObjectId(data.related_entity_id) : null,
+      createdBy: actorUserId ? new Types.ObjectId(actorUserId) : null,
     }], session ? { session } : undefined);
     const created = records[0];
     if (!created) throw new AppError('Notification could not be created', 500, 'NOTIFICATION_CREATE_FAILED');
@@ -74,7 +125,7 @@ export class NotificationRepository {
     return { data: data.map(toNotification), meta: { total: count, page, limit, totalPages: Math.ceil(count / limit) || 1 } };
   }
 
-  async list(query: NotificationListQuery): Promise<{
+  async list(query: NotificationListQuery, branchIds?: string[]): Promise<{
     data: Notification[];
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
@@ -84,11 +135,18 @@ export class NotificationRepository {
 
     const filter: Record<string, unknown> = {};
 
+    if (branchIds) {
+      filter.recipientBranchId = { $in: branchIds.map((branchId) => new Types.ObjectId(branchId)) };
+    }
+
     if (query.recipient_role) {
       filter.recipientRole = query.recipient_role;
     }
     if (query.recipient_user_id) {
       filter.recipientUserId = new Types.ObjectId(query.recipient_user_id);
+    }
+    if (query.recipient_branch_id) {
+      filter.recipientBranchId = new Types.ObjectId(query.recipient_branch_id);
     }
     if (query.is_read !== undefined) {
       filter.isRead = query.is_read;

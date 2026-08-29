@@ -13,6 +13,7 @@ import { navigate, useAppLocation } from '../routing/navigation';
 import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
 import { formatDate, patientFullName } from './patient-utils';
+import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
 
 
 type ColumnVisibility = {
@@ -121,90 +122,7 @@ export function PatientSearchPage() {
   });
 
 
-  const printPatientCard = (p: PatientResponse) => {
-    const fullName = patientFullName(p);
-    const initials = patientInitials(fullName);
-    const age = new Date().getFullYear() - new Date(p.date_of_birth).getFullYear();
-    const dob = formatDate(p.date_of_birth);
-    const registered = formatDate(p.created_at);
-
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>Patient ID Card - ${fullName}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-  body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f1f5f9; }
-  .card { width: 340px; background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); overflow: hidden; border: 1px solid #e2e8f0; }
-  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 20px; color: #fff; position: relative; }
-  .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-  .logo { width: 32px; height: 32px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
-  .title { font-size: 13px; font-weight: 700; }
-  .subtitle { font-size: 10px; opacity: 0.8; }
-  .tag { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; }
-  .hero { display: flex; align-items: center; gap: 14px; }
-  .avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 3px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; }
-  .hero-info h2 { font-size: 17px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; }
-  .mrn-pill { font-size: 10px; background: rgba(255,255,255,0.25); padding: 2px 7px; border-radius: 4px; font-weight: 700; letter-spacing: 0.5px; }
-  .body { padding: 18px 20px; }
-  .field-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 11px; }
-  .field-row .label { color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; }
-  .field-row .val { color: #0f172a; font-weight: 700; text-align: right; }
-  .barcode-strip { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-  .barcode-text { font-family: monospace; font-size: 11px; font-weight: 700; color: #475569; letter-spacing: 2px; }
-  .footer-note { font-size: 9px; color: #94a3b8; text-align: center; margin-top: 10px; }
-  @media print { body { background: #fff; } .card { box-shadow: none; } }
-</style>
-</head>
-<body>
-<div className="card">
-  <div className="header">
-    <div className="brand">
-      <div className="logo">H</div>
-      <div><div className="title">HMS Enterprise</div><div className="subtitle">Hospital Management System</div></div>
-    </div>
-    <span className="tag">Patient ID</span>
-    <div className="hero">
-      <div className="avatar">${initials}</div>
-      <div className="hero-info">
-        <h2>${fullName}</h2>
-        <span className="mrn-pill">${p.patient_number}</span>
-  <div class="card">
-    <div class="header">
-      <div class="header-left">
-        <div class="avatar">${initials}</div>
-        <div class="name-block">
-          <div class="name">${fullName}</div>
-          <div class="mrn">${p.patient_number}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div className="body">
-    <div className="field-row"><span className="label">Date of Birth</span><span className="val">${dob} (${age} yrs)</span></div>
-    <div className="field-row"><span className="label">Gender</span><span className="val">${p.gender}</span></div>
-    <div className="field-row"><span className="label">Phone</span><span className="val">${p.phone || 'Not recorded'}</span></div>
-    <div className="field-row"><span className="label">Blood Group</span><span className="val">${p.blood_group || 'Not recorded'}</span></div>
-    <div className="field-row"><span className="label">Registered</span><span className="val">${registered}</span></div>
-    <div className="barcode-strip">
-      <span className="barcode-text">||||| | |||| ||| ||||</span>
-      <span className="barcode-text">${p.patient_number}</span>
-    </div>
-    <p className="footer-note">Valid for healthcare services at all HMS facilities</p>
-  </div>
-</div>
-<script>window.onload = () => { window.print(); }</script>
-</body>
-</html>`;
-
-    const printWin = window.open('', '_blank', 'width=480,height=700,top=100,left=100');
-    if (printWin) {
-      printWin.document.open();
-      printWin.document.write(html);
-      printWin.document.close();
-    }
-  };
+  const printPatientCard = (p: PatientResponse) => { executePrintPatientCard(p); };
 
   const openEditModal = (patient: PatientResponse) => {
     setEditingPatient(patient);
@@ -912,3 +830,4 @@ export function PatientSearchPage() {
     </div>
   );
 }
+

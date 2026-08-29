@@ -28,3 +28,12 @@ export const databaseHealthResponseSchema = {
     },
   },
 } as const;
+
+export const apiResponseSchema = <TDataSchema>(dataSchema: TDataSchema) => ({
+  type: 'object',
+  required: ['data'],
+  additionalProperties: false,
+  properties: {
+    data: dataSchema,
+  },
+} as const);

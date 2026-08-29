@@ -8,6 +8,21 @@ const referenceId = z
 export const createInpatientAdmissionSchema = z.object({ patient_id: id, branch_id: id, ward_id: id, bed_id: id, hold_id: referenceId.optional(), admitting_doctor_id: id, department_id: id, admission_date: z.string().datetime({ offset: true }), admission_type: z.enum(['MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OBSERVATION', 'OTHER']), reason: text('Reason', 500), notes: z.string().trim().max(1000).nullable().optional() });
 export const listInpatientAdmissionsSchema = z.object({ branch_id: id, status: z.enum(['DRAFT', 'ADMITTED', 'CANCELLED']).optional(), page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) });
 export const inpatientAdmissionIdSchema = z.object({ id });
+export const createInpatientRoundNoteSchema = z.object({
+  subjective: text('Subjective findings', 4000),
+  objective: text('Objective findings', 4000),
+  assessment: text('Assessment', 4000),
+  plan: text('Plan', 4000),
+}).strict();
+export const createInpatientVitalSchema = z.object({
+  bp_systolic: z.number().int().min(30).max(300),
+  bp_diastolic: z.number().int().min(20).max(200),
+  heart_rate: z.number().int().min(20).max(300),
+  temperature: z.number().min(25).max(45),
+  spo2: z.number().int().min(0).max(100),
+  respiratory_rate: z.number().int().min(0).max(100),
+  pain_score: z.number().int().min(0).max(10),
+}).strict();
 const sourceType = z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL', 'TRANSFER', 'PROCEDURE_BOOKING']);
 const admissionType = z.enum(['INPATIENT', 'OBSERVATION', 'DAY_CARE', 'ICU', 'HDU', 'MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OTHER']);
 const optionalId = z

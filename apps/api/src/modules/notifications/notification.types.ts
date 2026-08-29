@@ -27,6 +27,7 @@ export type CreateNotificationDTO = {
 export type NotificationListQuery = {
   recipient_role?: string;
   recipient_user_id?: string;
+  recipient_branch_id?: string;
   is_read?: boolean;
   page?: number;
   limit?: number;

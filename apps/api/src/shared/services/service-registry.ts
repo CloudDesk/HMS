@@ -1,5 +1,6 @@
 import { checkDatabaseHealth } from '../../database/health.js';
 import { AuthRepository } from '../../modules/auth/auth.repository.js';
+import { AuthRateLimitRepository } from '../../modules/auth/auth-rate-limit.repository.js';
 import { AuthService } from '../../modules/auth/auth.service.js';
 import { PermissionRepository } from '../../modules/permissions/permission.repository.js';
 import { PermissionService } from '../../modules/permissions/permission.service.js';
@@ -64,6 +65,8 @@ import { InpatientAdmissionRepository } from '../../modules/inpatient-admissions
 import { InpatientAdmissionService } from '../../modules/inpatient-admissions/inpatient-admission.service.js';
 import { PatientPortalRepository } from '../../modules/patient-portal/patient-portal.repository.js';
 import { PatientPortalService } from '../../modules/patient-portal/patient-portal.service.js';
+import { PatientOtpRepository } from '../../modules/patient-portal/patient-otp.repository.js';
+import { PatientOtpService } from '../../modules/patient-portal/patient-otp.service.js';
 import { createSmsService } from './sms.service.js';
 import { ConsentRepository } from '../../modules/consents/consent.repository.js';
 import { ConsentService } from '../../modules/consents/consent.service.js';
@@ -118,6 +121,9 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const advancePaymentService = new AdvancePaymentService(advancePaymentRepository);
   const patientDocumentStorageService = new PatientDocumentStorageService();
   const sms = createSmsService();
+  const authRateLimits = new AuthRateLimitRepository();
+  const patientOtpService = new PatientOtpService(new PatientOtpRepository(), sms, undefined, authRateLimits);
+  const authService = new AuthService(authRepository, patientOtpService, authRateLimits);
   const userService = new UserService(userRepository, roleRepository);
   const appointmentService = new AppointmentService(
     appointmentRepository,
@@ -166,7 +172,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       healthCheck: checkDatabaseHealth,
     },
     administrationDashboard: new AdministrationDashboardService(administrationDashboardRepository, new PhaseTwoReportRepository()),
-    auth: new AuthService(authRepository),
+    auth: authService,
     users: userService,
     roles: new RoleService(roleRepository),
     permissions: new PermissionService(permissionRepository),
@@ -227,7 +233,14 @@ export const createServiceRegistry = (): ServiceRegistry => {
     settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
     notification: new NotificationService(notificationRepository),
     pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
-    patientPortal: new PatientPortalService(new PatientPortalRepository(), userService, appointmentService, doctorService, patientService, sms),
+    patientPortal: new PatientPortalService(
+      new PatientPortalRepository(),
+      userService,
+      appointmentService,
+      doctorService,
+      patientService,
+      patientOtpService,
+    ),
     sms,
     admissionsConfiguration: admissionsConfigurationService,
     inpatientAdmissions: new InpatientAdmissionService(

@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type PipelineStage } from 'mongoose';
 import { AppointmentModel } from '../appointments/appointment.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { BillingInvoiceItemModel, BillingInvoiceModel, BillingPaymentModel } from '../billing/billing.model.js';
@@ -29,6 +29,33 @@ const pageMeta = (page: number, limit: number, total: number) => ({
   total,
   totalPages: Math.max(1, Math.ceil(total / limit)),
 });
+
+type PortalAppointmentHistoryItem = {
+  id: string;
+  appointment_number: string;
+  patient_id: string;
+  doctor_id: string;
+  doctor_name: string;
+  doctor_specialization: string;
+  department_id: string;
+  branch_id: string;
+  appointment_date: Date;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  visit_type: string;
+  status: string;
+  reason: string | null;
+  rescheduled_from_id: string | null;
+  rescheduled_to_id: string | null;
+  is_opd_visit: boolean;
+  opd_visit_number: string | null;
+};
+
+type PortalAppointmentHistoryAggregation = {
+  data: PortalAppointmentHistoryItem[];
+  metadata: Array<{ total: number }>;
+};
 
 export class PatientPortalRepository {
   async listPublicBranches(query: { page: number; limit: number; search?: string }) {
@@ -902,114 +929,175 @@ export class PatientPortalRepository {
     limit: number;
   }) {
     const id = objectId(patientId);
+    if (!id) {
+      return { data: [], meta: pageMeta(query.page, query.limit, 0) };
+    }
+
     const now = new Date();
-    const startOfToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const activeStatuses = ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'];
     const historyStatuses = ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'];
 
-    const [appointments, opdVisits] = await Promise.all([
-      AppointmentModel.find({ patientId: id, deletedAt: null }).lean(),
-      OpdVisitModel.find({ patientId: id, deletedAt: null }).lean(),
-    ]);
+    const checkedInVisitStatuses = ['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CHECKED_IN', 'WAITING_FOR_VITALS'];
+    const sortDirection: 1 | -1 = query.scope === 'upcoming' ? 1 : -1;
+    const skip = (query.page - 1) * query.limit;
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          patientId: id,
+          deletedAt: null,
+          appointmentDate: { $type: 'date' },
+          startTime: { $type: 'string' },
+          endTime: { $type: 'string' },
+        },
+      },
+      {
+        $lookup: {
+          from: OpdVisitModel.collection.name,
+          let: { appointmentId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                patientId: id,
+                deletedAt: null,
+                $expr: { $eq: ['$appointmentId', '$$appointmentId'] },
+              },
+            },
+            { $limit: 1 },
+            { $project: { _id: 0, status: 1, visitNumber: 1 } },
+          ],
+          as: 'linkedVisits',
+        },
+      },
+      { $set: { linkedVisit: { $arrayElemAt: ['$linkedVisits', 0] } } },
+      {
+        $project: {
+          _id: 0,
+          id: { $toString: '$_id' },
+          appointment_number: '$appointmentNumber',
+          patient_id: { $toString: '$patientId' },
+          doctor_id: { $toString: '$doctorId' },
+          doctor_name: '$doctorName',
+          doctor_specialization: '$doctorSpecialization',
+          department_id: { $toString: '$departmentId' },
+          branch_id: { $toString: '$branchId' },
+          appointment_date: '$appointmentDate',
+          start_time: '$startTime',
+          end_time: '$endTime',
+          duration_minutes: '$durationMinutes',
+          visit_type: '$visitType',
+          status: {
+            $let: {
+              vars: { effectiveStatus: { $ifNull: ['$linkedVisit.status', '$status'] } },
+              in: {
+                $cond: [
+                  { $in: ['$$effectiveStatus', checkedInVisitStatuses] },
+                  'CHECKED_IN',
+                  '$$effectiveStatus',
+                ],
+              },
+            },
+          },
+          reason: { $ifNull: ['$reason', null] },
+          rescheduled_from_id: {
+            $cond: [{ $ne: [{ $ifNull: ['$rescheduledFromId', null] }, null] }, { $toString: '$rescheduledFromId' }, null],
+          },
+          rescheduled_to_id: {
+            $cond: [{ $ne: [{ $ifNull: ['$rescheduledToId', null] }, null] }, { $toString: '$rescheduledToId' }, null],
+          },
+          is_opd_visit: { $gt: [{ $size: '$linkedVisits' }, 0] },
+          opd_visit_number: { $ifNull: ['$linkedVisit.visitNumber', null] },
+          source_order: { $literal: 0 },
+        },
+      },
+      {
+        $unionWith: {
+          coll: OpdVisitModel.collection.name,
+          pipeline: [
+            {
+              $match: {
+                patientId: id,
+                deletedAt: null,
+                appointmentId: null,
+                visitDate: { $type: 'date' },
+                checkInTime: { $type: 'date' },
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                id: { $toString: '$_id' },
+                appointment_number: '$visitNumber',
+                patient_id: { $toString: '$patientId' },
+                doctor_id: { $toString: '$doctorId' },
+                doctor_name: '$doctorName',
+                doctor_specialization: '$doctorSpecialization',
+                department_id: { $toString: '$departmentId' },
+                branch_id: { $toString: '$branchId' },
+                appointment_date: '$visitDate',
+                start_time: { $dateToString: { date: '$checkInTime', format: '%H:%M', timezone } },
+                end_time: {
+                  $dateToString: {
+                    date: { $dateAdd: { startDate: '$checkInTime', unit: 'minute', amount: 30 } },
+                    format: '%H:%M',
+                    timezone,
+                  },
+                },
+                duration_minutes: { $literal: 30 },
+                visit_type: { $ifNull: ['$visitType', 'OPD_VISIT'] },
+                status: { $cond: [{ $in: ['$status', checkedInVisitStatuses] }, 'CHECKED_IN', '$status'] },
+                reason: { $ifNull: ['$reason', null] },
+                rescheduled_from_id: { $literal: null },
+                rescheduled_to_id: { $literal: null },
+                is_opd_visit: { $literal: true },
+                opd_visit_number: '$visitNumber',
+                source_order: { $literal: 1 },
+              },
+            },
+          ],
+        },
+      },
+      {
+        $set: {
+          is_past: {
+            $or: [
+              { $lt: [{ $dateToString: { date: '$appointment_date', format: '%Y-%m-%d', timezone } }, today] },
+              {
+                $and: [
+                  { $eq: [{ $dateToString: { date: '$appointment_date', format: '%Y-%m-%d', timezone } }, today] },
+                  { $lte: ['$end_time', currentTime] },
+                ],
+              },
+              { $in: ['$status', historyStatuses] },
+            ],
+          },
+        },
+      },
+      {
+        $match: {
+          is_past: query.scope === 'past',
+          ...(query.scope === 'upcoming' ? { status: { $in: activeStatuses } } : {}),
+          ...(query.status ? { status: query.status } : {}),
+        },
+      },
+      {
+        $facet: {
+          data: [
+            { $sort: { appointment_date: sortDirection, source_order: 1, id: 1 } },
+            { $skip: skip },
+            { $limit: query.limit },
+            { $unset: ['is_past', 'source_order'] },
+          ],
+          metadata: [{ $count: 'total' }],
+        },
+      },
+    ];
 
-    const linkedAppointmentIds = new Set(opdVisits.map((v) => v.appointmentId ? String(v.appointmentId) : null).filter((v): v is string => Boolean(v)));
-    const opdVisitByAppointmentId = new Map(opdVisits.filter((v) => v.appointmentId).map((v) => [String(v.appointmentId), v]));
-
-    const combinedItems: Array<{
-      id: string;
-      appointment_number: string;
-      patient_id: string;
-      doctor_id: string;
-      doctor_name: string;
-      doctor_specialization: string;
-      department_id: string;
-      branch_id: string;
-      appointment_date: Date;
-      start_time: string;
-      end_time: string;
-      duration_minutes: number;
-      visit_type: string;
-      status: string;
-      reason: string | null;
-      rescheduled_from_id: string | null;
-      rescheduled_to_id: string | null;
-      is_opd_visit: boolean;
-      opd_visit_number: string | null;
-    }> = [];
-
-    appointments.forEach((item) => {
-      if (!item.appointmentDate || !item.startTime || !item.endTime) return;
-      const linkedVisit = opdVisitByAppointmentId.get(String(item._id));
-      combinedItems.push({
-        id: String(item._id),
-        appointment_number: item.appointmentNumber,
-        patient_id: String(item.patientId),
-        doctor_id: String(item.doctorId),
-        doctor_name: item.doctorName,
-        doctor_specialization: item.doctorSpecialization,
-        department_id: String(item.departmentId),
-        branch_id: String(item.branchId),
-        appointment_date: item.appointmentDate,
-        start_time: item.startTime,
-        end_time: item.endTime,
-        duration_minutes: item.durationMinutes,
-        visit_type: item.visitType,
-        status: linkedVisit ? (['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CHECKED_IN', 'WAITING_FOR_VITALS'].includes(linkedVisit.status) ? 'CHECKED_IN' : linkedVisit.status) : item.status,
-        reason: item.reason ?? null,
-        rescheduled_from_id: item.rescheduledFromId ? String(item.rescheduledFromId) : null,
-        rescheduled_to_id: item.rescheduledToId ? String(item.rescheduledToId) : null,
-        is_opd_visit: Boolean(linkedVisit),
-        opd_visit_number: linkedVisit?.visitNumber ?? null,
-      });
-    });
-
-    opdVisits.forEach((v) => {
-      if (v.appointmentId && linkedAppointmentIds.has(String(v.appointmentId))) return;
-      const checkInMinutes = v.checkInTime ? new Date(v.checkInTime).getHours() * 60 + new Date(v.checkInTime).getMinutes() : 540;
-      const startTime = `${String(Math.floor(checkInMinutes / 60)).padStart(2, '0')}:${String(checkInMinutes % 60).padStart(2, '0')}`;
-      const endTime = `${String(Math.floor((checkInMinutes + 30) / 60)).padStart(2, '0')}:${String((checkInMinutes + 30) % 60).padStart(2, '0')}`;
-      combinedItems.push({
-        id: String(v._id),
-        appointment_number: v.visitNumber,
-        patient_id: String(v.patientId),
-        doctor_id: String(v.doctorId),
-        doctor_name: v.doctorName,
-        doctor_specialization: v.doctorSpecialization,
-        department_id: String(v.departmentId),
-        branch_id: String(v.branchId),
-        appointment_date: v.visitDate,
-        start_time: startTime,
-        end_time: endTime,
-        duration_minutes: 30,
-        visit_type: v.visitType ?? 'OPD_VISIT',
-        status: ['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CHECKED_IN', 'WAITING_FOR_VITALS'].includes(v.status) ? 'CHECKED_IN' : v.status,
-        reason: v.reason ?? null,
-        rescheduled_from_id: null,
-        rescheduled_to_id: null,
-        is_opd_visit: true,
-        opd_visit_number: v.visitNumber,
-      });
-    });
-
-    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const filtered = combinedItems.filter((item) => {
-      if (query.status && item.status !== query.status) return false;
-      const dateUtc = new Date(Date.UTC(item.appointment_date.getFullYear(), item.appointment_date.getMonth(), item.appointment_date.getDate()));
-      const isPastDate = dateUtc < startOfToday;
-      const isToday = dateUtc.getTime() === startOfToday.getTime();
-      const isPastTimeToday = isToday && item.end_time <= currentTimeStr;
-      const isPast = isPastDate || isPastTimeToday || historyStatuses.includes(item.status);
-
-      return query.scope === 'upcoming' ? !isPast && activeStatuses.includes(item.status) : isPast;
-    });
-
-    filtered.sort((a, b) => {
-      const diff = new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime();
-      return query.scope === 'upcoming' ? diff : -diff;
-    });
-
-    const total = filtered.length;
-    const paginated = filtered.slice((query.page - 1) * query.limit, query.page * query.limit);
+    const [result] = await AppointmentModel.aggregate<PortalAppointmentHistoryAggregation>(pipeline);
+    const paginated = result?.data ?? [];
+    const total = result?.metadata[0]?.total ?? 0;
 
     const branchIds = [...new Set(paginated.map((item) => item.branch_id))];
     const branches = await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city address').lean();

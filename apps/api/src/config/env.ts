@@ -1,5 +1,10 @@
 type AppEnv = 'dev' | 'test' | 'prod';
 
+const appEnvironment = process.env.APP_ENV ?? 'dev';
+if (!['dev', 'test', 'prod'].includes(appEnvironment)) {
+  throw new Error('APP_ENV must be one of dev, test, or prod');
+}
+
 const parseInteger = (value: string | undefined, fallback: number) => {
   if (!value) {
     return fallback;
@@ -16,6 +21,65 @@ const parseBoolean = (value: string | undefined, fallback: boolean) => {
 
   return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 };
+
+const parsePositiveInteger = (name: string, value: string | undefined, fallback: number) => {
+  const parsed = parseInteger(value, fallback);
+  if (parsed <= 0) throw new Error(`${name} must be a positive integer`);
+  return parsed;
+};
+
+const patientPortalDemoOtpEnabled = parseBoolean(
+  process.env.PATIENT_PORTAL_DEMO_OTP_ENABLED,
+  false,
+);
+const patientPortalDemoOtp = process.env.PATIENT_PORTAL_DEMO_OTP?.trim() ?? '';
+const productionEnvironment = appEnvironment === 'prod' || process.env.NODE_ENV === 'production';
+const cookieSecure = parseBoolean(process.env.COOKIE_SECURE, productionEnvironment);
+const cookieSameSiteValue = (process.env.COOKIE_SAME_SITE ?? 'lax').toLowerCase();
+
+if (!['lax', 'strict', 'none'].includes(cookieSameSiteValue)) {
+  throw new Error('COOKIE_SAME_SITE must be one of lax, strict, or none');
+}
+
+const cookieSameSite = cookieSameSiteValue as 'lax' | 'strict' | 'none';
+
+export const assertRefreshCookieConfiguration = (input: {
+  production: boolean;
+  secure: boolean;
+  sameSite: 'lax' | 'strict' | 'none';
+}) => {
+  if (input.production && !input.secure) {
+    throw new Error('COOKIE_SECURE must be enabled in production');
+  }
+  if (input.sameSite === 'none' && !input.secure) {
+    throw new Error('COOKIE_SECURE must be enabled when COOKIE_SAME_SITE is none');
+  }
+};
+
+assertRefreshCookieConfiguration({
+  production: productionEnvironment,
+  secure: cookieSecure,
+  sameSite: cookieSameSite,
+});
+
+export const assertPatientPortalDemoOtpConfiguration = (input: {
+  enabled: boolean;
+  otp: string;
+  production: boolean;
+}) => {
+  if (input.enabled && !/^\d{4}$/.test(input.otp)) {
+    throw new Error('PATIENT_PORTAL_DEMO_OTP must be exactly four digits when demo OTP is enabled');
+  }
+  if (input.production && (input.enabled || input.otp)) {
+    throw new Error('Patient portal demo OTP configuration is not allowed in production');
+  }
+};
+
+assertPatientPortalDemoOtpConfiguration({
+  enabled: patientPortalDemoOtpEnabled,
+  otp: patientPortalDemoOtp,
+  production: productionEnvironment,
+});
 
 const parseCorsOrigins = (value: string | undefined) => {
   const defaults = [
@@ -62,7 +126,7 @@ const parseDatabaseUrl = (value: string | undefined) => {
 export const env = {
   app: {
     name: process.env.APP_NAME ?? 'hms-api',
-    environment: (process.env.APP_ENV ?? 'dev') as AppEnv,
+    environment: appEnvironment as AppEnv,
     nodeEnv: process.env.NODE_ENV ?? 'development',
     host: process.env.HOST ?? '0.0.0.0',
     port: parseInteger(process.env.PORT, 4000),
@@ -70,6 +134,9 @@ export const env = {
   },
   cors: {
     origins: parseCorsOrigins(process.env.CORS_ORIGIN),
+  },
+  http: {
+    trustProxy: parseBoolean(process.env.TRUST_PROXY, false),
   },
   database: {
     url: parseDatabaseUrl(process.env.MONGODB_URI ?? process.env.MONGODB_DATABASE_URL),
@@ -113,7 +180,21 @@ export const env = {
     failedLoginLimit: parseInteger(process.env.AUTH_FAILED_LOGIN_LIMIT, 5),
     lockoutMinutes: parseInteger(process.env.AUTH_LOCKOUT_MINUTES, 15),
     passwordResetTtlMinutes: parseInteger(process.env.AUTH_PASSWORD_RESET_TTL_MINUTES, 30),
-    patientPortalDemoOtp: process.env.PATIENT_PORTAL_DEMO_OTP ?? '1234',
+    patientPortalDemoOtpEnabled,
+    patientPortalDemoOtp,
+    otpTtlSeconds: parsePositiveInteger('AUTH_OTP_TTL_SECONDS', process.env.AUTH_OTP_TTL_SECONDS, 300),
+    otpResendCooldownSeconds: parsePositiveInteger('AUTH_OTP_RESEND_COOLDOWN_SECONDS', process.env.AUTH_OTP_RESEND_COOLDOWN_SECONDS, 60),
+    otpMaxVerificationAttempts: parsePositiveInteger('AUTH_OTP_MAX_VERIFICATION_ATTEMPTS', process.env.AUTH_OTP_MAX_VERIFICATION_ATTEMPTS, 3),
+    otpIdentityRequestLimit: parsePositiveInteger('AUTH_OTP_IDENTITY_REQUEST_LIMIT', process.env.AUTH_OTP_IDENTITY_REQUEST_LIMIT, 5),
+    otpIdentityWindowSeconds: parsePositiveInteger('AUTH_OTP_IDENTITY_WINDOW_SECONDS', process.env.AUTH_OTP_IDENTITY_WINDOW_SECONDS, 3600),
+    otpIpRequestLimit: parsePositiveInteger('AUTH_OTP_IP_REQUEST_LIMIT', process.env.AUTH_OTP_IP_REQUEST_LIMIT, 20),
+    otpIpRequestWindowSeconds: parsePositiveInteger('AUTH_OTP_IP_REQUEST_WINDOW_SECONDS', process.env.AUTH_OTP_IP_REQUEST_WINDOW_SECONDS, 600),
+    otpVerificationIpLimit: parsePositiveInteger('AUTH_OTP_VERIFICATION_IP_LIMIT', process.env.AUTH_OTP_VERIFICATION_IP_LIMIT, 30),
+    otpVerificationIdentityLimit: parsePositiveInteger('AUTH_OTP_VERIFICATION_IDENTITY_LIMIT', process.env.AUTH_OTP_VERIFICATION_IDENTITY_LIMIT, 10),
+    otpVerificationWindowSeconds: parsePositiveInteger('AUTH_OTP_VERIFICATION_WINDOW_SECONDS', process.env.AUTH_OTP_VERIFICATION_WINDOW_SECONDS, 600),
+    loginIpLimit: parsePositiveInteger('AUTH_LOGIN_IP_LIMIT', process.env.AUTH_LOGIN_IP_LIMIT, 20),
+    loginIdentityLimit: parsePositiveInteger('AUTH_LOGIN_IDENTITY_LIMIT', process.env.AUTH_LOGIN_IDENTITY_LIMIT, 10),
+    loginWindowSeconds: parsePositiveInteger('AUTH_LOGIN_WINDOW_SECONDS', process.env.AUTH_LOGIN_WINDOW_SECONDS, 900),
     passwordPolicy: {
       minLength: parseInteger(process.env.AUTH_PASSWORD_MIN_LENGTH, 8),
       requireUppercase: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_UPPERCASE, true),
@@ -123,12 +204,12 @@ export const env = {
     },
     cookie: {
       // In production, cookies must be Secure (HTTPS). In dev (HTTP localhost), false is acceptable.
-      secure: parseBoolean(process.env.COOKIE_SECURE, process.env.APP_ENV === 'prod'),
+      secure: cookieSecure,
       // Optional domain scoping (e.g. ".hms.example.com"). Leave unset for same-origin/same-site.
       domain: process.env.COOKIE_DOMAIN,
       // SameSite=Lax blocks cross-site POST requests (the CSRF attack vector for cookie-based auth)
       // while allowing same-site requests. Correct for same-site frontend/API deployments.
-      sameSite: (process.env.COOKIE_SAME_SITE ?? 'lax') as 'lax' | 'strict' | 'none',
+      sameSite: cookieSameSite,
     },
   },
   patientPortal: {

@@ -1,14 +1,15 @@
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { hashPassword, sha256, verifyPassword } from '../../shared/security/hash.js';
 import { signJwt, verifyJwt } from '../../shared/security/jwt.js';
 import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
 import type { AuthenticatedUser } from '../../shared/types/auth.js';
+import type { PatientOtpService, PatientOtpVerification } from '../patient-portal/patient-otp.service.js';
+import { isPatientOtpVerificationForPhone } from '../patient-portal/patient-otp.service.js';
 import { AuthRepository } from './auth.repository.js';
 import type { AuthUserRecord, RequestMetadata } from './auth.types.js';
-import { createHash } from 'node:crypto';
-import { OtpChallengeModel } from '../patient-portal/otp-challenge.model.js';
+import { AuthRateLimitRepository } from './auth-rate-limit.repository.js';
 
 type TokenPair = {
   accessToken: string;
@@ -65,8 +66,20 @@ const toAuthUser = (user: AuthUserRecord): AuthenticatedUser => ({
 const isLocked = (user: AuthUserRecord) =>
   user.status === 'locked' && (!user.lockedUntil || user.lockedUntil.getTime() > Date.now());
 
+type AuthRateLimitOptions = {
+  ipLimit?: number;
+  identityLimit?: number;
+  windowSeconds?: number;
+  now?: () => Date;
+};
+
 export class AuthService {
-  constructor(private readonly repository: AuthRepository) {}
+  constructor(
+    private readonly repository: AuthRepository,
+    private readonly patientOtp: PatientOtpService,
+    private readonly rateLimits = new AuthRateLimitRepository(),
+    private readonly rateLimitOptions: AuthRateLimitOptions = {},
+  ) {}
 
   getPasswordPolicy() {
     return {
@@ -79,6 +92,7 @@ export class AuthService {
   }
 
   async login(input: LoginInput, metadata: RequestMetadata) {
+    await this.enforcePublicAuthRateLimits('staff-login', input.identifier, metadata);
     const user = await this.repository.findUserByIdentifier(input.identifier);
 
     if (!user) {
@@ -144,20 +158,45 @@ export class AuthService {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  isPatientDemoOtp(_otp?: string) {
-    // OTP verification check bypassed for development/testing until SMS tele-gateway integration.
-    // Accepts 1234 or any OTP code in all environments.
-    return true;
+  async loginPatientWithOtp(input: PatientOtpLoginInput, metadata: RequestMetadata) {
+    await this.patientOtp.assertValidForPendingFlow(input.phone, input.otp, metadata);
+    const verification = await this.patientOtp.verifyAndConsume(input.phone, input.otp);
+    return this.loginPatientAfterOtpVerification(input.phone, verification, metadata);
   }
 
-  async loginPatientWithOtp(input: PatientOtpLoginInput, metadata: RequestMetadata) {
+  private async enforcePublicAuthRateLimits(prefix: string, identifier: string, metadata: RequestMetadata) {
+    const now = this.rateLimitOptions.now?.() ?? new Date();
+    const windowSeconds = this.rateLimitOptions.windowSeconds ?? env.auth.loginWindowSeconds;
+    const keys = [
+      { scope: `${prefix}-identity`, value: identifier.trim().toLowerCase(), limit: this.rateLimitOptions.identityLimit ?? env.auth.loginIdentityLimit },
+      ...(metadata.ipAddress ? [{ scope: `${prefix}-ip`, value: metadata.ipAddress, limit: this.rateLimitOptions.ipLimit ?? env.auth.loginIpLimit }] : []),
+    ];
+    for (const item of keys) {
+      const keyHash = createHmac('sha256', env.auth.accessTokenSecret).update(item.value).digest('hex');
+      if (await this.rateLimits.consume(item.scope, keyHash, item.limit, windowSeconds, now)) continue;
+      if (await this.rateLimits.consume(`monitor:${item.scope}`, keyHash, 1, windowSeconds, now)) {
+        await this.repository.audit('auth.rate_limited', {
+          ...metadata,
+          metadata: { scope: item.scope, keyHash },
+        });
+      }
+      throw new AppError('Too many authentication requests. Try again later.', 429, 'AUTH_RATE_LIMITED');
+    }
+  }
+
+  async loginPatientAfterOtpVerification(
+    phone: string,
+    verification: PatientOtpVerification,
+    metadata: RequestMetadata,
+  ) {
     const invalidCredentials = (message = 'Invalid mobile number or verification code') => new AppError(
       message,
       401,
       'INVALID_CREDENTIALS',
     );
-    const user = await this.repository.findUserByIdentifier(input.phone);
+    if (!isPatientOtpVerificationForPhone(verification, phone)) throw invalidCredentials();
+
+    const user = await this.repository.findUserByIdentifier(phone);
 
     if (!user) {
       await this.repository.audit('auth.patient_otp.failed', {
@@ -166,71 +205,6 @@ export class AuthService {
         metadata: { reason: 'unknown_phone' },
       });
       throw invalidCredentials();
-    }
-
-    const normalizedPhone = input.phone.replace(/\D/g, '');
-    const isDemo = this.isPatientDemoOtp(input.otp);
-
-    if (!isDemo) {
-      const now = new Date();
-      // Look for a verified challenge within 15 minutes
-      const challenge = await OtpChallengeModel.findOne({
-        phone: normalizedPhone,
-        verifiedAt: { $ne: null, $gt: new Date(Date.now() - 15 * 60 * 1000) },
-        expiresAt: { $gt: now },
-      }).sort({ createdAt: -1 });
-
-      if (!challenge) {
-        // Try verifying it now directly
-        const activeChallenge = await OtpChallengeModel.findOne({
-          phone: normalizedPhone,
-          verifiedAt: null,
-          expiresAt: { $gt: now },
-        }).sort({ createdAt: -1 });
-
-        if (!activeChallenge) {
-          await this.repository.audit('auth.patient_otp.failed', {
-            ...metadata,
-            subjectUserId: user.id,
-            metadata: { reason: 'invalid_otp' },
-          });
-          throw invalidCredentials('The verification code is invalid or has expired');
-        }
-
-        if (activeChallenge.attempts >= 3) {
-          throw new AppError('Too many failed verification attempts. Please request a new code.', 429, 'MAX_ATTEMPTS_EXCEEDED');
-        }
-
-        const hashed = createHash('sha256').update(`${normalizedPhone}:${input.otp}`).digest('hex');
-        if (activeChallenge.otpHash !== hashed) {
-          activeChallenge.attempts += 1;
-          await activeChallenge.save();
-          await this.repository.audit('auth.patient_otp.failed', {
-            ...metadata,
-            subjectUserId: user.id,
-            metadata: { reason: 'invalid_otp' },
-          });
-          throw invalidCredentials('The verification code is invalid');
-        }
-
-        activeChallenge.verifiedAt = now;
-        activeChallenge.expiresAt = now; // consume it
-        await activeChallenge.save();
-      } else {
-        // Check hash
-        const hashed = createHash('sha256').update(`${normalizedPhone}:${input.otp}`).digest('hex');
-        if (challenge.otpHash !== hashed) {
-          await this.repository.audit('auth.patient_otp.failed', {
-            ...metadata,
-            subjectUserId: user.id,
-            metadata: { reason: 'invalid_otp' },
-          });
-          throw invalidCredentials('The verification code is invalid');
-        }
-        // Consume verified challenge
-        challenge.expiresAt = now;
-        await challenge.save();
-      }
     }
 
     if (user.status === 'inactive' || isLocked(user)) {
@@ -369,6 +343,7 @@ export class AuthService {
   }
 
   async requestPasswordReset(input: PasswordResetRequestInput, metadata: RequestMetadata) {
+    await this.enforcePublicAuthRateLimits('password-reset-request', input.identifier, metadata);
     const user = await this.repository.findUserByIdentifier(input.identifier);
 
     if (user && user.status === 'active') {
@@ -390,6 +365,7 @@ export class AuthService {
   }
 
   async confirmPasswordReset(input: PasswordResetConfirmInput, metadata: RequestMetadata) {
+    await this.enforcePublicAuthRateLimits('password-reset-confirm', input.resetToken, metadata);
     assertPasswordPolicy(input.newPassword);
 
     const record = await this.repository.findPasswordResetTokenByHash(sha256(input.resetToken));

@@ -12,6 +12,7 @@ import { createServiceRegistry } from './shared/services/service-registry.js';
 export const buildApp = async () => {
   const app = Fastify({
     logger: loggerConfig,
+    trustProxy: env.http.trustProxy,
   });
 
   const services = createServiceRegistry();

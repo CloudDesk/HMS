@@ -9,13 +9,16 @@ import { useLaboratoryOrders } from '../laboratory/useLaboratory';
 import { useOpdVisits } from '../opd/useOpd';
 import {
   usePatientDetails,
+  useDownloadPatientDocument,
   usePatientDocuments,
   usePatientHistory,
+  useReviewPatientDocument,
   usePatientTimeline,
   useUpdatePatient,
   useUploadPatientDocument,
 } from './usePatients';
 import type { SavePatientPayload, UploadPatientDocumentPayload } from '../../api/patients';
+import { useCurrencyFormatter } from '../../api/useSettings';
 
 export type PatientProfileTab =
   | 'Overview'
@@ -32,6 +35,7 @@ export type PatientProfileTab =
 
 export function usePatientProfileFeature(patientId: string | null, initialTab: PatientProfileTab = 'Overview') {
   const { user } = useAuth();
+  const formatMoney = useCurrencyFormatter();
   
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const can = (action: string) => isSuperAdmin || hasPermission(user?.permissions ?? [], {
@@ -107,6 +111,8 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
   // Mutations
   const updatePatient = useUpdatePatient();
   const uploadDocument = useUploadPatientDocument();
+  const downloadDocument = useDownloadPatientDocument();
+  const reviewDocument = useReviewPatientDocument({ notifyOnError: false });
 
   const handleUpdateProfile = async (payload: Partial<SavePatientPayload>) => {
     if (!patientId) return;
@@ -116,6 +122,19 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
   const handleUploadDocument = async (payload: UploadPatientDocumentPayload) => {
     if (!patientId) return;
     await uploadDocument.mutateAsync({ id: patientId, payload });
+  };
+
+  const handleDownloadDocument = async (documentId: string) => {
+    if (!patientId) return null;
+    return downloadDocument.mutateAsync({ patientId, docId: documentId });
+  };
+
+  const handleReviewDocument = async (
+    documentId: string,
+    payload: { review_status: 'VERIFIED' | 'REJECTED'; review_notes?: string | null },
+  ) => {
+    if (!patientId) return;
+    await reviewDocument.mutateAsync({ patientId, documentId, payload });
   };
 
   return {
@@ -155,6 +174,7 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
       loadingBillingInvoices: billingInvoicesQuery.isLoading,
 
       doctors: doctorsQuery.data?.data ?? [],
+      formatMoney,
 
       filters: {
         timeline: timelineFilters,
@@ -170,6 +190,7 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
 
       isSubmittingUpdate: updatePatient.isPending,
       isSubmittingUpload: uploadDocument.isPending,
+      isSubmittingDocumentReview: reviewDocument.isPending,
     },
     capabilities: {
       canEdit,
@@ -184,6 +205,8 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
       setAppointmentsPage,
       handleUpdateProfile,
       handleUploadDocument,
+      handleDownloadDocument,
+      handleReviewDocument,
     },
   };
 }

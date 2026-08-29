@@ -31,6 +31,11 @@ type PermissionDoc = {
   deletedBy?: unknown;
 };
 
+type PermissionRoleCount = {
+  _id: unknown;
+  count: number;
+};
+
 const mapPermission = (
   permission: PermissionDoc,
   roleCount: number
@@ -61,6 +66,25 @@ const mapPermission = (
   updatedBy: permission.updatedBy ? String(permission.updatedBy) : null,
   deletedBy: permission.deletedBy ? String(permission.deletedBy) : null,
 };
+};
+
+const mapPermissionsWithRoleCounts = async (permissions: PermissionDoc[]) => {
+  if (permissions.length === 0) return [];
+
+  const permissionIds = permissions.map((permission) => permission._id);
+  const roleCounts = await RoleModel.aggregate<PermissionRoleCount>([
+    { $match: { permissionIds: { $in: permissionIds }, deletedAt: null } },
+    { $unwind: '$permissionIds' },
+    { $match: { permissionIds: { $in: permissionIds } } },
+    { $group: { _id: { permissionId: '$permissionIds', roleId: '$_id' } } },
+    { $group: { _id: '$_id.permissionId', count: { $sum: 1 } } },
+  ]);
+  const countByPermissionId = new Map(
+    roleCounts.map((entry) => [String(entry._id), entry.count]),
+  );
+
+  return permissions.map((permission) =>
+    mapPermission(permission, countByPermissionId.get(String(permission._id)) ?? 0));
 };
 
 export class PermissionRepository {
@@ -156,11 +180,8 @@ export class PermissionRepository {
       PermissionModel.countDocuments(filter),
     ]);
 
-    const permissionsWithCounts = await Promise.all(
-      data.map(async (p) => {
-        const roleCount = await RoleModel.countDocuments({ permissionIds: p._id, deletedAt: null });
-        return mapPermission(p as unknown as PermissionDoc, roleCount);
-      })
+    const permissionsWithCounts = await mapPermissionsWithRoleCounts(
+      data as unknown as PermissionDoc[],
     );
 
     if (query.sortBy === 'roleCount') {
@@ -353,10 +374,7 @@ export class PermissionRepository {
       .populate('groupId')
       .lean();
       
-    return Promise.all(permissions.map(async p => {
-      const roleCount = await RoleModel.countDocuments({ permissionIds: p._id, deletedAt: null });
-      return mapPermission(p, roleCount);
-    }));
+    return mapPermissionsWithRoleCounts(permissions as unknown as PermissionDoc[]);
   }
 
   async getPermissionsByRole(roleId: string) {
@@ -369,10 +387,7 @@ export class PermissionRepository {
       .sort({ module: 1, screen: 1, action: 1 })
       .lean();
 
-    return Promise.all(permissions.map(async p => {
-      const roleCount = await RoleModel.countDocuments({ permissionIds: p._id, deletedAt: null });
-      return mapPermission(p, roleCount);
-    }));
+    return mapPermissionsWithRoleCounts(permissions as unknown as PermissionDoc[]);
   }
 
   async getAllActivePermissions() {
@@ -382,10 +397,7 @@ export class PermissionRepository {
       .sort({ module: 1, screen: 1, action: 1 })
       .lean();
 
-    return Promise.all(permissions.map(async (permission) => {
-      const roleCount = await RoleModel.countDocuments({ permissionIds: permission._id, deletedAt: null });
-      return mapPermission(permission as unknown as PermissionDoc, roleCount);
-    }));
+    return mapPermissionsWithRoleCounts(permissions as unknown as PermissionDoc[]);
   }
 
   async getRolesByPermission(permissionId: string) {

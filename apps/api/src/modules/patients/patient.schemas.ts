@@ -1,3 +1,5 @@
+import { apiResponseSchema } from '../../validators/common-schemas.js';
+
 const addressSchema = {
   type: 'object',
   additionalProperties: false,
@@ -152,4 +154,57 @@ export const createPatientDocumentBodySchema = {
     description: { type: ['string', 'null'] },
   },
 } as const;
+
+export const patientResponseDataSchema = {
+  type: 'object',
+  required: [
+    'id', 'patient_number', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'gender',
+    'phone', 'email', 'address', 'emergency_contact', 'parent_guardian', 'registration_branch_id',
+    'blood_group', 'status', 'notes', 'created_by', 'updated_by', 'created_at', 'updated_at',
+  ],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    patient_number: { type: 'string' },
+    first_name: { type: ['string', 'null'] },
+    middle_name: { type: ['string', 'null'] },
+    last_name: { type: 'string' },
+    date_of_birth: { type: 'string' },
+    gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER', 'UNKNOWN'] },
+    phone: { type: ['string', 'null'] },
+    email: { type: ['string', 'null'] },
+    address: addressSchema,
+    emergency_contact: emergencyContactSchema,
+    parent_guardian: { type: ['string', 'null'] },
+    registration_branch_id: { type: ['string', 'null'] },
+    blood_group: { type: ['string', 'null'] },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DECEASED'] },
+    notes: { type: ['string', 'null'] },
+    created_by: { type: ['string', 'null'] },
+    updated_by: { type: ['string', 'null'] },
+    created_at: { type: 'string' },
+    updated_at: { type: 'string' },
+  },
+} as const;
+
+export const patientResponseSchema = apiResponseSchema(patientResponseDataSchema);
+export const patientListResponseSchema = apiResponseSchema({
+  type: 'object',
+  required: ['data', 'meta'],
+  additionalProperties: false,
+  properties: {
+    data: { type: 'array', items: patientResponseDataSchema },
+    meta: {
+      type: 'object',
+      required: ['page', 'limit', 'total', 'totalPages'],
+      additionalProperties: false,
+      properties: {
+        page: { type: 'integer' },
+        limit: { type: 'integer' },
+        total: { type: 'integer' },
+        totalPages: { type: 'integer' },
+      },
+    },
+  },
+});
 

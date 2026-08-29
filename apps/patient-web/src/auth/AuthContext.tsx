@@ -18,31 +18,43 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const refresh = useCallback(async () => {
     if (refreshRef.current) return refreshRef.current;
-    const refreshToken = tokenStorage.getRefreshToken();
-    if (!refreshToken || tokenStorage.isRefreshTokenExpired()) { clear('session-expired'); return null; }
-    refreshRef.current = authApi.refresh(refreshToken).then((session) => {
-      if (!isPortalUser(session.user)) { clear(); return null; }
+    refreshRef.current = authApi.refresh().then(async (session) => {
+      if (!isPortalUser(session.user)) {
+        tokenStorage.setTokens(session.tokens);
+        try { await authApi.logout(); } catch { /* The local portal session still remains denied. */ }
+        clear();
+        return null;
+      }
       tokenStorage.setTokens(session.tokens); setUser(session.user); setStatus('authenticated'); return session.tokens.accessToken;
     }).catch(() => { clear('session-expired'); return null; }).finally(() => { refreshRef.current = null; });
     return refreshRef.current;
   }, [clear]);
 
   useEffect(() => {
+    tokenStorage.clearLegacyRefreshStorage();
     apiClient.setRefreshHandler(refresh);
     apiClient.setUnauthorizedHandler(() => { clear('session-expired'); navigate('/login?reason=session-expired', { replace: true }); });
     void (async () => {
-      if (!tokenStorage.hasRefreshToken()) { setStatus('unauthenticated'); return; }
       const token = await refresh();
-      if (!token) setStatus('session-expired');
+      if (!token) setStatus('unauthenticated');
     })();
     return () => { apiClient.setRefreshHandler(null); apiClient.setUnauthorizedHandler(null); };
   }, [clear, refresh]);
+
+  const restoreSession = useCallback(async () => {
+    const token = await refresh();
+    if (!token) throw new ApiError('Your secure session could not be restored.', 401, 'INVALID_REFRESH_TOKEN');
+  }, [refresh]);
 
   const login = useCallback(async (identifier: string, password: string) => {
     setStatus('loading'); setAuthError(null);
     try {
       const session = await authApi.login(identifier, password);
-      if (!isPortalUser(session.user)) throw new ApiError('This account belongs to the staff system. Use Staff login.', 403);
+      if (!isPortalUser(session.user)) {
+        tokenStorage.setTokens(session.tokens);
+        try { await authApi.logout(); } catch { /* The local portal session still remains denied. */ }
+        throw new ApiError('This account belongs to the staff system. Use Staff login.', 403);
+      }
       tokenStorage.setTokens(session.tokens); setUser(session.user); setStatus('authenticated');
     } catch (error) { clear(); const message = getFriendlyAuthMessage(error); setAuthError(message); throw new ApiError(message, error instanceof ApiError ? error.status : 400, error instanceof ApiError ? error.code : undefined); }
   }, [clear]);
@@ -66,10 +78,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [clear]);
 
   const logout = useCallback(async () => {
-    try { if (tokenStorage.getAccessToken()) await authApi.logout(tokenStorage.getRefreshToken()); } catch { /* Local sign-out remains authoritative. */ }
+    try { if (tokenStorage.getAccessToken()) await authApi.logout(); } catch { /* Local sign-out remains authoritative. */ }
     finally { clear(); navigate('/', { replace: true }); }
   }, [clear]);
 
-  const value = useMemo<AuthContextValue>(() => ({ status, user, authError, login, loginWithOtp, activateGuardian, logout, clearAuthError: () => setAuthError(null) }), [activateGuardian, authError, login, loginWithOtp, logout, status, user]);
+  const value = useMemo<AuthContextValue>(() => ({ status, user, authError, login, loginWithOtp, activateGuardian, restoreSession, logout, clearAuthError: () => setAuthError(null) }), [activateGuardian, authError, login, loginWithOtp, logout, restoreSession, status, user]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

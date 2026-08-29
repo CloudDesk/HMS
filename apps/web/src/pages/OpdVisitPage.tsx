@@ -1,20 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { billingApi, type SaveBillingInvoiceItem } from '../api/billing';
-import { branchesApi, type BranchResponse } from '../api/branches';
-import { departmentsApi, type DepartmentResponse } from '../api/departments';
-import { doctorsApi, type DoctorResponse } from '../api/doctors';
-import { medicinesApi } from '../api/medicines';
+import { useEffect, useMemo, useState } from 'react';
+import type { SaveBillingInvoiceItem } from '../api/billing';
 import {
-  opdApi,
   type ApiClinicalOrderPriority,
   type OpdConsultationResponse,
   type OpdPrescriptionResponse,
-  type OpdVisitResponse,
   type SaveOpdConsultationPayload,
 } from '../api/opd';
-import { patientsApi, type PatientDocumentResponse, type PatientResponse } from '../api/patients';
-import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
-import { servicesApi, type ServiceResponse } from '../api/services';
+import type { PatientDocumentResponse } from '../api/patients';
+import type { ServiceResponse } from '../api/services';
 import { ICD10_DIAGNOSES, type Icd10Diagnosis } from '../data/icd10-diagnoses';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
@@ -29,8 +22,8 @@ import {
   evaluateSystolicBp,
   evaluateTemperature,
 } from '../components/ui/ClinicalVitalCard';
-import { navigate, useAppLocation } from '../routing/navigation';
-import { useCallNextOpdPatient } from '../hooks/opd/useOpd';
+import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
+import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, calculateAge } from './patient-utils';
 import {
   getOpdErrorMessage,
@@ -153,48 +146,28 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null
 });
 
 export function OpdVisitPage() {
-  const { search } = useAppLocation();
-  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
-  const visitIdParam = searchParams.get('id') ?? '';
-  const initialTabParam = searchParams.get('tab') ?? 'Consultation';
-  const callNextPatient = useCallNextOpdPatient();
-
-  // Active visit and selection state
-  const [activeVisitId, setActiveVisitId] = useState(visitIdParam);
-  const [recentVisits, setRecentVisits] = useState<OpdVisitResponse[]>([]);
-  const [visit, setVisit] = useState<OpdVisitResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const feature = useOpdVisitFeature();
+  const {
+    activeVisitId, activeTab, recentVisits, visit, patient, vitals, consultation,
+    prescription, laboratoryOrder, imagingOrder, doctors, masterMedicines, services,
+    branches, departments, documents, loading, loadError,
+  } = feature.state;
+  const { setActiveTab, selectVisit } = feature.actions;
   const [updating, setUpdating] = useState('');
-
-  // Active Workspace Tab state (1 Consultation to 9 Documents)
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    const tabMatch = WORKSPACE_TABS.find(
-      (t) =>
-        t.name.toLowerCase() === initialTabParam.toLowerCase() ||
-        t.id === initialTabParam ||
-        t.label.toLowerCase().includes(initialTabParam.toLowerCase()),
-    );
-    return tabMatch ? tabMatch.name : 'Consultation';
-  });
 
   // Clinical forms & records state
   const [vitalsForm, setVitalsForm] = useState<VitalsFormState>(emptyVitalsForm);
 
-  const [, setConsultation] = useState<OpdConsultationResponse | null>(null);
-  const [patient, setPatient] = useState<PatientResponse | null>(null);
   const [consultationForm, setConsultationForm] = useState<ConsultationFormState>(emptyConsultationForm);
 
   const [prescriptionForm, setPrescriptionForm] = useState<PrescriptionFormState>(emptyPrescriptionForm);
   const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
 
   // Documents state (Tab 9)
-  const [documents, setDocuments] = useState<PatientDocumentResponse[]>([]);
   const [uploadFileType, setUploadFileType] = useState('Consultation Document');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
@@ -226,12 +199,15 @@ export function OpdVisitPage() {
     const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
     setReferralBooking(true);
     try {
-      await opdApi.submitReferral(visit.id, {
-        referral_type: 'INTERNAL',
-        specialty: referralSpecialty,
-        referred_doctor_id: referralDoctorId,
-        reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
-        clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
+      await feature.actions.submitReferral({
+        visitId: visit.id,
+        payload: {
+          referral_type: 'INTERNAL',
+          specialty: referralSpecialty,
+          referred_doctor_id: referralDoctorId,
+          reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+          clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
+        },
       });
       showToast(`Referral submitted successfully to ${selectedDoc?.display_name ?? 'Doctor'}!`);
       setReferralReason('');
@@ -261,16 +237,19 @@ export function OpdVisitPage() {
     setUpdating('vitals');
     try {
       if (visit) {
-        await opdApi.createVitals(visit.id, {
-          blood_pressure_systolic: Number(vitalsForm.blood_pressure_systolic),
-          blood_pressure_diastolic: Number(vitalsForm.blood_pressure_diastolic),
-          weight_kg: Number(vitalsForm.weight_kg) || 70,
-          height_cm: Number(vitalsForm.height_cm) || 170,
-          temperature_c: vitalsForm.temperature_c ? Number(vitalsForm.temperature_c) : null,
-          pulse_bpm: vitalsForm.pulse_bpm ? Number(vitalsForm.pulse_bpm) : null,
-          respiratory_rate_per_min: vitalsForm.respiratory_rate_per_min ? Number(vitalsForm.respiratory_rate_per_min) : null,
-          oxygen_saturation_percent: vitalsForm.oxygen_saturation_percent ? Number(vitalsForm.oxygen_saturation_percent) : null,
-          notes: vitalsForm.notes.trim() || null,
+        await feature.actions.createVitals({
+          visitId: visit.id,
+          payload: {
+            blood_pressure_systolic: Number(vitalsForm.blood_pressure_systolic),
+            blood_pressure_diastolic: Number(vitalsForm.blood_pressure_diastolic),
+            weight_kg: Number(vitalsForm.weight_kg) || 70,
+            height_cm: Number(vitalsForm.height_cm) || 170,
+            temperature_c: vitalsForm.temperature_c ? Number(vitalsForm.temperature_c) : null,
+            pulse_bpm: vitalsForm.pulse_bpm ? Number(vitalsForm.pulse_bpm) : null,
+            respiratory_rate_per_min: vitalsForm.respiratory_rate_per_min ? Number(vitalsForm.respiratory_rate_per_min) : null,
+            oxygen_saturation_percent: vitalsForm.oxygen_saturation_percent ? Number(vitalsForm.oxygen_saturation_percent) : null,
+            notes: vitalsForm.notes.trim() || null,
+          },
         });
       }
       showToast('Patient vitals recorded successfully.');
@@ -281,81 +260,6 @@ export function OpdVisitPage() {
       setUpdating('');
     }
   };
-
-  // Sync activeVisitId from URL search param if present
-  useEffect(() => {
-    if (visitIdParam && visitIdParam !== activeVisitId) {
-      setActiveVisitId(visitIdParam);
-    }
-  }, [visitIdParam]);
-
-  // Load available recent visits if no direct ID passed
-  const loadRecentVisits = useCallback(async () => {
-    try {
-      const res = await opdApi.listVisits({ limit: 10, sortBy: 'created_at', sortOrder: 'desc' });
-      setRecentVisits(res.data);
-      const firstVisit = res.data[0];
-      if (!activeVisitId && firstVisit) {
-        setActiveVisitId(firstVisit.id);
-      }
-    } catch {
-      setRecentVisits([]);
-    }
-  }, [activeVisitId]);
-
-  useEffect(() => {
-    void loadRecentVisits();
-  }, [loadRecentVisits]);
-
-  // Load active visit details
-  const loadVisit = useCallback(async () => {
-    if (!activeVisitId) {
-      setVisit(null);
-      setPatient(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setLoadError('');
-    setPatient(null);
-
-    try {
-      const response = await opdApi.getVisitById(activeVisitId);
-      setVisit(response);
-      try {
-        const patientData = await patientsApi.getById(response.patient_id);
-        setPatient(patientData);
-      } catch {
-        // patient data load failed â€” continue without patient details
-        setPatient(null);
-      }
-    } catch (error) {
-      setVisit(null);
-      setPatient(null);
-      setLoadError(getOpdErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [activeVisitId]);
-
-  useEffect(() => {
-    void loadVisit();
-  }, [loadVisit]);
-
-  // Master Medicines & Service Catalogue States
-  const [masterMedicines, setMasterMedicines] = useState<
-    Array<{
-      id: string;
-      name: string;
-      generic_name: string | null;
-      strength: string | null;
-      dosage_form: string | null;
-      unit: string | null;
-      available_quantity: number;
-    }>
-  >([]);
-  const [services, setServices] = useState<ServiceResponse[]>([]);
 
   const labTestServices = useMemo(
     () => services.filter((s) => s.service_type === 'LAB_TEST'),
@@ -400,9 +304,6 @@ export function OpdVisitPage() {
   };
 
   // Sub-tab 4: Lab Orders State
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
-
   const labFacilities = useMemo(() => {
     const list: string[] = [];
     branches.forEach((b) => {
@@ -550,136 +451,63 @@ export function OpdVisitPage() {
     }
   };
 
-  // Load patient clinical sub-resources
-  const loadClinicalData = useCallback(async () => {
-    if (!activeVisitId) return;
-
-    try {
-      const [vitalsRes, consultRes, prescriptionRes, docRes, medRes, invRes, servRes, labOrderRes, imagingOrderRes, branchRes, deptRes] =
-        await Promise.allSettled([
-          opdApi.getLatestVitals(activeVisitId),
-          opdApi.getConsultation(activeVisitId),
-          opdApi.getPrescription(activeVisitId),
-          doctorsApi.list({ limit: 100, sortBy: 'display_name', sortOrder: 'asc' }),
-          medicinesApi.list({ status: 'ACTIVE', limit: 100 }),
-          pharmacyInventoryApi.list({ branch_id: visit?.branch_id || '', limit: 100 }).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
-          servicesApi.list({ status: 'ACTIVE', limit: 100 }),
-          opdApi.getClinicalOrder(activeVisitId, 'LABORATORY'),
-          opdApi.getClinicalOrder(activeVisitId, 'IMAGING'),
-          branchesApi.list({ status: 'ACTIVE', limit: 100 }),
-          departmentsApi.list({ status: 'ACTIVE', limit: 100 }),
-        ]);
-
-      if (branchRes.status === 'fulfilled' && branchRes.value?.data) {
-        setBranches(branchRes.value.data);
-      }
-      if (deptRes.status === 'fulfilled' && deptRes.value?.data) {
-        setDepartments(deptRes.value.data);
-      }
-
-      if (labOrderRes.status === 'fulfilled' && labOrderRes.value?.items?.length) {
-        setLabOrders(labOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, category: i.category, local_id: i.id || `lab-${Date.now()}-${Math.random()}` })));
-        if (labOrderRes.value.priority) setLabPriority(labOrderRes.value.priority);
-        if (labOrderRes.value.destination) setLabFacility(labOrderRes.value.destination);
-        if (labOrderRes.value.specimen_type) setLabSampleType(labOrderRes.value.specimen_type);
-        if (labOrderRes.value.clinical_notes) setLabClinicalNotes(labOrderRes.value.clinical_notes);
-        if (labOrderRes.value.instructions) setLabOrderSummary(labOrderRes.value.instructions);
-      }
-      if (imagingOrderRes.status === 'fulfilled' && imagingOrderRes.value?.items?.length) {
-        setImagingOrders(imagingOrderRes.value.items.map(i => ({ id: i.service_id, name: i.investigation_name, category: i.category, local_id: i.id || `img-${Date.now()}-${Math.random()}` })));
-        if (imagingOrderRes.value.priority) setImagingPriority(imagingOrderRes.value.priority);
-        if (imagingOrderRes.value.clinical_notes) setImagingClinicalInfo(imagingOrderRes.value.clinical_notes);
-        if (imagingOrderRes.value.instructions) setImagingOrderInstructions(imagingOrderRes.value.instructions);
-      }
-
-      if (servRes.status === 'fulfilled' && servRes.value?.data) {
-        setServices(servRes.value.data);
-      }
-
-      if (medRes.status === 'fulfilled' && medRes.value?.data) {
-        const invMapId: Record<string, { available: number; unit?: string }> = {};
-        const invMapName: Record<string, { available: number; unit?: string }> = {};
-        if (invRes.status === 'fulfilled' && invRes.value?.data) {
-          invRes.value.data.forEach((item) => {
-            const info = { available: item.available_quantity, unit: item.medicine?.name };
-            invMapId[item.medicine_id] = info;
-            if (item.medicine?.name) invMapName[item.medicine.name] = info;
-          });
-        }
-
-        const combined = medRes.value.data.map((m) => {
-          const invMatch = invMapId[m.id] || invMapName[m.name];
-          return {
-            id: m.id,
-            name: m.name,
-            generic_name: m.generic_name,
-            strength: m.strength,
-            dosage_form: m.dosage_form,
-            unit: invMatch?.unit || m.unit || 'units',
-            available_quantity: invMatch?.available ?? 120,
-          };
-        });
-        setMasterMedicines(combined);
-      }
-
-      if (vitalsRes.status === 'fulfilled' && vitalsRes.value) {
-        setVitalsForm({
-          blood_pressure_systolic: vitalsRes.value.blood_pressure_systolic?.toString() ?? '',
-          blood_pressure_diastolic: vitalsRes.value.blood_pressure_diastolic?.toString() ?? '',
-          weight_kg: vitalsRes.value.weight_kg?.toString() ?? '',
-          height_cm: vitalsRes.value.height_cm?.toString() ?? '',
-          temperature_c: vitalsRes.value.temperature_c?.toString() ?? '',
-          pulse_bpm: vitalsRes.value.pulse_bpm?.toString() ?? '',
-          respiratory_rate_per_min: vitalsRes.value.respiratory_rate_per_min?.toString() ?? '',
-          oxygen_saturation_percent: vitalsRes.value.oxygen_saturation_percent?.toString() ?? '',
-          notes: vitalsRes.value.notes ?? '',
-        });
-      }
-      if (consultRes.status === 'fulfilled' && consultRes.value) {
-        setConsultation(consultRes.value);
-        setConsultationForm(consultationFormFromRecord(consultRes.value));
-        const assessmentVal = consultRes.value?.assessment;
-        if (assessmentVal) {
-          const matched = ICD10_DIAGNOSES.filter(
-            (d) =>
-              assessmentVal.toLowerCase().includes(d.code.toLowerCase()) ||
-              assessmentVal.toLowerCase().includes(d.name.toLowerCase()),
-          );
-          if (matched.length > 0) {
-            setSelectedDiagnoses(matched);
-          }
-        }
-      }
-      if (prescriptionRes.status === 'fulfilled' && prescriptionRes.value) {
-        setPrescriptionForm(prescriptionFormFromRecord(prescriptionRes.value));
-      }
-      if (docRes.status === 'fulfilled') setDoctors(docRes.value.data);
-    } catch (error) {
-      showToast(getOpdErrorMessage(error), 'error');
-    }
-  }, [activeVisitId]);
+  useEffect(() => {
+    if (!vitals) return;
+    setVitalsForm({
+      blood_pressure_systolic: vitals.blood_pressure_systolic?.toString() ?? '',
+      blood_pressure_diastolic: vitals.blood_pressure_diastolic?.toString() ?? '',
+      weight_kg: vitals.weight_kg?.toString() ?? '',
+      height_cm: vitals.height_cm?.toString() ?? '',
+      temperature_c: vitals.temperature_c?.toString() ?? '',
+      pulse_bpm: vitals.pulse_bpm?.toString() ?? '',
+      respiratory_rate_per_min: vitals.respiratory_rate_per_min?.toString() ?? '',
+      oxygen_saturation_percent: vitals.oxygen_saturation_percent?.toString() ?? '',
+      notes: vitals.notes ?? '',
+    });
+  }, [vitals]);
 
   useEffect(() => {
-    void loadClinicalData();
-  }, [loadClinicalData]);
-
-  const loadDocuments = useCallback(async () => {
-    if (!visit) {
-      setDocuments([]);
-      return;
-    }
-    try {
-      const response = await patientsApi.documents(visit.patient_id, { visit_id: visit.id, limit: 100 });
-      setDocuments(response.data);
-    } catch (error) {
-      setDocuments([]);
-      showToast(getPatientErrorMessage(error), 'error');
-    }
-  }, [visit]);
+    if (!consultation) return;
+    setConsultationForm(consultationFormFromRecord(consultation));
+    const assessment = consultation.assessment;
+    if (!assessment) return;
+    const matched = ICD10_DIAGNOSES.filter((diagnosis) =>
+      assessment.toLowerCase().includes(diagnosis.code.toLowerCase()) ||
+      assessment.toLowerCase().includes(diagnosis.name.toLowerCase()));
+    if (matched.length > 0) setSelectedDiagnoses(matched);
+  }, [consultation]);
 
   useEffect(() => {
-    void loadDocuments();
-  }, [loadDocuments]);
+    if (prescription) setPrescriptionForm(prescriptionFormFromRecord(prescription));
+  }, [prescription]);
+
+  useEffect(() => {
+    if (!laboratoryOrder?.items.length) return;
+    setLabOrders(laboratoryOrder.items.map((item) => ({
+      id: item.service_id,
+      name: item.investigation_name,
+      category: item.category,
+      local_id: item.id || `lab-${Date.now()}-${Math.random()}`,
+    })));
+    setLabPriority(laboratoryOrder.priority);
+    if (laboratoryOrder.destination) setLabFacility(laboratoryOrder.destination);
+    if (laboratoryOrder.specimen_type) setLabSampleType(laboratoryOrder.specimen_type);
+    if (laboratoryOrder.clinical_notes) setLabClinicalNotes(laboratoryOrder.clinical_notes);
+    if (laboratoryOrder.instructions) setLabOrderSummary(laboratoryOrder.instructions);
+  }, [laboratoryOrder]);
+
+  useEffect(() => {
+    if (!imagingOrder?.items.length) return;
+    setImagingOrders(imagingOrder.items.map((item) => ({
+      id: item.service_id,
+      name: item.investigation_name,
+      category: item.category,
+      local_id: item.id || `img-${Date.now()}-${Math.random()}`,
+    })));
+    setImagingPriority(imagingOrder.priority);
+    if (imagingOrder.clinical_notes) setImagingClinicalInfo(imagingOrder.clinical_notes);
+    if (imagingOrder.instructions) setImagingOrderInstructions(imagingOrder.instructions);
+  }, [imagingOrder]);
 
   // Action Handlers
   const saveConsultationDraft = async () => {
@@ -697,13 +525,9 @@ export function OpdVisitPage() {
         physical_examination: consultationForm.physical_examination.trim() || null,
         treatment_plan: consultationForm.treatment_plan.trim() || null,
       };
-      const response = await opdApi.saveConsultationDraft(visit.id, payload);
-      setConsultation(response);
-
-      // Also persist prescription draft if items exist
-      if (prescriptionForm.items.length > 0) {
-        await opdApi
-          .savePrescriptionDraft(visit.id, {
+      await feature.actions.saveWorkspaceDraft({
+        consultation: payload,
+        prescription: prescriptionForm.items.length > 0 ? {
             items: prescriptionForm.items.map((i) => ({
               medicine_name: i.medicine_name,
               strength: i.strength || null,
@@ -718,14 +542,8 @@ export function OpdVisitPage() {
             follow_up_date: prescriptionForm.follow_up_date || null,
             doctor_instructions: prescriptionForm.doctor_instructions || null,
             patient_instructions: prescriptionForm.patient_instructions || null,
-          })
-          .catch(() => null);
-      }
-
-      // Also persist lab order draft if items exist
-      if (labOrders.length > 0) {
-        await opdApi
-          .saveClinicalOrderDraft(visit.id, 'LABORATORY', {
+          } : undefined,
+        laboratory: labOrders.length > 0 ? {
             priority: labPriority || 'ROUTINE',
             destination: labFacility,
             specimen_type: labSampleType,
@@ -736,14 +554,8 @@ export function OpdVisitPage() {
               investigation_name: o.name,
               category: o.category || labCategory || 'Hematology',
             })),
-          })
-          .catch(() => null);
-      }
-
-      // Also persist imaging order draft if items exist
-      if (imagingOrders.length > 0) {
-        await opdApi
-          .saveClinicalOrderDraft(visit.id, 'IMAGING', {
+          } : undefined,
+        imaging: imagingOrders.length > 0 ? {
             priority: imagingPriority || 'ROUTINE',
             clinical_notes: imagingClinicalInfo || null,
             instructions: imagingOrderInstructions || null,
@@ -752,9 +564,8 @@ export function OpdVisitPage() {
               investigation_name: o.name,
               category: o.category || imagingCategory || 'X-Ray',
             })),
-          })
-          .catch(() => null);
-      }
+          } : undefined,
+      });
 
       showToast('Consultation draft and clinical orders saved.');
     } catch (error) {
@@ -772,8 +583,10 @@ export function OpdVisitPage() {
     }
     setUpdating('prescription-submit');
     try {
-      await opdApi.submitPrescription(visit.id, {
-        items: prescriptionForm.items.map((i) => ({
+      await feature.actions.submitPrescription({
+        visitId: visit.id,
+        payload: {
+          items: prescriptionForm.items.map((i) => ({
           medicine_name: i.medicine_name,
           strength: i.strength || null,
           dosage: i.dosage,
@@ -786,10 +599,10 @@ export function OpdVisitPage() {
         })),
         follow_up_date: prescriptionForm.follow_up_date || null,
         doctor_instructions: prescriptionForm.doctor_instructions || null,
-        patient_instructions: prescriptionForm.patient_instructions || null,
+          patient_instructions: prescriptionForm.patient_instructions || null,
+        },
       });
       showToast('Prescription sent to Pharmacy queue successfully!', 'success');
-      await loadClinicalData();
     } catch (err) {
       showToast(getOpdErrorMessage(err), 'error');
     } finally {
@@ -805,7 +618,7 @@ export function OpdVisitPage() {
     }
     setUpdating('lab-order-submit');
     try {
-      await opdApi.submitClinicalOrder(visit.id, 'LABORATORY', {
+      await feature.actions.submitClinicalOrder('LABORATORY', {
         priority: labPriority,
         destination: labFacility,
         specimen_type: labSampleType,
@@ -818,7 +631,6 @@ export function OpdVisitPage() {
         })),
       });
       showToast('Laboratory order submitted to Laboratory queue successfully!', 'success');
-      await loadClinicalData();
     } catch (err) {
       showToast(getOpdErrorMessage(err), 'error');
     } finally {
@@ -834,7 +646,7 @@ export function OpdVisitPage() {
     }
     setUpdating('imaging-order-submit');
     try {
-      await opdApi.submitClinicalOrder(visit.id, 'IMAGING', {
+      await feature.actions.submitClinicalOrder('IMAGING', {
         priority: imagingPriority,
         clinical_notes: imagingClinicalInfo || null,
         instructions: imagingOrderInstructions || null,
@@ -845,7 +657,6 @@ export function OpdVisitPage() {
         })),
       });
       showToast('Imaging order submitted to Radiology queue successfully!', 'success');
-      await loadClinicalData();
     } catch (err) {
       showToast(getOpdErrorMessage(err), 'error');
     } finally {
@@ -869,14 +680,9 @@ export function OpdVisitPage() {
         treatment_plan: consultationForm.treatment_plan.trim() || null,
       };
 
-      // 1. FIRST: Mark the consultation as COMPLETED on the backend so order submissions can succeed
-      const response = await opdApi.completeConsultation(visit.id, payload);
-      setConsultation(response);
-
-      // 2. Submit Prescriptions to Pharmacy Queue
-      if (prescriptionForm.items.length > 0) {
-        try {
-          await opdApi.submitPrescription(visit.id, {
+      const prescriptionPayload =
+        prescriptionForm.items.length > 0
+          ? {
             items: prescriptionForm.items.map((i) => ({
               medicine_name: i.medicine_name,
               strength: i.strength || null,
@@ -891,16 +697,11 @@ export function OpdVisitPage() {
             follow_up_date: prescriptionForm.follow_up_date || null,
             doctor_instructions: prescriptionForm.doctor_instructions || null,
             patient_instructions: prescriptionForm.patient_instructions || null,
-          });
-        } catch (rxErr) {
-          console.error('Failed to submit prescriptions:', rxErr);
-        }
-      }
-
-      // 3. Submit Lab Orders to Laboratory Queue
-      if (labOrders.length > 0) {
-        try {
-          await opdApi.submitClinicalOrder(visit.id, 'LABORATORY', {
+          }
+          : undefined;
+      const laboratoryPayload =
+        labOrders.length > 0
+          ? {
             priority: labPriority,
             destination: labFacility,
             specimen_type: labSampleType,
@@ -911,16 +712,11 @@ export function OpdVisitPage() {
               investigation_name: o.name,
               category: o.category || labCategory,
             })),
-          });
-        } catch (labErr) {
-          console.error('Failed to submit lab orders:', labErr);
-        }
-      }
-
-      // 4. Submit Imaging Orders to Radiology Queue
-      if (imagingOrders.length > 0) {
-        try {
-          await opdApi.submitClinicalOrder(visit.id, 'IMAGING', {
+          }
+          : undefined;
+      const imagingPayload =
+        imagingOrders.length > 0
+          ? {
             priority: imagingPriority,
             clinical_notes: imagingClinicalInfo || null,
             instructions: imagingOrderInstructions || null,
@@ -929,11 +725,8 @@ export function OpdVisitPage() {
               investigation_name: o.name,
               category: o.category || imagingCategory,
             })),
-          });
-        } catch (imgErr) {
-          console.error('Failed to submit imaging orders:', imgErr);
-        }
-      }
+          }
+          : undefined;
 
       // 5. Automatically Create Billing Invoice for Consultation + Lab + Imaging
       const matchedConsultationService =
@@ -970,22 +763,21 @@ export function OpdVisitPage() {
         });
       }
 
-      if (invoiceItems.length > 0) {
-        await billingApi
-          .create({
+      await feature.actions.completeWorkspace({
+        consultation: payload,
+        prescription: prescriptionPayload,
+        laboratory: laboratoryPayload,
+        imaging: imagingPayload,
+        invoice:
+          invoiceItems.length > 0
+            ? {
             patient_id: visit.patient_id,
             visit_id: visit.id,
             branch_id: visit.branch_id || localStorage.getItem('activeBranchId') || '',
             items: invoiceItems,
-          })
-          .catch(() => null);
-      }
-
-      // 6. Update the overall visit status to COMPLETED now that consultation and orders are processed
-      await opdApi.updateVisitStatus(visit.id, { status: 'COMPLETED', notes: 'Consultation completed.' });
-
-      await loadVisit();
-      await loadClinicalData();
+          }
+            : undefined,
+      });
       showToast('Consultation completed successfully! Orders routed to Pharmacy, Lab & Imaging.');
 
     } catch (error) {
@@ -1003,14 +795,13 @@ export function OpdVisitPage() {
     }
     setUpdating('document-upload');
     try {
-      const document = await patientsApi.uploadDocument(visit.patient_id, {
+      const document = await feature.actions.uploadDocument(visit.patient_id, {
         document_type: uploadFileType === 'Identification' ? 'IDENTITY' : 'CLINICAL',
         title: uploadFileType,
         description: `OPD visit ${visit.visit_number} attachment`,
         visit_id: visit.id,
         file: selectedFile,
       });
-      setDocuments((current) => [document, ...current]);
       setSelectedFile(null);
       showToast(`${document.file_name} uploaded successfully.`);
     } catch (error) {
@@ -1023,7 +814,7 @@ export function OpdVisitPage() {
   const viewDocument = async (document: PatientDocumentResponse) => {
     if (!visit) return;
     try {
-      const download = await patientsApi.downloadDocument(visit.patient_id, document.id);
+      const download = await feature.actions.downloadDocument(visit.patient_id, document.id);
       const url = URL.createObjectURL(download.blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -1035,7 +826,7 @@ export function OpdVisitPage() {
   const downloadDocument = async (document: PatientDocumentResponse) => {
     if (!visit) return;
     try {
-      const download = await patientsApi.downloadDocument(visit.patient_id, document.id);
+      const download = await feature.actions.downloadDocument(visit.patient_id, document.id);
       const url = URL.createObjectURL(download.blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -1050,8 +841,7 @@ export function OpdVisitPage() {
   const deleteDocument = async (document: PatientDocumentResponse) => {
     if (!visit || !window.confirm(`Delete ${document.title}?`)) return;
     try {
-      await patientsApi.deleteDocument(visit.patient_id, document.id);
-      setDocuments((current) => current.filter((item) => item.id !== document.id));
+      await feature.actions.deleteDocument(visit.patient_id, document.id);
       showToast(`${document.title} deleted.`);
     } catch (error) {
       showToast(getPatientErrorMessage(error), 'error');
@@ -1062,9 +852,9 @@ export function OpdVisitPage() {
     if (!visit) return;
     setUpdating('call-next');
     try {
-      const nextVisit = await callNextPatient.mutateAsync(visit.id);
+      const nextVisit = await feature.actions.callNextPatient(visit.id);
       showToast(`${nextVisit.patient_name} has been called. Reception and nursing were notified.`);
-      navigate(`/opd/consultation?id=${encodeURIComponent(nextVisit.id)}`);
+      selectVisit(nextVisit.id);
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
     } finally {
@@ -1123,10 +913,7 @@ export function OpdVisitPage() {
               <span>Patient Visit:</span>
               <select
                 id="active-visit-select"
-                onChange={(e) => {
-                  setActiveVisitId(e.target.value);
-                  navigate(`/opd/consultation?id=${e.target.value}`);
-                }}
+                onChange={(e) => selectVisit(e.target.value)}
                 value={activeVisitId}
               >
                 {recentVisits.map((v) => (
@@ -1137,7 +924,12 @@ export function OpdVisitPage() {
               </select>
             </label>
           ) : null}
-          <button className="doc-btn" disabled={loading} onClick={loadVisit} type="button">
+          <button
+            className="doc-btn"
+            disabled={loading}
+            onClick={() => void feature.actions.refetchVisit()}
+            type="button"
+          >
             <i className="ph ph-arrow-clockwise" aria-hidden="true" />
             Refresh
           </button>

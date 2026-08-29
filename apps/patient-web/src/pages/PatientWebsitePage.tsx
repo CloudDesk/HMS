@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type FocusEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FocusEvent, type FormEvent } from 'react';
 import { patientPortalApi, type PublicDoctor } from '../api/patient-portal';
 import { useAuth } from '../auth/useAuth';
 import { appConfig } from '../config';
@@ -55,13 +55,186 @@ export function PatientWebsitePage() {
     return () => window.clearTimeout(timer);
   }, [globalSearch]);
 
-  const departments = useQuery({ queryKey: ['public-departments', branchId, departmentQuery, departmentPage], queryFn: () => patientPortalApi.publicDepartments({ limit: 8, page: departmentPage, branchId: branchId || undefined, search: departmentQuery || undefined }), ...publicQueryRecovery });
-  const allDepartments = useQuery({ queryKey: ['public-departments-all', branchId], queryFn: () => patientPortalApi.publicDepartments({ limit: 100, branchId: branchId || undefined }), ...publicQueryRecovery });
-  const headerDepartments = useQuery({ queryKey: ['public-departments-header', branchId], queryFn: () => patientPortalApi.publicDepartments({ limit: 12, branchId: branchId || undefined }), ...publicQueryRecovery });
-  const services = useQuery({ queryKey: ['public-services', branchId, departmentId, serviceQuery, servicePage], queryFn: () => patientPortalApi.publicServices({ limit: 8, page: servicePage, branchId: branchId || undefined, departmentId: departmentId || undefined, search: serviceQuery || undefined }), ...publicQueryRecovery });
-  const doctors = useQuery({ queryKey: ['public-doctors', branchId, departmentId, querySearch, doctorPage], queryFn: () => patientPortalApi.publicDoctors({ limit: 6, page: doctorPage, branchId: branchId || undefined, departmentId: departmentId || undefined, search: querySearch || undefined }), ...publicQueryRecovery });
-  const headerServices = useQuery({ queryKey: ['public-services-header', branchId], queryFn: () => patientPortalApi.publicServices({ limit: 12, branchId: branchId || undefined }), ...publicQueryRecovery });
-  const headerDoctors = useQuery({ queryKey: ['public-doctors-header', branchId], queryFn: () => patientPortalApi.publicDoctors({ limit: 12, branchId: branchId || undefined }), ...publicQueryRecovery });
+  const catalogueDepartments = useQuery({
+    queryKey: ['public-departments', branchId],
+    queryFn: () => patientPortalApi.publicDepartments({ limit: 100, branchId: branchId || undefined }),
+    ...publicQueryRecovery,
+  });
+  const catalogueServices = useQuery({
+    queryKey: ['public-services', branchId],
+    queryFn: () => patientPortalApi.publicServices({ limit: 100, branchId: branchId || undefined }),
+    ...publicQueryRecovery,
+  });
+  const catalogueDoctors = useQuery({
+    queryKey: ['public-doctors', branchId],
+    queryFn: () => patientPortalApi.publicDoctors({ limit: 100, branchId: branchId || undefined }),
+    ...publicQueryRecovery,
+  });
+
+  const isDepartmentFiltered = Boolean(departmentQuery);
+  const departmentFilteredQuery = useQuery({
+    queryKey: ['public-departments', branchId, departmentQuery, departmentPage],
+    queryFn: () => patientPortalApi.publicDepartments({
+      limit: 8,
+      page: departmentPage,
+      branchId: branchId || undefined,
+      search: departmentQuery || undefined,
+    }),
+    enabled: isDepartmentFiltered,
+    ...publicQueryRecovery,
+  });
+
+  const departments = useMemo(() => {
+    if (isDepartmentFiltered) {
+      return {
+        data: departmentFilteredQuery.data,
+        isLoading: departmentFilteredQuery.isLoading,
+        isError: departmentFilteredQuery.isError,
+        refetch: () => departmentFilteredQuery.refetch(),
+      };
+    }
+    const all = catalogueDepartments.data?.data ?? [];
+    const total = catalogueDepartments.data?.meta.total ?? all.length;
+    const totalPages = Math.max(1, Math.ceil(total / 8));
+    const start = (departmentPage - 1) * 8;
+    const paged = all.slice(start, start + 8);
+    return {
+      data: catalogueDepartments.data
+        ? {
+            data: paged,
+            meta: {
+              page: departmentPage,
+              limit: 8,
+              total,
+              totalPages,
+            },
+          }
+        : undefined,
+      isLoading: catalogueDepartments.isLoading,
+      isError: catalogueDepartments.isError,
+      refetch: () => catalogueDepartments.refetch(),
+    };
+  }, [
+    isDepartmentFiltered,
+    departmentFilteredQuery.data,
+    departmentFilteredQuery.isLoading,
+    departmentFilteredQuery.isError,
+    catalogueDepartments.data,
+    catalogueDepartments.isLoading,
+    catalogueDepartments.isError,
+    departmentPage,
+  ]);
+
+  const isServiceFiltered = Boolean(departmentId || serviceQuery);
+  const serviceFilteredQuery = useQuery({
+    queryKey: ['public-services', branchId, departmentId, serviceQuery, servicePage],
+    queryFn: () => patientPortalApi.publicServices({
+      limit: 8,
+      page: servicePage,
+      branchId: branchId || undefined,
+      departmentId: departmentId || undefined,
+      search: serviceQuery || undefined,
+    }),
+    enabled: isServiceFiltered,
+    ...publicQueryRecovery,
+  });
+
+  const services = useMemo(() => {
+    if (isServiceFiltered) {
+      return {
+        data: serviceFilteredQuery.data,
+        isLoading: serviceFilteredQuery.isLoading,
+        isError: serviceFilteredQuery.isError,
+        refetch: () => serviceFilteredQuery.refetch(),
+      };
+    }
+    const all = catalogueServices.data?.data ?? [];
+    const total = catalogueServices.data?.meta.total ?? all.length;
+    const totalPages = Math.max(1, Math.ceil(total / 8));
+    const start = (servicePage - 1) * 8;
+    const paged = all.slice(start, start + 8);
+    return {
+      data: catalogueServices.data
+        ? {
+            data: paged,
+            meta: {
+              page: servicePage,
+              limit: 8,
+              total,
+              totalPages,
+            },
+          }
+        : undefined,
+      isLoading: catalogueServices.isLoading,
+      isError: catalogueServices.isError,
+      refetch: () => catalogueServices.refetch(),
+    };
+  }, [
+    isServiceFiltered,
+    serviceFilteredQuery.data,
+    serviceFilteredQuery.isLoading,
+    serviceFilteredQuery.isError,
+    catalogueServices.data,
+    catalogueServices.isLoading,
+    catalogueServices.isError,
+    servicePage,
+  ]);
+
+  const isDoctorFiltered = Boolean(departmentId || querySearch);
+  const doctorFilteredQuery = useQuery({
+    queryKey: ['public-doctors', branchId, departmentId, querySearch, doctorPage],
+    queryFn: () => patientPortalApi.publicDoctors({
+      limit: 6,
+      page: doctorPage,
+      branchId: branchId || undefined,
+      departmentId: departmentId || undefined,
+      search: querySearch || undefined,
+    }),
+    enabled: isDoctorFiltered,
+    ...publicQueryRecovery,
+  });
+
+  const doctors = useMemo(() => {
+    if (isDoctorFiltered) {
+      return {
+        data: doctorFilteredQuery.data,
+        isLoading: doctorFilteredQuery.isLoading,
+        isError: doctorFilteredQuery.isError,
+        refetch: () => doctorFilteredQuery.refetch(),
+      };
+    }
+    const all = catalogueDoctors.data?.data ?? [];
+    const total = catalogueDoctors.data?.meta.total ?? all.length;
+    const totalPages = Math.max(1, Math.ceil(total / 6));
+    const start = (doctorPage - 1) * 6;
+    const paged = all.slice(start, start + 6);
+    return {
+      data: catalogueDoctors.data
+        ? {
+            data: paged,
+            meta: {
+              page: doctorPage,
+              limit: 6,
+              total,
+              totalPages,
+            },
+          }
+        : undefined,
+      isLoading: catalogueDoctors.isLoading,
+      isError: catalogueDoctors.isError,
+      refetch: () => catalogueDoctors.refetch(),
+    };
+  }, [
+    isDoctorFiltered,
+    doctorFilteredQuery.data,
+    doctorFilteredQuery.isLoading,
+    doctorFilteredQuery.isError,
+    catalogueDoctors.data,
+    catalogueDoctors.isLoading,
+    catalogueDoctors.isError,
+    doctorPage,
+  ]);
+
   const globalDepartments = useQuery({ queryKey: ['public-departments-global', branchId, globalQuery], queryFn: () => patientPortalApi.publicDepartments({ limit: 5, branchId: branchId || undefined, search: globalQuery }), enabled: globalQuery.length >= 2, ...publicQueryRecovery });
   const globalServices = useQuery({ queryKey: ['public-services-global', branchId, globalQuery], queryFn: () => patientPortalApi.publicServices({ limit: 5, branchId: branchId || undefined, search: globalQuery }), enabled: globalQuery.length >= 2, ...publicQueryRecovery });
   const globalDoctors = useQuery({ queryKey: ['public-doctors-global', branchId, globalQuery], queryFn: () => patientPortalApi.publicDoctors({ limit: 5, branchId: branchId || undefined, search: globalQuery }), enabled: globalQuery.length >= 2, ...publicQueryRecovery });
@@ -77,11 +250,7 @@ export function PatientWebsitePage() {
   const globalResultCount = (globalDepartments.data?.data.length ?? 0) + (globalServices.data?.data.length ?? 0) + (globalDoctors.data?.data.length ?? 0);
   const globalSearchLoading = globalDepartments.isFetching || globalServices.isFetching || globalDoctors.isFetching;
 
-  const departmentOptions = allDepartments.data?.data?.length
-    ? allDepartments.data.data
-    : headerDepartments.data?.data?.length
-      ? headerDepartments.data.data
-      : departments.data?.data ?? [];
+  const departmentOptions = catalogueDepartments.data?.data ?? [];
 
   const headerMenuProps = (menu: Exclude<HeaderMenu, null>) => ({
     className: `hospital-nav-item${openHeaderMenu === menu ? ' open' : ''}`,
@@ -151,9 +320,9 @@ export function PatientWebsitePage() {
               Departments <i className="ph ph-caret-down" />
             </button>
             <div className="hospital-nav-dropdown">
-              <div className="hospital-nav-dropdown__heading"><span>Clinical departments</span><small>{headerDepartments.data?.meta.total ?? 0} available</small></div>
+              <div className="hospital-nav-dropdown__heading"><span>Clinical departments</span><small>{catalogueDepartments.data?.meta.total ?? 0} available</small></div>
               <div className="hospital-nav-dropdown__list">
-                {headerDepartments.data?.data.map((item, index) => (
+                {catalogueDepartments.data?.data.slice(0, 12).map((item, index) => (
                   <button key={item.id} onClick={() => setCatalogueQuery({ department_id: item.id, doctor_page: null }, 'doctors')} type="button">
                     <i className={`ph ${departmentIcons[index % departmentIcons.length]}`} />
                     <span><strong>{item.name}</strong></span>
@@ -169,9 +338,9 @@ export function PatientWebsitePage() {
               Services <i className="ph ph-caret-down" />
             </button>
             <div className="hospital-nav-dropdown">
-              <div className="hospital-nav-dropdown__heading"><span>Hospital services</span><small>{headerServices.data?.meta.total ?? 0} published</small></div>
+              <div className="hospital-nav-dropdown__heading"><span>Hospital services</span><small>{catalogueServices.data?.meta.total ?? 0} published</small></div>
               <div className="hospital-nav-dropdown__list">
-                {headerServices.data?.data.map((item) => (
+                {catalogueServices.data?.data.slice(0, 12).map((item) => (
                   <button key={item.id} onClick={() => { setServiceSearch(item.name); setCatalogueQuery({ service_q: item.name, service_page: null }, 'services'); }} type="button">
                     <i className={`ph ${serviceIcon(item.service_type)}`} />
                     <span><strong>{item.name}</strong><small>{money(item.standard_price)}</small></span>
@@ -187,9 +356,9 @@ export function PatientWebsitePage() {
               Doctors <i className="ph ph-caret-down" />
             </button>
             <div className="hospital-nav-dropdown">
-              <div className="hospital-nav-dropdown__heading"><span>Medical team</span><small>{headerDoctors.data?.meta.total ?? 0} doctors</small></div>
+              <div className="hospital-nav-dropdown__heading"><span>Medical team</span><small>{catalogueDoctors.data?.meta.total ?? 0} doctors</small></div>
               <div className="hospital-nav-dropdown__list">
-                {headerDoctors.data?.data.map((doctor) => (
+                {catalogueDoctors.data?.data.slice(0, 12).map((doctor) => (
                   <button key={doctor.id} onClick={() => bookDoctor(doctor)} type="button">
                     <i className="ph ph-user-focus" />
                     <span><strong>{doctor.display_name}</strong><small>{doctor.specialization}</small></span>

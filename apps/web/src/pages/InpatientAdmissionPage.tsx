@@ -1,20 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { emergencyApi } from '../api/emergency';
 import type { AdmissionRequest } from '../api/inpatient-admissions';
-import { opdApi } from '../api/opd';
-import { patientsApi } from '../api/patients';
 import { Modal } from '../components/ui/Modal';
-import { StatusBadge } from '../components/ui/StatusBadge';
-import { useInpatientAdmissions } from '../hooks/useInpatientAdmissions';
+import { useInpatientAdmissionFeature } from '../hooks/admissions/useInpatientAdmissionFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { useAdvancePaymentFeature } from '../hooks/advance-payment/useAdvancePaymentFeature';
-import { DownstreamOrdersPanel } from '../components/clinical-context/DownstreamOrdersPanel';
-import { useInpatientDownstreamFeature } from '../hooks/admissions/useInpatientDownstreamFeature';
 
 const createSchema = z.object({
   patient_id: z.string().min(1, 'Select a patient'),
@@ -32,12 +24,9 @@ const consentSchema = z.object({ title: z.string().trim().min(1, 'Title is requi
 type CreateValues = z.infer<typeof createSchema>;
 type AllocationValues = z.infer<typeof allocationSchema>;
 type ConsentValues = z.infer<typeof consentSchema>;
-const tone = (status: AdmissionRequest['status']) => status === 'CONFIRMED' ? 'green' : status === 'CANCELLED' ? 'red' : status === 'READY_FOR_CONFIRMATION' ? 'blue' : 'orange';
-
 export function InpatientAdmissionPage() {
   const location = useAppLocation();
   const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const [branchId, setBranchId] = useState(handoff.get('branch_id') ?? '');
   const [patientSearch, setPatientSearch] = useState('');
   const [requestSearch, setRequestSearch] = useState('');
   const [selected, setSelected] = useState<AdmissionRequest | null>(null);
@@ -50,20 +39,6 @@ export function InpatientAdmissionPage() {
   const [hasSignature, setHasSignature] = useState(false);
   const [insuranceWaived, setInsuranceWaived] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const data = useInpatientAdmissions(branchId, patientSearch, requestSearch);
-
-  const opdVisitsQuery = useQuery({
-    queryKey: ['admissions', 'modal-opd-visits', branchId],
-    queryFn: () => opdApi.listVisits({ branch_id: branchId }),
-    enabled: Boolean(branchId) && createOpen,
-  });
-
-  const emergencyEncountersQuery = useQuery({
-    queryKey: ['admissions', 'modal-emergency-encounters', branchId],
-    queryFn: () => emergencyApi.list({ branch_id: branchId }),
-    enabled: Boolean(branchId) && createOpen,
-  });
-
   const createForm = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
     defaultValues: {
@@ -77,9 +52,18 @@ export function InpatientAdmissionPage() {
   });
   const allocationForm = useForm<AllocationValues>({ resolver: zodResolver(allocationSchema), defaultValues: { ward_id: '', bed_id: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', admission_date: new Date().toISOString().slice(0, 16) } });
   const consentForm = useForm<ConsentValues>({ resolver: zodResolver(consentSchema), defaultValues: { title: 'Inpatient admission consent', signed_by_name: '', signed_at: new Date().toISOString().slice(0, 16), valid_until: '' } });
-  const { advancePayment } = useAdvancePaymentFeature('ADMISSION_REQUEST', selected?.id ?? null);
-  const downstream = useInpatientDownstreamFeature(selected?.admission_id ?? null, branchId, Boolean(selected?.status === 'CONFIRMED' && selected.admission_id));
-  useEffect(() => { const first = data.branches.data?.data[0]?.id; if (!branchId && first) setBranchId(first); }, [branchId, data.branches.data]);
+  const wardId = allocationForm.watch('ward_id');
+  const selectedSourceType = createForm.watch('source_type');
+  const feature = useInpatientAdmissionFeature({ patientSearch, requestSearch, createOpen, selectedRequest: selected, selectedSourceType, wardId });
+  const {
+    branchId, branches, wards, beds, requests, policy, counts,
+    departmentOptions, doctorOptions, availablePatients: availablePatientsForSource,
+    loading, errors, pending,
+  } = feature.state;
+  const {
+    setBranchId, createRequest: submitCreateRequest, validateRequest,
+    confirmRequest, cancelRequest, uploadConsent: submitConsent,
+  } = feature.actions;
   useEffect(() => {
     if (handoff.get('source_type') !== 'EMERGENCY_ENCOUNTER') return;
     const sourceId = handoff.get('source_id') ?? '';
@@ -93,29 +77,10 @@ export function InpatientAdmissionPage() {
     setCreateOpen(true);
   }, [createForm, handoff]);
   useEffect(() => { if (selected) allocationForm.reset({ ward_id: selected.ward_id ?? '', bed_id: selected.bed_id ?? '', hold_id: selected.hold_id ?? '', consent_document_id: selected.consent_document_id ?? '', deposit_invoice_id: selected.deposit_invoice_id ?? '', admission_date: new Date().toISOString().slice(0, 16) }); }, [allocationForm, selected]);
-  const wardId = allocationForm.watch('ward_id');
-  const beds = useMemo(() => (data.beds.data?.data ?? []).filter((bed) => !wardId || bed.ward_id === wardId), [data.beds.data, wardId]);
-  const requests = data.requests.data?.data ?? [];
-  const policy = data.policy.data;
-  const stats = data.requestStats?.data?.data;
-  const counts = stats ?? { pendingValidation: 0, readyForConfirmation: 0, confirmed: 0, cancelled: 0 };
-
-  const departmentOptions = useMemo(() => {
-    const list = data.departments.data?.data;
-    if (list && list.length > 0) return list;
-    return data.allDepartments.data?.data ?? [];
-  }, [data.departments.data, data.allDepartments.data]);
-
-  const doctorOptions = useMemo(() => {
-    const list = data.doctors.data?.data;
-    if (list && list.length > 0) return list;
-    return data.allDoctors.data?.data ?? [];
-  }, [data.doctors.data, data.allDoctors.data]);
-
   const createRequest = createForm.handleSubmit(async (values) => {
     try {
       const isValidSourceId = values.source_id && /^[a-f\d]{24}$/i.test(values.source_id);
-      const request = await data.createRequest.mutateAsync({
+      const request = await submitCreateRequest({
         ...values,
         branch_id: branchId,
         source_id: isValidSourceId ? values.source_id : null,
@@ -130,9 +95,9 @@ export function InpatientAdmissionPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to create admission request.');
     }
   });
-  const validate = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.validateRequest.mutateAsync({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } }); setSelected(request); toast.success('Request validated and ready for confirmation.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Validation failed.'); } });
-  const confirm = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await data.confirmRequest.mutateAsync({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } }); setSelected(request); toast.success('Admission confirmed and bed allotted.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Admission confirmation failed.'); } });
-  const cancel = async () => { if (!selected || !cancelReason.trim()) return; try { const request = await data.cancelRequest.mutateAsync({ id: selected.id, reason: cancelReason.trim() }); setSelected(request); setCancelOpen(false); setCancelReason(''); toast.success('Draft request cancelled and reserved resources released.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Cancellation failed.'); } };
+  const validate = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await validateRequest({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } }); setSelected(request); toast.success('Request validated and ready for confirmation.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Validation failed.'); } });
+  const confirm = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await confirmRequest({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } }); setSelected(request); toast.success('Admission confirmed and bed allotted.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Admission confirmation failed.'); } });
+  const cancel = async () => { if (!selected || !cancelReason.trim()) return; try { const request = await cancelRequest({ id: selected.id, reason: cancelReason.trim() }); setSelected(request); setCancelOpen(false); setCancelReason(''); toast.success('Draft request cancelled and reserved resources released.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Cancellation failed.'); } };
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -208,7 +173,7 @@ export function InpatientAdmissionPage() {
         return;
       }
 
-      const document = await patientsApi.uploadDocument(selected.patient_id, {
+      const document = await submitConsent(selected.patient_id, {
         document_type: 'CONSENT',
         title: values.title,
         file: fileToUpload,
@@ -232,56 +197,15 @@ export function InpatientAdmissionPage() {
     }
   });
 
-  const selectedSourceType = createForm.watch('source_type');
-
-  const opdPatients = useMemo(() => {
-    const visits = opdVisitsQuery.data?.data ?? [];
-    return visits.map((v: any) => ({
-      patientId: v.patient_id,
-      label: `${v.patient_name} · ${v.patient_number} (OPD Visit: ${v.visit_number})`,
-      doctorId: v.doctor_id,
-      departmentId: v.department_id,
-      sourceId: v.id,
-    }));
-  }, [opdVisitsQuery.data]);
-
-  const emergencyPatients = useMemo(() => {
-    const encounters = emergencyEncountersQuery.data?.data ?? [];
-    return encounters.map((e: any) => ({
-      patientId: e.patient_id || e.id,
-      label: `${e.patient_name} · ${e.patient_number || e.emergency_identifier} (ER: ${e.chief_complaint || 'Active'})`,
-      doctorId: e.assigned_doctor_id || '',
-      departmentId: e.department_id || '',
-      sourceId: e.id,
-    }));
-  }, [emergencyEncountersQuery.data]);
-
-  const registeredPatients = useMemo(() => {
-    const list = data.activePatients.data?.data || data.patients.data?.data || [];
-    return list.map((p: any) => ({
-      patientId: p.id,
-      label: `${[p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ')} · ${p.patient_number}`,
-      doctorId: '',
-      departmentId: '',
-      sourceId: '',
-    }));
-  }, [data.activePatients.data, data.patients.data]);
-
-  const availablePatientsForSource = useMemo(() => {
-    if (selectedSourceType === 'OPD_VISIT') return opdPatients;
-    if (selectedSourceType === 'EMERGENCY_ENCOUNTER') return emergencyPatients;
-    return registeredPatients;
-  }, [selectedSourceType, opdPatients, emergencyPatients, registeredPatients]);
-
   const handlePatientSelect = (patientId: string) => {
     createForm.setValue('patient_id', patientId, { shouldValidate: true });
     if (selectedSourceType === 'OPD_VISIT') {
-      const match = opdPatients.find((p: any) => p.patientId === patientId);
+      const match = availablePatientsForSource.find((patient) => patient.patientId === patientId);
       if (match?.sourceId) createForm.setValue('source_id', match.sourceId);
       if (match?.doctorId) createForm.setValue('recommending_doctor_id', match.doctorId);
       if (match?.departmentId) createForm.setValue('department_id', match.departmentId);
     } else if (selectedSourceType === 'EMERGENCY_ENCOUNTER') {
-      const match = emergencyPatients.find((p: any) => p.patientId === patientId);
+      const match = availablePatientsForSource.find((patient) => patient.patientId === patientId);
       if (match?.sourceId) createForm.setValue('source_id', match.sourceId);
       if (match?.doctorId) createForm.setValue('recommending_doctor_id', match.doctorId);
       if (match?.departmentId) createForm.setValue('department_id', match.departmentId);
@@ -315,7 +239,7 @@ export function InpatientAdmissionPage() {
           <p>Review and action clinical admission requests</p>
         </div>
         <div className="adm-actions">
-          {data.branches.data?.data && data.branches.data.data.length > 1 ? (
+          {branches.length > 1 ? (
             <select
               aria-label="Branch"
               value={branchId}
@@ -325,7 +249,7 @@ export function InpatientAdmissionPage() {
               }}
               style={{ minWidth: '150px', height: '38px', borderRadius: '8px', padding: '0 10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.85rem' }}
             >
-              {data.branches.data.data.map((item) => (
+              {branches.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
                 </option>
@@ -372,7 +296,7 @@ export function InpatientAdmissionPage() {
         </div>
       </section>
 
-      {data.policy.isError ? (
+      {errors.policy ? (
         <div className="error-state" style={{ marginBottom: '1rem' }}>
           Configure the branch admission policy before validating or confirming requests.
         </div>
@@ -464,13 +388,13 @@ export function InpatientAdmissionPage() {
               </tr>
             </thead>
             <tbody>
-              {data.requests.isLoading ? (
+              {loading.requests ? (
                 <tr>
                   <td colSpan={11} className="empty-state">
                     Loading admission requests...
                   </td>
                 </tr>
-              ) : data.requests.isError ? (
+              ) : errors.requests ? (
                 <tr>
                   <td colSpan={11} className="empty-state">
                     Unable to load admission requests. Retry after checking your branch access.
@@ -665,7 +589,7 @@ export function InpatientAdmissionPage() {
                       <label>Ward *</label>
                       <select {...allocationForm.register('ward_id')}>
                         <option value="">Select ward</option>
-                        {(data.wards.data?.data ?? []).map((item) => (
+                        {wards.map((item) => (
                           <option key={item.id} value={item.id}>{item.name}</option>
                         ))}
                       </select>
@@ -776,7 +700,7 @@ export function InpatientAdmissionPage() {
                       className="btn-secondary"
                       type="button"
                       onClick={validate}
-                      disabled={data.validateRequest.isPending}
+                      disabled={pending.validateRequest}
                       style={{ justifyContent: 'center', height: '38px', fontSize: '0.82rem' }}
                     >
                       <i className="ph ph-check-circle" /> Validate
@@ -785,7 +709,7 @@ export function InpatientAdmissionPage() {
                       className="btn-primary"
                       type="button"
                       onClick={confirm}
-                      disabled={selected.status !== 'READY_FOR_CONFIRMATION' || data.confirmRequest.isPending}
+                      disabled={selected.status !== 'READY_FOR_CONFIRMATION' || pending.confirmRequest}
                       style={{ justifyContent: 'center', height: '38px', fontSize: '0.82rem' }}
                     >
                       <i className="ph ph-check" /> Confirm Allotment
@@ -940,7 +864,7 @@ export function InpatientAdmissionPage() {
           <button type="button" className="btn-secondary" onClick={() => setCreateOpen(false)}>
             Cancel
           </button>
-          <button className="btn-primary" disabled={data.createRequest.isPending || !branchId} type="submit">
+          <button className="btn-primary" disabled={pending.createRequest || !branchId} type="submit">
             Create Request
           </button>
         </div>
@@ -960,7 +884,7 @@ export function InpatientAdmissionPage() {
       </label>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
         <button className="btn-secondary" onClick={() => setCancelOpen(false)} type="button">Keep Request</button>
-        <button className="btn-danger" onClick={cancel} disabled={!cancelReason.trim() || data.cancelRequest.isPending} type="button">Cancel Request</button>
+        <button className="btn-danger" onClick={cancel} disabled={!cancelReason.trim() || pending.cancelRequest} type="button">Cancel Request</button>
       </div>
     </Modal>
 

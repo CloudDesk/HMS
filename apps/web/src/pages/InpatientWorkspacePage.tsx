@@ -1,60 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { branchesApi } from '../api/branches';
-import { doctorsApi } from '../api/doctors';
-import { inpatientAdmissionsApi, InpatientAdmission } from '../api/inpatient-admissions';
-import { admissionsConfigurationApi, Ward } from '../api/admissions-configuration';
-import { surgeryApi } from '../api/surgery';
-import { servicesApi, ServiceResponse } from '../api/services';
 import { Modal } from '../components/ui/Modal';
-import { useAppLocation } from '../routing/navigation';
-
-type RoundNote = {
-  id: string;
-  admission_id: string;
-  doctor_name: string;
-  date: string;
-  subjective: string;
-  objective: string;
-  assessment: string;
-  plan: string;
-};
-
-type BedsideVital = {
-  id: string;
-  admission_id: string;
-  recorded_at: string;
-  bp_systolic: number;
-  bp_diastolic: number;
-  heart_rate: number;
-  temperature: number;
-  spo2: number;
-  respiratory_rate: number;
-  pain_score: number;
-  recorded_by: string;
-};
-
-type InpatientOrder = {
-  id: string;
-  admission_id: string;
-  order_type: 'LAB' | 'IMAGING' | 'MEDICATION';
-  item_name: string;
-  instructions: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
-  ordered_at: string;
-};
+import { useInpatientWorkspaceFeature } from '../hooks/admissions/useInpatientWorkspaceFeature';
+import { removeLegacyInpatientClinicalStorage } from '../utils/inpatient-clinical-storage';
 
 export function InpatientWorkspacePage() {
-  const location = useAppLocation();
-  const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const queryClient = useQueryClient();
-
-  const [branchId, setBranchId] = useState(handoff.get('branch_id') ?? '');
   const [selectedWard, setSelectedWard] = useState('');
   const [selectedCareLevel, setSelectedCareLevel] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedAdmission, setSelectedAdmission] = useState<InpatientAdmission | null>(null);
   const [activeTab, setActiveTab] = useState<'surgeries' | 'rounds' | 'vitals' | 'orders' | 'discharge'>('surgeries');
 
   // Modals
@@ -86,154 +39,27 @@ export function InpatientWorkspacePage() {
   const [vitalPain, setVitalPain] = useState('0');
 
   // Diagnostic Order Form State
-  const [orderType, setOrderType] = useState<'LAB' | 'IMAGING' | 'MEDICATION'>('LAB');
-  const [orderItemName, setOrderItemName] = useState('');
+  const [orderType, setOrderType] = useState<'LAB' | 'IMAGING'>('LAB');
+  const [orderServiceId, setOrderServiceId] = useState('');
+  const [orderSpecimenType, setOrderSpecimenType] = useState('');
   const [orderInstructions, setOrderInstructions] = useState('');
 
-  // Inpatient mock clinical state stores (persisted per admission in local storage for demonstration)
-  const [roundNotes, setRoundNotes] = useState<RoundNote[]>(() => {
-    try {
-      const saved = localStorage.getItem('hms_inpatient_round_notes');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  useEffect(() => removeLegacyInpatientClinicalStorage(window.localStorage), []);
 
-  const [vitalsList, setVitalsList] = useState<BedsideVital[]>(() => {
-    try {
-      const saved = localStorage.getItem('hms_inpatient_vitals');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const feature = useInpatientWorkspaceFeature({ selectedWard, selectedCareLevel, searchQuery });
+  const {
+    branchId, selectedAdmission, branches, wards, doctors, procedureServices,
+    admittedList, filteredInpatients, recommendations: currentPatientRecommendations,
+    bookings: currentPatientBookings, roundNotes: currentPatientRounds,
+    vitals: currentPatientVitals, diagnosticOrders: currentPatientOrders,
+    laboratoryServices, imagingServices, loading, errors, pending,
+  } = feature.state;
+  const {
+    setBranchId, selectAdmission: setSelectedAdmission, refreshAdmissions,
+    createRecommendation, createRoundNote, createVital, submitClinicalOrder,
+  } = feature.actions;
 
-  const [ordersList, setOrdersList] = useState<InpatientOrder[]>(() => {
-    try {
-      const saved = localStorage.getItem('hms_inpatient_orders');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const saveRoundNotes = (notes: RoundNote[]) => {
-    setRoundNotes(notes);
-    localStorage.setItem('hms_inpatient_round_notes', JSON.stringify(notes));
-  };
-
-  const saveVitals = (vitals: BedsideVital[]) => {
-    setVitalsList(vitals);
-    localStorage.setItem('hms_inpatient_vitals', JSON.stringify(vitals));
-  };
-
-  const saveOrders = (orders: InpatientOrder[]) => {
-    setOrdersList(orders);
-    localStorage.setItem('hms_inpatient_orders', JSON.stringify(orders));
-  };
-
-  // Queries
-  const branchesQuery = useQuery({
-    queryKey: ['branches', 'list'],
-    queryFn: () => branchesApi.list(),
-  });
-
-  useEffect(() => {
-    const first = branchesQuery.data?.data[0]?.id;
-    if (!branchId && first) setBranchId(first);
-  }, [branchId, branchesQuery.data]);
-
-  const wardsQuery = useQuery({
-    queryKey: ['wards', branchId],
-    queryFn: () => admissionsConfigurationApi.wards({ branch_id: branchId }),
-    enabled: Boolean(branchId),
-  });
-
-  const doctorsQuery = useQuery({
-    queryKey: ['doctors', branchId],
-    queryFn: () => doctorsApi.list({ branch_id: branchId }),
-    enabled: Boolean(branchId),
-  });
-
-  const servicesQuery = useQuery({
-    queryKey: ['services', 'procedures'],
-    queryFn: () => servicesApi.list({ service_type: 'PROCEDURE' }),
-  });
-
-  const admissionsQuery = useQuery({
-    queryKey: ['inpatient-admissions', branchId],
-    queryFn: () => inpatientAdmissionsApi.list({ branch_id: branchId, status: 'ADMITTED' }),
-    enabled: Boolean(branchId),
-  });
-
-  // Query patient surgery recommendations for selected patient
-  const patientRecommendationsQuery = useQuery({
-    queryKey: ['surgery-recommendations', branchId, selectedAdmission?.patient_id],
-    queryFn: () => surgeryApi.recommendations({ branch_id: branchId, patient_id: selectedAdmission?.patient_id }),
-    enabled: Boolean(branchId) && Boolean(selectedAdmission?.patient_id),
-  });
-
-  // Query patient surgery bookings for selected patient
-  const patientBookingsQuery = useQuery({
-    queryKey: ['surgery-bookings', branchId, selectedAdmission?.patient_id],
-    queryFn: () => surgeryApi.bookings({ branch_id: branchId, patient_id: selectedAdmission?.patient_id }),
-    enabled: Boolean(branchId) && Boolean(selectedAdmission?.patient_id),
-  });
-
-  const admittedList = admissionsQuery.data?.data ?? [];
-
-  // Filtered Inpatients
-  const filteredInpatients = useMemo(() => {
-    return admittedList.filter((item) => {
-      if (selectedWard && item.ward_id !== selectedWard) return false;
-      if (selectedCareLevel && item.admission_type !== selectedCareLevel) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesPatient = item.patient_name?.toLowerCase().includes(q);
-        const matchesMrn = item.patient_number?.toLowerCase().includes(q);
-        const matchesBed = item.bed_number?.toLowerCase().includes(q);
-        const matchesDoc = item.admitting_doctor_name?.toLowerCase().includes(q);
-        if (!matchesPatient && !matchesMrn && !matchesBed && !matchesDoc) return false;
-      }
-      return true;
-    });
-  }, [admittedList, selectedWard, selectedCareLevel, searchQuery]);
-
-  // Auto-select first inpatient if none selected
-  useEffect(() => {
-    if (!selectedAdmission && filteredInpatients.length > 0) {
-      setSelectedAdmission(filteredInpatients[0] ?? null);
-    }
-  }, [filteredInpatients, selectedAdmission]);
-
-  // Create Surgery Recommendation Mutation
-  const createRecommendationMutation = useMutation({
-    mutationFn: (payload: {
-      patient_id: string;
-      branch_id: string;
-      department_id: string;
-      recommending_doctor_id: string;
-      service_id: string;
-      encounter_type: 'DIRECT';
-      clinical_reason: string;
-      notes?: string | null;
-    }) => surgeryApi.createRecommendation(payload),
-    onSuccess: () => {
-      toast.success('Surgery / Procedure recommended for admitted inpatient.');
-      queryClient.invalidateQueries({ queryKey: ['surgery-recommendations'] });
-      setProcedureModalOpen(false);
-      setProcServiceId('');
-      setProcDoctorId('');
-      setProcClinicalReason('');
-      setProcNotes('');
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Failed to recommend surgery.');
-    },
-  });
-
-  const handleCreateProcedure = (e: React.FormEvent) => {
+  const handleCreateProcedure = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAdmission) return;
     if (!procServiceId) {
@@ -245,19 +71,29 @@ export function InpatientWorkspacePage() {
       return;
     }
 
-    createRecommendationMutation.mutate({
-      patient_id: selectedAdmission.patient_id,
-      branch_id: branchId,
-      department_id: selectedAdmission.department_id,
-      recommending_doctor_id: procDoctorId || selectedAdmission.admitting_doctor_id,
-      service_id: procServiceId,
-      encounter_type: 'DIRECT',
-      clinical_reason: `[INPATIENT - Ward: ${selectedAdmission.ward_name}, Bed: ${selectedAdmission.bed_number}] ${procClinicalReason.trim()}`,
-      notes: procNotes.trim() ? `Priority: ${procPriority}. ${procNotes.trim()}` : `Priority: ${procPriority}`,
-    });
+    try {
+      await createRecommendation({
+        patient_id: selectedAdmission.patient_id,
+        branch_id: branchId,
+        department_id: selectedAdmission.department_id,
+        recommending_doctor_id: procDoctorId || selectedAdmission.admitting_doctor_id,
+        service_id: procServiceId,
+        encounter_type: 'DIRECT',
+        clinical_reason: `[INPATIENT - Ward: ${selectedAdmission.ward_name}, Bed: ${selectedAdmission.bed_number}] ${procClinicalReason.trim()}`,
+        notes: procNotes.trim() ? `Priority: ${procPriority}. ${procNotes.trim()}` : `Priority: ${procPriority}`,
+      });
+      toast.success('Surgery / Procedure recommended for admitted inpatient.');
+      setProcedureModalOpen(false);
+      setProcServiceId('');
+      setProcDoctorId('');
+      setProcClinicalReason('');
+      setProcNotes('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to recommend surgery.');
+    }
   };
 
-  const handleAddRoundNote = (e: React.FormEvent) => {
+  const handleAddRoundNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAdmission) return;
     if (!roundSubjective.trim() && !roundObjective.trim() && !roundAssessment.trim() && !roundPlan.trim()) {
@@ -265,92 +101,44 @@ export function InpatientWorkspacePage() {
       return;
     }
 
-    const newNote: RoundNote = {
-      id: 'NOTE-' + Date.now(),
-      admission_id: selectedAdmission.id,
-      doctor_name: selectedAdmission.admitting_doctor_name,
-      date: new Date().toISOString(),
+    try {
+      await createRoundNote({
       subjective: roundSubjective.trim() || 'Patient reports stable comfort without acute distress.',
       objective: roundObjective.trim() || 'Vitals stable. Bedside physical examination within expected post-admission limits.',
       assessment: roundAssessment.trim() || selectedAdmission.reason || 'Ongoing inpatient management.',
       plan: roundPlan.trim() || 'Continue current inpatient medication and nursing observation protocol.',
-    };
-
-    saveRoundNotes([newNote, ...roundNotes]);
-    toast.success('Ward round progress note recorded.');
-    setRoundModalOpen(false);
-    setRoundSubjective('');
-    setRoundObjective('');
-    setRoundAssessment('');
-    setRoundPlan('');
+      });
+      toast.success('Ward round progress note recorded.');
+      setRoundModalOpen(false);
+      setRoundSubjective(''); setRoundObjective(''); setRoundAssessment(''); setRoundPlan('');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to save ward round note.'); }
   };
 
-  const handleRecordVitals = (e: React.FormEvent) => {
+  const handleRecordVitals = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAdmission) return;
 
-    const newVital: BedsideVital = {
-      id: 'VIT-' + Date.now(),
-      admission_id: selectedAdmission.id,
-      recorded_at: new Date().toISOString(),
-      bp_systolic: Number(vitalBpSys) || 120,
-      bp_diastolic: Number(vitalBpDia) || 80,
-      heart_rate: Number(vitalHr) || 72,
-      temperature: Number(vitalTemp) || 36.8,
-      spo2: Number(vitalSpo2) || 98,
-      respiratory_rate: Number(vitalResp) || 16,
-      pain_score: Number(vitalPain) || 0,
-      recorded_by: 'Staff Nurse on Duty',
-    };
-
-    saveVitals([newVital, ...vitalsList]);
-    toast.success('Bedside vital signs recorded.');
-    setVitalsModalOpen(false);
+    try {
+      await createVital({ bp_systolic: Number(vitalBpSys), bp_diastolic: Number(vitalBpDia), heart_rate: Number(vitalHr), temperature: Number(vitalTemp), spo2: Number(vitalSpo2), respiratory_rate: Number(vitalResp), pain_score: Number(vitalPain) });
+      toast.success('Bedside vital signs recorded.'); setVitalsModalOpen(false);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to save bedside vitals.'); }
   };
 
-  const handleAddOrder = (e: React.FormEvent) => {
+  const handleAddOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAdmission) return;
-    if (!orderItemName.trim()) {
-      toast.error('Please enter the investigation or medication name.');
+    const availableServices = orderType === 'LAB' ? laboratoryServices : imagingServices;
+    const selectedService = availableServices.find((service) => service.id === orderServiceId);
+    if (!selectedService) {
+      toast.error('Please select an active diagnostic service.');
       return;
     }
-
-    const newOrder: InpatientOrder = {
-      id: 'ORD-' + Date.now(),
-      admission_id: selectedAdmission.id,
-      order_type: orderType,
-      item_name: orderItemName.trim(),
-      instructions: orderInstructions.trim() || 'Routine inpatient order',
-      status: 'PENDING',
-      ordered_at: new Date().toISOString(),
-    };
-
-    saveOrders([newOrder, ...ordersList]);
-    toast.success(`${orderType} order placed for admitted patient.`);
-    setOrderModalOpen(false);
-    setOrderItemName('');
-    setOrderInstructions('');
+    if (orderType === 'LAB' && !orderSpecimenType.trim() && !selectedService.sample_type?.trim()) { toast.error('Specimen type is required for laboratory orders.'); return; }
+    try {
+      await submitClinicalOrder({ type: orderType === 'LAB' ? 'LABORATORY' : 'IMAGING', payload: { priority: 'ROUTINE', specimen_type: orderType === 'LAB' ? (orderSpecimenType.trim() || selectedService.sample_type || null) : null, items: [{ service_id: selectedService.id, investigation_name: selectedService.name, category: selectedService.category || (orderType === 'LAB' ? 'Laboratory' : 'Radiology') }], clinical_notes: orderInstructions.trim() || null, instructions: orderInstructions.trim() || null } });
+      toast.success(`${orderType} order placed for admitted patient.`); setOrderModalOpen(false); setOrderServiceId(''); setOrderSpecimenType(''); setOrderInstructions('');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to place diagnostic order.'); }
   };
-
-  // Active patient filtered clinical data
-  const currentPatientRounds = useMemo(() => {
-    if (!selectedAdmission) return [];
-    return roundNotes.filter((n) => n.admission_id === selectedAdmission.id);
-  }, [roundNotes, selectedAdmission]);
-
-  const currentPatientVitals = useMemo(() => {
-    if (!selectedAdmission) return [];
-    return vitalsList.filter((v) => v.admission_id === selectedAdmission.id);
-  }, [vitalsList, selectedAdmission]);
-
-  const currentPatientOrders = useMemo(() => {
-    if (!selectedAdmission) return [];
-    return ordersList.filter((o) => o.admission_id === selectedAdmission.id);
-  }, [ordersList, selectedAdmission]);
-
-  const currentPatientRecommendations = patientRecommendationsQuery.data?.data ?? [];
-  const currentPatientBookings = patientBookingsQuery.data?.data ?? [];
 
   // Metrics
   const kpis = useMemo(() => {
@@ -379,24 +167,23 @@ export function InpatientWorkspacePage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-          {branchesQuery.data?.data && branchesQuery.data.data.length > 1 && (
+          {branches.length > 1 && (
             <select
               aria-label="Branch"
               value={branchId}
               onChange={(e) => {
                 setBranchId(e.target.value);
-                setSelectedAdmission(null);
               }}
               style={{ minWidth: '150px', height: '38px', borderRadius: '8px', padding: '0 10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.85rem' }}
             >
-              {branchesQuery.data.data.map((b) => (
+              {branches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           )}
           <button
             className="btn-secondary"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['inpatient-admissions'] })}
+            onClick={() => void refreshAdmissions()}
             type="button"
             style={{ height: '38px' }}
           >
@@ -458,7 +245,7 @@ export function InpatientWorkspacePage() {
           <label>Ward Filter</label>
           <select value={selectedWard} onChange={(e) => setSelectedWard(e.target.value)}>
             <option value="">All Wards</option>
-            {(wardsQuery.data?.data ?? []).map((w: Ward) => (
+            {wards.map((w) => (
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
           </select>
@@ -500,7 +287,7 @@ export function InpatientWorkspacePage() {
           </div>
 
           <div style={{ maxHeight: '680px', overflowY: 'auto' }}>
-            {admissionsQuery.isLoading ? (
+            {loading.admissions ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>Loading admitted patients...</div>
             ) : filteredInpatients.length === 0 ? (
               <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#64748b' }}>
@@ -738,7 +525,7 @@ export function InpatientWorkspacePage() {
                   <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Active Procedure Recommendations
                   </h4>
-                  {patientRecommendationsQuery.isLoading ? (
+                  {loading.recommendations ? (
                     <div style={{ padding: '1rem', color: '#64748b' }}>Loading surgery recommendations...</div>
                   ) : currentPatientRecommendations.length === 0 ? (
                     <div style={{ padding: '1.5rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
@@ -796,7 +583,7 @@ export function InpatientWorkspacePage() {
                   <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Scheduled OT Slots & Confirmed Bookings
                   </h4>
-                  {patientBookingsQuery.isLoading ? (
+                  {loading.bookings ? (
                     <div style={{ padding: '1rem', color: '#64748b' }}>Loading OT bookings...</div>
                   ) : currentPatientBookings.length === 0 ? (
                     <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.82rem' }}>
@@ -857,7 +644,11 @@ export function InpatientWorkspacePage() {
                   </button>
                 </div>
 
-                {currentPatientRounds.length === 0 ? (
+                {loading.roundNotes ? (
+                  <p role="status">Loading authoritative ward-round notes...</p>
+                ) : errors.roundNotes ? (
+                  <p role="alert">Ward-round notes could not be loaded. Retry the workspace request.</p>
+                ) : currentPatientRounds.length === 0 ? (
                   <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
                     <i className="ph ph-note-pencil" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }} />
                     <p style={{ margin: 0, fontSize: '0.84rem' }}>No ward round notes recorded yet for this stay.</p>
@@ -867,7 +658,7 @@ export function InpatientWorkspacePage() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {currentPatientRounds.map((note) => (
+                    {currentPatientRounds.map((note: import('../api/inpatient-admissions').InpatientRoundNote) => (
                       <div key={note.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px', background: '#ffffff' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
                           <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#1e293b' }}>
@@ -917,7 +708,11 @@ export function InpatientWorkspacePage() {
                   </button>
                 </div>
 
-                {currentPatientVitals.length === 0 ? (
+                {loading.vitals ? (
+                  <p role="status">Loading authoritative bedside vitals...</p>
+                ) : errors.vitals ? (
+                  <p role="alert">Bedside vitals could not be loaded. Retry the workspace request.</p>
+                ) : currentPatientVitals.length === 0 ? (
                   <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
                     <i className="ph ph-heartbeat" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }} />
                     <p style={{ margin: 0, fontSize: '0.84rem' }}>No bedside vitals logged yet for this stay.</p>
@@ -941,7 +736,7 @@ export function InpatientWorkspacePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {currentPatientVitals.map((v) => (
+                        {currentPatientVitals.map((v: import('../api/inpatient-admissions').InpatientVital) => (
                           <tr key={v.id}>
                             <td><strong>{new Date(v.recorded_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</strong></td>
                             <td>
@@ -973,9 +768,9 @@ export function InpatientWorkspacePage() {
               <div className="adm-card" style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Inpatient Diagnostic Orders & Medications</h3>
+                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Inpatient Diagnostic Orders</h3>
                     <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>
-                      Laboratory, Radiology, and Inpatient medication administration orders
+                      Laboratory and radiology investigations from the authoritative clinical-order record
                     </p>
                   </div>
                   <button type="button" className="adm-btn primary" onClick={() => setOrderModalOpen(true)}>
@@ -983,7 +778,11 @@ export function InpatientWorkspacePage() {
                   </button>
                 </div>
 
-                {currentPatientOrders.length === 0 ? (
+                {loading.diagnosticOrders ? (
+                  <p role="status">Loading authoritative diagnostic orders...</p>
+                ) : errors.diagnosticOrders ? (
+                  <p role="alert">Diagnostic orders could not be loaded. Retry the workspace request.</p>
+                ) : currentPatientOrders.length === 0 ? (
                   <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
                     <i className="ph ph-flask" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }} />
                     <p style={{ margin: 0, fontSize: '0.84rem' }}>No orders placed yet for this inpatient.</p>
@@ -997,7 +796,7 @@ export function InpatientWorkspacePage() {
                       <thead>
                         <tr>
                           <th>Order Type</th>
-                          <th>Test / Medication</th>
+                          <th>Investigation</th>
                           <th>Clinical Instructions</th>
                           <th>Status</th>
                           <th>Ordered At</th>
@@ -1104,7 +903,7 @@ export function InpatientWorkspacePage() {
             <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Surgery / Procedure Service *</span>
             <select value={procServiceId} onChange={(e) => setProcServiceId(e.target.value)} required>
               <option value="">Select surgical procedure</option>
-              {(servicesQuery.data?.data ?? []).map((s: ServiceResponse) => (
+              {procedureServices.map((s) => (
                 <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
               ))}
             </select>
@@ -1115,7 +914,7 @@ export function InpatientWorkspacePage() {
               <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Operating Surgeon *</span>
               <select value={procDoctorId} onChange={(e) => setProcDoctorId(e.target.value)} required>
                 <option value="">Select surgeon</option>
-                {(doctorsQuery.data?.data ?? []).map((d) => (
+                {doctors.map((d) => (
                   <option key={d.id} value={d.id}>{d.display_name}</option>
                 ))}
               </select>
@@ -1123,7 +922,7 @@ export function InpatientWorkspacePage() {
 
             <label className="adm-field">
               <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Surgical Priority</span>
-              <select value={procPriority} onChange={(e) => setProcPriority(e.target.value as any)}>
+              <select value={procPriority} onChange={(e) => setProcPriority(e.target.value as 'ROUTINE' | 'URGENT' | 'EMERGENCY')}>
                 <option value="ROUTINE">Elective / Routine</option>
                 <option value="URGENT">Urgent</option>
                 <option value="EMERGENCY">Emergency (Immediate)</option>
@@ -1156,7 +955,7 @@ export function InpatientWorkspacePage() {
             <button type="button" className="btn-secondary" onClick={() => setProcedureModalOpen(false)}>
               Cancel
             </button>
-            <button className="btn-primary" type="submit" disabled={createRecommendationMutation.isPending}>
+            <button className="btn-primary" type="submit" disabled={pending.createRecommendation}>
               <i className="ph ph-scissors" /> Submit Surgery Recommendation
             </button>
           </div>
@@ -1211,7 +1010,7 @@ export function InpatientWorkspacePage() {
             <button type="button" className="btn-secondary" onClick={() => setRoundModalOpen(false)}>
               Cancel
             </button>
-            <button className="btn-primary" type="submit">
+            <button className="btn-primary" type="submit" disabled={pending.createRoundNote}>
               <i className="ph ph-check" /> Save Progress Note
             </button>
           </div>
@@ -1262,7 +1061,7 @@ export function InpatientWorkspacePage() {
             <button type="button" className="btn-secondary" onClick={() => setVitalsModalOpen(false)}>
               Cancel
             </button>
-            <button className="btn-primary" type="submit">
+            <button className="btn-primary" type="submit" disabled={pending.createVital}>
               <i className="ph ph-heartbeat" /> Save Vitals Entry
             </button>
           </div>
@@ -1270,26 +1069,25 @@ export function InpatientWorkspacePage() {
       </Modal>
 
       {/* Modal: Diagnostic Order */}
-      <Modal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} title="Place Inpatient Diagnostic / Medication Order">
+      <Modal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} title="Place Inpatient Diagnostic Order">
         <form onSubmit={handleAddOrder} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: '420px' }}>
           <label className="adm-field">
             <span style={{ fontSize: '0.76rem', fontWeight: 600 }}>Order Category *</span>
-            <select value={orderType} onChange={(e) => setOrderType(e.target.value as any)}>
+            <select value={orderType} onChange={(e) => { setOrderType(e.target.value as 'LAB' | 'IMAGING'); setOrderServiceId(''); setOrderSpecimenType(''); }}>
               <option value="LAB">Laboratory Investigation (CBC, Electrolytes, LFT, etc.)</option>
               <option value="IMAGING">Radiology & Imaging (X-Ray, Ultrasound, CT, MRI)</option>
-              <option value="MEDICATION">Inpatient Medication / IV Infusion</option>
             </select>
           </label>
 
           <label className="adm-field">
-            <span style={{ fontSize: '0.76rem', fontWeight: 600 }}>Investigation / Medicine Name *</span>
-            <input
-              value={orderItemName}
-              onChange={(e) => setOrderItemName(e.target.value)}
-              placeholder="e.g. Full Blood Count / Chest X-Ray / IV Paracetamol 1g..."
-              required
-            />
+            <span style={{ fontSize: '0.76rem', fontWeight: 600 }}>Active Diagnostic Service *</span>
+            <select value={orderServiceId} onChange={(e) => { const serviceId = e.target.value; setOrderServiceId(serviceId); const service = (orderType === 'LAB' ? laboratoryServices : imagingServices).find((item) => item.id === serviceId); setOrderSpecimenType(service?.sample_type ?? ''); }} required>
+              <option value="">Select a service</option>
+              {(orderType === 'LAB' ? laboratoryServices : imagingServices).map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+            </select>
           </label>
+
+          {orderType === 'LAB' && <label className="adm-field"><span style={{ fontSize: '0.76rem', fontWeight: 600 }}>Specimen Type *</span><input value={orderSpecimenType} onChange={(e) => setOrderSpecimenType(e.target.value)} placeholder="e.g. Blood, urine" required /></label>}
 
           <label className="adm-field">
             <span style={{ fontSize: '0.76rem', fontWeight: 600 }}>Clinical Instructions / Frequency</span>
@@ -1305,7 +1103,7 @@ export function InpatientWorkspacePage() {
             <button type="button" className="btn-secondary" onClick={() => setOrderModalOpen(false)}>
               Cancel
             </button>
-            <button className="btn-primary" type="submit">
+            <button className="btn-primary" type="submit" disabled={pending.submitClinicalOrder}>
               <i className="ph ph-check" /> Place Order
             </button>
           </div>

@@ -9,6 +9,8 @@ import {
   useOpdReferral,
   useOpdVisit,
   useSaveOpdConsultationDraft,
+  useSaveOpdClinicalOrderDraft,
+  useSaveOpdPrescriptionDraft,
   useSaveOpdFollowUpDraft,
   useSaveOpdReferralDraft,
   useScheduleOpdFollowUp,
@@ -52,7 +54,8 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   const canDeleteDocuments = canAction('Patients', 'Patient Documents', 'Delete');
   const canCreateVitals = canAction('OPD', 'OPD Vitals', 'Create');
 
-  const { data: visitData, isLoading: visitLoading } = useOpdVisit(visitId);
+  const visitQuery = useOpdVisit(visitId);
+  const { data: visitData, isLoading: visitLoading } = visitQuery;
   const { data: vitalsData, isLoading: vitalsLoading } = useOpdLatestVitals(visitId);
   const { data: consultationData, isLoading: consultationLoading } = useOpdConsultation(visitId, !activeTab || activeTab === 'Consultation' || activeTab === 'Diagnosis');
   const { data: prescriptionData, isLoading: prescriptionLoading } = useOpdPrescription(visitId, !activeTab || activeTab === 'Prescription');
@@ -84,25 +87,28 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   const { data: documentsData, isLoading: documentsLoading } = usePatientDocuments(
     visitData?.patient_id ?? null,
     { visit_id: visitId ?? undefined, limit: 100 },
-    Boolean(visitData?.patient_id && visitId && canAccess('Patients', 'Patient Records') && (!activeTab || activeTab === 'Documents'))
+    Boolean(visitData?.patient_id && visitId && canAccess('Patients', 'Patient Documents') && (!activeTab || activeTab === 'Documents'))
   );
 
-  const { mutateAsync: saveConsultationDraft, isPending: isSavingConsultation } = useSaveOpdConsultationDraft();
-  const { mutateAsync: completeConsultation, isPending: isCompletingConsultation } = useCompleteOpdConsultation();
-  const { mutateAsync: submitPrescription, isPending: isSubmittingPrescription } = useSubmitOpdPrescription();
-  const { mutateAsync: submitClinicalOrder, isPending: isSubmittingClinicalOrder } = useSubmitOpdClinicalOrder();
-  const { mutateAsync: createVitals, isPending: isCreatingVitals } = useCreateOpdVitals();
-  const { mutateAsync: updateVisitStatus, isPending: isUpdatingVisitStatus } = useUpdateOpdVisitStatus();
+  const silentNotifications = { notifyOnError: false, notifyOnSuccess: false };
+  const { mutateAsync: saveConsultationDraft, isPending: isSavingConsultation } = useSaveOpdConsultationDraft(silentNotifications);
+  const { mutateAsync: completeConsultation, isPending: isCompletingConsultation } = useCompleteOpdConsultation(silentNotifications);
+  const { mutateAsync: submitPrescription, isPending: isSubmittingPrescription } = useSubmitOpdPrescription(silentNotifications);
+  const { mutateAsync: savePrescriptionDraft, isPending: isSavingPrescription } = useSaveOpdPrescriptionDraft(silentNotifications);
+  const { mutateAsync: submitClinicalOrder, isPending: isSubmittingClinicalOrder } = useSubmitOpdClinicalOrder(silentNotifications);
+  const { mutateAsync: saveClinicalOrderDraft, isPending: isSavingClinicalOrder } = useSaveOpdClinicalOrderDraft(silentNotifications);
+  const { mutateAsync: createVitals, isPending: isCreatingVitals } = useCreateOpdVitals(silentNotifications);
+  const { mutateAsync: updateVisitStatus, isPending: isUpdatingVisitStatus } = useUpdateOpdVisitStatus(silentNotifications);
   const { mutateAsync: saveFollowUpDraft, isPending: isSavingFollowUp } = useSaveOpdFollowUpDraft();
   const { mutateAsync: scheduleFollowUp, isPending: isSchedulingFollowUp } = useScheduleOpdFollowUp();
   const { mutateAsync: saveReferralDraft, isPending: isSavingReferral } = useSaveOpdReferralDraft();
-  const { mutateAsync: submitReferral, isPending: isSubmittingReferral } = useSubmitOpdReferral();
+  const { mutateAsync: submitReferral, isPending: isSubmittingReferral } = useSubmitOpdReferral(silentNotifications);
 
   const { mutateAsync: createAppointment, isPending: isCreatingAppointment } = useCreateAppointment();
-  const { mutateAsync: uploadDocument, isPending: isUploadingDocument } = useUploadPatientDocument();
-  const { mutateAsync: deleteDocument, isPending: isDeletingDocument } = useDeletePatientDocument();
+  const { mutateAsync: uploadDocument, isPending: isUploadingDocument } = useUploadPatientDocument(silentNotifications);
+  const { mutateAsync: deleteDocument, isPending: isDeletingDocument } = useDeletePatientDocument(silentNotifications);
   const { mutateAsync: downloadDocument, isPending: isDownloadingDocument } = useDownloadPatientDocument();
-  const { mutateAsync: createBillingInvoice, isPending: isCreatingBillingInvoice } = useCreateBillingInvoice();
+  const { mutateAsync: createBillingInvoice, isPending: isCreatingBillingInvoice } = useCreateBillingInvoice(silentNotifications);
 
   const isLoading =
     visitLoading ||
@@ -123,7 +129,9 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
     isSavingConsultation ||
     isCompletingConsultation ||
     isSubmittingPrescription ||
+    isSavingPrescription ||
     isSubmittingClinicalOrder ||
+    isSavingClinicalOrder ||
     isCreatingVitals ||
     isUpdatingVisitStatus ||
     isCreatingAppointment ||
@@ -154,7 +162,10 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
     services: servicesData?.data ?? [],
     documents: documentsData?.data ?? [],
     isLoading,
+    visitLoading,
     isUpdating: isUpdatingOpd,
+    visitError: visitQuery.error,
+    refetchVisit: visitQuery.refetch,
     isSavingConsultation,
     isCompletingConsultation,
     isSubmittingPrescription,
@@ -170,7 +181,9 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
       saveConsultationDraft,
       completeConsultation,
       submitPrescription,
+      savePrescriptionDraft,
       submitClinicalOrder,
+      saveClinicalOrderDraft,
       createVitals,
       updateVisitStatus,
       createAppointment,

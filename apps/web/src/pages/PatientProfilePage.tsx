@@ -4,7 +4,6 @@ import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
 import {
   type ApiPatientDocumentType,
-  patientsApi,
   type ApiPatientGender,
   type ApiPatientStatus,
   type PatientHistoryResponse,
@@ -12,7 +11,6 @@ import {
   type PatientResponse,
   type PatientTimelineEventResponse,
 } from '../api/patients';
-import { useCurrencyFormatter } from '../api/useSettings';
 import { useAuth } from '../auth/useAuth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -293,8 +291,6 @@ export function PatientProfilePage() {
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
   const canEditAllDetails = isSuperAdmin || isAdmin;
-  const formatMoney = useCurrencyFormatter();
-
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
   const searchParams = new URLSearchParams(search);
@@ -327,16 +323,20 @@ export function PatientProfilePage() {
     billingInvoices,
     loadingBillingInvoices,
     doctors: doctorsList,
+    formatMoney,
     filters,
     pageInfo,
     isSubmittingUpdate: submitting,
-    isSubmittingUpload: submittingUpload
+    isSubmittingUpload: submittingUpload,
+    isSubmittingDocumentReview: submittingDocumentReview,
   } = feature.state;
   
   const { 
     setActiveTab, 
     handleUpdateProfile, 
     handleUploadDocument,
+    handleDownloadDocument: downloadDocument,
+    handleReviewDocument: reviewDocument,
     setTimelineFilters,
     setTimelinePage: setTimelineMeta,
     setVisitsFilters,
@@ -409,8 +409,6 @@ export function PatientProfilePage() {
   const [documentReviewTarget, setDocumentReviewTarget] = useState<PatientDocumentResponse | null>(null);
   const [documentReviewDecision, setDocumentReviewDecision] = useState<'VERIFIED' | 'REJECTED'>('VERIFIED');
   const [documentReviewNotes, setDocumentReviewNotes] = useState('');
-  const [submittingDocumentReview, setSubmittingDocumentReview] = useState(false);
-
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
     setToastTone(tone);
@@ -461,7 +459,8 @@ export function PatientProfilePage() {
   const handleDownloadDocument = async (document: PatientDocumentResponse) => {
     if (!requestedPatientId) return;
     try {
-      const result = await patientsApi.downloadDocument(requestedPatientId, document.id);
+      const result = await downloadDocument(document.id);
+      if (!result) return;
       const url = URL.createObjectURL(result.blob);
       const anchor = window.document.createElement('a');
       anchor.href = url;
@@ -476,7 +475,8 @@ export function PatientProfilePage() {
   const handleViewDocument = async (document: PatientDocumentResponse) => {
     if (!requestedPatientId) return;
     try {
-      const result = await patientsApi.downloadDocument(requestedPatientId, document.id);
+      const result = await downloadDocument(document.id);
+      if (!result) return;
       const url = URL.createObjectURL(result.blob);
       const opened = window.open(url, '_blank', 'noopener,noreferrer');
       if (!opened) showToast('Allow pop-ups to preview this document.', 'error');
@@ -502,9 +502,8 @@ export function PatientProfilePage() {
       showToast('Please enter a reason for rejecting this document.', 'error');
       return;
     }
-    setSubmittingDocumentReview(true);
     try {
-      await patientsApi.reviewDocument(requestedPatientId, documentReviewTarget.id, {
+      await reviewDocument(documentReviewTarget.id, {
         review_status: documentReviewDecision,
         review_notes: documentReviewNotes.trim() || null,
       });
@@ -513,75 +512,9 @@ export function PatientProfilePage() {
       setDocumentReviewNotes('');
     } catch (error) {
       showToast(getPatientErrorMessage(error), 'error');
-    } finally {
-      setSubmittingDocumentReview(false);
     }
   };
 
-  const printPatientCard = (p: PatientResponse) => {
-    const fullName = patientFullName(p);
-    const initials = patientInitials(p);
-    const age = new Date().getFullYear() - new Date(p.date_of_birth).getFullYear();
-    const dob = formatDate(p.date_of_birth);
-    const registered = formatDate(p.created_at);
-    const statusColor = p.status === 'ACTIVE' ? '#16a34a' : p.status === 'DECEASED' ? '#6b7280' : '#dc2626';
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>Patient Card â€” ${fullName}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh}
-.card{width:340px;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.13);overflow:hidden}
-.card-header{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:20px 20px 28px;position:relative}
-.hospital-row{display:flex;align-items:center;gap:8px;margin-bottom:18px}
-.hospital-logo{width:32px;height:32px;background:rgba(255,255,255,.2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:13px}
-.hospital-name{color:#fff;font-size:13px;font-weight:700;line-height:1.2}
-.hospital-sub{color:rgba(255,255,255,.65);font-size:10px}
-.card-type-badge{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase}
-.avatar-row{display:flex;align-items:center;gap:14px}
-.avatar{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;flex-shrink:0}
-.avatar-info .name{color:#fff;font-size:18px;font-weight:800;line-height:1.2}
-.avatar-info .mrn{margin-top:4px;display:inline-block;background:rgba(255,255,255,.18);color:#fff;font-size:11px;font-weight:600;padding:2px 10px;border-radius:12px}
-.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
-.card-body{padding:18px 20px}
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
-.info-item .label{font-size:9px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
-.info-item .value{font-size:13px;font-weight:600;color:#0f172a}
-.divider{border:none;border-top:1px solid #e2e8f0;margin:14px 0}
-.barcode-row{background:#f8fafc;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
-.barcode-lines{display:flex;align-items:flex-end;gap:2px;height:28px}
-.bar{background:#1e293b;border-radius:1px}
-.barcode-label{font-size:10px;color:#64748b;font-weight:500}
-.card-footer{background:#f8fafc;border-top:1px solid #e2e8f0;padding:10px 20px;display:flex;justify-content:space-between;align-items:center}
-.footer-text{font-size:9px;color:#94a3b8}
-.blood-badge{background:#fef2f2;color:#dc2626;font-weight:800;font-size:13px;padding:2px 10px;border-radius:8px;border:1px solid #fecaca}
-@media print{body{background:#fff}.card{box-shadow:none;border:1px solid #e2e8f0}.no-print{display:none!important}}
-.print-btn{display:block;width:100%;margin-top:20px;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
-</style></head><body><div>
-<div class="card">
-<div class="card-header">
-<div class="hospital-row"><div class="hospital-logo">H</div><div><div class="hospital-name">HMS Enterprise</div><div class="hospital-sub">Hospital Management System</div></div></div>
-<span class="card-type-badge">Patient ID</span>
-<div class="avatar-row"><div class="avatar">${initials}</div><div class="avatar-info"><div class="name">${fullName}</div><span class="mrn">${p.patient_number}</span></div></div>
-</div>
-<div class="card-body">
-<div class="info-grid">
-<div class="info-item"><div class="label">Date of Birth</div><div class="value">${dob}</div></div>
-<div class="info-item"><div class="label">Age / Gender</div><div class="value">${age} yrs Â· ${p.gender.charAt(0)+p.gender.slice(1).toLowerCase()}</div></div>
-<div class="info-item"><div class="label">Phone</div><div class="value">${p.phone||'Not recorded'}</div></div>
-<div class="info-item"><div class="label">Status</div><div class="value"><span class="status-dot" style="background:${statusColor}"></span>${p.status}</div></div>
-<div class="info-item"><div class="label">Registered</div><div class="value">${registered}</div></div>
-<div class="info-item"><div class="label">Blood Group</div><div class="value">${p.blood_group?`<span class="blood-badge">${p.blood_group}</span>`:'Not recorded'}</div></div>
-</div>
-<hr class="divider"/>
-<div class="barcode-row"><div><div class="barcode-lines">${Array.from({length:28},(_,i)=>{const h=[24,18,28,14,22,28,16,24,12,28,20,16,28,18,24,28,14,20,28,16,24,12,28,18,24,16,28,22][i];const w=i%3===0?3:1.5;return`<div class="bar" style="width:${w}px;height:${h}px"></div>`;}).join('')}</div><div class="barcode-label" style="margin-top:4px">${p.patient_number}</div></div><div style="text-align:right"><div style="font-size:10px;color:#64748b;font-weight:600">Valid For</div><div style="font-size:12px;font-weight:700;color:#0f172a">All Departments</div></div></div>
-</div>
-<div class="card-footer"><span class="footer-text">This card is non-transferable</span><span class="footer-text">Printed: ${new Date().toLocaleDateString()}</span></div>
-</div>
-<button class="print-btn no-print" onclick="window.print()">🖨️ Print Card</button>
-</div><script>window.onload=()=>window.print();</script></body></html>`;
-    const win = window.open('', '_blank', 'width=480,height=700,scrollbars=no,toolbar=no,menubar=no');
-    if (win) { win.document.write(html); win.document.close(); }
-  };
 
   const saveProfile = async (data: UpdatePatientForm) => {
     if (!patient) return;

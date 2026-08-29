@@ -9,6 +9,7 @@ export type NotificationDocumentFields = {
   message: string;
   type: NotificationType;
   relatedEntityId?: Types.ObjectId | null;
+  createdBy?: Types.ObjectId | null;
   isRead: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +24,7 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
     message: { type: String, required: true },
     type: { type: String, enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL'], required: true },
     relatedEntityId: { type: Schema.Types.ObjectId, default: null },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     isRead: { type: Boolean, default: false },
   },
   {

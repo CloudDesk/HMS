@@ -11,6 +11,11 @@ import {
 } from '../../api/billing';
 import { billingService } from '../../services/billing.service';
 
+type BillingMutationNotificationOptions = {
+  notifyOnError?: boolean;
+  notifyOnSuccess?: boolean;
+};
+
 export const getBillingErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
@@ -71,18 +76,20 @@ export function useBillingPayments(invoiceId: string | null) {
   });
 }
 
-export function useCreateBillingInvoice() {
+export function useCreateBillingInvoice(options: BillingMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: CreateBillingInvoicePayload) => billingService.create(payload),
     onSuccess: async () => {
-      toast.success('Invoice draft created.');
+      if (options.notifyOnSuccess !== false) toast.success('Invoice draft created.');
       // Creating a new invoice affects the list view and summary totals only.
       await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
       await queryClient.invalidateQueries({ queryKey: billingKeys.summaries() });
     },
-    onError: (error) => toast.error(getBillingErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getBillingErrorMessage(error));
+    },
   });
 }
 

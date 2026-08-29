@@ -1,62 +1,64 @@
+import { lazy, Suspense } from 'react';
 import { LoadingState } from '../components/LoadingState';
 import { canAccessRoute, isPermissionControlledRoute } from '../auth/access-control';
 import { useAuth } from '../auth/useAuth';
-import { AuthSupportPage } from '../pages/AuthSupportPage';
 import { ComingSoonPage } from '../pages/ComingSoonPage';
-import { DashboardShell } from '../pages/DashboardShell';
-import { AppointmentBookingPage } from '../pages/AppointmentBookingPage';
-import { AppointmentCalendarPage } from '../pages/AppointmentCalendarPage';
-import { AppointmentDashboardPage } from '../pages/AppointmentDashboardPage';
-import { AppointmentQueuePage } from '../pages/AppointmentQueuePage';
-import { DoctorDashboardPage } from '../pages/DoctorDashboardPage';
-import { DoctorDirectoryPage } from '../pages/DoctorDirectoryPage';
-import { DoctorPerformancePage } from '../pages/DoctorPerformancePage';
-import { DoctorSchedulePage } from '../pages/DoctorSchedulePage';
-import { DoctorProfilePage } from '../pages/DoctorProfilePage';
-import { DoctorAvailabilityPage } from '../pages/DoctorAvailabilityPage';
-import { LoginPage } from '../pages/LoginPage';
-import { OpdDashboardPage } from '../pages/OpdDashboardPage';
-import { OpdQueuePage } from '../pages/OpdQueuePage';
-import { OpdVisitPage } from '../pages/OpdVisitPage';
-import { PatientProfilePage } from '../pages/PatientProfilePage';
-import { PatientRegistrationPage } from '../pages/PatientRegistrationPage';
-import { PatientSearchPage } from '../pages/PatientSearchPage';
-import { PatientDocumentsPage } from '../pages/PatientDocumentsPage';
-import { PatientConsentPage } from '../pages/PatientConsentPage';
-import { RolesPermissionsPage } from '../pages/RolesPermissionsPage';
-import { UserManagementPage } from '../pages/UserManagementPage';
-import { DepartmentManagementPage } from '../pages/DepartmentManagementPage';
-import { BranchManagementPage } from '../pages/BranchManagementPage';
-import { ServiceCataloguePage } from '../pages/ServiceCataloguePage';
-import { MedicineMasterPage } from '../pages/MedicineMasterPage';
-import { PharmacyMedicineInventoryPage } from '../pages/PharmacyMedicineInventoryPage';
-import { PrescriptionQueuePage } from '../pages/PrescriptionQueuePage';
-import { LaboratoryQueuePage } from '../pages/LaboratoryQueuePage';
-import { LaboratoryWorkspacePage } from '../pages/LaboratoryWorkspacePage';
-import { LaboratoryResultEntryPage } from '../pages/LaboratoryResultEntryPage';
-import { ImagingQueuePage } from '../pages/ImagingQueuePage';
-import { ImagingWorkspacePage } from '../pages/ImagingWorkspacePage';
-import { ImagingReportEntryPage } from '../pages/ImagingReportEntryPage';
-import { BillingDashboardPage } from '../pages/BillingDashboardPage';
-import { BillingWorkspacePage } from '../pages/BillingWorkspacePage';
-import { BillingHistoryPage } from '../pages/BillingHistoryPage';
-import { SystemSettingsPage } from '../pages/SystemSettingsPage';
-import { AdministrationDashboardPage } from '../pages/AdministrationDashboardPage';
-import { BedManagementPage } from '../pages/BedManagementPage';
-import { InpatientAdmissionPage } from '../pages/InpatientAdmissionPage';
-import { InpatientWorkspacePage } from '../pages/InpatientWorkspacePage';
-import { ConsentTemplatesPage } from '../pages/ConsentTemplatesPage';
-import { ReferralBookingPage } from '../pages/ReferralBookingPage';
-import { BedAvailabilityPage } from '../pages/BedAvailabilityPage';
-import { PhaseTwoReportsPage } from '../pages/PhaseTwoReportsPage';
-import { SurgeryWorkspacePage } from '../pages/SurgeryWorkspacePage';
-import { EmergencyDashboardPage } from '../pages/EmergencyDashboardPage';
-import { EmergencyQueuePage } from '../pages/EmergencyQueuePage';
-import { EmergencyWorkspacePage } from '../pages/EmergencyWorkspacePage';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { sidebarModules } from '../data/ui-foundation';
 import { ProtectedRoute } from './ProtectedRoute';
 import { navigate, useAppLocation } from './navigation';
+
+const AdministrationDashboardPage = lazy(() => import('../pages/AdministrationDashboardPage').then((module) => ({ default: module.AdministrationDashboardPage })));
+const AppointmentBookingPage = lazy(() => import('../pages/AppointmentBookingPage').then((module) => ({ default: module.AppointmentBookingPage })));
+const AppointmentCalendarPage = lazy(() => import('../pages/AppointmentCalendarPage').then((module) => ({ default: module.AppointmentCalendarPage })));
+const AppointmentDashboardPage = lazy(() => import('../pages/AppointmentDashboardPage').then((module) => ({ default: module.AppointmentDashboardPage })));
+const AppointmentQueuePage = lazy(() => import('../pages/AppointmentQueuePage').then((module) => ({ default: module.AppointmentQueuePage })));
+const AuthSupportPage = lazy(() => import('../pages/AuthSupportPage').then((module) => ({ default: module.AuthSupportPage })));
+const BedAvailabilityPage = lazy(() => import('../pages/BedAvailabilityPage').then((module) => ({ default: module.BedAvailabilityPage })));
+const BedManagementPage = lazy(() => import('../pages/BedManagementPage').then((module) => ({ default: module.BedManagementPage })));
+const BillingDashboardPage = lazy(() => import('../pages/BillingDashboardPage').then((module) => ({ default: module.BillingDashboardPage })));
+const BillingHistoryPage = lazy(() => import('../pages/BillingHistoryPage').then((module) => ({ default: module.BillingHistoryPage })));
+const BillingWorkspacePage = lazy(() => import('../pages/BillingWorkspacePage').then((module) => ({ default: module.BillingWorkspacePage })));
+const BranchManagementPage = lazy(() => import('../pages/BranchManagementPage').then((module) => ({ default: module.BranchManagementPage })));
+const ConsentTemplatesPage = lazy(() => import('../pages/ConsentTemplatesPage').then((module) => ({ default: module.ConsentTemplatesPage })));
+const DashboardShell = lazy(() => import('../pages/DashboardShell').then((module) => ({ default: module.DashboardShell })));
+const DepartmentManagementPage = lazy(() => import('../pages/DepartmentManagementPage').then((module) => ({ default: module.DepartmentManagementPage })));
+const DoctorAvailabilityPage = lazy(() => import('../pages/DoctorAvailabilityPage').then((module) => ({ default: module.DoctorAvailabilityPage })));
+const DoctorDashboardPage = lazy(() => import('../pages/DoctorDashboardPage').then((module) => ({ default: module.DoctorDashboardPage })));
+const DoctorDirectoryPage = lazy(() => import('../pages/DoctorDirectoryPage').then((module) => ({ default: module.DoctorDirectoryPage })));
+const DoctorPerformancePage = lazy(() => import('../pages/DoctorPerformancePage').then((module) => ({ default: module.DoctorPerformancePage })));
+const DoctorProfilePage = lazy(() => import('../pages/DoctorProfilePage').then((module) => ({ default: module.DoctorProfilePage })));
+const DoctorSchedulePage = lazy(() => import('../pages/DoctorSchedulePage').then((module) => ({ default: module.DoctorSchedulePage })));
+const EmergencyDashboardPage = lazy(() => import('../pages/EmergencyDashboardPage').then((module) => ({ default: module.EmergencyDashboardPage })));
+const EmergencyQueuePage = lazy(() => import('../pages/EmergencyQueuePage').then((module) => ({ default: module.EmergencyQueuePage })));
+const EmergencyWorkspacePage = lazy(() => import('../pages/EmergencyWorkspacePage').then((module) => ({ default: module.EmergencyWorkspacePage })));
+const ImagingQueuePage = lazy(() => import('../pages/ImagingQueuePage').then((module) => ({ default: module.ImagingQueuePage })));
+const ImagingReportEntryPage = lazy(() => import('../pages/ImagingReportEntryPage').then((module) => ({ default: module.ImagingReportEntryPage })));
+const ImagingWorkspacePage = lazy(() => import('../pages/ImagingWorkspacePage').then((module) => ({ default: module.ImagingWorkspacePage })));
+const InpatientAdmissionPage = lazy(() => import('../pages/InpatientAdmissionPage').then((module) => ({ default: module.InpatientAdmissionPage })));
+const InpatientWorkspacePage = lazy(() => import('../pages/InpatientWorkspacePage').then((module) => ({ default: module.InpatientWorkspacePage })));
+const LaboratoryQueuePage = lazy(() => import('../pages/LaboratoryQueuePage').then((module) => ({ default: module.LaboratoryQueuePage })));
+const LaboratoryResultEntryPage = lazy(() => import('../pages/LaboratoryResultEntryPage').then((module) => ({ default: module.LaboratoryResultEntryPage })));
+const LaboratoryWorkspacePage = lazy(() => import('../pages/LaboratoryWorkspacePage').then((module) => ({ default: module.LaboratoryWorkspacePage })));
+const LoginPage = lazy(() => import('../pages/LoginPage').then((module) => ({ default: module.LoginPage })));
+const MedicineMasterPage = lazy(() => import('../pages/MedicineMasterPage').then((module) => ({ default: module.MedicineMasterPage })));
+const OpdDashboardPage = lazy(() => import('../pages/OpdDashboardPage').then((module) => ({ default: module.OpdDashboardPage })));
+const OpdQueuePage = lazy(() => import('../pages/OpdQueuePage').then((module) => ({ default: module.OpdQueuePage })));
+const OpdVisitPage = lazy(() => import('../pages/OpdVisitPage').then((module) => ({ default: module.OpdVisitPage })));
+const PatientConsentPage = lazy(() => import('../pages/PatientConsentPage').then((module) => ({ default: module.PatientConsentPage })));
+const PatientDocumentsPage = lazy(() => import('../pages/PatientDocumentsPage').then((module) => ({ default: module.PatientDocumentsPage })));
+const PatientProfilePage = lazy(() => import('../pages/PatientProfilePage').then((module) => ({ default: module.PatientProfilePage })));
+const PatientRegistrationPage = lazy(() => import('../pages/PatientRegistrationPage').then((module) => ({ default: module.PatientRegistrationPage })));
+const PatientSearchPage = lazy(() => import('../pages/PatientSearchPage').then((module) => ({ default: module.PatientSearchPage })));
+const PharmacyMedicineInventoryPage = lazy(() => import('../pages/PharmacyMedicineInventoryPage').then((module) => ({ default: module.PharmacyMedicineInventoryPage })));
+const PhaseTwoReportsPage = lazy(() => import('../pages/PhaseTwoReportsPage').then((module) => ({ default: module.PhaseTwoReportsPage })));
+const PrescriptionQueuePage = lazy(() => import('../pages/PrescriptionQueuePage').then((module) => ({ default: module.PrescriptionQueuePage })));
+const ReferralBookingPage = lazy(() => import('../pages/ReferralBookingPage').then((module) => ({ default: module.ReferralBookingPage })));
+const RolesPermissionsPage = lazy(() => import('../pages/RolesPermissionsPage').then((module) => ({ default: module.RolesPermissionsPage })));
+const ServiceCataloguePage = lazy(() => import('../pages/ServiceCataloguePage').then((module) => ({ default: module.ServiceCataloguePage })));
+const SurgeryWorkspacePage = lazy(() => import('../pages/SurgeryWorkspacePage').then((module) => ({ default: module.SurgeryWorkspacePage })));
+const SystemSettingsPage = lazy(() => import('../pages/SystemSettingsPage').then((module) => ({ default: module.SystemSettingsPage })));
+const UserManagementPage = lazy(() => import('../pages/UserManagementPage').then((module) => ({ default: module.UserManagementPage })));
 
 function NotFoundPage() {
   return (
@@ -97,15 +99,15 @@ export function AppRouter() {
   // ── Public routes ────────────────────────────────────────────────────────────
 
   if (pathname === '/login') {
-    return <LoginPage />;
+    return <Suspense fallback={<LoadingState title="Loading sign in" message="Preparing the secure sign-in page." />}><LoginPage /></Suspense>;
   }
 
   if (pathname === '/forgot-password') {
-    return <AuthSupportPage mode="forgot-password" />;
+    return <Suspense fallback={<LoadingState title="Loading account support" message="Preparing account recovery." />}><AuthSupportPage mode="forgot-password" /></Suspense>;
   }
 
   if (pathname === '/reset-password') {
-    return <AuthSupportPage mode="reset-password" />;
+    return <Suspense fallback={<LoadingState title="Loading account support" message="Preparing account recovery." />}><AuthSupportPage mode="reset-password" /></Suspense>;
   }
 
   // ── Protected routes ─────────────────────────────────────────────────────────
@@ -355,7 +357,9 @@ export function AppRouter() {
   return (
     <ProtectedRoute>
       <DashboardLayout title={title} breadcrumbs={breadcrumbs}>
-        {content}
+        <Suspense fallback={<LoadingState title="Loading page" message="Preparing the requested HMS workspace." />}>
+          {content}
+        </Suspense>
       </DashboardLayout>
     </ProtectedRoute>
   );
