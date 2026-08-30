@@ -9,10 +9,11 @@ import {
 } from '../api/patients';
 import { usePatientSearchFeature } from '../hooks/patients/usePatientSearchFeature';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
-import { formatDate, patientFullName } from './patient-utils';
+import { formatDate, patientFullName, calculatePatientAge, calculateAge } from './patient-utils';
 
 
 type ColumnVisibility = {
@@ -124,7 +125,7 @@ export function PatientSearchPage() {
   const printPatientCard = (p: PatientResponse) => {
     const fullName = patientFullName(p);
     const initials = patientInitials(fullName);
-    const age = new Date().getFullYear() - new Date(p.date_of_birth).getFullYear();
+    const age = calculatePatientAge(p.date_of_birth);
     const dob = formatDate(p.date_of_birth);
     const registered = formatDate(p.created_at);
 
@@ -525,8 +526,11 @@ export function PatientSearchPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="um-state-cell" colSpan={11}>
-                    Loading patient directory...
+                  <td colSpan={11} style={{ padding: '2rem 1rem' }}>
+                    <MedicalLoader
+                      text="Searching patient directory..."
+                      subtext="Retrieving patient demographic & encounter records"
+                    />
                   </td>
                 </tr>
               ) : loadError ? (
@@ -544,7 +548,7 @@ export function PatientSearchPage() {
               ) : (
                 patients.map((patient) => {
                   const fullName = patientFullName(patient);
-                  const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
+                  const age = calculatePatientAge(patient.date_of_birth);
 
                   return (
                     <tr
@@ -562,7 +566,7 @@ export function PatientSearchPage() {
                         </div>
                       </td>
                       {columns.gender ? <td>{patient.gender}</td> : null}
-                      {columns.age ? <td>{age} yrs</td> : null}
+                      {columns.age ? <td>{age}</td> : null}
                       {columns.phone ? <td>{patient.phone || 'Not recorded'}</td> : null}
                       {columns.lastVisit ? <td>Not available</td> : null}
                       {columns.registeredDate ? <td>{formatDate(patient.created_at)}</td> : null}

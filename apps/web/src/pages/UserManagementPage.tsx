@@ -14,6 +14,7 @@ import type { AuthPasswordPolicy } from '../auth/auth-types';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 
 type UserStatus = 'Active' | 'Inactive' | 'Locked';
 type SortColumn = 'fullName' | 'role' | 'department' | 'status';
@@ -23,7 +24,7 @@ type ModalMode = 'create' | 'edit' | 'view' | 'assign-role' | 'change-password' 
 
 const baseUserSchema = z.object({
   employeeCode: z.string().optional(),
-  username: z.string().min(1, 'Username is required.'),
+  username: z.string().optional(),
   email: z.string().email('Valid email is required.').min(1, 'Email is required.'),
   fullName: z.string().min(1, 'Full name is required.'),
   phone: z.string().optional(),
@@ -334,6 +335,14 @@ export function UserManagementPage() {
   };
 
 
+  const watchedEmail = userForm.watch('email');
+  useEffect(() => {
+    if (modalMode === 'create') {
+      const userVal = watchedEmail ? (watchedEmail.includes('@') ? watchedEmail.split('@')[0] : watchedEmail) : '';
+      userForm.setValue('username', userVal || '');
+    }
+  }, [watchedEmail, modalMode, userForm]);
+
   useEffect(() => {
     if (canCreate && new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
       openModal('create');
@@ -408,18 +417,21 @@ export function UserManagementPage() {
 
 
 
-  const buildSavePayload = (data: UserFormData): SaveUserPayload => ({
-    branches: branchOptions.filter(b => b.id === data.branchId).map(b => ({ id: b.id, name: b.name, isPrimary: true })),
-    departments: departmentOptions.filter(d => d.id === data.departmentId).map(d => ({ id: d.id, name: d.name, isPrimary: true })),
-    email: data.email || null,
-    employeeCode: data.employeeCode || '',
-    fullName: data.fullName,
-    jobTitle: data.jobTitle || '',
-    phone: data.phone || null,
-    roleIds: [data.roleId],
-    status: data.status.toLowerCase() as ApiUserStatus,
-    username: data.username,
-  });
+  const buildSavePayload = (data: UserFormData): SaveUserPayload => {
+    const computedUsername = data.username || (data.email ? data.email.split('@')[0] : '') || data.fullName.toLowerCase().replace(/\s+/g, '.');
+    return {
+      branches: branchOptions.filter(b => b.id === data.branchId).map(b => ({ id: b.id, name: b.name, isPrimary: true })),
+      departments: departmentOptions.filter(d => d.id === data.departmentId).map(d => ({ id: d.id, name: d.name, isPrimary: true })),
+      email: data.email || null,
+      employeeCode: data.employeeCode || '',
+      fullName: data.fullName,
+      jobTitle: data.jobTitle || '',
+      phone: data.phone || null,
+      roleIds: [data.roleId],
+      status: data.status.toLowerCase() as ApiUserStatus,
+      username: computedUsername,
+    };
+  };
 
   const handleSaveUser = async (formData: UserFormData) => {
     if (submitting) return;
@@ -548,9 +560,6 @@ export function UserManagementPage() {
             ) : null}
             <button className="btn-secondary admin-table-action" disabled={!canExport || forbidden || submitting} onClick={() => {}} type="button">
               <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
-            </button>
-            <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => {}} type="button">
-              <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
             </button>
           </div>
         </div>
@@ -763,8 +772,8 @@ export function UserManagementPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={10}>
-                        <span className="loading-spinner" /> Loading users...
+                      <td colSpan={10} style={{ padding: '2.5rem 1rem' }}>
+                        <MedicalLoader text="Loading hospital staff records..." subtext="Retrieving access & credentials data" />
                       </td>
                     </tr>
                   ) : loadError ? (
@@ -969,10 +978,16 @@ export function UserManagementPage() {
             <div className="form-section-title">Personal Information</div>
             <div className="form-grid-3">
               <label className="form-field">
-                <span>Employee ID <span className="required">*</span></span>
+                <span>
+                  Employee ID
+                  <span className="form-field-badge">Auto-generated</span>
+                </span>
                 <input
                   aria-invalid={Boolean(userForm.formState.errors.employeeCode)}
                   placeholder="Auto-generated from Dept & Role"
+                  readOnly
+                  style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }}
+                  tabIndex={-1}
                   {...userForm.register('employeeCode')}
                 />
                 {userForm.formState.errors.employeeCode ? <small className="field-error">{userForm.formState.errors.employeeCode.message}</small> : null}
@@ -983,10 +998,16 @@ export function UserManagementPage() {
                 {userForm.formState.errors.fullName ? <small className="field-error">{userForm.formState.errors.fullName.message}</small> : null}
               </label>
               <label className="form-field">
-                <span>Username <span style={{ color: '#94a3b8', fontSize: '0.78rem', fontWeight: 400 }}>(Optional)</span></span>
+                <span>
+                  Username
+                  <span className="form-field-badge">Auto-filled</span>
+                </span>
                 <input
                   aria-invalid={Boolean(userForm.formState.errors.username)}
                   placeholder="Auto-filled from email"
+                  readOnly
+                  style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }}
+                  tabIndex={-1}
                   {...userForm.register('username')}
                 />
                 {userForm.formState.errors.username ? <small className="field-error">{userForm.formState.errors.username.message}</small> : null}

@@ -18,14 +18,29 @@ export const formatDate = (value: string | null | undefined) => {
   }).format(date);
 };
 
+export const calculateAgeNumber = (dob: string | null | undefined): number => {
+  if (!dob) return 0;
+  const birthDate = new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) return 0;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return Math.max(0, age);
+};
+
 export const calculateAge = (dob: string | null | undefined) => {
   if (!dob) return '';
-  const birthDate = new Date(dob);
-  if (Number.isNaN(birthDate.getTime())) return '';
-  const ageDifMs = Date.now() - birthDate.getTime();
-  const ageDate = new Date(ageDifMs);
-  const years = Math.abs(ageDate.getUTCFullYear() - 1970);
-  return `${years} years`;
+  const age = calculateAgeNumber(dob);
+  return `${age} years`;
+};
+
+export const calculatePatientAge = (dob: string | null | undefined) => {
+  if (!dob) return '-';
+  const age = calculateAgeNumber(dob);
+  return `${age} yrs`;
 };
 
 export const formatDateTime = (value: string | null | undefined) => {

@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import type { OpdVisitResponse } from '../api/opd';
 import { VitalsCaptureModal } from '../components/opd/VitalsCaptureModal';
 import { getOpdErrorMessage } from './opd-utils';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 
 const waitingStatuses = new Set<ApiAppointmentStatus>(['SCHEDULED', 'CONFIRMED', 'SKIPPED']);
 
@@ -280,8 +281,11 @@ export function AppointmentQueuePage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td className="um-state-cell" colSpan={10}>
-                      Loading queue...
+                    <td colSpan={10} style={{ padding: '2.5rem 1rem' }}>
+                      <MedicalLoader
+                        text="Loading appointment queue..."
+                        subtext="Tracking patient check-in and waiting tokens"
+                      />
                     </td>
                   </tr>
                 ) : appointments.length === 0 ? (
