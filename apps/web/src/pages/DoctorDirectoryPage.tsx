@@ -536,7 +536,7 @@ export function DoctorDirectoryPage() {
             </div>
           </div>
           <div className="doc-table-wrap">
-            <table className="doc-table">
+            <table className="doc-table responsive-table">
               <thead>
                 <tr>
                   <th onClick={() => handleSort('doctor_number')}>Doctor</th>
@@ -566,19 +566,19 @@ export function DoctorDirectoryPage() {
                 ) : (
                   directory.doctors.map((doctor) => (
                     <tr key={doctor.id}>
-                      <td>
+                      <td data-label="Doctor">
                         <div className="doc-person">
                           <span className="doc-avatar">{doctorInitials(doctor)}</span>
                           <div><strong>{doctor.display_name}</strong><span>{doctor.doctor_number}</span></div>
                         </div>
                       </td>
-                      <td>{doctor.specialization}</td>
-                      <td>{directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-'}</td>
-                      <td>{directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-'}</td>
-                      <td><strong>{doctor.phone || '-'}</strong><br /><small>{doctor.email || 'No email recorded'}</small></td>
-                      <td><span className={`status-badge ${statusClass(doctor.status)}`}>{doctor.status.replace('_', ' ')}</span></td>
-                      <td>{formatDate(doctor.created_at)}</td>
-                      <td>
+                      <td data-label="Specialization">{doctor.specialization}</td>
+                      <td data-label="Department">{directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-'}</td>
+                      <td data-label="Branch">{directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-'}</td>
+                      <td data-label="Contact"><strong>{doctor.phone || '-'}</strong><br /><small>{doctor.email || 'No email recorded'}</small></td>
+                      <td data-label="Status"><span className={`status-badge ${statusClass(doctor.status)}`}>{doctor.status.replace('_', ' ')}</span></td>
+                      <td data-label="Created">{formatDate(doctor.created_at)}</td>
+                      <td data-label="Actions">
                         <div className="doc-actions">
                           {directory.canEdit ? (
                             <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" type="button">

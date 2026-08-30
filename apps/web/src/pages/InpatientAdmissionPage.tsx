@@ -303,7 +303,7 @@ export function InpatientAdmissionPage() {
       ) : null}
 
       {/* 7-Field Filter Bar */}
-      <div className="adm-filters" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+      <div className="adm-filters inpatient-admission-filters">
         <div className="adm-field">
           <label>Department</label>
           <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}>
@@ -371,7 +371,7 @@ export function InpatientAdmissionPage() {
       {/* Split Layout: Table + Review Panel */}
       <div className="adm-requests-layout">
         <div className="adm-card adm-table-wrap">
-          <table className="adm-table">
+          <table className="adm-table responsive-table">
             <thead>
               <tr>
                 <th>REQUEST ID</th>
@@ -427,13 +427,13 @@ export function InpatientAdmissionPage() {
                       className={isSelected ? 'selected' : ''}
                       onClick={() => setSelected(item)}
                     >
-                      <td>
+                      <td data-label="Request ID">
                         <strong style={{ color: '#0f172a' }}>{item.request_number}</strong>
                       </td>
-                      <td>
+                      <td data-label="MRN">
                         <span style={{ color: '#475569', fontSize: '0.8rem' }}>{item.patient_number}</span>
                       </td>
-                      <td>
+                      <td data-label="Patient">
                         <div className="adm-person">
                           <div className="avatar-box" style={{ borderRadius: '50%' }}>
                             {initials}
@@ -444,17 +444,17 @@ export function InpatientAdmissionPage() {
                           </div>
                         </div>
                       </td>
-                      <td>-</td>
-                      <td>{item.department_name}</td>
-                      <td>{item.recommending_doctor_name}</td>
-                      <td>
+                      <td data-label="Age">-</td>
+                      <td data-label="Department">{item.department_name}</td>
+                      <td data-label="Requested by">{item.recommending_doctor_name}</td>
+                      <td data-label="Source">
                         {item.source_type === 'DIRECT'
                           ? 'Direct Admission'
                           : item.source_type === 'OPD_VISIT'
                           ? 'OPD'
                           : 'Emergency'}
                       </td>
-                      <td>
+                      <td data-label="Priority">
                         <span
                           className={`adm-status ${
                             item.priority === 'EMERGENCY'
@@ -471,7 +471,7 @@ export function InpatientAdmissionPage() {
                             : 'Low'}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <span
                           className={`adm-status ${
                             item.status === 'CONFIRMED'
@@ -490,8 +490,8 @@ export function InpatientAdmissionPage() {
                             : 'Pending'}
                         </span>
                       </td>
-                      <td style={{ fontSize: '0.78rem', color: '#64748b' }}>{formattedTime}</td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td data-label="Requested time" style={{ fontSize: '0.78rem', color: '#64748b' }}>{formattedTime}</td>
+                      <td data-label="Actions" style={{ textAlign: 'center' }}>
                         <button
                           className="adm-btn icon"
                           onClick={(e) => {

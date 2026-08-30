@@ -482,7 +482,7 @@ export function OpdVisitPage() {
   }, [prescription]);
 
   useEffect(() => {
-    if (!laboratoryOrder?.items.length) return;
+    if (!laboratoryOrder?.items?.length) return;
     setLabOrders(laboratoryOrder.items.map((item) => ({
       id: item.service_id,
       name: item.investigation_name,
@@ -497,7 +497,7 @@ export function OpdVisitPage() {
   }, [laboratoryOrder]);
 
   useEffect(() => {
-    if (!imagingOrder?.items.length) return;
+    if (!imagingOrder?.items?.length) return;
     setImagingOrders(imagingOrder.items.map((item) => ({
       id: item.service_id,
       name: item.investigation_name,

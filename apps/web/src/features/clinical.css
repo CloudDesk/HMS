@@ -1,0 +1,546 @@
+/* ==========================================================================
+   Cohesive Clinical Feature Stylesheet
+   Consolidated Architecture Phase
+   ========================================================================== */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Clinical Health Vitals & Stepper Controls
+────────────────────────────────────────────────────────────────────────────── */
+.vital-stepper-container {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+  height: 38px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.vital-stepper-container:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.vital-stepper-btn {
+  width: 36px;
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+  padding: 0;
+}
+
+.vital-stepper-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.vital-stepper-btn:active:not(:disabled) {
+  background: #dbeafe;
+}
+
+.vital-stepper-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vital-stepper-input {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  text-align: center;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 0 4px !important;
+  background: transparent !important;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.vital-stepper-input::-webkit-outer-spin-button,
+.vital-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+.clinical-vitals-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.clinical-vitals-patient-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  padding: 0.75rem 1.15rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.clinical-vitals-patient-info {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.clinical-vitals-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  flex-shrink: 0;
+}
+
+.clinical-vitals-patient-meta h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.clinical-vitals-patient-meta span {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.clinical-vitals-summary-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.clinical-vital-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.clinical-vital-summary-pill.success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.clinical-vital-summary-pill.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.clinical-vital-summary-pill.alert {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.clinical-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .clinical-vitals-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.clinical-vital-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  position: relative;
+}
+
+.clinical-vital-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.clinical-vital-card:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.clinical-vital-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.clinical-vital-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.clinical-vital-icon-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.clinical-vital-icon-badge.red { background: #fee2e2; color: #dc2626; }
+.clinical-vital-icon-badge.rose { background: #ffe4e6; color: #e11d48; }
+.clinical-vital-icon-badge.amber { background: #fef3c7; color: #d97706; }
+.clinical-vital-icon-badge.sky { background: #e0f2fe; color: #0284c7; }
+.clinical-vital-icon-badge.teal { background: #ccfbf1; color: #0d9488; }
+.clinical-vital-icon-badge.indigo { background: #e0e7ff; color: #4338ca; }
+.clinical-vital-icon-badge.violet { background: #ede9fe; color: #7c3aed; }
+
+.clinical-vital-labels {
+  display: flex;
+  flex-direction: column;
+}
+
+.clinical-vital-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+.clinical-vital-range {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.clinical-vital-status-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.clinical-vital-status-tag.normal { background: #dcfce7; color: #15803d; }
+.clinical-vital-status-tag.warning { background: #fef9c3; color: #a16207; }
+.clinical-vital-status-tag.alert { background: #fee2e2; color: #b91c1c; }
+.clinical-vital-status-tag.info { background: #e0f2fe; color: #0369a1; }
+.clinical-vital-status-tag.neutral { background: #f1f5f9; color: #64748b; }
+
+.clinical-vital-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.clinical-vital-stepper {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  height: 38px;
+  transition: all 0.15s ease;
+}
+
+.clinical-vital-stepper:focus-within {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.clinical-vital-btn {
+  width: 36px;
+  background: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.clinical-vital-btn.dec { border-right: 1px solid #e2e8f0; }
+.clinical-vital-btn.inc { border-left: 1px solid #e2e8f0; }
+
+.clinical-vital-btn:hover:not(:disabled) {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.clinical-vital-btn:active:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.clinical-vital-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clinical-vital-field-value {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 0 4px;
+  font-family: inherit;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.clinical-vital-field-value::-webkit-outer-spin-button,
+.clinical-vital-field-value::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+.clinical-vital-unit-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  min-width: 48px;
+  text-align: center;
+}
+
+.clinical-derived-metrics-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 0.75rem 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.clinical-derived-metric-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.clinical-derived-metric-item i {
+  font-size: 1.35rem;
+  color: #16a34a;
+}
+
+.clinical-derived-metric-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.clinical-derived-metric-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.clinical-derived-metric-value {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #14532d;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   EMR Timeline & Event History
+────────────────────────────────────────────────────────────────────────────── */
+.emr-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.85rem;
+}
+
+.emr-filter-row .doc-field {
+  flex: 1 1 140px;
+}
+
+.emr-filter-reset {
+  display: flex;
+  align-items: flex-end;
+}
+
+.emr-timeline-container {
+  position: relative;
+  margin-top: 1rem;
+}
+
+.emr-timeline-axis {
+  position: relative;
+  padding-left: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.emr-timeline-line {
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 17px;
+  width: 2px;
+  background: #cbd5e1;
+  z-index: 1;
+}
+
+.emr-timeline-item {
+  position: relative;
+  z-index: 2;
+}
+
+.emr-timeline-node {
+  position: absolute;
+  top: 16px;
+  left: -2.25rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #2563eb;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+  z-index: 3;
+}
+
+.emr-event-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem;
+  margin-left: 0.85rem;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.emr-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.emr-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.emr-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.emr-card-category {
+  display: block;
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.emr-card-subtitle {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.emr-card-body-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.85rem 1.25rem;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.emr-card-cell span {
+  display: block;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.emr-card-cell strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.emr-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.85rem;
+}

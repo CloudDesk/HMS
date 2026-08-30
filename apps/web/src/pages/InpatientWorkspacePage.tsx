@@ -193,7 +193,7 @@ export function InpatientWorkspacePage() {
       </div>
 
       {/* 4 Metric KPI Cards */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '1rem' }}>
+      <section className="adm-kpis inpatient-workspace-kpis">
         <div className="adm-kpi">
           <div className="adm-kpi-icon blue">
             <i className="ph ph-bed" />
@@ -240,7 +240,7 @@ export function InpatientWorkspacePage() {
       </section>
 
       {/* Filter Bar */}
-      <div className="adm-filters" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+      <div className="adm-filters inpatient-workspace-filters">
         <div className="adm-field">
           <label>Ward Filter</label>
           <select value={selectedWard} onChange={(e) => setSelectedWard(e.target.value)}>
@@ -265,7 +265,7 @@ export function InpatientWorkspacePage() {
           </select>
         </div>
 
-        <div className="adm-field" style={{ gridColumn: 'span 2' }}>
+        <div className="adm-field inpatient-workspace-search">
           <label>Search Admitted Patients</label>
           <input
             placeholder="Search by Patient Name, MRN, Bed #, or Doctor..."
@@ -276,7 +276,7 @@ export function InpatientWorkspacePage() {
       </div>
 
       {/* Main Split Screen Workspace */}
-      <div style={{ display: 'grid', gridTemplateColumns: '380px minmax(0, 1fr)', gap: '1.25rem', alignItems: 'start' }}>
+      <div className="inpatient-workspace-layout">
         {/* Left Side: Admitted Inpatient Roster */}
         <div className="adm-card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="adm-card-head">

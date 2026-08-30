@@ -700,7 +700,7 @@ export function EmergencyWorkspacePage() {
       </section>
 
       {/* Main Split Screen */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '1.25rem', alignItems: 'start' }}>
+      <div className="emergency-workspace-layout emergency-workspace-layout--compact">
         {/* Left Column: Tabs & Clinical Forms */}
         <main className="emergency-tabs-container">
           {/* Tab Navigation */}

@@ -426,7 +426,7 @@ export function PatientSearchPage() {
         </div>
 
         <div className="table-responsive">
-          <table className="data-table">
+          <table className="data-table responsive-table">
             <thead>
               <tr>
                 <th>MRN</th>
@@ -470,8 +470,8 @@ export function PatientSearchPage() {
                       onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="emp-id">{patient.patient_number}</td>
-                      <td>
+                      <td className="emp-id" data-label="MRN">{patient.patient_number}</td>
+                      <td data-label="Patient name">
                         <div className="user-cell-info">
                           <strong style={{ color: '#0f172a' }}>{fullName}</strong>
                           <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
@@ -479,13 +479,13 @@ export function PatientSearchPage() {
                           </span>
                         </div>
                       </td>
-                      {columns.gender ? <td>{patient.gender}</td> : null}
-                      {columns.age ? <td>{age} yrs</td> : null}
-                      {columns.phone ? <td>{patient.phone || 'Not recorded'}</td> : null}
-                      {columns.lastVisit ? <td>Not available</td> : null}
-                      {columns.registeredDate ? <td>{formatDate(patient.created_at)}</td> : null}
+                      {columns.gender ? <td data-label="Gender">{patient.gender}</td> : null}
+                      {columns.age ? <td data-label="Age">{age} yrs</td> : null}
+                      {columns.phone ? <td data-label="Phone">{patient.phone || 'Not recorded'}</td> : null}
+                      {columns.lastVisit ? <td data-label="Last visit">Not available</td> : null}
+                      {columns.registeredDate ? <td data-label="Registered date">{formatDate(patient.created_at)}</td> : null}
                       {columns.status ? (
-                        <td>
+                        <td data-label="Status">
                           <span
                             className={`doc-status ${
                               patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
@@ -495,7 +495,7 @@ export function PatientSearchPage() {
                           </span>
                         </td>
                       ) : null}
-                      <td className="align-right">
+                      <td className="align-right" data-label="Actions">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
                           <button
                             className="doc-btn"
