@@ -20,9 +20,9 @@ export const useInpatientAdmissions = (branchId: string, patientSearch: string, 
     client.invalidateQueries({ queryKey: ['admissions', 'available-beds'] }),
     client.invalidateQueries({ queryKey: ['admissions', 'configuration'] }),
   ]);
-  const branches = useQuery({ queryKey: ['admissions', 'branches'], queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100 }) });
+  const branches = useQuery({ queryKey: ['admissions', 'branches'], queryFn: () => branchesApi.list({ status: 'ACTIVE', page: 1, limit: 100 }), staleTime: LOOKUP_STALE_TIME });
   const patients = useQuery({ queryKey: ['admissions', 'patients', patientSearch], queryFn: () => patientsApi.list({ search: patientSearch, status: 'ACTIVE', page: 1, limit: 100 }), enabled: patientSearch.length >= 2 || !patientSearch });
-  const activePatients = useQuery({ queryKey: ['admissions', 'all-active-patients'], queryFn: () => patientsApi.list({ status: 'ACTIVE', page: 1, limit: 100 }) });
+  const activePatients = useQuery({ queryKey: ['admissions', 'all-active-patients'], queryFn: () => patientsApi.list({ status: 'ACTIVE', page: 1, limit: 100 }), enabled: createOpen || allocationOpen, staleTime: LOOKUP_STALE_TIME });
   const doctors = useQuery({ queryKey: ['admissions', 'doctors', branchId], queryFn: () => doctorsApi.list({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }) });
   const allDoctors = useQuery({ queryKey: ['admissions', 'all-doctors'], queryFn: () => doctorsApi.list({ status: 'ACTIVE', page: 1, limit: 100 }) });
   const departments = useQuery({ queryKey: ['admissions', 'departments', branchId], queryFn: () => departmentsApi.list({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }) });

@@ -301,7 +301,7 @@ export function UserManagementPage() {
   const { setQuery, setRoleFilter, setDepartmentFilter, setBranchFilter, setStatusFilter, setCurrentPage, setPageSize } = state;
   const { users: pageUsers, meta, summary, roleOptions, branchOptions, departmentOptions, passwordPolicy } = data;
   const { isFetching: loading, loadError, forbidden, isMutating: submitting } = status;
-  const { canCreate, canEdit, canDelete, canExport, canChangePassword, canResetPassword } = rbac;
+  const { canCreate, canEdit, canDelete, canChangePassword, canResetPassword } = rbac;
   const { handleSort, resetFilters, locationSearch } = actions;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());

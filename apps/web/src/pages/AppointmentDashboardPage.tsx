@@ -15,10 +15,6 @@ import {
 import { useAppointmentDashboardFeature } from '../hooks/appointments/useAppointmentDashboardFeature';
 import { useTimezone } from '../api/useSettings';
 
-type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
-type SortDirection = 'asc' | 'desc';
-
-
 const countByStatus = (appointments: AppointmentResponse[], status: ApiAppointmentStatus) =>
   appointments.filter((appointment) => appointment.status === status).length;
 

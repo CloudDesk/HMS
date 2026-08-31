@@ -4,7 +4,6 @@ import { Modal } from '../components/ui/Modal';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { usePharmacyDispensingFeature } from '../hooks/pharmacy/usePharmacyDispensingFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { useCurrencyFormatter } from '../api/useSettings';
 
 const isQueueStatus = (value: string | null): value is DispensingQueueStatus =>
   value === 'PENDING' || value === 'CONFIRMED' || value === 'CANCELLED' || value === 'REVERSED';
@@ -45,8 +44,6 @@ export function PrescriptionQueuePage() {
   const [page, setPage] = useState(positiveInteger(initialParams.get('page'), 1));
   const [limit, setLimit] = useState(positiveInteger(initialParams.get('limit'), 20));
   const [actionReason, setActionReason] = useState('');
-  const formatCurrency = useCurrencyFormatter();
-
   const queue = usePharmacyDispensingFeature({
     requestedBranch: branchId,
     search: searchTerm,

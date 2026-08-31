@@ -12,7 +12,7 @@ import {
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
-import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 import { BranchMultiSelect } from '../components/ui/BranchMultiSelect';

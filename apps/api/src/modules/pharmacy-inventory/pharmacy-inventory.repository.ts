@@ -50,12 +50,6 @@ type InventoryAggregateRecord = PharmacyMedicineInventoryFields & {
   branch?: { code: string; name: string } | null;
 };
 
-/** Shape returned by the batch aggregate pipeline with medicine populated. */
-type BatchWithMedicineRecord = PharmacyMedicineBatchFields & {
-  _id: Types.ObjectId;
-  medicine?: { _id: Types.ObjectId; name: string } | null;
-};
-
 /** Shape returned by the movement aggregate pipeline (with medicine + batch lookups). */
 type MovementAggregateRecord = PharmacyMedicineStockMovementFields & {
   _id: Types.ObjectId;

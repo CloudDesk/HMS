@@ -99,13 +99,6 @@ const appointmentStart = (appointment: Appointment) => {
 const patientName = (patient: Patient) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
 
-const scheduledDateTime = (date: Date, time: string) => {
-  const [hours = 0, minutes = 0] = time.split(':').map(Number);
-  const scheduled = new Date(date);
-  scheduled.setUTCHours(hours, minutes, 0, 0);
-  return scheduled;
-};
-
 export class AppointmentService {
   constructor(
     private readonly repository: AppointmentRepository,
@@ -201,8 +194,6 @@ export class AppointmentService {
         'RESCHEDULE_NOT_ALLOWED',
       );
     }
-    const settings = await this.settingsRepository.get();
-    const tz = settings.localization.timezone;
     const [hours = 0, minutes = 0] = data.start_time.split(':').map(Number);
     const appointmentDate = this.validateAppointmentDate(data.appointment_date);
 

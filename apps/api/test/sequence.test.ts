@@ -1,13 +1,7 @@
-import test, { describe, it, before, after } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import mongoose from 'mongoose';
-import { env } from '../src/config/env.js';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { SequenceService } from '../src/shared/sequence/sequence.service.js';
-import { SequenceModel } from '../src/shared/sequence/sequence.model.js';
-import { ServiceRegistry } from '../src/shared/services/service-registry.js';
-import { startServer } from '../src/server.js';
-import { InpatientAdmissionModel } from '../src/modules/inpatient-admissions/inpatient-admission.model.js';
 import { PatientModel } from '../src/modules/patients/patient.model.js';
 
 describe('Sequence Service & Concurrency', () => {

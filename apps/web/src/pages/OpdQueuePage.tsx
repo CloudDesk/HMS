@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import type { ApiOpdVisitPriority, ApiOpdVisitStatus, OpdVisitResponse } from '../api/opd';
 import { useOpdQueue, type OpdQueueFilters } from '../hooks/opd/useOpdQueue';
 import { navigate, useAppLocation } from '../routing/navigation';
-import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import {
   getOpdErrorMessage,
   isActiveVisit,

@@ -13,7 +13,7 @@ import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
-import { formatDate, patientFullName, calculatePatientAge, calculateAge } from './patient-utils';
+import { formatDate, patientFullName, calculatePatientAge } from './patient-utils';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
 
 

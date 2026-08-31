@@ -4,11 +4,7 @@ import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
 import {
   type ApiPatientDocumentType,
-  type ApiPatientGender,
-  type ApiPatientStatus,
-  type PatientHistoryResponse,
   type PatientDocumentResponse,
-  type PatientResponse,
   type PatientTimelineEventResponse,
 } from '../api/patients';
 import { useAuth } from '../auth/useAuth';
@@ -17,8 +13,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { PatientCardModal } from '../components/patients/PatientCardModal';
 import { PatientDocumentUploadModal } from '../components/patients/PatientDocumentUploadModal';
 import { PatientEditModal, updatePatientSchema, type UpdatePatientForm } from '../components/patients/PatientEditModal';
-import { PatientProfileHeader } from '../components/patients/PatientProfileHeader';
-import { PatientProfileTabContent } from '../components/patients/PatientProfileTabContent';
 import { PrintBillingModal } from '../components/print/PrintBillingModal';
 import { PrintImagingOrderModal } from '../components/print/PrintImagingOrderModal';
 import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
@@ -309,7 +303,6 @@ export function PatientProfilePage() {
     timeline,
     timelineMeta,
     loadingTimeline,
-    history,
     visits,
     visitsMeta,
     loadingVisits,
@@ -317,14 +310,10 @@ export function PatientProfilePage() {
     appointmentsMeta,
     loadingAppointments,
     labOrders,
-    loadingLabOrders,
     imagingOrders,
-    loadingImagingOrders,
     documents,
-    loadingDocuments,
     consents,
     billingInvoices,
-    loadingBillingInvoices,
     doctors: doctorsList,
     formatMoney,
     filters,
@@ -566,29 +555,6 @@ export function PatientProfilePage() {
       </div>
     );
   }
-
-  const openEditModal = () => {
-    editForm.reset({
-      firstName: patient.first_name ?? '',
-      lastName: patient.last_name,
-      dateOfBirth: patient.date_of_birth.slice(0, 10),
-      phone: patient.phone ?? '',
-      email: patient.email ?? '',
-      status: patient.status,
-      gender: patient.gender,
-      bloodGroup: patient.blood_group ?? '',
-      addressLine1: patient.address?.line1 ?? '',
-      city: patient.address?.city ?? '',
-      postalCode: patient.address?.postal_code ?? '',
-      notes: patient.notes ?? '',
-    });
-    setEditOpen(true);
-  };
-
-  const openUploadModal = (mode: 'DOCUMENT' | 'CONSENT') => {
-    setUploadMode(mode);
-    setUploadModalOpen(true);
-  };
 
   return (
     <>
@@ -1105,7 +1071,7 @@ export function PatientProfilePage() {
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
-                    <tr><th>DATE</th><th>TITLE</th><th>FILE</th><th>TYPE</th><th>UPLOADED BY</th></tr>
+                    <tr><th>DATE</th><th>TITLE</th><th>FILE</th><th>TYPE</th><th>UPLOADED BY</th><th>ACTIONS</th></tr>
                   </thead>
                   <tbody>
                     {documents.map((document) => (
@@ -1115,6 +1081,18 @@ export function PatientProfilePage() {
                         <td>{document.file_name}</td>
                         <td>{document.document_type}</td>
                         <td>{document.uploaded_by_name || 'Recorded user'}</td>
+                        <td>
+                          <div className="table-actions">
+                            <button className="icon-button" onClick={() => void handleViewDocument(document)} title="View document" type="button"><i className="ph ph-eye" aria-hidden="true" /></button>
+                            <button className="icon-button" onClick={() => void handleDownloadDocument(document)} title={`Download ${formatFileSize(document.file_size_bytes)}`} type="button"><i className="ph ph-download-simple" aria-hidden="true" /></button>
+                            {canEditAllDetails && document.review_status === 'PENDING' ? (
+                              <>
+                                <button className="icon-button" onClick={() => openDocumentReview(document, 'VERIFIED')} title="Verify document" type="button"><i className="ph ph-check-circle" aria-hidden="true" /></button>
+                                <button className="icon-button danger" onClick={() => openDocumentReview(document, 'REJECTED')} title="Reject document" type="button"><i className="ph ph-x-circle" aria-hidden="true" /></button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

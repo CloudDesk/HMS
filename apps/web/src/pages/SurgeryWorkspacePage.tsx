@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { ProcedureBooking, ProcedureRecommendation } from '../api/surgery';
 import { Modal } from '../components/ui/Modal';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { useSurgeryWorkspaceFeature } from '../hooks/surgery/useSurgeryWorkspaceFeature';
 
 const recommendationSchema = z.object({

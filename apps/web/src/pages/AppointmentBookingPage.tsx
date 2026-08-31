@@ -57,7 +57,6 @@ export function AppointmentBookingPage() {
   
 const {
   register,
-  handleSubmit,
   watch,
   setValue,
   clearErrors,

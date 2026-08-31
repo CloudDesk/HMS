@@ -256,10 +256,10 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       if (documentType === 'CONSENT') {
         const rawContextType = contextType || (admissionId ? 'INPATIENT_ADMISSION' : procedureId ? 'PROCEDURE_BOOKING' : 'INPATIENT_ADMISSION');
         const typedContext = rawContextType as import('./patient.types.js').PatientConsentContextType;
-        const resolvedContextId = readMultipartField(file.fields, 'context_id') || admissionId || procedureId || request.params.id;
+        const resolvedContextId = requestedContextId || admissionId || procedureId || request.params.id;
 
         if (templateId) {
-          const resolvedBranchId = branchId || (await services.patients.getById(request.params.id, request.user!.id)).registration_branch_id || (request.user as any)?.branchIds?.[0]?.toString();
+          const resolvedBranchId = branchId || (await services.patients.getById(request.params.id, request.user!.id)).registration_branch_id;
           if (!resolvedBranchId) throw new AppError('Branch is required for consent document', 400, 'VALIDATION_ERROR');
           const template = await services.consents.get(templateId, resolvedBranchId, request.user!.id);
           consentMetadata = {

@@ -13,7 +13,6 @@ import type { SurgeryRepository } from './surgery.repository.js';
 import type { BookingLean, RecommendationLean } from './surgery.repository.js';
 import type { ConfirmProcedureBookingDTO, CreateProcedureBookingDTO, CreateProcedureRecommendationDTO, ReasonDTO, RescheduleProcedureBookingDTO, SurgeryListQuery, SurgeryMetadata } from './surgery.types.js';
 import type { SettingsRepository } from '../settings/settings.repository.js';
-import { formatInTimeZone } from 'date-fns-tz';
 
 const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
 const toMinutes = (timeStr: string) => {

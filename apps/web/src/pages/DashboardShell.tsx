@@ -42,8 +42,6 @@ function ExecutiveOverviewTab() {
 
   const loadError = isError ? 'Executive dashboard metrics could not be updated.' : '';
   const maxRevenue = Math.max(1, ...data.trend.map((t) => t.revenue));
-  const formatCurrency = useCurrencyFormatter();
-
   return (
     <div className="dashboard-grid">
       <div className="appointment-page-header">

@@ -1,6 +1,4 @@
 import { navigate } from '../routing/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { opdApi, type OpdVisitResponse } from '../api/opd';
 import {
   activeVisitStatuses,
   formatVisitDateTime,
