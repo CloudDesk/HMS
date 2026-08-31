@@ -1743,6 +1743,28 @@ p {
   }
 }
 
+.um-charts-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .um-charts-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.um-status-chart-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 1.5rem;
+  padding: 0.25rem 0.5rem;
+  flex-wrap: wrap;
+}
+
 .filter-label {
   color: #64748b;
   font-size: 0.82rem;
@@ -7273,50 +7295,459 @@ textarea.has-error {
   .emergency-assessment-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Bed lifecycle workspace */
-.bed-management-page { display: grid; gap: 16px; }
-.bed-management-header,
-.bed-management-actions,
-.bed-board-toolbar,
-.bed-board-filters,
-.bed-policy-alert,
-.bed-detail-heading,
-.bed-pagination,
-.bed-pagination > div,
-.section-heading { display: flex; align-items: center; }
-.bed-management-header,
-.bed-board-toolbar,
-.bed-pagination,
-.section-heading { justify-content: space-between; }
-.bed-management-header h1,
-.bed-board-toolbar h2,
-.section-heading h2,
-.bed-detail-heading h3 { margin: 0; color: #0f172a; letter-spacing: 0; }
-.bed-management-header p,
-.bed-board-toolbar p,
-.section-heading p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
-.bed-management-actions,
-.bed-board-filters { gap: 10px; flex-wrap: wrap; }
-.bed-management-actions select,
-.bed-board-filters select,
-.bed-search,
-.modal-form-grid input,
-.modal-form-grid select,
-.modal-form-grid textarea { min-height: 40px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #0f172a; font: inherit; }
-.bed-management-actions select,
-.bed-board-filters select { padding: 0 34px 0 12px; }
-.bed-board-panel,
-.ward-table-panel { padding: 0; overflow: hidden; }
-.bed-board-toolbar,
-.section-heading { gap: 18px; padding: 16px 18px; border-bottom: 1px solid #e2e8f0; }
-.bed-grid--live .bed-card.status-BLOCKED,
-.bed-grid--live .bed-card.status-UNDER_MAINTENANCE,
-.bed-grid--live .bed-card.status-INACTIVE { border-top-color: #64748b; }
-.bed-owner strong,
-.bed-owner span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.modal-form-grid input,
-.modal-form-grid select,
-.modal-form-grid textarea { width: 100%; padding: 9px 11px; }
+/* ==========================================================================
+   Bed Management & Ward Configuration Enhanced Theming
+   ========================================================================== */
+.bed-management-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+
+.bed-management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.bed-management-header h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bed-management-header p {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.bed-management-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+/* KPI Grid */
+.bed-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.bed-kpi {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bed-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.bed-kpi > i {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.bed-kpi--blue > i { background: #eff6ff; color: #2563eb; }
+.bed-kpi--green > i { background: #f0fdf4; color: #16a34a; }
+.bed-kpi--red > i { background: #fef2f2; color: #dc2626; }
+.bed-kpi--orange > i { background: #fff7ed; color: #ea580c; }
+.bed-kpi--gray > i { background: #f1f5f9; color: #64748b; }
+
+.bed-kpi > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.bed-kpi > div span {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.bed-kpi > div strong {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+/* Ward Summary Strip */
+.bed-ward-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.bed-ward-stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bed-ward-stat-card:hover,
+.bed-ward-stat-card.active {
+  border-color: #3b82f6;
+  background: #f8fafc;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.08);
+}
+
+.bed-ward-stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bed-ward-stat-header strong {
+  font-size: 0.85rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.bed-ward-stat-header span {
+  font-size: 0.74rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.bed-ward-stat-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bed-ward-stat-fill {
+  height: 100%;
+  background: #2563eb;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.bed-ward-stat-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+/* Live Bed Board Panel */
+.bed-board-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.bed-board-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.15rem 1.4rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.bed-board-toolbar h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bed-board-toolbar p {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.bed-board-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.bed-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  min-height: 480px;
+}
+
+.bed-grid--live {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  padding: 1.25rem;
+  align-content: start;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+}
+
+/* Bed Card */
+.bed-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-top-width: 4px;
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  position: relative;
+}
+
+.bed-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+}
+
+.bed-card.selected {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.bed-card.status-AVAILABLE { border-top-color: #16a34a; }
+.bed-card.status-OCCUPIED { border-top-color: #dc2626; }
+.bed-card.status-RESERVED { border-top-color: #ea580c; }
+.bed-card.status-BLOCKED { border-top-color: #64748b; }
+.bed-card.status-UNDER_MAINTENANCE { border-top-color: #64748b; }
+
+.bed-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bed-card-top strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bed-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.bed-card-owner {
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bed-card-owner-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: #f1f5f9;
+  color: #2563eb;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.bed-card-owner-copy {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bed-card-owner-copy strong {
+  font-size: 0.8rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bed-card-owner-copy span {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-family: monospace;
+}
+
+/* Bed Detail Panel (Right Sidebar) */
+.bed-detail-panel {
+  padding: 1.4rem;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bed-detail-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.bed-detail-heading span {
+  font-size: 0.72rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.bed-detail-heading h3 {
+  margin: 2px 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bed-detail-panel dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin: 0;
+  background: #f8fafc;
+  padding: 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.bed-detail-panel dt {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.bed-detail-panel dd {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.bed-context-card {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.bed-context-card strong {
+  font-size: 0.95rem;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.bed-context-card span {
+  font-size: 0.76rem;
+  color: #2563eb;
+}
+
+.bed-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.bed-detail-actions button {
+  width: 100%;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.84rem;
+}
+
+/* Ward Configuration Table Panel Theming */
+.ward-table-panel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.ward-table-header {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  color: #ffffff;
+  padding: 1.15rem 1.4rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.ward-table-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ward-table-header p {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.ward-table-badge {
+  background: rgba(255,255,255,0.12);
+  color: #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
 
 @media (max-width: 1200px) {
   .bed-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -7326,6 +7757,7 @@ textarea.has-error {
   .bed-board-toolbar { align-items: stretch; flex-direction: column; }
   .bed-management-actions > *,
   .bed-board-filters > * { flex: 1 1 150px; }
+  .bed-workspace { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   .bed-kpi-grid,

@@ -148,10 +148,13 @@ export function InpatientWorkspacePage() {
     return { total, icuCount, surgicalCount };
   }, [admittedList]);
 
-  const calculateLOS = (admitDateStr: string) => {
-    const diff = Date.now() - new Date(admitDateStr).getTime();
+  const calculateLOS = (admitDateStr?: string | null) => {
+    if (!admitDateStr) return '< 1 day';
+    const time = new Date(admitDateStr).getTime();
+    if (isNaN(time)) return '< 1 day';
+    const diff = Date.now() - time;
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) return '< 1 day';
+    if (days <= 0) return '< 1 day';
     if (days === 1) return '1 day';
     return `${days} days`;
   };
@@ -163,18 +166,23 @@ export function InpatientWorkspacePage() {
         <div>
           <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>Inpatient Clinical Workspace</h2>
           <p style={{ margin: '0.2rem 0 0', fontSize: '0.86rem', color: '#64748b' }}>
-            Ward doctor rounds, inpatient EHR, bedside vitals, diagnostic orders & surgery scheduling
+            Ward doctor rounds, inpatient EHR, bedside vitals, diagnostic orders &amp; surgery scheduling
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
           {branches.length > 1 && (
             <select
-              aria-label="Branch"
+              aria-label="Select Branch"
               value={branchId}
               onChange={(e) => {
-                setBranchId(e.target.value);
+                const nextBranch = e.target.value;
+                setSelectedWard('');
+                setSelectedCareLevel('');
+                setSearchQuery('');
+                setBranchId(nextBranch);
               }}
-              style={{ minWidth: '150px', height: '38px', borderRadius: '8px', padding: '0 10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.85rem' }}
+              className="um-filter"
+              style={{ minWidth: '170px', fontWeight: 500 }}
             >
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>

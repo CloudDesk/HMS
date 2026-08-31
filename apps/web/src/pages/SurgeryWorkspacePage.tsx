@@ -28,6 +28,7 @@ const localDateTime = (value: string) => { const date = new Date(value); const o
 
 export function SurgeryWorkspacePage() {
   const [recommendationOpen, setRecommendationOpen] = useState(false); const [bookingFor, setBookingFor] = useState<ProcedureRecommendation | null>(null); const [selected, setSelected] = useState<ProcedureBooking | null>(null); const [actionMode, setActionMode] = useState<ActionMode>(null);
+  const [viewBookingDetail, setViewBookingDetail] = useState<ProcedureBooking | null>(null);
   const feature = useSurgeryWorkspaceFeature({ selectedBookingId: selected?.id, selectedBookingStatus: selected?.status }); const { state, actions } = feature;
   const recommendationForm = useForm<RecommendationValues>({ resolver: zodResolver(recommendationSchema), defaultValues: { patient_id: '', department_id: '', recommending_doctor_id: '', service_id: '', encounter_id: '', clinical_reason: '', notes: '' } });
   const bookingForm = useForm<BookingValues>({ resolver: zodResolver(bookingSchema), defaultValues: { doctor_id: '', scheduled_start: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', notes: '' } });
@@ -134,10 +135,11 @@ export function SurgeryWorkspacePage() {
         <div className="surgery-actions">
           {state.branches.length > 1 ? (
             <select
-              aria-label="Branch"
+              aria-label="Select Branch"
               value={state.branchId}
               onChange={(event) => actions.setBranchId(event.target.value)}
-              style={{ minWidth: '150px', height: '38px', borderRadius: '8px', padding: '0 10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.85rem' }}
+              className="um-filter"
+              style={{ minWidth: '170px', fontWeight: 500 }}
             >
               {state.branches.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}</option>
@@ -340,7 +342,14 @@ export function SurgeryWorkspacePage() {
                         ) : item.booking_id ? (
                           <button
                             className="btn-secondary compact"
-                            onClick={() => actions.setTab('bookings')}
+                            onClick={() => {
+                              const found = state.bookings.find((b) => b.id === item.booking_id);
+                              if (found) {
+                                setViewBookingDetail(found);
+                              } else {
+                                actions.setTab('bookings');
+                              }
+                            }}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', whiteSpace: 'nowrap' }}
                           >
                             <i className="ph ph-eye" /> View Booking
@@ -1163,6 +1172,149 @@ export function SurgeryWorkspacePage() {
             </div>
           ) : null}
         </form>
+      </Modal>
+
+      {/* ─── Modal 5: Booking Details Modal ──────────────────────── */}
+      <Modal
+        title={`Booking Details — ${viewBookingDetail?.booking_number ?? 'Procedure'}`}
+        open={Boolean(viewBookingDetail)}
+        onClose={() => setViewBookingDetail(null)}
+        icon="ph-calendar-check"
+        size="large"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+            <button
+              className="btn-secondary"
+              onClick={() => setViewBookingDetail(null)}
+              type="button"
+            >
+              Close
+            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {viewBookingDetail?.status === 'PENDING_CONFIRMATION' && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setSelected(viewBookingDetail);
+                    setActionMode('confirm');
+                    setViewBookingDetail(null);
+                  }}
+                  type="button"
+                >
+                  <i className="ph ph-check-circle" /> Confirm Booking
+                </button>
+              )}
+              {viewBookingDetail?.status === 'BOOKED' && (
+                <>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setSelected(viewBookingDetail);
+                      setActionMode('reschedule');
+                      setViewBookingDetail(null);
+                    }}
+                    type="button"
+                  >
+                    <i className="ph ph-calendar" /> Reschedule
+                  </button>
+                  <button
+                    className="btn-danger"
+                    onClick={() => {
+                      setSelected(viewBookingDetail);
+                      setActionMode('cancel-booking');
+                      setViewBookingDetail(null);
+                    }}
+                    type="button"
+                  >
+                    <i className="ph ph-x" /> Cancel
+                  </button>
+                  <button
+                    className="btn-primary"
+                    onClick={() => {
+                      setSelected(viewBookingDetail);
+                      setActionMode('complete');
+                      setViewBookingDetail(null);
+                    }}
+                    type="button"
+                  >
+                    <i className="ph ph-check-fat" /> Complete Procedure
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        }
+      >
+        {viewBookingDetail && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.25rem' }}>
+            {/* Header summary banner */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '14px 18px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>{viewBookingDetail.booking_number}</strong>
+                  <StatusBadge tone={statusTone(viewBookingDetail.status)}>{viewBookingDetail.status.replaceAll('_', ' ')}</StatusBadge>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '3px' }}>
+                  Scheduled: <strong>{displayDate(viewBookingDetail.scheduled_start)}</strong> ({viewBookingDetail.duration_minutes} mins)
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '0.74rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Surgeon</span>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2563eb' }}>{viewBookingDetail.doctor_name || 'Dr. Assigned'}</div>
+              </div>
+            </div>
+
+            {/* Grid of info */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 14px' }}>
+                <h4 style={{ margin: '0 0 8px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Patient Details</h4>
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f172a' }}>{viewBookingDetail.patient_name}</div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>MRN: {viewBookingDetail.patient_number}</div>
+              </div>
+
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 14px' }}>
+                <h4 style={{ margin: '0 0 8px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Procedure &amp; Theater</h4>
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f172a' }}>{viewBookingDetail.service_name}</div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>Duration: {viewBookingDetail.duration_minutes} minutes</div>
+              </div>
+            </div>
+
+            {/* Prerequisites */}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 14px' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: '0.82rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>Prerequisites &amp; Clearances</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                <div style={{ padding: '8px 10px', background: viewBookingDetail.prerequisite_snapshot?.bed_required ? (viewBookingDetail.prerequisite_snapshot?.bed_hold_id ? '#f0fdf4' : '#fef2f2') : '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', fontWeight: 600 }}>Bed Hold</span>
+                  <strong style={{ fontSize: '0.82rem', color: viewBookingDetail.prerequisite_snapshot?.bed_required ? (viewBookingDetail.prerequisite_snapshot?.bed_hold_id ? '#16a34a' : '#dc2626') : '#64748b' }}>
+                    {viewBookingDetail.prerequisite_snapshot?.bed_required ? (viewBookingDetail.prerequisite_snapshot?.bed_hold_id ? 'Hold Secured' : 'Required') : 'Not Required'}
+                  </strong>
+                </div>
+
+                <div style={{ padding: '8px 10px', background: viewBookingDetail.prerequisite_snapshot?.consent_required ? (viewBookingDetail.prerequisite_snapshot?.consent_satisfied ? '#f0fdf4' : '#fef2f2') : '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', fontWeight: 600 }}>Consent Document</span>
+                  <strong style={{ fontSize: '0.82rem', color: viewBookingDetail.prerequisite_snapshot?.consent_required ? (viewBookingDetail.prerequisite_snapshot?.consent_satisfied ? '#16a34a' : '#dc2626') : '#64748b' }}>
+                    {viewBookingDetail.prerequisite_snapshot?.consent_required ? (viewBookingDetail.prerequisite_snapshot?.consent_satisfied ? 'Signed & Attached' : 'Required') : 'Not Required'}
+                  </strong>
+                </div>
+
+                <div style={{ padding: '8px 10px', background: viewBookingDetail.prerequisite_snapshot?.deposit_required ? (viewBookingDetail.prerequisite_snapshot?.deposit_satisfied ? '#f0fdf4' : '#fef2f2') : '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', fontWeight: 600 }}>Advance Deposit</span>
+                  <strong style={{ fontSize: '0.82rem', color: viewBookingDetail.prerequisite_snapshot?.deposit_required ? (viewBookingDetail.prerequisite_snapshot?.deposit_satisfied ? '#16a34a' : '#dc2626') : '#64748b' }}>
+                    {viewBookingDetail.prerequisite_snapshot?.deposit_required ? (viewBookingDetail.prerequisite_snapshot?.deposit_satisfied ? 'Paid & Verified' : `Required (${viewBookingDetail.prerequisite_snapshot?.deposit_required_amount})`) : 'Not Required'}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes if any */}
+            {viewBookingDetail.notes && (
+              <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.82rem', color: '#475569' }}>
+                <span style={{ fontWeight: 600, display: 'block', marginBottom: '2px', color: '#0f172a' }}>Clinical / Pre-op Notes:</span>
+                {viewBookingDetail.notes}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

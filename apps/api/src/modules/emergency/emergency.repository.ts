@@ -202,6 +202,72 @@ export class EmergencyRepository {
     if (session) query.session(session);
     return query.lean();
   }
+  async createProvisionalPatient(
+    identity: {
+      displayName: string;
+      estimatedAge?: number | null;
+      gender?: string | null;
+      contact?: string | null;
+      identityNotes?: string | null;
+    },
+    branchId: string,
+    actor: string,
+    session: ClientSession,
+  ) {
+    const sequence = await this.sequenceService.getNextSequence('patient', session);
+    const year = new Date().getFullYear();
+    const patientNumber = `HMS-${year}-${String(sequence).padStart(6, '0')}`;
+    const names = identity.displayName.trim().split(/\s+/);
+    const firstName = names[0] || 'Unknown';
+    const lastName = names.slice(1).join(' ') || 'Patient';
+
+    let dateOfBirth = new Date(1990, 0, 1);
+    if (identity.estimatedAge && identity.estimatedAge > 0) {
+      const birthYear = year - identity.estimatedAge;
+      dateOfBirth = new Date(birthYear, 0, 1);
+    }
+
+    const gender = (identity.gender && ['MALE', 'FEMALE', 'OTHER', 'UNKNOWN'].includes(identity.gender)
+      ? identity.gender
+      : 'UNKNOWN') as import('../patients/patient.types.js').PatientGender;
+
+    const patient = new PatientModel({
+      patientNumber,
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender,
+      phone: identity.contact || null,
+      registrationBranchId: oid(branchId),
+      status: 'ACTIVE',
+      notes: identity.identityNotes ? `Provisional Emergency Patient: ${identity.identityNotes}` : 'Provisional Emergency Patient',
+      createdBy: oid(actor),
+      updatedBy: oid(actor),
+    });
+    await patient.save({ session });
+    return patient;
+  }
+  async updatePatientIdentity(
+    id: string,
+    branchId: string,
+    patientId: Types.ObjectId,
+    patientNumber: string,
+    patientName: string,
+    session: ClientSession,
+  ) {
+    return EmergencyEncounterModel.updateOne(
+      { _id: oid(id), branchId: oid(branchId) },
+      {
+        $set: {
+          patientId,
+          patientNumber,
+          patientName,
+          updatedAt: new Date(),
+        },
+      },
+      { session },
+    );
+  }
   async create(
     data: CreateEmergencyDTO,
     identity: {

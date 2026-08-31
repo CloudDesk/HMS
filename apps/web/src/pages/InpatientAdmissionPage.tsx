@@ -241,13 +241,14 @@ export function InpatientAdmissionPage() {
         <div className="adm-actions">
           {branches.length > 1 ? (
             <select
-              aria-label="Branch"
+              aria-label="Select Branch"
               value={branchId}
               onChange={(event) => {
                 setBranchId(event.target.value);
                 setSelected(null);
               }}
-              style={{ minWidth: '150px', height: '38px', borderRadius: '8px', padding: '0 10px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '0.85rem' }}
+              className="um-filter"
+              style={{ minWidth: '170px', fontWeight: 500 }}
             >
               {branches.map((item) => (
                 <option key={item.id} value={item.id}>

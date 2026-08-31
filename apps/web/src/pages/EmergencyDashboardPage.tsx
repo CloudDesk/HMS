@@ -19,7 +19,13 @@ const registrationSchema = z
     display_name: z.string().optional(),
     estimated_age: optionalNumber,
     gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
-    contact: z.string().optional(),
+    contact: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || /^\d{10}$/.test(val),
+        'Phone number must be exactly 10 numeric digits',
+      ),
     identity_notes: z.string().optional(),
     arrival_mode: z.string().min(2),
     chief_complaint: z.string().min(3, 'Chief emergency complaint is required'),
@@ -220,10 +226,10 @@ export function EmergencyDashboardPage() {
         <div className="emergency-page-actions">
           {state.branches.length > 1 ? (
             <select
-              aria-label="Branch"
-              className="doc-field"
+              aria-label="Select Branch"
+              className="um-filter"
               onChange={(e) => actions.setBranchId(e.target.value)}
-              style={{ minWidth: '160px', height: '38px', borderRadius: '8px', padding: '0 10px' }}
+              style={{ minWidth: '170px', fontWeight: 500 }}
               value={state.branchId}
             >
               {state.branches.map((b) => (
@@ -259,7 +265,7 @@ export function EmergencyDashboardPage() {
       <section className="emergency-kpi-grid">
         <div className="doc-kpi">
           <div className="doc-kpi-icon blue">
-            <i className="ph-fill ph-plus" />
+            <i className="ph ph-first-aid" aria-hidden="true" />
           </div>
           <div className="doc-kpi-copy">
             <span>Today's ER Visits</span>
@@ -270,7 +276,7 @@ export function EmergencyDashboardPage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon red">
-            <i className="ph-fill ph-warning-circle" />
+            <i className="ph ph-warning-circle" aria-hidden="true" />
           </div>
           <div className="doc-kpi-copy">
             <span>Critical Patients</span>
@@ -281,7 +287,7 @@ export function EmergencyDashboardPage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon orange">
-            <i className="ph-fill ph-hourglass" />
+            <i className="ph ph-hourglass-medium" aria-hidden="true" />
           </div>
           <div className="doc-kpi-copy">
             <span>Waiting Patients</span>
@@ -292,7 +298,7 @@ export function EmergencyDashboardPage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon cyan">
-            <i className="ph-fill ph-heartbeat" />
+            <i className="ph ph-heartbeat" aria-hidden="true" />
           </div>
           <div className="doc-kpi-copy">
             <span>Patients In Treatment</span>
@@ -303,7 +309,7 @@ export function EmergencyDashboardPage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon purple">
-            <i className="ph-fill ph-bed" />
+            <i className="ph ph-bed" aria-hidden="true" />
           </div>
           <div className="doc-kpi-copy">
             <span>Ready for Admission</span>
@@ -314,7 +320,7 @@ export function EmergencyDashboardPage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon green">
-            <i className="ph-fill ph-door-open" />
+            <i className="ph ph-door-open" aria-hidden="true" />
           </div>
           <div className="doc-kpi-copy">
             <span>Available Emergency Beds</span>
@@ -333,13 +339,6 @@ export function EmergencyDashboardPage() {
               <h3>Live Emergency Queue</h3>
               <p>Prioritized by triage acuity and arrival time</p>
             </div>
-            <button
-              className="doc-btn"
-              onClick={() => void state.listQuery.refetch()}
-              type="button"
-            >
-              <i className="ph ph-arrows-clockwise" /> Refresh
-            </button>
           </div>
 
           <div className="doc-table-wrap">
@@ -759,7 +758,11 @@ export function EmergencyDashboardPage() {
                           key={tag}
                           type="button"
                           className="emergency-quick-chip"
-                          onClick={() => registration.setValue('display_name', tag, { shouldValidate: true })}
+                          onClick={() => {
+                            registration.setValue('display_name', tag, { shouldValidate: true });
+                            if (tag.toLowerCase().includes('male')) registration.setValue('gender', 'MALE', { shouldValidate: true });
+                            else if (tag.toLowerCase().includes('female')) registration.setValue('gender', 'FEMALE', { shouldValidate: true });
+                          }}
                         >
                           <i className="ph ph-plus" /> {tag}
                         </button>
@@ -816,10 +819,22 @@ export function EmergencyDashboardPage() {
                         Contact / Phone / Bystander <span style={{ color: '#64748b', fontWeight: 400 }}>(Optional)</span>
                       </label>
                       <input
-                        {...registration.register('contact')}
-                        placeholder="Phone or bystander/EMS contact"
+                        {...registration.register('contact', {
+                          onChange: (e) => {
+                            const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            registration.setValue('contact', digits, { shouldValidate: true });
+                          },
+                        })}
+                        maxLength={10}
+                        inputMode="numeric"
+                        placeholder="10-digit phone number"
                         style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem', background: '#fff' }}
                       />
+                      {registration.formState.errors.contact?.message && (
+                        <span style={{ color: '#dc2626', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
+                          {registration.formState.errors.contact.message}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>

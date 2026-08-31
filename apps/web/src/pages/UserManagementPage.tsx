@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -269,7 +269,7 @@ function UserStatusChart({ users }: { users: UiUser[] }) {
   const inactiveDeg = activeDeg + (inactiveCount / total) * 360;
 
   return (
-    <>
+    <div className="um-status-chart-content">
       <div className="um-donut-wrap">
         <div
           aria-label="Users by status"
@@ -291,7 +291,7 @@ function UserStatusChart({ users }: { users: UiUser[] }) {
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -739,9 +739,36 @@ export function UserManagementPage() {
           </div>
         </div>
 
-        <div className="um-body">
-          <div className="um-table-section card">
-            <div className="um-toolbar">
+        {/* <div className="um-charts-row">
+          <div className="card um-chart-card">
+            <div className="card-header">
+              <h3>Users by Status</h3>
+            </div>
+            {loading ? (
+              <div className="um-panel-loading">
+                <MedicalLoader size="small" text="Loading user status..." subtext="Analyzing account states" />
+              </div>
+            ) : (
+              <UserStatusChart users={pageUsers} />
+            )}
+          </div>
+
+          <div className="card um-chart-card">
+            <div className="card-header">
+              <h3>Users by Role</h3>
+            </div>
+            {loading ? (
+              <div className="um-panel-loading">
+                <MedicalLoader size="small" text="Loading role distribution..." subtext="Aggregating assignments" />
+              </div>
+            ) : (
+              <UsersByRole users={pageUsers} />
+            )}
+          </div>
+        </div> */}
+
+        <div className="um-table-section card">
+          <div className="um-toolbar">
               <div className="um-toolbar-row1">
                 <div className="um-search">
                   <i className="ph ph-magnifying-glass" aria-hidden="true" />
@@ -1051,37 +1078,7 @@ export function UserManagementPage() {
               </div>
             </div>
           </div>
-
-          <div className="um-right-panel">
-            <div className="card um-chart-card">
-              <div className="card-header">
-                <h3>Users by Status</h3>
-              </div>
-              {loading ? (
-                <div className="um-panel-loading">
-                  <MedicalLoader size="small" text="Loading user status..." subtext="Analyzing account states" />
-                </div>
-              ) : (
-                <UserStatusChart users={pageUsers} />
-              )}
-            </div>
-
-            <div className="card um-chart-card">
-              <div className="card-header">
-                <h3>Users by Role</h3>
-              </div>
-              {loading ? (
-                <div className="um-panel-loading">
-                  <MedicalLoader size="small" text="Loading role distribution..." subtext="Aggregating assignments" />
-                </div>
-              ) : (
-                <UsersByRole users={pageUsers} />
-              )}
-            </div>
-
-          </div>
         </div>
-      </div>
 
       <Modal
         footer={
