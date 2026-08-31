@@ -52,7 +52,10 @@ export class PatientService {
     if (!isValidDate(data.date_of_birth)) {
       throw new AppError('Date of birth is invalid', 400, 'VALIDATION_ERROR');
     }
-    if (data.phone && !isValidAfricanPhone(data.phone)) {
+    if (!data.phone || !data.phone.trim()) {
+      throw new AppError('Phone number is required', 400, 'VALIDATION_ERROR');
+    }
+    if (!isValidAfricanPhone(data.phone)) {
       throw new AppError('Phone number must be a valid African regional phone number', 400, 'VALIDATION_ERROR');
     }
 

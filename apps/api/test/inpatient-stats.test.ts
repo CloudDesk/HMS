@@ -1,7 +1,6 @@
 import { test, describe, before, after } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { connect, disconnect, startSession } from 'mongoose';
-import { SequenceModel } from '../src/shared/sequence/sequence.model.js';
+import { connect, disconnect } from 'mongoose';
 import { BranchModel } from '../src/modules/branches/branch.model.js';
 import { DepartmentModel } from '../src/modules/departments/department.model.js';
 import { RoleModel } from '../src/modules/roles/role.model.js';
@@ -31,7 +30,7 @@ describe('Inpatient Admission Stats', async () => {
     await connect(env.DATABASE_URL);
     const seqService = new SequenceService();
     repo = new InpatientAdmissionRepository(seqService);
-    // @ts-ignore
+    // @ts-expect-error This focused repository test intentionally supplies service stubs.
     service = new InpatientAdmissionService(repo, {}, {}, {});
 
     await BranchModel.create([

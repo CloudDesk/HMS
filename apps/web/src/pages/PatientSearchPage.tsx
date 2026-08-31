@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,10 +9,11 @@ import {
 } from '../api/patients';
 import { usePatientSearchFeature } from '../hooks/patients/usePatientSearchFeature';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
-import { formatDate, patientFullName } from './patient-utils';
+import { formatDate, patientFullName, calculatePatientAge } from './patient-utils';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
 
 
@@ -443,8 +444,11 @@ export function PatientSearchPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="um-state-cell" colSpan={11}>
-                    Loading patient directory...
+                  <td colSpan={11} style={{ padding: '2rem 1rem' }}>
+                    <MedicalLoader
+                      text="Searching patient directory..."
+                      subtext="Retrieving patient demographic & encounter records"
+                    />
                   </td>
                 </tr>
               ) : loadError ? (
@@ -462,7 +466,7 @@ export function PatientSearchPage() {
               ) : (
                 patients.map((patient) => {
                   const fullName = patientFullName(patient);
-                  const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
+                  const age = calculatePatientAge(patient.date_of_birth);
 
                   return (
                     <tr
@@ -755,7 +759,7 @@ export function PatientSearchPage() {
         ) : null}
       </Modal>
 
-      {/* Print Patient Card Ã¢â‚¬â€ preview modal */}
+      {/* Print Patient Card - preview modal */}
       {cardPatient ? (
         <Modal onClose={() => setCardPatient(null)} open={Boolean(cardPatient)} size="default" title="Patient ID Card">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
@@ -785,7 +789,7 @@ export function PatientSearchPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   {([
                     ['Date of Birth', formatDate(cardPatient.date_of_birth)],
-                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs Ã‚Â· ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
+                    ['Age / Gender', `${calculatePatientAge(cardPatient.date_of_birth)} • ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
                     ['Phone', cardPatient.phone || 'Not recorded'],
                     ['Status', cardPatient.status],
                     ['Registered', formatDate(cardPatient.created_at)],

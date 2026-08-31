@@ -1,6 +1,6 @@
 import type { PatientResponse } from '../../api/patients';
 import { patientInitials } from '../../pages/opd-utils';
-import { formatDate, patientFullName } from '../../pages/patient-utils';
+import { calculatePatientAge, formatDate, patientFullName } from '../../pages/patient-utils';
 import { Modal } from '../ui/Modal';
 
 import { executePrintPatientCard } from './PatientPrintHelper';
@@ -31,7 +31,7 @@ export function PatientCardModal({ open, patient, onClose }: PatientCardModalPro
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
               {([
                 ['Date of Birth', formatDate(patient.date_of_birth)],
-                ['Age / Gender', `${new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear()} yrs · ${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()}`],
+                ['Age / Gender', `${calculatePatientAge(patient.date_of_birth)} · ${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()}`],
                 ['Phone', patient.phone || 'Not recorded'],
                 ['Status', patient.status],
                 ['Registered', formatDate(patient.created_at)],

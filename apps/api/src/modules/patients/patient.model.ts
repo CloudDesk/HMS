@@ -198,6 +198,7 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
       enum: [
         'REGISTRATION',
         'PROFILE_UPDATED',
+        'APPOINTMENT_CREATED',
         'DOCUMENT_ADDED',
         'DOCUMENT_DELETED',
         'DOCUMENT_REVIEWED',

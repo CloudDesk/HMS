@@ -99,13 +99,6 @@ const appointmentStart = (appointment: Appointment) => {
 const patientName = (patient: Patient) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
 
-const scheduledDateTime = (date: Date, time: string) => {
-  const [hours = 0, minutes = 0] = time.split(':').map(Number);
-  const scheduled = new Date(date);
-  scheduled.setUTCHours(hours, minutes, 0, 0);
-  return scheduled;
-};
-
 export class AppointmentService {
   constructor(
     private readonly repository: AppointmentRepository,
@@ -201,8 +194,6 @@ export class AppointmentService {
         'RESCHEDULE_NOT_ALLOWED',
       );
     }
-    const settings = await this.settingsRepository.get();
-    const tz = settings.localization.timezone;
     const [hours = 0, minutes = 0] = data.start_time.split(':').map(Number);
     const appointmentDate = this.validateAppointmentDate(data.appointment_date);
 
@@ -390,39 +381,13 @@ export class AppointmentService {
         );
         appointment = createdAppointment;
 
-        const visitSequence = await this.opdVisitRepository.nextVisitSequence(session);
-        const visit = await this.opdVisitRepository.create(
-          {
-            appointmentId: createdAppointment.id,
-            visitNumber: `OPD-${new Date().getFullYear()}-${String(visitSequence + 1).padStart(6, '0')}`,
-            queueTokenNumber: visitSequence + 1,
-            patientId: createdAppointment.patient_id,
-            patientNumber: createdAppointment.patient_number,
-            patientName: createdAppointment.patient_name,
-            doctorId: createdAppointment.doctor_id,
-            doctorName: createdAppointment.doctor_name,
-            doctorSpecialization: createdAppointment.doctor_specialization,
-            branchId: createdAppointment.branch_id,
-            departmentId: createdAppointment.department_id,
-            visitDate: appointmentDate,
-            checkInTime: scheduledDateTime(appointmentDate, startTimeStr),
-            visit_type: createdAppointment.visit_type,
-            priority: createdAppointment.priority,
-            reason: createdAppointment.reason,
-            notes: 'OPD queue record created from appointment booking.',
-          },
-          userId,
-          session,
-        );
-
         await this.repository.auditCreated(createdAppointment, userId, session);
-        await this.opdVisitRepository.auditCreated(visit, userId, session);
         await this.patientRepository.addTimelineEvent(
           createdAppointment.patient_id,
           {
-            event_type: 'OPD_VISIT_CREATED',
-            title: 'OPD visit queued',
-            description: `${visit.visit_number} was queued for ${createdAppointment.doctor_name}.`,
+            event_type: 'APPOINTMENT_CREATED',
+            title: 'Appointment scheduled',
+            description: `Appointment ${createdAppointment.appointment_number} scheduled with ${createdAppointment.doctor_name} for ${appointmentDateStr} at ${startTimeStr}.`,
           },
           userId,
           session,

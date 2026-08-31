@@ -14,6 +14,7 @@ import type { AuthPasswordPolicy } from '../auth/auth-types';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 
 type UserStatus = 'Active' | 'Inactive' | 'Locked';
 type SortColumn = 'fullName' | 'role' | 'department' | 'status';
@@ -23,7 +24,7 @@ type ModalMode = 'create' | 'edit' | 'view' | 'assign-role' | 'change-password' 
 
 const baseUserSchema = z.object({
   employeeCode: z.string().optional(),
-  username: z.string().min(1, 'Username is required.'),
+  username: z.string().optional(),
   email: z.string().email('Valid email is required.').min(1, 'Email is required.'),
   fullName: z.string().min(1, 'Full name is required.'),
   phone: z.string().optional(),
@@ -300,7 +301,7 @@ export function UserManagementPage() {
   const { setQuery, setRoleFilter, setDepartmentFilter, setBranchFilter, setStatusFilter, setCurrentPage, setPageSize } = state;
   const { users: pageUsers, meta, summary, roleOptions, branchOptions, departmentOptions, passwordPolicy } = data;
   const { isFetching: loading, loadError, forbidden, isMutating: submitting } = status;
-  const { canCreate, canEdit, canDelete, canExport, canChangePassword, canResetPassword } = rbac;
+  const { canCreate, canEdit, canDelete, canChangePassword, canResetPassword } = rbac;
   const { handleSort, resetFilters, locationSearch } = actions;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -333,6 +334,14 @@ export function UserManagementPage() {
     window.setTimeout(() => setToastVisible(false), 2800);
   };
 
+
+  const watchedEmail = userForm.watch('email');
+  useEffect(() => {
+    if (modalMode === 'create') {
+      const userVal = watchedEmail ? (watchedEmail.includes('@') ? watchedEmail.split('@')[0] : watchedEmail) : '';
+      userForm.setValue('username', userVal || '');
+    }
+  }, [watchedEmail, modalMode, userForm]);
 
   useEffect(() => {
     if (canCreate && new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
@@ -408,18 +417,21 @@ export function UserManagementPage() {
 
 
 
-  const buildSavePayload = (data: UserFormData): SaveUserPayload => ({
-    branches: branchOptions.filter(b => b.id === data.branchId).map(b => ({ id: b.id, name: b.name, isPrimary: true })),
-    departments: departmentOptions.filter(d => d.id === data.departmentId).map(d => ({ id: d.id, name: d.name, isPrimary: true })),
-    email: data.email || null,
-    employeeCode: data.employeeCode || '',
-    fullName: data.fullName,
-    jobTitle: data.jobTitle || '',
-    phone: data.phone || null,
-    ...(data.roleId ? { roleIds: [data.roleId] } : {}),
-    status: data.status.toLowerCase() as ApiUserStatus,
-    username: data.username,
-  });
+  const buildSavePayload = (data: UserFormData): SaveUserPayload => {
+    const computedUsername = data.username || (data.email ? data.email.split('@')[0] : '') || data.fullName.toLowerCase().replace(/\s+/g, '.');
+    return {
+      branches: branchOptions.filter(b => b.id === data.branchId).map(b => ({ id: b.id, name: b.name, isPrimary: true })),
+      departments: departmentOptions.filter(d => d.id === data.departmentId).map(d => ({ id: d.id, name: d.name, isPrimary: true })),
+      email: data.email || null,
+      employeeCode: data.employeeCode || '',
+      fullName: data.fullName,
+      jobTitle: data.jobTitle || '',
+      phone: data.phone || null,
+      roleIds: [data.roleId],
+      status: data.status.toLowerCase() as ApiUserStatus,
+      username: computedUsername,
+    };
+  };
 
   const handleSaveUser = async (formData: UserFormData) => {
     if (submitting) return;
@@ -551,12 +563,6 @@ export function UserManagementPage() {
                 <i className="ph ph-user-plus" aria-hidden="true" /> Add New User
               </button>
             ) : null}
-            <button className="btn-secondary admin-table-action" disabled={!canExport || forbidden || submitting} onClick={() => {}} type="button">
-              <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
-            </button>
-            <button className="btn-secondary admin-table-action" disabled={loading} onClick={() => {}} type="button">
-              <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
-            </button>
           </div>
         </div>
 
@@ -768,8 +774,8 @@ export function UserManagementPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={10}>
-                        <span className="loading-spinner" /> Loading users...
+                      <td colSpan={10} style={{ padding: '2.5rem 1rem' }}>
+                        <MedicalLoader text="Loading hospital staff records..." subtext="Retrieving access & credentials data" />
                       </td>
                     </tr>
                   ) : loadError ? (
@@ -926,14 +932,26 @@ export function UserManagementPage() {
               <div className="card-header">
                 <h3>Users by Status</h3>
               </div>
-              {loading ? <div className="um-panel-loading">Loading chart...</div> : <UserStatusChart users={pageUsers} />}
+              {loading ? (
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading user status..." subtext="Analyzing account states" />
+                </div>
+              ) : (
+                <UserStatusChart users={pageUsers} />
+              )}
             </div>
 
             <div className="card um-chart-card">
               <div className="card-header">
                 <h3>Users by Role</h3>
               </div>
-              {loading ? <div className="um-panel-loading">Loading roles...</div> : <UsersByRole users={pageUsers} />}
+              {loading ? (
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading role distribution..." subtext="Aggregating assignments" />
+                </div>
+              ) : (
+                <UsersByRole users={pageUsers} />
+              )}
             </div>
 
           </div>
@@ -952,7 +970,20 @@ export function UserManagementPage() {
                 Cancel
               </button>
               <button className="btn-primary" disabled={submitting} form="user-management-modal-form" type="submit">
-                {submitting ? 'Saving...' : modalMode === 'reset-password' ? 'Reset Password' : modalMode === 'change-password' ? 'Change Password' : modalMode === 'assign-role' ? 'Assign Role' : 'Save User'}
+                {submitting ? (
+                  <>
+                    <MedicalSpinner size="sm" />
+                    <span>Saving...</span>
+                  </>
+                ) : modalMode === 'reset-password' ? (
+                  'Reset Password'
+                ) : modalMode === 'change-password' ? (
+                  'Change Password'
+                ) : modalMode === 'assign-role' ? (
+                  'Assign Role'
+                ) : (
+                  'Save User'
+                )}
               </button>
             </>
           )
@@ -974,10 +1005,16 @@ export function UserManagementPage() {
             <div className="form-section-title">Personal Information</div>
             <div className="form-grid-3">
               <label className="form-field">
-                <span>Employee ID <span className="required">*</span></span>
+                <span>
+                  Employee ID
+                  <span className="form-field-badge">Auto-generated</span>
+                </span>
                 <input
                   aria-invalid={Boolean(userForm.formState.errors.employeeCode)}
                   placeholder="Auto-generated from Dept & Role"
+                  readOnly
+                  style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }}
+                  tabIndex={-1}
                   {...userForm.register('employeeCode')}
                 />
                 {userForm.formState.errors.employeeCode ? <small className="field-error">{userForm.formState.errors.employeeCode.message}</small> : null}
@@ -988,10 +1025,16 @@ export function UserManagementPage() {
                 {userForm.formState.errors.fullName ? <small className="field-error">{userForm.formState.errors.fullName.message}</small> : null}
               </label>
               <label className="form-field">
-                <span>Username <span style={{ color: '#94a3b8', fontSize: '0.78rem', fontWeight: 400 }}>(Optional)</span></span>
+                <span>
+                  Username
+                  <span className="form-field-badge">Auto-filled</span>
+                </span>
                 <input
                   aria-invalid={Boolean(userForm.formState.errors.username)}
                   placeholder="Auto-filled from email"
+                  readOnly
+                  style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }}
+                  tabIndex={-1}
                   {...userForm.register('username')}
                 />
                 {userForm.formState.errors.username ? <small className="field-error">{userForm.formState.errors.username.message}</small> : null}
@@ -1165,6 +1208,7 @@ export function UserManagementPage() {
 
       <ConfirmDialog
         confirmLabel="Delete User"
+        loading={submitting}
         message={deleteTarget ? `Delete ${deleteTarget.fullName}? This will remove the user from active user lists.` : ''}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => executeDelete()}

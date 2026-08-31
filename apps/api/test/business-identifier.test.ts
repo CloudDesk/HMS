@@ -1,10 +1,7 @@
-import test, { describe, it, before, after } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import mongoose from 'mongoose';
-import { env } from '../src/config/env.js';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { SequenceService } from '../src/shared/sequence/sequence.service.js';
-import { SequenceModel } from '../src/shared/sequence/sequence.model.js';
 import { PatientService } from '../src/modules/patients/patient.service.js';
 import { PatientRepository } from '../src/modules/patients/patient.repository.js';
 import { PatientDocumentStorageService } from '../src/shared/storage/patient-document-storage.service.js';

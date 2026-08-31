@@ -87,17 +87,50 @@ export function useEmergencyWorkspaceFeature() {
     Boolean(branchId),
   );
   const allDepartments = useDepartmentsList({ status: 'ACTIVE', page: 1, limit: 100 }, true);
+
+  const nonClinicalDeptNames = new Set([
+    'nursing',
+    'reception',
+    'pharmacy',
+    'billing',
+    'imaging',
+    'laboratory',
+    'billing / finance',
+    'billing/finance',
+    'administration',
+    'finance',
+    'it / technical',
+    'it',
+    'security',
+    'human resources',
+    'hr',
+    'housekeeping',
+    'maintenance',
+    'medical records',
+    'store',
+    'inventory',
+  ]);
+
   const rawDepartmentOptions =
     departments.data?.data && departments.data.data.length > 0
       ? departments.data.data
       : allDepartments.data?.data ?? [];
   const seenDept = new Set<string>();
-  const departmentOptions = rawDepartmentOptions.filter((d) => {
-    const key = d.name.trim().toLowerCase();
-    if (seenDept.has(key)) return false;
-    seenDept.add(key);
-    return true;
-  });
+  const departmentOptions = rawDepartmentOptions
+    .filter((d: { name: string; isClinical?: boolean }) => {
+      const key = d.name.trim().toLowerCase();
+      if (d.isClinical === false || nonClinicalDeptNames.has(key)) return false;
+      if (seenDept.has(key)) return false;
+      seenDept.add(key);
+      return true;
+    })
+    .sort((a: { name: string }, b: { name: string }) => {
+      const aIsEm = /emergency|casualty|trauma/i.test(a.name);
+      const bIsEm = /emergency|casualty|trauma/i.test(b.name);
+      if (aIsEm && !bIsEm) return -1;
+      if (!aIsEm && bIsEm) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   const doctors = useDoctorsList(
     {

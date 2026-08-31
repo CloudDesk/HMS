@@ -1,6 +1,7 @@
 import type { FormEventHandler } from 'react';
 import type { ApiPatientDocumentType } from '../../api/patients';
 import { Modal } from '../ui/Modal';
+import { MedicalSpinner } from '../ui/MedicalLoader';
 
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -118,7 +119,7 @@ export function PatientDocumentUploadModal({
 
         <div className="modal-actions">
           <button className="doc-btn" onClick={onClose} type="button">Cancel</button>
-          <button className="doc-btn primary" disabled={submitting} type="submit">{submitting ? 'Uploading...' : 'Upload Document'}</button>
+          <button className="doc-btn primary" disabled={submitting} type="submit">{submitting ? <><MedicalSpinner size="sm" /><span>Uploading...</span></> : 'Upload Document'}</button>
         </div>
       </form>
     </Modal>

@@ -12,6 +12,7 @@ import {
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 import { BranchMultiSelect } from '../components/ui/BranchMultiSelect';
@@ -52,7 +53,7 @@ const formatDateTime = (value: string | null) => {
   }).format(date);
 };
 
-// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sub-components ────────────────────────────────────────────────────────────
 
 function SortableHeader({
   column,
@@ -168,7 +169,7 @@ function DeptsByBranch({
 }
 
 
-// â”€â”€â”€ Main Page Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main Page Component ───────────────────────────────────────────────────────
 
 export function DepartmentManagementPage() {
   const feature = useDepartmentManagementFeature();
@@ -312,7 +313,7 @@ export function DepartmentManagementPage() {
   const showingLabel =
     loadError || departments.length === 0
       ? 'No departments found'
-      : `Showing ${(safePage - 1) * pageSize + 1}â€“${(safePage - 1) * pageSize + departments.length} of ${meta.total} departments`;
+      : `Showing ${(safePage - 1) * pageSize + 1}–${(safePage - 1) * pageSize + departments.length} of ${meta.total} departments`;
 
   const modalTitle =
     modalMode === 'create'
@@ -326,7 +327,7 @@ export function DepartmentManagementPage() {
   return (
     <>
       <div className="um-grid">
-        {/* â”€â”€ KPI Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
         <div className="um-kpi-row" aria-label="Department KPIs">
           <div className="kpi-card">
             <div className="kpi-icon blue">
@@ -375,7 +376,7 @@ export function DepartmentManagementPage() {
           </div>
         </div>
 
-        {/* â”€â”€ Body (Table + Right Panel) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Body (Table + Right Panel) ────────────────────────────────────── */}
         <div className="um-body">
           {/* Table Section */}
           <div className="um-table-section card">
@@ -470,13 +471,16 @@ export function DepartmentManagementPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={6}>
-                        <span className="loading-spinner" /> Loading departments...
+                      <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
+                        <MedicalLoader
+                          text="Loading departments..."
+                          subtext="Retrieving hospital clinical & administrative units"
+                        />
                       </td>
                     </tr>
                   ) : loadError ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={6}>
+                      <td className="um-state-cell" colSpan={7}>
                         <i className="ph ph-warning" aria-hidden="true" />
                         {loadError}
                         <button
@@ -491,7 +495,7 @@ export function DepartmentManagementPage() {
                     </tr>
                   ) : departments.length === 0 ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={6}>
+                      <td className="um-state-cell" colSpan={7}>
                         <i className="ph ph-buildings" aria-hidden="true" />
                         No departments found matching your filters.
                       </td>
@@ -615,7 +619,7 @@ export function DepartmentManagementPage() {
             </div>
           </div>
 
-          {/* â”€â”€ Right Analytics Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Right Analytics Panel ─────────────────────────────────────── */}
           <div className="um-right-panel">
             {/* Status Donut */}
             <div className="card um-chart-card">
@@ -623,7 +627,9 @@ export function DepartmentManagementPage() {
                 <h3>Departments by Status</h3>
               </div>
               {loading ? (
-                <div className="um-panel-loading">Loading chart...</div>
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading status chart..." subtext="Aggregating department metrics" />
+                </div>
               ) : (
                 <DeptStatusChart activeCount={summary.active} inactiveCount={summary.inactive} />
               )}
@@ -635,7 +641,9 @@ export function DepartmentManagementPage() {
                 <h3>Departments by Branch</h3>
               </div>
               {loading ? (
-                <div className="um-panel-loading">Loading...</div>
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading branch chart..." subtext="Aggregating branch distribution" />
+                </div>
               ) : (
                 <DeptsByBranch departments={departments} branches={branches} />
               )}
@@ -645,7 +653,7 @@ export function DepartmentManagementPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Modal ─────────────────────────────────────────────────────────── */}
       <Modal
         footer={
           modalMode === 'view' ? (
@@ -808,9 +816,10 @@ export function DepartmentManagementPage() {
         ) : null}
       </Modal>
 
-      {/* â”€â”€ Delete Confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Delete Confirm ────────────────────────────────────────────────── */}
       <ConfirmDialog
-        confirmLabel={submitting ? 'Deleting...' : 'Delete Department'}
+        confirmLabel="Delete Department"
+        loading={submitting}
         message={
           deleteTarget
             ? `Delete ${deleteTarget.name}? This will permanently remove the department.`

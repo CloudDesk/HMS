@@ -1,15 +1,6 @@
 import type { OpdPrescriptionResponse } from '../../api/opd';
 import type { PatientResponse, PatientTimelineEventResponse } from '../../api/patients';
-import { formatDate, patientFullName } from '../../pages/patient-utils';
-
-const calculateAge = (dob: string) => {
-  if (!dob) return '';
-  const birthDate = new Date(dob);
-  const ageDifMs = Date.now() - birthDate.getTime();
-  const ageDate = new Date(ageDifMs);
-  const years = Math.abs(ageDate.getUTCFullYear() - 1970);
-  return `${years} years`;
-};
+import { calculateAge, formatDate, patientFullName } from '../../pages/patient-utils';
 
 type PatientOverviewTabProps = {
   patient: PatientResponse;

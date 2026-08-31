@@ -121,6 +121,36 @@ export function EmergencyDashboardPage() {
   });
 
   const selectedPatientId = registration.watch('patient_id');
+  const selectedPatient = state.patients.find((p) => p.id === selectedPatientId);
+
+  const emergencyComplaintPresets = [
+    '⚡ Acute Chest Pain',
+    '🫁 Severe Dyspnea / SOB',
+    '🚗 Polytrauma / RTA',
+    '🩸 Major Hemorrhage',
+    '🧠 Stroke / Altered Consciousness',
+    '🔥 Burn Injury',
+    '⚠️ Acute Abdominal Pain',
+    '😵 Syncope / Unresponsive',
+  ];
+
+  const quickTraumaTags = [
+    'Unknown Male #1',
+    'Unknown Female #1',
+    'Trauma Victim #1',
+    'Pediatric Trauma #1',
+    'Unconscious Patient #1',
+  ];
+
+  const handleSelectPresetComplaint = (presetText: string) => {
+    const cleanText = presetText.replace(/^[\p{Emoji}\s]+/gu, '').trim();
+    const current = registration.getValues('chief_complaint') || '';
+    if (!current.trim()) {
+      registration.setValue('chief_complaint', cleanText, { shouldValidate: true });
+    } else if (!current.includes(cleanText)) {
+      registration.setValue('chief_complaint', `${current}, ${cleanText}`, { shouldValidate: true });
+    }
+  };
 
   const createEncounter = registration.handleSubmit(async (values) => {
     try {
@@ -541,12 +571,12 @@ export function EmergencyDashboardPage() {
         title="Register Emergency Encounter"
         icon="ph-first-aid"
       >
-        <form onSubmit={createEncounter} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '520px' }}>
+        <form onSubmit={createEncounter} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '560px' }}>
           {/* Department & Arrival Mode Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
             <div>
               <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                Department <span style={{ color: '#dc2626' }}>*</span>
+                Emergency Department <span style={{ color: '#dc2626' }}>*</span>
               </label>
               <select
                 {...registration.register('department_id')}
@@ -584,130 +614,225 @@ export function EmergencyDashboardPage() {
             </div>
           </div>
 
-          {/* Unified Patient Search & Quick Entry Section */}
+          {/* Unified Patient Identification & Intake Section */}
           <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
-                <i className="ph ph-user-circle" style={{ marginRight: '6px', color: '#2563eb' }} />
-                Patient Identification (Search Existing or Register New / Unknown)
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <i className="ph ph-user-circle" style={{ color: '#2563eb', fontSize: '1.15rem' }} />
+                Patient Identification &amp; Intake
               </span>
-              {selectedPatientId && (
+              {selectedPatient && (
                 <button
                   type="button"
                   onClick={() => {
                     registration.setValue('patient_id', '');
                     actions.setPatientSearch('');
                   }}
-                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                 >
-                  <i className="ph ph-x" /> Clear Selection
+                  <i className="ph ph-x" /> Deselect Patient
                 </button>
               )}
             </div>
 
-            {/* Live Search & Existing Select */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.75rem' }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '3px' }}>
-                  Search Patient (MRN, Name, Phone)
-                </label>
-                <input
-                  onChange={(event) => actions.setPatientSearch(event.target.value)}
-                  placeholder="Type MRN or name to search..."
-                  value={state.patientSearch}
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', fontSize: '0.82rem' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '3px' }}>
-                  Select Existing Patient Record
-                </label>
-                <select
-                  {...registration.register('patient_id')}
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
+            {selectedPatient ? (
+              /* State A: Existing Patient Selected */
+              <div className="emergency-patient-selected-card">
+                <div className="emergency-patient-selected-info">
+                  <div className="emergency-patient-avatar-badge">
+                    {(selectedPatient.first_name?.[0] || '') + (selectedPatient.last_name?.[0] || 'P')}
+                  </div>
+                  <div className="emergency-patient-details-stack">
+                    <span className="emergency-patient-name-title">
+                      {selectedPatient.first_name} {selectedPatient.last_name}
+                    </span>
+                    <div className="emergency-patient-meta-row">
+                      <span className="emergency-patient-meta-tag">MRN: {selectedPatient.patient_number}</span>
+                      <span>Gender: {selectedPatient.gender}</span>
+                      {selectedPatient.phone ? <span>Phone: {selectedPatient.phone}</span> : null}
+                      {selectedPatient.blood_group ? (
+                        <span className="emergency-patient-meta-tag" style={{ background: '#fee2e2', color: '#991b1b' }}>
+                          Blood: {selectedPatient.blood_group}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    registration.setValue('patient_id', '');
+                    actions.setPatientSearch('');
+                  }}
+                  style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 12px', fontSize: '0.78rem', fontWeight: 600, color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                 >
-                  <option value="">-- Or enter new/unknown below --</option>
-                  {state.patients.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.patient_number} - {item.first_name} {item.last_name} ({item.gender})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* If NO existing patient selected: capture minimal basic intake details directly inline! */}
-            {!selectedPatientId ? (
-              <div style={{ paddingTop: '0.75rem', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>
-                  <i className="ph ph-info" /> If patient is not registered or unidentified, provide minimal intake details:
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '0.65rem' }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                      Patient Name / Unknown Tag <span style={{ color: '#dc2626' }}>*</span>
-                    </label>
-                    <input
-                      {...registration.register('display_name')}
-                      placeholder="e.g. John Doe or Unknown Trauma #1"
-                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                      Estimated Age
-                    </label>
-                    <input
-                      type="number"
-                      {...registration.register('estimated_age', numericInput)}
-                      placeholder="e.g. 45"
-                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                      Gender
-                    </label>
-                    <select
-                      {...registration.register('gender')}
-                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                    >
-                      <option value="UNKNOWN">UNKNOWN</option>
-                      <option value="MALE">MALE</option>
-                      <option value="FEMALE">FEMALE</option>
-                      <option value="OTHER">OTHER</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '0.65rem' }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                      Contact / Phone (Optional)
-                    </label>
-                    <input
-                      {...registration.register('contact')}
-                      placeholder="Phone or bystander/EMS contact"
-                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                      Physical Description / Triage Notes (Optional)
-                    </label>
-                    <input
-                      {...registration.register('identity_notes')}
-                      placeholder="Clothing, location found, markings..."
-                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                    />
-                  </div>
-                </div>
+                  <i className="ph ph-arrows-clockwise" /> Search Other
+                </button>
               </div>
             ) : (
-              <div style={{ background: '#ecfdf5', padding: '8px 12px', borderRadius: '6px', border: '1px solid #a7f3d0', fontSize: '0.82rem', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <i className="ph ph-check-circle" style={{ fontSize: '1.2rem' }} />
-                <span>Existing registered patient selected. Medical history and profile will be linked.</span>
+              /* State B: Unified Search-or-Create Flow */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                    1. Search Existing Registered Patient (MRN, Name, Phone)
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <i className="ph ph-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    <input
+                      onChange={(event) => actions.setPatientSearch(event.target.value)}
+                      placeholder="Type patient MRN, name, or phone number..."
+                      value={state.patientSearch}
+                      style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px 0 28px', fontSize: '0.82rem', background: '#fff' }}
+                    />
+                    {state.patientSearch && (
+                      <button
+                        type="button"
+                        onClick={() => actions.setPatientSearch('')}
+                        style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                      >
+                        <i className="ph ph-x" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Live Search Candidate Results */}
+                {state.patientSearch.trim().length >= 2 ? (
+                  state.patients.length > 0 ? (
+                    <div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                        Matching Registered Patients ({state.patients.length}):
+                      </span>
+                      <div className="emergency-candidate-list">
+                        {state.patients.map((p) => (
+                          <div
+                            key={p.id}
+                            className="emergency-candidate-item"
+                            onClick={() => {
+                              registration.setValue('patient_id', p.id, { shouldValidate: true });
+                              registration.setValue('display_name', '');
+                              actions.setPatientSearch('');
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <i className="ph ph-user" style={{ color: '#2563eb' }} />
+                              <strong style={{ fontSize: '0.82rem', color: '#0f172a' }}>{p.first_name} {p.last_name}</strong>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b', fontFamily: 'monospace' }}>{p.patient_number}</span>
+                              <span style={{ fontSize: '0.72rem', background: '#e2e8f0', padding: '1px 5px', borderRadius: '3px' }}>{p.gender}</span>
+                              {p.phone ? <span style={{ fontSize: '0.72rem', color: '#64748b' }}>📞 {p.phone}</span> : null}
+                            </div>
+                            <button
+                              type="button"
+                              className="doc-btn compact primary"
+                              style={{ padding: '3px 10px', fontSize: '0.74rem' }}
+                            >
+                              Select Patient
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '8px 12px', background: '#fff', border: '1px dashed #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>No registered patient found matching "<strong>{state.patientSearch}</strong>"</span>
+                      <button
+                        type="button"
+                        className="doc-btn compact primary"
+                        onClick={() => registration.setValue('display_name', state.patientSearch, { shouldValidate: true })}
+                        style={{ fontSize: '0.74rem' }}
+                      >
+                        <i className="ph ph-plus" /> Use as Patient Name
+                      </button>
+                    </div>
+                  )
+                ) : null}
+
+                {/* Inline New / Unknown Patient Entry */}
+                <div style={{ paddingTop: '0.75rem', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                      2. If not registered or unidentified, provide emergency intake details:
+                    </div>
+                    <div className="emergency-quick-chips-wrap">
+                      {quickTraumaTags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          className="emergency-quick-chip"
+                          onClick={() => registration.setValue('display_name', tag, { shouldValidate: true })}
+                        >
+                          <i className="ph ph-plus" /> {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '0.65rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                        Patient Name / Unknown Tag <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
+                      <input
+                        {...registration.register('display_name')}
+                        placeholder="e.g. John Doe or Unknown Trauma #1"
+                        style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem', background: '#fff' }}
+                      />
+                      {registration.formState.errors.display_name?.message && (
+                        <span style={{ color: '#dc2626', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
+                          {registration.formState.errors.display_name.message}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                        Estimated Age
+                      </label>
+                      <input
+                        type="number"
+                        {...registration.register('estimated_age', numericInput)}
+                        placeholder="e.g. 45"
+                        style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem', background: '#fff' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                        Gender
+                      </label>
+                      <select
+                        {...registration.register('gender')}
+                        style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem', background: '#fff' }}
+                      >
+                        <option value="UNKNOWN">UNKNOWN</option>
+                        <option value="MALE">MALE</option>
+                        <option value="FEMALE">FEMALE</option>
+                        <option value="OTHER">OTHER</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '0.65rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                        Contact / Phone / Bystander <span style={{ color: '#64748b', fontWeight: 400 }}>(Optional)</span>
+                      </label>
+                      <input
+                        {...registration.register('contact')}
+                        placeholder="Phone or bystander/EMS contact"
+                        style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem', background: '#fff' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '3px' }}>
+                        Physical Description / Location Found <span style={{ color: '#64748b', fontWeight: 400 }}>(Optional)</span>
+                      </label>
+                      <input
+                        {...registration.register('identity_notes')}
+                        placeholder="Clothing, location found, markings..."
+                        style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem', background: '#fff' }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -718,11 +843,28 @@ export function EmergencyDashboardPage() {
             )}
           </div>
 
-          {/* Chief Complaint */}
+          {/* Chief Complaint Section with Presets */}
           <div>
-            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
-              Chief Emergency Complaint <span style={{ color: '#dc2626' }}>*</span>
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+                Chief Emergency Complaint <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Click presets to quick-fill</span>
+            </div>
+
+            <div className="emergency-quick-chips-wrap" style={{ marginBottom: '6px' }}>
+              {emergencyComplaintPresets.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className="emergency-quick-chip danger-chip"
+                  onClick={() => handleSelectPresetComplaint(preset)}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
             <textarea
               {...registration.register('chief_complaint')}
               placeholder="Primary presenting emergency (e.g. Acute chest pain radiating to left arm, severe SOB, polytrauma)..."

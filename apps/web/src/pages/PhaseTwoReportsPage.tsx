@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useCurrencyFormatter, useTimezone } from '../api/useSettings';
 import { usePhaseTwoReportsFeature } from '../hooks/reports/usePhaseTwoReportsFeature';
 import { formatRegionalDate } from '../utils/localization-utils';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 type Tab = 'beds' | 'emergency' | 'procedures' | 'conversions' | 'advances' | 'payments' | 'consents' | 'pending';
 const badge = (value: string) => (
   <span className="status-badge neutral">{value.replaceAll('_', ' ')}</span>
@@ -83,8 +84,8 @@ export function PhaseTwoReportsPage() {
         <div className="admin-dashboard-state admin-dashboard-state--error">{state.error}</div>
       )}
       {!state.canView ? null : state.loading || !data ? (
-        <div className="admin-dashboard-state">
-          <span className="loading-spinner" /> Loading reports...
+        <div style={{ padding: '3rem 1rem' }}>
+          <MedicalLoader size="large" text="Loading hospital phase 2 reports..." subtext="Aggregating clinical and administrative reporting analytics" />
         </div>
       ) : (
         <>

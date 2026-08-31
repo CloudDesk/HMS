@@ -1,6 +1,5 @@
 import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
-import mongoose from 'mongoose';
 import { BillingService } from '../src/modules/billing/billing.service.js';
 import { AdvancePaymentService } from '../src/modules/advance-payment/advance-payment.service.js';
 import { AdvancePaymentRepository } from '../src/modules/advance-payment/advance-payment.repository.js';

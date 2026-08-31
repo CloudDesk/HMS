@@ -1,14 +1,10 @@
-import { useState, useMemo, type FormEvent } from 'react';
+﻿import { useState, useMemo, type FormEvent } from 'react';
 import { type BillingInvoice } from '../api/billing';
 import { type DiagnosticOrder } from '../api/laboratory';
 import { type OpdPrescriptionResponse } from '../api/opd';
 import {
   type ApiPatientDocumentType,
-  type ApiPatientGender,
-  type ApiPatientStatus,
-  type PatientHistoryResponse,
   type PatientDocumentResponse,
-  type PatientResponse,
   type PatientTimelineEventResponse,
 } from '../api/patients';
 import { useAuth } from '../auth/useAuth';
@@ -17,14 +13,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { PatientCardModal } from '../components/patients/PatientCardModal';
 import { PatientDocumentUploadModal } from '../components/patients/PatientDocumentUploadModal';
 import { PatientEditModal, updatePatientSchema, type UpdatePatientForm } from '../components/patients/PatientEditModal';
-import { PatientProfileHeader } from '../components/patients/PatientProfileHeader';
-import { PatientProfileTabContent } from '../components/patients/PatientProfileTabContent';
 import { PrintBillingModal } from '../components/print/PrintBillingModal';
 import { PrintImagingOrderModal } from '../components/print/PrintImagingOrderModal';
 import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
 import { PrintPrescriptionModal } from '../components/print/PrintPrescriptionModal';
 import { Toast } from '../components/ui/Toast';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { usePatientProfileFeature, type PatientProfileTab } from '../hooks/patients/usePatientProfileFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { getPatientErrorMessage, getPatientIdFromSearch, patientFullName, patientInitials, formatDate, formatDateTime } from './patient-utils';
@@ -54,7 +49,7 @@ const calculateAge = (dob: string) => {
 // removed toForm
 
 
-// â”€â”€ EMR helper functions (mirrored from PatientEmrTimelinePage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── EMR helper functions (mirrored from PatientEmrTimelinePage) ──────────────
 
 const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => {
   if (eventType === 'REGISTRATION') return 'ph ph-stethoscope';
@@ -88,7 +83,7 @@ function EmptyRecords({ message }: { message: string }) {
   return <div className="patient-empty-inline">{message}</div>;
 }
 
-// â”€â”€ EMR Timeline Tab (inline, Option B) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── EMR Timeline Tab (inline, Option B) ─────────────────────────────────────
 
 type EmrTabProps = {
   patientId: string;
@@ -141,13 +136,15 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
           <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset
         </button>
         <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '0.83rem', alignSelf: 'center' }}>
-          {loading ? 'Loadingâ€¦' : `${meta.total} events`}
+          {loading ? 'Loading...' : `${meta.total} events`}
         </span>
       </div>
 
       {/* Timeline body */}
       {loading ? (
-        <div className="um-state-cell">Loading EMR timeline events...</div>
+        <div style={{ padding: '2.5rem 1rem' }}>
+          <MedicalLoader text="Loading EMR timeline..." subtext="Retrieving chronological patient clinical events" />
+        </div>
       ) : loadError ? (
         <div className="um-state-cell" role="alert">
           {loadError}
@@ -216,7 +213,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
       {meta.totalPages > 1 ? (
         <div className="um-pagination" style={{ marginTop: '1.5rem' }}>
           <span>
-            Showing {timeline.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}â€“
+            Showing {timeline.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
             {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} events
           </span>
           <div className="um-page-controls">
@@ -306,7 +303,6 @@ export function PatientProfilePage() {
     timeline,
     timelineMeta,
     loadingTimeline,
-    history,
     visits,
     visitsMeta,
     loadingVisits,
@@ -314,14 +310,10 @@ export function PatientProfilePage() {
     appointmentsMeta,
     loadingAppointments,
     labOrders,
-    loadingLabOrders,
     imagingOrders,
-    loadingImagingOrders,
     documents,
-    loadingDocuments,
     consents,
     billingInvoices,
-    loadingBillingInvoices,
     doctors: doctorsList,
     formatMoney,
     filters,
@@ -542,7 +534,13 @@ export function PatientProfilePage() {
     }
   };
 
-  if (loading) return <div className="um-state-cell">Loading patient workspace...</div>;
+  if (loading) {
+    return (
+      <div style={{ padding: '4rem 1rem' }}>
+        <MedicalLoader size="large" text="Loading patient workspace..." subtext="Accessing EMR & clinical profile records" />
+      </div>
+    );
+  }
   if (loadError) return <div className="um-state-cell" role="alert">{loadError}</div>;
   if (!patient) {
     return (
@@ -557,29 +555,6 @@ export function PatientProfilePage() {
       </div>
     );
   }
-
-  const openEditModal = () => {
-    editForm.reset({
-      firstName: patient.first_name ?? '',
-      lastName: patient.last_name,
-      dateOfBirth: patient.date_of_birth.slice(0, 10),
-      phone: patient.phone ?? '',
-      email: patient.email ?? '',
-      status: patient.status,
-      gender: patient.gender,
-      bloodGroup: patient.blood_group ?? '',
-      addressLine1: patient.address?.line1 ?? '',
-      city: patient.address?.city ?? '',
-      postalCode: patient.address?.postal_code ?? '',
-      notes: patient.notes ?? '',
-    });
-    setEditOpen(true);
-  };
-
-  const openUploadModal = (mode: 'DOCUMENT' | 'CONSENT') => {
-    setUploadMode(mode);
-    setUploadModalOpen(true);
-  };
 
   return (
     <>
@@ -674,7 +649,7 @@ export function PatientProfilePage() {
 
         {/* Tab Contents */}
         <section className="doc-card" style={{ marginTop: '1.25rem', overflow: 'hidden', padding: 0 }}>
-          {/* â”€â”€ Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Overview ──────────────────────────────────────────────────── */}
           {activeTab === 'Overview' ? (
             <div className="profile-6card-grid">
               {/* Card 1: Personal Information */}
@@ -738,7 +713,7 @@ export function PatientProfilePage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                     {timeline.slice(0, 3).map((event) => (
                       <div key={event.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem' }}>
-                        <span>{formatDate(event.occurred_at)} â€¢ {event.title}</span>
+                        <span>{formatDate(event.occurred_at)} • {event.title}</span>
                         <strong style={{ color: '#2563eb' }}>Consultation</strong>
                       </div>
                     ))}
@@ -795,7 +770,7 @@ export function PatientProfilePage() {
             <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timeline || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={pageInfo.timeline.page} setCurrentPage={(p: number) => setTimelineMeta(prev => ({ ...prev, page: p  }))} />
           ) : null}
 
-          {/* â”€â”€ Medical History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Medical History ──────────────────────────────────────────── */}
           {activeTab === 'Medical History' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -854,7 +829,7 @@ export function PatientProfilePage() {
             </div>
           ) : null}
 
-          {/* â”€â”€ Visits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Visits ───────────────────────────────────────────────────── */}
           {activeTab === 'Visits' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -915,7 +890,7 @@ export function PatientProfilePage() {
             </div>
           ) : null}
 
-          {/* â”€â”€ Appointments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Appointments ─────────────────────────────────────────────── */}
           {activeTab === 'Appointments' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -985,7 +960,7 @@ export function PatientProfilePage() {
             </div>
           ) : null}
 
-          {/* â”€â”€ Prescriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Prescriptions ────────────────────────────────────────────── */}
           {activeTab === 'Prescriptions' ? (
             prescriptions.length === 0 ? (
               <EmptyRecords message="No prescription records found for this patient." />
@@ -1020,7 +995,7 @@ export function PatientProfilePage() {
             )
           ) : null}
 
-          {/* â”€â”€ Lab Results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Lab Results ──────────────────────────────────────────────── */}
           {activeTab === 'Lab Results' ? (
             labOrders.length === 0 ? (
               <EmptyRecords message="No laboratory test results found for this patient." />
@@ -1051,7 +1026,7 @@ export function PatientProfilePage() {
             )
           ) : null}
 
-          {/* â”€â”€ Imaging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Imaging ──────────────────────────────────────────────────── */}
           {activeTab === 'Imaging' ? (
             imagingOrders.length === 0 ? (
               <EmptyRecords message="No radiology / imaging records found for this patient." />
@@ -1082,7 +1057,7 @@ export function PatientProfilePage() {
             )
           ) : null}
 
-          {/* â”€â”€ Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Documents ────────────────────────────────────────────────── */}
           {activeTab === 'Documents' ? (
             <>
               <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
@@ -1096,7 +1071,7 @@ export function PatientProfilePage() {
               <div className="table-responsive">
                 <table className="data-table">
                   <thead>
-                    <tr><th>DATE</th><th>TITLE</th><th>FILE</th><th>TYPE</th><th>UPLOADED BY</th></tr>
+                    <tr><th>DATE</th><th>TITLE</th><th>FILE</th><th>TYPE</th><th>UPLOADED BY</th><th>ACTIONS</th></tr>
                   </thead>
                   <tbody>
                     {documents.map((document) => (
@@ -1106,6 +1081,18 @@ export function PatientProfilePage() {
                         <td>{document.file_name}</td>
                         <td>{document.document_type}</td>
                         <td>{document.uploaded_by_name || 'Recorded user'}</td>
+                        <td>
+                          <div className="table-actions">
+                            <button className="icon-button" onClick={() => void handleViewDocument(document)} title="View document" type="button"><i className="ph ph-eye" aria-hidden="true" /></button>
+                            <button className="icon-button" onClick={() => void handleDownloadDocument(document)} title={`Download ${formatFileSize(document.file_size_bytes)}`} type="button"><i className="ph ph-download-simple" aria-hidden="true" /></button>
+                            {canEditAllDetails && document.review_status === 'PENDING' ? (
+                              <>
+                                <button className="icon-button" onClick={() => openDocumentReview(document, 'VERIFIED')} title="Verify document" type="button"><i className="ph ph-check-circle" aria-hidden="true" /></button>
+                                <button className="icon-button danger" onClick={() => openDocumentReview(document, 'REJECTED')} title="Reject document" type="button"><i className="ph ph-x-circle" aria-hidden="true" /></button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1115,7 +1102,7 @@ export function PatientProfilePage() {
             </>
           ) : null}
 
-          {/* â”€â”€ Billing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Billing ──────────────────────────────────────────────────── */}
           {activeTab === 'Billing' ? (
             billingInvoices.length === 0 ? (
               <EmptyRecords message="No billing statements or invoices found for this patient." />
@@ -1241,11 +1228,16 @@ export function PatientProfilePage() {
               disabled={submittingDocumentReview}
               type="submit"
             >
-              {submittingDocumentReview
-                ? 'Saving...'
-                : documentReviewDecision === 'VERIFIED'
-                  ? 'Approve document'
-                  : 'Reject document'}
+              {submittingDocumentReview ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Saving review...</span>
+                </>
+              ) : documentReviewDecision === 'VERIFIED' ? (
+                'Approve document'
+              ) : (
+                'Reject document'
+              )}
             </button>
           </div>
         </form>

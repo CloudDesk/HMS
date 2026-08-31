@@ -6,6 +6,7 @@ import {
   type SavePatientPayload,
 } from '../api/patients';
 import { Toast } from '../components/ui/Toast';
+import { MedicalSpinner } from '../components/ui/MedicalLoader';
 import { usePatientRegistrationFeature } from '../hooks/patients/usePatientRegistrationFeature';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, patientFullName } from './patient-utils';
@@ -183,7 +184,9 @@ export function PatientRegistrationPage() {
     if (showParentGuardian && !form.parentGuardian.trim()) {
       errs.parentGuardian = 'Parent/Guardian name is required for patients under 16';
     }
-    if (form.phone.trim() && !isValidAfricanPhone(form.phone)) {
+    if (!form.phone.trim()) {
+      errs.phone = 'Phone number is required';
+    } else if (!isValidAfricanPhone(form.phone)) {
       errs.phone = 'Please enter a valid African phone number (e.g. +233 24 123 4567 or 0241234567)';
     }
     if (!form.consent) {
@@ -397,10 +400,13 @@ export function PatientRegistrationPage() {
               </div>
 
               <div className={`doc-field ${fieldErrors.phone ? 'has-error' : ''}`}>
-                <label htmlFor="patient-phone">Phone</label>
+                <label htmlFor="patient-phone">
+                  Phone <span className="required-asterisk">*</span>
+                </label>
                 <input
                   disabled={submitting}
                   id="patient-phone"
+                  required
                   onChange={(event) => {
                     setForm({ ...form, phone: event.target.value });
                     if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: undefined });
@@ -463,7 +469,7 @@ export function PatientRegistrationPage() {
                 />
               </div>
               <div className="doc-field">
-                <label htmlFor="patient-state">County / State</label>
+                <label htmlFor="patient-state">State</label>
                 <input
                   disabled={submitting}
                   id="patient-state"
@@ -597,7 +603,16 @@ export function PatientRegistrationPage() {
                 Cancel
               </button>
               <button className="doc-btn primary" disabled={submitting || !form.consent} name="saveMode" type="submit" value="save">
-                <i className="ph ph-check" aria-hidden="true" /> {submitting ? 'Saving...' : 'Save'}
+                {submitting ? (
+                  <>
+                    <MedicalSpinner size="sm" />
+                    <span>Registering Patient...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="ph ph-check" aria-hidden="true" /> Save
+                  </>
+                )}
               </button>
             </div>
           </form>

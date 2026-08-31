@@ -13,13 +13,12 @@ import {
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 import { useServiceCatalogueFeature, type SortColumn, type SortDirection } from '../hooks/services/useServiceCatalogueFeature';
 
 import { useCurrencyFormatter } from '../api/useSettings';
-
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ModalMode = 'create' | 'edit' | 'view';
 
@@ -55,8 +54,6 @@ const serviceTypeLabels: Record<ApiServiceType, string> = {
 };
 
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
     if (error.status === 400) return error.message || 'Validation error. Please check your inputs.';
@@ -71,13 +68,12 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const formatDate = (value: string | null): string => {
-  if (!value) return 'â€”';
+  if (!value) return '—';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'â€”';
+  if (Number.isNaN(d.getTime())) return '—';
   return new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
 };
 
-// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SortableHeader({
   column,
@@ -398,7 +394,7 @@ export function ServiceCataloguePage() {
   const showingLabel =
     loadError || services.length === 0
       ? 'No services found'
-      : `Showing ${(safePage - 1) * pageSize + 1}â€“${(safePage - 1) * pageSize + services.length} of ${meta.total} services`;
+      : `Showing ${(safePage - 1) * pageSize + 1}–${(safePage - 1) * pageSize + services.length} of ${meta.total} services`;
 
   const modalTitle =
     modalMode === 'create'
@@ -412,7 +408,7 @@ export function ServiceCataloguePage() {
   return (
     <>
       <div className="um-grid">
-        {/* â”€â”€ KPI Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── KPI Cards ──────────────────────────────────────────────────── */}
         <div className="um-kpi-row" aria-label="Service KPIs">
           <div className="kpi-card">
             <div className="kpi-icon blue">
@@ -420,7 +416,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Total Services</span>
-              <span className="kpi-value">{loading ? 'â€”' : summary.total}</span>
+              <span className="kpi-value">{loading ? '—' : summary.total}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -429,7 +425,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Active</span>
-              <span className="kpi-value">{loading ? 'â€”' : summary.active}</span>
+              <span className="kpi-value">{loading ? '—' : summary.active}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -438,7 +434,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Inactive</span>
-              <span className="kpi-value">{loading ? 'â€”' : summary.inactive}</span>
+              <span className="kpi-value">{loading ? '—' : summary.inactive}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -447,7 +443,7 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Departments Covered</span>
-              <span className="kpi-value">{loading ? 'â€”' : summary.departmentsCovered}</span>
+              <span className="kpi-value">{loading ? '—' : summary.departmentsCovered}</span>
             </div>
           </div>
           <div className="kpi-card">
@@ -456,12 +452,12 @@ export function ServiceCataloguePage() {
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Added This Month</span>
-              <span className="kpi-value">{loading ? 'â€”' : summary.addedThisMonth}</span>
+              <span className="kpi-value">{loading ? '—' : summary.addedThisMonth}</span>
             </div>
           </div>
         </div>
 
-        {/* â”€â”€ Body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Body ───────────────────────────────────────────────────────── */}
         <div className="um-body">
           {/* Table section */}
           <div className="um-table-section card">
@@ -560,8 +556,11 @@ export function ServiceCataloguePage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={10}>
-                        <span className="loading-spinner" /> Loading services...
+                      <td colSpan={10} style={{ padding: '2.5rem 1rem' }}>
+                        <MedicalLoader
+                          text="Loading services..."
+                          subtext="Retrieving hospital clinical procedures & catalogue"
+                        />
                       </td>
                     </tr>
                   ) : loadError ? (
@@ -694,14 +693,16 @@ export function ServiceCataloguePage() {
             </div>
           </div>
 
-          {/* â”€â”€ Right Analytics Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Right Analytics Panel ────────────────────────────────────── */}
           <div className="um-right-panel">
             <div className="card um-chart-card">
               <div className="card-header">
                 <h3>Services by Status</h3>
               </div>
               {loading ? (
-                <div className="um-panel-loading">Loading chart...</div>
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading status chart..." subtext="Aggregating service availability" />
+                </div>
               ) : (
                 <ServiceStatusChart activeCount={summary.active} inactiveCount={summary.inactive} />
               )}
@@ -712,7 +713,9 @@ export function ServiceCataloguePage() {
                 <h3>Services by Department</h3>
               </div>
               {loading ? (
-                <div className="um-panel-loading">Loading...</div>
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading department chart..." subtext="Aggregating department breakdown" />
+                </div>
               ) : (
                 <ServicesByDepartment services={services} departments={departments} />
               )}
@@ -722,7 +725,7 @@ export function ServiceCataloguePage() {
         </div>
       </div>
 
-      {/* â”€â”€ Create / Edit Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Create / Edit Modal ─────────────────────────────────────────────── */}
       <Modal
         footer={
           modalMode === 'view' ? (
@@ -731,7 +734,14 @@ export function ServiceCataloguePage() {
             <>
               <button className="btn-secondary" disabled={submitting} onClick={closeModal} type="button">Cancel</button>
               <button className="btn-primary" disabled={submitting || departments.length === 0} form="svc-management-form" type="submit">
-                {submitting ? 'Saving...' : 'Save Service'}
+                {submitting ? (
+                  <>
+                    <MedicalSpinner size="sm" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  'Save Service'
+                )}
               </button>
             </>
           )
@@ -1012,9 +1022,10 @@ export function ServiceCataloguePage() {
         ) : null}
       </Modal>
 
-      {/* â”€â”€ Delete Confirm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Delete Confirm ──────────────────────────────────────────────────── */}
       <ConfirmDialog
-        confirmLabel={submitting ? 'Deleting...' : 'Delete Service'}
+        confirmLabel="Delete Service"
+        loading={submitting}
         message={
           deleteTarget
             ? `Delete "${deleteTarget.name}"? This will permanently remove the service and may fail if it has associated records.`

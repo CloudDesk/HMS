@@ -8,6 +8,7 @@ import { getMedicineErrorMessage } from '../hooks/medicines/useMedicines';
 import { useMedicineMasterFeature } from '../hooks/pharmacy/useMedicineMasterFeature';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { downloadBlob } from '../utils/download';
 import { navigate } from '../routing/navigation';
 
@@ -179,7 +180,7 @@ export function MedicineMasterPage() {
           ].map(([icon, tone, label, value]) => (
             <div className="kpi-card" key={String(label)}>
               <div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} aria-hidden="true" /></div>
-              <div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{summaryQuery.isLoading ? 'â€”' : value}</span></div>
+              <div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{summaryQuery.isLoading ? '—' : value}</span></div>
             </div>
           ))}
         </div>
@@ -205,14 +206,23 @@ export function MedicineMasterPage() {
             <table className="data-table">
               <thead><tr><th>Code</th><th>Medicine</th><th>Strength</th><th>Dosage Form</th><th>Unit</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
               <tbody>
-                {listQuery.isLoading ? <tr><td className="um-state-cell" colSpan={8}><span className="loading-spinner" /> Loading medicines...</td></tr> : null}
+                {listQuery.isLoading ? (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '2.5rem 1rem' }}>
+                      <MedicalLoader
+                        text="Loading medicines..."
+                        subtext="Accessing pharmacy master list & catalog"
+                      />
+                    </td>
+                  </tr>
+                ) : null}
                 {listQuery.isError ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-warning" aria-hidden="true" /> {getMedicineErrorMessage(listQuery.error)}</td></tr> : null}
                 {!listQuery.isLoading && !listQuery.isError && records.length === 0 ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-pill" aria-hidden="true" /> No medicines found matching your filters.</td></tr> : null}
                 {records.map((medicine) => (
                   <tr key={medicine.id}>
                     <td><span className="emp-id">{medicine.code}</span></td>
                     <td><div className="user-cell-info"><span className="user-cell-name">{medicine.name}</span>{medicine.generic_name ? <span className="muted-cell">{medicine.generic_name}</span> : null}</div></td>
-                    <td>{medicine.strength ?? 'â€”'}</td><td>{medicine.dosage_form ?? 'â€”'}</td><td>{medicine.unit ?? 'â€”'}</td>
+                    <td>{medicine.strength ?? '—'}</td><td>{medicine.dosage_form ?? '—'}</td><td>{medicine.unit ?? '—'}</td>
                     <td><span className={`status-badge ${medicine.status === 'ACTIVE' ? 'status-active' : 'status-inactive'}`}>{medicine.status === 'ACTIVE' ? 'Active' : 'Inactive'}</span></td>
                     <td className="muted-cell">{formatDate(medicine.created_at)}</td>
                     <td><div className="action-icons">
@@ -226,11 +236,11 @@ export function MedicineMasterPage() {
               </tbody>
             </table>
           </div>
-          <div className="um-pagination"><div className="um-showing">{meta.total === 0 ? 'No medicines' : `Showing ${(meta.page - 1) * meta.limit + 1}â€“${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}`}</div><div className="um-page-size"><span>Rows:</span><select onChange={(event) => updateQuery({ limit: event.target.value, page: 1 })} value={limit}><option value="5">5</option><option value="10">10</option><option value="25">25</option></select></div><div className="um-page-controls"><button className="pg-btn" disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button><span className="pg-btn active">{page}</span><button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button></div></div>
+          <div className="um-pagination"><div className="um-showing">{meta.total === 0 ? 'No medicines' : `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}`}</div><div className="um-page-size"><span>Rows:</span><select onChange={(event) => updateQuery({ limit: event.target.value, page: 1 })} value={limit}><option value="5">5</option><option value="10">10</option><option value="25">25</option></select></div><div className="um-page-controls"><button className="pg-btn" disabled={page <= 1} onClick={() => updateQuery({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button><span className="pg-btn active">{page}</span><button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => updateQuery({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button></div></div>
         </div>
       </div>
 
-      <Modal footer={modalMode === 'view' ? <button className="btn-secondary" onClick={closeModal} type="button">Close</button> : <><button className="btn-secondary" disabled={saveMutation.isPending} onClick={closeModal} type="button">Cancel</button><button className="btn-primary" disabled={saveMutation.isPending} form="medicine-master-form" type="submit">{saveMutation.isPending ? 'Saving...' : 'Save Medicine'}</button></>} icon="ph-pill" onClose={closeModal} open={Boolean(modalMode)} title={modalTitle}>
+      <Modal footer={modalMode === 'view' ? <button className="btn-secondary" onClick={closeModal} type="button">Close</button> : <><button className="btn-secondary" disabled={saveMutation.isPending} onClick={closeModal} type="button">Cancel</button><button className="btn-primary" disabled={saveMutation.isPending} form="medicine-master-form" type="submit">{saveMutation.isPending ? <><MedicalSpinner size="sm" /><span>Saving...</span></> : 'Save Medicine'}</button></>} icon="ph-pill" onClose={closeModal} open={Boolean(modalMode)} title={modalTitle}>
         {(modalMode === 'create' || modalMode === 'edit') ? (
           <form id="medicine-master-form" onSubmit={(event) => void handleSubmit(handleSave)(event)}>
             <div className="form-section-title">Medicine Information</div><div className="form-grid-2">
@@ -283,7 +293,7 @@ export function MedicineMasterPage() {
         {modalMode === 'view' && activeMedicine ? <div className="form-grid-2"><label className="form-field"><span>Code</span><input readOnly value={activeMedicine.code} /></label><label className="form-field"><span>Name</span><input readOnly value={activeMedicine.name} /></label><label className="form-field"><span>Generic Name</span><input readOnly value={activeMedicine.generic_name ?? ''} /></label><label className="form-field"><span>Strength</span><input readOnly value={activeMedicine.strength ?? ''} /></label><label className="form-field"><span>Dosage Form</span><input readOnly value={activeMedicine.dosage_form ?? ''} /></label><label className="form-field"><span>Unit</span><input readOnly value={activeMedicine.unit ?? ''} /></label><label className="form-field"><span>Status</span><input readOnly value={activeMedicine.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label><label className="form-field"><span>Created</span><input readOnly value={formatDate(activeMedicine.created_at)} /></label><label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Description</span><textarea readOnly rows={3} value={activeMedicine.description ?? ''} /></label></div> : null}
       </Modal>
 
-      <ConfirmDialog confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete Medicine'} message={deleteTarget ? `Delete ${deleteTarget.name}? Historical audit records will be retained.` : ''} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) }); }} open={Boolean(deleteTarget)} title="Delete Medicine" />
+      <ConfirmDialog confirmLabel="Delete Medicine" loading={deleteMutation.isPending} message={deleteTarget ? `Delete ${deleteTarget.name}? Historical audit records will be retained.` : ''} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) }); }} open={Boolean(deleteTarget)} title="Delete Medicine" />
     </>
   );
 }

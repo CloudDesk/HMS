@@ -12,6 +12,7 @@ import {
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { BranchWardBedConfiguration } from '../components/branches/BranchWardBedConfiguration';
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
@@ -279,8 +280,11 @@ export function BranchManagementPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={6}>
-                        <span className="loading-spinner" /> Loading branches...
+                      <td colSpan={6} style={{ padding: '2.5rem 1rem' }}>
+                        <MedicalLoader
+                          text="Loading branches..."
+                          subtext="Retrieving hospital branch locations"
+                        />
                       </td>
                     </tr>
                   ) : loadError ? (
@@ -411,7 +415,14 @@ export function BranchManagementPage() {
             <>
               <button className="btn-secondary" disabled={submitting} onClick={closeModal} type="button">Cancel</button>
               <button className="btn-primary" disabled={submitting} form="branch-management-form" type="submit">
-                {submitting ? 'Saving...' : 'Save Branch'}
+                {submitting ? (
+                  <>
+                    <MedicalSpinner size="sm" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  'Save Branch'
+                )}
               </button>
             </>
           )}
@@ -551,7 +562,8 @@ export function BranchManagementPage() {
       {deleteTarget && (
         <ConfirmDialog
           open={!!deleteTarget}
-          confirmLabel={submitting ? 'Deleting...' : 'Delete Branch'}
+          loading={submitting}
+          confirmLabel="Delete Branch"
           message={`Are you sure you want to delete ${deleteTarget.name}? This action cannot be undone.`}
           onCancel={() => {
             if (!submitting) setDeleteTarget(null);

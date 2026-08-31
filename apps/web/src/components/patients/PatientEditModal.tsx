@@ -2,6 +2,7 @@ import type { SubmitHandler, UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import type { PatientResponse } from '../../api/patients';
 import { Modal } from '../ui/Modal';
+import { MedicalSpinner } from '../ui/MedicalLoader';
 
 export const updatePatientSchema = z.object({
   firstName: z.string().optional(),
@@ -129,7 +130,7 @@ export function PatientEditModal({ open, patient, canEditAllDetails, submitting,
 
         <div className="modal-actions">
           <button className="secondary-action" disabled={submitting} onClick={onClose} type="button">Cancel</button>
-          <button className="primary-action" disabled={submitting} type="submit">{submitting ? 'Saving...' : 'Save Profile'}</button>
+          <button className="primary-action" disabled={submitting} type="submit">{submitting ? <><MedicalSpinner size="sm" /><span>Saving...</span></> : 'Save Profile'}</button>
         </div>
       </form>
     </Modal>

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { CreateOpdVitalsPayload, OpdVisitResponse } from '../../api/opd';
 import { Modal } from '../ui/Modal';
+import { MedicalSpinner } from '../ui/MedicalLoader';
 
 const optionalNumber = z
   .string()
@@ -84,7 +85,14 @@ export function VitalsCaptureModal({ error, onClose, onSave, open, visit }: Prop
         <>
           <button className="secondary-action" disabled={isSubmitting} onClick={onClose} type="button">Cancel</button>
           <button className="primary-action" disabled={isSubmitting || !visit} onClick={() => void submit()} type="button">
-            {isSubmitting ? 'Saving vitals...' : 'Save Vitals'}
+            {isSubmitting ? (
+              <>
+                <MedicalSpinner size="sm" />
+                <span>Saving vitals...</span>
+              </>
+            ) : (
+              'Save Vitals'
+            )}
           </button>
         </>
       }

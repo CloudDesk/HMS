@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import type { ApiOpdVisitPriority, ApiOpdVisitStatus, OpdVisitResponse } from '../api/opd';
 import { useOpdQueue, type OpdQueueFilters } from '../hooks/opd/useOpdQueue';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import {
   getOpdErrorMessage,
   isActiveVisit,
@@ -119,7 +120,18 @@ export function OpdQueuePage() {
           <table className="doc-table">
             <thead><tr><th>Token</th><th>Patient &amp; Visit</th><th>Doctor</th><th>Wait</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {isLoading ? <tr><td className="um-state-cell" colSpan={7}>Loading doctor queue...</td></tr> : clinicianVisits.length === 0 ? <tr><td className="um-state-cell" colSpan={7}>No patients are ready for consultation for the selected filters.</td></tr> : clinicianVisits.map((visit, index) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
+                    <MedicalLoader
+                      text="Loading doctor queue..."
+                      subtext="Retrieving consultation waiting queue"
+                    />
+                  </td>
+                </tr>
+              ) : clinicianVisits.length === 0 ? (
+                <tr><td className="um-state-cell" colSpan={7}>No patients are ready for consultation for the selected filters.</td></tr>
+              ) : clinicianVisits.map((visit, index) => (
                 <tr key={visit.id}>
                   <td><span className="queue-token-chip">{tokenFor(visit, index)}</span></td>
                   <td><div className="doc-person"><span className="doc-avatar">{patientInitials(visit.patient_name)}</span><div><strong>{visit.patient_name}</strong><span>{visit.visit_number}</span></div></div></td>

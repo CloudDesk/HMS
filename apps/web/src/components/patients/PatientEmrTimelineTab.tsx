@@ -1,6 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import type { PatientTimelineEventResponse } from '../../api/patients';
 import { formatDateTime } from '../../pages/patient-utils';
+import { MedicalLoader } from '../ui/MedicalLoader';
 
 const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => {
   if (eventType === 'REGISTRATION') return 'ph ph-stethoscope';
@@ -79,7 +80,9 @@ export function PatientEmrTimelineTab({ loading, loadError, timeline, meta, filt
       </div>
 
       {loading ? (
-        <div className="um-state-cell">Loading EMR timeline events...</div>
+        <div style={{ padding: '2rem 1rem' }}>
+          <MedicalLoader text="Loading EMR timeline..." subtext="Retrieving chronological patient clinical events" />
+        </div>
       ) : loadError ? (
         <div className="um-state-cell" role="alert">{loadError}</div>
       ) : timeline.length === 0 ? (

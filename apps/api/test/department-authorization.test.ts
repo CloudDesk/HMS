@@ -6,8 +6,6 @@ import { SurgeryService } from '../src/modules/surgery/surgery.service.js';
 import { EmergencyService } from '../src/modules/emergency/emergency.service.js';
 import { InpatientAdmissionService } from '../src/modules/inpatient-admissions/inpatient-admission.service.js';
 import { createObjectId } from './factories.js';
-import { AdvancePaymentService } from '../src/modules/advance-payment/advance-payment.service.js';
-import { AdvancePaymentRepository } from '../src/modules/advance-payment/advance-payment.repository.js';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 
 test('Department-Level Authorization Boundary Tests', async (t) => {

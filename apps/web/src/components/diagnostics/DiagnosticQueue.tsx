@@ -2,6 +2,7 @@ import type { DiagnosticOrder, DiagnosticSummary } from '../../api/laboratory';
 import { navigate } from '../../routing/navigation';
 import { formatRegionalDateTime } from '../../utils/localization-utils';
 import { useTimezone } from '../../api/useSettings';
+import { MedicalLoader } from '../ui/MedicalLoader';
 
 type Props = {
   module: 'laboratory' | 'imaging';
@@ -98,7 +99,16 @@ export function DiagnosticQueue({
         <table className="data-table">
           <thead><tr><th>Patient</th><th>Source</th><th>Services</th><th>Doctor</th><th>Submitted</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={columnCount} className="um-state-cell"><span className="loading-spinner" /> Loading orders...</td></tr> : null}
+            {isLoading ? (
+              <tr>
+                <td colSpan={columnCount} style={{ padding: '2.5rem 1rem' }}>
+                  <MedicalLoader
+                    text={`Loading ${module === 'laboratory' ? 'laboratory' : 'imaging'} orders...`}
+                    subtext="Retrieving diagnostic orders and sample statuses"
+                  />
+                </td>
+              </tr>
+            ) : null}
             {isError ? <tr><td colSpan={columnCount} className="um-state-cell"><i className="ph ph-warning" /> Unable to load orders. Retry from this page.</td></tr> : null}
             {!isLoading && !isError && orders.length === 0 ? <tr><td colSpan={columnCount} className="um-state-cell"><i className="ph ph-inbox" /> No submitted orders match these filters.</td></tr> : null}
             {orders.map((order) => <tr key={order.id}>

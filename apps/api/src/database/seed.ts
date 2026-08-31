@@ -20,7 +20,6 @@ type PermissionDefinition = {
 type RoleDefinition = {
   code: string;
   name: string;
-  description: string;
   permissionCodes: string[];
 };
 
@@ -118,7 +117,7 @@ const permissionDefinitions: PermissionDefinition[] = [
   ...expandPermissions('Billing', {
     Invoices: ['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'],
   }, 'FINANCE', 'BILLING'),
-  ...expandPermissions('Reports', { 'Phase 2 Reports': ['View'] }, 'SYSTEM', 'REPORTS'),
+  ...expandPermissions('Reports', { 'Phase 2 Reports': ['View'] }, 'FINANCE', 'REPORTS'),
   ...['View', 'Edit', 'Export'].map((action) => ({
     ...permission('Administration', 'Settings', action, 'SYSTEM', 'ADMINISTRATION'),
     code: `settings.${action.toLowerCase()}`,
@@ -164,25 +163,21 @@ const roleDefinitions: RoleDefinition[] = [
   {
     code: 'ADMINISTRATOR',
     name: 'Administrator',
-    description: 'Phase 1 administrative configuration without routine clinical workflow access',
     permissionCodes: administratorPermissionCodes,
   },
   {
     code: 'PATIENT',
     name: 'Patient',
-    description: 'Self-service access to the patient portal and the linked patient record only',
     permissionCodes: [],
   },
   {
     code: 'GUARDIAN',
     name: 'Parent / Guardian',
-    description: 'Self-service access to verified dependent patient records',
     permissionCodes: [],
   },
   {
     code: 'RECEPTIONIST',
     name: 'Receptionist',
-    description: 'Patient registration, appointments, visit registration, and referral coordination',
     permissionCodes: [
       ...['View', 'Create', 'Edit'].map((action) => code('Patients', 'Patient Records', action)),
       ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
@@ -210,7 +205,6 @@ const roleDefinitions: RoleDefinition[] = [
   {
     code: 'CLINICIAN_NURSE',
     name: 'Clinician / Nurse',
-    description: 'Clinical queue support, patient document access, and vital-sign recording',
     permissionCodes: [
       code('Patients', 'Patient Records', 'View'),
       ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
@@ -230,7 +224,6 @@ const roleDefinitions: RoleDefinition[] = [
   {
     code: 'DOCTOR',
     name: 'Doctor',
-    description: 'Phase 1 doctor consultation and clinical ordering access',
     permissionCodes: [
       ...['View', 'Edit'].map((action) => code('Patients', 'Patient Records', action)),
       ...['View', 'Create'].map((action) => code('Patients', 'Patient Documents', action)),
@@ -257,7 +250,6 @@ const roleDefinitions: RoleDefinition[] = [
   {
     code: 'PHARMACY_USER',
     name: 'Pharmacy User',
-    description: 'Prescription review, medicine inventory, and Phase 1 dispensing access',
     permissionCodes: [
       code('OPD', 'OPD Prescription', 'View'),
       ...['View', 'RegisterBatch', 'RecordMovement', 'AdjustStock', 'EditBatch', 'ConfigureLowStock'].map((action) =>
@@ -268,19 +260,16 @@ const roleDefinitions: RoleDefinition[] = [
   {
     code: 'LABORATORY_USER',
     name: 'Laboratory User',
-    description: 'Laboratory queue processing, result entry, and verification',
     permissionCodes: ['View', 'Edit', 'EnterResult', 'VerifyResult'].map((action) => code('Laboratory', 'Orders', action)),
   },
   {
     code: 'IMAGING_USER',
     name: 'Imaging User',
-    description: 'Imaging queue processing, report entry, and verification',
     permissionCodes: ['View', 'Edit', 'EnterReport', 'VerifyReport'].map((action) => code('Imaging', 'Orders', action)),
   },
   {
     code: 'BILLING_AUTHORIZED',
     name: 'Billing Authorized',
-    description: 'Reusable permission profile for authorized Phase 1 billing users',
     permissionCodes: [
       code('Reports', 'Phase 2 Reports', 'View'),
       ...['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'].map((action) => code('Billing', 'Invoices', action)),
@@ -454,7 +443,6 @@ export const seedDatabase = async () => {
       { code: definition.code },
       { $set: {
         name: definition.name,
-        description: definition.description,
         type: 'system', status: 'active', deletedAt: null,
         permissionIds: requiredIds,
       } },

@@ -43,7 +43,7 @@ export class OpdClinicalOrderService {
 
   async submit(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
-    this.ensureOpenVisit(visit);
+    this.ensureOpenVisit(visit, true);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
 
@@ -144,8 +144,11 @@ export class OpdClinicalOrderService {
     return consultation;
   }
 
-  private ensureOpenVisit(visit: OpdVisit) {
-    if (terminalVisitStatuses.includes(visit.status)) {
+  private ensureOpenVisit(visit: OpdVisit, allowCompleted = false) {
+    const closed = allowCompleted
+      ? (['CANCELLED', 'NO_SHOW'] as OpdVisit['status'][])
+      : terminalVisitStatuses;
+    if (closed.includes(visit.status)) {
       throw new AppError('Clinical orders cannot be updated for a closed OPD visit', 400, 'VISIT_CLOSED');
     }
   }

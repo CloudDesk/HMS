@@ -11,6 +11,7 @@ import type { ServiceResponse } from '../api/services';
 import { ICD10_DIAGNOSES, type Icd10Diagnosis } from '../data/icd10-diagnoses';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import {
   ClinicalVitalCard,
   calculateBmi,
@@ -575,95 +576,6 @@ export function OpdVisitPage() {
     }
   };
 
-  const handleSendToPharmacy = async () => {
-    if (!visit) return;
-    if (prescriptionForm.items.length === 0) {
-      showToast('Add at least one medication before sending to pharmacy.', 'error');
-      return;
-    }
-    setUpdating('prescription-submit');
-    try {
-      await feature.actions.submitPrescription({
-        visitId: visit.id,
-        payload: {
-          items: prescriptionForm.items.map((i) => ({
-          medicine_name: i.medicine_name,
-          strength: i.strength || null,
-          dosage: i.dosage,
-          route: i.route || 'ORAL',
-          frequency: i.frequency,
-          duration: i.duration,
-          quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
-          intake_time: null,
-          instructions: i.instructions || null,
-        })),
-        follow_up_date: prescriptionForm.follow_up_date || null,
-        doctor_instructions: prescriptionForm.doctor_instructions || null,
-          patient_instructions: prescriptionForm.patient_instructions || null,
-        },
-      });
-      showToast('Prescription sent to Pharmacy queue successfully!', 'success');
-    } catch (err) {
-      showToast(getOpdErrorMessage(err), 'error');
-    } finally {
-      setUpdating('');
-    }
-  };
-
-  const handleSubmitLabOrder = async () => {
-    if (!visit) return;
-    if (labOrders.length === 0) {
-      showToast('Select at least one lab test to order.', 'error');
-      return;
-    }
-    setUpdating('lab-order-submit');
-    try {
-      await feature.actions.submitClinicalOrder('LABORATORY', {
-        priority: labPriority,
-        destination: labFacility,
-        specimen_type: labSampleType,
-        clinical_notes: labClinicalNotes || null,
-        instructions: labOrderSummary || null,
-        items: labOrders.map((o) => ({
-          service_id: o.id,
-          investigation_name: o.name,
-          category: o.category || labCategory,
-        })),
-      });
-      showToast('Laboratory order submitted to Laboratory queue successfully!', 'success');
-    } catch (err) {
-      showToast(getOpdErrorMessage(err), 'error');
-    } finally {
-      setUpdating('');
-    }
-  };
-
-  const handleSubmitImagingOrder = async () => {
-    if (!visit) return;
-    if (imagingOrders.length === 0) {
-      showToast('Select at least one imaging test to order.', 'error');
-      return;
-    }
-    setUpdating('imaging-order-submit');
-    try {
-      await feature.actions.submitClinicalOrder('IMAGING', {
-        priority: imagingPriority,
-        clinical_notes: imagingClinicalInfo || null,
-        instructions: imagingOrderInstructions || null,
-        items: imagingOrders.map((o) => ({
-          service_id: o.id,
-          investigation_name: o.name,
-          category: o.category || imagingCategory,
-        })),
-      });
-      showToast('Imaging order submitted to Radiology queue successfully!', 'success');
-    } catch (err) {
-      showToast(getOpdErrorMessage(err), 'error');
-    } finally {
-      setUpdating('');
-    }
-  };
-
   const completeConsultation = async () => {
     if (!visit) return;
     setUpdating('consultation-complete');
@@ -935,14 +847,16 @@ export function OpdVisitPage() {
           </button>
         </div>
       </section>
-
       <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
 
       {loadError ? <div className="form-error-banner">{loadError}</div> : null}
 
       {loading ? (
-        <section className="doc-card">
-          <div className="um-state-cell">Loading consultation workspace...</div>
+        <section className="doc-card" style={{ padding: '3rem 1rem' }}>
+          <MedicalLoader
+            text="Loading consultation workspace..."
+            subtext="Retrieving patient history, vitals, prescriptions, and clinical orders"
+          />
         </section>
       ) : !visit ? (
         <section className="doc-card opd-empty-workspace">
@@ -1137,19 +1051,17 @@ export function OpdVisitPage() {
                         <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Diagnosis')} type="button">
-                        Next: Diagnosis
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
-                      </button>
                       <button
-                        className="doc-btn success"
-                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
-                        onClick={completeConsultation}
-                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        className="doc-btn primary"
+                        onClick={() => {
+                          saveConsultationDraft();
+                          setActiveTab('Diagnosis');
+                          navigate(`/opd/consultation?id=${visit.id}&tab=Diagnosis`, { replace: true });
+                        }}
                         type="button"
                       >
-                        <i className="ph ph-check-circle" aria-hidden="true" />
-                        Complete Consultation
+                        Next: Diagnosis
+                        <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -1314,22 +1226,20 @@ export function OpdVisitPage() {
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                        <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
-                      </button>
-                      <button className="doc-btn" onClick={() => setActiveTab('Prescription')} type="button">
-                        Prescription
-                        <i aria-hidden="true" className="ph ph-arrow-right" />
                       </button>
                       <button
                         className="doc-btn primary"
-                        onClick={async () => {
-                          await saveConsultationDraft();
-                          showToast('Diagnosis saved successfully.', 'success');
+                        onClick={() => {
+                          saveConsultationDraft();
+                          setActiveTab('Prescription');
+                          navigate(`/opd/consultation?id=${visit.id}&tab=Prescription`, { replace: true });
                         }}
                         type="button"
                       >
-                        <i aria-hidden="true" className="ph ph-check-circle" />
-                        Save Diagnosis
+                        Next: Prescription
+                        <i aria-hidden="true" className="ph ph-arrow-right" />
                       </button>
                     </div>
                   </div>
@@ -1623,6 +1533,7 @@ export function OpdVisitPage() {
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                        <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
                       </button>
                       <button
@@ -1635,12 +1546,15 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        disabled={updating === 'prescription-submit' || prescriptionForm.items.length === 0}
-                        onClick={handleSendToPharmacy}
+                        onClick={() => {
+                          saveConsultationDraft();
+                          setActiveTab('Lab Orders');
+                          navigate(`/opd/consultation?id=${visit.id}&tab=Lab Orders`, { replace: true });
+                        }}
                         type="button"
                       >
-                        <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
-                        Send To Pharmacy
+                        Next: Lab Orders
+                        <i aria-hidden="true" className="ph ph-arrow-right" />
                       </button>
                     </div>
                   </div>
@@ -1852,12 +1766,15 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        disabled={updating === 'lab-order-submit' || labOrders.length === 0}
-                        onClick={handleSubmitLabOrder}
+                        onClick={() => {
+                          saveConsultationDraft();
+                          setActiveTab('Imaging Orders');
+                          navigate(`/opd/consultation?id=${visit.id}&tab=Imaging Orders`, { replace: true });
+                        }}
                         type="button"
                       >
-                        <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
-                        Submit Laboratory Order
+                        Next: Imaging Orders
+                        <i aria-hidden="true" className="ph ph-arrow-right" />
                       </button>
                     </div>
                   </div>
@@ -2048,12 +1965,15 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        disabled={updating === 'imaging-order-submit' || imagingOrders.length === 0}
-                        onClick={handleSubmitImagingOrder}
+                        onClick={() => {
+                          saveConsultationDraft();
+                          setActiveTab('Referral');
+                          navigate(`/opd/consultation?id=${visit.id}&tab=Referral`, { replace: true });
+                        }}
                         type="button"
                       >
-                        <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
-                        Submit Imaging Order
+                        Next: Referral
+                        <i aria-hidden="true" className="ph ph-arrow-right" />
                       </button>
                     </div>
                   </div>
@@ -2105,7 +2025,7 @@ export function OpdVisitPage() {
                           </option>
                           {filteredReferralDoctors.map((doc) => (
                             <option key={doc.id} value={doc.id}>
-                              {doc.display_name} â€” {doc.specialization} ({doc.consultation_room || 'OPD Room'})
+                              {doc.display_name} — {doc.specialization} ({doc.consultation_room || 'OPD Room'})
                             </option>
                           ))}
                         </select>
@@ -2146,21 +2066,20 @@ export function OpdVisitPage() {
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                        <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Follow-up')} type="button">
-                        Next: Follow-up
-                        <i className="ph ph-arrow-right" aria-hidden="true" />
-                      </button>
                       <button
-                        className="doc-btn success"
-                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
-                        onClick={completeConsultation}
-                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        className="doc-btn primary"
+                        onClick={() => {
+                          saveConsultationDraft();
+                          setActiveTab('Follow-up');
+                          navigate(`/opd/consultation?id=${visit.id}&tab=Follow-up`, { replace: true });
+                        }}
                         type="button"
                       >
-                        <i className="ph ph-check-circle" aria-hidden="true" />
-                        Complete Consultation
+                        Next: Follow-up
+                        <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -2203,6 +2122,7 @@ export function OpdVisitPage() {
                     </span>
                     <div>
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                        <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
                       </button>
                       <button
@@ -2212,8 +2132,17 @@ export function OpdVisitPage() {
                         style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                         type="button"
                       >
-                        <i className="ph ph-check-circle" aria-hidden="true" />
-                        Complete Consultation
+                        {updating === 'consultation-complete' ? (
+                          <>
+                            <MedicalSpinner size="sm" />
+                            <span>Completing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="ph ph-check-circle" aria-hidden="true" />
+                            Complete Consultation
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -2331,7 +2260,7 @@ export function OpdVisitPage() {
                           <div className="opd-document-details">
                             <strong>{doc.title}</strong>
                             <span>
-                              {doc.document_type} â€¢ {new Date(doc.created_at).toLocaleDateString()}
+                              {doc.document_type} • {new Date(doc.created_at).toLocaleDateString()}
                             </span>
                           </div>
                           <div className="opd-document-actions">

@@ -110,13 +110,13 @@ export function useOpdVisitFeature() {
     const visitId = workspace.visit.id;
     await workspace.mutations.completeConsultation({ visitId, payload: input.consultation });
     if (input.prescription) {
-      await workspace.mutations.submitPrescription({ visitId, payload: input.prescription }).catch(() => null);
+      await workspace.mutations.submitPrescription({ visitId, payload: input.prescription });
     }
     if (input.laboratory) {
-      await workspace.mutations.submitClinicalOrder({ visitId, type: 'LABORATORY', payload: input.laboratory }).catch(() => null);
+      await workspace.mutations.submitClinicalOrder({ visitId, type: 'LABORATORY', payload: input.laboratory });
     }
     if (input.imaging) {
-      await workspace.mutations.submitClinicalOrder({ visitId, type: 'IMAGING', payload: input.imaging }).catch(() => null);
+      await workspace.mutations.submitClinicalOrder({ visitId, type: 'IMAGING', payload: input.imaging });
     }
     if (input.invoice) {
       await workspace.mutations.createBillingInvoice(input.invoice).catch(() => null);

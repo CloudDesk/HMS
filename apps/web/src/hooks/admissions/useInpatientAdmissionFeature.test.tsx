@@ -3,7 +3,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdmissionRequest } from '../../api/inpatient-admissions';
-import { useInpatientAdmissionFeature } from './useInpatientAdmissionFeature';
+import {
+  useInpatientAdmissionFeature,
+  type InpatientAdmissionFeatureOptions,
+} from './useInpatientAdmissionFeature';
 
 // @vitest-environment jsdom
 
@@ -78,15 +81,18 @@ describe('useInpatientAdmissionFeature', () => {
   let container: HTMLDivElement;
   let root: Root;
   let queryClient: QueryClient;
-  let featureResult: any = null;
+  let featureResult: ReturnType<typeof useInpatientAdmissionFeature> | null = null;
 
-  function TestComponent(props: { options: any }) {
+  function TestComponent(props: { options: InpatientAdmissionFeatureOptions }) {
     featureResult = useInpatientAdmissionFeature(props.options);
     return null;
   }
 
   beforeEach(() => {
-    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    const reactTestEnvironment = globalThis as typeof globalThis & {
+      IS_REACT_ACT_ENVIRONMENT: boolean;
+    };
+    reactTestEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     container = document.createElement('div');
     document.body.append(container);
@@ -120,15 +126,18 @@ describe('useInpatientAdmissionFeature', () => {
       );
     });
 
-    expect(featureResult).not.toBeNull();
-    expect(featureResult.state.branchId).toBe('b-1');
-    expect(featureResult.state.branches).toHaveLength(1);
-    expect(featureResult.state.requests).toHaveLength(1);
-    expect(featureResult.state.beds).toHaveLength(1);
-    expect(featureResult.state.availablePatients).toHaveLength(1);
-    expect(typeof featureResult.actions.createRequest).toBe('function');
-    expect(typeof featureResult.actions.validateRequest).toBe('function');
-    expect(typeof featureResult.actions.confirmRequest).toBe('function');
-    expect(typeof featureResult.actions.cancelRequest).toBe('function');
+    const result = featureResult;
+    if (!result) {
+      throw new Error('Expected the admission feature hook to render a result.');
+    }
+    expect(result.state.branchId).toBe('b-1');
+    expect(result.state.branches).toHaveLength(1);
+    expect(result.state.requests).toHaveLength(1);
+    expect(result.state.beds).toHaveLength(1);
+    expect(result.state.availablePatients).toHaveLength(1);
+    expect(typeof result.actions.createRequest).toBe('function');
+    expect(typeof result.actions.validateRequest).toBe('function');
+    expect(typeof result.actions.confirmRequest).toBe('function');
+    expect(typeof result.actions.cancelRequest).toBe('function');
   });
 });

@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import type { EmergencyEncounter, EmergencyStatus, EmergencyTriageLevel } from '../api/emergency';
 import { useEmergencyWorkspaceFeature } from '../hooks/emergency/useEmergencyWorkspaceFeature';
 import { navigate } from '../routing/navigation';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 
 const triageLabel = (value?: EmergencyTriageLevel | null) => {
   if (!value) return 'Not triaged';
@@ -341,9 +342,11 @@ export function EmergencyQueuePage() {
               <tbody>
                 {state.listQuery.isLoading ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                      <i className="ph ph-circle-notch" style={{ animation: 'spin 1s linear infinite', marginRight: '6px' }} />
-                      Loading emergency queue...
+                    <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
+                      <MedicalLoader
+                        text="Loading emergency queue..."
+                        subtext="Prioritizing critical triage and acute emergency patients"
+                      />
                     </td>
                   </tr>
                 ) : filteredQueue.length === 0 ? (

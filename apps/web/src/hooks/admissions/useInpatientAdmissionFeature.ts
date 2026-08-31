@@ -21,7 +21,7 @@ export type AdmissionPatientOption = {
   sourceId: string;
 };
 
-type InpatientAdmissionFeatureOptions = {
+export type InpatientAdmissionFeatureOptions = {
   patientSearch: string;
   requestSearch: string;
   createOpen: boolean;

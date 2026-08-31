@@ -12,6 +12,7 @@ import { type UserResponse } from '../api/users';
 import { type ApiRoleStatus, type ApiRoleType, } from '../api/roles';
 import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { useAppLocation } from '../routing/navigation';
 import { toast } from 'sonner';
 
@@ -449,7 +450,11 @@ export function RolesPermissionsPage() {
               </select>
             </div>
             <div className="rp-role-list">
-              {rolesLoading ? <div className="rp-detail-empty">Loading roles...</div> : loadError ? <div className="rp-detail-empty">{loadError}</div> : roles.length ? roles.map((role) => (
+              {rolesLoading ? (
+                <div style={{ padding: '2rem 1rem' }}>
+                  <MedicalLoader size="small" text="Loading roles..." />
+                </div>
+              ) : loadError ? <div className="rp-detail-empty">{loadError}</div> : roles.length ? roles.map((role) => (
                 <button className={`rp-role-item${role.id === selectedRoleId ? ' active' : ''}`} key={role.id} onClick={() => setSelectedRoleId(role.id)} type="button">
                   <div className="rp-role-item-left">
                     <div className="rp-role-avatar" style={{ background: role.color ?? fallbackRoleColor(role.name) }}>{roleInitials(role.name)}</div>
@@ -483,11 +488,26 @@ export function RolesPermissionsPage() {
                 <button className="rp-btn-ghost" disabled={rolesLoading || permissionsLoading || roleLoading} onClick={() => void refreshRolesAndPermissions()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh</button>
                 <button className="rp-btn-ghost" disabled={!canEditPermissions} onClick={() => setAllPermissions(true)} type="button"><i className="ph ph-check-square" aria-hidden="true" /> Select All</button>
                 <button className="rp-btn-ghost" disabled={!canEditPermissions} onClick={() => setAllPermissions(false)} type="button"><i className="ph ph-square" aria-hidden="true" /> Clear All</button>
-                <button className={`rp-save-btn${dirty ? ' has-changes' : ''}`} disabled={!canEditPermissions || !dirty} onClick={() => void savePermissions()} type="button"><i className="ph ph-floppy-disk" aria-hidden="true" /> {submitting ? 'Saving...' : 'Save'}</button>
+                <button className={`rp-save-btn${dirty ? ' has-changes' : ''}`} disabled={!canEditPermissions || !dirty} onClick={() => void savePermissions()} type="button">
+                  {submitting ? (
+                    <>
+                      <MedicalSpinner size="sm" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="ph ph-floppy-disk" aria-hidden="true" /> Save
+                    </>
+                  )}
+                </button>
               </div> : null}
             </div>
             <div className="rp-matrix-wrap">
-              {roleLoading || permissionsLoading ? <div className="rp-matrix-empty"><i className="ph ph-spinner-gap" aria-hidden="true" /><p>Loading role permissions...</p></div> : permissionError ? <div className="rp-matrix-empty"><i className="ph ph-warning-circle" aria-hidden="true" /><p>{permissionError}</p></div> : !selectedRole ? <div className="rp-matrix-empty"><i className="ph ph-shield-check" aria-hidden="true" /><p>Select a role from the left panel to view and edit its permissions</p></div> : permissionRows.length ? (
+              {roleLoading || permissionsLoading ? (
+                <div style={{ padding: '3rem 1rem' }}>
+                  <MedicalLoader text="Loading permissions matrix..." subtext="Retrieving role-based access control policies" />
+                </div>
+              ) : permissionError ? <div className="rp-matrix-empty"><i className="ph ph-warning-circle" aria-hidden="true" /><p>{permissionError}</p></div> : !selectedRole ? <div className="rp-matrix-empty"><i className="ph ph-shield-check" aria-hidden="true" /><p>Select a role from the left panel to view and edit its permissions</p></div> : permissionRows.length ? (
                 <div className="matrix-table-wrap">
                   <table className="rp-matrix-table">
                     <thead><tr><th>Module / Screen</th>{permissionActions.map((action) => <th key={action}>{action}</th>)}</tr></thead>
@@ -578,7 +598,18 @@ export function RolesPermissionsPage() {
           ) : modalMode === 'assign-user' || modalMode === 'remove-user' ? (
             <button className="btn-primary" disabled={submitting} type="submit" form="user-form">{submitting ? 'Saving...' : modalMode === 'assign-user' ? 'Assign' : 'Remove'}</button>
           ) : modalMode !== 'audit' ? (
-            <button className="btn-primary" disabled={submitting} onClick={() => void handleModalAction()} type="button">{submitting ? 'Saving...' : modalMode === 'delete' ? 'Delete' : 'Save'}</button>
+            <button className="btn-primary" disabled={submitting} onClick={() => void handleModalAction()} type="button">
+              {submitting ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Saving...</span>
+                </>
+              ) : modalMode === 'delete' ? (
+                'Delete'
+              ) : (
+                'Save'
+              )}
+            </button>
           ) : null}
         </> : undefined}
         onClose={closeModal}
