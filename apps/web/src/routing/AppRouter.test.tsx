@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +13,8 @@ const testState = vi.hoisted(() => {
   return {
     pathname: '/opd/visit',
     status: 'authenticated',
+    permissions: [] as Array<{ code: string; module: string; screen: string; action: string }>,
+    roles: [{ id: 'super-admin-role', code: 'SUPER_ADMIN', name: 'Super Administrator' }],
     navigate: vi.fn(),
     opdPage,
     resolveOpdPage: () => resolveOpdPage?.({ OpdVisitPage: () => 'Lazy OPD workspace' }),
@@ -28,8 +32,8 @@ vi.mock('../auth/useAuth', () => ({
       status: 'active',
       patientId: null,
       branches: [],
-      permissions: [],
-      roles: [{ id: 'super-admin-role', code: 'SUPER_ADMIN', name: 'Super Administrator' }],
+      permissions: testState.permissions,
+      roles: testState.roles,
     },
   }),
 }));
@@ -55,6 +59,8 @@ describe('M-009 lazy staff routes', () => {
   beforeEach(() => {
     testState.pathname = '/opd/visit';
     testState.status = 'authenticated';
+    testState.permissions = [];
+    testState.roles = [{ id: 'super-admin-role', code: 'SUPER_ADMIN', name: 'Super Administrator' }];
     testState.navigate.mockReset();
     container = document.createElement('div');
     document.body.append(container);
@@ -94,4 +100,19 @@ describe('M-009 lazy staff routes', () => {
       { replace: true },
     );
   });
+
+  it.each(['/billing', '/administration', '/administration/users'])(
+    'blocks a Doctor from manually opening %s',
+    async (pathname) => {
+      testState.pathname = pathname;
+      testState.roles = [{ id: 'doctor-role', code: 'DOCTOR', name: 'Doctor' }];
+
+      await act(async () => {
+        root.render(<AppRouter />);
+      });
+
+      expect(container.textContent).toContain('Access denied');
+      expect(container.textContent).toContain('You do not have permission to open this page.');
+    },
+  );
 });

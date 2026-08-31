@@ -15,7 +15,8 @@ import {
 import { patientInitials } from './opd-utils';
 import { toast } from 'sonner';
 import { useAppointmentCalendarFeature } from '../hooks/appointments/useAppointmentCalendarFeature';
-import { useSettings, useTimezone } from '../api/useSettings';
+import { useTimezone } from '../api/useSettings';
+import { useFirstDayOfWeek } from '../hooks/settings/useSettings';
 import { formatInTimeZone } from 'date-fns-tz';
 
 const timeSlots = Array.from({ length: 11 }).map((_, index) => `${String(index + 8).padStart(2, '0')}:00`);
@@ -148,8 +149,7 @@ export function AppointmentCalendarPage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
 
-  const settings = useSettings();
-  const firstDayOfWeek = settings?.localization.firstDayOfWeek || 'Sunday';
+  const { firstDayOfWeek } = useFirstDayOfWeek();
 
   const weekDays = useMemo(() => buildWeekDays(calendarDate, firstDayOfWeek), [calendarDate, firstDayOfWeek]);
   const monthDays = useMemo(() => buildMonthDays(calendarDate), [calendarDate]);

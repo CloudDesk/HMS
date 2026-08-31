@@ -2,10 +2,11 @@ import { env } from '../../config/env.js';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../shared/errors/app-error.js';
 import { hashPassword, verifyPassword } from '../../shared/security/hash.js';
-import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
+import { assertPasswordPolicy, getEffectivePasswordPolicy } from '../../shared/security/password-policy.js';
 import { createCsvStream } from '../../shared/http/csv.js';
 import type { ClientSession } from 'mongoose';
 import type { RoleRepository } from '../roles/role.repository.js';
+import type { SettingsService } from '../settings/settings.service.js';
 import { UserRepository } from './user.repository.js';
 import type {
   AssignmentInput,
@@ -34,8 +35,10 @@ type CreateUserInput = {
   password: string;
   branches: AssignmentInput[];
   departments: AssignmentInput[];
-  roleIds: string[];
+  roleIds?: string[];
 };
+
+type NormalizedCreateUserInput = Omit<CreateUserInput, 'roleIds'> & { roleIds: string[] };
 
 type UpdateUserInput = Partial<Omit<CreateUserInput, 'password' | 'status'>> & {
   branches?: AssignmentInput[];
@@ -92,10 +95,17 @@ const eventForStatus = (status: UserStatus) => {
   return 'user.locked';
 };
 
+const defaultRoleCode = {
+  Nurse: 'CLINICIAN_NURSE',
+  Receptionist: 'RECEPTIONIST',
+  Doctor: 'DOCTOR',
+} as const;
+
 export class UserService {
   constructor(
     private readonly repository: UserRepository,
     private readonly roleRepository: RoleRepository,
+    private readonly settings?: Pick<SettingsService, 'getRuntimeUserPreferences'>,
   ) {}
 
   async list(query: Partial<UserListQuery>) {
@@ -134,8 +144,8 @@ export class UserService {
   }
 
   async create(input: CreateUserInput, actorUserId: string, metadata: RequestMetadata) {
-    const normalized = this.normalizeCreateInput(input);
-    assertPasswordPolicy(normalized.password);
+    const normalized = this.normalizeCreateInput(await this.applyConfiguredDefaultRole(input));
+    assertPasswordPolicy(normalized.password, await this.getPasswordPolicy());
     await this.assertUniqueFields({
       username: normalized.username,
       email: normalized.email,
@@ -186,7 +196,7 @@ export class UserService {
       throw new AppError('Login email is required', 400, 'DOCTOR_LOGIN_EMAIL_REQUIRED');
     }
 
-    assertPasswordPolicy(normalized.password);
+    assertPasswordPolicy(normalized.password, await this.getPasswordPolicy());
     await this.assertUniqueFields(
       {
         username: normalized.username,
@@ -248,7 +258,7 @@ export class UserService {
       throw new AppError('This patient already has a portal account', 409, 'PATIENT_ACCOUNT_EXISTS');
     }
 
-    assertPasswordPolicy(input.password);
+    assertPasswordPolicy(input.password, await this.getPasswordPolicy());
     await this.assertUniqueFields({ username, email, employeeCode });
 
     const user = await this.repository.create({
@@ -290,7 +300,7 @@ export class UserService {
     if (!fullName) throw new AppError('Full name is required', 400, 'FULL_NAME_REQUIRED');
     if (!emailPattern.test(email)) throw new AppError('Email format is invalid', 400, 'INVALID_EMAIL');
     if (!phonePattern.test(input.phone) || phone.length < 7) throw new AppError('Mobile number is invalid', 400, 'INVALID_PHONE');
-    assertPasswordPolicy(input.password);
+    assertPasswordPolicy(input.password, await this.getPasswordPolicy());
     await this.assertUniqueFields({ username: email, email, phone });
 
     const user = await this.repository.create({
@@ -517,7 +527,7 @@ export class UserService {
     metadata: RequestMetadata,
     eventType: string,
   ) {
-    assertPasswordPolicy(newPassword);
+    assertPasswordPolicy(newPassword, await this.getPasswordPolicy());
     const user = await this.repository.updatePassword(id, await hashPassword(newPassword), actorUserId);
 
     if (!user) {
@@ -581,8 +591,8 @@ export class UserService {
     }));
   }
 
-  private normalizeCreateInput(input: CreateUserInput): CreateUserInput {
-    const normalized: CreateUserInput = {
+  private normalizeCreateInput(input: CreateUserInput): NormalizedCreateUserInput {
+    const normalized: NormalizedCreateUserInput = {
       employeeCode: normalizeText(input.employeeCode),
       username: normalizeText(input.username),
       email: normalizeOptionalText(input.email),
@@ -653,7 +663,10 @@ export class UserService {
     return normalized;
   }
 
-  private normalizeRoleIds(roleIds: string[]) {
+  private normalizeRoleIds(roleIds: string[] | undefined) {
+    if (!roleIds) {
+      throw new AppError('At least one role assignment is required', 400, 'ROLE_ASSIGNMENT_REQUIRED');
+    }
     const normalized = roleIds.map(normalizeText).filter(Boolean);
     if (normalized.length === 0) {
       throw new AppError('At least one role assignment is required', 400, 'ROLE_ASSIGNMENT_REQUIRED');
@@ -662,6 +675,25 @@ export class UserService {
       throw new AppError('Duplicate role assignment', 400, 'DUPLICATE_ROLE_ASSIGNMENT');
     }
     return normalized;
+  }
+
+  private async applyConfiguredDefaultRole(input: CreateUserInput): Promise<CreateUserInput> {
+    if (input.roleIds?.some((roleId) => normalizeText(roleId))) {
+      return input;
+    }
+
+    const preferences = await this.settings?.getRuntimeUserPreferences();
+    if (!preferences) {
+      return input;
+    }
+
+    const role = await this.roleRepository.findActiveByCode(defaultRoleCode[preferences.defaultRole]);
+    return role ? { ...input, roleIds: [role.id] } : input;
+  }
+
+  private async getPasswordPolicy() {
+    const preferences = await this.settings?.getRuntimeUserPreferences() ?? null;
+    return getEffectivePasswordPolicy(preferences);
   }
 
   private async validateReferences(

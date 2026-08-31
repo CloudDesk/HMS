@@ -3,13 +3,17 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { hashPassword, sha256, verifyPassword } from '../../shared/security/hash.js';
 import { signJwt, verifyJwt } from '../../shared/security/jwt.js';
-import { assertPasswordPolicy } from '../../shared/security/password-policy.js';
+import {
+  assertPasswordPolicy,
+  getEffectivePasswordPolicy,
+} from '../../shared/security/password-policy.js';
 import type { AuthenticatedUser } from '../../shared/types/auth.js';
 import type { PatientOtpService, PatientOtpVerification } from '../patient-portal/patient-otp.service.js';
 import { isPatientOtpVerificationForPhone } from '../patient-portal/patient-otp.service.js';
 import { AuthRepository } from './auth.repository.js';
 import type { AuthUserRecord, RequestMetadata } from './auth.types.js';
 import { AuthRateLimitRepository } from './auth-rate-limit.repository.js';
+import type { SettingsService } from '../settings/settings.service.js';
 
 type TokenPair = {
   accessToken: string;
@@ -79,16 +83,11 @@ export class AuthService {
     private readonly patientOtp: PatientOtpService,
     private readonly rateLimits = new AuthRateLimitRepository(),
     private readonly rateLimitOptions: AuthRateLimitOptions = {},
+    private readonly settings?: Pick<SettingsService, 'getRuntimeUserPreferences'>,
   ) {}
 
-  getPasswordPolicy() {
-    return {
-      minLength: env.auth.passwordPolicy.minLength,
-      requireUppercase: env.auth.passwordPolicy.requireUppercase,
-      requireLowercase: env.auth.passwordPolicy.requireLowercase,
-      requireNumber: env.auth.passwordPolicy.requireNumber,
-      requireSymbol: env.auth.passwordPolicy.requireSymbol,
-    };
+  async getPasswordPolicy() {
+    return getEffectivePasswordPolicy(await this.getRuntimeUserPreferences());
   }
 
   async login(input: LoginInput, metadata: RequestMetadata) {
@@ -125,9 +124,17 @@ export class AuthService {
 
     if (!passwordMatches) {
       const lockedUntil = addMinutes(env.auth.lockoutMinutes);
+      const preferences = await this.getRuntimeUserPreferences();
+      const configuredLimit = preferences?.maxFailedLoginAttempts;
+      const failedLoginLimit = Number.isInteger(configuredLimit)
+        && configuredLimit !== undefined
+        && configuredLimit >= 1
+        && configuredLimit <= 20
+        ? configuredLimit
+        : env.auth.failedLoginLimit;
       const updatedUser = await this.repository.incrementFailedLogin(
         user.id,
-        env.auth.failedLoginLimit,
+        failedLoginLimit,
         lockedUntil,
       );
       await this.repository.audit('auth.login.failed', {
@@ -330,7 +337,7 @@ export class AuthService {
       throw new AppError('Current password is invalid', 400, 'INVALID_CURRENT_PASSWORD');
     }
 
-    assertPasswordPolicy(input.newPassword);
+    assertPasswordPolicy(input.newPassword, await this.getPasswordPolicy());
     await this.repository.updatePassword(user.id, await hashPassword(input.newPassword));
     await this.repository.revokeAllRefreshTokensForUser(user.id);
     await this.repository.audit('auth.password.changed', {
@@ -366,7 +373,7 @@ export class AuthService {
 
   async confirmPasswordReset(input: PasswordResetConfirmInput, metadata: RequestMetadata) {
     await this.enforcePublicAuthRateLimits('password-reset-confirm', input.resetToken, metadata);
-    assertPasswordPolicy(input.newPassword);
+    assertPasswordPolicy(input.newPassword, await this.getPasswordPolicy());
 
     const record = await this.repository.findPasswordResetTokenByHash(sha256(input.resetToken));
 
@@ -409,6 +416,10 @@ export class AuthService {
       expiresIn: env.auth.accessTokenTtlSeconds,
       refreshExpiresIn: env.auth.refreshTokenTtlSeconds,
     };
+  }
+
+  private async getRuntimeUserPreferences() {
+    return this.settings?.getRuntimeUserPreferences() ?? null;
   }
 
   private async publicUser(user: AuthUserRecord) {

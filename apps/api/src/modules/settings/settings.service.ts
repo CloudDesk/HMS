@@ -31,6 +31,22 @@ export class SettingsService {
     return this.repository.get();
   }
 
+  async getRuntimeUserPreferences() {
+    try {
+      return (await this.repository.get()).userPreferences;
+    } catch {
+      return null;
+    }
+  }
+
+  async getRuntimeFirstDayOfWeek() {
+    try {
+      return (await this.repository.get()).localization.firstDayOfWeek;
+    } catch {
+      return null;
+    }
+  }
+
   async updateGeneral(
     input: GeneralSettingsInput,
     actorUserId: string,

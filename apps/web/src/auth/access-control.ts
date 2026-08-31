@@ -17,6 +17,7 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/administration/departments': [{ module: 'Administration', screen: 'Departments' }],
   '/administration/services': [{ module: 'Administration', screen: 'Services' }],
   '/administration/medicines': [{ module: 'Administration', screen: 'Medicines' }],
+  '/pharmacy': [{ module: 'Pharmacy', screen: 'Dispensing' }],
   '/pharmacy/inventory': [{ module: 'Pharmacy', screen: 'Medicine Inventory' }],
   '/pharmacy/queue': [{ module: 'Pharmacy', screen: 'Dispensing' }],
   '/pharmacy/dispensing': [{ module: 'Pharmacy', screen: 'Dispensing' }],
@@ -39,6 +40,9 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/patients/search': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/register': [{ module: 'Patients', screen: 'Patient Records', action: 'Create' }],
   '/patients/profile': [{ module: 'Patients', screen: 'Patient Records' }],
+  '/patients/history': [{ module: 'Patients', screen: 'Patient Records' }],
+  '/patients/emr': [{ module: 'Patients', screen: 'Patient Records' }],
+  '/patients/documents': [{ module: 'Patients', screen: 'Patient Documents' }],
   '/patients/consent': [{ module: 'Patients', screen: 'Consent' }],
   '/patients/consents': [{ module: 'Patients', screen: 'Consent' }],
   '/doctors': [{ module: 'Doctors', screen: 'Doctor Directory' }],
@@ -67,8 +71,10 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/opd/visit': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/admissions/bed-availability': [{ module: 'Admissions', screen: 'Beds' }],
-  '/admissions/beds': [{ module: 'Admissions', screen: 'Beds', action: 'ChangeStatus' }],
-  '/admissions/inpatients': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
+  '/admissions/beds': [{ module: 'Admissions', screen: 'Beds' }],
+  '/admissions/inpatients': [{ module: 'Admissions', screen: 'Admission Requests' }],
+  '/admissions/requests': [{ module: 'Admissions', screen: 'Admission Requests' }],
+  '/admissions/workspace': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
   '/reports/library': [{ module: 'Reports', screen: 'Phase 2 Reports' }],
   '/surgery': [
     { module: 'Surgery', screen: 'Recommendations' },
@@ -84,7 +90,14 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
 };
 
 const normalize = (value: string) => value.trim().toLowerCase();
-const isSuperAdministrator = (roles: AuthRole[]) =>
+const pathnameOnly = (value: string) => {
+  const delimiterIndex = value.search(/[?#]/);
+  const pathname = delimiterIndex >= 0 ? value.slice(0, delimiterIndex) : value;
+  if (pathname.length > 1 && pathname.endsWith('/')) return pathname.slice(0, -1);
+  return pathname;
+};
+
+export const isSuperAdministrator = (roles: AuthRole[]) =>
   roles.some((role) => role.code === 'SUPER_ADMIN');
 
 export const hasPermission = (permissions: AuthPermission[], requirement: PermissionRequirement) =>
@@ -95,17 +108,19 @@ export const hasPermission = (permissions: AuthPermission[], requirement: Permis
       normalize(permission.action) === normalize(requirement.action ?? 'View'),
   );
 
-export const isPermissionControlledRoute = (pathname: string) => pathname in routeRequirements;
+export const isPermissionControlledRoute = (pathname: string) =>
+  pathnameOnly(pathname) in routeRequirements;
 
 export const canAccessRoute = (
   pathname: string,
   permissions: AuthPermission[],
   roles: AuthRole[] = [],
 ) => {
-  if (pathname === '/' || pathname === '/dashboard') return true;
+  const normalizedPathname = pathnameOnly(pathname);
+  if (normalizedPathname === '/' || normalizedPathname === '/dashboard') return true;
   if (isSuperAdministrator(roles)) return true;
 
-  const requirements = routeRequirements[pathname];
+  const requirements = routeRequirements[normalizedPathname];
   if (!requirements) return false;
 
   return requirements.every((requirement) => hasPermission(permissions, requirement));

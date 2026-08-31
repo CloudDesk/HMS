@@ -1,13 +1,25 @@
-import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useDashboardOverviewFeature } from '../hooks/dashboard/useDashboardOverviewFeature';
 import { useAuth } from '../auth/useAuth';
-import { useAppLocation } from '../routing/navigation';
+import {
+  canAccessRoute,
+  getAccessibleSidebarModules,
+  hasPermission,
+  isSuperAdministrator,
+} from '../auth/access-control';
+import type { AuthUser } from '../auth/auth-types';
+import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDateTime } from './patient-utils';
 import { DoctorDashboardPage } from './DoctorDashboardPage';
 import { AppointmentDashboardPage } from './AppointmentDashboardPage';
 import { OpdDashboardPage } from './OpdDashboardPage';
 import { BillingDashboardPage } from './BillingDashboardPage';
 import { AdministrationDashboardPage } from './AdministrationDashboardPage';
+import { PrescriptionQueuePage } from './PrescriptionQueuePage';
+import { PharmacyMedicineInventoryPage } from './PharmacyMedicineInventoryPage';
+import { LaboratoryQueuePage } from './LaboratoryQueuePage';
+import { ImagingQueuePage } from './ImagingQueuePage';
+import { PhaseTwoReportsPage } from './PhaseTwoReportsPage';
 import { useCurrencyFormatter } from '../api/useSettings';
 
 
@@ -42,7 +54,6 @@ function ExecutiveOverviewTab() {
 
   const loadError = isError ? 'Executive dashboard metrics could not be updated.' : '';
   const maxRevenue = Math.max(1, ...data.trend.map((t) => t.revenue));
-  const formatCurrency = useCurrencyFormatter();
 
   return (
     <div className="dashboard-grid">
@@ -164,85 +175,198 @@ function ExecutiveOverviewTab() {
   );
 }
 
-type DashboardTab = 'overview' | 'doctors' | 'appointments' | 'opd' | 'billing' | 'admin';
+type DashboardTabDefinition = {
+  key: string;
+  label: string;
+  icon: string;
+  content: ReactNode;
+};
 
-const isDashboardTab = (val: string | null): val is DashboardTab => {
-  return val !== null && ['overview', 'doctors', 'appointments', 'opd', 'billing', 'admin'].includes(val);
+const canView = (user: AuthUser, module: string, screen: string) =>
+  hasPermission(user.permissions, { module, screen, action: 'View' });
+
+function AccessibleModulesOverview({ user }: { user: AuthUser }) {
+  const modules = getAccessibleSidebarModules(user.permissions, user.roles);
+
+  return (
+    <div className="doctor-page">
+      <section className="doctor-page-header">
+        <div className="doctor-page-title">
+          <h2>My HMS Workspace</h2>
+          <p>Modules available through your current role and permissions.</p>
+        </div>
+      </section>
+
+      {modules.length === 0 ? (
+        <div className="admin-dashboard-state" role="status">
+          <i className="ph ph-shield-warning" aria-hidden="true" />
+          <strong>No staff modules are assigned</strong>
+          <span>Contact a system administrator if you require additional access.</span>
+        </div>
+      ) : (
+        <section className="doc-grid dashboard-bottom" aria-label="Permitted HMS modules">
+          {modules.map((module) => (
+            <article className="doc-card" key={module.key}>
+              <div className="doc-card-header">
+                <div>
+                  <h3><i className={`ph ${module.icon}`} aria-hidden="true" /> {module.label}</h3>
+                  <p>{module.links.length} permitted {module.links.length === 1 ? 'workspace' : 'workspaces'}</p>
+                </div>
+              </div>
+              <div className="doc-quick-actions">
+                {module.links.map((link) => (
+                  <button className="doc-quick-action" key={link.href} onClick={() => navigate(link.href)} type="button">
+                    <i className="ph ph-arrow-square-out" aria-hidden="true" />
+                    <span><strong>{link.label}</strong><span>Open permitted workspace</span></span>
+                  </button>
+                ))}
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ModuleWorkspaceOverview({ user, moduleKey }: { user: AuthUser; moduleKey: string }) {
+  const module = getAccessibleSidebarModules(user.permissions, user.roles)
+    .find((candidate) => candidate.key === moduleKey);
+
+  if (!module) return <AccessibleModulesOverview user={user} />;
+
+  return (
+    <div className="doctor-page">
+      <section className="doctor-page-header">
+        <div className="doctor-page-title">
+          <h2>{module.label}</h2>
+          <p>Open an operational workspace permitted by your current access.</p>
+        </div>
+      </section>
+      <section className="doc-card" aria-label={`${module.label} workspaces`}>
+        <div className="doc-quick-actions">
+          {module.links.map((link) => (
+            <button className="doc-quick-action" key={link.href} onClick={() => navigate(link.href)} type="button">
+              <i className={`ph ${module.icon}`} aria-hidden="true" />
+              <span><strong>{link.label}</strong><span>Open permitted workspace</span></span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+const buildSuperAdministratorTabs = (): DashboardTabDefinition[] => [
+  { key: 'overview', label: 'Overview', icon: 'ph-squares-four', content: <ExecutiveOverviewTab /> },
+  { key: 'doctors', label: 'Doctors', icon: 'ph-stethoscope', content: <DoctorDashboardPage /> },
+  { key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: <AppointmentDashboardPage /> },
+  { key: 'opd', label: 'OPD', icon: 'ph-first-aid', content: <OpdDashboardPage /> },
+  { key: 'billing', label: 'Billing', icon: 'ph-receipt', content: <BillingDashboardPage /> },
+  { key: 'admin', label: 'Administration', icon: 'ph-gear', content: <AdministrationDashboardPage /> },
+];
+
+const buildPermissionTabs = (user: AuthUser): DashboardTabDefinition[] => {
+  const doctorUser = user.roles.some((role) => role.code === 'DOCTOR');
+  const tabs: DashboardTabDefinition[] = [];
+
+  if (
+    doctorUser &&
+    canView(user, 'Doctors', 'Doctor Directory') &&
+    canView(user, 'Appointments', 'Appointment Records')
+  ) {
+    tabs.push({ key: 'clinical', label: 'My Clinical Day', icon: 'ph-stethoscope', content: <DoctorDashboardPage /> });
+  }
+
+  if (canView(user, 'Administration', 'Dashboard')) {
+    tabs.push({ key: 'admin', label: 'Administration', icon: 'ph-gear', content: <AdministrationDashboardPage /> });
+  }
+
+  if (canView(user, 'Pharmacy', 'Dispensing')) {
+    tabs.push({ key: 'pharmacy', label: 'Pharmacy Queue', icon: 'ph-pill', content: <PrescriptionQueuePage /> });
+  }
+  if (canView(user, 'Pharmacy', 'Medicine Inventory')) {
+    tabs.push({ key: 'pharmacy-inventory', label: 'Pharmacy Inventory', icon: 'ph-package', content: <PharmacyMedicineInventoryPage /> });
+  }
+  if (canView(user, 'Laboratory', 'Orders')) {
+    tabs.push({ key: 'laboratory', label: 'Laboratory', icon: 'ph-flask', content: <LaboratoryQueuePage /> });
+  }
+  if (canView(user, 'Imaging', 'Orders')) {
+    tabs.push({ key: 'imaging', label: 'Imaging', icon: 'ph-image-square', content: <ImagingQueuePage /> });
+  }
+  if (canView(user, 'Billing', 'Invoices')) {
+    tabs.push({ key: 'billing', label: 'Billing', icon: 'ph-receipt', content: <BillingDashboardPage /> });
+  }
+  if (!doctorUser && canView(user, 'Appointments', 'Appointment Records')) {
+    tabs.push({ key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: <AppointmentDashboardPage /> });
+  }
+  if (canView(user, 'OPD', 'OPD Visits')) {
+    tabs.push({ key: 'opd', label: 'OPD', icon: 'ph-first-aid', content: <OpdDashboardPage /> });
+  }
+  if (canView(user, 'Emergency', 'Encounters')) {
+    tabs.push({ key: 'emergency', label: 'Emergency', icon: 'ph-warning-circle', content: <ModuleWorkspaceOverview moduleKey="emergency" user={user} /> });
+  }
+  if (
+    canView(user, 'Admissions', 'Inpatient Admissions') ||
+    canView(user, 'Admissions', 'Admission Requests')
+  ) {
+    tabs.push({ key: 'admissions', label: 'Admissions', icon: 'ph-bed', content: <ModuleWorkspaceOverview moduleKey="admissions" user={user} /> });
+  }
+  if (canAccessRoute('/surgery', user.permissions, user.roles)) {
+    tabs.push({ key: 'surgery', label: 'Surgery', icon: 'ph-scissors', content: <ModuleWorkspaceOverview moduleKey="surgery" user={user} /> });
+  }
+  if (canView(user, 'Reports', 'Phase 2 Reports')) {
+    tabs.push({ key: 'reports', label: 'Reports', icon: 'ph-chart-bar', content: <PhaseTwoReportsPage /> });
+  }
+
+  return tabs.length > 0
+    ? tabs
+    : [{ key: 'access', label: 'My Access', icon: 'ph-squares-four', content: <AccessibleModulesOverview user={user} /> }];
 };
 
 export function DashboardShell() {
+  const { user } = useAuth();
   const location = useAppLocation();
   const searchParams = new URLSearchParams(location.search);
-  const rawTab = searchParams.get('tab');
-  const requestedTab = isDashboardTab(rawTab) ? rawTab : 'overview';
-  const [activeTab, setActiveTab] = useState<DashboardTab>(requestedTab);
+  if (!user) return null;
 
-  useEffect(() => {
-    if (requestedTab && ['overview', 'doctors', 'appointments', 'opd', 'billing', 'admin'].includes(requestedTab)) {
-      setActiveTab(requestedTab);
-    }
-  }, [requestedTab]);
+  const tabs = isSuperAdministrator(user.roles)
+    ? buildSuperAdministratorTabs()
+    : buildPermissionTabs(user);
+  const requestedTab = searchParams.get('tab');
+  const activeTab = tabs.find((tab) => tab.key === requestedTab) ?? tabs[0] ?? {
+    key: 'access',
+    label: 'My Access',
+    icon: 'ph-squares-four',
+    content: <AccessibleModulesOverview user={user} />,
+  };
+
+  const selectTab = (key: string) => {
+    const next = new URLSearchParams(location.search);
+    next.set('tab', key);
+    navigate(`/dashboard?${next.toString()}`);
+  };
 
   return (
     <div className="dashboard-master-wrapper">
-      <div className="dashboard-tab-bar" style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid #e2e8f0', marginBottom: '1.25rem' }}>
-        <button
-          className={`dashboard-tab-btn${activeTab === 'overview' ? ' active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-          type="button"
-        >
-          <i className="ph ph-squares-four" aria-hidden="true" />
-          Overview
-        </button>
-        <button
-          className={`dashboard-tab-btn${activeTab === 'doctors' ? ' active' : ''}`}
-          onClick={() => setActiveTab('doctors')}
-          type="button"
-        >
-          <i className="ph ph-stethoscope" aria-hidden="true" />
-          Doctors
-        </button>
-        <button
-          className={`dashboard-tab-btn${activeTab === 'appointments' ? ' active' : ''}`}
-          onClick={() => setActiveTab('appointments')}
-          type="button"
-        >
-          <i className="ph ph-calendar-blank" aria-hidden="true" />
-          Appointments
-        </button>
-        <button
-          className={`dashboard-tab-btn${activeTab === 'opd' ? ' active' : ''}`}
-          onClick={() => setActiveTab('opd')}
-          type="button"
-        >
-          <i className="ph ph-first-aid" aria-hidden="true" />
-          OPD
-        </button>
-        <button
-          className={`dashboard-tab-btn${activeTab === 'billing' ? ' active' : ''}`}
-          onClick={() => setActiveTab('billing')}
-          type="button"
-        >
-          <i className="ph ph-receipt" aria-hidden="true" />
-          Billing
-        </button>
-        <button
-          className={`dashboard-tab-btn${activeTab === 'admin' ? ' active' : ''}`}
-          onClick={() => setActiveTab('admin')}
-          type="button"
-        >
-          <i className="ph ph-gear" aria-hidden="true" />
-          Administration
-        </button>
+      <div aria-label="Dashboard sections" className="dashboard-tab-bar" role="tablist" style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid #e2e8f0', marginBottom: '1.25rem', overflowX: 'auto' }}>
+        {tabs.map((tab) => (
+          <button
+            aria-selected={activeTab.key === tab.key}
+            className={`dashboard-tab-btn${activeTab.key === tab.key ? ' active' : ''}`}
+            key={tab.key}
+            onClick={() => selectTab(tab.key)}
+            role="tab"
+            type="button"
+          >
+            <i className={`ph ${tab.icon}`} aria-hidden="true" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <div className="dashboard-tab-content">
-        {activeTab === 'overview' ? <ExecutiveOverviewTab /> : null}
-        {activeTab === 'doctors' ? <DoctorDashboardPage /> : null}
-        {activeTab === 'appointments' ? <AppointmentDashboardPage /> : null}
-        {activeTab === 'opd' ? <OpdDashboardPage /> : null}
-        {activeTab === 'billing' ? <BillingDashboardPage /> : null}
-        {activeTab === 'admin' ? <AdministrationDashboardPage /> : null}
+      <div className="dashboard-tab-content" role="tabpanel">
+        {activeTab.content}
       </div>
     </div>
   );

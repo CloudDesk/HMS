@@ -123,8 +123,9 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const sms = createSmsService();
   const authRateLimits = new AuthRateLimitRepository();
   const patientOtpService = new PatientOtpService(new PatientOtpRepository(), sms, undefined, authRateLimits);
-  const authService = new AuthService(authRepository, patientOtpService, authRateLimits);
-  const userService = new UserService(userRepository, roleRepository);
+  const settingsService = new SettingsService(settingsRepository, new SettingsLogoStorage());
+  const authService = new AuthService(authRepository, patientOtpService, authRateLimits, {}, settingsService);
+  const userService = new UserService(userRepository, roleRepository, settingsService);
   const appointmentService = new AppointmentService(
     appointmentRepository,
     patientRepository,
@@ -230,7 +231,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     ),
     imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository),
     billing: billingService,
-    settings: new SettingsService(settingsRepository, new SettingsLogoStorage()),
+    settings: settingsService,
     notification: new NotificationService(notificationRepository),
     pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
     patientPortal: new PatientPortalService(

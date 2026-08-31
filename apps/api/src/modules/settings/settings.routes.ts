@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { authenticate } from '../../middleware/authenticate.js';
 import { requirePermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
@@ -27,6 +28,14 @@ const metadataFromRequest = (request: FastifyRequest) => ({
 });
 
 export const registerSettingsRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.get(
+    '/api/settings/runtime/first-day-of-week',
+    { preHandler: authenticate(services) },
+    async () => ok({
+      firstDayOfWeek: await services.settings.getRuntimeFirstDayOfWeek() ?? 'Sunday',
+    }),
+  );
+
   app.get(
     '/api/settings',
     { preHandler: requirePermission(services, 'Administration', 'Settings', 'View') },

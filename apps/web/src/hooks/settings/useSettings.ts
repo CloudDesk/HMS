@@ -12,6 +12,7 @@ import {
 export const settingsKeys = {
   all: ['settings'] as const,
   details: () => [...settingsKeys.all, 'detail'] as const,
+  firstDayOfWeek: () => [...settingsKeys.all, 'runtime', 'firstDayOfWeek'] as const,
   auditLogs: () => [...settingsKeys.all, 'auditLogs'] as const,
   auditLogList: (params: { search?: string; action?: AuditAction; page?: number; limit?: number }) => [...settingsKeys.auditLogs(), params] as const,
 };
@@ -22,6 +23,18 @@ export function useSystemSettings(enabled = true) {
     queryFn: () => settingsApi.get(),
     enabled,
   });
+}
+
+export function useFirstDayOfWeek() {
+  const query = useQuery({
+    queryKey: settingsKeys.firstDayOfWeek(),
+    queryFn: () => settingsApi.getFirstDayOfWeek(),
+  });
+
+  return {
+    firstDayOfWeek: query.data?.firstDayOfWeek ?? 'Sunday',
+    ...query,
+  };
 }
 
 export function useUpdateGeneralSettings() {
@@ -61,7 +74,10 @@ export function useUpdateLocalizationSettings() {
     mutationFn: (payload: LocalizationSettings) => settingsApi.updateLocalization(payload),
     onSuccess: async () => {
       toast.success('Localization settings updated successfully');
-      await queryClient.invalidateQueries({ queryKey: settingsKeys.details() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: settingsKeys.details() }),
+        queryClient.invalidateQueries({ queryKey: settingsKeys.firstDayOfWeek() }),
+      ]);
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : 'Failed to update localization settings');
@@ -76,7 +92,10 @@ export function useUpdateUserPreferences() {
     mutationFn: (payload: UserPreferenceSettings) => settingsApi.updateUserPreferences(payload),
     onSuccess: async () => {
       toast.success('User preferences updated successfully');
-      await queryClient.invalidateQueries({ queryKey: settingsKeys.details() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: settingsKeys.details() }),
+        queryClient.invalidateQueries({ queryKey: ['auth', 'passwordPolicy'] }),
+      ]);
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : 'Failed to update user preferences');

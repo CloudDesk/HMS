@@ -17,7 +17,7 @@ import {
   endOfMonth,
 } from './appointment-utils';
 import { statusTone, toDisplayDate, visitTypeText } from './doctor-workflow-utils';
-import { useSettings } from '../api/useSettings';
+import { useFirstDayOfWeek } from '../hooks/settings/useSettings';
 
 const scheduleTimes = Array.from({ length: 22 }).map((_, index) => {
   const totalMinutes = 8 * 60 + index * 30;
@@ -164,8 +164,7 @@ export function DoctorSchedulePage() {
     parseViewMode(initialParams.get('view')),
   );
 
-  const settings = useSettings();
-  const firstDayOfWeek = settings?.localization.firstDayOfWeek || 'Sunday';
+  const { firstDayOfWeek } = useFirstDayOfWeek();
 
   const scheduleRange = useMemo(() => buildScheduleRange(viewMode, scheduleDate, firstDayOfWeek), [scheduleDate, viewMode, firstDayOfWeek]);
   const weekDays = useMemo(() => buildWeekDays(scheduleDate, firstDayOfWeek), [scheduleDate, firstDayOfWeek]);

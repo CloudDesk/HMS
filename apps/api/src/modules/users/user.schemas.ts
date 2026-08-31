@@ -40,7 +40,7 @@ export const listUsersQuerySchema = {
 
 export const createUserBodySchema = {
   type: 'object',
-  required: ['employeeCode', 'username', 'email', 'fullName', 'password', 'branches', 'departments', 'roleIds'],
+  required: ['employeeCode', 'username', 'email', 'fullName', 'password', 'branches', 'departments'],
   additionalProperties: false,
   properties: {
     employeeCode: { type: 'string', minLength: 1 },

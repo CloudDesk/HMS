@@ -88,7 +88,7 @@ export type SaveUserPayload = {
   password?: string;
   branches: UserAssignment[];
   departments: UserAssignment[];
-  roleIds: string[];
+  roleIds?: string[];
 };
 
 export type UserSummary = {

@@ -57,6 +57,8 @@ export type SystemSettings = {
   updatedBy: string | null;
 };
 
+export type FirstDayOfWeekSettings = Pick<LocalizationSettings, 'firstDayOfWeek'>;
+
 export type AuditAction = 'login' | 'create' | 'edit' | 'delete' | 'export';
 
 export type AuditLogItem = {
@@ -83,6 +85,9 @@ const queryString = (params: Record<string, string | number | undefined>) => {
 };
 
 export const settingsApi = {
+  getFirstDayOfWeek() {
+    return apiClient.request<FirstDayOfWeekSettings>('/settings/runtime/first-day-of-week');
+  },
   get() {
     return apiClient.request<SystemSettings>('/settings');
   },

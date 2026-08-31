@@ -1,9 +1,49 @@
 import { env } from '../../config/env.js';
 import { AppError } from '../errors/app-error.js';
 
-export const assertPasswordPolicy = (password: string) => {
+export type PasswordPolicy = {
+  minLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumber: boolean;
+  requireSymbol: boolean;
+};
+
+export const getEnvironmentPasswordPolicy = (): PasswordPolicy => ({
+  minLength: env.auth.passwordPolicy.minLength,
+  requireUppercase: env.auth.passwordPolicy.requireUppercase,
+  requireLowercase: env.auth.passwordPolicy.requireLowercase,
+  requireNumber: env.auth.passwordPolicy.requireNumber,
+  requireSymbol: env.auth.passwordPolicy.requireSymbol,
+});
+
+export const getEffectivePasswordPolicy = (
+  preferences: { passwordMinLength: number; requireStrongPasswords: boolean } | null,
+): PasswordPolicy => {
+  const fallback = getEnvironmentPasswordPolicy();
+  if (
+    !preferences
+    || !Number.isInteger(preferences.passwordMinLength)
+    || preferences.passwordMinLength < 6
+    || preferences.passwordMinLength > 32
+  ) {
+    return fallback;
+  }
+
+  return {
+    minLength: preferences.passwordMinLength,
+    requireUppercase: preferences.requireStrongPasswords && fallback.requireUppercase,
+    requireLowercase: preferences.requireStrongPasswords && fallback.requireLowercase,
+    requireNumber: preferences.requireStrongPasswords && fallback.requireNumber,
+    requireSymbol: preferences.requireStrongPasswords && fallback.requireSymbol,
+  };
+};
+
+export const assertPasswordPolicy = (
+  password: string,
+  policy: PasswordPolicy = getEnvironmentPasswordPolicy(),
+) => {
   const errors: string[] = [];
-  const policy = env.auth.passwordPolicy;
 
   if (password.length < policy.minLength) {
     errors.push(`Password must be at least ${policy.minLength} characters`);

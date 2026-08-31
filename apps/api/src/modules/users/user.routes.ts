@@ -46,7 +46,7 @@ type CreateUserBody = {
   password: string;
   branches: AssignmentInput[];
   departments: AssignmentInput[];
-  roleIds: string[];
+  roleIds?: string[];
 };
 
 type UpdateUserBody = Partial<Omit<CreateUserBody, 'password' | 'status'>>;

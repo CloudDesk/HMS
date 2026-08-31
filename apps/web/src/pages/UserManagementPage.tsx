@@ -28,7 +28,7 @@ const baseUserSchema = z.object({
   fullName: z.string().min(1, 'Full name is required.'),
   phone: z.string().optional(),
   jobTitle: z.string().optional(),
-  roleId: z.string().min(1, 'Role assignment is required.'),
+  roleId: z.string(),
   branchId: z.string().min(1, 'Branch assignment is required.'),
   departmentId: z.string().min(1, 'Department assignment is required.'),
   password: z.string().optional(),
@@ -416,7 +416,7 @@ export function UserManagementPage() {
     fullName: data.fullName,
     jobTitle: data.jobTitle || '',
     phone: data.phone || null,
-    roleIds: [data.roleId],
+    ...(data.roleId ? { roleIds: [data.roleId] } : {}),
     status: data.status.toLowerCase() as ApiUserStatus,
     username: data.username,
   });
@@ -441,6 +441,11 @@ export function UserManagementPage() {
           return;
         }
       }
+    }
+
+    if (modalMode !== 'create' && !formData.roleId) {
+      userForm.setError('roleId', { message: 'Role assignment is required.' });
+      return;
     }
 
     try {
@@ -1029,12 +1034,12 @@ export function UserManagementPage() {
                 {userForm.formState.errors.departmentId ? <small className="field-error">{userForm.formState.errors.departmentId.message}</small> : null}
               </label>
               <label className="form-field">
-                <span>Role <span className="required">*</span></span>
+                <span>Role {modalMode === 'create' ? null : <span className="required">*</span>}</span>
                 <select
                   aria-invalid={Boolean(userForm.formState.errors.roleId)}
                   {...userForm.register('roleId')}
                 >
-                  <option value="">Select role</option>
+                  <option value="">{modalMode === 'create' ? 'Use configured default role' : 'Select role'}</option>
                   {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                 </select>
                 {userForm.formState.errors.roleId ? <small className="field-error">{userForm.formState.errors.roleId.message}</small> : null}
