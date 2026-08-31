@@ -484,7 +484,7 @@ export function PatientSearchPage() {
                         </div>
                       </td>
                       {columns.gender ? <td data-label="Gender">{patient.gender}</td> : null}
-                      {columns.age ? <td data-label="Age">{age} yrs</td> : null}
+                      {columns.age ? <td data-label="Age">{age}</td> : null}
                       {columns.phone ? <td data-label="Phone">{patient.phone || 'Not recorded'}</td> : null}
                       {columns.lastVisit ? <td data-label="Last visit">Not available</td> : null}
                       {columns.registeredDate ? <td data-label="Registered date">{formatDate(patient.created_at)}</td> : null}

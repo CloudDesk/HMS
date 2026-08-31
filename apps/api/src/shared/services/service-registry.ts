@@ -124,8 +124,9 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const authRateLimits = new AuthRateLimitRepository();
   const patientOtpService = new PatientOtpService(new PatientOtpRepository(), sms, undefined, authRateLimits);
   const settingsService = new SettingsService(settingsRepository, new SettingsLogoStorage());
+  const permissionService = new PermissionService(permissionRepository);
   const authService = new AuthService(authRepository, patientOtpService, authRateLimits, {}, settingsService);
-  const userService = new UserService(userRepository, roleRepository, settingsService);
+  const userService = new UserService(userRepository, roleRepository, permissionService, settingsService);
   const appointmentService = new AppointmentService(
     appointmentRepository,
     patientRepository,
@@ -175,8 +176,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     administrationDashboard: new AdministrationDashboardService(administrationDashboardRepository, new PhaseTwoReportRepository()),
     auth: authService,
     users: userService,
-    roles: new RoleService(roleRepository),
-    permissions: new PermissionService(permissionRepository),
+    roles: new RoleService(roleRepository, permissionService),
+    permissions: permissionService,
     branches: new BranchService(branchRepository),
     departments: new DepartmentService(departmentRepository, branchRepository),
     patients: patientService,

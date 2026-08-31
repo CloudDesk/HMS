@@ -6,6 +6,7 @@ import { assertPasswordPolicy, getEffectivePasswordPolicy } from '../../shared/s
 import { createCsvStream } from '../../shared/http/csv.js';
 import type { ClientSession } from 'mongoose';
 import type { RoleRepository } from '../roles/role.repository.js';
+import type { PermissionService } from '../permissions/permission.service.js';
 import type { SettingsService } from '../settings/settings.service.js';
 import { UserRepository } from './user.repository.js';
 import type {
@@ -105,6 +106,7 @@ export class UserService {
   constructor(
     private readonly repository: UserRepository,
     private readonly roleRepository: RoleRepository,
+    private readonly permissions: Pick<PermissionService, 'assertCanAssignRoles' | 'assertCanManageUser'>,
     private readonly settings?: Pick<SettingsService, 'getRuntimeUserPreferences'>,
   ) {}
 
@@ -152,6 +154,7 @@ export class UserService {
       employeeCode: normalized.employeeCode,
     });
     await this.validateReferences(normalized.branches, normalized.departments, normalized.roleIds);
+    await this.permissions.assertCanAssignRoles(actorUserId, normalized.roleIds);
 
     const user = await this.repository.create({
       ...normalized,
@@ -327,6 +330,7 @@ export class UserService {
 
   async update(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
     await this.requireUser(id);
+    await this.assertCanManageUser(actorUserId, id);
     const normalized = this.normalizeUpdateInput(input);
 
     if (normalized.username || normalized.email !== undefined || normalized.employeeCode) {
@@ -351,6 +355,9 @@ export class UserService {
         normalized.departments ?? current.departments,
         normalized.roleIds ?? current.roleIds,
       );
+      if (normalized.roleIds) {
+        await this.permissions.assertCanAssignRoles(actorUserId, normalized.roleIds);
+      }
     }
 
     const user = await this.repository.update(id, {
@@ -385,6 +392,7 @@ export class UserService {
     if (id === actorUserId && input.status !== 'active') {
       throw new AppError('You cannot deactivate or lock your own account', 409, 'SELF_STATUS_CHANGE_FORBIDDEN');
     }
+    await this.assertCanManageUser(actorUserId, id);
     if (input.status !== 'active' && await this.repository.isSuperAdmin(id) && await this.repository.countActiveSuperAdmins() <= 1) {
       throw new AppError('The last active Super Admin cannot be deactivated or locked', 409, 'LAST_SUPER_ADMIN_REQUIRED');
     }
@@ -431,6 +439,7 @@ export class UserService {
     actorUserId: string,
     metadata: RequestMetadata,
   ) {
+    await this.assertCanManageUser(actorUserId, id);
     const passwordHash = await this.repository.findPasswordHashById(id);
 
     if (!passwordHash) {
@@ -453,6 +462,10 @@ export class UserService {
     metadata: RequestMetadata,
   ) {
     await this.requireUser(id);
+    await this.permissions.assertCanManageUser(actorUserId, id, {
+      allowEqualAuthority: false,
+      errorCode: 'PRIVILEGED_USER_PASSWORD_RESET_FORBIDDEN',
+    });
     return this.setPassword(id, input.newPassword, actorUserId, metadata, 'user.password.reset');
   }
 
@@ -460,10 +473,11 @@ export class UserService {
     if (id === actorUserId) {
       throw new AppError('You cannot delete your own account', 409, 'SELF_DELETE_FORBIDDEN');
     }
+    await this.requireUser(id);
+    await this.assertCanManageUser(actorUserId, id);
     if (await this.repository.isSuperAdmin(id) && await this.repository.countActiveSuperAdmins() <= 1) {
       throw new AppError('The last active Super Admin cannot be deleted', 409, 'LAST_SUPER_ADMIN_REQUIRED');
     }
-    await this.requireUser(id);
     const deleted = await this.repository.softDelete(id, actorUserId);
 
     if (!deleted) {
@@ -548,6 +562,13 @@ export class UserService {
     }
 
     return user;
+  }
+
+  private assertCanManageUser(actorUserId: string, targetUserId: string) {
+    return this.permissions.assertCanManageUser(actorUserId, targetUserId, {
+      allowEqualAuthority: true,
+      errorCode: 'PRIVILEGED_USER_MODIFICATION_FORBIDDEN',
+    });
   }
 
   private async attachAssignments(users: UserRecord[]): Promise<UserResponse[]> {
@@ -713,6 +734,53 @@ export class UserService {
     }
     if (result.roles !== roleIds.length) {
       throw new AppError('One or more role assignments are invalid or inactive', 400, 'INVALID_ROLE_ASSIGNMENT');
+    }
+
+    const { DepartmentModel } = await import('../departments/department.model.js');
+    const { RoleModel } = await import('../roles/role.model.js');
+
+    const departmentRecords = await DepartmentModel.find({ _id: { $in: departmentIds } }).lean();
+    const roleRecords = await RoleModel.find({ _id: { $in: roleIds } }).lean();
+
+    for (const roleRec of roleRecords) {
+      const rCode = (roleRec.code || '').toUpperCase();
+
+      if (['SUPER_ADMIN', 'ADMINISTRATOR', 'PATIENT', 'GUARDIAN'].includes(rCode)) {
+        continue;
+      }
+
+      for (const deptRec of departmentRecords) {
+        const deptCode = (deptRec.code || '').toUpperCase();
+        const deptName = (deptRec.name || '').toUpperCase();
+
+        let allowed = true;
+
+        if (deptCode.includes('IMG') || deptCode.includes('RAD') || deptName.includes('IMAGING') || deptName.includes('RADIOLOGY')) {
+          allowed = rCode === 'IMAGING_USER';
+        } else if (deptCode.includes('LAB') || deptName.includes('LABORATORY') || deptName.includes('LAB')) {
+          allowed = rCode === 'LABORATORY_USER';
+        } else if (deptCode.includes('PHARM') || deptName.includes('PHARMACY')) {
+          allowed = rCode === 'PHARMACY_USER';
+        } else if (deptCode.includes('NURS') || deptCode.includes('WARD') || deptCode.includes('IPD') || deptName.includes('NURSING') || deptName.includes('WARD')) {
+          allowed = rCode === 'CLINICIAN_NURSE';
+        } else if (deptCode.includes('REC') || deptCode.includes('OPD') || deptName.includes('RECEPTION') || deptName.includes('FRONT DESK')) {
+          allowed = ['RECEPTIONIST', 'PATIENT', 'GUARDIAN'].includes(rCode);
+        } else if (deptCode.includes('BILL') || deptCode.includes('FIN') || deptCode.includes('ACC') || deptName.includes('BILLING') || deptName.includes('FINANCE')) {
+          allowed = rCode === 'BILLING_AUTHORIZED';
+        } else if (deptCode.includes('DOC') || deptCode.includes('MED') || deptName.includes('DOCTOR') || deptName.includes('CONSULTATION') || deptName.includes('CLINIC')) {
+          allowed = ['DOCTOR', 'CLINICIAN_NURSE'].includes(rCode);
+        } else if (deptCode.includes('EMG') || deptCode.includes('CAS') || deptName.includes('EMERGENCY') || deptName.includes('CASUALTY')) {
+          allowed = ['DOCTOR', 'CLINICIAN_NURSE', 'RECEPTIONIST'].includes(rCode);
+        }
+
+        if (!allowed) {
+          throw new AppError(
+            `Role '${roleRec.name}' (${roleRec.code}) is not permitted for department '${deptRec.name}'`,
+            400,
+            'ROLE_DEPARTMENT_MISMATCH',
+          );
+        }
+      }
     }
   }
 

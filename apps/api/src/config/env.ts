@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 type AppEnv = 'dev' | 'test' | 'prod';
 
 const appEnvironment = process.env.APP_ENV ?? 'dev';
@@ -20,6 +22,40 @@ const parseBoolean = (value: string | undefined, fallback: boolean) => {
   }
 
   return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+};
+
+const trustedProxyNames = new Set(['loopback', 'linklocal', 'uniquelocal']);
+
+const isValidTrustedProxy = (value: string) => {
+  if (trustedProxyNames.has(value.toLowerCase())) return true;
+
+  const [address, prefix, ...extra] = value.split('/');
+  const version = address ? isIP(address) : 0;
+  if (version === 0 || extra.length > 0) return false;
+  if (prefix === undefined) return true;
+  if (!/^\d+$/.test(prefix)) return false;
+
+  const prefixLength = Number(prefix);
+  return prefixLength >= 0 && prefixLength <= (version === 4 ? 32 : 128);
+};
+
+export const parseTrustProxy = (value: string | undefined): false | string[] => {
+  const normalized = value?.trim();
+  if (!normalized || ['0', 'false', 'no', 'off'].includes(normalized.toLowerCase())) return false;
+  if (['1', 'true', 'yes', 'on'].includes(normalized.toLowerCase())) {
+    throw new Error(
+      'TRUST_PROXY must list trusted proxy IP addresses or CIDR ranges; unrestricted proxy trust is not allowed',
+    );
+  }
+
+  const trustedProxies = normalized.split(',').map((entry) => entry.trim()).filter(Boolean);
+  if (trustedProxies.length === 0 || trustedProxies.some((entry) => !isValidTrustedProxy(entry))) {
+    throw new Error(
+      'TRUST_PROXY contains an invalid proxy address, CIDR range, or named range',
+    );
+  }
+
+  return trustedProxies;
 };
 
 const parsePositiveInteger = (name: string, value: string | undefined, fallback: number) => {
@@ -136,7 +172,7 @@ export const env = {
     origins: parseCorsOrigins(process.env.CORS_ORIGIN),
   },
   http: {
-    trustProxy: parseBoolean(process.env.TRUST_PROXY, false),
+    trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   },
   database: {
     url: parseDatabaseUrl(process.env.MONGODB_URI ?? process.env.MONGODB_DATABASE_URL),

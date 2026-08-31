@@ -41,4 +41,26 @@ describe('M-006 public authentication route limits', () => {
     expect(limited.statusCode).toBe(429);
     expect(limited.json()).toMatchObject({ error: { code: 'AUTH_RATE_LIMITED' } });
   });
+
+  it('does not allow spoofed forwarding headers to rotate the OTP rate-limit IP', async () => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/patient-portal/otp/request',
+        headers: { 'x-forwarded-for': `198.51.100.${attempt + 1}` },
+        payload: { phone: `+2782100${String(attempt).padStart(4, '0')}` },
+      });
+      expect(response.statusCode).toBe(200);
+    }
+
+    const limited = await app.inject({
+      method: 'POST',
+      url: '/api/patient-portal/otp/request',
+      headers: { 'x-forwarded-for': '203.0.113.250' },
+      payload: { phone: '+27821009999' },
+    });
+
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: { code: 'AUTH_RATE_LIMITED' } });
+  });
 });

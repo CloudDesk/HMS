@@ -480,7 +480,7 @@ export function RolesPermissionsPage() {
             <div className="rp-panel-header">
               <div>
                 <h3>{selectedRole ? `${selectedRole.name} - Permission Matrix` : 'Permission Matrix'}</h3>
-                <p className="rp-subtitle">{selectedRole ? (selectedRole.description ?? 'No description provided.') : 'Select a role to view and edit permissions'}</p>
+                {/* <p className="rp-subtitle">{selectedRole ? (selectedRole.description ?? 'No description provided.') : 'Select a role to view and edit permissions'}</p> */}
               </div>
               {selectedRole ? <div className="rp-mid-actions">
                 <span className={`rp-save-state${dirty ? ' dirty' : ''}`}>{dirty ? 'Unsaved changes' : 'All changes saved'}</span>
@@ -556,7 +556,7 @@ export function RolesPermissionsPage() {
             <div className="card rp-detail-card">
               <div className="rp-panel-header"><h3>Role Details</h3></div>
               {selectedRole ? <div className="role-detail-content">
-                <div className="role-detail-top"><div className="role-detail-avatar" style={{ background: selectedRole.color ?? fallbackRoleColor(selectedRole.name) }}>{roleInitials(selectedRole.name)}</div><div><div className="role-detail-name">{selectedRole.name}</div><div className="role-detail-desc">{selectedRole.description ?? 'No description provided.'}</div></div></div>
+                <div className="role-detail-top"><div className="role-detail-avatar" style={{ background: selectedRole.color ?? fallbackRoleColor(selectedRole.name) }}>{roleInitials(selectedRole.name)}</div><div><div className="role-detail-name">{selectedRole.name}</div></div></div>
                 <div className="role-stat-grid">
                   <div className="role-stat-item"><div className="role-stat-label">Role ID</div><div className="role-stat-value mono-value">{selectedRole.code}</div></div>
                   <div className="role-stat-item"><div className="role-stat-label">Type</div><div className="role-stat-value"><span className={`rp-role-badge ${selectedRole.type === 'system' ? 'badge-system' : 'badge-custom'}`}>{selectedRole.type}</span></div></div>

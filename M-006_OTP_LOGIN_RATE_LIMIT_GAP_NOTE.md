@@ -28,4 +28,4 @@
 
 ## Deployment requirement
 
-All API instances must use the same MongoDB deployment for cluster-wide limiting. `TRUST_PROXY=true` must be enabled only behind a trusted reverse proxy that supplies correct forwarding headers. Separate MongoDB deployments do not share counters.
+All API instances must use the same MongoDB deployment for cluster-wide limiting. `TRUST_PROXY` must contain only the trusted reverse proxy IP addresses, CIDR ranges, or supported named ranges that supply correct forwarding headers; unrestricted boolean proxy trust is rejected. Separate MongoDB deployments do not share counters.

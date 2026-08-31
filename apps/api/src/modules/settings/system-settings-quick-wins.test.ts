@@ -89,7 +89,15 @@ const createUserHarness = (input: { defaultRoleExists?: boolean } = {}) => {
   });
 
   const settings = { getRuntimeUserPreferences: async () => preferences() };
-  return { service: new UserService(users, roles, settings), getCreatedRoleIds: () => createdRoleIds };
+  const permissions = {
+    assertCanAssignRoles: async () => undefined,
+    assertCanManageRoles: async () => undefined,
+    assertCanManageUser: async () => undefined,
+  };
+  return {
+    service: new UserService(users, roles, permissions, settings),
+    getCreatedRoleIds: () => createdRoleIds,
+  };
 };
 
 const createInput = (roleIds?: string[]) => ({

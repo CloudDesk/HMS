@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import type { PermissionService } from '../permissions/permission.service.js';
 import { RoleRepository } from './role.repository.js';
 import type { RequestMetadata, RoleListQuery, RoleRecord, RoleResponse, RoleStatus, RoleType } from './role.types.js';
 
@@ -46,7 +47,13 @@ const normalizeCode = (value: string) => normalizeText(value).toUpperCase().repl
 const eventForStatus = (status: RoleStatus) => (status === 'active' ? 'role.activated' : 'role.deactivated');
 
 export class RoleService {
-  constructor(private readonly repository: RoleRepository) {}
+  constructor(
+    private readonly repository: RoleRepository,
+    private readonly permissions: Pick<
+      PermissionService,
+      'assertCanAssignRoles' | 'assertCanManageRoles' | 'assertCanManageUser'
+    >,
+  ) {}
 
   async requireRoleManagementAccess(userId: string) {
     const allowed = await this.repository.hasAnyActiveRole(userId, roleManagerCodes);
@@ -97,7 +104,7 @@ export class RoleService {
   async create(input: CreateRoleInput, actorUserId: string, metadata: RequestMetadata) {
     const normalized = this.normalizeCreateInput(input);
 
-    if (normalized.type === 'system') {
+    if (normalized.type === 'system' || protectedSystemRoleCodes.includes(normalized.code)) {
       throw new AppError('System roles are managed by the platform', 400, 'SYSTEM_ROLE_RESTRICTED');
     }
 
@@ -124,6 +131,7 @@ export class RoleService {
 
   async update(id: string, input: UpdateRoleInput, actorUserId: string, metadata: RequestMetadata) {
     const existing = await this.requireRole(id);
+    await this.permissions.assertCanManageRoles(actorUserId, [id]);
     const normalized = this.normalizeUpdateInput(input);
 
     if (existing.type === 'system' && (normalized.code || normalized.type)) {
@@ -132,6 +140,10 @@ export class RoleService {
 
     if (existing.type === 'custom' && normalized.type === 'system') {
       throw new AppError('Custom roles cannot be converted to system roles', 400, 'SYSTEM_ROLE_RESTRICTED');
+    }
+
+    if (normalized.code && protectedSystemRoleCodes.includes(normalized.code)) {
+      throw new AppError('System role codes are managed by the platform', 400, 'SYSTEM_ROLE_RESTRICTED');
     }
 
     if (normalized.code || normalized.name) {
@@ -162,6 +174,7 @@ export class RoleService {
 
   async updateStatus(id: string, input: StatusInput, actorUserId: string, metadata: RequestMetadata) {
     const existing = await this.requireRole(id);
+    await this.permissions.assertCanManageRoles(actorUserId, [id]);
 
     if (input.status === 'inactive' && protectedSystemRoleCodes.includes(existing.code)) {
       throw new AppError('Protected system role cannot be deactivated', 400, 'SYSTEM_ROLE_RESTRICTED');
@@ -199,6 +212,12 @@ export class RoleService {
       throw new AppError('Inactive or locked user cannot be assigned a role', 400, 'INACTIVE_USER_ASSIGNMENT');
     }
 
+    await this.permissions.assertCanManageUser(actorUserId, input.userId, {
+      allowEqualAuthority: true,
+      errorCode: 'PRIVILEGED_USER_MODIFICATION_FORBIDDEN',
+    });
+    await this.permissions.assertCanAssignRoles(actorUserId, [id]);
+
     if (await this.repository.isUserAssigned(id, input.userId)) {
       throw new AppError('User is already assigned to this role', 409, 'ROLE_USER_ALREADY_ASSIGNED');
     }
@@ -214,6 +233,10 @@ export class RoleService {
 
   async removeUser(id: string, userId: string, actorUserId: string, metadata: RequestMetadata) {
     const role = await this.requireRole(id);
+    await this.permissions.assertCanManageUser(actorUserId, userId, {
+      allowEqualAuthority: true,
+      errorCode: 'PRIVILEGED_USER_MODIFICATION_FORBIDDEN',
+    });
     const removed = await this.repository.removeUser(id, userId);
 
     if (!removed) {
@@ -230,6 +253,7 @@ export class RoleService {
 
   async delete(id: string, actorUserId: string, metadata: RequestMetadata) {
     const role = await this.requireRole(id);
+    await this.permissions.assertCanManageRoles(actorUserId, [id]);
 
     if (role.type === 'system') {
       throw new AppError('System roles cannot be deleted', 400, 'SYSTEM_ROLE_RESTRICTED');

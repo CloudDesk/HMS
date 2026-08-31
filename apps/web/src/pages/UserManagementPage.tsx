@@ -141,6 +141,33 @@ const getErrorMessage = (error: unknown) => {
     const passwordPolicyMessage = getPasswordPolicyApiMessage(error);
     if (passwordPolicyMessage) return passwordPolicyMessage;
 
+    if (error.code === 'VALIDATION_ERROR' && error.details) {
+      if (Array.isArray(error.details)) {
+        const fieldMsgs = error.details
+          .map((d: unknown) =>
+            typeof d === 'string'
+              ? d
+              : typeof d === 'object' && d !== null
+              ? (d as { message?: string; path?: string; instancePath?: string }).message ||
+                `${(d as { path?: string; instancePath?: string }).path || (d as { instancePath?: string }).instancePath || ''} ${(d as { message?: string }).message || ''}`.trim()
+              : '',
+          )
+          .filter(Boolean);
+        if (fieldMsgs.length > 0) return fieldMsgs.join('. ');
+      } else if (typeof error.details === 'object' && error.details !== null) {
+        const fieldErrors = (error.details as { fieldErrors?: Record<string, string[]> }).fieldErrors;
+        if (fieldErrors && typeof fieldErrors === 'object') {
+          const msgs: string[] = [];
+          Object.entries(fieldErrors).forEach(([field, errs]) => {
+            if (Array.isArray(errs) && errs.length > 0) {
+              msgs.push(`${field}: ${errs.join(', ')}`);
+            }
+          });
+          if (msgs.length > 0) return msgs.join('; ');
+        }
+      }
+    }
+
     if (error.status === 401) {
       return 'Your session has expired. Please sign in again.';
     }
@@ -335,13 +362,109 @@ export function UserManagementPage() {
   };
 
 
+  const watchedBranchId = userForm.watch('branchId');
+  const watchedDepartmentId = userForm.watch('departmentId');
   const watchedEmail = userForm.watch('email');
+
   useEffect(() => {
     if (modalMode === 'create') {
       const userVal = watchedEmail ? (watchedEmail.includes('@') ? watchedEmail.split('@')[0] : watchedEmail) : '';
       userForm.setValue('username', userVal || '');
     }
   }, [watchedEmail, modalMode, userForm]);
+
+  useEffect(() => {
+    if (!watchedBranchId) {
+      userForm.setValue('departmentId', '');
+      userForm.setValue('roleId', '');
+    } else {
+      const currentDeptId = userForm.getValues('departmentId');
+      if (currentDeptId) {
+        const belongsToBranch = departmentOptions.some(
+          (dept) => dept.id === currentDeptId && dept.branch_ids.includes(watchedBranchId),
+        );
+        if (!belongsToBranch) {
+          userForm.setValue('departmentId', '');
+          userForm.setValue('roleId', '');
+        }
+      }
+    }
+  }, [watchedBranchId, departmentOptions, userForm]);
+
+  const availableDepartmentsForBranch = useMemo(() => {
+    if (!watchedBranchId) return [];
+    return departmentOptions.filter((dept) => dept.branch_ids.includes(watchedBranchId));
+  }, [watchedBranchId, departmentOptions]);
+
+  const selectedDepartment = useMemo(() => {
+    if (!watchedDepartmentId) return null;
+    return departmentOptions.find((dept) => dept.id === watchedDepartmentId) ?? null;
+  }, [watchedDepartmentId, departmentOptions]);
+
+  const availableRolesForDepartment = useMemo(() => {
+    if (!selectedDepartment) return [];
+    const deptCode = (selectedDepartment.code || '').toUpperCase();
+    const deptName = (selectedDepartment.name || '').toUpperCase();
+
+    return roleOptions.filter((role) => {
+      const rCode = (role.code || '').toUpperCase();
+
+      // System-wide roles (Super Admin, Administrator, Patient, Guardian) are excluded from department-specific staff user creation
+      if (['SUPER_ADMIN', 'ADMINISTRATOR', 'PATIENT', 'GUARDIAN'].includes(rCode)) {
+        return false;
+      }
+
+      // Imaging / Radiology
+      if (deptCode.includes('IMG') || deptCode.includes('RAD') || deptName.includes('IMAGING') || deptName.includes('RADIOLOGY')) {
+        return rCode === 'IMAGING_USER';
+      }
+      // Laboratory / Lab
+      if (deptCode.includes('LAB') || deptName.includes('LABORATORY') || deptName.includes('LAB')) {
+        return rCode === 'LABORATORY_USER';
+      }
+      // Pharmacy
+      if (deptCode.includes('PHARM') || deptName.includes('PHARMACY')) {
+        return rCode === 'PHARMACY_USER';
+      }
+      // Nursing / Wards / Inpatient / IPD
+      if (deptCode.includes('NURS') || deptCode.includes('WARD') || deptCode.includes('IPD') || deptName.includes('NURSING') || deptName.includes('WARD')) {
+        return rCode === 'CLINICIAN_NURSE';
+      }
+      // Reception / Front Desk / OPD / Registration
+      if (deptCode.includes('REC') || deptCode.includes('OPD') || deptName.includes('RECEPTION') || deptName.includes('FRONT DESK')) {
+        return rCode === 'RECEPTIONIST' || rCode === 'PATIENT' || rCode === 'GUARDIAN';
+      }
+      // Billing / Finance / Accounts
+      if (deptCode.includes('BILL') || deptCode.includes('FIN') || deptCode.includes('ACC') || deptName.includes('BILLING') || deptName.includes('FINANCE')) {
+        return rCode === 'BILLING_AUTHORIZED';
+      }
+      // Doctor / Medical Staff / Consultation
+      if (deptCode.includes('DOC') || deptCode.includes('MED') || deptName.includes('DOCTOR') || deptName.includes('CONSULTATION') || deptName.includes('CLINIC')) {
+        return rCode === 'DOCTOR' || rCode === 'CLINICIAN_NURSE';
+      }
+      // Emergency / Casualty
+      if (deptCode.includes('EMG') || deptCode.includes('CAS') || deptName.includes('EMERGENCY') || deptName.includes('CASUALTY')) {
+        return rCode === 'DOCTOR' || rCode === 'CLINICIAN_NURSE' || rCode === 'RECEPTIONIST';
+      }
+
+      // Default fallback: allow custom/unmatched roles if department type is generic
+      return true;
+    });
+  }, [selectedDepartment, roleOptions]);
+
+  useEffect(() => {
+    if (!watchedDepartmentId) {
+      userForm.setValue('roleId', '');
+    } else {
+      const currentRoleId = userForm.getValues('roleId');
+      if (currentRoleId) {
+        const isRoleValid = availableRolesForDepartment.some((r) => r.id === currentRoleId);
+        if (!isRoleValid) {
+          userForm.setValue('roleId', '');
+        }
+      }
+    }
+  }, [watchedDepartmentId, availableRolesForDepartment, userForm]);
 
   useEffect(() => {
     if (canCreate && new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
@@ -419,15 +542,17 @@ export function UserManagementPage() {
 
   const buildSavePayload = (data: UserFormData): SaveUserPayload => {
     const computedUsername = data.username || (data.email ? data.email.split('@')[0] : '') || data.fullName.toLowerCase().replace(/\s+/g, '.');
+    const computedEmployeeCode = data.employeeCode?.trim() || `EMP-${Date.now().toString().slice(-6)}`;
+    const roleIds = data.roleId ? [data.roleId] : [];
     return {
       branches: branchOptions.filter(b => b.id === data.branchId).map(b => ({ id: b.id, name: b.name, isPrimary: true })),
       departments: departmentOptions.filter(d => d.id === data.departmentId).map(d => ({ id: d.id, name: d.name, isPrimary: true })),
       email: data.email || null,
-      employeeCode: data.employeeCode || '',
+      employeeCode: computedEmployeeCode,
       fullName: data.fullName,
       jobTitle: data.jobTitle || '',
       phone: data.phone || null,
-      roleIds: [data.roleId],
+      ...(roleIds.length > 0 ? { roleIds } : {}),
       status: data.status.toLowerCase() as ApiUserStatus,
       username: computedUsername,
     };
@@ -1007,7 +1132,7 @@ export function UserManagementPage() {
               <label className="form-field">
                 <span>
                   Employee ID
-                  <span className="form-field-badge">Auto-generated</span>
+                  {/* <span className="form-field-badge">Auto-generated</span> */}
                 </span>
                 <input
                   aria-invalid={Boolean(userForm.formState.errors.employeeCode)}
@@ -1027,7 +1152,7 @@ export function UserManagementPage() {
               <label className="form-field">
                 <span>
                   Username
-                  <span className="form-field-badge">Auto-filled</span>
+                  {/* <span className="form-field-badge">Auto-filled</span> */}
                 </span>
                 <input
                   aria-invalid={Boolean(userForm.formState.errors.username)}
@@ -1067,12 +1192,21 @@ export function UserManagementPage() {
                 <span>Department <span className="required">*</span></span>
                 <select
                   aria-invalid={Boolean(userForm.formState.errors.departmentId)}
+                  disabled={!watchedBranchId}
                   {...userForm.register('departmentId')}
                 >
-                  <option value="">Select department</option>
-                  {departmentOptions
-                    .filter((department) => !userForm.watch('branchId') || department.branch_ids.includes( userForm.watch('branchId')))
-                    .map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+                  <option value="">
+                    {!watchedBranchId
+                      ? 'Select a branch first'
+                      : availableDepartmentsForBranch.length === 0
+                      ? 'No departments available'
+                      : 'Select department'}
+                  </option>
+                  {availableDepartmentsForBranch.map((department) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
+                  ))}
                 </select>
                 {userForm.formState.errors.departmentId ? <small className="field-error">{userForm.formState.errors.departmentId.message}</small> : null}
               </label>
@@ -1080,10 +1214,21 @@ export function UserManagementPage() {
                 <span>Role {modalMode === 'create' ? null : <span className="required">*</span>}</span>
                 <select
                   aria-invalid={Boolean(userForm.formState.errors.roleId)}
+                  disabled={!watchedDepartmentId}
                   {...userForm.register('roleId')}
                 >
-                  <option value="">{modalMode === 'create' ? 'Use configured default role' : 'Select role'}</option>
-                  {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                  <option value="">
+                    {!watchedDepartmentId
+                      ? 'Select a department first'
+                      : modalMode === 'create'
+                      ? 'Use configured default role'
+                      : 'Select role'}
+                  </option>
+                  {availableRolesForDepartment.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
                 </select>
                 {userForm.formState.errors.roleId ? <small className="field-error">{userForm.formState.errors.roleId.message}</small> : null}
               </label>

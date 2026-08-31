@@ -36,6 +36,11 @@ type PermissionRoleCount = {
   count: number;
 };
 
+export type EffectiveAuthority = {
+  isSuperAdmin: boolean;
+  permissionIds: string[];
+};
+
 const mapPermission = (
   permission: PermissionDoc,
   roleCount: number
@@ -459,6 +464,55 @@ export class PermissionRepository {
     }).lean();
 
     return !!role;
+  }
+
+  async getUserEffectiveAuthority(userId: string, requireActiveUser: boolean) {
+    const user = await UserModel.findOne({
+      _id: userId,
+      ...(requireActiveUser ? { status: 'active' } : {}),
+      deletedAt: null,
+    }).select('roleIds').lean();
+
+    if (!user) return null;
+    return this.getRolesEffectiveAuthority((user.roleIds ?? []).map((roleId) => roleId.toString()));
+  }
+
+  async getRolesEffectiveAuthority(roleIds: string[]): Promise<EffectiveAuthority> {
+    if (roleIds.length === 0) {
+      return { isSuperAdmin: false, permissionIds: [] };
+    }
+
+    const roles = await RoleModel.find({
+      _id: { $in: roleIds },
+      status: 'active',
+      deletedAt: null,
+    }).select('code permissionIds').lean();
+
+    if (roles.some((role) => role.code === 'SUPER_ADMIN')) {
+      return { isSuperAdmin: true, permissionIds: [] };
+    }
+
+    const assignedPermissionIds = [
+      ...new Set(
+        roles.flatMap((role) =>
+          (role.permissionIds ?? []).map((permissionId) => permissionId.toString()),
+        ),
+      ),
+    ];
+    if (assignedPermissionIds.length === 0) {
+      return { isSuperAdmin: false, permissionIds: [] };
+    }
+
+    const activePermissionIds = await PermissionModel.distinct('_id', {
+      _id: { $in: assignedPermissionIds },
+      status: 'active',
+      deletedAt: null,
+    });
+
+    return {
+      isSuperAdmin: false,
+      permissionIds: activePermissionIds.map((permissionId) => permissionId.toString()),
+    };
   }
 
   async userHasAllPermissionsById(userId: string, permissionIds: string[]) {

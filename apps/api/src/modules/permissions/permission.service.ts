@@ -61,6 +61,88 @@ const permissionCode = (moduleName: string, screen: string, action: string) =>
 export class PermissionService {
   constructor(private readonly repository: PermissionRepository) {}
 
+  async assertCanAssignRoles(actorUserId: string, roleIds: string[]) {
+    const [actorAuthority, assignedAuthority] = await Promise.all([
+      this.repository.getUserEffectiveAuthority(actorUserId, true),
+      this.repository.getRolesEffectiveAuthority(roleIds),
+    ]);
+
+    if (!actorAuthority) {
+      throw new AppError('Role assignment is not authorized', 403, 'ROLE_ASSIGNMENT_FORBIDDEN');
+    }
+    if (actorAuthority.isSuperAdmin) return;
+    if (assignedAuthority.isSuperAdmin) {
+      throw new AppError(
+        'Only a Super Administrator may assign the Super Administrator role',
+        403,
+        'SUPER_ADMIN_ASSIGNMENT_FORBIDDEN',
+      );
+    }
+
+    const actorPermissionIds = new Set(actorAuthority.permissionIds);
+    if (assignedAuthority.permissionIds.some((permissionId) => !actorPermissionIds.has(permissionId))) {
+      throw new AppError(
+        'Cannot assign roles outside your current authority',
+        403,
+        'ROLE_ASSIGNMENT_EXCEEDS_AUTHORITY',
+      );
+    }
+  }
+
+  async assertCanManageRoles(actorUserId: string, roleIds: string[]) {
+    const [actorAuthority, targetAuthority] = await Promise.all([
+      this.repository.getUserEffectiveAuthority(actorUserId, true),
+      this.repository.getRolesEffectiveAuthority(roleIds),
+    ]);
+
+    if (!actorAuthority) {
+      throw new AppError('Role modification is not authorized', 403, 'PRIVILEGED_ROLE_MODIFICATION_FORBIDDEN');
+    }
+    if (actorAuthority.isSuperAdmin) return;
+
+    const actorPermissionIds = new Set(actorAuthority.permissionIds);
+    if (
+      targetAuthority.isSuperAdmin ||
+      targetAuthority.permissionIds.some((permissionId) => !actorPermissionIds.has(permissionId))
+    ) {
+      throw new AppError(
+        'Cannot modify a role outside your current authority',
+        403,
+        'PRIVILEGED_ROLE_MODIFICATION_FORBIDDEN',
+      );
+    }
+  }
+
+  async assertCanManageUser(
+    actorUserId: string,
+    targetUserId: string,
+    options: { allowEqualAuthority: boolean; errorCode: string },
+  ) {
+    const [actorAuthority, targetAuthority] = await Promise.all([
+      this.repository.getUserEffectiveAuthority(actorUserId, true),
+      this.repository.getUserEffectiveAuthority(targetUserId, false),
+    ]);
+
+    if (!actorAuthority || !targetAuthority) {
+      throw new AppError('User modification is not authorized', 403, options.errorCode);
+    }
+    if (actorAuthority.isSuperAdmin) return;
+    if (targetAuthority.isSuperAdmin) {
+      throw new AppError('Cannot modify a higher-privileged user', 403, options.errorCode);
+    }
+
+    const actorPermissionIds = new Set(actorAuthority.permissionIds);
+    const targetIsWithinAuthority = targetAuthority.permissionIds.every((permissionId) =>
+      actorPermissionIds.has(permissionId),
+    );
+    const hasEqualAuthority =
+      targetIsWithinAuthority && actorPermissionIds.size === targetAuthority.permissionIds.length;
+
+    if (!targetIsWithinAuthority || (!options.allowEqualAuthority && hasEqualAuthority)) {
+      throw new AppError('Cannot modify a higher-privileged user', 403, options.errorCode);
+    }
+  }
+
   async userHasPermission(userId: string, moduleName: string, screen: string, action: string) {
     return this.repository.userHasPermission(userId, moduleName, screen, action);
   }
@@ -279,6 +361,8 @@ export class PermissionService {
         'SUPER_ADMIN_PERMISSIONS_IMMUTABLE',
       );
     }
+
+    await this.assertCanManageRoles(actorUserId, [roleId]);
 
     const uniquePermissionIds = [...new Set(input.permissionIds.map((id) => normalizeText(id)))];
 

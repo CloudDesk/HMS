@@ -159,7 +159,9 @@ export const apiClient = {
       const refreshedToken = await refreshAccessToken();
 
       if (!refreshedToken) {
-        unauthorizedHandler?.();
+        if (!options.retryOnUnauthorized) {
+          unauthorizedHandler?.();
+        }
         throw error;
       }
 
