@@ -40,7 +40,7 @@ export class OpdPrescriptionService {
 
   async submit(visitId: string, data: SaveOpdPrescriptionDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
-    this.ensureOpenVisit(visit);
+    this.ensureOpenVisit(visit, true);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisit(visitId);
 
@@ -138,8 +138,11 @@ export class OpdPrescriptionService {
     return consultation;
   }
 
-  private ensureOpenVisit(visit: OpdVisit) {
-    if (terminalVisitStatuses.includes(visit.status)) {
+  private ensureOpenVisit(visit: OpdVisit, allowCompleted = false) {
+    const closed = allowCompleted
+      ? (['CANCELLED', 'NO_SHOW'] as OpdVisit['status'][])
+      : terminalVisitStatuses;
+    if (closed.includes(visit.status)) {
       throw new AppError('Prescription cannot be updated for a closed OPD visit', 400, 'VISIT_CLOSED');
     }
   }
