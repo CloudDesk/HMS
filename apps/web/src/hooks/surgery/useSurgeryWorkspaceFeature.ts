@@ -34,7 +34,12 @@ export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookin
   const [availability, setAvailability] = useState<{ department_id: string; service_id: string; scheduled_start: string; doctor_id?: string }>({ department_id: '', service_id: '', scheduled_start: '', doctor_id: '' });
   const isSuperAdmin = user?.roles.some((role) => role.code === 'SUPER_ADMIN') ?? false;
   const branchQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' }, isSuperAdmin); const branches = isSuperAdmin ? (branchQuery.data?.data ?? []) : (user?.branches ?? []);
-  useEffect(() => { if (!branchId && branches[0]?.id) setBranchId(branches[0].id); }, [branchId, branches]);
+  useEffect(() => {
+    if (!branchId && branches.length > 0) {
+      const main = branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'));
+      setBranchId(main ? main.id : (branches[0]?.id ?? ''));
+    }
+  }, [branchId, branches]);
   useEffect(() => { const params = new URLSearchParams({ tab }); if (branchId) params.set('branch_id', branchId); if (status) params.set('status', status); if (date) params.set('date', date); if (searchText) params.set('search', searchText); navigate(`/surgery?${params.toString()}`, { replace: true }); }, [branchId, date, searchText, status, tab]);
   const from = tab === 'schedule' ? new Date(`${date}T00:00:00`).toISOString() : undefined; const to = tab === 'schedule' ? new Date(`${date}T23:59:59`).toISOString() : undefined;
   const surgery = useSurgery({ branch_id: branchId, status: status || undefined, search: searchText || undefined, from, to, page: 1, limit: 100 }, { recommendations: Boolean(branchId) && tab === 'recommendations', bookings: Boolean(branchId) && (tab === 'bookings' || tab === 'schedule') });

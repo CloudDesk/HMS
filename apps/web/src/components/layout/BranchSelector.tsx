@@ -13,9 +13,10 @@ export function BranchSelector() {
 
   useEffect(() => {
     const activeId = localStorage.getItem('activeBranchId');
+    const defaultBranch = branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'))?.id ?? branches[0]?.id ?? '';
     const validBranch = branches.some((b) => b.id === activeId)
       ? activeId!
-      : (branches[0]?.id ?? '');
+      : defaultBranch;
     setSelectedBranch(validBranch);
     if (validBranch) {
       localStorage.setItem('activeBranchId', validBranch);

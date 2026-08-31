@@ -83,12 +83,12 @@ export class BranchRepository {
       status: 'status',
       updated_at: 'updatedAt',
     } as const;
-    const sortColumn = sortColumnByApiField[query.sortBy ?? 'created_at'];
-    const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
+    const sortColumn = query.sortBy ? sortColumnByApiField[query.sortBy] : 'code';
+    const sortOrder = query.sortOrder ? (query.sortOrder === 'asc' ? 1 : -1) : 1;
 
     const [data, count] = await Promise.all([
       BranchModel.find(filter)
-        .sort({ [sortColumn]: sortOrder })
+        .sort({ [sortColumn]: sortOrder, name: 1 })
         .skip(offset)
         .limit(limit)
         .lean(),

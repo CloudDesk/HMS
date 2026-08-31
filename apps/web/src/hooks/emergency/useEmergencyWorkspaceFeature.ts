@@ -57,7 +57,10 @@ export function useEmergencyWorkspaceFeature() {
   const branchesQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100 }, isSuperAdmin);
   const branches = isSuperAdmin ? (branchesQuery.data?.data ?? []) : (user?.branches ?? []);
   useEffect(() => {
-    if (!branchId && branches[0]?.id) setBranchId(branches[0].id);
+    if (!branchId && branches.length > 0) {
+      const main = branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'));
+      setBranchId(main ? main.id : (branches[0]?.id ?? ''));
+    }
   }, [branchId, branches]);
   useEffect(() => {
     const params = new URLSearchParams();

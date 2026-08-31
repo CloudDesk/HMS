@@ -608,54 +608,60 @@ export function EmergencyWorkspacePage() {
       </div>
 
       {/* Patient Header Hero Card */}
-      <section className="emergency-patient-header" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div
-            style={{
-              width: '54px',
-              height: '54px',
-              borderRadius: '12px',
-              background: '#dc2626',
-              color: '#fff',
-              display: 'grid',
-              placeItems: 'center',
-              fontWeight: 800,
-              fontSize: '1.2rem',
-              flexShrink: 0,
-            }}
-          >
-            {initials}
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
-                {selected.patient_name || selected.provisional_identity?.display_name || 'Emergency Patient'}
-              </h2>
-              <span style={{ padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#1e293b', fontWeight: 700, fontSize: '0.78rem' }}>
-                {selected.patient_number || selected.emergency_identifier || selected.encounter_number}
-              </span>
-              <span className={`emergency-triage ${triageSlug(triageLevel)}`}>
-                {triageLabel(triageLevel)}
-              </span>
-              <span className={`doc-status ${statusSlug(selected.status)}`}>
-                {statusLabel(selected.status)}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px', fontSize: '0.76rem', color: '#64748b', flexWrap: 'wrap' }}>
-              <span>Gender: <strong style={{ color: '#1e293b' }}>{selected.provisional_identity?.gender || 'Unknown'}</strong></span>
-              <span>•</span>
-              <span>Arrival: <strong style={{ color: '#1e293b' }}>{selected.arrival_mode}</strong> ({formatTime(selected.arrival_at)})</span>
-              <span>•</span>
-              <span>Doctor: <strong style={{ color: '#2563eb' }}>{selected.assigned_doctor_name || 'Unassigned'}</strong></span>
-              {selected.provisional_identity && (
-                <>
+      {(() => {
+        const linkedPatient = state.patients.find((p) => p.id === selected.patient_id);
+        const rawGender = linkedPatient?.gender || selected.provisional_identity?.gender || 'Unknown';
+        const displayGender = rawGender === 'MALE' ? 'Male' : rawGender === 'FEMALE' ? 'Female' : rawGender === 'OTHER' ? 'Other' : rawGender === 'UNKNOWN' ? 'Unknown' : rawGender;
+
+        return (
+          <section className="emergency-patient-header" style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div
+                style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '12px',
+                  background: '#dc2626',
+                  color: '#fff',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontWeight: 800,
+                  fontSize: '1.2rem',
+                  flexShrink: 0,
+                }}
+              >
+                {initials}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+                    {selected.patient_name || selected.provisional_identity?.display_name || 'Emergency Patient'}
+                  </h2>
+                  <span style={{ padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#1e293b', fontWeight: 700, fontSize: '0.78rem' }}>
+                    {selected.patient_number || selected.emergency_identifier || selected.encounter_number}
+                  </span>
+                  <span className={`emergency-triage ${triageSlug(triageLevel)}`}>
+                    {triageLabel(triageLevel)}
+                  </span>
+                  <span className={`doc-status ${statusSlug(selected.status)}`}>
+                    {statusLabel(selected.status)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px', fontSize: '0.76rem', color: '#64748b', flexWrap: 'wrap' }}>
+                  <span>Gender: <strong style={{ color: '#1e293b' }}>{displayGender}</strong></span>
                   <span>•</span>
-                  <span style={{ color: '#dc2626', fontWeight: 700 }}>Provisional Identity</span>
-                </>
-              )}
+                  <span>Arrival: <strong style={{ color: '#1e293b' }}>{selected.arrival_mode}</strong> ({formatTime(selected.arrival_at)})</span>
+                  <span>•</span>
+                  <span>Doctor: <strong style={{ color: '#2563eb' }}>{selected.assigned_doctor_name || 'Unassigned'}</strong></span>
+                  {selected.provisional_identity && (
+                    <>
+                      <span>•</span>
+                      <span style={{ color: '#dc2626', fontWeight: 700 }}>Provisional Identity</span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
         {/* Quick Header Actions */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -698,6 +704,8 @@ export function EmergencyWorkspacePage() {
           </button>
         </div>
       </section>
+        );
+      })()}
 
       {/* Main Split Screen */}
       <div className="emergency-workspace-layout emergency-workspace-layout--compact">
@@ -719,10 +727,15 @@ export function EmergencyWorkspacePage() {
 
           <div className="emergency-tab-content">
             {/* Tab 1: Registration */}
-            {activeTab === 'Registration' && (
+            {activeTab === 'Registration' && (() => {
+              const linkedPatient = state.patients.find((p) => p.id === selected.patient_id);
+              const rawGender = linkedPatient?.gender || selected.provisional_identity?.gender || 'Unknown';
+              const displayGender = rawGender === 'MALE' ? 'Male' : rawGender === 'FEMALE' ? 'Female' : rawGender === 'OTHER' ? 'Other' : rawGender === 'UNKNOWN' ? 'Unknown' : rawGender;
+
+              return (
               <section className="emergency-form-section" style={{ background: '#fff', borderRadius: '10px', padding: '18px', border: '1px solid #e2e8f0' }}>
                 <div className="emergency-form-head" style={{ marginBottom: '14px' }}>
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Patient Identification & Arrival Details</h3>
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Patient Identification &amp; Arrival Details</h3>
                   <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>
                     Confirmed identity and emergency intake information
                   </p>
@@ -743,7 +756,7 @@ export function EmergencyWorkspacePage() {
                   <div>
                     <label style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Gender</label>
                     <p style={{ margin: '2px 0 0', fontWeight: 600, color: '#0f172a' }}>
-                      {selected.provisional_identity?.gender || 'Unknown'}
+                      {displayGender}
                     </p>
                   </div>
                   <div>
@@ -781,7 +794,8 @@ export function EmergencyWorkspacePage() {
                   </button>
                 </div>
               </section>
-            )}
+              );
+            })()}
 
             {/* Tab 2: Triage */}
             {activeTab === 'Triage' && (
