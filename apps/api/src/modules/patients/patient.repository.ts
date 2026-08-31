@@ -7,6 +7,7 @@ import {
   type PatientDocumentMetadataFields,
   type PatientTimelineEventFields,
 } from './patient.model.js';
+import { PatientNumberSequenceModel } from './patient-number.model.js';
 import type {
   CreatePatientDTO,
   CreatePatientDocumentDTO,
@@ -204,6 +205,11 @@ export class PatientRepository {
     return activeBranches.map((branch) => String(branch._id));
   }
 
+  async findUserById(userId: string) {
+    const user = await UserModel.findById(userId).select('branchIds').lean<{ branchIds?: Types.ObjectId[] }>();
+    return user ? { branchIds: user.branchIds?.map((id) => id.toString()) ?? [] } : null;
+  }
+
   async list(query: PatientListQuery, branchIds?: string[]) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
@@ -264,6 +270,23 @@ export class PatientRepository {
       deletedAt: null,
     }).lean<PatientLean>();
     return patient ? toPatient(patient) : undefined;
+  }
+
+  async findLatestPatientNumber(year: number): Promise<string | undefined> {
+    const latest = await PatientModel.findOne({ patientNumber: new RegExp(`^HMS-${year}-\\d+$`) })
+      .select('patientNumber')
+      .sort({ patientNumber: -1 })
+      .lean<{ patientNumber?: string }>();
+    return latest?.patientNumber;
+  }
+
+  async allocatePatientNumberCounter(key: string, existingMaximum: number): Promise<number> {
+    const counter = await PatientNumberSequenceModel.findOneAndUpdate(
+      { key },
+      [{ $set: { value: { $add: [{ $ifNull: ['$value', existingMaximum] }, 1] } } }],
+      { upsert: true, new: true, updatePipeline: true },
+    ).lean();
+    return counter!.value;
   }
 
   async findDuplicateCandidates(data: CreatePatientDTO, branchIds?: string[]) {

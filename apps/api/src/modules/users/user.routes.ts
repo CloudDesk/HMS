@@ -11,6 +11,8 @@ import {
   updateUserBodySchema,
   updateUserStatusBodySchema,
   userIdParamsSchema,
+  userListResponseSchema,
+  userResponseSchema,
 } from './user.schemas.js';
 
 type UserIdParams = {
@@ -75,6 +77,7 @@ export const registerUserRoutes = async (app: FastifyInstance, services: Service
       preHandler: requirePermission(services, 'Administration', 'Users', 'View'),
       schema: {
         querystring: listUsersQuerySchema,
+        response: { 200: userListResponseSchema },
       },
     },
     async (request) => ok(await services.users.list(request.query)),
@@ -105,6 +108,7 @@ export const registerUserRoutes = async (app: FastifyInstance, services: Service
       preHandler: requirePermission(services, 'Administration', 'Users', 'View'),
       schema: {
         params: userIdParamsSchema,
+        response: { 200: userResponseSchema },
       },
     },
     async (request) => ok(await services.users.getById(request.params.id)),

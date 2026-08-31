@@ -9,10 +9,8 @@ import type { UploadPatientDocumentDTO } from '../patients/patient.types.js';
 import type { RequestMetadata } from '../users/user.types.js';
 import type { UserService } from '../users/user.service.js';
 import { PatientPortalRepository } from './patient-portal.repository.js';
-import { createHash, randomInt } from 'node:crypto';
-import { OtpChallengeModel } from './otp-challenge.model.js';
-import type { SmsService } from '../../shared/services/sms.service.js';
 import type { PatientAccessRelationship } from './patient-access-grant.model.js';
+import type { PatientOtpService } from './patient-otp.service.js';
 
 type ProvisionInput = {
   patientId: string;
@@ -92,7 +90,7 @@ export class PatientPortalService {
     private readonly appointments: AppointmentService,
     private readonly doctors: DoctorService,
     private readonly patients: PatientService,
-    private readonly sms: SmsService,
+    private readonly otp: PatientOtpService,
   ) {}
 
   listPublicBranches(query: { page: number; limit: number; search?: string }) {
@@ -418,62 +416,20 @@ export class PatientPortalService {
     return account;
   }
 
-  private hashOtp(phone: string, otp: string): string {
-    return createHash('sha256')
-      .update(`${phone}:${otp}`)
-      .digest('hex');
-  }
-
   async requestOtp(phone: string, metadata: RequestMetadata) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    if (normalizedPhone.length < 7) {
-      throw new AppError('Enter a valid mobile number.', 400, 'VALIDATION_ERROR');
-    }
-
-    // Cooldown check bypassed until SMS tele-gateway integration
-    // const now = new Date();
-    // const latestChallenge = await OtpChallengeModel.findOne({ phone: normalizedPhone }).sort({ createdAt: -1 });
-    // if (latestChallenge && latestChallenge.resendAvailableAt > now) {
-    //   throw new AppError('Please wait before requesting another verification code.', 429, 'RESEND_COOLDOWN');
-    // }
-
-    // Generate a 4-digit code (padded with zeros if needed)
-    const code = randomInt(1000, 10000).toString();
-    const otpHash = this.hashOtp(normalizedPhone, code);
-
-    const challenge = await OtpChallengeModel.create({
-      phone: normalizedPhone,
-      otpHash,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
-      resendAvailableAt: new Date(Date.now() + 60 * 1000), // 60 seconds
-      attempts: 0,
-      verifiedAt: null,
-      ipAddress: metadata.ipAddress ?? null,
-      userAgent: metadata.userAgent ?? null,
-    });
-
-    await this.sms.sendSms(
-      phone.trim(),
-      `Your HMS verification code is: ${code}. It is valid for 5 minutes.`
-    );
-
-    return {
-      success: true,
-      resendAvailableAt: challenge.resendAvailableAt,
-    };
+    return this.otp.request(phone, metadata);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async verifyOtp(phone: string, otp: string) {
-    // OTP verification check bypassed until SMS tele-gateway integration.
-    // Accepts 1234 or any OTP code in all environments.
-    return;
+  async verifyOtp(phone: string, otp: string, metadata?: RequestMetadata) {
+    return this.otp.verifyAndConsume(phone, otp, metadata);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async verifyAndConsumeOtp(phone: string, otp: string) {
-    // OTP verification check bypassed until SMS tele-gateway integration.
-    return;
+  async verifyAndConsumeOtp(phone: string, otp: string, metadata?: RequestMetadata) {
+    return this.otp.verifyAndConsume(phone, otp, metadata);
+  }
+
+  async assertOtpValidForPendingFlow(phone: string, otp: string, metadata?: RequestMetadata) {
+    return this.otp.assertValidForPendingFlow(phone, otp, metadata);
   }
 
   private validateOptionalId(value: string | undefined, message: string) {

@@ -8,9 +8,6 @@ import { Modal } from '../components/ui/Modal';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { useSurgeryWorkspaceFeature } from '../hooks/surgery/useSurgeryWorkspaceFeature';
-import { useAdvancePaymentFeature } from '../hooks/advance-payment/useAdvancePaymentFeature';
-import { DownstreamOrdersPanel } from '../components/clinical-context/DownstreamOrdersPanel';
-import { useSurgeryDownstreamFeature } from '../hooks/surgery/useSurgeryDownstreamFeature';
 
 const recommendationSchema = z.object({
   patient_id: z.string().min(1, 'Select a patient'),
@@ -30,10 +27,8 @@ const displayDate = (value: string) => new Date(value).toLocaleString([], { date
 const localDateTime = (value: string) => { const date = new Date(value); const offset = date.getTimezoneOffset() * 60000; return new Date(date.getTime() - offset).toISOString().slice(0, 16); };
 
 export function SurgeryWorkspacePage() {
-  const feature = useSurgeryWorkspaceFeature(); const { state, actions, mutations } = feature;
   const [recommendationOpen, setRecommendationOpen] = useState(false); const [bookingFor, setBookingFor] = useState<ProcedureRecommendation | null>(null); const [selected, setSelected] = useState<ProcedureBooking | null>(null); const [actionMode, setActionMode] = useState<ActionMode>(null);
-  const { advancePayment } = useAdvancePaymentFeature('PROCEDURE_BOOKING', selected?.id ?? null);
-  const downstream = useSurgeryDownstreamFeature(selected?.id ?? null, state.branchId, Boolean(selected && ['PENDING_CONFIRMATION', 'BOOKED'].includes(selected.status)));
+  const feature = useSurgeryWorkspaceFeature({ selectedBookingId: selected?.id, selectedBookingStatus: selected?.status }); const { state, actions } = feature;
   const recommendationForm = useForm<RecommendationValues>({ resolver: zodResolver(recommendationSchema), defaultValues: { patient_id: '', department_id: '', recommending_doctor_id: '', service_id: '', encounter_id: '', clinical_reason: '', notes: '' } });
   const bookingForm = useForm<BookingValues>({ resolver: zodResolver(bookingSchema), defaultValues: { doctor_id: '', scheduled_start: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', notes: '' } });
   const actionForm = useForm<ActionValues>({ resolver: zodResolver(actionSchema), defaultValues: { scheduled_start: '', doctor_id: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', reason: '' } });
@@ -70,7 +65,7 @@ export function SurgeryWorkspacePage() {
 
   const createRecommendation = recommendationForm.handleSubmit(async (values) => {
     try {
-      await mutations.createRecommendation.mutateAsync({
+      await actions.createRecommendation({
         ...values,
         branch_id: state.branchId,
         encounter_type: values.encounter_id ? 'OPD_VISIT' : 'DIRECT',
@@ -87,7 +82,7 @@ export function SurgeryWorkspacePage() {
   const createBooking = bookingForm.handleSubmit(async (values) => {
     if (!bookingFor) return;
     try {
-      const booking = await mutations.createBooking.mutateAsync({
+      const booking = await actions.createBooking({
         recommendation_id: bookingFor.id,
         branch_id: state.branchId,
         doctor_id: values.doctor_id,
@@ -108,17 +103,15 @@ export function SurgeryWorkspacePage() {
   });
   const executeAction = actionForm.handleSubmit(async (values) => {
     try {
-      if (actionMode === 'cancel-recommendation' && bookingFor) await mutations.cancelRecommendation.mutateAsync({ id: bookingFor.id, reason: values.reason });
-      if (selected && actionMode === 'confirm') await mutations.confirmBooking.mutateAsync({ id: selected.id, body: { hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } });
+      if (actionMode === 'cancel-recommendation' && bookingFor) await actions.executeWorkflowAction({ mode: actionMode, variables: { id: bookingFor.id, reason: values.reason } });
+      if (selected && actionMode === 'confirm') await actions.executeWorkflowAction({ mode: actionMode, variables: { id: selected.id, body: { hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } } });
       if (selected && actionMode === 'reschedule') {
-        if (values.reason.trim().length < 3) throw new Error('Reschedule reason is required.');
-        await mutations.rescheduleBooking.mutateAsync({ id: selected.id, body: { scheduled_start: values.scheduled_start, doctor_id: values.doctor_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, reason: values.reason } });
+        await actions.executeWorkflowAction({ mode: actionMode, variables: { id: selected.id, body: { scheduled_start: values.scheduled_start, doctor_id: values.doctor_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, reason: values.reason } } });
       }
       if (selected && actionMode === 'cancel-booking') {
-        if (values.reason.trim().length < 3) throw new Error('Cancellation reason is required.');
-        await mutations.cancelBooking.mutateAsync({ id: selected.id, reason: values.reason });
+        await actions.executeWorkflowAction({ mode: actionMode, variables: { id: selected.id, reason: values.reason } });
       }
-      if (selected && actionMode === 'complete') await mutations.completeBooking.mutateAsync(selected.id);
+      if (selected && actionMode === 'complete') await actions.executeWorkflowAction({ mode: actionMode, variables: selected.id });
       toast.success(actionMode === 'reschedule' ? 'Procedure rescheduled.' : actionMode === 'confirm' ? 'Procedure booking confirmed.' : actionMode === 'complete' ? 'Procedure marked completed.' : 'Cancellation completed.');
       setActionMode(null);
       setBookingFor(null);
@@ -536,18 +529,9 @@ export function SurgeryWorkspacePage() {
               type="submit"
               form="procedure-recommendation-form"
               className="btn-primary"
-              disabled={mutations.createRecommendation.isPending || !state.branchId}
+              disabled={state.pending.createRecommendation || !state.branchId}
             >
-              {mutations.createRecommendation.isPending ? (
-                <>
-                  <MedicalSpinner size="sm" />
-                  <span>Creating...</span>
-                </>
-              ) : (
-                <>
-                  <i className="ph ph-check-circle" /> Create Recommendation
-                </>
-              )}
+              <i className="ph ph-check-circle" /> {state.pending.createRecommendation ? 'Creating...' : 'Create Recommendation'}
             </button>
           </div>
         }
@@ -726,9 +710,9 @@ export function SurgeryWorkspacePage() {
               type="submit"
               form="procedure-booking-form"
               className="btn-primary"
-              disabled={mutations.createBooking.isPending}
+              disabled={state.pending.createBooking}
             >
-              <i className="ph ph-check-circle" /> {mutations.createBooking.isPending ? 'Booking...' : 'Create Pending Booking'}
+              <i className="ph ph-check-circle" /> {state.pending.createBooking ? 'Booking...' : 'Create Pending Booking'}
             </button>
           </div>
         }

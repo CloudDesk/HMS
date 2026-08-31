@@ -1,0 +1,265 @@
+/* OPD Consultation Workspace: Enhanced Diagnosis, Lab & Imaging UI */
+.opd-dx-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.opd-dx-search-input-wrap i.ph-magnifying-glass {
+  position: absolute;
+  left: 12px;
+  font-size: 1rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.opd-dx-search-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 36px 0 38px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  font-size: 0.85rem !important;
+  background: #ffffff !important;
+  transition: all 0.15s ease;
+}
+
+.opd-dx-search-input:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+}
+
+.opd-dx-clear-btn {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.opd-dx-clear-btn:hover {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+.opd-dx-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.opd-dx-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.opd-dx-result-item:hover {
+  border-color: #93c5fd;
+  background: #f8fafc;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.opd-dx-item-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.opd-dx-code-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.opd-dx-details-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.opd-dx-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.opd-dx-category-label {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.opd-dx-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.opd-dx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: #1e293b;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.opd-dx-chip strong {
+  color: #2563eb;
+  font-family: monospace;
+}
+
+.opd-dx-chip button {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  transition: color 0.15s;
+}
+
+.opd-dx-chip button:hover {
+  color: #ef4444;
+}
+
+/* OPD Tests & Scans Checkbox Grid */
+.opd-tests-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.opd-tests-search-input {
+  max-width: 320px;
+  height: 36px !important;
+  padding: 0 10px 0 32px !important;
+  font-size: 0.8rem !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+}
+
+.opd-tests-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.opd-test-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.opd-test-checkbox-label:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.opd-test-checkbox-label.selected {
+  background: #f0fdf4;
+  border-color: #86efac;
+  box-shadow: 0 0 0 1px #22c55e;
+}
+
+.opd-test-checkbox-label.selected.imaging {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+  box-shadow: 0 0 0 1px #8b5cf6;
+}
+
+.opd-test-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: #16a34a;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.opd-test-checkbox-label.selected.imaging input[type="checkbox"] {
+  accent-color: #7c3aed;
+}
+
+.opd-test-checkbox-label .opd-test-label-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.opd-test-checkbox-label .opd-test-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.35;
+}
+
+.opd-test-checkbox-label .opd-test-badge {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.opd-test-checkbox-label.selected .opd-test-name {
+  color: #15803d;
+}
+
+.opd-test-checkbox-label.selected.imaging .opd-test-name {
+  color: #6d28d9;
+}

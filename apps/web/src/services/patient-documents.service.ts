@@ -10,5 +10,10 @@ export const patientDocumentsService = {
   replace: (patientId: string, documentId: string, payload: UploadPatientDocumentPayload) =>
     patientsApi.replaceDocument(patientId, documentId, payload),
   download: (patientId: string, documentId: string) => patientsApi.downloadDocument(patientId, documentId),
+  review: (
+    patientId: string,
+    documentId: string,
+    payload: { review_status: 'VERIFIED' | 'REJECTED'; review_notes?: string | null },
+  ) => patientsApi.reviewDocument(patientId, documentId, payload),
   delete: (patientId: string, documentId: string) => patientsApi.deleteDocument(patientId, documentId),
 };

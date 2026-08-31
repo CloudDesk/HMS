@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
+import { requirePermission } from '../../middleware/require-permission.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
@@ -13,23 +14,29 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
   app.post<{ Body: CreateNotificationDTO }>(
     '/api/notifications',
     {
-      preHandler: authenticate(services),
+      preHandler: requirePermission(services, 'Administration', 'Notifications', 'Create'),
       schema: {
         body: createNotificationBodySchema,
       },
     },
-    async (request) => ok(await services.notification.createNotification(request.body)),
+    async (request) => ok(await services.notification.createGlobalNotification(
+      request.body,
+      request.user!.id,
+    )),
   );
 
   app.get<{ Querystring: NotificationListQuery }>(
     '/api/notifications',
     {
-      preHandler: authenticate(services),
+      preHandler: requirePermission(services, 'Administration', 'Notifications', 'View'),
       schema: {
         querystring: listNotificationsQuerySchema,
       },
     },
-    async (request) => ok(await services.notification.listNotifications(request.query)),
+    async (request) => ok(await services.notification.listNotifications(
+      request.query,
+      request.user!.id,
+    )),
   );
 
   app.get<{ Querystring: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit'> }>(
@@ -39,10 +46,11 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
       schema: {
         querystring: {
           type: 'object',
+          additionalProperties: false,
           properties: {
             is_read: { type: 'boolean' },
-            page: { type: 'integer' },
-            limit: { type: 'integer' },
+            page: { type: 'integer', minimum: 1 },
+            limit: { type: 'integer', minimum: 1, maximum: 100 },
           },
         },
       },

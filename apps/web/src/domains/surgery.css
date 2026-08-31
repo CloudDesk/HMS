@@ -1,0 +1,61 @@
+/* Surgery and procedure workflow */
+.surgery-page { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.5rem; }
+.surgery-page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.surgery-page-head h2 { margin: 0; font-size: 1.4rem; font-weight: 700; color: #0f172a; }
+.surgery-page-head p { margin: 0.25rem 0 0; font-size: 0.85rem; color: #64748b; }
+.surgery-actions { display: flex; align-items: center; gap: 0.75rem; }
+.surgery-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.surgery-kpi { display: flex; align-items: center; gap: 1rem; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.15rem 1.25rem; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); transition: transform 0.15s, box-shadow 0.15s; }
+.surgery-kpi:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06); }
+.surgery-kpi-icon { width: 46px; height: 46px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0; }
+.surgery-kpi-icon.blue { background: #eff6ff; color: #2563eb; }
+.surgery-kpi-icon.orange { background: #fff7ed; color: #ea580c; }
+.surgery-kpi-icon.purple { background: #faf5ff; color: #9333ea; }
+.surgery-kpi-icon.green { background: #f0fdf4; color: #16a34a; }
+.surgery-kpi-copy { display: flex; flex-direction: column; min-width: 0; }
+.surgery-kpi-copy span { font-size: 0.78rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.02em; }
+.surgery-kpi-copy strong { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.2; margin: 2px 0; }
+.surgery-kpi-copy small { font-size: 0.75rem; color: #94a3b8; }
+.surgery-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.75rem 1rem; flex-wrap: wrap; }
+.surgery-toolbar-controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
+.surgery-table-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); }
+.surgery-table-actions { display: flex; align-items: center; gap: 0.5rem; }
+.surgery-step-nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: #f1f5f9; padding: 6px; border-radius: 8px; }
+.surgery-step-item { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: #64748b; background: transparent; transition: all 0.15s; }
+.surgery-step-item.active { background: #ffffff; color: #2563eb; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
+.surgery-step-item.completed { color: #16a34a; }
+.surgery-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+.surgery-detail-item { display: flex; flex-direction: column; gap: 2px; }
+.surgery-detail-item span { font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+.surgery-detail-item strong { font-size: 0.88rem; font-weight: 600; color: #0f172a; }
+
+.segmented-control { display: inline-flex; min-height: 38px; padding: 3px; border: 1px solid #dbe3ee; border-radius: 7px; background: #f8fafc; }
+.segmented-control button { min-width: 112px; padding: 7px 12px; border: 0; border-radius: 5px; background: transparent; color: #475569; font-weight: 650; cursor: pointer; transition: all 0.15s; }
+.segmented-control button.active { background: #fff; color: #1d4ed8; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
+.booking-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; overflow: hidden; border: 1px solid #dbe3ee; border-radius: 7px; background: #dbe3ee; }
+.booking-steps span { padding: 10px; background: #f8fafc; color: #64748b; text-align: center; font-size: 12px; font-weight: 650; }
+.booking-steps span.active { background: #eff6ff; color: #1d4ed8; }
+.prerequisite-panel { display: grid; gap: 8px; padding: 13px; border: 1px solid #dbe3ee; border-radius: 7px; background: #f8fafc; }
+.prerequisite-panel p { margin: 0; color: #475569; font-size: 13px; }
+.requirement-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.requirement-flags span { padding: 4px 7px; border-radius: 5px; font-size: 11px; font-weight: 650; }
+.requirement-flags .met { color: #166534; background: #dcfce7; }
+.requirement-flags .blocked { color: #991b1b; background: #fee2e2; }
+.schedule-timeline { display: grid; gap: 0; padding: 0 18px 18px; }
+.schedule-event { display: grid; grid-template-columns: 90px minmax(180px, 1.3fr) minmax(180px, 1fr) auto; align-items: center; gap: 14px; min-height: 64px; padding: 11px 14px; border: 0; border-bottom: 1px solid #e2e8f0; background: #fff; color: #334155; text-align: left; cursor: pointer; }
+.schedule-event:hover { background: #f8fafc; }
+.schedule-event > span { color: #1d4ed8; font-weight: 700; }
+.schedule-event > small { color: #64748b; }
+@media (max-width: 960px) {
+  .surgery-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .surgery-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .segmented-control { width: 100%; }
+  .segmented-control button { min-width: 0; flex: 1; }
+  .booking-steps { grid-template-columns: 1fr; }
+  .schedule-event { grid-template-columns: 72px 1fr; }
+  .schedule-event > small, .schedule-event > .status-badge { grid-column: 2; }
+  .surgery-kpi-grid { grid-template-columns: 1fr; }
+  .surgery-toolbar { flex-direction: column; align-items: stretch; }
+}

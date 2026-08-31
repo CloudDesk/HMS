@@ -25,6 +25,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "vitest run",
+    "test:security": "vitest run apps/api/src/modules/auth/auth-rate-limit.test.ts apps/api/src/modules/notifications/notification.authorization.test.ts apps/api/src/modules/patient-portal/otp.test.ts apps/patient-web/src/auth/auth-refresh.test.tsx apps/web/src/components/patients/PatientPrintHelper.test.tsx apps/web/src/utils/inpatient-clinical-storage.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "benchmark": "k6 run benchmark/baseline.js"

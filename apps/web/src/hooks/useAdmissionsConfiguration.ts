@@ -10,6 +10,8 @@ import type {
   WardStatus,
 } from '../api/admissions-configuration';
 
+type WardListParams = Parameters<typeof admissionsConfigurationService.wards>[0];
+
 type AdmissionsConfigurationParams = {
   branchId: string;
   search: string;
@@ -38,6 +40,13 @@ export const admissionsConfigurationKeys = {
   policy: (branchId: string) =>
     [...admissionsConfigurationKeys.all, 'policy', branchId] as const,
 };
+
+export const useWardsList = (params: WardListParams, enabled = true) => useQuery({
+  queryKey: admissionsConfigurationKeys.wardList(params.branch_id ?? '', params),
+  queryFn: () => admissionsConfigurationService.wards(params),
+  enabled: enabled && Boolean(params.branch_id),
+  staleTime: LOOKUP_STALE_TIME,
+});
 
 export const useAdmissionsConfiguration = ({
   branchId,

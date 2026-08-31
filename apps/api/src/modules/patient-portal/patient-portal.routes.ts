@@ -6,6 +6,16 @@ import { requirePermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
+import {
+  establishRefreshSession,
+  setRefreshSessionCookie,
+} from '../auth/auth-session-cookie.js';
+import {
+  patientPortalContextResponseSchema,
+  patientPortalSessionResponseSchema,
+  patientOtpRequestResponseSchema,
+  patientOtpVerifyResponseSchema,
+} from './patient-portal.schemas.js';
 
 const provisionSchema = z.object({
   patient_id: z.string().min(1),
@@ -232,23 +242,31 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     return ok(await services.patientPortal.availableSlots(request.params.id, query.date));
   });
 
-  app.post<{ Body: RequestOtpBody }>('/api/patient-portal/otp/request', async (request) => {
+  app.post<{ Body: RequestOtpBody }>('/api/patient-portal/otp/request', {
+    schema: { response: { 200: patientOtpRequestResponseSchema } },
+  }, async (request) => {
     const parsed = requestOtpSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid mobile number', 400, 'VALIDATION_ERROR');
     return ok(await services.patientPortal.requestOtp(parsed.data.phone, metadataFromRequest(request)));
   });
 
-  app.post<{ Body: VerifyOtpBody }>('/api/patient-portal/otp/verify', async (request) => {
+  app.post<{ Body: VerifyOtpBody }>('/api/patient-portal/otp/verify', {
+    schema: { response: { 200: patientOtpVerifyResponseSchema } },
+  }, async (request) => {
     const parsed = verifyOtpSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid mobile number and 4-digit code', 400, 'VALIDATION_ERROR');
-    await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp);
+    await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp, metadataFromRequest(request));
     return ok({ success: true });
   });
 
   app.post<{ Body: RegisterBody }>('/api/patient-portal/signup', async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Invalid portal registration details', 400, 'VALIDATION_ERROR');
-    await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp);
+    const verification = await services.patientPortal.verifyAndConsumeOtp(
+      parsed.data.phone,
+      parsed.data.otp,
+      metadataFromRequest(request),
+    );
     const account = await services.patientPortal.register({
       accountType: parsed.data.account_type,
       fullName: parsed.data.full_name,
@@ -261,17 +279,22 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
         identification: parsed.data.guardian_profile.identification,
       } : undefined,
     }, metadataFromRequest(request));
+    const session = await services.auth.loginPatientAfterOtpVerification(
+      parsed.data.phone,
+      verification,
+      metadataFromRequest(request),
+    );
+    setRefreshSessionCookie(reply, session.tokens.refreshToken);
     return reply.status(201).send(ok(account));
   });
 
-  app.post<{ Body: OtpLoginBody }>('/api/patient-portal/login/otp', async (request) => {
+  app.post<{ Body: OtpLoginBody }>('/api/patient-portal/login/otp', {
+    schema: { response: { 200: patientPortalSessionResponseSchema } },
+  }, async (request, reply) => {
     const parsed = otpLoginSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid mobile number and 4-digit code', 400, 'VALIDATION_ERROR');
     
-    const isDemo = services.auth.isPatientDemoOtp(parsed.data.otp);
-    if (!isDemo) {
-      await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp);
-    }
+    await services.patientPortal.assertOtpValidForPendingFlow(parsed.data.phone, parsed.data.otp, metadataFromRequest(request));
 
     const status = await services.patientPortal.getUnlinkedPatientLoginStatus(parsed.data.phone);
     if (status === 'MINOR_REQUIRES_GUARDIAN') {
@@ -280,9 +303,6 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
         409,
         'MINOR_GUARDIAN_ACCOUNT_REQUIRED',
       );
-    }
-    if (status === 'ACCOUNT_NOT_LINKED') {
-      await services.patientPortal.activateExistingPatientByPhone(parsed.data.phone, metadataFromRequest(request));
     }
     if (status === 'MULTIPLE_PATIENT_MATCHES') {
       throw new AppError(
@@ -295,24 +315,47 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       throw new AppError('No portal account or patient record matches this number. Register as a new patient first.', 409, 'NEW_PATIENT_REQUIRES_REGISTRATION');
     }
 
-    return ok(await services.auth.loginPatientWithOtp(parsed.data, metadataFromRequest(request)));
+    const verification = await services.patientPortal.verifyAndConsumeOtp(
+      parsed.data.phone,
+      parsed.data.otp,
+    );
+    if (status === 'ACCOUNT_NOT_LINKED') {
+      await services.patientPortal.activateExistingPatientByPhone(parsed.data.phone, metadataFromRequest(request));
+    }
+
+    const session = await services.auth.loginPatientAfterOtpVerification(
+      parsed.data.phone,
+      verification,
+      metadataFromRequest(request),
+    );
+    return ok(establishRefreshSession(reply, session));
   });
 
   app.post<{ Body: ExistingPatientActivationBody }>('/api/patient-portal/existing-patient/activate', async (request, reply) => {
     const parsed = existingPatientActivationSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid MRN, registered mobile number, date of birth, email and code', 400, 'VALIDATION_ERROR');
-    await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp);
+    const verification = await services.patientPortal.verifyAndConsumeOtp(
+      parsed.data.phone,
+      parsed.data.otp,
+      metadataFromRequest(request),
+    );
     const result = await services.patientPortal.activateExistingPatient({
       patientNumber: parsed.data.patient_number, phone: parsed.data.phone,
       dateOfBirth: parsed.data.date_of_birth, email: parsed.data.email,
     }, metadataFromRequest(request));
+    const session = await services.auth.loginPatientAfterOtpVerification(
+      parsed.data.phone,
+      verification,
+      metadataFromRequest(request),
+    );
+    setRefreshSessionCookie(reply, session.tokens.refreshToken);
     return reply.status(201).send(ok(result));
   });
 
-  app.post<{ Body: GuardianActivationBody }>('/api/patient-portal/guardian-activation', async (request) => {
+  app.post<{ Body: GuardianActivationBody }>('/api/patient-portal/guardian-activation', async (request, reply) => {
     const parsed = guardianActivationSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter valid parent or guardian details', 400, 'VALIDATION_ERROR');
-    await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp);
+    const verification = await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp, metadataFromRequest(request));
     await services.patientPortal.activateGuardianForMinor({
       fullName: parsed.data.full_name,
       email: parsed.data.email,
@@ -322,10 +365,18 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       identification: parsed.data.identification,
       legalConsentAccepted: parsed.data.legal_consent_accepted,
     }, metadataFromRequest(request));
-    return ok(await services.auth.loginPatientWithOtp(parsed.data, metadataFromRequest(request)));
+    const session = await services.auth.loginPatientAfterOtpVerification(
+      parsed.data.phone,
+      verification,
+      metadataFromRequest(request),
+    );
+    return ok(establishRefreshSession(reply, session));
   });
 
-  app.get('/api/patient-portal/context', { preHandler: authenticate(services) }, async (request) =>
+  app.get('/api/patient-portal/context', {
+    preHandler: authenticate(services),
+    schema: { response: { 200: patientPortalContextResponseSchema } },
+  }, async (request) =>
     ok(await services.patientPortal.context(request.user!.id)));
 
   app.get<{ Querystring: { patient_id?: string } }>('/api/patient-portal/overview', { preHandler: authenticate(services) }, async (request) =>

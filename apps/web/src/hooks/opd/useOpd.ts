@@ -15,6 +15,11 @@ import {
 } from '../../api/opd';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 
+type OpdMutationNotificationOptions = {
+  notifyOnError?: boolean;
+  notifyOnSuccess?: boolean;
+};
+
 export const opdKeys = {
   all: ['opd'] as const,
   visits: () => [...opdKeys.all, 'visits'] as const,
@@ -111,7 +116,7 @@ export function useCreateOpdVisit() {
   });
 }
 
-export function useUpdateOpdVisitStatus() {
+export function useUpdateOpdVisitStatus(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -120,22 +125,26 @@ export function useUpdateOpdVisitStatus() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }
 
-export function useCallNextOpdPatient() {
+export function useCallNextOpdPatient(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (visitId: string) => opdApi.callNextPatient(visitId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }
 
-export function useSaveOpdConsultationDraft() {
+export function useSaveOpdConsultationDraft(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ visitId, payload }: { visitId: string; payload: SaveOpdConsultationPayload }) =>
@@ -143,11 +152,13 @@ export function useSaveOpdConsultationDraft() {
     onSuccess: async (data, { visitId }) => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.consultation(visitId) });
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }
 
-export function useCompleteOpdConsultation() {
+export function useCompleteOpdConsultation(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ visitId, payload }: { visitId: string; payload: SaveOpdConsultationPayload }) =>
@@ -157,11 +168,13 @@ export function useCompleteOpdConsultation() {
       await queryClient.invalidateQueries({ queryKey: opdKeys.visitDetails(visitId) });
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }
 
-export function useSubmitOpdPrescription() {
+export function useSubmitOpdPrescription(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ visitId, payload }: { visitId: string; payload: SaveOpdPrescriptionPayload }) =>
@@ -169,11 +182,27 @@ export function useSubmitOpdPrescription() {
     onSuccess: async (data, { visitId }) => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.prescription(visitId) });
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }
 
-export function useSubmitOpdClinicalOrder() {
+export function useSaveOpdPrescriptionDraft(options: OpdMutationNotificationOptions = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ visitId, payload }: { visitId: string; payload: SaveOpdPrescriptionPayload }) =>
+      opdApi.savePrescriptionDraft(visitId, payload),
+    onSuccess: async (_data, { visitId }) => {
+      await queryClient.invalidateQueries({ queryKey: opdKeys.prescription(visitId) });
+    },
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
+  });
+}
+
+export function useSubmitOpdClinicalOrder(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ visitId, type, payload }: { visitId: string; type: ApiClinicalOrderType; payload: SaveOpdClinicalOrderPayload }) =>
@@ -181,11 +210,27 @@ export function useSubmitOpdClinicalOrder() {
     onSuccess: async (data, { visitId, type }) => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.clinicalOrder(visitId, type) });
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }
 
-export function useCreateOpdVitals() {
+export function useSaveOpdClinicalOrderDraft(options: OpdMutationNotificationOptions = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ visitId, type, payload }: { visitId: string; type: ApiClinicalOrderType; payload: SaveOpdClinicalOrderPayload }) =>
+      opdApi.saveClinicalOrderDraft(visitId, type, payload),
+    onSuccess: async (_data, { visitId, type }) => {
+      await queryClient.invalidateQueries({ queryKey: opdKeys.clinicalOrder(visitId, type) });
+    },
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
+  });
+}
+
+export function useCreateOpdVitals(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ visitId, payload }: { visitId: string; payload: CreateOpdVitalsPayload }) =>
@@ -193,7 +238,9 @@ export function useCreateOpdVitals() {
     onSuccess: async (data, { visitId }) => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.latestVitals(visitId) });
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }
 
@@ -242,19 +289,21 @@ export function useSaveOpdReferralDraft() {
   });
 }
 
-export function useSubmitOpdReferral() {
+export function useSubmitOpdReferral(options: OpdMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ visitId, payload }: { visitId: string; payload: SaveOpdReferralPayload }) =>
       opdApi.submitReferral(visitId, payload),
     onSuccess: async (_data, { visitId }) => {
-      toast.success('Referral submitted.');
+      if (options.notifyOnSuccess !== false) toast.success('Referral submitted.');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: opdKeys.referral(visitId) }),
         queryClient.invalidateQueries({ queryKey: opdKeys.visitDetails(visitId) }),
       ]);
     },
-    onError: (error) => toast.error(getOpdErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
   });
 }

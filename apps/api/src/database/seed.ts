@@ -57,6 +57,7 @@ const permissionDefinitions: PermissionDefinition[] = [
     Services: ['View', 'Create', 'Edit', 'Delete', 'Export'],
     Medicines: ['View', 'Create', 'Edit', 'Delete', 'Export'],
     'Consent Templates': ['View', 'Create', 'Edit'],
+    Notifications: ['View', 'Create'],
   }, 'SYSTEM', 'ADMINISTRATION'),
   ...expandPermissions('Patients', {
     'Patient Records': ['View', 'Create', 'Edit'],
@@ -134,6 +135,7 @@ const administratorPermissionCodes = [
   ...['Branches', 'Departments', 'Services', 'Medicines'].flatMap((screen) =>
     ['View', 'Create', 'Edit', 'Export'].map((action) => code('Administration', screen, action))),
   ...['View', 'Create', 'Edit'].map((action) => code('Administration', 'Consent Templates', action)),
+  ...['View', 'Create'].map((action) => code('Administration', 'Notifications', action)),
   ...['View', 'Attach', 'Verify', 'Delete'].map((action) => code('Patients', 'Consent', action)),
   ...['View', 'Create', 'Edit', 'Delete'].map((action) => code('Patients', 'Patient Documents', action)),
   ...['View', 'Edit', 'Export'].map((action) => `settings.${action.toLowerCase()}`),

@@ -1,0 +1,448 @@
+/* ==========================================================================
+   Doctor Directory & Doctor Performance Feature Stylesheet
+   Phase 7.3 Extraction from styles.css
+   ========================================================================== */
+
+/* ==========================================================================
+   1. Doctor Directory Shell & Header
+   ========================================================================== */
+.doctor-page {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.doctor-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.doctor-page-title h2 {
+  margin: 0 0 0.3rem;
+  color: #0f172a;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.doctor-page-title p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.doctor-page-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ==========================================================================
+   2. Doctor Directory Profile & Empty State
+   ========================================================================== */
+.doctor-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  text-align: center;
+}
+
+.doctor-empty-state i {
+  color: #2563eb;
+  font-size: 2.2rem;
+}
+
+.doctor-empty-state h3,
+.doctor-empty-state p {
+  margin: 0;
+}
+
+.doctor-profile-avatar {
+  width: 64px;
+  height: 64px;
+  flex-basis: 64px;
+  font-size: 1rem;
+}
+
+.doctor-profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.doctor-profile-summary h3,
+.doctor-profile-summary p {
+  margin: 0;
+}
+
+.doctor-profile-summary p {
+  margin-top: 0.25rem;
+  color: #64748b;
+}
+
+.doctor-profile-summary .doc-summary-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+/* ==========================================================================
+   3. Doctor Availability Controls & Grid
+   ========================================================================== */
+.doctor-availability-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.35fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.doctor-availability-side {
+  align-self: start;
+  position: sticky;
+  top: 1rem;
+}
+
+.doctor-availability-summary {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.doctor-availability-summary div {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.75rem;
+}
+
+.doctor-availability-summary span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.doctor-availability-summary strong {
+  color: #0f172a;
+  font-size: 0.92rem;
+}
+
+.doctor-availability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.doctor-day-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.doctor-day-card.active {
+  border-color: #bfdbfe;
+  background: #ffffff;
+}
+
+.doctor-day-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.doctor-day-card header strong,
+.doctor-day-card header span {
+  display: block;
+}
+
+.doctor-day-card header strong {
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.doctor-day-card header span {
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.doctor-day-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.doctor-day-fields .span-two {
+  grid-column: 1 / -1;
+}
+
+/* ==========================================================================
+   4. Doctor Onboarding & Account Access
+   ========================================================================== */
+.doctor-onboarding-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.doctor-onboarding-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1rem;
+}
+
+.doctor-onboarding-section > header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.8rem;
+}
+
+.doctor-onboarding-section > header > span {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.doctor-onboarding-section h3,
+.doctor-onboarding-section p {
+  margin: 0;
+}
+
+.doctor-onboarding-section h3 {
+  color: #0f172a;
+  font-size: 0.94rem;
+}
+
+.doctor-onboarding-section header p,
+.doctor-account-toggle p {
+  margin-top: 0.15rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.doctor-account-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 0.85rem 1rem;
+}
+
+.doctor-account-toggle strong {
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+.doctor-account-fields {
+  margin-top: 1rem;
+}
+
+.doctor-account-role {
+  display: grid;
+  align-content: center;
+  gap: 0.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.7rem 0.8rem;
+}
+
+.doctor-account-role span,
+.doctor-account-role small {
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.doctor-account-role strong {
+  color: #166534;
+  font-size: 0.82rem;
+}
+
+.doctor-account-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.doctor-switch {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.doctor-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.doctor-switch span {
+  width: 44px;
+  height: 24px;
+  position: relative;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 0.18s ease;
+}
+
+.doctor-switch span::after {
+  content: '';
+  width: 18px;
+  height: 18px;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  border-radius: 999px;
+  background: #ffffff;
+  transition: transform 0.18s ease;
+}
+
+.doctor-switch input:checked + span {
+  background: #2563eb;
+}
+
+.doctor-switch input:checked + span::after {
+  transform: translateX(20px);
+}
+
+/* ==========================================================================
+   5. Doctor Working Blocks
+   ========================================================================== */
+.doctor-working-blocks {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.doctor-working-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.doctor-block-actions {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.doctor-subtable {
+  margin-top: 1rem;
+}
+
+/* ==========================================================================
+   6. Doctor Performance Metrics
+   ========================================================================== */
+.doc-field.compact {
+  min-width: 150px;
+}
+
+.doc-grid.performance {
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.8fr);
+}
+
+.doc-metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.doc-metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #edf2f7;
+  padding: 0.82rem 0;
+}
+
+.doc-metric:last-child {
+  border-bottom: 0;
+}
+
+.doc-metric span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.doc-metric strong {
+  color: #0f172a;
+  font-size: 0.84rem;
+}
+
+/* ==========================================================================
+   7. Responsive Rules
+   ========================================================================== */
+@media (max-width: 720px) {
+  .doctor-working-block {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .doctor-working-block .doc-action {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .doctor-block-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 768px) {
+  .doc-grid.performance,
+  .doctor-availability-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .doctor-availability-side {
+    position: static;
+  }
+
+  .doctor-availability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .doctor-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .doctor-page-actions {
+    width: 100%;
+  }
+
+  .doctor-page-actions .doc-field.compact {
+    flex: 1 1 180px;
+  }
+}

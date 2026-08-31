@@ -150,3 +150,44 @@ export interface AdmissionRequestStats {
 
 export type InpatientAdmissionListQuery = { branch_id: string; status?: AdmissionStatus; page?: number; limit?: number };
 export type AdmissionRequestMetadata = { ipAddress?: string; userAgent?: string };
+
+export type CreateInpatientRoundNoteDTO = {
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+};
+
+export type InpatientRoundNote = CreateInpatientRoundNoteDTO & {
+  id: string;
+  admission_id: string;
+  patient_id: string;
+  branch_id: string;
+  encounter_id: string | null;
+  doctor_name: string;
+  created_by: string;
+  date: Date;
+  updated_at: Date;
+};
+
+export type CreateInpatientVitalDTO = {
+  bp_systolic: number;
+  bp_diastolic: number;
+  heart_rate: number;
+  temperature: number;
+  spo2: number;
+  respiratory_rate: number;
+  pain_score: number;
+};
+
+export type InpatientVital = CreateInpatientVitalDTO & {
+  id: string;
+  admission_id: string;
+  patient_id: string;
+  branch_id: string;
+  encounter_id: string | null;
+  recorded_by: string;
+  created_by: string;
+  recorded_at: Date;
+  updated_at: Date;
+};

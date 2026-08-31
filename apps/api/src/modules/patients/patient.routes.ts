@@ -9,6 +9,8 @@ import {
   listPatientDocumentsQuerySchema,
   listPatientTimelineQuerySchema,
   listPatientsQuerySchema,
+  patientListResponseSchema,
+  patientResponseSchema,
   patientDocumentIdParamsSchema,
   patientIdParamsSchema,
   reviewPatientDocumentBodySchema,
@@ -97,6 +99,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       preHandler: requirePermission(services, 'Patients', 'Patient Records', 'View'),
       schema: {
         querystring: listPatientsQuerySchema,
+        response: { 200: patientListResponseSchema },
       },
     },
     async (request) => ok(await services.patients.list(request.query, request.user!.id)),
@@ -108,6 +111,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       preHandler: requirePermission(services, 'Patients', 'Patient Records', 'View'),
       schema: {
         params: patientIdParamsSchema,
+        response: { 200: patientResponseSchema },
       },
     },
     async (request) => ok(await services.patients.getById(request.params.id, request.user!.id)),

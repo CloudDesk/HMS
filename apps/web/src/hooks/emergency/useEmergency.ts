@@ -10,12 +10,19 @@ import type {
   DispositionPayload,
 } from '../../api/emergency';
 import { emergencyService } from '../../services/emergency.service';
-const keys = {
+export const emergencyKeys = {
   all: ['emergency'] as const,
   list: (params: EmergencyListParams) => ['emergency', 'list', params] as const,
   summary: (branch: string) => ['emergency', 'summary', branch] as const,
   detail: (id: string, branch: string) => ['emergency', 'detail', id, branch] as const,
 };
+export function useEmergencyEncountersList(params: EmergencyListParams, enabled = true) {
+  return useQuery({
+    queryKey: emergencyKeys.list(params),
+    queryFn: () => emergencyService.list(params),
+    enabled,
+  });
+}
 export function useEmergency(
   params: EmergencyListParams,
   selectedId: string | null,
@@ -24,22 +31,22 @@ export function useEmergency(
   const client = useQueryClient();
 
   const updateEncounter = (data: EmergencyEncounter) => {
-    client.setQueryData(keys.detail(data.id, params.branch_id), data);
+    client.setQueryData(emergencyKeys.detail(data.id, params.branch_id), data);
     client.invalidateQueries({ queryKey: ['emergency', 'list'] });
     client.invalidateQueries({ queryKey: ['emergency', 'summary'] });
   };
   const list = useQuery({
-    queryKey: keys.list(params),
+    queryKey: emergencyKeys.list(params),
     queryFn: () => emergencyService.list(params),
     enabled,
   });
   const summary = useQuery({
-    queryKey: keys.summary(params.branch_id),
+    queryKey: emergencyKeys.summary(params.branch_id),
     queryFn: () => emergencyService.summary(params.branch_id),
     enabled,
   });
   const detail = useQuery({
-    queryKey: keys.detail(selectedId ?? '', params.branch_id),
+    queryKey: emergencyKeys.detail(selectedId ?? '', params.branch_id),
     queryFn: () => emergencyService.get(selectedId!, params.branch_id),
     enabled: enabled && Boolean(selectedId),
   });

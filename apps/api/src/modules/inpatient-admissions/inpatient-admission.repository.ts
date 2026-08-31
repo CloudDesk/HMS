@@ -9,7 +9,8 @@ import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
 import { WardModel } from '../admissions-configuration/admissions-configuration.model.js';
 import { AdmissionRequestModel, InpatientAdmissionModel, type AdmissionRequestFields, type InpatientAdmissionFields } from './inpatient-admission.model.js';
-import type { AdmissionRequest, AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, AdmissionSourceType, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, InpatientAdmission, InpatientAdmissionListQuery, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
+import { InpatientRoundNoteModel, InpatientVitalModel, type InpatientRoundNoteFields, type InpatientVitalFields } from './inpatient-clinical-record.model.js';
+import type { AdmissionRequest, AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, AdmissionSourceType, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, CreateInpatientRoundNoteDTO, CreateInpatientVitalDTO, InpatientAdmission, InpatientAdmissionListQuery, InpatientRoundNote, InpatientVital, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
 const oid = (value: string) => new Types.ObjectId(value);
 const safeOid = (value: string | null | undefined) => (value && /^[a-f\d]{24}$/i.test(value) ? new Types.ObjectId(value) : null);
 const meta = (total: number, page: number, limit: number) => ({ total, page, limit, totalPages: Math.ceil(total / limit) || 1 });
@@ -25,6 +26,17 @@ const toRequest = (item: AdmissionRequestFields & { _id: Types.ObjectId }): Admi
   prerequisite_snapshot: (item.prerequisiteSnapshot as AdmissionPrerequisiteSnapshot | null | undefined) ?? null,
   admission_id: item.admissionId?.toString() ?? null, cancellation_reason: item.cancellationReason ?? null,
   created_at: item.createdAt, updated_at: item.updatedAt,
+});
+const toRoundNote = (item: InpatientRoundNoteFields & { _id: Types.ObjectId }): InpatientRoundNote => ({
+  id: item._id.toString(), admission_id: item.admissionId.toString(), patient_id: item.patientId.toString(), branch_id: item.branchId.toString(),
+  encounter_id: item.encounterId?.toString() ?? null, doctor_name: item.createdByName, created_by: item.createdBy.toString(), date: item.createdAt,
+  updated_at: item.updatedAt, subjective: item.subjective, objective: item.objective, assessment: item.assessment, plan: item.plan,
+});
+const toVital = (item: InpatientVitalFields & { _id: Types.ObjectId }): InpatientVital => ({
+  id: item._id.toString(), admission_id: item.admissionId.toString(), patient_id: item.patientId.toString(), branch_id: item.branchId.toString(),
+  encounter_id: item.encounterId?.toString() ?? null, recorded_by: item.createdByName, created_by: item.createdBy.toString(), recorded_at: item.createdAt,
+  updated_at: item.updatedAt, bp_systolic: item.bpSystolic, bp_diastolic: item.bpDiastolic, heart_rate: item.heartRate,
+  temperature: item.temperature, spo2: item.spo2, respiratory_rate: item.respiratoryRate, pain_score: item.painScore,
 });
 export class InpatientAdmissionRepository {
 constructor(private readonly sequenceService: SequenceService) {}
@@ -428,6 +440,28 @@ async createRequest(
   }
   async list(query: InpatientAdmissionListQuery, departmentIds?: string[]) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id) }; if (departmentIds) filter.departmentId = { $in: departmentIds.map(oid) }; if (query.status) filter.status = query.status; const [items, total] = await Promise.all([InpatientAdmissionModel.aggregate<InpatientAdmissionFields & { _id: Types.ObjectId; wardName?: string; bedNumber?: string }>([{ $match: filter }, { $lookup: { from: 'hmswards', localField: 'wardId', foreignField: '_id', as: 'ward' } }, { $lookup: { from: 'hmsbeds', localField: 'bedId', foreignField: '_id', as: 'bed' } }, { $set: { wardName: { $ifNull: [{ $arrayElemAt: ['$ward.name', 0] }, ''] }, bedNumber: { $ifNull: [{ $arrayElemAt: ['$bed.bedNumber', 0] }, ''] } } }, { $sort: { admissionDate: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit }]), InpatientAdmissionModel.countDocuments(filter)]); return { data: items.map(toDto), meta: meta(total, page, limit) }; }
   async getById(id: string, branchId: string) { const item = await InpatientAdmissionModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean(); return item ? toDto(item as InpatientAdmissionFields & { _id: Types.ObjectId }) : null; }
+  async actorName(actor: string) {
+    const user = await UserModel.findOne({ _id: oid(actor), status: 'active', deletedAt: null }).select('fullName').lean();
+    return user?.fullName ?? 'Authorized staff';
+  }
+  async listRoundNotes(admissionId: string, branchId: string) {
+    const items = await InpatientRoundNoteModel.find({ admissionId: oid(admissionId), branchId: oid(branchId) }).sort({ createdAt: -1, _id: -1 }).lean<(InpatientRoundNoteFields & { _id: Types.ObjectId })[]>();
+    return items.map(toRoundNote);
+  }
+  async createRoundNote(admission: InpatientAdmission, data: CreateInpatientRoundNoteDTO, actor: string, actorName: string, session?: ClientSession) {
+    const created = await InpatientRoundNoteModel.create([{ admissionId: oid(admission.id), patientId: oid(admission.patient_id), branchId: oid(admission.branch_id), encounterId: safeOid(admission.source_id), createdBy: oid(actor), createdByName: actorName, ...data }], session ? { session } : undefined);
+    const item = created[0]; if (!item) throw new Error('Round note create returned no record');
+    return toRoundNote(item.toObject() as InpatientRoundNoteFields & { _id: Types.ObjectId });
+  }
+  async listVitals(admissionId: string, branchId: string) {
+    const items = await InpatientVitalModel.find({ admissionId: oid(admissionId), branchId: oid(branchId) }).sort({ createdAt: -1, _id: -1 }).lean<(InpatientVitalFields & { _id: Types.ObjectId })[]>();
+    return items.map(toVital);
+  }
+  async createVital(admission: InpatientAdmission, data: CreateInpatientVitalDTO, actor: string, actorName: string, session?: ClientSession) {
+    const created = await InpatientVitalModel.create([{ admissionId: oid(admission.id), patientId: oid(admission.patient_id), branchId: oid(admission.branch_id), encounterId: safeOid(admission.source_id), createdBy: oid(actor), createdByName: actorName, bpSystolic: data.bp_systolic, bpDiastolic: data.bp_diastolic, heartRate: data.heart_rate, temperature: data.temperature, spo2: data.spo2, respiratoryRate: data.respiratory_rate, painScore: data.pain_score }], session ? { session } : undefined);
+    const item = created[0]; if (!item) throw new Error('Vital create returned no record');
+    return toVital(item.toObject() as InpatientVitalFields & { _id: Types.ObjectId });
+  }
   async audit(eventType: string, actor: string, metadata: AdmissionRequestMetadata, details: Record<string, unknown>, session?: ClientSession) {
     const opts = session ? { session } : undefined;
     await AuditLogModel.create([{ eventType, actorUserId: actor, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details }], opts);

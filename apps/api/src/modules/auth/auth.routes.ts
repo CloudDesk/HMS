@@ -2,56 +2,25 @@
 // FastifyRequest.cookies and FastifyReply.setCookie/clearCookie is in scope.
 import '@fastify/cookie';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { env } from '../../config/env.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
   changePasswordBodySchema,
+  authSessionResponseSchema,
+  currentUserResponseSchema,
   loginBodySchema,
   logoutBodySchema,
   passwordResetConfirmBodySchema,
   passwordResetRequestBodySchema,
   refreshBodySchema,
 } from './auth.schemas.js';
-
-// ---------------------------------------------------------------------------
-// Cookie constants
-// ---------------------------------------------------------------------------
-
-/** Name of the HttpOnly refresh-token cookie. */
-const REFRESH_COOKIE_NAME = 'hms-refresh-token';
-
-/**
- * Restrict the cookie to authentication endpoints only so it is not sent to
- * /api/patients, /api/billing, etc.
- */
-const REFRESH_COOKIE_PATH = '/api/auth';
-
-/**
- * Returns the options object used when setting the refresh-token cookie.
- * All security attributes are derived from environment configuration.
- */
-const refreshCookieOptions = (maxAge: number) => ({
-  httpOnly: true,
-  secure: env.auth.cookie.secure,
-  sameSite: env.auth.cookie.sameSite,
-  path: REFRESH_COOKIE_PATH,
-  maxAge,
-  // Only set domain when explicitly configured; omitting it keeps the cookie
-  // scoped to the exact host, which is more restrictive.
-  ...(env.auth.cookie.domain ? { domain: env.auth.cookie.domain } : {}),
-});
-
-/**
- * Options used when clearing the cookie. The path/domain MUST match the
- * options used when the cookie was set; otherwise browsers will not delete it.
- */
-const clearCookieOptions = () => ({
-  path: REFRESH_COOKIE_PATH,
-  ...(env.auth.cookie.domain ? { domain: env.auth.cookie.domain } : {}),
-});
+import {
+  clearRefreshSessionCookie,
+  establishRefreshSession,
+  REFRESH_COOKIE_NAME,
+} from './auth-session-cookie.js';
 
 // ---------------------------------------------------------------------------
 // Route body types
@@ -106,27 +75,14 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
     {
       schema: {
         body: loginBodySchema,
+        response: { 200: authSessionResponseSchema },
       },
     },
     async (request, reply) => {
       const session = await services.auth.login(request.body, metadataFromRequest(request));
 
       // Set the refresh token in an HttpOnly cookie — not readable by JavaScript.
-      reply.setCookie(
-        REFRESH_COOKIE_NAME,
-        session.tokens.refreshToken,
-        refreshCookieOptions(env.auth.refreshTokenTtlSeconds),
-      );
-
-      // Strip refreshToken and refreshExpiresIn from the response body so they
-      // are never exposed to frontend JavaScript.
-      const safeTokens = {
-        accessToken: session.tokens.accessToken,
-        tokenType: session.tokens.tokenType,
-        expiresIn: session.tokens.expiresIn,
-      };
-
-      return ok({ user: session.user, tokens: safeTokens });
+      return ok(establishRefreshSession(reply, session));
     },
   );
 
@@ -146,6 +102,7 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
     {
       schema: {
         body: refreshBodySchema,
+        response: { 200: authSessionResponseSchema },
       },
     },
     async (request, reply) => {
@@ -161,20 +118,7 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
       );
 
       // Replace the cookie with the newly rotated refresh token.
-      reply.setCookie(
-        REFRESH_COOKIE_NAME,
-        session.tokens.refreshToken,
-        refreshCookieOptions(env.auth.refreshTokenTtlSeconds),
-      );
-
-      // Strip refresh token fields from the response body.
-      const safeTokens = {
-        accessToken: session.tokens.accessToken,
-        tokenType: session.tokens.tokenType,
-        expiresIn: session.tokens.expiresIn,
-      };
-
-      return ok({ user: session.user, tokens: safeTokens });
+      return ok(establishRefreshSession(reply, session));
     },
   );
 
@@ -203,7 +147,7 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
 
       // Clear the cookie. Path and domain MUST match what was used when setting
       // the cookie, otherwise the browser will not remove it.
-      reply.clearCookie(REFRESH_COOKIE_NAME, clearCookieOptions());
+      clearRefreshSessionCookie(reply);
 
       return ok({ ok: true });
     },
@@ -213,6 +157,7 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
     '/api/auth/me',
     {
       preHandler: authenticate(services),
+      schema: { response: { 200: currentUserResponseSchema } },
     },
     async (request) => ok(await services.auth.getCurrentUser(request.user!.id)),
   );

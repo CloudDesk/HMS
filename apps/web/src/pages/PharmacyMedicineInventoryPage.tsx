@@ -252,7 +252,7 @@ export function PharmacyMedicineInventoryPage() {
       </header>
 
       {summary ? (
-        <div className="stat-cards-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+        <div className="stat-cards-container stat-cards-container--five inventory-summary-kpis">
           <div className="stat-card">
             <div className="stat-icon stat-blue" style={{ color: '#2563eb', backgroundColor: '#eff6ff' }}><i className="ph-fill ph-pill" aria-hidden="true" /></div>
             <div className="stat-info"><p>Medicines Stocked</p><h3>{summary.stocked_medicines}</h3><span className="text-muted">/ {summary.total_medicines} total</span></div>

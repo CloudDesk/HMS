@@ -42,22 +42,22 @@ type UserDoc = {
 const mapUser = (user: UserDoc): UserRecord => ({
   id: String(user._id),
   employeeCode: user.employeeCode ?? null,
-  username: user.username,
+  username: user.username ?? user.email ?? user.employeeCode ?? String(user._id),
   email: user.email ?? null,
-  fullName: user.fullName ?? user.username,
+  fullName: user.fullName ?? user.username ?? user.email ?? 'User',
   phone: user.phone ?? null,
   jobTitle: user.jobTitle ?? null,
   employeeType: user.employeeType ?? null,
   hireDate: user.hireDate ? (typeof user.hireDate === 'string' ? user.hireDate : (user.hireDate as Date).toISOString()) : null,
   profilePhotoUrl: user.profilePhotoUrl ?? null,
   address: user.address ?? null,
-  status: user.status as UserStatus,
+  status: (user.status as UserStatus) ?? 'active',
   failedLoginAttempts: user.failedLoginAttempts ?? 0,
   lockedUntil: user.lockedUntil ?? null,
   passwordChangedAt: user.passwordChangedAt ?? null,
   lastLoginAt: user.lastLoginAt ?? null,
-  createdAt: user.createdAt,
-  updatedAt: user.updatedAt,
+  createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
+  updatedAt: user.updatedAt ? new Date(user.updatedAt) : new Date(),
   deletedAt: user.deletedAt ?? null,
   createdBy: user.createdBy ? String(user.createdBy) : null,
   updatedBy: user.updatedBy ? String(user.updatedBy) : null,
@@ -348,26 +348,32 @@ export class UserRepository {
     for (const user of users) {
       const userIdStr = user._id.toString();
       
-      const userBranches = ((user.branchIds as unknown as Array<{ _id: unknown; name: string }>) ?? []).map((b, i) => ({
-        id: String(b._id),
-        name: b.name,
-        isPrimary: i === 0,
-      }));
+      const userBranches = ((user.branchIds as unknown as Array<{ _id: unknown; name: string }>) ?? [])
+        .filter((b) => Boolean(b && typeof b === 'object' && '_id' in b))
+        .map((b, i) => ({
+          id: String(b._id),
+          name: b.name ?? null,
+          isPrimary: i === 0,
+        }));
       branchesByUserId.set(userIdStr, userBranches);
       
-      const userDepts = ((user.departmentIds as unknown as Array<{ _id: unknown; name: string }>) ?? []).map((d, i) => ({
-        id: String(d._id),
-        name: d.name,
-        isPrimary: i === 0,
-      }));
+      const userDepts = ((user.departmentIds as unknown as Array<{ _id: unknown; name: string }>) ?? [])
+        .filter((d) => Boolean(d && typeof d === 'object' && '_id' in d))
+        .map((d, i) => ({
+          id: String(d._id),
+          name: d.name ?? null,
+          isPrimary: i === 0,
+        }));
       departmentsByUserId.set(userIdStr, userDepts);
 
-      const userRoles = (user.roleIds as unknown as Array<{ _id: unknown; code: string; name: string; status: 'active' | 'inactive' }> || []).map((role) => ({
-        id: String(role._id),
-        code: role.code,
-        name: role.name,
-        status: role.status,
-      }));
+      const userRoles = ((user.roleIds as unknown as Array<{ _id: unknown; code: string; name: string; status: 'active' | 'inactive' }>) ?? [])
+        .filter((role) => Boolean(role && typeof role === 'object' && '_id' in role && role.code))
+        .map((role) => ({
+          id: String(role._id),
+          code: role.code,
+          name: role.name ?? role.code,
+          status: (role.status as 'active' | 'inactive') ?? 'active',
+        }));
       rolesByUserId.set(userIdStr, userRoles);
     }
 

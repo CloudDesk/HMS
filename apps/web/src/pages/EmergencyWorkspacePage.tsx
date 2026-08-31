@@ -1,17 +1,13 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { navigate } from '../routing/navigation';
-import { medicinesApi, MedicineResponse } from '../api/medicines';
-import { pharmacyInventoryApi } from '../api/pharmacy-inventory';
-import { servicesApi, ServiceResponse } from '../api/services';
-import { ICD10_DIAGNOSES, Icd10Diagnosis } from '../data/icd10-diagnoses';
+import type { ServiceResponse } from '../api/services';
+import { ICD10_DIAGNOSES } from '../data/icd10-diagnoses';
 import { useEmergencyWorkspaceFeature } from '../hooks/emergency/useEmergencyWorkspaceFeature';
 import { Modal } from '../components/ui/Modal';
-import { EmergencyStatus, EmergencyTriageLevel } from '../api/emergency';
+import type { EmergencyStatus, EmergencyTriageLevel } from '../api/emergency';
 
 const id = z.string().min(1, 'Required');
 const optionalNumber = z.number().optional();
@@ -83,6 +79,14 @@ const levels: EmergencyTriageLevel[] = [
   'LEVEL_4_LOW',
   'LEVEL_5_NON_URGENT',
 ];
+
+const orderPriorityOf = (value: string) => {
+  if (value === 'URGENT' || value === 'ROUTINE') return value;
+  return 'STAT';
+};
+
+const triageLevelOf = (value: string): EmergencyTriageLevel =>
+  levels.find((level) => level === value) ?? 'LEVEL_3_MEDIUM';
 
 const TABS = [
   'Registration',
@@ -165,8 +169,7 @@ const message = (error: unknown) =>
   error instanceof Error ? error.message : 'Action could not be completed.';
 
 export function EmergencyWorkspacePage() {
-  const { state, actions, mutations } = useEmergencyWorkspaceFeature();
-  const queryClient = useQueryClient();
+  const { state, actions } = useEmergencyWorkspaceFeature();
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('Registration');
   const [linkPatientOpen, setLinkPatientOpen] = useState(false);
   const [linkPatientId, setLinkPatientId] = useState('');
@@ -176,21 +179,17 @@ export function EmergencyWorkspacePage() {
   const [priorityReason, setPriorityReason] = useState('');
   const [assignDoctorOpen, setAssignDoctorOpen] = useState(false);
   const [assignDoctorId, setAssignDoctorId] = useState('');
-  const [fabOpen, setFabOpen] = useState(false);
-
   // Diagnosis State (ICD-10 catalogue + custom addition)
-  const [diagnosesList, setDiagnosesList] = useState<Icd10Diagnosis[]>(ICD10_DIAGNOSES);
-  const [diagnosisSearch, setDiagnosisSearch] = useState('');
+  const diagnosesList = ICD10_DIAGNOSES;
   const [isAddingCustomDiagnosis, setIsAddingCustomDiagnosis] = useState(false);
   const [customDiagnosisTerm, setCustomDiagnosisTerm] = useState('');
 
   // Medication Form State
-  const [medSearch, setMedSearch] = useState('');
   const [medName, setMedName] = useState('');
   const [medDosage, setMedDosage] = useState('');
   const [medRoute, setMedRoute] = useState('IV');
   const [medFrequency, setMedFrequency] = useState('STAT');
-  const [medDuration, setMedDuration] = useState('Stat');
+  const medDuration = 'Stat';
   const [medQuantity, setMedQuantity] = useState('1');
   const [medInstructions, setMedInstructions] = useState('');
   const [medPriority, setMedPriority] = useState<'STAT' | 'URGENT' | 'ROUTINE'>('STAT');
@@ -219,112 +218,11 @@ export function EmergencyWorkspacePage() {
   const [treatmentOutcome, setTreatmentOutcome] = useState('');
   const [treatmentNotes, setTreatmentNotes] = useState('');
 
-  const selected = state.selected || state.encounters[0] || null;
+  const selected = state.selected;
 
-  // Fetch active medicines master
-  const medicinesQuery = useQuery({
-    queryKey: ['medicines', 'list'],
-    queryFn: () => medicinesApi.list({ status: 'ACTIVE', limit: 100 }).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
-  });
-
-  // Fetch active pharmacy inventory for the branch
-  const inventoryQuery = useQuery({
-    queryKey: ['pharmacy-inventory', state.branchId],
-    queryFn: () => pharmacyInventoryApi.list({ branch_id: state.branchId, limit: 100 }).catch(() => ({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 1 } })),
-    enabled: Boolean(state.branchId),
-  });
-
-  // Combined available formulary medicines
-  const availableMedicines = useMemo(() => {
-    const medList = medicinesQuery.data?.data ?? [];
-    const invList = inventoryQuery.data?.data ?? [];
-    const invMap: Record<string, { available: number; strength?: string | null; form?: string | null }> = {};
-    invList.forEach((item) => {
-      invMap[item.medicine_id] = { available: item.available_quantity, strength: item.medicine?.strength, form: item.medicine?.dosage_form };
-    });
-
-    const combined: Array<{
-      id: string;
-      name: string;
-      generic_name?: string | null;
-      strength?: string | null;
-      dosage_form?: string | null;
-      available_quantity?: number;
-    }> = [];
-
-    const seen = new Set<string>();
-
-    medList.forEach((m) => {
-      const key = m.name.trim().toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        combined.push({
-          id: m.id,
-          name: m.name,
-          generic_name: m.generic_name,
-          strength: m.strength || invMap[m.id]?.strength,
-          dosage_form: m.dosage_form || invMap[m.id]?.form,
-          available_quantity: invMap[m.id]?.available,
-        });
-      }
-    });
-
-    invList.forEach((inv) => {
-      if (inv.medicine?.name) {
-        const key = inv.medicine.name.trim().toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          combined.push({
-            id: inv.medicine_id,
-            name: inv.medicine.name,
-            generic_name: inv.medicine.generic_name,
-            strength: inv.medicine.strength,
-            dosage_form: inv.medicine.dosage_form,
-            available_quantity: inv.available_quantity,
-          });
-        }
-      }
-    });
-
-    return combined;
-  }, [medicinesQuery.data, inventoryQuery.data]);
-
-  // Available Lab Services (filtered or fallback to all active services)
-  const labServices = useMemo(() => {
-    const all = state.services;
-    const filtered = all.filter((s) =>
-      s.service_type === 'LAB_TEST' ||
-      s.category?.toLowerCase().includes('lab') ||
-      s.category?.toLowerCase().includes('pathology') ||
-      s.category?.toLowerCase().includes('blood') ||
-      s.name.toLowerCase().includes('test') ||
-      s.name.toLowerCase().includes('panel') ||
-      s.name.toLowerCase().includes('cbc') ||
-      s.name.toLowerCase().includes('profile') ||
-      s.name.toLowerCase().includes('culture') ||
-      s.name.toLowerCase().includes('count')
-    );
-    return filtered.length > 0 ? filtered : all;
-  }, [state.services]);
-
-  // Available Imaging Services (filtered or fallback to all active services)
-  const imagingServices = useMemo(() => {
-    const all = state.services;
-    const filtered = all.filter((s) =>
-      s.service_type === 'IMAGING_SERVICE' ||
-      s.category?.toLowerCase().includes('imaging') ||
-      s.category?.toLowerCase().includes('radiology') ||
-      s.category?.toLowerCase().includes('x-ray') ||
-      s.category?.toLowerCase().includes('scan') ||
-      s.name.toLowerCase().includes('x-ray') ||
-      s.name.toLowerCase().includes('ct') ||
-      s.name.toLowerCase().includes('ultrasound') ||
-      s.name.toLowerCase().includes('mri') ||
-      s.name.toLowerCase().includes('ecg') ||
-      s.name.toLowerCase().includes('echo')
-    );
-    return filtered.length > 0 ? filtered : all;
-  }, [state.services]);
+  const availableMedicines = state.availableMedicines;
+  const labServices = state.labServices;
+  const imagingServices = state.imagingServices;
 
   const triage = useForm<TriageForm>({
     resolver: zodResolver(triageSchema),
@@ -406,9 +304,7 @@ export function EmergencyWorkspacePage() {
   const saveTriage = triage.handleSubmit(async (value) => {
     if (!selected) return;
     try {
-      await mutations.triage.mutateAsync({
-        id: selected.id,
-        body: {
+      await actions.saveTriage(selected.id, {
           level: value.level,
           area: value.area,
           pain_score: value.pain_score ?? null,
@@ -429,7 +325,6 @@ export function EmergencyWorkspacePage() {
             exposure: value.exposure,
           },
           notes: value.notes || null,
-        },
       });
       toast.success('Emergency triage completed.');
       setActiveTab('Consultation');
@@ -441,15 +336,12 @@ export function EmergencyWorkspacePage() {
   const saveConsultation = consultation.handleSubmit(async (value) => {
     if (!selected) return;
     try {
-      await mutations.consultation.mutateAsync({
-        id: selected.id,
-        body: {
+      await actions.saveConsultation(selected.id, {
           ...value,
           history: value.history?.trim() || 'Emergency clinical presentation evaluated.',
           examination: value.examination?.trim() || 'Bedside examination completed.',
           treatment: value.treatment || null,
           notes: value.notes || null,
-        },
       });
       toast.success('Doctor evaluation saved.');
       if (value.ready_for_disposition) setActiveTab('Disposition');
@@ -469,9 +361,7 @@ export function EmergencyWorkspacePage() {
     }
 
     try {
-      await mutations.order.mutateAsync({
-        id: selected.id,
-        body: {
+      await actions.submitOrder(selected.id, {
           order_type: 'PHARMACY',
           priority: medPriority,
           items: [
@@ -487,11 +377,9 @@ export function EmergencyWorkspacePage() {
             },
           ],
           instructions: medInstructions.trim() || null,
-        },
       });
       toast.success(`Medication order ${medName} submitted.`);
       setMedName('');
-      setMedSearch('');
       setMedDosage('');
       setMedInstructions('');
     } catch (error) {
@@ -511,9 +399,7 @@ export function EmergencyWorkspacePage() {
     const labService = labServices.find((s) => s.id === labServiceId);
 
     try {
-      await mutations.order.mutateAsync({
-        id: selected.id,
-        body: {
+      await actions.submitOrder(selected.id, {
           order_type: 'LABORATORY',
           priority: labPriority,
           items: [
@@ -525,7 +411,6 @@ export function EmergencyWorkspacePage() {
           ],
           specimen_type: labSpecimen || null,
           clinical_notes: labClinicalNotes.trim() || null,
-        },
       });
       toast.success(`Lab order ${labService?.name || ''} placed.`);
       setLabServiceId('');
@@ -547,9 +432,7 @@ export function EmergencyWorkspacePage() {
     const imgService = imagingServices.find((s) => s.id === imgServiceId);
 
     try {
-      await mutations.order.mutateAsync({
-        id: selected.id,
-        body: {
+      await actions.submitOrder(selected.id, {
           order_type: 'IMAGING',
           priority: imgPriority,
           items: [
@@ -560,7 +443,6 @@ export function EmergencyWorkspacePage() {
             },
           ],
           clinical_notes: imgNotes.trim() || null,
-        },
       });
       toast.success(`Imaging study ${imgService?.name || ''} requested.`);
       setImgServiceId('');
@@ -591,18 +473,13 @@ export function EmergencyWorkspacePage() {
   const confirmDisposition = disposition.handleSubmit(async (value) => {
     if (!selected) return;
     try {
-      await mutations.disposition.mutateAsync({
-        id: selected.id,
-        body: {
+      await actions.completeDisposition(selected.id, {
           decision: value.decision,
           reason: value.reason || null,
           summary: value.summary,
           instructions: value.instructions || null,
           transfer_destination: value.transfer_destination || null,
-        },
       });
-      toast.success(`Patient disposition confirmed as ${value.decision}.`);
-      navigate(`/emergency/queue?branch_id=${state.branchId}`);
     } catch (error) {
       toast.error(message(error));
     }
@@ -614,11 +491,7 @@ export function EmergencyWorkspacePage() {
       return;
     }
     try {
-      await mutations.linkPatient.mutateAsync({
-        id: selected.id,
-        patientId: linkPatientId,
-        reason: linkReason || undefined,
-      });
+      await actions.linkPatient(selected.id, linkPatientId, linkReason || undefined);
       toast.success('Patient record linked successfully.');
       setLinkPatientOpen(false);
       setLinkPatientId('');
@@ -634,11 +507,7 @@ export function EmergencyWorkspacePage() {
       return;
     }
     try {
-      await mutations.overridePriority.mutateAsync({
-        id: selected.id,
-        level: priorityLevel,
-        reason: priorityReason,
-      });
+      await actions.overridePriority(selected.id, priorityLevel, priorityReason);
       toast.success('Triage priority updated.');
       setPriorityOpen(false);
       setPriorityReason('');
@@ -654,9 +523,7 @@ export function EmergencyWorkspacePage() {
     }
     const doc = state.doctors.find((d) => d.id === assignDoctorId);
     try {
-      await mutations.consultation.mutateAsync({
-        id: selected.id,
-        body: {
+      await actions.saveConsultation(selected.id, {
           doctor_id: assignDoctorId,
           chief_complaint: selected.chief_complaint,
           history: selected.consultation?.history || 'Assigned attending emergency doctor.',
@@ -664,7 +531,6 @@ export function EmergencyWorkspacePage() {
           diagnosis: selected.consultation?.diagnosis || 'Provisional Emergency Evaluation',
           plan: selected.consultation?.plan || 'Emergency management initiated.',
           ready_for_disposition: false,
-        },
       });
       toast.success(`Assigned ${doc?.display_name || 'Doctor'} to this encounter.`);
       setAssignDoctorOpen(false);
@@ -682,7 +548,7 @@ export function EmergencyWorkspacePage() {
           <p>Please return to the emergency queue to select an active patient encounter.</p>
           <button
             className="btn-emergency-primary"
-            onClick={() => navigate(`/emergency/queue?branch_id=${state.branchId}`)}
+            onClick={actions.openQueue}
             style={{ marginTop: '1rem' }}
             type="button"
           >
@@ -732,7 +598,7 @@ export function EmergencyWorkspacePage() {
           </span>
           <button
             className="btn-emergency-secondary"
-            onClick={() => navigate(`/emergency/queue?branch_id=${state.branchId}`)}
+            onClick={actions.openQueue}
             type="button"
             style={{ padding: '0.45rem 0.9rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
           >
@@ -834,7 +700,7 @@ export function EmergencyWorkspacePage() {
       </section>
 
       {/* Main Split Screen */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '1.25rem', alignItems: 'start' }}>
+      <div className="emergency-workspace-layout emergency-workspace-layout--compact">
         {/* Left Column: Tabs & Clinical Forms */}
         <main className="emergency-tabs-container">
           {/* Tab Navigation */}
@@ -1070,11 +936,11 @@ export function EmergencyWorkspacePage() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                   <button
                     className="btn-emergency-primary"
-                    disabled={mutations.triage.isPending}
+                    disabled={state.pending.triage}
                     type="submit"
                     style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    {mutations.triage.isPending ? 'Saving...' : 'Complete Triage → Consultation'}
+                    {state.pending.triage ? 'Saving...' : 'Complete Triage → Consultation'}
                   </button>
                 </div>
               </form>
@@ -1185,11 +1051,11 @@ export function EmergencyWorkspacePage() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                   <button
                     className="btn-emergency-primary"
-                    disabled={mutations.consultation.isPending}
+                    disabled={state.pending.consultation}
                     type="submit"
                     style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    {mutations.consultation.isPending ? 'Saving...' : 'Save Evaluation → Treatment'}
+                    {state.pending.consultation ? 'Saving...' : 'Save Evaluation → Treatment'}
                   </button>
                 </div>
               </form>
@@ -1281,7 +1147,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Priority</label>
-                      <select value={medPriority} onChange={(e) => setMedPriority(e.target.value as any)}>
+                      <select value={medPriority} onChange={(e) => setMedPriority(orderPriorityOf(e.target.value))}>
                         <option value="STAT">STAT (Immediate)</option>
                         <option value="URGENT">Urgent</option>
                         <option value="ROUTINE">Routine</option>
@@ -1334,7 +1200,7 @@ export function EmergencyWorkspacePage() {
                     <button
                       className="btn-emergency-primary"
                       type="submit"
-                      disabled={mutations.order.isPending}
+                      disabled={state.pending.order}
                       style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                     >
                       <i className="ph ph-plus-circle" /> Submit Medication Order
@@ -1403,7 +1269,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Priority</label>
-                      <select value={labPriority} onChange={(e) => setLabPriority(e.target.value as any)}>
+                      <select value={labPriority} onChange={(e) => setLabPriority(orderPriorityOf(e.target.value))}>
                         <option value="STAT">STAT (Immediate Emergency)</option>
                         <option value="URGENT">Urgent</option>
                         <option value="ROUTINE">Routine</option>
@@ -1435,7 +1301,7 @@ export function EmergencyWorkspacePage() {
                     <button
                       className="btn-emergency-primary"
                       type="submit"
-                      disabled={mutations.order.isPending}
+                      disabled={state.pending.order}
                       style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                     >
                       <i className="ph ph-flask" /> Submit Lab Order
@@ -1515,7 +1381,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Priority</label>
-                      <select value={imgPriority} onChange={(e) => setImgPriority(e.target.value as any)}>
+                      <select value={imgPriority} onChange={(e) => setImgPriority(orderPriorityOf(e.target.value))}>
                         <option value="STAT">STAT (Immediate)</option>
                         <option value="URGENT">Urgent</option>
                         <option value="ROUTINE">Routine</option>
@@ -1536,7 +1402,7 @@ export function EmergencyWorkspacePage() {
                     <button
                       className="btn-emergency-primary"
                       type="submit"
-                      disabled={mutations.order.isPending}
+                      disabled={state.pending.order}
                       style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                     >
                       <i className="ph ph-film-strip" /> Submit Imaging Order
@@ -1722,11 +1588,11 @@ export function EmergencyWorkspacePage() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                   <button
                     className="btn-emergency-primary"
-                    disabled={mutations.disposition.isPending}
+                    disabled={state.pending.disposition}
                     type="submit"
                     style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    {mutations.disposition.isPending ? 'Confirming...' : 'Confirm Final Disposition'}
+                    {state.pending.disposition ? 'Confirming...' : 'Confirm Final Disposition'}
                   </button>
                 </div>
               </form>
@@ -1798,7 +1664,7 @@ export function EmergencyWorkspacePage() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
             <button type="button" className="btn-secondary" onClick={() => setLinkPatientOpen(false)}>Cancel</button>
-            <button className="btn-primary" type="button" onClick={confirmLinkPatient} disabled={mutations.linkPatient.isPending}>
+            <button className="btn-primary" type="button" onClick={confirmLinkPatient} disabled={state.pending.linkPatient}>
               Confirm Link
             </button>
           </div>
@@ -1810,7 +1676,7 @@ export function EmergencyWorkspacePage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '420px' }}>
           <div className="adm-field">
             <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>New Triage Severity Level *</label>
-            <select value={priorityLevel} onChange={(e) => setPriorityLevel(e.target.value as any)}>
+            <select value={priorityLevel} onChange={(e) => setPriorityLevel(triageLevelOf(e.target.value))}>
               {levels.map((lvl) => (
                 <option key={lvl} value={lvl}>{triageLabel(lvl)}</option>
               ))}
@@ -1827,7 +1693,7 @@ export function EmergencyWorkspacePage() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
             <button type="button" className="btn-secondary" onClick={() => setPriorityOpen(false)}>Cancel</button>
-            <button className="btn-primary" type="button" onClick={confirmPriorityOverride} disabled={mutations.overridePriority.isPending}>
+            <button className="btn-primary" type="button" onClick={confirmPriorityOverride} disabled={state.pending.overridePriority}>
               Update Triage Level
             </button>
           </div>
@@ -1853,7 +1719,7 @@ export function EmergencyWorkspacePage() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
             <button type="button" className="btn-secondary" onClick={() => setAssignDoctorOpen(false)}>Cancel</button>
-            <button className="btn-primary" type="button" onClick={confirmAssignDoctor} disabled={mutations.consultation.isPending}>
+            <button className="btn-primary" type="button" onClick={confirmAssignDoctor} disabled={state.pending.consultation}>
               Assign Doctor
             </button>
           </div>

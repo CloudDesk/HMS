@@ -5,14 +5,14 @@ html{scroll-behavior:smooth}body{margin:0}.modal-panel--large{width:min(900px,ca
 :root{
   --patient-primary:#2563eb;
   --patient-primary-hover:#1d4ed8;
-  --patient-navy:#0f172a;
+  --patient-navy:var(--color-navy);
   --patient-navy-soft:#172554;
-  --patient-blue-soft:#eff6ff;
-  --patient-surface:#ffffff;
-  --patient-canvas:#f8fafc;
-  --patient-border:#e2e8f0;
-  --patient-text:#0f172a;
-  --patient-muted:#64748b;
+  --patient-blue-soft:var(--color-blue-soft);
+  --patient-surface:var(--color-surface);
+  --patient-canvas:var(--color-canvas);
+  --patient-border:var(--color-border);
+  --patient-text:var(--color-navy);
+  --patient-muted:var(--color-slate-muted);
 }
 
 .patient-login-page{background:var(--patient-canvas);color:var(--patient-text);min-height:100vh;align-items:start}

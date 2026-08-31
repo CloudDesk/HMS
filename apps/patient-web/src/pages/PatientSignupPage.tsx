@@ -43,7 +43,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function PatientSignupPage() {
-  const { status, user, loginWithOtp, activateGuardian } = useAuth();
+  const { status, user, restoreSession, activateGuardian } = useAuth();
   const { search } = useAppLocation();
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const [verified] = useState<VerifiedMobile | null>(() => {
@@ -127,7 +127,7 @@ export function PatientSignupPage() {
               identification: { type: values.identification_type || null, number: values.identification_number || null }, legal_consent_accepted: true,
             } : undefined,
           });
-          await loginWithOtp(verified.phone, verified.otp);
+          await restoreSession();
           guardianAccountReady.current = mode === 'guardian';
         }
         if (mode === 'guardian') {

@@ -16,7 +16,7 @@ type DataTableProps<T> = {
 export function DataTable<T>({ columns, rows, getRowKey }: DataTableProps<T>) {
   return (
     <div className="table-responsive">
-      <table className="data-table">
+      <table className="data-table responsive-table">
         <thead>
           <tr>
             {columns.map((column) => (
@@ -30,7 +30,11 @@ export function DataTable<T>({ columns, rows, getRowKey }: DataTableProps<T>) {
           {rows.map((row) => (
             <tr key={getRowKey(row)}>
               {columns.map((column) => (
-                <td className={column.align ? `align-${column.align}` : undefined} key={column.key}>
+                <td
+                  className={column.align ? `align-${column.align}` : undefined}
+                  data-label={column.header}
+                  key={column.key}
+                >
                   {column.render(row)}
                 </td>
               ))}

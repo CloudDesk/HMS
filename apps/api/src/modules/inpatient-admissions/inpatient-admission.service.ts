@@ -10,7 +10,7 @@ import type { ClinicalOrderType, SaveOpdClinicalOrderDTO } from '../opd/opd-clin
 import type { OpdPrescriptionService } from '../opd/opd-prescription.service.js';
 import type { SaveOpdPrescriptionDTO } from '../opd/opd-prescription.types.js';
 import type { InpatientAdmissionRepository } from './inpatient-admission.repository.js';
-import type { AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, CancelAdmissionRequestDTO, ConfirmAdmissionRequestDTO, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, InpatientAdmissionListQuery, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
+import type { AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, CancelAdmissionRequestDTO, ConfirmAdmissionRequestDTO, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, CreateInpatientRoundNoteDTO, CreateInpatientVitalDTO, InpatientAdmissionListQuery, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
 
 const rethrowDuplicate = (error: unknown): never => {
   if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11000) throw new AppError('An active admission request or admission already exists for this patient or source', 409, 'ACTIVE_ADMISSION_CONFLICT');
@@ -103,6 +103,36 @@ export class InpatientAdmissionService {
       result = await this.clinicalOrders.submitForContext(context, orderType, data, actor, session);
       if (!existing) { const label = orderType === 'LABORATORY' ? 'laboratory' : 'imaging'; const event = orderType === 'LABORATORY' ? 'INPATIENT_LAB_ORDER_SUBMITTED' : 'INPATIENT_IMAGING_ORDER_SUBMITTED'; await this.patients.addDownstreamTimeline(context.patient_id, event, `Inpatient ${label} order submitted`, `${label} order submitted for ${admission.admissionNumber}.`, actor, session); await this.repository.audit(`admissions.downstream.${label}_order_submitted`, actor, metadata, { admissionId: id, patientId: context.patient_id, branchId, orderId: result.id }, session); }
     }); return result; } finally { await session.endSession(); }
+  }
+
+  async listRoundNotes(id: string, branchId: string, actor: string) {
+    await this.requireActiveAdmission(id, branchId, actor);
+    return this.repository.listRoundNotes(id, branchId);
+  }
+
+  async createRoundNote(id: string, branchId: string, data: CreateInpatientRoundNoteDTO, actor: string, metadata: AdmissionRequestMetadata) {
+    const admission = await this.requireActiveAdmission(id, branchId, actor);
+    const actorName = await this.repository.actorName(actor);
+    return executeWithOptionalTransaction(this.repository, async (session) => {
+      const result = await this.repository.createRoundNote(admission, data, actor, actorName, session);
+      await this.repository.audit('admissions.clinical.round_note_created', actor, metadata, { admissionId: id, patientId: admission.patient_id, branchId, encounterId: admission.source_id, roundNoteId: result.id }, session);
+      return result;
+    });
+  }
+
+  async listVitals(id: string, branchId: string, actor: string) {
+    await this.requireActiveAdmission(id, branchId, actor);
+    return this.repository.listVitals(id, branchId);
+  }
+
+  async createVital(id: string, branchId: string, data: CreateInpatientVitalDTO, actor: string, metadata: AdmissionRequestMetadata) {
+    const admission = await this.requireActiveAdmission(id, branchId, actor);
+    const actorName = await this.repository.actorName(actor);
+    return executeWithOptionalTransaction(this.repository, async (session) => {
+      const result = await this.repository.createVital(admission, data, actor, actorName, session);
+      await this.repository.audit('admissions.clinical.vital_created', actor, metadata, { admissionId: id, patientId: admission.patient_id, branchId, encounterId: admission.source_id, vitalId: result.id }, session);
+      return result;
+    });
   }
 
   async createRequest(data: CreateAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {

@@ -1,11 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import type {
+  ConsultationPayload,
+  DispositionPayload,
+  EmergencyOrderPayload,
+  EmergencyTriageLevel,
+  TriagePayload,
+} from '../../api/emergency';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import { navigate, useAppLocation } from '../../routing/navigation';
 import { useBranchesList } from '../branches/useBranches';
 import { useDepartmentsList } from '../departments/useDepartments';
 import { useDoctorsList } from '../doctors/useDoctors';
+import { useMedicinesList } from '../medicines/useMedicines';
 import { usePatientsList } from '../patients/usePatients';
+import { usePharmacyInventoryList } from '../pharmacy/usePharmacy';
 import { useServicesList } from '../services/useServices';
 import { useEmergency } from './useEmergency';
 export type EmergencyView = 'dashboard' | 'queue' | 'workspace';
@@ -149,6 +159,103 @@ export function useEmergencyWorkspaceFeature() {
       : allPatients.data?.data ?? [];
 
   const services = useServicesList({ status: 'ACTIVE', page: 1, limit: 100 });
+  const medicines = useMedicinesList(
+    { status: 'ACTIVE', limit: 100 },
+    view === 'workspace',
+  );
+  const inventory = usePharmacyInventoryList(
+    { branch_id: branchId, limit: 100 },
+    view === 'workspace' && Boolean(branchId),
+  );
+
+  const availableMedicines = useMemo(() => {
+    const medicineList = medicines.data?.data ?? [];
+    const inventoryList = inventory.data?.data ?? [];
+    const inventoryByMedicine: Record<
+      string,
+      { available: number; strength?: string | null; form?: string | null }
+    > = {};
+    inventoryList.forEach((item) => {
+      inventoryByMedicine[item.medicine_id] = {
+        available: item.available_quantity,
+        strength: item.medicine?.strength,
+        form: item.medicine?.dosage_form,
+      };
+    });
+
+    const combined: Array<{
+      id: string;
+      name: string;
+      generic_name?: string | null;
+      strength?: string | null;
+      dosage_form?: string | null;
+      available_quantity?: number;
+    }> = [];
+    const seen = new Set<string>();
+
+    medicineList.forEach((medicine) => {
+      const key = medicine.name.trim().toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      combined.push({
+        id: medicine.id,
+        name: medicine.name,
+        generic_name: medicine.generic_name,
+        strength: medicine.strength || inventoryByMedicine[medicine.id]?.strength,
+        dosage_form: medicine.dosage_form || inventoryByMedicine[medicine.id]?.form,
+        available_quantity: inventoryByMedicine[medicine.id]?.available,
+      });
+    });
+
+    inventoryList.forEach((item) => {
+      if (!item.medicine?.name) return;
+      const key = item.medicine.name.trim().toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      combined.push({
+        id: item.medicine_id,
+        name: item.medicine.name,
+        generic_name: item.medicine.generic_name,
+        strength: item.medicine.strength,
+        dosage_form: item.medicine.dosage_form,
+        available_quantity: item.available_quantity,
+      });
+    });
+
+    return combined;
+  }, [inventory.data, medicines.data]);
+
+  const serviceOptions = useMemo(() => services.data?.data ?? [], [services.data]);
+  const labServices = useMemo(() => {
+    const filtered = serviceOptions.filter((service) =>
+      service.service_type === 'LAB_TEST' ||
+      service.category?.toLowerCase().includes('lab') ||
+      service.category?.toLowerCase().includes('pathology') ||
+      service.category?.toLowerCase().includes('blood') ||
+      service.name.toLowerCase().includes('test') ||
+      service.name.toLowerCase().includes('panel') ||
+      service.name.toLowerCase().includes('cbc') ||
+      service.name.toLowerCase().includes('profile') ||
+      service.name.toLowerCase().includes('culture') ||
+      service.name.toLowerCase().includes('count'));
+    return filtered.length > 0 ? filtered : serviceOptions;
+  }, [serviceOptions]);
+  const imagingServices = useMemo(() => {
+    const filtered = serviceOptions.filter((service) =>
+      service.service_type === 'IMAGING_SERVICE' ||
+      service.category?.toLowerCase().includes('imaging') ||
+      service.category?.toLowerCase().includes('radiology') ||
+      service.category?.toLowerCase().includes('x-ray') ||
+      service.category?.toLowerCase().includes('scan') ||
+      service.name.toLowerCase().includes('x-ray') ||
+      service.name.toLowerCase().includes('ct') ||
+      service.name.toLowerCase().includes('ultrasound') ||
+      service.name.toLowerCase().includes('mri') ||
+      service.name.toLowerCase().includes('ecg') ||
+      service.name.toLowerCase().includes('echo'));
+    return filtered.length > 0 ? filtered : serviceOptions;
+  }, [serviceOptions]);
+
   const setSelectedId = (id: string | null) => {
     setSelectedIdState(id);
     if (id && view !== 'workspace')
@@ -168,13 +275,26 @@ export function useEmergencyWorkspaceFeature() {
       departments: departmentOptions,
       doctors: doctorOptions,
       patients: patientOptions,
-      services: services.data?.data ?? [],
+      services: serviceOptions,
+      availableMedicines,
+      labServices,
+      imagingServices,
       capabilities,
       encounters: emergency.list.data?.data ?? [],
       summary: emergency.summary.data ?? {},
       listQuery: emergency.list,
       detailQuery: emergency.detail,
-      selected: emergency.detail.data ?? null,
+      selected: emergency.detail.data ?? emergency.list.data?.data[0] ?? null,
+      loading: emergency.list.isLoading || emergency.detail.isLoading,
+      error: emergency.detail.error ?? emergency.list.error,
+      pending: {
+        triage: emergency.triage.isPending,
+        consultation: emergency.consultation.isPending,
+        order: emergency.order.isPending,
+        disposition: emergency.disposition.isPending,
+        linkPatient: emergency.linkPatient.isPending,
+        overridePriority: emergency.overridePriority.isPending,
+      },
     },
     actions: {
       setBranchId,
@@ -184,6 +304,23 @@ export function useEmergencyWorkspaceFeature() {
       setSearch,
       setSelectedId,
       setPatientSearch,
+      saveTriage: (id: string, body: TriagePayload) =>
+        emergency.triage.mutateAsync({ id, body }),
+      saveConsultation: (id: string, body: ConsultationPayload) =>
+        emergency.consultation.mutateAsync({ id, body }),
+      submitOrder: (id: string, body: EmergencyOrderPayload) =>
+        emergency.order.mutateAsync({ id, body }),
+      completeDisposition: async (id: string, body: DispositionPayload) => {
+        const encounter = await emergency.disposition.mutateAsync({ id, body });
+        toast.success(`Patient disposition confirmed as ${body.decision}.`);
+        navigate(`/emergency/queue?branch_id=${branchId}`);
+        return encounter;
+      },
+      linkPatient: (id: string, patientId: string, reason?: string) =>
+        emergency.linkPatient.mutateAsync({ id, patientId, reason }),
+      overridePriority: (id: string, level: EmergencyTriageLevel, reason: string) =>
+        emergency.overridePriority.mutateAsync({ id, level, reason }),
+      openQueue: () => navigate(`/emergency/queue?branch_id=${branchId}`),
     },
     mutations: emergency,
   };

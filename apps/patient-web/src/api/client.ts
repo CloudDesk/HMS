@@ -22,6 +22,7 @@ const requestOnce = async <T>(path: string, options: Options) => {
     `${appConfig.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
     {
       ...options,
+      credentials: options.credentials ?? 'include',
       headers,
       body:
         options.body === undefined
@@ -51,6 +52,7 @@ const downloadOnce = async (path: string, options: Options) => {
     `${appConfig.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
     {
       ...options,
+      credentials: options.credentials ?? 'include',
       headers,
       body:
         options.body === undefined

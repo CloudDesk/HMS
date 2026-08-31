@@ -1,4 +1,4 @@
-import { useState, type PropsWithChildren } from 'react';
+import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { useAppLocation } from '../../routing/navigation';
 import { sidebarModules } from '../../data/ui-foundation';
 import { MobileSidebarBackdrop } from './MobileSidebarBackdrop';
@@ -9,6 +9,15 @@ type DashboardLayoutProps = PropsWithChildren<{
   title?: string;
   breadcrumbs?: string[];
 }>;
+
+type ViewportMode = 'mobile' | 'tablet' | 'desktop';
+
+function getViewportMode(): ViewportMode {
+  if (typeof window === 'undefined') return 'desktop';
+  if (window.innerWidth < 768) return 'mobile';
+  if (window.innerWidth <= 1024) return 'tablet';
+  return 'desktop';
+}
 
 /**
  * Derives the active sidebar module key and active href directly from the
@@ -48,9 +57,29 @@ function useActiveSidebarState() {
 }
 
 export function DashboardLayout({ title = 'HMS', breadcrumbs = ['Home', 'Dashboard'], children }: DashboardLayoutProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const initialViewportMode = useRef(getViewportMode());
+  const [collapsed, setCollapsed] = useState(initialViewportMode.current === 'tablet');
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeKey, activeHref } = useActiveSidebarState();
+
+  useEffect(() => {
+    let currentViewportMode = initialViewportMode.current;
+
+    const handleResize = () => {
+      const nextViewportMode = getViewportMode();
+      if (nextViewportMode === currentViewportMode) return;
+
+      currentViewportMode = nextViewportMode;
+      if (nextViewportMode === 'tablet') {
+        setCollapsed(true);
+      } else if (nextViewportMode === 'desktop') {
+        setCollapsed(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleCollapsed = () => setCollapsed((current) => !current);
 

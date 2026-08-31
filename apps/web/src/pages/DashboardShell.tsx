@@ -59,7 +59,7 @@ function ExecutiveOverviewTab() {
 
       {loadError ? <div className="um-state-cell" role="alert">{loadError}</div> : null}
 
-      <div className="stat-cards-container" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+      <div className="stat-cards-container stat-cards-container--five">
         <StatCard icon="ph-users" label="Registered Patients" note="Active patient directory" tone="blue" value={data.registeredPatients} />
         <StatCard icon="ph-stethoscope" label="Active Doctors" note="On-duty clinical staff" tone="green" value={data.activeDoctors} />
         <StatCard icon="ph-calendar-check" label="Today's Appointments" note="Bookings & encounters" tone="orange" value={data.appointmentsToday} />
@@ -67,7 +67,7 @@ function ExecutiveOverviewTab() {
         <StatCard icon="ph-receipt" label="Today Billed Revenue" note="Live billing summary" tone="green" value={data.billedTotal === null ? '--' : formatMoney(data.billedTotal)} />
       </div>
 
-      <div className="doc-grid dashboard-main" style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '1.25rem', marginTop: '1rem' }}>
+      <div className="doc-grid dashboard-main executive-dashboard-main">
         <article className="doc-card">
           <div className="doc-card-header">
             <div>

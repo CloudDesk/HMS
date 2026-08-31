@@ -12,6 +12,10 @@ import {
 import { patientDocumentsService } from '../../services/patient-documents.service';
 import { patientRegistrationService } from '../../services/patient-registration.service';
 
+type PatientMutationNotificationOptions = {
+  notifyOnError?: boolean;
+};
+
 export const getPatientErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
@@ -114,7 +118,7 @@ export function useUpdatePatient() {
   });
 }
 
-export function useUploadPatientDocument() {
+export function useUploadPatientDocument(options: PatientMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -125,7 +129,9 @@ export function useUploadPatientDocument() {
       await queryClient.invalidateQueries({ queryKey: patientsKeys.history(id) });
       await queryClient.invalidateQueries({ queryKey: patientsKeys.timeline(id, {}) });
     },
-    onError: (error) => toast.error(getPatientErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getPatientErrorMessage(error));
+    },
   });
 }
 
@@ -142,7 +148,7 @@ export function useReplacePatientDocument() {
   });
 }
 
-export function useDeletePatientDocument() {
+export function useDeletePatientDocument(options: PatientMutationNotificationOptions = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -152,7 +158,9 @@ export function useDeletePatientDocument() {
       await queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() });
       await queryClient.invalidateQueries({ queryKey: patientsKeys.history(id) });
     },
-    onError: (error) => toast.error(getPatientErrorMessage(error)),
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getPatientErrorMessage(error));
+    },
   });
 }
 
@@ -173,5 +181,29 @@ export function useDownloadPatientDocument() {
   return useMutation({
     mutationFn: ({ patientId, docId }: { patientId: string; docId: string }) =>
       patientDocumentsService.download(patientId, docId),
+  });
+}
+
+export function useReviewPatientDocument(options: PatientMutationNotificationOptions = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      patientId,
+      documentId,
+      payload,
+    }: {
+      patientId: string;
+      documentId: string;
+      payload: { review_status: 'VERIFIED' | 'REJECTED'; review_notes?: string | null };
+    }) => patientDocumentsService.review(patientId, documentId, payload),
+    onSuccess: async (_, { patientId }) => {
+      await queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() });
+      await queryClient.invalidateQueries({ queryKey: patientsKeys.history(patientId) });
+      await queryClient.invalidateQueries({ queryKey: patientsKeys.timelines() });
+    },
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getPatientErrorMessage(error));
+    },
   });
 }

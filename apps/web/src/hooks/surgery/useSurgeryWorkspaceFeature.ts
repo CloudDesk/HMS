@@ -9,10 +9,24 @@ import { useServicesList } from '../services/useServices';
 import { useLinkProcedureBillingContext } from '../billing/useBilling';
 import { useConsentTemplates } from '../consents/useConsents';
 import { useUploadPatientDocument } from '../patients/usePatients';
+import { useAdvancePaymentFeature } from '../advance-payment/useAdvancePaymentFeature';
 import { useSurgery, useSurgeryAlternatives } from './useSurgery';
+import { useSurgeryDownstreamFeature } from './useSurgeryDownstreamFeature';
 export type SurgeryTab = 'recommendations' | 'bookings' | 'schedule';
 const isTab = (value: string | null): value is SurgeryTab => value === 'recommendations' || value === 'bookings' || value === 'schedule';
-export function useSurgeryWorkspaceFeature(consentOpen = false) {
+type SurgeryDomain = ReturnType<typeof useSurgery>;
+export type SurgeryWorkflowAction =
+  | { mode: 'cancel-recommendation'; variables: Parameters<SurgeryDomain['cancelRecommendation']['mutateAsync']>[0] }
+  | { mode: 'confirm'; variables: Parameters<SurgeryDomain['confirmBooking']['mutateAsync']>[0] }
+  | { mode: 'reschedule'; variables: Parameters<SurgeryDomain['rescheduleBooking']['mutateAsync']>[0] }
+  | { mode: 'cancel-booking'; variables: Parameters<SurgeryDomain['cancelBooking']['mutateAsync']>[0] }
+  | { mode: 'complete'; variables: Parameters<SurgeryDomain['completeBooking']['mutateAsync']>[0] };
+type SurgeryWorkspaceOptions = {
+  consentOpen?: boolean;
+  selectedBookingId?: string | null;
+  selectedBookingStatus?: string | null;
+};
+export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookingId = null, selectedBookingStatus = null }: SurgeryWorkspaceOptions = {}) {
   const { user } = useAuth(); const { search } = useAppLocation(); const initial = new URLSearchParams(search);
   const initialTab = initial.get('tab');
   const [tab, setTab] = useState<SurgeryTab>(isTab(initialTab) ? initialTab : 'recommendations');
@@ -24,6 +38,12 @@ export function useSurgeryWorkspaceFeature(consentOpen = false) {
   useEffect(() => { const params = new URLSearchParams({ tab }); if (branchId) params.set('branch_id', branchId); if (status) params.set('status', status); if (date) params.set('date', date); if (searchText) params.set('search', searchText); navigate(`/surgery?${params.toString()}`, { replace: true }); }, [branchId, date, searchText, status, tab]);
   const from = tab === 'schedule' ? new Date(`${date}T00:00:00`).toISOString() : undefined; const to = tab === 'schedule' ? new Date(`${date}T23:59:59`).toISOString() : undefined;
   const surgery = useSurgery({ branch_id: branchId, status: status || undefined, search: searchText || undefined, from, to, page: 1, limit: 100 }, { recommendations: Boolean(branchId) && tab === 'recommendations', bookings: Boolean(branchId) && (tab === 'bookings' || tab === 'schedule') });
+  const advancePayment = useAdvancePaymentFeature('PROCEDURE_BOOKING', selectedBookingId);
+  const downstream = useSurgeryDownstreamFeature(
+    selectedBookingId,
+    branchId,
+    Boolean(selectedBookingId && selectedBookingStatus && ['PENDING_CONFIRMATION', 'BOOKED'].includes(selectedBookingStatus)),
+  );
   const departments = useDepartmentsList({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
   const doctors = useDoctorsList({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
   const services = useServicesList({ status: 'ACTIVE', service_type: 'PROCEDURE', page: 1, limit: 100 });
@@ -39,5 +59,50 @@ export function useSurgeryWorkspaceFeature(consentOpen = false) {
   const scheduleRows = useMemo(() => (surgery.bookings.data?.data ?? []).sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start)), [surgery.bookings.data]);
   const availableDoctors = alternatives.data?.available_doctors ?? [];
   const recommendedSlots = alternatives.data?.recommended_slots ?? [];
-  return { state: { tab, branchId, status, date, searchText, patientSearch, branches, departments: departments.data?.data ?? [], doctors: doctors.data?.data ?? [], services: services.data?.data ?? [], patients: patients.data?.data ?? [], recommendations: surgery.recommendations.data?.data ?? [], bookings: surgery.bookings.data?.data ?? [], scheduleRows, recommendationsQuery: surgery.recommendations, bookingsQuery: surgery.bookings, alternatives: availableDoctors, recommendedSlots, alternativesLoading: alternatives.isFetching }, actions: { setTab, setBranchId, setStatus, setDate, setSearchText, setPatientSearch, setAvailability }, mutations: surgery };
+  const executeWorkflowAction = (action: SurgeryWorkflowAction) => {
+    switch (action.mode) {
+      case 'cancel-recommendation':
+        return surgery.cancelRecommendation.mutateAsync(action.variables);
+      case 'confirm':
+        return surgery.confirmBooking.mutateAsync(action.variables);
+      case 'reschedule':
+        if (action.variables.body.reason.trim().length < 3) throw new Error('Reschedule reason is required.');
+        return surgery.rescheduleBooking.mutateAsync(action.variables);
+      case 'cancel-booking':
+        if (action.variables.reason.trim().length < 3) throw new Error('Cancellation reason is required.');
+        return surgery.cancelBooking.mutateAsync(action.variables);
+      case 'complete':
+        return surgery.completeBooking.mutateAsync(action.variables);
+    }
+  };
+  return {
+    state: {
+      tab, branchId, status, date, searchText, patientSearch, branches,
+      departments: departments.data?.data ?? [], doctors: doctors.data?.data ?? [],
+      services: services.data?.data ?? [], patients: patients.data?.data ?? [],
+      recommendations: surgery.recommendations.data?.data ?? [], bookings: surgery.bookings.data?.data ?? [],
+      scheduleRows, recommendationsQuery: surgery.recommendations, bookingsQuery: surgery.bookings,
+      alternatives: availableDoctors, recommendedSlots, alternativesLoading: alternatives.isFetching,
+      advancePayment, downstream, consentTemplatesQuery: consentTemplates,
+      loading: surgery.recommendations.isLoading || surgery.bookings.isLoading,
+      error: surgery.recommendations.error ?? surgery.bookings.error,
+      pending: {
+        createRecommendation: surgery.createRecommendation.isPending,
+        createBooking: surgery.createBooking.isPending,
+        workflowAction:
+          surgery.cancelRecommendation.isPending || surgery.confirmBooking.isPending ||
+          surgery.rescheduleBooking.isPending || surgery.cancelBooking.isPending || surgery.completeBooking.isPending,
+        uploadConsent: uploadConsent.isPending,
+        linkDeposit: linkProcedureBillingContext.isPending,
+      },
+    },
+    actions: {
+      setTab, setBranchId, setStatus, setDate, setSearchText, setPatientSearch, setAvailability,
+      createRecommendation: surgery.createRecommendation.mutateAsync,
+      createBooking: surgery.createBooking.mutateAsync,
+      executeWorkflowAction,
+      uploadConsent: uploadConsent.mutateAsync,
+      linkDeposit,
+    },
+  };
 }
