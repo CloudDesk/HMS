@@ -27,6 +27,7 @@ import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
 import { PrintPrescriptionModal } from '../components/print/PrintPrescriptionModal';
 import { Toast } from '../components/ui/Toast';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { usePatientProfileFeature, type PatientProfileTab } from '../hooks/patients/usePatientProfileFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { getPatientErrorMessage, getPatientIdFromSearch, patientFullName, patientInitials, formatDate, formatDateTime } from './patient-utils';
@@ -56,7 +57,7 @@ const calculateAge = (dob: string) => {
 // removed toForm
 
 
-// â”€â”€ EMR helper functions (mirrored from PatientEmrTimelinePage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── EMR helper functions (mirrored from PatientEmrTimelinePage) ──────────────
 
 const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => {
   if (eventType === 'REGISTRATION') return 'ph ph-stethoscope';
@@ -90,7 +91,7 @@ function EmptyRecords({ message }: { message: string }) {
   return <div className="patient-empty-inline">{message}</div>;
 }
 
-// â”€â”€ EMR Timeline Tab (inline, Option B) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── EMR Timeline Tab (inline, Option B) ─────────────────────────────────────
 
 type EmrTabProps = {
   patientId: string;
@@ -143,13 +144,15 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
           <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset
         </button>
         <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '0.83rem', alignSelf: 'center' }}>
-          {loading ? 'Loadingâ€¦' : `${meta.total} events`}
+          {loading ? 'Loading...' : `${meta.total} events`}
         </span>
       </div>
 
       {/* Timeline body */}
       {loading ? (
-        <div className="um-state-cell">Loading EMR timeline events...</div>
+        <div style={{ padding: '2.5rem 1rem' }}>
+          <MedicalLoader text="Loading EMR timeline..." subtext="Retrieving chronological patient clinical events" />
+        </div>
       ) : loadError ? (
         <div className="um-state-cell" role="alert">
           {loadError}
@@ -218,7 +221,7 @@ function EmrTimelineTab({ loading, loadError, timeline, meta, filters, setFilter
       {meta.totalPages > 1 ? (
         <div className="um-pagination" style={{ marginTop: '1.5rem' }}>
           <span>
-            Showing {timeline.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}â€“
+            Showing {timeline.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
             {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} events
           </span>
           <div className="um-page-controls">
@@ -525,7 +528,7 @@ export function PatientProfilePage() {
     const dob = formatDate(p.date_of_birth);
     const registered = formatDate(p.created_at);
     const statusColor = p.status === 'ACTIVE' ? '#16a34a' : p.status === 'DECEASED' ? '#6b7280' : '#dc2626';
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>Patient Card â€” ${fullName}</title>
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>Patient Card — ${fullName}</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
@@ -609,7 +612,13 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
     }
   };
 
-  if (loading) return <div className="um-state-cell">Loading patient workspace...</div>;
+  if (loading) {
+    return (
+      <div style={{ padding: '4rem 1rem' }}>
+        <MedicalLoader size="large" text="Loading patient workspace..." subtext="Accessing EMR & clinical profile records" />
+      </div>
+    );
+  }
   if (loadError) return <div className="um-state-cell" role="alert">{loadError}</div>;
   if (!patient) {
     return (
@@ -741,7 +750,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
 
         {/* Tab Contents */}
         <section className="doc-card" style={{ marginTop: '1.25rem', overflow: 'hidden', padding: 0 }}>
-          {/* â”€â”€ Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Overview ──────────────────────────────────────────────────── */}
           {activeTab === 'Overview' ? (
             <div className="profile-6card-grid">
               {/* Card 1: Personal Information */}
@@ -805,7 +814,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                     {timeline.slice(0, 3).map((event) => (
                       <div key={event.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem' }}>
-                        <span>{formatDate(event.occurred_at)} â€¢ {event.title}</span>
+                        <span>{formatDate(event.occurred_at)} • {event.title}</span>
                         <strong style={{ color: '#2563eb' }}>Consultation</strong>
                       </div>
                     ))}
@@ -862,7 +871,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             <EmrTimelineTab patientId={patient.id} loading={loadingTimeline} loadError={""} timeline={timeline || []} meta={timelineMeta || { page: 1, limit: 10, total: 0, totalPages: 1 }} filters={timelineFilters} setFilters={setTimelineFilters} currentPage={pageInfo.timeline.page} setCurrentPage={(p: number) => setTimelineMeta(prev => ({ ...prev, page: p  }))} />
           ) : null}
 
-          {/* â”€â”€ Medical History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Medical History ──────────────────────────────────────────── */}
           {activeTab === 'Medical History' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -921,7 +930,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* â”€â”€ Visits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Visits ───────────────────────────────────────────────────── */}
           {activeTab === 'Visits' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -982,7 +991,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* â”€â”€ Appointments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Appointments ─────────────────────────────────────────────── */}
           {activeTab === 'Appointments' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="doc-toolbar">
@@ -1052,7 +1061,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </div>
           ) : null}
 
-          {/* â”€â”€ Prescriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Prescriptions ────────────────────────────────────────────── */}
           {activeTab === 'Prescriptions' ? (
             prescriptions.length === 0 ? (
               <EmptyRecords message="No prescription records found for this patient." />
@@ -1087,7 +1096,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* â”€â”€ Lab Results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Lab Results ──────────────────────────────────────────────── */}
           {activeTab === 'Lab Results' ? (
             labOrders.length === 0 ? (
               <EmptyRecords message="No laboratory test results found for this patient." />
@@ -1118,7 +1127,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* â”€â”€ Imaging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Imaging ──────────────────────────────────────────────────── */}
           {activeTab === 'Imaging' ? (
             imagingOrders.length === 0 ? (
               <EmptyRecords message="No radiology / imaging records found for this patient." />
@@ -1149,7 +1158,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             )
           ) : null}
 
-          {/* â”€â”€ Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Documents ────────────────────────────────────────────────── */}
           {activeTab === 'Documents' ? (
             <>
               <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
@@ -1182,7 +1191,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
             </>
           ) : null}
 
-          {/* â”€â”€ Billing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Billing ──────────────────────────────────────────────────── */}
           {activeTab === 'Billing' ? (
             billingInvoices.length === 0 ? (
               <EmptyRecords message="No billing statements or invoices found for this patient." />
@@ -1308,11 +1317,16 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;display:flex;align-items:
               disabled={submittingDocumentReview}
               type="submit"
             >
-              {submittingDocumentReview
-                ? 'Saving...'
-                : documentReviewDecision === 'VERIFIED'
-                  ? 'Approve document'
-                  : 'Reject document'}
+              {submittingDocumentReview ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Saving review...</span>
+                </>
+              ) : documentReviewDecision === 'VERIFIED' ? (
+                'Approve document'
+              ) : (
+                'Reject document'
+              )}
             </button>
           </div>
         </form>

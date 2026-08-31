@@ -841,7 +841,7 @@ export function PatientSearchPage() {
         ) : null}
       </Modal>
 
-      {/* Print Patient Card Ã¢â‚¬â€ preview modal */}
+      {/* Print Patient Card - preview modal */}
       {cardPatient ? (
         <Modal onClose={() => setCardPatient(null)} open={Boolean(cardPatient)} size="default" title="Patient ID Card">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
@@ -871,7 +871,7 @@ export function PatientSearchPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   {([
                     ['Date of Birth', formatDate(cardPatient.date_of_birth)],
-                    ['Age / Gender', `${new Date().getFullYear() - new Date(cardPatient.date_of_birth).getFullYear()} yrs Ã‚Â· ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
+                    ['Age / Gender', `${calculatePatientAge(cardPatient.date_of_birth)} • ${cardPatient.gender.charAt(0) + cardPatient.gender.slice(1).toLowerCase()}`],
                     ['Phone', cardPatient.phone || 'Not recorded'],
                     ['Status', cardPatient.status],
                     ['Registered', formatDate(cardPatient.created_at)],

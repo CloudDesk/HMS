@@ -1,4 +1,4 @@
-﻿import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import {
   doctorAvailabilityToForm,
 } from '../components/doctors/DoctorAvailabilityEditor';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import {
   useDoctorDirectory,
   type DoctorDirectorySortColumn,
@@ -551,7 +552,14 @@ export function DoctorDirectoryPage() {
               </thead>
               <tbody>
                 {directory.isLoading ? (
-                  <tr><td className="um-state-cell" colSpan={8}>Loading doctors...</td></tr>
+                  <tr>
+                    <td colSpan={8} style={{ padding: '2.5rem 1rem' }}>
+                      <MedicalLoader
+                        text="Loading doctor directory..."
+                        subtext="Retrieving hospital clinician records"
+                      />
+                    </td>
+                  </tr>
                 ) : directory.loadError ? (
                   <tr>
                     <td className="um-state-cell" colSpan={8}>
@@ -841,7 +849,14 @@ export function DoctorDirectoryPage() {
           <div className="modal-actions">
             <button className="secondary-action" disabled={submitting} onClick={() => closeModal()} type="button">Cancel</button>
             <button className="primary-action" disabled={submitting} type="submit">
-              {submitting ? 'Saving...' : 'Save Doctor'}
+              {submitting ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                'Save Doctor'
+              )}
             </button>
           </div>
         </form>

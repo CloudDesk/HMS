@@ -327,7 +327,7 @@ export function OpdVisitPage() {
         const patientData = await patientsApi.getById(response.patient_id);
         setPatient(patientData);
       } catch {
-        // patient data load failed â€” continue without patient details
+        // patient data load failed — continue without patient details
         setPatient(null);
       }
     } catch (error) {
@@ -2313,7 +2313,7 @@ export function OpdVisitPage() {
                           </option>
                           {filteredReferralDoctors.map((doc) => (
                             <option key={doc.id} value={doc.id}>
-                              {doc.display_name} â€” {doc.specialization} ({doc.consultation_room || 'OPD Room'})
+                              {doc.display_name} — {doc.specialization} ({doc.consultation_room || 'OPD Room'})
                             </option>
                           ))}
                         </select>
@@ -2539,7 +2539,7 @@ export function OpdVisitPage() {
                           <div className="opd-document-details">
                             <strong>{doc.title}</strong>
                             <span>
-                              {doc.document_type} â€¢ {new Date(doc.created_at).toLocaleDateString()}
+                              {doc.document_type} • {new Date(doc.created_at).toLocaleDateString()}
                             </span>
                           </div>
                           <div className="opd-document-actions">

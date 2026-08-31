@@ -14,7 +14,7 @@ import type { AuthPasswordPolicy } from '../auth/auth-types';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
-import { MedicalLoader } from '../components/ui/MedicalLoader';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 
 type UserStatus = 'Active' | 'Inactive' | 'Locked';
 type SortColumn = 'fullName' | 'role' | 'department' | 'status';
@@ -558,9 +558,6 @@ export function UserManagementPage() {
                 <i className="ph ph-user-plus" aria-hidden="true" /> Add New User
               </button>
             ) : null}
-            <button className="btn-secondary admin-table-action" disabled={!canExport || forbidden || submitting} onClick={() => {}} type="button">
-              <i className="ph ph-download-simple" aria-hidden="true" /> Export CSV
-            </button>
           </div>
         </div>
 
@@ -930,14 +927,26 @@ export function UserManagementPage() {
               <div className="card-header">
                 <h3>Users by Status</h3>
               </div>
-              {loading ? <div className="um-panel-loading">Loading chart...</div> : <UserStatusChart users={pageUsers} />}
+              {loading ? (
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading user status..." subtext="Analyzing account states" />
+                </div>
+              ) : (
+                <UserStatusChart users={pageUsers} />
+              )}
             </div>
 
             <div className="card um-chart-card">
               <div className="card-header">
                 <h3>Users by Role</h3>
               </div>
-              {loading ? <div className="um-panel-loading">Loading roles...</div> : <UsersByRole users={pageUsers} />}
+              {loading ? (
+                <div className="um-panel-loading">
+                  <MedicalLoader size="small" text="Loading role distribution..." subtext="Aggregating assignments" />
+                </div>
+              ) : (
+                <UsersByRole users={pageUsers} />
+              )}
             </div>
 
           </div>
@@ -956,7 +965,20 @@ export function UserManagementPage() {
                 Cancel
               </button>
               <button className="btn-primary" disabled={submitting} form="user-management-modal-form" type="submit">
-                {submitting ? 'Saving...' : modalMode === 'reset-password' ? 'Reset Password' : modalMode === 'change-password' ? 'Change Password' : modalMode === 'assign-role' ? 'Assign Role' : 'Save User'}
+                {submitting ? (
+                  <>
+                    <MedicalSpinner size="sm" />
+                    <span>Saving...</span>
+                  </>
+                ) : modalMode === 'reset-password' ? (
+                  'Reset Password'
+                ) : modalMode === 'change-password' ? (
+                  'Change Password'
+                ) : modalMode === 'assign-role' ? (
+                  'Assign Role'
+                ) : (
+                  'Save User'
+                )}
               </button>
             </>
           )
@@ -1181,6 +1203,7 @@ export function UserManagementPage() {
 
       <ConfirmDialog
         confirmLabel="Delete User"
+        loading={submitting}
         message={deleteTarget ? `Delete ${deleteTarget.fullName}? This will remove the user from active user lists.` : ''}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => executeDelete()}

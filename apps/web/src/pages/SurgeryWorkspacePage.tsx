@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { ProcedureBooking, ProcedureRecommendation } from '../api/surgery';
 import { Modal } from '../components/ui/Modal';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { useSurgeryWorkspaceFeature } from '../hooks/surgery/useSurgeryWorkspaceFeature';
 import { useAdvancePaymentFeature } from '../hooks/advance-payment/useAdvancePaymentFeature';
 import { DownstreamOrdersPanel } from '../components/clinical-context/DownstreamOrdersPanel';
@@ -445,11 +446,9 @@ export function SurgeryWorkspacePage() {
               </span>
             </div>
           </div>
-
           {state.bookingsQuery.isLoading ? (
-            <div className="empty-state" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-              <i className="ph ph-spinner-gap" style={{ fontSize: '1.5rem', animation: 'spin 1s linear infinite' }} />
-              <p style={{ marginTop: '0.5rem' }}>Loading surgical procedure schedule...</p>
+            <div style={{ padding: '3rem 1rem' }}>
+              <MedicalLoader text="Loading surgical procedure schedule..." subtext="Accessing operating theater calendar" />
             </div>
           ) : state.bookingsQuery.isError ? (
             <div className="error-state" style={{ padding: '2rem', textAlign: 'center', color: '#dc2626' }}>
@@ -539,7 +538,16 @@ export function SurgeryWorkspacePage() {
               className="btn-primary"
               disabled={mutations.createRecommendation.isPending || !state.branchId}
             >
-              <i className="ph ph-check-circle" /> {mutations.createRecommendation.isPending ? 'Creating...' : 'Create Recommendation'}
+              {mutations.createRecommendation.isPending ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <i className="ph ph-check-circle" /> Create Recommendation
+                </>
+              )}
             </button>
           </div>
         }
@@ -1421,6 +1429,15 @@ function DoctorAvailabilityChecker({
 }
 
 function StateRow({ columns, text }: { columns: number; text: string }) {
+  if (text.toLowerCase().includes('loading')) {
+    return (
+      <tr>
+        <td colSpan={columns} style={{ padding: '2.5rem 1rem' }}>
+          <MedicalLoader text={text} subtext="Retrieving surgical and procedural theater records" />
+        </td>
+      </tr>
+    );
+  }
   return (
     <tr>
       <td colSpan={columns} className="empty-state" style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b' }}>

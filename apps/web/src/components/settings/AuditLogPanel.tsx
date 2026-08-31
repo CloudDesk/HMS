@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../../api/api-error';
 import { settingsApi, type AuditAction, type AuditLogItem } from '../../api/settings';
 import { EmptyState } from '../ui/EmptyState';
+import { MedicalLoader } from '../ui/MedicalLoader';
 import { downloadBlob } from '../../utils/download';
 import { formatRegionalDateTime } from '../../utils/localization-utils';
 import { useTimezone } from '../../api/useSettings';
@@ -114,8 +115,8 @@ export function AuditLogPanel({ onTotalChange, onMessage }: AuditLogPanelProps) 
         </div>
 
         {loading ? (
-          <div className="ss-state" role="status">
-            <span className="loading-spinner" /> Loading audit logs...
+          <div style={{ padding: '3rem 1rem' }}>
+            <MedicalLoader text="Loading audit logs..." subtext="Retrieving system activity and compliance events" />
           </div>
         ) : error ? (
           <div className="ss-state ss-state--error" role="alert">

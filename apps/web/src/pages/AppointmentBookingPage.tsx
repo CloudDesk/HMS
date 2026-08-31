@@ -14,6 +14,7 @@ import {
 import { patientFullName, patientInitials } from './patient-utils';
 import { useAppointmentBookingFeature } from '../hooks/appointments/useAppointmentBookingFeature';
 import { useTimezone } from '../api/useSettings';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 
 type BookingStep = 1 | 2 | 3;
 
@@ -267,13 +268,23 @@ clearErrors('start_time');
               />
             </div>
             <button className="doc-btn primary" disabled={patientLoading} type="submit">
-              <i className="ph ph-magnifying-glass" aria-hidden="true" />
-              {patientLoading ? 'Searching...' : 'Search Patient'}
+              {patientLoading ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <i className="ph ph-magnifying-glass" aria-hidden="true" /> Search Patient
+                </>
+              )}
             </button>
           </form>
 
           {patientLoading ? (
-            <div className="um-state-cell">Searching patients...</div>
+            <div style={{ padding: '2rem 1rem' }}>
+              <MedicalLoader size="small" text="Searching patient records..." subtext="Accessing master patient index" />
+            </div>
           ) : patientResults.length === 0 ? (
             <div className="appointment-empty-search">
               <i className="ph ph-user-plus" aria-hidden="true" />
@@ -411,7 +422,13 @@ clearErrors('start_time');
                   )}
                 </div>
                 {slotLoading || existingApptsLoading ? (
-                  <div className="appointment-slot-state">Loading available slots...</div>
+                  <div style={{ padding: '2rem 1rem' }}>
+                    <MedicalLoader
+                      size="small"
+                      text="Loading available appointment slots..."
+                      subtext="Checking doctor schedule and room allocation"
+                    />
+                  </div>
                 ) : slotOptions.length === 0 || !slotOptions.some((s) => s.isAvailable) ? (
                   <div className="appointment-no-slots-notice" role="alert">
                     <i className="ph ph-info" aria-hidden="true" />
@@ -548,8 +565,16 @@ clearErrors('start_time');
                 Cancel
               </button>
               <button className="doc-btn primary" disabled={isSubmitting} onClick={() => submitBooking(getValues())} type="button">
-                <i className="ph ph-check" aria-hidden="true" />
-                {isSubmitting ? 'Saving...' : 'Confirm Booking'}
+                {isSubmitting ? (
+                  <>
+                    <MedicalSpinner size="sm" />
+                    <span>Confirming Booking...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="ph ph-check" aria-hidden="true" /> Confirm Booking
+                  </>
+                )}
               </button>
             </div>
           </div>

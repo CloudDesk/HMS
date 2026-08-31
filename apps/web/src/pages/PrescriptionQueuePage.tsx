@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { DispensingQueueStatus, DispensingSourceType, DispensingStatus } from '../api/pharmacy-dispensing';
 import { Modal } from '../components/ui/Modal';
+import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { usePharmacyDispensingFeature } from '../hooks/pharmacy/usePharmacyDispensingFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { useCurrencyFormatter } from '../api/useSettings';
@@ -110,9 +111,23 @@ export function PrescriptionQueuePage() {
             <table className="data-table">
               <thead><tr><th>Patient</th><th>Source</th><th>Doctor</th><th>Items</th><th>Submitted</th><th>Status</th><th>Invoice</th><th>Actions</th></tr></thead>
               <tbody>
-                {queue.listLoading ? <tr><td className="um-state-cell" colSpan={8}><span className="loading-spinner" /> Loading dispensing queue...</td></tr>
-                  : queue.dispensings.length === 0 ? <tr><td className="um-state-cell" colSpan={8}><i className="ph ph-inbox" aria-hidden="true" /> No dispensings found.</td></tr>
-                  : queue.dispensings.map((dispensing) => (
+                {queue.listLoading ? (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '2.5rem 1rem' }}>
+                      <MedicalLoader
+                        text="Loading dispensing queue..."
+                        subtext="Retrieving outpatient and inpatient pharmacy orders"
+                      />
+                    </td>
+                  </tr>
+                ) : queue.dispensings.length === 0 ? (
+                  <tr>
+                    <td className="um-state-cell" colSpan={8}>
+                      <i className="ph ph-inbox" aria-hidden="true" /> No dispensings found.
+                    </td>
+                  </tr>
+                ) : (
+                  queue.dispensings.map((dispensing) => (
                     <tr key={dispensing.prescription_id}>
                       <td><div className="user-cell-info"><strong>{dispensing.patient_name}</strong><span className="muted-cell">{dispensing.patient_number}</span></div></td>
                       <td><span className={`dispensing-source source-${dispensing.source_type.toLowerCase().replaceAll('_', '-')}`}>{sourceLabel(dispensing.source_type)}</span></td>
@@ -123,7 +138,8 @@ export function PrescriptionQueuePage() {
                       <td>{dispensing.invoice_number ?? '—'}</td>
                       <td><button className={dispensing.status === 'DRAFT' && queue.permissions.canEdit ? 'btn-primary compact' : 'btn-secondary compact'} onClick={() => queue.actions.openDispensing(dispensing.prescription_id)} type="button"><i className={`ph ${dispensing.status === 'DRAFT' ? 'ph-prescription' : 'ph-eye'}`} aria-hidden="true" /> {dispensing.status === 'DRAFT' ? 'Open Dispensing' : 'View'}</button></td>
                     </tr>
-                  ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -139,8 +155,8 @@ export function PrescriptionQueuePage() {
       <Modal
         footer={<>
           {detail?.status === 'DRAFT' && queue.permissions.canCancel ? <button className="secondary-action danger" disabled={queue.isMutating} onClick={() => void queue.actions.cancelDispensing(actionReason)} type="button">Cancel Dispensing</button> : null}
-          {detail?.status === 'DRAFT' && queue.permissions.canEdit ? <button className="secondary-action" disabled={draftDisabled || !queue.isDirty} onClick={() => void queue.actions.saveDraft()} type="button">{queue.isMutating ? 'Saving...' : 'Save Draft'}</button> : null}
-          {detail?.status === 'DRAFT' && queue.permissions.canDispense ? <button className="primary-action" disabled={queue.isMutating || queue.batchesLoading || hasStockError} onClick={() => void queue.actions.confirmDispensing()} type="button">{queue.isMutating ? 'Confirming...' : 'Confirm Dispensing'}</button> : null}
+          {detail?.status === 'DRAFT' && queue.permissions.canEdit ? <button className="secondary-action" disabled={draftDisabled || !queue.isDirty} onClick={() => void queue.actions.saveDraft()} type="button">{queue.isMutating ? <><MedicalSpinner size="sm" /><span>Saving...</span></> : 'Save Draft'}</button> : null}
+          {detail?.status === 'DRAFT' && queue.permissions.canDispense ? <button className="primary-action" disabled={queue.isMutating || queue.batchesLoading || hasStockError} onClick={() => void queue.actions.confirmDispensing()} type="button">{queue.isMutating ? <><MedicalSpinner size="sm" /><span>Confirming...</span></> : 'Confirm Dispensing'}</button> : null}
           {detail?.status === 'CONFIRMED' && queue.permissions.canReverse ? <button className="secondary-action danger" disabled={queue.isMutating || actionReason.trim().length < 3} onClick={() => void queue.actions.reverseDispensing(actionReason)} type="button">Reverse Dispensing</button> : null}
         </>}
         icon="ph-prescription"
@@ -149,7 +165,11 @@ export function PrescriptionQueuePage() {
         size="large"
         title={detail ? `Dispensing — ${detail.patient_name}` : 'Dispensing'}
       >
-        {queue.detailLoading ? <div className="um-state-cell"><span className="loading-spinner" /> Loading or creating dispensing draft...</div> : null}
+        {queue.detailLoading ? (
+          <div style={{ padding: '2.5rem 1rem' }}>
+            <MedicalLoader text="Loading dispensing draft..." subtext="Allocating batches and checking stock availability" />
+          </div>
+        ) : null}
         {queue.detailError ? <div className="form-error-banner">{queue.detailError}</div> : null}
         {detail ? (
           <div className="dispensing-detail">

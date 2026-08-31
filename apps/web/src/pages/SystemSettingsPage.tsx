@@ -11,6 +11,7 @@ import {
   UserPreferencesForm,
   } from '../components/settings/SettingsForms';
 import { Toast } from '../components/ui/Toast';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 
 type TabId =
   | 'general'
@@ -108,7 +109,11 @@ export function SystemSettingsPage() {
         </aside>
 
         <main className="card ss-content-panel">
-          {loading ? <div className="ss-state" role="status"><span className="loading-spinner" /> Loading system settings...</div> : loadError ? <div className="ss-state ss-state--error" role="alert"><i className="ph ph-warning-circle" aria-hidden="true" /><strong>Settings unavailable</strong><span>{loadError}</span><button className="btn-secondary" onClick={() => void load()} type="button">Try again</button></div> : renderPanel(activeTab)}
+          {loading ? (
+            <div style={{ padding: '3rem 1rem' }}>
+              <MedicalLoader size="medium" text="Loading system settings..." subtext="Retrieving hospital configuration" />
+            </div>
+          ) : loadError ? <div className="ss-state ss-state--error" role="alert"><i className="ph ph-warning-circle" aria-hidden="true" /><strong>Settings unavailable</strong><span>{loadError}</span><button className="btn-secondary" onClick={() => void load()} type="button">Try again</button></div> : renderPanel(activeTab)}
         </main>
 
         <aside className="ss-right-panel">

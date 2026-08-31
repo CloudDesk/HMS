@@ -96,7 +96,7 @@ export const listPatientTimelineQuerySchema = {
 
 export const createPatientBodySchema = {
   type: 'object',
-  required: ['last_name', 'date_of_birth', 'gender'],
+  required: ['last_name', 'date_of_birth', 'gender', 'phone'],
   additionalProperties: false,
   properties: {
     first_name: { type: ['string', 'null'] },
@@ -104,7 +104,7 @@ export const createPatientBodySchema = {
     last_name: { type: 'string', minLength: 1 },
     date_of_birth: { type: 'string', minLength: 1 },
     gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER', 'UNKNOWN'] },
-    phone: { type: ['string', 'null'] },
+    phone: { type: 'string', minLength: 1 },
     email: { type: ['string', 'null'] },
     address: addressSchema,
     emergency_contact: emergencyContactSchema,
