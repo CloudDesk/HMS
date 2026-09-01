@@ -16,8 +16,8 @@ const recommendationSchema = new Schema<ProcedureRecommendationFields>({
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }, updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 recommendationSchema.index({ branchId: 1, status: 1, createdAt: -1 });
-recommendationSchema.index({ patientId: 1, status: 1, createdAt: -1 });
-recommendationSchema.index({ encounterType: 1, encounterId: 1, serviceId: 1 }, { unique: true, partialFilterExpression: { status: 'ACTIVE', encounterId: { $ne: null } } });
+recommendationSchema.index({ patientId: 1, serviceId: 1 }, { unique: true, partialFilterExpression: { status: 'ACTIVE' } });
+recommendationSchema.index({ encounterType: 1, encounterId: 1, serviceId: 1 }, { unique: true, partialFilterExpression: { status: 'ACTIVE', encounterId: { $type: 'objectId' } } });
 export const ProcedureRecommendationModel = mongoose.model<ProcedureRecommendationFields>('ProcedureRecommendation', recommendationSchema);
 
 export type ProcedureBookingFields = {

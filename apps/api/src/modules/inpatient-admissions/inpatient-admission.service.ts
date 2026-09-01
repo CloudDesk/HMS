@@ -11,16 +11,16 @@ import type { OpdPrescriptionService } from '../opd/opd-prescription.service.js'
 import type { SaveOpdPrescriptionDTO } from '../opd/opd-prescription.types.js';
 import type { InpatientAdmissionRepository } from './inpatient-admission.repository.js';
 import type { AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, CancelAdmissionRequestDTO, ConfirmAdmissionRequestDTO, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, CreateInpatientRoundNoteDTO, CreateInpatientVitalDTO, InpatientAdmissionListQuery, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
+import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
 
 const rethrowDuplicate = (error: unknown): never => {
   if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11000) throw new AppError('An active admission request or admission already exists for this patient or source', 409, 'ACTIVE_ADMISSION_CONFLICT');
   throw error;
 };
 
-import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
 async function executeWithOptionalTransaction<T>(
   repository: InpatientAdmissionRepository,
-  operation: (session: ClientSession) => Promise<T>,
+  operation: (session: any) => Promise<T>,
 ): Promise<T> {
   let session: ClientSession | null = null;
   try {
@@ -36,17 +36,21 @@ async function executeWithOptionalTransaction<T>(
     return result;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message.toLowerCase() : '';
-    if (
+    const canRetryWithoutTransaction =
       msg.includes('transaction') ||
       msg.includes('replica set') ||
       msg.includes('sharded cluster') ||
       msg.includes('standalone') ||
-      msg.includes('active transaction number')
-    ) {
+      msg.includes('active transaction number');
+
+    if (canRetryWithoutTransaction) {
       if (!session) {
         throw error;
       }
-      return operation(session);
+
+      await session.endSession().catch(() => {});
+      session = null;
+      return await operation(undefined);
     }
     throw error;
   } finally {
@@ -146,12 +150,21 @@ export class InpatientAdmissionService {
         if (!refs.patient) throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
         if (!refs.doctor) throw new AppError('Active recommending doctor is not available in this branch', 404, 'DOCTOR_NOT_FOUND');
         if (!refs.department) throw new AppError('Active department is not available in this branch', 404, 'DEPARTMENT_NOT_FOUND');
+        if (await this.repository.hasActiveAdmission(data.patient_id, session)) throw new AppError('This patient already has an active inpatient admission', 409, 'PATIENT_ALREADY_ADMITTED');
+        if (await this.repository.hasActiveAdmissionRequest(data.patient_id, data.branch_id, session)) throw new AppError('This patient already has a pending admission request', 409, 'DUPLICATE_ADMISSION_REQUEST');
         let sourceReference: string | null = null;
         if (data.source_type === 'OPD_VISIT' && data.source_id) {
           const visit = await this.opdVisits.getAdmissionSource(data.source_id, session);
           if (!visit || visit.patientId.toString() !== data.patient_id || visit.branchId.toString() !== data.branch_id || visit.departmentId.toString() !== data.department_id || visit.doctorId.toString() !== data.recommending_doctor_id) throw new AppError('OPD source context does not match the request', 409, 'ADMISSION_SOURCE_MISMATCH');
           if (visit.inpatientAdmissionId) throw new AppError('This OPD visit has already been converted to an admission', 409, 'SOURCE_ALREADY_CONVERTED');
           sourceReference = visit.visitNumber;
+        }
+        if (data.source_type === 'REFERRAL' && data.source_id) {
+          const source = await this.repository.getReferralSource(data.source_id, session);
+          if (!source) throw new AppError('Submitted referral source was not found', 404, 'ADMISSION_SOURCE_NOT_FOUND');
+          if (source.visit.patientId.toString() !== data.patient_id || source.visit.branchId.toString() !== data.branch_id || source.referral.referringDoctorId.toString() !== data.recommending_doctor_id) throw new AppError('Referral source context does not match the request', 409, 'ADMISSION_SOURCE_MISMATCH');
+          if (source.visit.inpatientAdmissionId) throw new AppError('This referral visit has already been converted to an admission', 409, 'SOURCE_ALREADY_CONVERTED');
+          sourceReference = source.referral.specialty ?? source.referral.referralType ?? source.visit.visitNumber;
         }
         if (data.source_type === 'EMERGENCY_ENCOUNTER' && data.source_id) {
           const encounter = await this.validateEmergencySource(data, session);

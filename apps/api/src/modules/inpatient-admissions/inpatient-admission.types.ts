@@ -1,22 +1,28 @@
-export type AdmissionType =
-  | 'INPATIENT'
-  | 'OBSERVATION'
-  | 'DAY_CARE'
-  | 'ICU'
-  | 'HDU'
-  | 'MEDICAL'
-  | 'SURGICAL'
-  | 'MATERNITY'
-  | 'PAEDIATRIC'
-  | 'OTHER';
+export const ADMISSION_TYPES = [
+  'INPATIENT',
+  'OBSERVATION',
+  'DAY_CARE',
+  'ICU',
+  'HDU',
+  'MEDICAL',
+  'SURGICAL',
+  'MATERNITY',
+  'PAEDIATRIC',
+  'OTHER',
+] as const;
+
+export type AdmissionType = (typeof ADMISSION_TYPES)[number];
 export type AdmissionStatus = 'DRAFT' | 'ADMITTED' | 'CANCELLED';
-export type AdmissionSourceType =
-  | 'DIRECT'
-  | 'OPD_VISIT'
-  | 'EMERGENCY_ENCOUNTER'
-  | 'REFERRAL'
-  | 'TRANSFER'
-  | 'PROCEDURE_BOOKING';
+export const ADMISSION_SOURCE_TYPES = [
+  'DIRECT',
+  'OPD_VISIT',
+  'EMERGENCY_ENCOUNTER',
+  'REFERRAL',
+  'TRANSFER',
+  'PROCEDURE_BOOKING',
+] as const;
+
+export type AdmissionSourceType = (typeof ADMISSION_SOURCE_TYPES)[number];
 export type AdmissionRequestStatus = 'PENDING_VALIDATION' | 'READY_FOR_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED';
 export type AdmissionPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 

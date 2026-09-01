@@ -3,6 +3,7 @@ import type { CreateRecommendationPayload } from '../../api/surgery';
 import type { InpatientAdmission } from '../../api/inpatient-admissions';
 import { useAppLocation } from '../../routing/navigation';
 import { useBranchesList } from '../branches/useBranches';
+import { useDepartmentsList } from '../departments/useDepartments';
 import { useDoctorsList } from '../doctors/useDoctors';
 import { useServicesList } from '../services/useServices';
 import { useSurgery } from '../surgery/useSurgery';
@@ -42,6 +43,7 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
   }, [branchId, branchesQuery.data]);
 
   const wardsQuery = useWardsList({ branch_id: branchId }, Boolean(branchId));
+  const departmentsQuery = useDepartmentsList({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
   const doctorsQuery = useDoctorsList({ branch_id: branchId }, Boolean(branchId));
   const servicesQuery = useServicesList({ service_type: 'PROCEDURE' });
   const admissionsQuery = useInpatientAdmissionsList(
@@ -121,6 +123,7 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
       branchId,
       selectedAdmission,
       branches: branchesQuery.data?.data ?? [],
+      departments: departmentsQuery.data?.data ?? [],
       wards: wardsQuery.data?.data ?? [],
       doctors: doctorsQuery.data?.data ?? [],
       procedureServices: servicesQuery.data?.data ?? [],

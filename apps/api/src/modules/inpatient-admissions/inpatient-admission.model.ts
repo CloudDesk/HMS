@@ -1,5 +1,5 @@
 import mongoose, { Schema, Types } from 'mongoose';
-import type { AdmissionPriority, AdmissionRequestStatus, AdmissionSourceType, AdmissionStatus, AdmissionType } from './inpatient-admission.types.js';
+import { ADMISSION_SOURCE_TYPES, ADMISSION_TYPES, type AdmissionPriority, type AdmissionRequestStatus, type AdmissionSourceType, type AdmissionStatus, type AdmissionType } from './inpatient-admission.types.js';
 
 
 export type InpatientAdmissionFields = {
@@ -17,10 +17,10 @@ const schema = new Schema<InpatientAdmissionFields>({
   wardId: { type: Schema.Types.ObjectId, ref: 'HmsWard', required: true }, bedId: { type: Schema.Types.ObjectId, ref: 'HmsBed', required: true },
   admittingDoctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true }, admittingDoctorName: { type: String, required: true },
   departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true }, departmentName: { type: String, required: true },
-  admissionDate: { type: Date, required: true }, admissionType: { type: String, enum: ['INPATIENT', 'OBSERVATION', 'DAY_CARE', 'ICU', 'HDU', 'MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OTHER'], required: true },
+  admissionDate: { type: Date, required: true }, admissionType: { type: String, enum: ADMISSION_TYPES, required: true },
   reason: { type: String, required: true, trim: true }, notes: { type: String, default: null }, status: { type: String, enum: ['DRAFT', 'ADMITTED', 'CANCELLED'], required: true, default: 'ADMITTED' },
   requestId: { type: Schema.Types.ObjectId, ref: 'AdmissionRequest', default: null },
-  sourceType: { type: String, enum: ['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL', 'TRANSFER', 'PROCEDURE_BOOKING'], required: true, default: 'DIRECT' },
+  sourceType: { type: String, enum: ADMISSION_SOURCE_TYPES, required: true, default: 'DIRECT' },
   sourceId: { type: Schema.Types.ObjectId, default: null },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }, updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
@@ -54,9 +54,9 @@ const admissionRequestSchema = new Schema<AdmissionRequestFields>({
   patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true }, patientNumber: { type: String, required: true }, patientName: { type: String, required: true },
   branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true }, departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true }, departmentName: { type: String, required: true },
   recommendingDoctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true }, recommendingDoctorName: { type: String, required: true },
-  sourceType: { type: String, enum: ['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL', 'TRANSFER', 'PROCEDURE_BOOKING'], required: true }, sourceId: { type: Schema.Types.ObjectId, default: null }, sourceReference: { type: String, default: null },
+  sourceType: { type: String, enum: ADMISSION_SOURCE_TYPES, required: true }, sourceId: { type: Schema.Types.ObjectId, default: null }, sourceReference: { type: String, default: null },
   activeSourceKey: { type: String, default: null },
-  admissionType: { type: String, enum: ['INPATIENT', 'OBSERVATION', 'DAY_CARE', 'ICU', 'HDU', 'MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OTHER'], required: true }, priority: { type: String, enum: ['ROUTINE', 'URGENT', 'EMERGENCY'], required: true },
+  admissionType: { type: String, enum: ADMISSION_TYPES, required: true }, priority: { type: String, enum: ['ROUTINE', 'URGENT', 'EMERGENCY'], required: true },
   reason: { type: String, required: true, trim: true }, notes: { type: String, default: null },
   status: { type: String, enum: ['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION', 'CONFIRMED', 'CANCELLED'], required: true, default: 'PENDING_VALIDATION' },
   holdId: { type: Schema.Types.ObjectId, ref: 'BedHold', default: null }, wardId: { type: Schema.Types.ObjectId, ref: 'HmsWard', default: null }, bedId: { type: Schema.Types.ObjectId, ref: 'HmsBed', default: null },

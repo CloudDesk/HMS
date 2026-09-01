@@ -1,48 +1,158 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import type { AdmissionRequest } from '../api/inpatient-admissions';
+import { ApiError } from '../api/api-error';
+import type { AdmissionRequest, AdmissionSourceType, AdmissionType } from '../api/inpatient-admissions';
 import { Modal } from '../components/ui/Modal';
+import { AdmissionRequestDetailModal } from '../components/admissions/AdmissionRequestDetailModal';
+import { NewAdmissionRequestModal } from '../components/admissions/NewAdmissionRequestModal';
 import { useInpatientAdmissionFeature } from '../hooks/admissions/useInpatientAdmissionFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
+
+const linkedSourceTypes = ['OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL'] as const;
+type LinkedSourceType = (typeof linkedSourceTypes)[number];
+
+const isLinkedSourceType = (value: AdmissionSourceType): value is LinkedSourceType =>
+  linkedSourceTypes.some((item) => item === value);
+
+const isObjectId = (value: string | null | undefined) => Boolean(value && /^[a-f\d]{24}$/i.test(value));
+
+const admissionTypeOptions: Array<{ value: AdmissionType; label: string }> = [
+  { value: 'INPATIENT', label: 'Inpatient' },
+  { value: 'OBSERVATION', label: 'Observation' },
+  { value: 'DAY_CARE', label: 'Day Care' },
+];
+
+const sourceOptions: Array<{ value: AdmissionSourceType; label: string }> = [
+  { value: 'OPD_VISIT', label: 'OPD' },
+  { value: 'REFERRAL', label: 'Referral' },
+  { value: 'DIRECT', label: 'Direct Admission' },
+];
+
+const priorityOptions = [
+  { value: 'ROUTINE', label: 'Routine' },
+  { value: 'URGENT', label: 'Urgent' },
+  { value: 'EMERGENCY', label: 'Emergency' },
+] as const;
+
+const statusMeta: Record<AdmissionRequest['status'], { label: string; tone: string; description: string }> = {
+  PENDING_VALIDATION: { label: 'Pending Validation', tone: 'pending', description: 'Request intent captured; bed and prerequisites not yet validated.' },
+  READY_FOR_CONFIRMATION: { label: 'Ready For Confirmation', tone: 'ready', description: 'Bed and prerequisites are selected; final admission is still pending.' },
+  CONFIRMED: { label: 'Confirmed', tone: 'approved', description: 'Actual inpatient admission has been created and linked.' },
+  CANCELLED: { label: 'Cancelled', tone: 'rejected', description: 'Request is closed and cannot create an admission.' },
+};
+
+const sourceLabels: Record<AdmissionSourceType, string> = {
+  DIRECT: 'Direct Admission',
+  OPD_VISIT: 'OPD',
+  EMERGENCY_ENCOUNTER: 'Emergency',
+  REFERRAL: 'Referral',
+  TRANSFER: 'Transfer',
+  PROCEDURE_BOOKING: 'Procedure Booking',
+};
 
 const createSchema = z.object({
   patient_id: z.string().min(1, 'Select a patient'),
   department_id: z.string().min(1, 'Select a department'),
-  recommending_doctor_id: z.string().min(1, 'Select a doctor'),
-  source_type: z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL', 'TRANSFER']),
+  recommending_doctor_id: z.string().min(1, 'Select the requesting doctor or staff member'),
+  source_type: z.enum(['DIRECT', 'OPD_VISIT', 'EMERGENCY_ENCOUNTER', 'REFERRAL']),
   source_id: z.string().optional(),
-  admission_type: z.enum(['INPATIENT', 'OBSERVATION', 'DAY_CARE', 'ICU', 'HDU', 'MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OTHER']),
+  admission_type: z.enum(['INPATIENT', 'OBSERVATION', 'DAY_CARE']),
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
-  reason: z.string().trim().min(1, 'Clinical summary is required').max(500),
-  notes: z.string().max(1000).optional(),
+  reason: z.string().trim().min(1, 'Clinical summary is required').max(500, 'Clinical summary must be 500 characters or fewer'),
+  notes: z.string().trim().max(1000, 'Notes must be 1000 characters or fewer').optional(),
+}).superRefine((value, context) => {
+  if (isLinkedSourceType(value.source_type) && !isObjectId(value.source_id)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['source_id'],
+      message: `${sourceLabels[value.source_type]} source requires an existing linked record`,
+    });
+  }
 });
-const allocationSchema = z.object({ ward_id: z.string().min(1, 'Select a ward'), bed_id: z.string().min(1, 'Select a bed'), hold_id: z.string(), consent_document_id: z.string(), deposit_invoice_id: z.string(), admission_date: z.string().min(1, 'Admission date is required') });
-const consentSchema = z.object({ title: z.string().trim().min(1, 'Title is required'), signed_by_name: z.string().trim().min(1, 'Signer is required'), signed_at: z.string().min(1, 'Signed date is required'), valid_until: z.string().optional(), file: z.instanceof(File).optional() });
+
+const allocationSchema = z.object({
+  ward_id: z.string().min(1, 'Select a ward'),
+  bed_id: z.string().min(1, 'Select an available bed'),
+  hold_id: z.string(),
+  consent_document_id: z.string(),
+  deposit_invoice_id: z.string(),
+  admission_date: z.string().min(1, 'Admission date is required'),
+});
+
+const consentSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required'),
+  signed_by_name: z.string().trim().min(1, 'Signer is required'),
+  signed_at: z.string().min(1, 'Signed date is required'),
+  valid_until: z.string().optional(),
+  file: z.instanceof(File).optional(),
+});
+
 type CreateValues = z.infer<typeof createSchema>;
 type AllocationValues = z.infer<typeof allocationSchema>;
 type ConsentValues = z.infer<typeof consentSchema>;
+
+const formatDateTime = (value: string | null | undefined) => {
+  if (!value) return 'Not recorded';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not recorded';
+  return `${date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+const initials = (name: string) =>
+  name
+    .split(' ')
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'PT';
+
+const admissionErrorMessage = (error: unknown) => {
+  if (!(error instanceof ApiError)) {
+    return error instanceof Error ? error.message : 'Unable to complete the admission workflow.';
+  }
+
+  if (error.status === 401 || error.code === 'SESSION_EXPIRED' || error.code === 'TOKEN_EXPIRED') {
+    return 'Your session has expired. Please sign in again.';
+  }
+  if (error.status === 403) return 'You are not authorized to perform this admission action.';
+  if (error.code === 'VALIDATION_ERROR') return 'Check the highlighted fields and try again.';
+  if (error.code === 'ACTIVE_ADMISSION_EXISTS' || error.code === 'ACTIVE_ADMISSION_CONFLICT' || error.code === 'PATIENT_ALREADY_ADMITTED') return 'This patient already has an active inpatient admission.';
+  if (error.code === 'DUPLICATE_ADMISSION_REQUEST') return 'This patient already has a pending admission request.';
+  if (error.code === 'ADMISSION_SOURCE_MISMATCH') return 'The selected source does not match this patient, branch, department, or requester.';
+  if (error.code === 'ADMISSION_SOURCE_NOT_FOUND') return 'The selected OPD, referral, or emergency source could not be found.';
+  if (error.code === 'SOURCE_ALREADY_CONVERTED' || error.code === 'ADMISSION_SOURCE_ALREADY_CONVERTED') return 'This source has already been converted to an inpatient admission.';
+  if (error.code === 'BED_NOT_AVAILABLE') return 'The selected bed is no longer available. Refresh the bed list and choose another bed.';
+  if (error.code === 'CONSENT_REQUIRED') return 'Signed admission consent is required before confirmation.';
+  if (error.code === 'ADVANCE_DEPOSIT_REQUIRED') return error.message;
+  if (error.status >= 500) return 'The admission service is temporarily unavailable. Please try again shortly.';
+  return error.message;
+};
+
 export function InpatientAdmissionPage() {
   const location = useAppLocation();
   const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const [patientSearch, setPatientSearch] = useState('');
-  const [requestSearch, setRequestSearch] = useState('');
+  const [patientSearch, setPatientSearch] = useState(handoff.get('patient_search') ?? '');
+  const [requestSearch, setRequestSearch] = useState(handoff.get('search') ?? '');
   const [selected, setSelected] = useState<AdmissionRequest | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [consentTab, setConsentTab] = useState<'signature' | 'upload'>('signature');
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasSignature, setHasSignature] = useState(false);
-  const [insuranceWaived, setInsuranceWaived] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [filterDepartment, setFilterDepartment] = useState(handoff.get('department_id') ?? '');
+  const [filterAdmissionType, setFilterAdmissionType] = useState(handoff.get('admission_type') ?? '');
+  const [filterPriority, setFilterPriority] = useState(handoff.get('priority') ?? '');
+  const [filterSource, setFilterSource] = useState(handoff.get('source_type') ?? '');
+  const [filterStatus, setFilterStatus] = useState(handoff.get('status') ?? '');
+  const [page, setPage] = useState(Number(handoff.get('page') ?? '1') || 1);
+  const pageSize = 10;
+
   const createForm = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
     defaultValues: {
-      source_type: 'DIRECT',
+      source_type: 'OPD_VISIT',
       source_id: '',
       admission_type: 'INPATIENT',
       priority: 'ROUTINE',
@@ -50,20 +160,54 @@ export function InpatientAdmissionPage() {
       notes: '',
     },
   });
-  const allocationForm = useForm<AllocationValues>({ resolver: zodResolver(allocationSchema), defaultValues: { ward_id: '', bed_id: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', admission_date: new Date().toISOString().slice(0, 16) } });
-  const consentForm = useForm<ConsentValues>({ resolver: zodResolver(consentSchema), defaultValues: { title: 'Inpatient admission consent', signed_by_name: '', signed_at: new Date().toISOString().slice(0, 16), valid_until: '' } });
+  const allocationForm = useForm<AllocationValues>({
+    resolver: zodResolver(allocationSchema),
+    defaultValues: { ward_id: '', bed_id: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', admission_date: new Date().toISOString().slice(0, 16) },
+  });
+  const consentForm = useForm<ConsentValues>({
+    resolver: zodResolver(consentSchema),
+    defaultValues: { title: 'Inpatient admission consent', signed_by_name: '', signed_at: new Date().toISOString().slice(0, 16), valid_until: '' },
+  });
+
   const wardId = allocationForm.watch('ward_id');
-  const selectedSourceType = createForm.watch('source_type');
+  const createValues = createForm.watch();
+  const selectedSourceType = createValues.source_type;
   const feature = useInpatientAdmissionFeature({ patientSearch, requestSearch, createOpen, selectedRequest: selected, selectedSourceType, wardId });
   const {
-    branchId, branches, wards, beds, requests, policy, counts,
-    departmentOptions, doctorOptions, availablePatients: availablePatientsForSource,
-    loading, errors, pending,
+    branchId,
+    branches,
+    wards,
+    beds,
+    requests,
+    admissions,
+    policy,
+    counts,
+    departmentOptions,
+    doctorOptions,
+    availablePatients,
+    loading,
+    errors,
+    pending,
   } = feature.state;
   const {
-    setBranchId, createRequest: submitCreateRequest, validateRequest,
-    confirmRequest, cancelRequest, uploadConsent: submitConsent,
+    setBranchId,
+    createRequest: submitCreateRequest,
+    validateRequest,
+    confirmRequest,
+    cancelRequest,
+    uploadConsent: submitConsent,
   } = feature.actions;
+
+  const selectedPatientOption = useMemo(() => {
+    const selectedKey = isLinkedSourceType(selectedSourceType) ? createValues.source_id : createValues.patient_id;
+    return availablePatients.find((item) => (isLinkedSourceType(selectedSourceType) ? item.sourceId : item.patientId) === selectedKey) ?? null;
+  }, [availablePatients, createValues.patient_id, createValues.source_id, selectedSourceType]);
+
+  const selectedDepartment = departmentOptions.find((item) => item.id === createValues.department_id);
+  const selectedDoctor = doctorOptions.find((item) => item.id === createValues.recommending_doctor_id);
+  const activeAdmissionForPatient = admissions.find((item) => item.patient_id === createValues.patient_id && item.status === 'ADMITTED');
+  const pendingRequestForPatient = requests.find((item) => item.patient_id === createValues.patient_id && ['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'].includes(item.status));
+
   useEffect(() => {
     if (handoff.get('source_type') !== 'EMERGENCY_ENCOUNTER') return;
     const sourceId = handoff.get('source_id') ?? '';
@@ -75,108 +219,119 @@ export function InpatientAdmissionPage() {
     setPatientSearch(handoff.get('patient_search') ?? '');
     createForm.reset({ patient_id: patientId, department_id: departmentId, recommending_doctor_id: doctorId, source_type: 'EMERGENCY_ENCOUNTER', source_id: sourceId, admission_type: 'INPATIENT', priority: 'EMERGENCY', reason: handoff.get('reason') ?? '', notes: handoff.get('notes') ?? '' });
     setCreateOpen(true);
-  }, [createForm, handoff]);
-  useEffect(() => { if (selected) allocationForm.reset({ ward_id: selected.ward_id ?? '', bed_id: selected.bed_id ?? '', hold_id: selected.hold_id ?? '', consent_document_id: selected.consent_document_id ?? '', deposit_invoice_id: selected.deposit_invoice_id ?? '', admission_date: new Date().toISOString().slice(0, 16) }); }, [allocationForm, selected]);
+  }, [createForm, handoff, setBranchId]);
+
+  useEffect(() => {
+    if (selected) {
+      allocationForm.reset({
+        ward_id: selected.ward_id ?? '',
+        bed_id: selected.bed_id ?? '',
+        hold_id: selected.hold_id ?? '',
+        consent_document_id: selected.consent_document_id ?? '',
+        deposit_invoice_id: selected.deposit_invoice_id ?? '',
+        admission_date: new Date().toISOString().slice(0, 16),
+      });
+    }
+  }, [allocationForm, selected]);
+
+  const updateUrl = (patch: Record<string, string | number | null>) => {
+    const params = new URLSearchParams(location.search);
+    Object.entries(patch).forEach(([key, value]) => {
+      if (value === null || value === '') params.delete(key);
+      else params.set(key, String(value));
+    });
+    const next = params.toString();
+    navigate(`${location.pathname}${next ? `?${next}` : ''}`, { replace: true });
+  };
+
+  const handleSourceChange = (sourceType: AdmissionSourceType) => {
+    createForm.setValue('source_type', sourceType as CreateValues['source_type'], { shouldValidate: true });
+    createForm.setValue('patient_id', '', { shouldValidate: true });
+    createForm.setValue('source_id', '', { shouldValidate: true });
+    createForm.setValue('reason', '');
+    createForm.setValue('notes', '');
+  };
+
+  const handlePatientSelect = (value: string) => {
+    if (selectedSourceType === 'DIRECT') {
+      createForm.setValue('patient_id', value, { shouldValidate: true });
+      createForm.setValue('source_id', '');
+      return;
+    }
+
+    const match = availablePatients.find((patient) => patient.sourceId === value);
+    createForm.setValue('patient_id', match?.patientId ?? '', { shouldValidate: true });
+    createForm.setValue('source_id', match?.sourceId ?? '', { shouldValidate: true });
+    if (match?.doctorId) createForm.setValue('recommending_doctor_id', match.doctorId, { shouldValidate: true });
+    if (match?.departmentId) createForm.setValue('department_id', match.departmentId, { shouldValidate: true });
+    if (match?.priority) createForm.setValue('priority', match.priority);
+    if (match?.clinicalSummary && !createValues.reason) createForm.setValue('reason', match.clinicalSummary);
+    else if (match?.sourceReason && !createValues.reason) createForm.setValue('reason', match.sourceReason);
+  };
+
   const createRequest = createForm.handleSubmit(async (values) => {
     try {
-      const isValidSourceId = values.source_id && /^[a-f\d]{24}$/i.test(values.source_id);
       const request = await submitCreateRequest({
         ...values,
         branch_id: branchId,
-        source_id: isValidSourceId ? values.source_id : null,
+        source_id: isLinkedSourceType(values.source_type) ? values.source_id : null,
         notes: values.notes || null,
       });
       toast.success('Admission request created.');
       setCreateOpen(false);
       setSelected(request);
       createForm.reset();
-      navigate(`/admissions/inpatients?branch_id=${branchId}`, { replace: true });
+      navigate(`/admissions/requests?branch_id=${branchId}`, { replace: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to create admission request.');
+      toast.error(admissionErrorMessage(error));
     }
   });
-  const validate = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await validateRequest({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } }); setSelected(request); toast.success('Request validated and ready for confirmation.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Validation failed.'); } });
-  const confirm = allocationForm.handleSubmit(async (values) => { if (!selected) return; try { const request = await confirmRequest({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } }); setSelected(request); toast.success('Admission confirmed and bed allotted.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Admission confirmation failed.'); } });
-  const cancel = async () => { if (!selected || !cancelReason.trim()) return; try { const request = await cancelRequest({ id: selected.id, reason: cancelReason.trim() }); setSelected(request); setCancelOpen(false); setCancelReason(''); toast.success('Draft request cancelled and reserved resources released.'); } catch (error) { toast.error(error instanceof Error ? error.message : 'Cancellation failed.'); } };
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const touch = 'touches' in e && e.touches.length > 0 ? e.touches[0] : null;
-    const clientX = touch ? touch.clientX : 'clientX' in e ? e.clientX : 0;
-    const clientY = touch ? touch.clientY : 'clientY' in e ? e.clientY : 0;
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
-  };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const touch = 'touches' in e && e.touches.length > 0 ? e.touches[0] : null;
-    const clientX = touch ? touch.clientX : 'clientX' in e ? e.clientX : 0;
-    const clientY = touch ? touch.clientY : 'clientY' in e ? e.clientY : 0;
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = '#1e3a8a';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    setHasSignature(true);
-  };
+  const validate = allocationForm.handleSubmit(async (values) => {
+    if (!selected) return;
+    try {
+      const request = await validateRequest({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null } });
+      setSelected(request);
+      toast.success('Request validated and ready for confirmation.');
+    } catch (error) {
+      toast.error(admissionErrorMessage(error));
+    }
+  });
 
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
+  const confirm = allocationForm.handleSubmit(async (values) => {
+    if (!selected) return;
+    try {
+      const request = await confirmRequest({ id: selected.id, patientId: selected.patient_id, payload: { ward_id: values.ward_id, bed_id: values.bed_id, hold_id: values.hold_id || null, consent_document_id: values.consent_document_id || null, deposit_invoice_id: values.deposit_invoice_id || null, admission_date: new Date(values.admission_date).toISOString() } });
+      setSelected(request);
+      toast.success('Admission confirmed and bed allotted.');
+    } catch (error) {
+      toast.error(admissionErrorMessage(error));
+    }
+  });
 
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasSignature(false);
+  const cancel = async () => {
+    if (!selected || !cancelReason.trim()) return;
+    try {
+      const request = await cancelRequest({ id: selected.id, reason: cancelReason.trim() });
+      setSelected(request);
+      setCancelOpen(false);
+      setCancelReason('');
+      toast.success('Admission request cancelled.');
+    } catch (error) {
+      toast.error(admissionErrorMessage(error));
+    }
   };
 
   const uploadConsent = consentForm.handleSubmit(async (values) => {
-    if (!selected) return;
+    if (!selected || !values.file) {
+      toast.error('Upload a signed consent document before linking it.');
+      return;
+    }
     try {
-      let fileToUpload: File | undefined = values.file;
-      if (consentTab === 'signature') {
-        if (!hasSignature || !canvasRef.current) {
-          toast.error('Please provide a digital signature on the pad.');
-          return;
-        }
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvasRef.current?.toBlob((b) => resolve(b), 'image/png'),
-        );
-        if (!blob) {
-          toast.error('Unable to capture signature image.');
-          return;
-        }
-        fileToUpload = new File([blob], `admission_consent_signature_${Date.now()}.png`, {
-          type: 'image/png',
-        });
-      }
-
-      if (!fileToUpload) {
-        toast.error('Please upload a consent document or sign on the digital pad.');
-        return;
-      }
-
       const document = await submitConsent(selected.patient_id, {
         document_type: 'CONSENT',
         title: values.title,
-        file: fileToUpload,
+        file: values.file,
         consent_status: 'SIGNED',
         signed_by_name: values.signed_by_name,
         signed_at: new Date(values.signed_at).toISOString(),
@@ -190,84 +345,53 @@ export function InpatientAdmissionPage() {
       allocationForm.setValue('consent_document_id', document.id);
       setConsentOpen(false);
       consentForm.reset();
-      clearSignature();
-      toast.success('Signed admission consent verified and linked to this request.');
+      toast.success('Signed admission consent linked.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Consent verification failed.');
+      toast.error(admissionErrorMessage(error));
     }
   });
 
-  const handlePatientSelect = (patientId: string) => {
-    createForm.setValue('patient_id', patientId, { shouldValidate: true });
-    if (selectedSourceType === 'OPD_VISIT') {
-      const match = availablePatientsForSource.find((patient) => patient.patientId === patientId);
-      if (match?.sourceId) createForm.setValue('source_id', match.sourceId);
-      if (match?.doctorId) createForm.setValue('recommending_doctor_id', match.doctorId);
-      if (match?.departmentId) createForm.setValue('department_id', match.departmentId);
-    } else if (selectedSourceType === 'EMERGENCY_ENCOUNTER') {
-      const match = availablePatientsForSource.find((patient) => patient.patientId === patientId);
-      if (match?.sourceId) createForm.setValue('source_id', match.sourceId);
-      if (match?.doctorId) createForm.setValue('recommending_doctor_id', match.doctorId);
-      if (match?.departmentId) createForm.setValue('department_id', match.departmentId);
-    }
-  };
-
-  const [filterDepartment, setFilterDepartment] = useState('');
-  const [filterAdmissionType, setFilterAdmissionType] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
-  const [filterSource, setFilterSource] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().slice(0, 10));
-
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
-
   const filteredRequests = useMemo(() => {
-    return requests.filter((r) => {
-      if (filterDepartment && r.department_id !== filterDepartment) return false;
-      if (filterAdmissionType && r.admission_type !== filterAdmissionType) return false;
-      if (filterPriority && r.priority !== filterPriority) return false;
-      if (filterSource && r.source_type !== filterSource) return false;
-      if (filterStatus && r.status !== filterStatus) return false;
+    return requests.filter((request) => {
+      if (filterDepartment && request.department_id !== filterDepartment) return false;
+      if (filterAdmissionType && request.admission_type !== filterAdmissionType) return false;
+      if (filterPriority && request.priority !== filterPriority) return false;
+      if (filterSource && request.source_type !== filterSource) return false;
+      if (filterStatus && request.status !== filterStatus) return false;
       return true;
     });
-  }, [requests, filterDepartment, filterAdmissionType, filterPriority, filterSource, filterStatus]);
+  }, [filterAdmissionType, filterDepartment, filterPriority, filterSource, filterStatus, requests]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
-  const paginatedRequests = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredRequests.slice(start, start + pageSize);
-  }, [filteredRequests, page, pageSize]);
+  const paginatedRequests = filteredRequests.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [filterDepartment, filterAdmissionType, filterPriority, filterSource, filterStatus, requestSearch, filterDate]);
+  }, [filterDepartment, filterAdmissionType, filterPriority, filterSource, filterStatus, requestSearch]);
+
+  const showDuplicateWarning = Boolean(createValues.patient_id && (activeAdmissionForPatient || pendingRequestForPatient));
+  const selectedSourceValue = isLinkedSourceType(selectedSourceType) ? createValues.source_id ?? '' : createValues.patient_id ?? '';
 
   return (
     <div className="admissions-page">
-      {/* Header */}
       <div className="adm-page-head">
         <div>
           <h2>Admission Requests</h2>
-          <p>Review and action clinical admission requests</p>
+          <p>Review requests separately from final inpatient admission.</p>
         </div>
         <div className="adm-actions">
           {branches.length > 1 ? (
             <select
               aria-label="Select Branch"
+              className="um-filter"
               value={branchId}
               onChange={(event) => {
                 setBranchId(event.target.value);
                 setSelected(null);
+                updateUrl({ branch_id: event.target.value });
               }}
-              className="um-filter"
-              style={{ minWidth: '170px', fontWeight: 500 }}
             >
-              {branches.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
+              {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           ) : null}
           <button className="adm-btn primary" onClick={() => setCreateOpen(true)} type="button">
@@ -276,38 +400,11 @@ export function InpatientAdmissionPage() {
         </div>
       </div>
 
-      {/* 3 Metric KPI Cards */}
-      <section className="adm-kpis">
-        <div className="adm-kpi">
-          <div className="adm-kpi-icon orange">
-            <i className="ph ph-hourglass-high" />
-          </div>
-          <div className="adm-kpi-copy">
-            <span>Pending</span>
-            <strong>{(counts.pendingValidation ?? 0) + (counts.readyForConfirmation ?? 0)}</strong>
-            <small>Awaiting decision</small>
-          </div>
-        </div>
-        <div className="adm-kpi">
-          <div className="adm-kpi-icon green">
-            <i className="ph ph-check" />
-          </div>
-          <div className="adm-kpi-copy">
-            <span>Approved Today</span>
-            <strong>{counts.confirmed}</strong>
-            <small>Ready for allocation</small>
-          </div>
-        </div>
-        <div className="adm-kpi">
-          <div className="adm-kpi-icon red">
-            <i className="ph ph-x" />
-          </div>
-          <div className="adm-kpi-copy">
-            <span>Rejected Today</span>
-            <strong>{counts.cancelled}</strong>
-            <small>Clinical plan returned</small>
-          </div>
-        </div>
+      <section className="adm-kpis admission-request-kpis">
+        <Kpi icon="ph-hourglass-high" tone="orange" label="Pending Validation" value={counts.pendingValidation} hint="Request intent captured" />
+        <Kpi icon="ph-clipboard-text" tone="blue" label="Ready For Confirmation" value={counts.readyForConfirmation} hint="Bed step prepared" />
+        <Kpi icon="ph-check-circle" tone="green" label="Confirmed" value={counts.confirmed} hint="Admission created" />
+        <Kpi icon="ph-x-circle" tone="red" label="Cancelled" value={counts.cancelled} hint="Closed requests" />
       </section>
 
       {errors.policy ? (
@@ -316,815 +413,204 @@ export function InpatientAdmissionPage() {
         </div>
       ) : null}
 
-      {/* 7-Field Filter Bar */}
       <div className="adm-filters inpatient-admission-filters">
-        <div className="adm-field">
-          <label>Department</label>
-          <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}>
+        <Filter label="Department">
+          <select value={filterDepartment} onChange={(event) => { setFilterDepartment(event.target.value); updateUrl({ department_id: event.target.value }); }}>
             <option value="">All</option>
-            {departmentOptions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
+            {departmentOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-        </div>
-        <div className="adm-field">
-          <label>Admission Type</label>
-          <select value={filterAdmissionType} onChange={(e) => setFilterAdmissionType(e.target.value)}>
+        </Filter>
+        <Filter label="Admission Type">
+          <select value={filterAdmissionType} onChange={(event) => { setFilterAdmissionType(event.target.value); updateUrl({ admission_type: event.target.value }); }}>
             <option value="">All</option>
-            <option value="INPATIENT">Inpatient</option>
-            <option value="OBSERVATION">Observation</option>
-            <option value="DAY_CARE">Day Care</option>
-            <option value="ICU">ICU</option>
-            <option value="HDU">HDU</option>
+            {admissionTypeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
-        </div>
-        <div className="adm-field">
-          <label>Priority</label>
-          <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
+        </Filter>
+        <Filter label="Priority">
+          <select value={filterPriority} onChange={(event) => { setFilterPriority(event.target.value); updateUrl({ priority: event.target.value }); }}>
             <option value="">All</option>
-            <option value="ROUTINE">Routine</option>
-            <option value="URGENT">Urgent</option>
-            <option value="EMERGENCY">Emergency</option>
+            {priorityOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
-        </div>
-        <div className="adm-field">
-          <label>Source</label>
-          <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
+        </Filter>
+        <Filter label="Source">
+          <select value={filterSource} onChange={(event) => { setFilterSource(event.target.value); updateUrl({ source_type: event.target.value }); }}>
             <option value="">All</option>
-            <option value="DIRECT">Direct Admission</option>
-            <option value="OPD_VISIT">OPD</option>
+            {sourceOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             <option value="EMERGENCY_ENCOUNTER">Emergency</option>
           </select>
-        </div>
-        <div className="adm-field">
-          <label>Status</label>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+        </Filter>
+        <Filter label="Status">
+          <select value={filterStatus} onChange={(event) => { setFilterStatus(event.target.value); updateUrl({ status: event.target.value }); }}>
             <option value="">All</option>
-            <option value="PENDING_VALIDATION">Pending</option>
-            <option value="READY_FOR_CONFIRMATION">Ready</option>
-            <option value="CONFIRMED">Approved</option>
-            <option value="CANCELLED">Rejected</option>
+            {Object.entries(statusMeta).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
           </select>
-        </div>
-        <div className="adm-field">
-          <label>Date Range</label>
-          <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-        </div>
-        <div className="adm-field">
-          <label>Search Patient</label>
+        </Filter>
+        <Filter label="Search">
           <input
-            placeholder="Name, MRN or request ID"
+            placeholder="Patient, MRN, request ID"
             value={requestSearch}
-            onChange={(e) => setRequestSearch(e.target.value)}
+            onChange={(event) => {
+              setRequestSearch(event.target.value);
+              updateUrl({ search: event.target.value });
+            }}
           />
-        </div>
+        </Filter>
       </div>
 
-      {/* Split Layout: Table + Review Panel */}
       <div className="adm-requests-layout">
         <div className="adm-card adm-table-wrap">
           <table className="adm-table responsive-table">
             <thead>
               <tr>
-                <th>REQUEST ID</th>
-                <th>MRN</th>
-                <th>PATIENT</th>
-                <th>AGE</th>
-                <th>DEPARTMENT</th>
-                <th>REQUESTED BY</th>
-                <th>SOURCE</th>
-                <th>PRIORITY</th>
-                <th>STATUS</th>
-                <th>REQUESTED TIME</th>
-                <th style={{ textAlign: 'center' }}>ACTIONS</th>
+                <th className="th-request-id">Request ID</th>
+                <th className="th-patient">Patient</th>
+                <th className="th-source">Source</th>
+                <th className="th-type">Admission Type</th>
+                <th className="th-dept">Department</th>
+                <th className="th-priority">Priority</th>
+                <th className="th-doctor">Requested By</th>
+                <th className="th-date">Requested Date</th>
+                <th className="th-status">Status</th>
+                <th className="th-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading.requests ? (
-                <tr>
-                  <td colSpan={11} className="empty-state">
-                    Loading admission requests...
-                  </td>
-                </tr>
+                <TableState columns={10} text="Loading admission requests..." />
               ) : errors.requests ? (
-                <tr>
-                  <td colSpan={11} className="empty-state">
-                    Unable to load admission requests. Retry after checking your branch access.
+                <TableState columns={10} text={admissionErrorMessage(errors.requests)} />
+              ) : paginatedRequests.length === 0 ? (
+                <TableState columns={10} text="No admission requests match these filters." />
+              ) : paginatedRequests.map((request) => (
+                <tr key={request.id} className={selected?.id === request.id ? 'selected' : ''} onClick={() => setSelected(request)}>
+                  <td className="td-request-id"><strong>{request.request_number}</strong></td>
+                  <td className="td-patient">
+                    <div className="adm-person">
+                      <div className="avatar-box">{initials(request.patient_name)}</div>
+                      <span className="patient-name">{request.patient_name}</span>
+                    </div>
+                  </td>
+                  <td className="td-source"><SourceCell request={request} /></td>
+                  <td className="td-type">{admissionTypeOptions.find((item) => item.value === request.admission_type)?.label ?? request.admission_type}</td>
+                  <td className="td-dept">{request.department_name}</td>
+                  <td className="td-priority"><span className={`adm-status ${request.priority.toLowerCase()}`}>{priorityOptions.find((item) => item.value === request.priority)?.label}</span></td>
+                  <td className="td-doctor">{request.recommending_doctor_name}</td>
+                  <td className="td-date">{formatDateTime(request.created_at)}</td>
+                  <td className="td-status"><span className={`adm-status ${statusMeta[request.status].tone}`}>{statusMeta[request.status].label}</span></td>
+                  <td className="td-actions">
+                    <button className="adm-btn icon" onClick={(event) => { event.stopPropagation(); setSelected(request); }} title="Review request" type="button">
+                      <i className="ph ph-eye" />
+                    </button>
                   </td>
                 </tr>
-              ) : filteredRequests.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="empty-state">
-                    No live admission requests found.
-                  </td>
-                </tr>
-              ) : (
-                paginatedRequests.map((item) => {
-                  const initials = (item.patient_name || 'PT')
-                    .split(' ')
-                    .map((n) => n[0])
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase();
-                  const isSelected = selected?.id === item.id;
-                  const reqDate = new Date(item.created_at);
-                  const formattedTime =
-                    reqDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) +
-                    ' · ' +
-                    reqDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className={isSelected ? 'selected' : ''}
-                      onClick={() => setSelected(item)}
-                    >
-                      <td data-label="Request ID">
-                        <strong style={{ color: '#0f172a' }}>{item.request_number}</strong>
-                      </td>
-                      <td data-label="MRN">
-                        <span style={{ color: '#475569', fontSize: '0.8rem' }}>{item.patient_number}</span>
-                      </td>
-                      <td data-label="Patient">
-                        <div className="adm-person">
-                          <div className="avatar-box" style={{ borderRadius: '50%' }}>
-                            {initials}
-                          </div>
-                          <div>
-                            <strong>{item.patient_name}</strong>
-                            <span>{item.patient_number}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Age">-</td>
-                      <td data-label="Department">{item.department_name}</td>
-                      <td data-label="Requested by">{item.recommending_doctor_name}</td>
-                      <td data-label="Source">
-                        {item.source_type === 'DIRECT'
-                          ? 'Direct Admission'
-                          : item.source_type === 'OPD_VISIT'
-                          ? 'OPD'
-                          : 'Emergency'}
-                      </td>
-                      <td data-label="Priority">
-                        <span
-                          className={`adm-status ${
-                            item.priority === 'EMERGENCY'
-                              ? 'critical'
-                              : item.priority === 'URGENT'
-                              ? 'high'
-                              : 'low'
-                          }`}
-                        >
-                          {item.priority === 'EMERGENCY'
-                            ? 'Critical'
-                            : item.priority === 'URGENT'
-                            ? 'High'
-                            : 'Low'}
-                        </span>
-                      </td>
-                      <td data-label="Status">
-                        <span
-                          className={`adm-status ${
-                            item.status === 'CONFIRMED'
-                              ? 'approved'
-                              : item.status === 'CANCELLED'
-                              ? 'rejected'
-                              : 'pending'
-                          }`}
-                        >
-                          {item.status === 'CONFIRMED'
-                            ? 'Approved'
-                            : item.status === 'CANCELLED'
-                            ? 'Rejected'
-                            : item.status === 'READY_FOR_CONFIRMATION'
-                            ? 'Ready'
-                            : 'Pending'}
-                        </span>
-                      </td>
-                      <td data-label="Requested time" style={{ fontSize: '0.78rem', color: '#64748b' }}>{formattedTime}</td>
-                      <td data-label="Actions" style={{ textAlign: 'center' }}>
-                        <button
-                          className="adm-btn icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelected(item);
-                          }}
-                          style={{ margin: '0 auto' }}
-                          title="Review Request"
-                          type="button"
-                        >
-                          <i className="ph ph-eye" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+              ))}
             </tbody>
           </table>
-
-          {/* Pagination Controls */}
-          {filteredRequests.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 16px',
-                borderTop: '1px solid #f1f5f9',
-                fontSize: '0.82rem',
-                color: '#64748b',
-                background: '#ffffff',
-                borderBottomLeftRadius: '12px',
-                borderBottomRightRadius: '12px',
-              }}
-            >
+          {filteredRequests.length > 0 ? (
+            <div className="bed-pagination">
+              <span>Showing {Math.min((page - 1) * pageSize + 1, filteredRequests.length)} to {Math.min(page * pageSize, filteredRequests.length)} of {filteredRequests.length}</span>
               <div>
-                Showing <strong>{Math.min((page - 1) * pageSize + 1, filteredRequests.length)}</strong> to{' '}
-                <strong>{Math.min(page * pageSize, filteredRequests.length)}</strong> of{' '}
-                <strong>{filteredRequests.length}</strong> admission requests
-              </div>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  className="btn-secondary compact"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                >
-                  <i className="ph ph-caret-left" /> Previous
-                </button>
-                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="btn-secondary compact"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                >
-                  Next <i className="ph ph-caret-right" />
-                </button>
+                <button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} type="button"><i className="ph ph-caret-left" /></button>
+                <strong>Page {page} of {totalPages}</strong>
+                <button disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} type="button"><i className="ph ph-caret-right" /></button>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
-
-        {/* Right Side Review Panel */}
-        <aside className="adm-card adm-side-panel">
-          {selected ? (
-          <div>
-            <div className="admission-drawer-header">
-              <div className="admission-drawer-avatar">
-                {(selected.patient_name || 'PT')
-                  .split(' ')
-                  .map((n) => n[0])
-                  .slice(0, 2)
-                  .join('')
-                  .toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-                  <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {selected.patient_name}
-                  </h3>
-                  <span className={`admission-status-pill ${selected.status}`}>
-                    {selected.status === 'CONFIRMED' ? 'Approved' : selected.status === 'CANCELLED' ? 'Rejected' : selected.status === 'READY_FOR_CONFIRMATION' ? 'Ready' : 'Pending'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{selected.patient_number}</span>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>•</span>
-                  <span style={{ fontSize: '0.72rem', color: '#2563eb', fontWeight: 600 }}>{selected.request_number}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Clinical Overview Card */}
-            <div className="admission-drawer-card">
-              <div className="admission-card-title">
-                <i className="ph ph-stethoscope" /> Clinical Context
-              </div>
-              <div className="admission-info-grid">
-                <div className="admission-info-item">
-                  <span>Recommended by</span>
-                  <strong>{selected.recommending_doctor_name}</strong>
-                </div>
-                <div className="admission-info-item">
-                  <span>Source</span>
-                  <strong>{selected.source_reference ?? selected.source_type.replace('_', ' ')}</strong>
-                </div>
-                <div className="admission-info-item">
-                  <span>Department</span>
-                  <strong>{selected.department_name}</strong>
-                </div>
-                <div className="admission-info-item">
-                  <span>Priority</span>
-                  <span className={`admission-priority-pill ${selected.priority}`} style={{ marginTop: '2px' }}>
-                    {selected.priority === 'EMERGENCY' ? 'Critical' : selected.priority === 'URGENT' ? 'High' : 'Routine'}
-                  </span>
-                </div>
-              </div>
-              {selected.reason && (
-                <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
-                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, display: 'block' }}>Reason / Summary</span>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#334155', lineHeight: 1.35 }}>{selected.reason}</p>
-                </div>
-              )}
-            </div>
-
-            {selected.status === 'PENDING_VALIDATION' || selected.status === 'READY_FOR_CONFIRMATION' ? (
-              <form onSubmit={(event) => event.preventDefault()} className="admission-form-section">
-                {/* Ward & Bed Allocation */}
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem' }}>
-                  <div className="admission-card-title" style={{ color: '#2563eb', marginBottom: '0.75rem' }}>
-                    <i className="ph ph-bed" /> Bed Allocation
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
-                    <div className="admission-input-group">
-                      <label>Ward *</label>
-                      <select {...allocationForm.register('ward_id')}>
-                        <option value="">Select ward</option>
-                        {wards.map((item) => (
-                          <option key={item.id} value={item.id}>{item.name}</option>
-                        ))}
-                      </select>
-                      <small className="form-error">{allocationForm.formState.errors.ward_id?.message}</small>
-                    </div>
-
-                    <div className="admission-input-group">
-                      <label>Available Bed *</label>
-                      <select {...allocationForm.register('bed_id')}>
-                        <option value="">Select bed</option>
-                        {beds.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.bed_number}{item.room_number ? ` (Rm ${item.room_number})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <small className="form-error">{allocationForm.formState.errors.bed_id?.message}</small>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '0.6rem' }}>
-                    <div className="admission-input-group">
-                      <label>Admission Date *</label>
-                      <input type="datetime-local" {...allocationForm.register('admission_date')} />
-                    </div>
-
-                    <div className="admission-input-group">
-                      <label>Hold ID <small style={{ fontWeight: 400, color: '#94a3b8' }}>(Opt)</small></label>
-                      <input {...allocationForm.register('hold_id')} placeholder="Hold #" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Prerequisites & Verification */}
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem' }}>
-                  <div className="admission-card-title" style={{ color: '#0284c7', marginBottom: '0.75rem' }}>
-                    <i className="ph ph-shield-check" /> Prerequisites & Policy Verification
-                  </div>
-
-                  {/* Consent Section */}
-                  <div className="admission-input-group" style={{ marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155' }}>
-                        Signed Consent {policy?.admission_consent_required ? <span style={{ color: '#dc2626' }}>* (Required)</span> : <span style={{ color: '#64748b' }}>(Optional)</span>}
-                      </span>
-                      <button
-                        className="btn-secondary compact"
-                        type="button"
-                        onClick={() => {
-                          setConsentTab('signature');
-                          setConsentOpen(true);
-                        }}
-                        style={{ padding: '2px 8px', fontSize: '0.72rem', height: '24px' }}
-                      >
-                        <i className="ph ph-pen" /> E-Sign / Upload
-                      </button>
-                    </div>
-                    <input {...allocationForm.register('consent_document_id')} placeholder="Consent document ID / token" />
-                  </div>
-
-                  {/* Advance Deposit Section */}
-                  <div className="admission-input-group" style={{ marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155' }}>
-                        Deposit Invoice {policy?.admission_advance_deposit_required ? <span style={{ color: '#dc2626' }}>* (Min ${policy.admission_minimum_deposit_amount})</span> : <span style={{ color: '#64748b' }}>(Optional)</span>}
-                      </span>
-                    </div>
-                    <input {...allocationForm.register('deposit_invoice_id')} placeholder="Paid invoice ID or receipt #" />
-                  </div>
-
-                  {/* Insurance Cashless Pre-Auth Auto-Waiver */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: '#0369a1', cursor: 'pointer', background: '#f0f9ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #bae6fd', marginBottom: '0.5rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={insuranceWaived}
-                      onChange={(e) => {
-                        setInsuranceWaived(e.target.checked);
-                        if (e.target.checked) {
-                          allocationForm.setValue('deposit_invoice_id', `INSURANCE_CASHLESS_PREAUTH_${Date.now().toString().slice(-4)}`);
-                          toast.info('Insurance cashless pre-authorization applied: Advance deposit waived.');
-                        } else {
-                          allocationForm.setValue('deposit_invoice_id', '');
-                        }
-                      }}
-                    />
-                    <span><i className="ph ph-shield-check" /> <strong>Insurance / TPA Pre-Auth (Auto-Waive Deposit)</strong></span>
-                  </label>
-
-                  {/* Emergency Clinical Fast-Track Override */}
-                  <button
-                    type="button"
-                    className="btn-secondary compact"
-                    onClick={() => {
-                      allocationForm.setValue('consent_document_id', `EMERGENCY_FAST_TRACK_CONSENT_24H_${Date.now().toString().slice(-4)}`);
-                      allocationForm.setValue('deposit_invoice_id', `EMERGENCY_FAST_TRACK_DEPOSIT_24H_${Date.now().toString().slice(-4)}`);
-                      toast.warning('Emergency Clinical Override enabled. 24-hour documentation grace window applied.');
-                    }}
-                    style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '0.74rem', width: '100%', justifyContent: 'center', padding: '6px' }}
-                  >
-                    <i className="ph ph-lightning" /> Emergency Clinical Fast-Track Override (24h Grace)
-                  </button>
-                </div>
-
-                {/* Actions */}
-                <div className="admission-action-stack">
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    <button
-                      className="btn-secondary"
-                      type="button"
-                      onClick={validate}
-                      disabled={pending.validateRequest}
-                      style={{ justifyContent: 'center', height: '38px', fontSize: '0.82rem' }}
-                    >
-                      <i className="ph ph-check-circle" /> Validate
-                    </button>
-                    <button
-                      className="btn-primary"
-                      type="button"
-                      onClick={confirm}
-                      disabled={selected.status !== 'READY_FOR_CONFIRMATION' || pending.confirmRequest}
-                      style={{ justifyContent: 'center', height: '38px', fontSize: '0.82rem' }}
-                    >
-                      <i className="ph ph-check" /> Confirm Allotment
-                    </button>
-                  </div>
-
-                  <button
-                    className="btn-danger"
-                    type="button"
-                    onClick={() => setCancelOpen(true)}
-                    style={{ justifyContent: 'center', height: '34px', fontSize: '0.8rem', opacity: 0.9 }}
-                  >
-                    <i className="ph ph-x" /> Cancel Draft Request
-                  </button>
-                </div>
-              </form>
-            ) : selected.prerequisite_snapshot ? (
-              <div className="admission-drawer-card" style={{ marginTop: '0.5rem' }}>
-                <div className="admission-card-title">Admission Record</div>
-                <div className="admission-info-grid">
-                  <div className="admission-info-item">
-                    <span>Consent</span>
-                    <strong>{selected.prerequisite_snapshot.consent_satisfied ? 'Satisfied' : 'Not required'}</strong>
-                  </div>
-                  <div className="admission-info-item">
-                    <span>Deposit</span>
-                    <strong>${selected.prerequisite_snapshot.deposit_paid_amount} / ${selected.prerequisite_snapshot.deposit_required_amount}</strong>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f1f5f9', display: 'grid', placeItems: 'center', margin: '0 auto 0.75rem', color: '#94a3b8', fontSize: '1.5rem' }}>
-              <i className="ph ph-cursor-click" />
-            </div>
-            <h4 style={{ margin: '0 0 0.25rem', fontSize: '0.9rem', color: '#334155' }}>No Request Selected</h4>
-            <p style={{ fontSize: '0.78rem', margin: 0, color: '#94a3b8' }}>Click any row in the admission table to view patient details and allocate a bed.</p>
-          </div>
-        )}
-      </aside>
-    </div>
-
-    {/* Modal: New Admission Request */}
-    <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New Admission Request">
-      <form onSubmit={createRequest} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: '580px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
-                Patient <span style={{ color: '#dc2626' }}>*</span>
-              </span>
-              {selectedSourceType === 'DIRECT' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateOpen(false);
-                    navigate('/patients/search?action=register');
-                  }}
-                  style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-                >
-                  + New Patient
-                </button>
-              )}
-            </div>
-            <select
-              value={createForm.watch('patient_id') || ''}
-              onChange={(e) => handlePatientSelect(e.target.value)}
-              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
-            >
-              <option value="">
-                {selectedSourceType === 'OPD_VISIT'
-                  ? 'Select attended OPD patient'
-                  : selectedSourceType === 'EMERGENCY_ENCOUNTER'
-                  ? 'Select ER encounter patient'
-                  : 'Select patient'}
-              </option>
-              {availablePatientsForSource.map((item) => (
-                <option key={item.patientId + item.sourceId} value={item.patientId}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <small className="form-error">{createForm.formState.errors.patient_id?.message}</small>
-          </label>
-
-          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
-              Department <span style={{ color: '#dc2626' }}>*</span>
-            </span>
-            <select
-              {...createForm.register('department_id')}
-              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
-            >
-              <option value="">Select department</option>
-              {departmentOptions.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-            <small className="form-error">{createForm.formState.errors.department_id?.message}</small>
-          </label>
-
-          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
-              Admission Type <span style={{ color: '#dc2626' }}>*</span>
-            </span>
-            <select
-              {...createForm.register('admission_type')}
-              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
-            >
-              <option value="INPATIENT">Inpatient</option>
-              <option value="OBSERVATION">Observation</option>
-              <option value="DAY_CARE">Day Care</option>
-              <option value="ICU">ICU</option>
-              <option value="HDU">HDU</option>
-            </select>
-          </label>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
-              Priority <span style={{ color: '#dc2626' }}>*</span>
-            </span>
-            <select
-              {...createForm.register('priority')}
-              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
-            >
-              <option value="ROUTINE">Routine</option>
-              <option value="URGENT">Urgent</option>
-              <option value="EMERGENCY">Emergency</option>
-            </select>
-          </label>
-
-          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
-              Source <span style={{ color: '#dc2626' }}>*</span>
-            </span>
-            <select
-              {...createForm.register('source_type')}
-              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
-            >
-              <option value="EMERGENCY_ENCOUNTER">Emergency</option>
-              <option value="OPD_VISIT">OPD</option>
-              <option value="REFERRAL">Referral</option>
-              <option value="DIRECT">Direct Admission</option>
-              <option value="TRANSFER">Transfer</option>
-            </select>
-          </label>
-
-          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
-              Requested By <span style={{ color: '#dc2626' }}>*</span>
-            </span>
-            <select
-              {...createForm.register('recommending_doctor_id')}
-              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
-            >
-              <option value="">Select doctor</option>
-              {doctorOptions.map((item) => (
-                <option key={item.id} value={item.id}>{item.display_name}</option>
-              ))}
-            </select>
-            <small className="form-error">{createForm.formState.errors.recommending_doctor_id?.message}</small>
-          </label>
-        </div>
-
-        <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
-            Clinical Summary <span style={{ color: '#dc2626' }}>*</span>
-          </span>
-          <textarea
-            {...createForm.register('reason')}
-            placeholder="Clinical justification and summary for admission..."
-            rows={4}
-            style={{ borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '10px', fontSize: '0.84rem', color: '#0f172a', resize: 'vertical' }}
-          />
-          <small className="form-error">{createForm.formState.errors.reason?.message}</small>
-        </label>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
-          <button type="button" className="btn-secondary" onClick={() => setCreateOpen(false)} style={{ padding: '0.5rem 1.25rem', borderRadius: '6px' }}>
-            Cancel
-          </button>
-          <button
-            className="btn-primary"
-            disabled={pending.createRequest || !branchId}
-            type="submit"
-            style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', background: '#2563eb', color: '#fff', fontWeight: 600 }}
-          >
-            Create Request
-          </button>
-        </div>
-      </form>
-    </Modal>
-
-    <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel Admission Request">
-      <label className="admission-input-group">
-        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Cancellation Reason *</span>
-        <textarea
-          value={cancelReason}
-          onChange={(event) => setCancelReason(event.target.value)}
-          rows={3}
-          placeholder="Specify clinical or administrative reason for cancelling this draft..."
-          style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '8px' }}
-        />
-      </label>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-        <button className="btn-secondary" onClick={() => setCancelOpen(false)} type="button">Keep Request</button>
-        <button className="btn-danger" onClick={cancel} disabled={!cancelReason.trim() || pending.cancelRequest} type="button">Cancel Request</button>
       </div>
-    </Modal>
 
-    <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Admission Consent & Digital E-Signature">
-      <form onSubmit={uploadConsent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '480px' }}>
-        {/* Tab Toggle: Digital Signature vs Document Upload */}
-        <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
-          <button
-            type="button"
-            onClick={() => setConsentTab('signature')}
-            style={{
-              flex: 1,
-              padding: '6px 12px',
-              borderRadius: '6px',
-              border: 'none',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              background: consentTab === 'signature' ? '#ffffff' : 'transparent',
-              color: consentTab === 'signature' ? '#2563eb' : '#64748b',
-              boxShadow: consentTab === 'signature' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-            }}
-          >
-            <i className="ph ph-pen" /> Digital Bedside E-Sign
-          </button>
-          <button
-            type="button"
-            onClick={() => setConsentTab('upload')}
-            style={{
-              flex: 1,
-              padding: '6px 12px',
-              borderRadius: '6px',
-              border: 'none',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              background: consentTab === 'upload' ? '#ffffff' : 'transparent',
-              color: consentTab === 'upload' ? '#2563eb' : '#64748b',
-              boxShadow: consentTab === 'upload' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-            }}
-          >
-            <i className="ph ph-file-arrow-up" /> Upload Scanned File
-          </button>
-        </div>
+      <AdmissionRequestDetailModal
+        request={selected}
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        allocationForm={allocationForm}
+        wards={wards}
+        beds={beds}
+        policy={policy}
+        loadingConfiguration={loading.configuration}
+        pending={pending}
+        admissions={admissions}
+        onValidate={validate}
+        onConfirm={confirm}
+        onCancel={() => setCancelOpen(true)}
+        onConsent={() => setConsentOpen(true)}
+      />
 
+      <NewAdmissionRequestModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        createForm={createForm}
+        onSubmit={createRequest}
+        patientSearch={patientSearch}
+        setPatientSearch={setPatientSearch}
+        selectedSourceType={selectedSourceType}
+        onSourceChange={handleSourceChange}
+        selectedSourceValue={selectedSourceValue}
+        onPatientSelect={handlePatientSelect}
+        availablePatients={availablePatients}
+        selectedPatientOption={selectedPatientOption}
+        departmentOptions={departmentOptions}
+        doctorOptions={doctorOptions}
+        selectedDepartment={selectedDepartment}
+        selectedDoctor={selectedDoctor}
+        activeAdmissionForPatient={activeAdmissionForPatient}
+        pendingRequestForPatient={pendingRequestForPatient}
+        showDuplicateWarning={showDuplicateWarning}
+        loadingModalPatients={loading.modalPatients}
+        pendingCreate={pending.createRequest}
+        branchId={branchId}
+      />
+
+      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel Admission Request">
         <label className="admission-input-group">
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Document Title *</span>
-          <input {...consentForm.register('title')} placeholder="e.g. Inpatient Admission & Treatment Consent" />
-          <small className="form-error">{consentForm.formState.errors.title?.message}</small>
+          <span>Cancellation Reason <span className="required-asterisk">*</span></span>
+          <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} rows={3} placeholder="Record why this request is being cancelled" />
         </label>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          <label className="admission-input-group">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Signer / Guardian Name *</span>
-            <input {...consentForm.register('signed_by_name')} placeholder="Full name of signer" />
-            <small className="form-error">{consentForm.formState.errors.signed_by_name?.message}</small>
-          </label>
-
-          <label className="admission-input-group">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>Signed At *</span>
-            <input type="datetime-local" {...consentForm.register('signed_at')} />
-          </label>
+        <div className="modal-footer-actions">
+          <button className="btn-secondary" onClick={() => setCancelOpen(false)} type="button">Keep Request</button>
+          <button className="btn-danger" onClick={cancel} disabled={!cancelReason.trim() || pending.cancelRequest} type="button">Cancel Request</button>
         </div>
+      </Modal>
 
-        {consentTab === 'signature' ? (
-          <div className="admission-input-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
-                Bedside Digital Signature Pad <small style={{ color: '#64748b', fontWeight: 400 }}>(Touch / Mouse / Stylus)</small>
-              </span>
-              {hasSignature && (
-                <button
-                  type="button"
-                  onClick={clearSignature}
-                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-                >
-                  <i className="ph ph-arrow-counter-clockwise" /> Clear Signature
-                </button>
-              )}
-            </div>
-            <div style={{ border: '2px dashed #94a3b8', borderRadius: '8px', background: '#fafaf9', padding: '6px', position: 'relative', touchAction: 'none' }}>
-              <canvas
-                ref={canvasRef}
-                width={480}
-                height={140}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-                style={{ width: '100%', height: '140px', background: '#ffffff', borderRadius: '4px', cursor: 'crosshair', display: 'block' }}
-              />
-              {!hasSignature && (
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="ph ph-pencil-simple" /> Sign here
-                </div>
-              )}
-            </div>
-            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Digitally captures patient/attendant signature with legal cryptographic timestamp.</span>
+      <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Link Admission Consent">
+        <form className="modal-form-grid" onSubmit={uploadConsent}>
+          <label className="span-2">Document Title <span className="required-asterisk">*</span><input {...consentForm.register('title')} /></label>
+          <label>Signer / Guardian <span className="required-asterisk">*</span><input {...consentForm.register('signed_by_name')} /></label>
+          <label>Signed At <span className="required-asterisk">*</span><input type="datetime-local" {...consentForm.register('signed_at')} /></label>
+          <label>Valid Until<input type="datetime-local" {...consentForm.register('valid_until')} /></label>
+          <label className="span-2">Consent File <span className="required-asterisk">*</span><input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => { const file = event.target.files?.[0]; if (file) consentForm.setValue('file', file, { shouldValidate: true }); }} /></label>
+          <div className="span-2 modal-footer-actions">
+            <button className="btn-secondary" onClick={() => setConsentOpen(false)} type="button">Close</button>
+            <button className="btn-primary" disabled={pending.uploadConsent} type="submit">Upload And Link</button>
           </div>
-        ) : (
-          <div className="admission-input-group">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '2px' }}>Consent File (PDF / PNG / JPG) *</span>
-            <label className="consent-drop-zone">
-              <i className="ph ph-cloud-arrow-up" style={{ fontSize: '1.75rem', color: '#2563eb' }} />
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
-                {consentForm.watch('file')?.name ? consentForm.watch('file')?.name : 'Click or browse to upload consent file'}
-              </span>
-              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Supports PDF documents, scanned forms, JPEG, PNG (up to 10MB)</span>
-              <input
-                type="file"
-                accept="application/pdf,image/jpeg,image/png"
-                style={{ display: 'none' }}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) consentForm.setValue('file', file, { shouldValidate: true });
-                }}
-              />
-            </label>
-            <small className="form-error">{consentForm.formState.errors.file?.message}</small>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
-          <button type="button" className="btn-secondary" onClick={() => setConsentOpen(false)}>
-            Close
-          </button>
-          <button className="btn-primary" type="submit">
-            <i className="ph ph-check-circle" /> {consentTab === 'signature' ? 'Verify & Link E-Signature' : 'Upload and Link'}
-          </button>
-        </div>
-      </form>
-    </Modal>
+        </form>
+      </Modal>
     </div>
   );
+}
+
+function Kpi({ icon, tone, label, value, hint }: { icon: string; tone: string; label: string; value: number; hint: string }) {
+  return (
+    <div className="adm-kpi">
+      <div className={`adm-kpi-icon ${tone}`}><i className={`ph ${icon}`} /></div>
+      <div className="adm-kpi-copy"><span>{label}</span><strong>{value}</strong><small>{hint}</small></div>
+    </div>
+  );
+}
+
+function Filter({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="adm-field"><label>{label}</label>{children}</div>;
+}
+
+function SourceCell({ request }: { request: AdmissionRequest }) {
+  return (
+    <span>
+      {sourceLabels[request.source_type]}
+      {request.source_reference ? <small style={{ display: 'block', color: '#64748b' }}>{request.source_reference}</small> : null}
+    </span>
+  );
+}
+
+function TableState({ columns, text }: { columns: number; text: string }) {
+  return <tr><td colSpan={columns} className="empty-state">{text}</td></tr>;
 }

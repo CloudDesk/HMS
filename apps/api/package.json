@@ -10,6 +10,7 @@
     "migrate:billing-context-index": "node --import tsx src/scripts/migrate-billing-context-index.ts",
     "migrate:clinical-context-visit-indexes": "node --import tsx src/scripts/migrate-clinical-context-visit-indexes.ts",
     "migrate:pharmacy-dispensing-idempotency": "node --import tsx src/scripts/migrate-pharmacy-dispensing-idempotency.ts",
+    "migrate:procedure-recommendation-index": "node --import tsx src/scripts/migrate-procedure-recommendation-index.ts",
     "start": "node --env-file=.env.prod dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",

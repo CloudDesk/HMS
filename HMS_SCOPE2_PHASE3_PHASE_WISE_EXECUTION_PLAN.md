@@ -159,6 +159,13 @@ All downstream modules can consume one authoritative availability/hold/allot/tra
 **Depends on:** P3-1  
 **Blocks:** P3-3, P3-5, P3-6
 
+### Admission Request Refactor Addendum
+
+**Status:** Completed on 1 September 2026
+**Tracking:** `HMS_SCOPE2_PHASE3_ADMISSION_REQUEST_REFACTOR_GAP_NOTE.md` and `HMS_SCOPE2_PHASE3_ADMISSION_REQUEST_REFACTOR_VERIFICATION.md`
+
+This addendum hardens the existing P3-2 request UI and backend source validation. It separates admission source, admission type, request status and actual admission; replaces the ambiguous `Admission` source label with `Direct Admission`; adds source-specific OPD and Referral selection; improves expired-session handling; and keeps actual inpatient admission creation behind the existing validation and confirmation lifecycle. It does not start a new phase.
+
 ### Objective
 
 Complete the flow from doctor/encounter recommendation through reception validation, prerequisites, bed allotment, confirmed admission, and EMR linkage.

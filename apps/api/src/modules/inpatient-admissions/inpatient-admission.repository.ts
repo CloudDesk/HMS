@@ -7,12 +7,24 @@ import { DoctorModel } from '../doctors/doctor.model.js';
 import { PatientModel } from '../patients/patient.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { OpdReferralModel, type OpdReferralFields } from '../opd/opd-referral.model.js';
+import { OpdVisitModel, type OpdVisitFields } from '../opd/opd-visit.model.js';
 import { WardModel } from '../admissions-configuration/admissions-configuration.model.js';
 import { AdmissionRequestModel, InpatientAdmissionModel, type AdmissionRequestFields, type InpatientAdmissionFields } from './inpatient-admission.model.js';
 import { InpatientRoundNoteModel, InpatientVitalModel, type InpatientRoundNoteFields, type InpatientVitalFields } from './inpatient-clinical-record.model.js';
 import type { AdmissionRequest, AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, AdmissionSourceType, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, CreateInpatientRoundNoteDTO, CreateInpatientVitalDTO, InpatientAdmission, InpatientAdmissionListQuery, InpatientRoundNote, InpatientVital, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
 const oid = (value: string) => new Types.ObjectId(value);
 const safeOid = (value: string | null | undefined) => (value && /^[a-f\d]{24}$/i.test(value) ? new Types.ObjectId(value) : null);
+const departmentBranchClauses = (branchId: string) => {
+  const branchObjectId = oid(branchId);
+
+  return [
+    { branchIds: branchObjectId },
+    { branchId: branchObjectId },
+    { branchIds: { $exists: false } },
+    { branchIds: { $size: 0 } },
+  ];
+};
 const meta = (total: number, page: number, limit: number) => ({ total, page, limit, totalPages: Math.ceil(total / limit) || 1 });
 const toDto = (item: InpatientAdmissionFields & { _id: Types.ObjectId; wardName?: string; bedNumber?: string }): InpatientAdmission => ({ id: item._id.toString(), admission_number: item.admissionNumber, patient_id: item.patientId.toString(), patient_number: item.patientNumber, patient_name: item.patientName, branch_id: item.branchId.toString(), ward_id: item.wardId.toString(), ward_name: item.wardName ?? '', bed_id: item.bedId.toString(), bed_number: item.bedNumber ?? '', admitting_doctor_id: item.admittingDoctorId.toString(), admitting_doctor_name: item.admittingDoctorName, department_id: item.departmentId.toString(), department_name: item.departmentName, admission_date: item.admissionDate, admission_type: item.admissionType, reason: item.reason, notes: item.notes ?? null, status: item.status, request_id: item.requestId?.toString() ?? null, source_type: item.sourceType ?? 'DIRECT', source_id: item.sourceId?.toString() ?? null, created_at: item.createdAt, updated_at: item.updatedAt });
 const toRequest = (item: AdmissionRequestFields & { _id: Types.ObjectId }): AdmissionRequest => ({
@@ -80,6 +92,24 @@ async hasActiveAdmission(
   return Boolean(await query);
 }
 
+async hasActiveAdmissionRequest(
+  patientId: string,
+  branchId: string,
+  session?: ClientSession,
+) {
+  const query = AdmissionRequestModel.exists({
+    patientId: oid(patientId),
+    branchId: oid(branchId),
+    status: { $in: ['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'] },
+  });
+
+  if (session) {
+    query.session(session);
+  }
+
+  return Boolean(await query);
+}
+
 async hasBranchAccess(userId: string, branchId: string) {
   const [user, branch] = await Promise.all([
     UserModel.findOne({
@@ -136,7 +166,7 @@ async references(
 
   const qDepartment = DepartmentModel.findOne({
     _id: oid(data.department_id),
-    branchIds: oid(data.branch_id),
+    $or: departmentBranchClauses(data.branch_id),
     status: 'ACTIVE',
     deletedAt: null,
   });
@@ -274,7 +304,7 @@ async requestReferences(
 
   const qDepartment = DepartmentModel.findOne({
     _id: oid(data.department_id),
-    branchIds: oid(data.branch_id),
+    $or: departmentBranchClauses(data.branch_id),
     status: 'ACTIVE',
     deletedAt: null,
   });
@@ -297,6 +327,37 @@ async requestReferences(
     doctor,
     department,
   };
+}
+
+async getReferralSource(id: string, session?: ClientSession) {
+  const referralQuery = OpdReferralModel.findOne({
+    _id: oid(id),
+    status: 'SUBMITTED',
+    deletedAt: null,
+  });
+
+  if (session) {
+    referralQuery.session(session);
+  }
+
+  const referral = await referralQuery.lean<OpdReferralFields & { _id: Types.ObjectId }>();
+
+  if (!referral) {
+    return null;
+  }
+
+  const visitQuery = OpdVisitModel.findOne({
+    _id: referral.visitId,
+    deletedAt: null,
+  }).select('patientId branchId departmentId doctorId visitNumber inpatientAdmissionId');
+
+  if (session) {
+    visitQuery.session(session);
+  }
+
+  const visit = await visitQuery.lean<OpdVisitFields & { _id: Types.ObjectId }>();
+
+  return visit ? { referral, visit } : null;
 }
 
 async createRequest(

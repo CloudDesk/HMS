@@ -135,6 +135,22 @@ const shouldTryRefresh = (error: unknown, options: ApiRequestOptions) =>
   options.auth !== false &&
   options.retryOnUnauthorized !== false;
 
+const sessionExpiredError = () =>
+  new ApiError('Your session has expired. Please sign in again.', 401, 'SESSION_EXPIRED');
+
+const ensureFreshAccessToken = async (options: ApiRequestOptions) => {
+  if (options.auth === false || !tokenStorage.isAccessTokenExpired()) {
+    return;
+  }
+
+  const refreshedToken = await refreshAccessToken();
+
+  if (!refreshedToken) {
+    unauthorizedHandler?.();
+    throw sessionExpiredError();
+  }
+};
+
 export const apiClient = {
   setRefreshHandler(handler: RefreshHandler | null) {
     refreshHandler = handler;
@@ -145,9 +161,7 @@ export const apiClient = {
   },
 
   async request<T>(path: string, options: ApiRequestOptions = {}) {
-    if (options.auth !== false && tokenStorage.isAccessTokenExpired()) {
-      await refreshAccessToken();
-    }
+    await ensureFreshAccessToken(options);
 
     try {
       return await fetchEnvelope<T>(path, options);
@@ -181,9 +195,7 @@ export const apiClient = {
   },
 
   async download(path: string, options: ApiRequestOptions = {}) {
-    if (options.auth !== false && tokenStorage.isAccessTokenExpired()) {
-      await refreshAccessToken();
-    }
+    await ensureFreshAccessToken(options);
 
     try {
       return await fetchDownload(path, options);

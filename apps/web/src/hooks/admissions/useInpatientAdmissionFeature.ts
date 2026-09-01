@@ -10,6 +10,7 @@ import { useAppLocation } from '../../routing/navigation';
 import { useAdvancePaymentFeature } from '../advance-payment/useAdvancePaymentFeature';
 import { useEmergencyEncountersList } from '../emergency/useEmergency';
 import { useOpdVisits } from '../opd/useOpd';
+import { useReceptionReferrals } from '../reception/useReception';
 import { useInpatientAdmissions } from '../useInpatientAdmissions';
 import { useInpatientDownstreamFeature } from './useInpatientDownstreamFeature';
 
@@ -17,8 +18,14 @@ export type AdmissionPatientOption = {
   patientId: string;
   label: string;
   doctorId: string;
+  doctorName: string;
   departmentId: string;
   sourceId: string;
+  sourceReference: string;
+  sourceDate: string | null;
+  sourceReason: string | null;
+  clinicalSummary: string | null;
+  priority: CreateAdmissionRequestPayload['priority'] | null;
 };
 
 export type InpatientAdmissionFeatureOptions = {
@@ -34,7 +41,7 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
   const location = useAppLocation();
   const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const [branchId, setBranchId] = useState(handoff.get('branch_id') ?? '');
-  const domain = useInpatientAdmissions(branchId, options.patientSearch, options.requestSearch);
+  const domain = useInpatientAdmissions(branchId, options.patientSearch, options.requestSearch, false, options.createOpen);
 
   useEffect(() => {
     const firstBranchId = domain.branches.data?.data[0]?.id;
@@ -43,11 +50,15 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
 
   const opdVisits = useOpdVisits(
     { branch_id: branchId },
-    Boolean(branchId) && options.createOpen,
+    Boolean(branchId) && options.createOpen && options.selectedSourceType === 'OPD_VISIT',
   );
   const emergencyEncounters = useEmergencyEncountersList(
     { branch_id: branchId },
-    Boolean(branchId) && options.createOpen,
+    Boolean(branchId) && options.createOpen && options.selectedSourceType === 'EMERGENCY_ENCOUNTER',
+  );
+  const referrals = useReceptionReferrals(
+    { booked: false, page: 1, limit: 100 },
+    options.createOpen && options.selectedSourceType === 'REFERRAL',
   );
   const advancePayment = useAdvancePaymentFeature('ADMISSION_REQUEST', options.selectedRequest?.id ?? null);
   const downstream = useInpatientDownstreamFeature(
@@ -71,33 +82,70 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
 
   const opdPatients = useMemo<AdmissionPatientOption[]>(() => (opdVisits.data?.data ?? []).map((visit) => ({
     patientId: visit.patient_id,
-    label: `${visit.patient_name} · ${visit.patient_number} (OPD Visit: ${visit.visit_number})`,
+    label: `${visit.patient_name} - ${visit.patient_number} (OPD ${visit.visit_number})`,
     doctorId: visit.doctor_id,
+    doctorName: visit.doctor_name,
     departmentId: visit.department_id,
     sourceId: visit.id,
+    sourceReference: visit.visit_number,
+    sourceDate: visit.visit_date,
+    sourceReason: visit.reason,
+    clinicalSummary: visit.notes,
+    priority: visit.priority,
   })), [opdVisits.data]);
   const emergencyPatients = useMemo<AdmissionPatientOption[]>(() => (emergencyEncounters.data?.data ?? []).map((encounter) => ({
     patientId: encounter.patient_id || encounter.id,
-    label: `${encounter.patient_name} · ${encounter.patient_number || encounter.emergency_identifier} (ER: ${encounter.chief_complaint || 'Active'})`,
+    label: `${encounter.patient_name} - ${encounter.patient_number || encounter.emergency_identifier} (ER ${encounter.emergency_identifier})`,
     doctorId: encounter.assigned_doctor_id || '',
+    doctorName: encounter.assigned_doctor_name || 'Emergency clinician',
     departmentId: encounter.department_id || '',
     sourceId: encounter.id,
+    sourceReference: encounter.emergency_identifier,
+    sourceDate: encounter.arrival_at,
+    sourceReason: encounter.chief_complaint,
+    clinicalSummary: encounter.disposition?.reason ?? encounter.chief_complaint,
+    priority: encounter.triage?.effective_level === 'LEVEL_1_CRITICAL'
+      ? 'EMERGENCY'
+      : encounter.triage?.effective_level === 'LEVEL_2_HIGH'
+        ? 'URGENT'
+        : 'ROUTINE',
   })), [emergencyEncounters.data]);
+  const referralPatients = useMemo<AdmissionPatientOption[]>(() => (referrals.data?.data ?? []).map((referral) => ({
+    patientId: referral.patient_id,
+    label: `${referral.patient_name} - ${referral.patient_number} (Referral ${referral.specialty ?? referral.referral_type ?? referral.id})`,
+    doctorId: referral.referring_doctor_id,
+    doctorName: referral.referring_doctor_name,
+    departmentId: '',
+    sourceId: referral.id,
+    sourceReference: referral.specialty ?? referral.referral_type ?? referral.id,
+    sourceDate: referral.submitted_at,
+    sourceReason: referral.reason,
+    clinicalSummary: referral.clinical_summary,
+    priority: referral.priority,
+  })), [referrals.data]);
   const registeredPatients = useMemo<AdmissionPatientOption[]>(() => {
     const patients = domain.activePatients.data?.data || domain.patients.data?.data || [];
     return patients.map((patient) => ({
       patientId: patient.id,
-      label: `${[patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ')} · ${patient.patient_number}`,
+      label: `${[patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ')} - ${patient.patient_number}`,
       doctorId: '',
+      doctorName: '',
       departmentId: '',
       sourceId: '',
+      sourceReference: patient.patient_number,
+      sourceDate: null,
+      sourceReason: null,
+      clinicalSummary: null,
+      priority: null,
     }));
   }, [domain.activePatients.data, domain.patients.data]);
   const availablePatients = options.selectedSourceType === 'OPD_VISIT'
     ? opdPatients
     : options.selectedSourceType === 'EMERGENCY_ENCOUNTER'
       ? emergencyPatients
-      : registeredPatients;
+      : options.selectedSourceType === 'REFERRAL'
+        ? referralPatients
+        : registeredPatients;
 
   const uploadConsent = (patientId: string, payload: UploadPatientDocumentPayload) =>
     domain.uploadConsent.mutateAsync({ id: patientId, payload });
@@ -109,6 +157,7 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
       wards: domain.wards.data?.data ?? [],
       beds,
       requests: domain.requests.data?.data ?? [],
+      admissions: domain.admissions.data?.data ?? [],
       policy: domain.policy.data,
       counts: domain.requestStats?.data ?? { pendingValidation: 0, readyForConfirmation: 0, confirmed: 0, cancelled: 0 },
       departmentOptions,
@@ -119,13 +168,13 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
       loading: {
         requests: domain.requests.isLoading,
         configuration: domain.wards.isLoading || domain.beds.isLoading || domain.policy.isLoading,
-        modalPatients: opdVisits.isLoading || emergencyEncounters.isLoading,
+        modalPatients: opdVisits.isLoading || emergencyEncounters.isLoading || referrals.isLoading,
       },
       errors: {
         requests: domain.requests.error,
         policy: domain.policy.error,
         configuration: domain.wards.error || domain.beds.error,
-        modalPatients: opdVisits.error || emergencyEncounters.error,
+        modalPatients: opdVisits.error || emergencyEncounters.error || referrals.error,
       },
       pending: {
         createRequest: domain.createRequest.isPending,

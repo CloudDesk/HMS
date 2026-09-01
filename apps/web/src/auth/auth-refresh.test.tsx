@@ -124,6 +124,42 @@ describe('web auth token refresh and concurrent request handling', () => {
     apiClient.setUnauthorizedHandler(null);
   });
 
+  it('does not send a protected request when the access token is already expired and refresh fails', async () => {
+    let unauthorizedTriggered = false;
+
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: 'Refresh token expired' } }), { status: 401 }),
+    );
+
+    apiClient.setRefreshHandler(async () => {
+      try {
+        const res = await authApi.refresh();
+        tokenStorage.setTokens(res.tokens);
+        return res.tokens.accessToken;
+      } catch {
+        tokenStorage.clear();
+        return null;
+      }
+    });
+
+    apiClient.setUnauthorizedHandler(() => {
+      unauthorizedTriggered = true;
+    });
+
+    tokenStorage.setTokens({ accessToken: 'expired-token', tokenType: 'Bearer', expiresIn: -1 });
+
+    await expect(apiClient.request('/api/protected-route', { method: 'POST', body: { ok: true } }))
+      .rejects
+      .toMatchObject({ code: 'SESSION_EXPIRED', status: 401 });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain('/auth/refresh');
+    expect(unauthorizedTriggered).toBe(true);
+
+    apiClient.setRefreshHandler(null);
+    apiClient.setUnauthorizedHandler(null);
+  });
+
   it('restores session via AuthProvider on startup using refresh cookie', async () => {
     vi.mocked(fetch).mockImplementation((url) => {
       const urlStr = String(url);

@@ -14,6 +14,21 @@ type ErrorPayload = {
 const hasValidationDetails = (error: unknown): error is { validation: unknown } =>
   typeof error === 'object' && error !== null && 'validation' in error;
 
+const errorLogDetails = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return { error };
+  }
+
+  const maybeCodedError = error as Error & { code?: unknown };
+
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    code: maybeCodedError.code,
+  };
+};
+
 const sendError = (
   error: AppError,
   request: FastifyRequest,
@@ -46,7 +61,7 @@ export const registerErrorHandler = (app: FastifyInstance) => {
     const appError = toAppError(error);
 
     if (appError.statusCode >= 500) {
-      request.log.error({ error });
+      request.log.error({ error: errorLogDetails(error) });
     }
 
     return sendError(appError, request, reply, appError.details);

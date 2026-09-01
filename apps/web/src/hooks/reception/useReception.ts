@@ -4,8 +4,11 @@ import type { BookOpdReferralPayload } from '../../api/opd';
 import { receptionService } from '../../services/reception.service';
 const keys = { all: ['reception', 'referrals'] as const, list: (params: object) => ['reception', 'referrals', params] as const,
   detail: (visitId: string) => ['reception', 'referral', visitId] as const };
-export const useReceptionReferrals = (params: { booked?: boolean; page?: number; limit?: number }) =>
-  useQuery({ queryKey: keys.list(params), queryFn: () => receptionService.listReferrals(params) });
+export const useReceptionReferrals = (
+  params: { booked?: boolean; page?: number; limit?: number },
+  enabled = true,
+) =>
+  useQuery({ queryKey: keys.list(params), queryFn: () => receptionService.listReferrals(params), enabled });
 export const useReceptionReferral = (visitId: string, enabled = true) =>
   useQuery({ queryKey: keys.detail(visitId), queryFn: () => receptionService.getReferral(visitId), enabled: enabled && Boolean(visitId) });
 export const useBookReceptionReferral = () => { const client = useQueryClient(); return useMutation({

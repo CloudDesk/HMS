@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Modal } from '../components/ui/Modal';
+import { InpatientPatientDetailModal } from '../components/admissions/InpatientPatientDetailModal';
+import { NewProcedureRecommendationModal } from '../components/surgery/NewProcedureRecommendationModal';
 import { useInpatientWorkspaceFeature } from '../hooks/admissions/useInpatientWorkspaceFeature';
 import { removeLegacyInpatientClinicalStorage } from '../utils/inpatient-clinical-storage';
 
@@ -8,20 +10,14 @@ export function InpatientWorkspacePage() {
   const [selectedWard, setSelectedWard] = useState('');
   const [selectedCareLevel, setSelectedCareLevel] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'surgeries' | 'rounds' | 'vitals' | 'orders' | 'discharge'>('surgeries');
+  const [activeTab, setActiveTab] = useState<'orders' | 'rounds' | 'vitals' | 'surgeries' | 'discharge'>('orders');
 
   // Modals
   const [procedureModalOpen, setProcedureModalOpen] = useState(false);
   const [roundModalOpen, setRoundModalOpen] = useState(false);
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
-
-  // Procedure Recommendation Form State
-  const [procServiceId, setProcServiceId] = useState('');
-  const [procDoctorId, setProcDoctorId] = useState('');
-  const [procClinicalReason, setProcClinicalReason] = useState('');
-  const [procPriority, setProcPriority] = useState<'ROUTINE' | 'URGENT' | 'EMERGENCY'>('ROUTINE');
-  const [procNotes, setProcNotes] = useState('');
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // Round Note Form State
   const [roundSubjective, setRoundSubjective] = useState('');
@@ -48,7 +44,7 @@ export function InpatientWorkspacePage() {
 
   const feature = useInpatientWorkspaceFeature({ selectedWard, selectedCareLevel, searchQuery });
   const {
-    branchId, selectedAdmission, branches, wards, doctors, procedureServices,
+    branchId, selectedAdmission, branches, departments, wards, doctors, procedureServices,
     admittedList, filteredInpatients, recommendations: currentPatientRecommendations,
     bookings: currentPatientBookings, roundNotes: currentPatientRounds,
     vitals: currentPatientVitals, diagnosticOrders: currentPatientOrders,
@@ -56,42 +52,29 @@ export function InpatientWorkspacePage() {
   } = feature.state;
   const {
     setBranchId, selectAdmission: setSelectedAdmission, refreshAdmissions,
-    createRecommendation, createRoundNote, createVital, submitClinicalOrder,
+    createRoundNote, createVital, submitClinicalOrder,
   } = feature.actions;
 
-  const handleCreateProcedure = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAdmission) return;
-    if (!procServiceId) {
-      toast.error('Please select a surgery or procedure service.');
-      return;
-    }
-    if (!procClinicalReason.trim()) {
-      toast.error('Please provide a clinical indication for surgery.');
-      return;
-    }
-
-    try {
-      await createRecommendation({
-        patient_id: selectedAdmission.patient_id,
-        branch_id: branchId,
-        department_id: selectedAdmission.department_id,
-        recommending_doctor_id: procDoctorId || selectedAdmission.admitting_doctor_id,
-        service_id: procServiceId,
-        encounter_type: 'DIRECT',
-        clinical_reason: `[INPATIENT - Ward: ${selectedAdmission.ward_name}, Bed: ${selectedAdmission.bed_number}] ${procClinicalReason.trim()}`,
-        notes: procNotes.trim() ? `Priority: ${procPriority}. ${procNotes.trim()}` : `Priority: ${procPriority}`,
-      });
-      toast.success('Surgery / Procedure recommended for admitted inpatient.');
-      setProcedureModalOpen(false);
-      setProcServiceId('');
-      setProcDoctorId('');
-      setProcClinicalReason('');
-      setProcNotes('');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to recommend surgery.');
-    }
-  };
+  const procedureInitialContext = useMemo(() => {
+    if (!selectedAdmission) return null;
+    return {
+      patient: {
+        id: selectedAdmission.patient_id,
+        patient_number: selectedAdmission.patient_number,
+        name: selectedAdmission.patient_name,
+      },
+      department_id: selectedAdmission.department_id || undefined,
+      recommending_doctor_id: selectedAdmission.admitting_doctor_id || undefined,
+      encounter_id:
+        selectedAdmission.admission_source === 'OPD' &&
+        selectedAdmission.source_reference_id &&
+        /^[a-f\d]{24}$/i.test(selectedAdmission.source_reference_id)
+          ? selectedAdmission.source_reference_id
+          : undefined,
+      clinical_reason: selectedAdmission.reason?.trim() || undefined,
+      sourceContext: 'Inpatient Admission',
+    };
+  }, [selectedAdmission]);
 
   const handleAddRoundNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,692 +266,128 @@ export function InpatientWorkspacePage() {
         </div>
       </div>
 
-      {/* Main Split Screen Workspace */}
-      <div className="inpatient-workspace-layout">
-        {/* Left Side: Admitted Inpatient Roster */}
-        <div className="adm-card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="adm-card-head">
-            <div>
-              <h3>Ward Patient Board</h3>
-              <p>{filteredInpatients.length} admitted patients found</p>
-            </div>
-          </div>
-
-          <div style={{ maxHeight: '680px', overflowY: 'auto' }}>
-            {loading.admissions ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>Loading admitted patients...</div>
-            ) : filteredInpatients.length === 0 ? (
-              <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#64748b' }}>
-                <i className="ph ph-bed" style={{ fontSize: '2rem', color: '#cbd5e1', marginBottom: '0.5rem', display: 'block' }} />
-                <p style={{ margin: 0, fontSize: '0.85rem' }}>No admitted inpatients found in this ward.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {filteredInpatients.map((item) => {
-                  const isSelected = selectedAdmission?.id === item.id;
-                  const initials = (item.patient_name || 'PT')
-                    .split(' ')
-                    .map((n) => n[0])
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase();
-                  const los = calculateLOS(item.admission_date);
-
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => setSelectedAdmission(item)}
-                      style={{
-                        padding: '12px 14px',
-                        borderBottom: '1px solid #f1f5f9',
-                        cursor: 'pointer',
-                        background: isSelected ? '#eff6ff' : '#ffffff',
-                        borderLeft: isSelected ? '4px solid #2563eb' : '4px solid transparent',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              background: isSelected ? '#2563eb' : '#3b82f6',
-                              color: '#fff',
-                              display: 'grid',
-                              placeItems: 'center',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {initials}
-                          </div>
-                          <div>
-                            <strong style={{ fontSize: '0.86rem', color: '#0f172a', display: 'block' }}>{item.patient_name}</strong>
-                            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{item.patient_number}</span>
-                          </div>
-                        </div>
-                        <span
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                            background: '#f1f5f9',
-                            color: '#1e293b',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                          }}
-                        >
-                          Bed {item.bed_number}
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#64748b', marginTop: '6px' }}>
-                        <span>
-                          <i className="ph ph-buildings" /> {item.ward_name}
-                        </span>
-                        <span style={{ fontWeight: 600, color: '#0284c7' }}>LOS: {los}</span>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', fontSize: '0.72rem' }}>
-                        <span style={{ color: '#475569' }}>
-                          <i className="ph ph-user-md" /> {item.admitting_doctor_name}
-                        </span>
-                        <span className={`admission-priority-pill ${item.admission_type === 'ICU' || item.admission_type === 'HDU' ? 'EMERGENCY' : 'ROUTINE'}`}>
-                          {item.admission_type}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+      {/* Main Ward Patient Board */}
+      <div className="adm-card" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="adm-card-head">
+          <div>
+            <h3>Ward Patient Board</h3>
+            <p>{filteredInpatients.length} admitted patients found · Click any patient card to open clinical workspace</p>
           </div>
         </div>
 
-        {/* Right Side: Bedside Inpatient Clinical EHR */}
-        {selectedAdmission ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Patient Hero Bedside Card */}
-            <div className="adm-card" style={{ padding: '16px 20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ padding: '16px' }}>
+          {loading.admissions ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Loading admitted patients...</div>
+          ) : filteredInpatients.length === 0 ? (
+            <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: '#64748b' }}>
+              <i className="ph ph-bed" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '0.5rem', display: 'block' }} />
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>No admitted inpatients found in this ward or care level.</p>
+            </div>
+          ) : (
+            <div className="inpatient-board-grid">
+              {filteredInpatients.map((item) => {
+                const initials = (item.patient_name || 'PT')
+                  .split(' ')
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase();
+                const los = calculateLOS(item.admission_date);
+
+                return (
                   <div
-                    style={{
-                      width: '52px',
-                      height: '52px',
-                      borderRadius: '12px',
-                      background: '#2563eb',
-                      color: '#ffffff',
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: '1.25rem',
-                      fontWeight: 800,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {(selectedAdmission.patient_name || 'PT')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase()}
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>{selectedAdmission.patient_name}</h3>
-                      <span className="admission-status-pill CONFIRMED">ADMITTED</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '3px', fontSize: '0.76rem', color: '#64748b' }}>
-                      <span>MRN: <strong style={{ color: '#1e293b' }}>{selectedAdmission.patient_number}</strong></span>
-                      <span>•</span>
-                      <span>Ward: <strong style={{ color: '#1e293b' }}>{selectedAdmission.ward_name}</strong></span>
-                      <span>•</span>
-                      <span>Bed: <strong style={{ color: '#2563eb' }}>{selectedAdmission.bed_number}</strong></span>
-                      <span>•</span>
-                      <span>Admitted: <strong>{new Date(selectedAdmission.admission_date).toLocaleDateString()}</strong></span>
-                      <span>•</span>
-                      <span>Length of Stay: <strong style={{ color: '#059669' }}>{calculateLOS(selectedAdmission.admission_date)}</strong></span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Direct Action Buttons */}
-                {/* <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="adm-btn primary"
+                    key={item.id}
+                    className={`inpatient-patient-card ${selectedAdmission?.id === item.id && detailModalOpen ? 'selected' : ''}`}
                     onClick={() => {
-                      setProcDoctorId(selectedAdmission.admitting_doctor_id);
-                      setProcedureModalOpen(true);
+                      setSelectedAdmission(item);
+                      setDetailModalOpen(true);
                     }}
-                    style={{ background: '#7c3aed', borderColor: '#7c3aed', color: '#fff' }}
-                  >
-                    <i className="ph ph-scissors" /> + Recommend / Schedule Surgery
-                  </button>
-                  <button type="button" className="adm-btn" onClick={() => setRoundModalOpen(true)}>
-                    <i className="ph ph-note-pencil" /> + Doctor Round Note
-                  </button>
-                  <button type="button" className="adm-btn" onClick={() => setVitalsModalOpen(true)}>
-                    <i className="ph ph-heartbeat" /> + Record Vitals
-                  </button>
-                  <button type="button" className="adm-btn" onClick={() => setOrderModalOpen(true)}>
-                    <i className="ph ph-flask" /> + Diagnostic Order
-                  </button>
-                </div> */}
-              </div>
-
-              {selectedAdmission.reason && (
-                <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Admitting Diagnosis / Indication:</span>
-                  <span style={{ fontSize: '0.84rem', color: '#1e293b', fontWeight: 600 }}>{selectedAdmission.reason}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Tab Navigation */}
-            <div className="segmented-control" style={{ width: '100%' }}>
-              <button
-                type="button"
-                className={activeTab === 'surgeries' ? 'active' : ''}
-                onClick={() => setActiveTab('surgeries')}
-              >
-                <i className="ph ph-scissors" style={{ marginRight: '6px' }} /> Surgeries & Procedures ({currentPatientRecommendations.length + currentPatientBookings.length})
-              </button>
-              <button
-                type="button"
-                className={activeTab === 'rounds' ? 'active' : ''}
-                onClick={() => setActiveTab('rounds')}
-              >
-                <i className="ph ph-note-pencil" style={{ marginRight: '6px' }} /> Daily Doctor Rounds ({currentPatientRounds.length})
-              </button>
-              <button
-                type="button"
-                className={activeTab === 'vitals' ? 'active' : ''}
-                onClick={() => setActiveTab('vitals')}
-              >
-                <i className="ph ph-heartbeat" style={{ marginRight: '6px' }} /> Bedside Vitals ({currentPatientVitals.length})
-              </button>
-              <button
-                type="button"
-                className={activeTab === 'orders' ? 'active' : ''}
-                onClick={() => setActiveTab('orders')}
-              >
-                <i className="ph ph-flask" style={{ marginRight: '6px' }} /> Orders & Investigations ({currentPatientOrders.length})
-              </button>
-              <button
-                type="button"
-                className={activeTab === 'discharge' ? 'active' : ''}
-                onClick={() => setActiveTab('discharge')}
-              >
-                <i className="ph ph-sign-out" style={{ marginRight: '6px' }} /> Discharge Planning
-              </button>
-            </div>
-
-            {/* Tab 1: Surgeries & Procedures Workspace */}
-            {activeTab === 'surgeries' && (
-              <div className="adm-card" style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Inpatient Surgical & Procedural Management</h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>
-                      Recommended procedures, operating theater bookings, and pre-op clearance for this inpatient
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="adm-btn primary"
-                    onClick={() => {
-                      setProcDoctorId(selectedAdmission.admitting_doctor_id);
-                      setProcedureModalOpen(true);
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedAdmission(item);
+                        setDetailModalOpen(true);
+                      }
                     }}
                   >
-                    <i className="ph ph-plus" /> Schedule Surgery / Procedure
-                  </button>
-                </div>
-
-                {/* Procedure Recommendations List */}
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '8px' }}>
-                    Active Procedure Recommendations
-                  </h4>
-                  {loading.recommendations ? (
-                    <div style={{ padding: '1rem', color: '#64748b' }}>Loading surgery recommendations...</div>
-                  ) : currentPatientRecommendations.length === 0 ? (
-                    <div style={{ padding: '1.5rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
-                      <p style={{ margin: 0, fontSize: '0.82rem' }}>No procedure recommendations recorded for this inpatient stay.</p>
-                      <button
-                        type="button"
-                        className="adm-btn"
-                        onClick={() => {
-                          setProcDoctorId(selectedAdmission.admitting_doctor_id);
-                          setProcedureModalOpen(true);
-                        }}
-                        style={{ marginTop: '8px', fontSize: '0.78rem' }}
-                      >
-                        <i className="ph ph-plus" /> Recommend Surgery Now
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="adm-table-wrap">
-                      <table className="adm-table">
-                        <thead>
-                          <tr>
-                            <th>Rec ID</th>
-                            <th>Procedure / Surgery</th>
-                            <th>Recommending Doctor</th>
-                            <th>Clinical Indication</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {currentPatientRecommendations.map((rec) => (
-                            <tr key={rec.id}>
-                              <td><strong>{rec.recommendation_number}</strong></td>
-                              <td><strong style={{ color: '#2563eb' }}>{rec.service_name}</strong></td>
-                              <td>{rec.recommending_doctor_name}</td>
-                              <td style={{ maxWidth: '240px', whiteSpace: 'normal' }}>{rec.clinical_reason}</td>
-                              <td>
-                                <span className={`admission-status-pill ${rec.status}`}>
-                                  {rec.status}
-                                </span>
-                              </td>
-                              <td style={{ fontSize: '0.76rem', color: '#64748b' }}>
-                                {new Date(rec.created_at).toLocaleDateString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Confirmed OT Bookings */}
-                <div>
-                  <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '8px' }}>
-                    Scheduled OT Slots & Confirmed Bookings
-                  </h4>
-                  {loading.bookings ? (
-                    <div style={{ padding: '1rem', color: '#64748b' }}>Loading OT bookings...</div>
-                  ) : currentPatientBookings.length === 0 ? (
-                    <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.82rem' }}>
-                      No active OT slot booking confirmed yet. Bookings are processed via the Surgery & Procedures workspace.
-                    </div>
-                  ) : (
-                    <div className="adm-table-wrap">
-                      <table className="adm-table">
-                        <thead>
-                          <tr>
-                            <th>Booking #</th>
-                            <th>Procedure</th>
-                            <th>Operating Surgeon</th>
-                            <th>Scheduled Slot</th>
-                            <th>Duration</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {currentPatientBookings.map((b) => (
-                            <tr key={b.id}>
-                              <td><strong>{b.booking_number}</strong></td>
-                              <td><strong style={{ color: '#7c3aed' }}>{b.service_name}</strong></td>
-                              <td>{b.doctor_name}</td>
-                              <td>
-                                <strong style={{ color: '#0f172a' }}>
-                                  {new Date(b.scheduled_start).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                                </strong>
-                              </td>
-                              <td>{b.duration_minutes} mins</td>
-                              <td>
-                                <span className={`admission-status-pill ${b.status}`}>
-                                  {b.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Tab 2: Doctor Round Progress Notes */}
-            {activeTab === 'rounds' && (
-              <div className="adm-card" style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Daily Doctor Ward Round Notes (SOAP)</h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>
-                      Clinical progress notes recorded by attending physicians during inpatient ward rounds
-                    </p>
-                  </div>
-                  <button type="button" className="adm-btn primary" onClick={() => setRoundModalOpen(true)}>
-                    <i className="ph ph-plus" /> Add Round Note
-                  </button>
-                </div>
-
-                {loading.roundNotes ? (
-                  <p role="status">Loading authoritative ward-round notes...</p>
-                ) : errors.roundNotes ? (
-                  <p role="alert">Ward-round notes could not be loaded. Retry the workspace request.</p>
-                ) : currentPatientRounds.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
-                    <i className="ph ph-note-pencil" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }} />
-                    <p style={{ margin: 0, fontSize: '0.84rem' }}>No ward round notes recorded yet for this stay.</p>
-                    <button type="button" className="adm-btn" onClick={() => setRoundModalOpen(true)} style={{ marginTop: '8px', fontSize: '0.78rem' }}>
-                      Record First Round Note
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {currentPatientRounds.map((note: import('../api/inpatient-admissions').InpatientRoundNote) => (
-                      <div key={note.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px', background: '#ffffff' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#1e293b' }}>
-                            <i className="ph ph-user-md" style={{ color: '#2563eb' }} /> Dr. {note.doctor_name}
-                          </span>
-                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                            <i className="ph ph-clock" /> {new Date(note.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                          </span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.82rem' }}>
-                          <div>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Subjective:</span>
-                            <p style={{ margin: '2px 0 0', color: '#334155' }}>{note.subjective}</p>
-                          </div>
-                          <div>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Objective:</span>
-                            <p style={{ margin: '2px 0 0', color: '#334155' }}>{note.objective}</p>
-                          </div>
-                          <div>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Assessment:</span>
-                            <p style={{ margin: '2px 0 0', color: '#334155' }}>{note.assessment}</p>
-                          </div>
-                          <div>
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase' }}>Plan:</span>
-                            <p style={{ margin: '2px 0 0', color: '#0f172a', fontWeight: 600 }}>{note.plan}</p>
-                          </div>
+                    <div className="inpatient-card-top">
+                      <div className="inpatient-card-person">
+                        <div className="inpatient-card-avatar">{initials}</div>
+                        <div className="inpatient-card-meta-name">
+                          <strong>{item.patient_name}</strong>
+                          <span>{item.patient_number}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                      <span className="inpatient-card-bed">
+                        Bed {item.bed_number}
+                      </span>
+                    </div>
 
-            {/* Tab 3: Bedside Vitals Flowsheet */}
-            {activeTab === 'vitals' && (
-              <div className="adm-card" style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Bedside Vital Signs Flowsheet</h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>
-                      Nursing vital charts, temperature, hemodynamics, and oxygenation tracking
-                    </p>
-                  </div>
-                  <button type="button" className="adm-btn primary" onClick={() => setVitalsModalOpen(true)}>
-                    <i className="ph ph-plus" /> Record Bedside Vitals
-                  </button>
-                </div>
+                    <div className="inpatient-card-details">
+                      <span>
+                        <i className="ph ph-buildings" /> {item.ward_name}
+                      </span>
+                      <span style={{ fontWeight: 600, color: '#0284c7' }}>
+                        LOS: {los}
+                      </span>
+                    </div>
 
-                {loading.vitals ? (
-                  <p role="status">Loading authoritative bedside vitals...</p>
-                ) : errors.vitals ? (
-                  <p role="alert">Bedside vitals could not be loaded. Retry the workspace request.</p>
-                ) : currentPatientVitals.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
-                    <i className="ph ph-heartbeat" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }} />
-                    <p style={{ margin: 0, fontSize: '0.84rem' }}>No bedside vitals logged yet for this stay.</p>
-                    <button type="button" className="adm-btn" onClick={() => setVitalsModalOpen(true)} style={{ marginTop: '8px', fontSize: '0.78rem' }}>
-                      Take Vitals Now
-                    </button>
-                  </div>
-                ) : (
-                  <div className="adm-table-wrap">
-                    <table className="adm-table">
-                      <thead>
-                        <tr>
-                          <th>Recorded Time</th>
-                          <th>BP (mmHg)</th>
-                          <th>Pulse (bpm)</th>
-                          <th>Temp (°C)</th>
-                          <th>SpO2 (%)</th>
-                          <th>Resp Rate (/min)</th>
-                          <th>Pain (0-10)</th>
-                          <th>Recorded By</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentPatientVitals.map((v: import('../api/inpatient-admissions').InpatientVital) => (
-                          <tr key={v.id}>
-                            <td><strong>{new Date(v.recorded_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</strong></td>
-                            <td>
-                              <span style={{ fontWeight: 700, color: v.bp_systolic > 140 || v.bp_systolic < 90 ? '#dc2626' : '#0f172a' }}>
-                                {v.bp_systolic}/{v.bp_diastolic}
-                              </span>
-                            </td>
-                            <td>{v.heart_rate}</td>
-                            <td>{v.temperature} °C</td>
-                            <td>
-                              <span style={{ fontWeight: 700, color: v.spo2 < 95 ? '#dc2626' : '#059669' }}>
-                                {v.spo2}%
-                              </span>
-                            </td>
-                            <td>{v.respiratory_rate}</td>
-                            <td>{v.pain_score}</td>
-                            <td style={{ fontSize: '0.76rem', color: '#64748b' }}>{v.recorded_by}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab 4: Orders & Investigations */}
-            {activeTab === 'orders' && (
-              <div className="adm-card" style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Inpatient Diagnostic Orders</h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>
-                      Laboratory and radiology investigations from the authoritative clinical-order record
-                    </p>
-                  </div>
-                  <button type="button" className="adm-btn primary" onClick={() => setOrderModalOpen(true)}>
-                    <i className="ph ph-plus" /> Add Inpatient Order
-                  </button>
-                </div>
-
-                {loading.diagnosticOrders ? (
-                  <p role="status">Loading authoritative diagnostic orders...</p>
-                ) : errors.diagnosticOrders ? (
-                  <p role="alert">Diagnostic orders could not be loaded. Retry the workspace request.</p>
-                ) : currentPatientOrders.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
-                    <i className="ph ph-flask" style={{ fontSize: '2rem', color: '#cbd5e1', display: 'block', marginBottom: '6px' }} />
-                    <p style={{ margin: 0, fontSize: '0.84rem' }}>No orders placed yet for this inpatient.</p>
-                    <button type="button" className="adm-btn" onClick={() => setOrderModalOpen(true)} style={{ marginTop: '8px', fontSize: '0.78rem' }}>
-                      Place Diagnostic Order
-                    </button>
-                  </div>
-                ) : (
-                  <div className="adm-table-wrap">
-                    <table className="adm-table">
-                      <thead>
-                        <tr>
-                          <th>Order Type</th>
-                          <th>Investigation</th>
-                          <th>Clinical Instructions</th>
-                          <th>Status</th>
-                          <th>Ordered At</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentPatientOrders.map((o) => (
-                          <tr key={o.id}>
-                            <td>
-                              <span
-                                style={{
-                                  padding: '2px 8px',
-                                  borderRadius: '6px',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  background: o.order_type === 'LAB' ? '#eff6ff' : o.order_type === 'IMAGING' ? '#fdf4ff' : '#f0fdf4',
-                                  color: o.order_type === 'LAB' ? '#2563eb' : o.order_type === 'IMAGING' ? '#9333ea' : '#16a34a',
-                                }}
-                              >
-                                {o.order_type}
-                              </span>
-                            </td>
-                            <td><strong style={{ color: '#0f172a' }}>{o.item_name}</strong></td>
-                            <td style={{ maxWidth: '280px', whiteSpace: 'normal', fontSize: '0.78rem' }}>{o.instructions}</td>
-                            <td>
-                              <span className="admission-status-pill Pending">{o.status}</span>
-                            </td>
-                            <td style={{ fontSize: '0.76rem', color: '#64748b' }}>
-                              {new Date(o.ordered_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab 5: Discharge Planning */}
-            {activeTab === 'discharge' && (
-              <div className="adm-card" style={{ padding: '16px' }}>
-                <h3 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Discharge Planning & Summary</h3>
-                <p style={{ margin: '0 0 14px', fontSize: '0.76rem', color: '#64748b' }}>
-                  Evaluate clinical discharge readiness, draft discharge summaries, and coordinate bed release
-                </p>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div>
-                    <h4 style={{ margin: '0 0 8px', fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Discharge Readiness Checklist</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input type="checkbox" defaultChecked /> <span>Clinical hemodynamic stability (24h afebrility)</span>
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input type="checkbox" defaultChecked /> <span>Post-op / procedure recovery cleared</span>
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input type="checkbox" defaultChecked /> <span>Home oral medication converted</span>
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input type="checkbox" /> <span>Discharge summary finalized by attending doctor</span>
-                      </label>
+                    <div className="inpatient-card-footer">
+                      <span style={{ color: '#475569' }}>
+                        <i className="ph ph-user-md" /> {item.admitting_doctor_name}
+                      </span>
+                      <span className={`admission-priority-pill ${item.admission_type === 'ICU' || item.admission_type === 'HDU' ? 'EMERGENCY' : 'ROUTINE'}`}>
+                        {item.admission_type}
+                      </span>
                     </div>
                   </div>
-
-                  <div>
-                    <h4 style={{ margin: '0 0 8px', fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>Actions</h4>
-                    <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 12px' }}>
-                      Discharge is finalized in Bed Management after clearance of pending pharmacy and diagnostic invoices.
-                    </p>
-                    <button
-                      type="button"
-                      className="adm-btn success"
-                      onClick={() => toast.success('Discharge summary saved to patient EHR timeline.')}
-                    >
-                      <i className="ph ph-check" /> Save Discharge Summary
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="adm-card" style={{ padding: '4rem 2rem', textAlign: 'center', color: '#64748b' }}>
-            <i className="ph ph-bed" style={{ fontSize: '3rem', color: '#cbd5e1', display: 'block', marginBottom: '1rem' }} />
-            <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', color: '#1e293b' }}>No Admitted Patient Selected</h3>
-            <p style={{ margin: 0, fontSize: '0.85rem' }}>Select an admitted patient from the left ward board to open their clinical bedside workspace.</p>
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Modal: Recommend / Schedule Surgery */}
-      <Modal open={procedureModalOpen} onClose={() => setProcedureModalOpen(false)} title="Inpatient Surgery & Procedure Recommendation">
-        <form onSubmit={handleCreateProcedure} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '460px' }}>
-          <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
-            <div>Patient: <strong>{selectedAdmission?.patient_name}</strong> ({selectedAdmission?.patient_number})</div>
-            <div style={{ marginTop: '2px', color: '#64748b' }}>
-              Ward: <strong>{selectedAdmission?.ward_name}</strong> · Bed: <strong>{selectedAdmission?.bed_number}</strong>
-            </div>
-          </div>
+      {/* Centered Patient Inpatient Clinical Workspace Modal */}
+      <InpatientPatientDetailModal
+        open={detailModalOpen && Boolean(selectedAdmission)}
+        onClose={() => setDetailModalOpen(false)}
+        admission={selectedAdmission}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        calculateLOS={calculateLOS}
+        loading={loading}
+        errors={errors}
+        recommendations={currentPatientRecommendations}
+        bookings={currentPatientBookings}
+        roundNotes={currentPatientRounds}
+        vitals={currentPatientVitals}
+        diagnosticOrders={currentPatientOrders}
+        onOpenScheduleSurgery={() => {
+          if (selectedAdmission) {
+            setProcedureModalOpen(true);
+          }
+        }}
+        onOpenAddRoundNote={() => setRoundModalOpen(true)}
+        onOpenRecordVitals={() => setVitalsModalOpen(true)}
+        onOpenAddOrder={() => setOrderModalOpen(true)}
+      />
 
-          <label className="adm-field">
-            <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Surgery / Procedure Service *</span>
-            <select value={procServiceId} onChange={(e) => setProcServiceId(e.target.value)} required>
-              <option value="">Select surgical procedure</option>
-              {procedureServices.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-              ))}
-            </select>
-          </label>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            <label className="adm-field">
-              <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Operating Surgeon *</span>
-              <select value={procDoctorId} onChange={(e) => setProcDoctorId(e.target.value)} required>
-                <option value="">Select surgeon</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>{d.display_name}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="adm-field">
-              <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Surgical Priority</span>
-              <select value={procPriority} onChange={(e) => setProcPriority(e.target.value as 'ROUTINE' | 'URGENT' | 'EMERGENCY')}>
-                <option value="ROUTINE">Elective / Routine</option>
-                <option value="URGENT">Urgent</option>
-                <option value="EMERGENCY">Emergency (Immediate)</option>
-              </select>
-            </label>
-          </div>
-
-          <label className="adm-field">
-            <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Clinical Indication / Diagnosis *</span>
-            <textarea
-              value={procClinicalReason}
-              onChange={(e) => setProcClinicalReason(e.target.value)}
-              placeholder="State the clinical diagnosis and indication for surgery (e.g. Acute appendicitis post-admission evaluation)..."
-              required
-              rows={2}
-            />
-          </label>
-
-          <label className="adm-field">
-            <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Pre-Op Orders & Notes (Optional)</span>
-            <textarea
-              value={procNotes}
-              onChange={(e) => setProcNotes(e.target.value)}
-              placeholder="NPO status, blood cross-match, pre-op antibiotic prophylaxis, or anesthesia notes..."
-              rows={2}
-            />
-          </label>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
-            <button type="button" className="btn-secondary" onClick={() => setProcedureModalOpen(false)}>
-              Cancel
-            </button>
-            <button className="btn-primary" type="submit" disabled={pending.createRecommendation}>
-              <i className="ph ph-scissors" /> Submit Surgery Recommendation
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {/* Modal: New Procedure Recommendation (Shared Surgery Modal) */}
+      <NewProcedureRecommendationModal
+        open={procedureModalOpen}
+        onClose={() => setProcedureModalOpen(false)}
+        branchId={branchId}
+        departments={departments}
+        doctors={doctors}
+        services={procedureServices}
+        initialContext={procedureInitialContext}
+        onCreateSuccess={() => {
+          void refreshAdmissions();
+        }}
+      />
 
       {/* Modal: Daily Doctor Round Note */}
       <Modal open={roundModalOpen} onClose={() => setRoundModalOpen(false)} title="Record Doctor Ward Round Note (SOAP)">

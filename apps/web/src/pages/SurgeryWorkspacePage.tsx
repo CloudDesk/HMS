@@ -8,20 +8,12 @@ import { surgeryApi } from '../api/surgery';
 import { Modal } from '../components/ui/Modal';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
+import { NewProcedureRecommendationModal } from '../components/surgery/NewProcedureRecommendationModal';
 import { useSurgeryWorkspaceFeature } from '../hooks/surgery/useSurgeryWorkspaceFeature';
 
-const recommendationSchema = z.object({
-  patient_id: z.string().min(1, 'Select a patient'),
-  department_id: z.string().min(1, 'Select a department'),
-  recommending_doctor_id: z.string().min(1, 'Select a doctor'),
-  service_id: z.string().min(1, 'Select a procedure'),
-  encounter_id: z.string().optional().refine((val) => !val || /^[a-f\d]{24}$/i.test(val), 'Enter a valid 24-character OPD visit ID'),
-  clinical_reason: z.string().trim().min(3, 'Clinical reason is required').max(1000),
-  notes: z.string().max(2000).optional(),
-});
 const bookingSchema = z.object({ doctor_id: z.string().min(1, 'Select a doctor'), scheduled_start: z.string().min(1, 'Select date and time'), hold_id: z.string(), consent_document_id: z.string(), deposit_invoice_id: z.string(), notes: z.string().max(2000) });
 const actionSchema = z.object({ scheduled_start: z.string(), doctor_id: z.string(), hold_id: z.string(), consent_document_id: z.string(), deposit_invoice_id: z.string(), reason: z.string() });
-type RecommendationValues = z.infer<typeof recommendationSchema>; type BookingValues = z.infer<typeof bookingSchema>; type ActionValues = z.infer<typeof actionSchema>;
+type BookingValues = z.infer<typeof bookingSchema>; type ActionValues = z.infer<typeof actionSchema>;
 type ActionMode = 'confirm' | 'reschedule' | 'cancel-booking' | 'cancel-recommendation' | 'complete' | null;
 const statusTone = (status: string) => status === 'BOOKED' || status === 'COMPLETED' ? 'green' : status === 'CANCELLED' ? 'red' : status === 'PENDING_CONFIRMATION' ? 'orange' : 'blue';
 const displayDate = (value: string) => new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
@@ -49,7 +41,6 @@ export function SurgeryWorkspacePage() {
       toast.error('Unable to load booking details.');
     }
   };
-  const recommendationForm = useForm<RecommendationValues>({ resolver: zodResolver(recommendationSchema), defaultValues: { patient_id: '', department_id: '', recommending_doctor_id: '', service_id: '', encounter_id: '', clinical_reason: '', notes: '' } });
   const bookingForm = useForm<BookingValues>({ resolver: zodResolver(bookingSchema), defaultValues: { doctor_id: '', scheduled_start: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', notes: '' } });
   const actionForm = useForm<ActionValues>({ resolver: zodResolver(actionSchema), defaultValues: { scheduled_start: '', doctor_id: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', reason: '' } });
   const departmentId = bookingFor?.department_id ?? ''; const eligibleDoctors = useMemo(() => state.doctors.filter((item) => !departmentId || item.department_id === departmentId), [departmentId, state.doctors]);
@@ -83,22 +74,6 @@ export function SurgeryWorkspacePage() {
   useEffect(() => { if (selected) actionForm.reset({ scheduled_start: localDateTime(selected.scheduled_start), doctor_id: selected.doctor_id, hold_id: selected.hold_id ?? '', consent_document_id: selected.consent_document_id ?? '', deposit_invoice_id: selected.deposit_invoice_id ?? '', reason: '' }); }, [actionForm, selected]);
   const procedure = bookingFor ? state.services.find((item) => item.id === bookingFor.service_id) : selected ? state.services.find((item) => item.id === selected.service_id) : undefined;
 
-  const createRecommendation = recommendationForm.handleSubmit(async (values) => {
-    try {
-      await actions.createRecommendation({
-        ...values,
-        branch_id: state.branchId,
-        encounter_type: values.encounter_id ? 'OPD_VISIT' : 'DIRECT',
-        encounter_id: values.encounter_id || null,
-        notes: values.notes || null,
-      });
-      toast.success('Procedure recommendation created.');
-      setRecommendationOpen(false);
-      recommendationForm.reset();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to create recommendation.');
-    }
-  });
   const createBooking = bookingForm.handleSubmit(async (values) => {
     if (!bookingFor) return;
     try {
@@ -534,186 +509,18 @@ export function SurgeryWorkspacePage() {
         </section>
       ) : null}
 
-      {/* ─── Modal 1: New Procedure Recommendation ──────────────────────── */}
-      <Modal
+      {/* ─── Modal 1: New Procedure Recommendation (Shared Component) ── */}
+      <NewProcedureRecommendationModal
         open={recommendationOpen}
         onClose={() => setRecommendationOpen(false)}
-        title="New Procedure Recommendation"
-        icon="ph-stethoscope"
-        size="large"
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', width: '100%' }}>
-            <button type="button" className="btn-secondary" onClick={() => setRecommendationOpen(false)}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              form="procedure-recommendation-form"
-              className="btn-primary"
-              disabled={state.pending.createRecommendation || !state.branchId}
-            >
-              <i className="ph ph-check-circle" /> {state.pending.createRecommendation ? 'Creating...' : 'Create Recommendation'}
-            </button>
-          </div>
-        }
-      >
-        <form
-          id="procedure-recommendation-form"
-          onSubmit={createRecommendation}
-          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-        >
-          {/* Patient Selection Card */}
-          <div
-            style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              padding: '12px 14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-              <i className="ph ph-user-circle" style={{ fontSize: '1.1rem', color: '#0284c7' }} />
-              <span>Patient Selection <span style={{ color: '#ef4444' }}>*</span></span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '10px' }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b', display: 'block', marginBottom: '3px' }}>
-                  Search Patient
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    value={state.patientSearch}
-                    onChange={(event) => actions.setPatientSearch(event.target.value)}
-                    placeholder="MRN, name or phone..."
-                    style={{ width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 8px 0 28px', fontSize: '0.82rem' }}
-                  />
-                  <i className="ph ph-magnifying-glass" style={{ position: 'absolute', left: '8px', top: '10px', color: '#94a3b8', fontSize: '0.9rem' }} />
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b', display: 'block', marginBottom: '3px' }}>
-                  Select Matched Patient <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <select
-                  {...recommendationForm.register('patient_id')}
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: recommendationForm.formState.errors.patient_id ? '1px solid #ef4444' : '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                >
-                  <option value="">-- Choose Patient ({state.patients.length} loaded) --</option>
-                  {state.patients.map((item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.patient_number} · {item.first_name} {item.last_name}
-                    </option>
-                  ))}
-                </select>
-                <FieldError text={recommendationForm.formState.errors.patient_id?.message} />
-              </div>
-            </div>
-          </div>
-
-          {/* Clinical Assignment Card */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Clinical &amp; Procedure Details
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                  Department <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <select
-                  {...recommendationForm.register('department_id')}
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: recommendationForm.formState.errors.department_id ? '1px solid #ef4444' : '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                >
-                  <option value="">Select Department</option>
-                  {state.departments.map((item) => (
-                    <option value={item.id} key={item.id}>{item.name}</option>
-                  ))}
-                </select>
-                <FieldError text={recommendationForm.formState.errors.department_id?.message} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                  Recommending Doctor <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <select
-                  {...recommendationForm.register('recommending_doctor_id')}
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: recommendationForm.formState.errors.recommending_doctor_id ? '1px solid #ef4444' : '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                >
-                  <option value="">Select Doctor</option>
-                  {state.doctors
-                    .filter((item) => !recommendationForm.watch('department_id') || item.department_id === recommendationForm.watch('department_id'))
-                    .map((item) => (
-                      <option value={item.id} key={item.id}>{item.display_name}</option>
-                    ))}
-                </select>
-                <FieldError text={recommendationForm.formState.errors.recommending_doctor_id?.message} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                  Procedure / Surgery Service <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <select
-                  {...recommendationForm.register('service_id')}
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: recommendationForm.formState.errors.service_id ? '1px solid #ef4444' : '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                >
-                  <option value="">Select Procedure</option>
-                  {state.services
-                    .filter((item) => !recommendationForm.watch('department_id') || item.department_id === recommendationForm.watch('department_id'))
-                    .map((item) => (
-                      <option value={item.id} key={item.id}>{item.name}</option>
-                    ))}
-                </select>
-                <FieldError text={recommendationForm.formState.errors.service_id?.message} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                  OPD Visit ID <span style={{ color: '#64748b', fontWeight: 400 }}>(Optional)</span>
-                </label>
-                <input
-                  {...recommendationForm.register('encounter_id')}
-                  placeholder="Leave empty for direct procedure recommendation"
-                  style={{ width: '100%', height: '36px', borderRadius: '6px', border: recommendationForm.formState.errors.encounter_id ? '1px solid #ef4444' : '1px solid #cbd5e1', padding: '0 8px', fontSize: '0.82rem' }}
-                />
-                <FieldError text={recommendationForm.formState.errors.encounter_id?.message} />
-              </div>
-            </div>
-          </div>
-
-          {/* Clinical Indications */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div>
-              <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                Clinical Reason &amp; Indication <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <textarea
-                {...recommendationForm.register('clinical_reason')}
-                rows={2}
-                placeholder="Indicate diagnosis, necessity, urgency or planned clinical objective..."
-                style={{ width: '100%', borderRadius: '6px', border: recommendationForm.formState.errors.clinical_reason ? '1px solid #ef4444' : '1px solid #cbd5e1', padding: '8px', fontSize: '0.82rem' }}
-              />
-              <FieldError text={recommendationForm.formState.errors.clinical_reason?.message} />
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#334155', display: 'block', marginBottom: '3px' }}>
-                Additional Clinical Notes <span style={{ color: '#64748b', fontWeight: 400 }}>(Optional)</span>
-              </label>
-              <textarea
-                {...recommendationForm.register('notes')}
-                rows={2}
-                placeholder="Anesthesia requirements, patient risk alerts, special instruments..."
-                style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '8px', fontSize: '0.82rem' }}
-              />
-            </div>
-          </div>
-        </form>
-      </Modal>
+        branchId={state.branchId}
+        departments={state.departments}
+        doctors={state.doctors}
+        services={state.services}
+        onCreateSuccess={() => {
+          void surgery.recommendations.refetch();
+        }}
+      />
 
       {/* ─── Modal 2: Book Recommended Procedure ────────────────────────── */}
       <Modal
