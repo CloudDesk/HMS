@@ -6,7 +6,7 @@ import type { OpdConsultationRepository } from '../opd/opd-consultation.reposito
 import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { ServiceRepository } from '../services/service.repository.js';
-import type { BillingRepository } from './billing.repository.js';
+import type { BillingRepository, CreateInvoiceRecord } from './billing.repository.js';
 import { createBillingNumber } from './billing-number.js';
 import type {
   BillingInvoice,
@@ -108,6 +108,65 @@ export class BillingService {
     const invoice = await this.repository.linkContext(invoiceId, data.patient_id, data.branch_id, 'ADMISSION_REQUEST', data.request_id, actorUserId);
     if (!invoice) throw new AppError('Invoice could not be linked to this admission request', 409, 'BILLING_CONTEXT_CONFLICT');
     await this.repository.audit('billing.invoice.admission_context_linked', actorUserId, metadata, { invoiceId, patientId: data.patient_id, branchId: data.branch_id, admissionRequestId: data.request_id });
+    return invoice;
+  }
+
+  async createProcedureBookingInvoice(
+    data: {
+      patient_id: string;
+      branch_id: string;
+      booking_id: string;
+      encounter_id?: string | null;
+      service: { id: string; name: string; standardPrice: number };
+    },
+    actorUserId: string,
+    metadata: BillingRequestMetadata,
+    session: import('mongoose').ClientSession,
+  ) {
+    const unitPrice = roundMoney(data.service.standardPrice);
+    const subtotal = unitPrice;
+    const totalAmount = subtotal;
+    const balanceAmount = totalAmount;
+
+    const item: ResolvedBillingItem = {
+      serviceId: data.service.id,
+      serviceName: data.service.name,
+      serviceType: 'CONSULTATION',
+      originatingOrderId: null,
+      quantity: 1,
+      unitPrice,
+      lineTotal: unitPrice,
+    };
+
+    const invoiceNumber = createBillingNumber('INV');
+    const createRecord: CreateInvoiceRecord = {
+      invoiceNumber,
+      patientId: data.patient_id,
+      visitId: data.encounter_id || data.patient_id,
+      sourceType: 'PROCEDURE',
+      encounterId: data.encounter_id || data.patient_id,
+      admissionId: null,
+      procedureId: data.booking_id,
+      appointmentId: null,
+      branchId: data.branch_id,
+      invoiceDate: new Date(),
+      subtotal,
+      discountAmount: 0,
+      taxAmount: 0,
+      totalAmount,
+      balanceAmount,
+    };
+
+    const invoice = await this.repository.createInvoice(createRecord, [item], actorUserId, session);
+    await this.repository.linkContext(invoice.id, data.patient_id, data.branch_id, 'PROCEDURE_BOOKING', data.booking_id, actorUserId);
+    await this.repository.audit('billing.invoice.created', actorUserId, metadata, {
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoice_number,
+      patientId: data.patient_id,
+      procedureBookingId: data.booking_id,
+      branchId: data.branch_id,
+      totalAmount,
+    }, session);
     return invoice;
   }
 

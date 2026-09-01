@@ -82,7 +82,57 @@ export class SurgeryService {
 
   async cancelRecommendation(id: string, branchId: string, data: ReasonDTO, actor: string, metadata: SurgeryMetadata) { await this.authorize(actor, branchId); const session = await this.repository.session(); try { let result; await session.withTransaction(async () => { const current = await this.repository.getRecommendation(id, branchId, session); if (!current) throw new AppError('Procedure recommendation not found', 404, 'PROCEDURE_RECOMMENDATION_NOT_FOUND'); await this.authorizeDepartment(actor, current.department_id); result = await this.repository.cancelRecommendation(id, branchId, data.reason, actor, session); if (!result) throw new AppError('Only an unbooked active recommendation can be cancelled', 409, 'PROCEDURE_RECOMMENDATION_STATE_CONFLICT'); await this.patients.addProcedureTimeline(current.patient_id, 'PROCEDURE_RECOMMENDATION_CANCELLED', 'Procedure recommendation cancelled', `${current.recommendation_number} was cancelled: ${data.reason}`, actor, session); await this.repository.audit('surgery.recommendation.cancelled', actor, metadata, { recommendationId: id, patientId: current.patient_id, branchId, reason: data.reason }, session); }); return result; } finally { await session.endSession(); } }
 
-  async createBooking(data: CreateProcedureBookingDTO, actor: string, metadata: SurgeryMetadata) { await this.authorize(actor, data.branch_id); const session = await this.repository.session(); try { let result; await session.withTransaction(async () => { const recommendation = await this.repository.getActiveRecommendationRecord(data.recommendation_id, data.branch_id, session); if (!recommendation) throw new AppError('Active unbooked procedure recommendation not found', 409, 'PROCEDURE_RECOMMENDATION_NOT_ACTIVE'); const refs = await this.repository.bookingReferences(recommendation, data.doctor_id, session); if (!refs.service || !refs.service.defaultDurationMinutes || !refs.service.bookingCapacity) throw new AppError('Procedure service configuration is incomplete', 409, 'PROCEDURE_SERVICE_CONFIGURATION_INVALID'); if (!refs.doctor) throw new AppError('Active procedure doctor not found in the selected branch and department', 404, 'DOCTOR_NOT_FOUND'); const win = parseScheduleWindow(data.scheduled_start, refs.service.defaultDurationMinutes); await this.validateSchedule(refs.doctor._id.toString(), win, refs.service._id.toString(), refs.service.bookingCapacity, undefined, session); result = await this.repository.createBooking(data, recommendation, { doctorName: refs.doctor.displayName, duration: refs.service.defaultDurationMinutes }, actor, session); const consumed = await this.repository.markRecommendationBooked(data.recommendation_id, result.id, actor, session); if (!consumed) throw new AppError('Recommendation was booked by another request', 409, 'PROCEDURE_RECOMMENDATION_STATE_CONFLICT'); await this.patients.addProcedureTimeline(recommendation.patientId.toString(), 'PROCEDURE_BOOKING_CREATED', 'Procedure booking created', `${result.booking_number} is pending confirmation for ${result.service_name}.`, actor, session); await this.repository.audit('surgery.booking.created', actor, metadata, { bookingId: result.id, recommendationId: data.recommendation_id, patientId: recommendation.patientId.toString(), branchId: data.branch_id, scheduledStart: win.startDate, scheduledEnd: win.endDate }, session); }); if (!result) throw new AppError('Procedure booking could not be created', 500, 'PROCEDURE_BOOKING_CREATE_FAILED'); return result; } catch (error) { return duplicate(error); } finally { await session.endSession(); } }
+  async createBooking(data: CreateProcedureBookingDTO, actor: string, metadata: SurgeryMetadata) {
+    await this.authorize(actor, data.branch_id);
+    const session = await this.repository.session();
+    try {
+      let result;
+      await session.withTransaction(async () => {
+        const recommendation = await this.repository.getActiveRecommendationRecord(data.recommendation_id, data.branch_id, session);
+        if (!recommendation) throw new AppError('Active unbooked procedure recommendation not found', 409, 'PROCEDURE_RECOMMENDATION_NOT_ACTIVE');
+        const refs = await this.repository.bookingReferences(recommendation, data.doctor_id, session);
+        if (!refs.service || !refs.service.defaultDurationMinutes || !refs.service.bookingCapacity) throw new AppError('Procedure service configuration is incomplete', 409, 'PROCEDURE_SERVICE_CONFIGURATION_INVALID');
+        if (!refs.doctor) throw new AppError('Active procedure doctor not found in the selected branch and department', 404, 'DOCTOR_NOT_FOUND');
+        const win = parseScheduleWindow(data.scheduled_start, refs.service.defaultDurationMinutes);
+        await this.validateSchedule(refs.doctor._id.toString(), win, refs.service._id.toString(), refs.service.bookingCapacity, undefined, session);
+
+        result = await this.repository.createBooking(data, recommendation, { doctorName: refs.doctor.displayName, duration: refs.service.defaultDurationMinutes }, actor, session);
+
+        if (!data.deposit_invoice_id) {
+          const invoice = await this.billing.createProcedureBookingInvoice(
+            {
+              patient_id: recommendation.patientId.toString(),
+              branch_id: data.branch_id,
+              booking_id: result.id,
+              encounter_id: recommendation.encounterId ? recommendation.encounterId.toString() : null,
+              service: {
+                id: refs.service._id.toString(),
+                name: refs.service.name,
+                standardPrice: refs.service.standardPrice,
+              },
+            },
+            actor,
+            metadata,
+            session,
+          );
+          if (invoice) {
+            result.deposit_invoice_id = invoice.id;
+          }
+        }
+
+        const consumed = await this.repository.markRecommendationBooked(data.recommendation_id, result.id, actor, session);
+        if (!consumed) throw new AppError('Recommendation was booked by another request', 409, 'PROCEDURE_RECOMMENDATION_STATE_CONFLICT');
+        await this.patients.addProcedureTimeline(recommendation.patientId.toString(), 'PROCEDURE_BOOKING_CREATED', 'Procedure booking created', `${result.booking_number} is pending confirmation for ${result.service_name}.`, actor, session);
+        await this.repository.audit('surgery.booking.created', actor, metadata, { bookingId: result.id, recommendationId: data.recommendation_id, patientId: recommendation.patientId.toString(), branchId: data.branch_id, scheduledStart: win.startDate, scheduledEnd: win.endDate }, session);
+      });
+      if (!result) throw new AppError('Procedure booking could not be created', 500, 'PROCEDURE_BOOKING_CREATE_FAILED');
+      return result;
+    } catch (error) {
+      return duplicate(error);
+    } finally {
+      await session.endSession();
+    }
+  }
 
   async confirmBooking(id: string, branchId: string, data: ConfirmProcedureBookingDTO, actor: string, metadata: SurgeryMetadata) { await this.authorize(actor, branchId); const session = await this.repository.session(); try { let result; await session.withTransaction(async () => { const booking = await this.requireBookingRecord(id, branchId, actor, session, 'PENDING_CONFIRMATION'); const recommendation = await this.repository.getRecommendation(booking.recommendationId.toString(), branchId, session); const refs = await this.repository.bookingReferences(bookingRecommendation(booking), booking.doctorId.toString(), session); if (!recommendation || !refs.service || !refs.service.bookingCapacity) throw new AppError('Procedure booking context is no longer active', 409, 'PROCEDURE_BOOKING_CONTEXT_INVALID'); const win = parseScheduleWindow(booking.scheduledStart.toISOString(), refs.service.defaultDurationMinutes ?? booking.durationMinutes); await this.validateSchedule(booking.doctorId.toString(), win, booking.serviceId.toString(), refs.service.bookingCapacity, id, session); const holdId = data.hold_id ?? booking.holdId?.toString() ?? null; if (refs.service.requiresBed && (!holdId || !await this.repository.validateHold(holdId, booking.patientId.toString(), branchId, session))) throw new AppError('An active bed hold for this patient is required', 409, 'PROCEDURE_BED_HOLD_REQUIRED'); const consentId = data.consent_document_id ?? booking.consentDocumentId?.toString() ?? null; const consent = await this.patients.verifyContextConsent(booking.patientId.toString(), consentId, 'PROCEDURE_BOOKING', id, refs.service.requiresConsent, session); const invoiceId = data.deposit_invoice_id ?? booking.depositInvoiceId?.toString() ?? null; const requiredAmount = refs.service.minimumAdvanceDepositAmount ?? 0; const deposit = refs.service.requiresAdvanceDeposit ? await this.billing.verifyProcedureDeposit(booking.patientId.toString(), branchId, id, invoiceId, requiredAmount, actor, session) : { required_amount: requiredAmount, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: invoiceId, payment_ids: [], verified_at: new Date() }; if (!deposit.satisfied) throw new AppError(`An advance deposit of ${requiredAmount} is required before confirmation`, 409, 'ADVANCE_DEPOSIT_REQUIRED'); const snapshot = { consent_required: refs.service.requiresConsent, consent_satisfied: !refs.service.requiresConsent || Boolean(consent), consent_document_id: consent?.id ?? null, deposit_required: refs.service.requiresAdvanceDeposit, deposit_satisfied: deposit.satisfied, deposit_required_amount: deposit.required_amount, deposit_paid_amount: deposit.paid_amount, deposit_invoice_id: deposit.invoice_id, deposit_payment_ids: deposit.payment_ids, bed_required: refs.service.requiresBed, bed_hold_id: holdId, verified_at: new Date() }; result = await this.repository.confirmBooking(id, branchId, { holdId, consentId, invoiceId, snapshot }, actor, session); if (!result) throw new AppError('Booking changed before confirmation', 409, 'PROCEDURE_BOOKING_STATE_CONFLICT'); await this.patients.addProcedureTimeline(booking.patientId.toString(), 'PROCEDURE_BOOKING_CONFIRMED', 'Procedure booking confirmed', `${booking.bookingNumber} was confirmed for ${booking.scheduledStart.toISOString()}.`, actor, session); await this.repository.audit('surgery.booking.confirmed', actor, metadata, { bookingId: id, patientId: booking.patientId.toString(), branchId, prerequisiteSnapshot: snapshot }, session); }); return result; } finally { await session.endSession(); } }
 
