@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import type { ConsentContextType, ConsentTemplate, ConsentTemplateStatus } from '../api/consents';
 import { Modal } from '../components/ui/Modal';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
@@ -31,6 +31,14 @@ export function ConsentTemplatesPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ConsentTemplate | null>(null);
   const [form, setForm] = useState<TemplateForm>(empty);
+
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(templates.length / pageSize));
+  const paginatedTemplates = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return templates.slice(start, start + pageSize);
+  }, [templates, page, pageSize]);
 
   const start = (item?: ConsentTemplate) => {
     setEditing(item ?? null);
@@ -69,7 +77,10 @@ export function ConsentTemplatesPage() {
                 aria-label="Select Branch"
                 className="um-filter"
                 style={{ minWidth: '180px', fontWeight: 500 }}
-                onChange={(e) => actions.setBranchId(e.target.value)}
+                onChange={(e) => {
+                  actions.setBranchId(e.target.value);
+                  setPage(1);
+                }}
                 value={branchId}
               >
                 {branches.map((branch) => (
@@ -119,7 +130,7 @@ export function ConsentTemplatesPage() {
                     </td>
                   </tr>
                 ) : (
-                  templates.map((item) => (
+                  paginatedTemplates.map((item) => (
                     <tr key={item.id}>
                       <td>
                         <span className="emp-id">{item.code}</span>
@@ -160,6 +171,53 @@ export function ConsentTemplatesPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {templates.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderTop: '1px solid #f1f5f9',
+                fontSize: '0.82rem',
+                color: '#64748b',
+                background: '#ffffff',
+                borderBottomLeftRadius: '12px',
+                borderBottomRightRadius: '12px',
+              }}
+            >
+              <div>
+                Showing <strong>{Math.min((page - 1) * pageSize + 1, templates.length)}</strong> to{' '}
+                <strong>{Math.min(page * pageSize, templates.length)}</strong> of{' '}
+                <strong>{templates.length}</strong> consent templates
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  <i className="ph ph-caret-left" /> Previous
+                </button>
+                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  Next <i className="ph ph-caret-right" />
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
 

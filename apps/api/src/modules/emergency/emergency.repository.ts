@@ -7,6 +7,7 @@ import { DoctorModel } from '../doctors/doctor.model.js';
 import { PatientModel } from '../patients/patient.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { AdmissionRequestModel } from '../inpatient-admissions/inpatient-admission.model.js';
 import { EmergencyEncounterModel, type EmergencyEncounterFields } from './emergency.model.js';
 import type {
   CreateEmergencyDTO,
@@ -201,6 +202,72 @@ export class EmergencyRepository {
     });
     if (session) query.session(session);
     return query.lean();
+  }
+  async createProvisionalPatient(
+    identity: {
+      displayName: string;
+      estimatedAge?: number | null;
+      gender?: string | null;
+      contact?: string | null;
+      identityNotes?: string | null;
+    },
+    branchId: string,
+    actor: string,
+    session: ClientSession,
+  ) {
+    const sequence = await this.sequenceService.getNextSequence('patient', session);
+    const year = new Date().getFullYear();
+    const patientNumber = `HMS-${year}-${String(sequence).padStart(6, '0')}`;
+    const names = identity.displayName.trim().split(/\s+/);
+    const firstName = names[0] || 'Unknown';
+    const lastName = names.slice(1).join(' ') || 'Patient';
+
+    let dateOfBirth = new Date(1990, 0, 1);
+    if (identity.estimatedAge && identity.estimatedAge > 0) {
+      const birthYear = year - identity.estimatedAge;
+      dateOfBirth = new Date(birthYear, 0, 1);
+    }
+
+    const gender = (identity.gender && ['MALE', 'FEMALE', 'OTHER', 'UNKNOWN'].includes(identity.gender)
+      ? identity.gender
+      : 'UNKNOWN') as import('../patients/patient.types.js').PatientGender;
+
+    const patient = new PatientModel({
+      patientNumber,
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender,
+      phone: identity.contact || null,
+      registrationBranchId: oid(branchId),
+      status: 'ACTIVE',
+      notes: identity.identityNotes ? `Provisional Emergency Patient: ${identity.identityNotes}` : 'Provisional Emergency Patient',
+      createdBy: oid(actor),
+      updatedBy: oid(actor),
+    });
+    await patient.save({ session });
+    return patient;
+  }
+  async updatePatientIdentity(
+    id: string,
+    branchId: string,
+    patientId: Types.ObjectId,
+    patientNumber: string,
+    patientName: string,
+    session: ClientSession,
+  ) {
+    return EmergencyEncounterModel.updateOne(
+      { _id: oid(id), branchId: oid(branchId) },
+      {
+        $set: {
+          patientId,
+          patientNumber,
+          patientName,
+          updatedAt: new Date(),
+        },
+      },
+      { session },
+    );
   }
   async create(
     data: CreateEmergencyDTO,
@@ -430,7 +497,7 @@ export class EmergencyRepository {
       {
         _id: oid(id),
         branchId: oid(branchId),
-        status: { $in: ['IN_CONSULTATION', 'IN_TREATMENT', 'READY_FOR_DISPOSITION'] },
+        status: { $nin: ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'] },
       },
       {
         $push: {
@@ -451,6 +518,57 @@ export class EmergencyRepository {
     ).lean<EmergencyLean>();
     return row ? emergencyDto(row) : null;
   }
+  async createOrGetAdmissionRequest(
+    encounter: EmergencyLean,
+    reason: string,
+    notes: string | null | undefined,
+    actor: string,
+    session: ClientSession,
+  ) {
+    if (!encounter.patientId || !encounter.patientNumber) return null;
+
+    const existing = await AdmissionRequestModel.findOne({
+      sourceType: 'EMERGENCY_ENCOUNTER',
+      sourceId: encounter._id,
+      status: { $ne: 'CANCELLED' },
+    }).session(session);
+
+    if (existing) return existing;
+
+    const sequence = await this.sequenceService.getNextSequence('admission_request', session);
+    const requestNumber = this.sequenceService.formatTimestampSequence('AR', sequence);
+    const department = await DepartmentModel.findById(encounter.departmentId).session(session).lean();
+
+    const created = await AdmissionRequestModel.create(
+      [
+        {
+          requestNumber,
+          patientId: encounter.patientId,
+          patientNumber: encounter.patientNumber,
+          patientName: encounter.patientName,
+          branchId: encounter.branchId,
+          departmentId: encounter.departmentId,
+          departmentName: department?.name || 'Emergency Department',
+          recommendingDoctorId: encounter.assignedDoctorId || oid(actor),
+          recommendingDoctorName: encounter.assignedDoctorName || 'Emergency Doctor',
+          sourceType: 'EMERGENCY_ENCOUNTER',
+          sourceId: encounter._id,
+          sourceReference: encounter.encounterNumber,
+          activeSourceKey: `EMERGENCY_ENCOUNTER:${encounter._id.toString()}`,
+          admissionType: encounter.triage?.effectiveLevel === 'LEVEL_1_CRITICAL' ? 'ICU' : 'INPATIENT',
+          priority: 'EMERGENCY',
+          reason: reason || encounter.consultation?.diagnosis || encounter.chiefComplaint || 'Emergency Inpatient Admission',
+          notes: notes || encounter.consultation?.plan || null,
+          status: 'PENDING_VALIDATION',
+          createdBy: oid(actor),
+          updatedBy: oid(actor),
+        },
+      ],
+      { session },
+    );
+
+    return created[0] ?? null;
+  }
   async markAdmissionConverted(
     id: string,
     branchId: string,
@@ -462,8 +580,7 @@ export class EmergencyRepository {
       {
         _id: oid(id),
         branchId: oid(branchId),
-        status: 'READY_FOR_DISPOSITION',
-        'disposition.decision': 'ADMIT',
+        status: { $in: ['READY_FOR_DISPOSITION', 'IN_CONSULTATION', 'IN_TREATMENT'] },
         inpatientAdmissionId: null,
       },
       {

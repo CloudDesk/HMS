@@ -72,6 +72,8 @@ export function EmergencyQueuePage() {
   const { state, actions, mutations } = useEmergencyWorkspaceFeature();
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('');
   const [callingId, setCallingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const allEncounters = state.encounters;
 
@@ -99,6 +101,12 @@ export function EmergencyQueuePage() {
       return true;
     });
   }, [allEncounters, selectedDoctorFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredQueue.length / pageSize));
+  const paginatedQueue = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredQueue.slice(start, start + pageSize);
+  }, [filteredQueue, page, pageSize]);
 
   const handleCallPatient = async (encounter: EmergencyEncounter) => {
     try {
@@ -188,7 +196,7 @@ export function EmergencyQueuePage() {
       <section className="emergency-queue-kpis">
         <div className="doc-kpi">
           <div className="doc-kpi-icon orange">
-            <i className="ph-fill ph-users" />
+            <i className="ph ph-users" style={{ fontSize: '1.4rem' }} />
           </div>
           <div className="doc-kpi-copy">
             <span>Waiting</span>
@@ -198,7 +206,7 @@ export function EmergencyQueuePage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon red">
-            <i className="ph-fill ph-warning-circle" />
+            <i className="ph ph-warning-circle" style={{ fontSize: '1.4rem' }} />
           </div>
           <div className="doc-kpi-copy">
             <span>Critical</span>
@@ -208,7 +216,7 @@ export function EmergencyQueuePage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon blue">
-            <i className="ph-fill ph-stethoscope" />
+            <i className="ph ph-stethoscope" style={{ fontSize: '1.4rem' }} />
           </div>
           <div className="doc-kpi-copy">
             <span>In Consultation</span>
@@ -218,7 +226,7 @@ export function EmergencyQueuePage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon cyan">
-            <i className="ph-fill ph-heartbeat" />
+            <i className="ph ph-heartbeat" style={{ fontSize: '1.4rem' }} />
           </div>
           <div className="doc-kpi-copy">
             <span>In Treatment</span>
@@ -228,7 +236,7 @@ export function EmergencyQueuePage() {
 
         <div className="doc-kpi">
           <div className="doc-kpi-icon purple">
-            <i className="ph-fill ph-bed" />
+            <i className="ph ph-bed" style={{ fontSize: '1.4rem' }} />
           </div>
           <div className="doc-kpi-copy">
             <span>Ready for Admission</span>
@@ -356,7 +364,7 @@ export function EmergencyQueuePage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredQueue.map((item: EmergencyEncounter) => {
+                  paginatedQueue.map((item: EmergencyEncounter) => {
                     const level = item.triage?.effective_level ?? item.triage?.level;
                     const initials = (item.patient_name || 'ER')
                       .split(' ')
@@ -448,6 +456,53 @@ export function EmergencyQueuePage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {filteredQueue.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderTop: '1px solid #f1f5f9',
+                fontSize: '0.82rem',
+                color: '#64748b',
+                background: '#ffffff',
+                borderBottomLeftRadius: '12px',
+                borderBottomRightRadius: '12px',
+              }}
+            >
+              <div>
+                Showing <strong>{Math.min((page - 1) * pageSize + 1, filteredQueue.length)}</strong> to{' '}
+                <strong>{Math.min(page * pageSize, filteredQueue.length)}</strong> of{' '}
+                <strong>{filteredQueue.length}</strong> emergency patients
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  <i className="ph ph-caret-left" /> Previous
+                </button>
+                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  Next <i className="ph ph-caret-right" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Current Token & Emergency Calling Controls */}

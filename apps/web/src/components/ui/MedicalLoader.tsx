@@ -55,9 +55,7 @@ export function MedicalLoaderOverlay({
 }) {
   return (
     <div className="medical-loader-overlay">
-      <div className="medical-loader-overlay-card">
-        <MedicalLoader size="small" text={text} subtext={subtext} />
-      </div>
+      <MedicalLoader size="small" text={text} subtext={subtext} />
     </div>
   );
 }

@@ -34,8 +34,11 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
 
   const branchesQuery = useBranchesList({});
   useEffect(() => {
-    const firstBranchId = branchesQuery.data?.data[0]?.id;
-    if (!branchId && firstBranchId) setBranchIdState(firstBranchId);
+    const branches = branchesQuery.data?.data ?? [];
+    if (!branchId && branches.length > 0) {
+      const main = branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'));
+      setBranchIdState(main ? main.id : (branches[0]?.id ?? ''));
+    }
   }, [branchId, branchesQuery.data]);
 
   const wardsQuery = useWardsList({ branch_id: branchId }, Boolean(branchId));
@@ -50,7 +53,14 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
   const admittedList = admissionsQuery.data?.data ?? [];
   const filteredInpatients = useMemo(() => admittedList.filter((item) => {
     if (filters.selectedWard && item.ward_id !== filters.selectedWard) return false;
-    if (filters.selectedCareLevel && item.admission_type !== filters.selectedCareLevel) return false;
+    if (filters.selectedCareLevel) {
+      const lvl = filters.selectedCareLevel.toUpperCase();
+      if (lvl !== 'ALL' && lvl !== '') {
+        if (item.admission_type !== lvl && !(lvl === 'MEDICAL' && item.admission_type === 'INPATIENT')) {
+          return false;
+        }
+      }
+    }
     if (filters.searchQuery.trim()) {
       const query = filters.searchQuery.toLowerCase();
       if (
@@ -64,7 +74,13 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
   }), [admittedList, filters.searchQuery, filters.selectedCareLevel, filters.selectedWard]);
 
   useEffect(() => {
-    if (!selectedAdmission && filteredInpatients[0]) setSelectedAdmission(filteredInpatients[0]);
+    if (filteredInpatients.length > 0) {
+      if (!selectedAdmission || !filteredInpatients.some((i) => i.id === selectedAdmission.id)) {
+        setSelectedAdmission(filteredInpatients[0] ?? null);
+      }
+    } else {
+      setSelectedAdmission(null);
+    }
   }, [filteredInpatients, selectedAdmission]);
 
   const patientId = selectedAdmission?.patient_id;
@@ -84,15 +100,15 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
   const diagnosticOrders = useMemo(() => {
     if (!selectedAdmission) return [] as InpatientWorkspaceOrder[];
     return ([['LAB', clinical.laboratory.data], ['IMAGING', clinical.imaging.data]] as const)
-      .flatMap(([type, order]) => order?.items.map((item, index) => ({
-        id: `${order.id}:${index}`,
+      .flatMap(([type, order]) => (order?.items || []).map((item, index) => ({
+        id: `${order?.id || type}:${index}`,
         admission_id: selectedAdmission.id,
         order_type: type,
         item_name: item.investigation_name,
-        instructions: order.instructions || order.clinical_notes || '',
-        status: order.status,
-        ordered_at: order.submitted_at || order.created_at,
-      })) ?? []);
+        instructions: order?.instructions || order?.clinical_notes || '',
+        status: order?.status || 'PENDING',
+        ordered_at: order?.submitted_at || order?.created_at || new Date().toISOString(),
+      })));
   }, [clinical.imaging.data, clinical.laboratory.data, selectedAdmission]);
 
   const setBranchId = (nextBranchId: string) => {

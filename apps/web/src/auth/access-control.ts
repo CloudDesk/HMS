@@ -70,6 +70,7 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/opd/queue': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/visit': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
+  '/admissions': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
   '/admissions/bed-availability': [{ module: 'Admissions', screen: 'Beds' }],
   '/admissions/beds': [{ module: 'Admissions', screen: 'Beds' }],
   '/admissions/inpatients': [{ module: 'Admissions', screen: 'Admission Requests' }],

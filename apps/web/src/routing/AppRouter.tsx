@@ -307,7 +307,7 @@ export function AppRouter() {
     title = 'Admission Requests';
     breadcrumbs = ['Home', 'Admissions', 'Admission Requests'];
     content = <InpatientAdmissionPage />;
-  } else if (pathname === '/admissions/workspace') {
+  } else if (pathname === '/admissions' || pathname === '/admissions/workspace') {
     title = 'Inpatient Workspace';
     breadcrumbs = ['Home', 'Admissions', 'Inpatient Workspace'];
     content = <InpatientWorkspacePage />;

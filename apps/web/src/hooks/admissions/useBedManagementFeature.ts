@@ -83,8 +83,12 @@ export function useBedManagementFeature(
     ? (branchQuery.data?.data ?? [])
     : (user?.branches ?? []);
 
-  const branchId =
-    params.branchId || branches[0]?.id || '';
+  const defaultBranchId =
+    branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'))?.id ||
+    branches[0]?.id ||
+    '';
+
+  const branchId = params.branchId || defaultBranchId;
 
   const [debouncedPatientSearch, setDebouncedPatientSearch] =
     useState(params.patientSearch);

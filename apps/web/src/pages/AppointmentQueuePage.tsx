@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
 import { navigate } from '../routing/navigation';
 import {
@@ -55,6 +55,8 @@ export function AppointmentQueuePage() {
   const [completionError, setCompletionError] = useState('');
   const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
   const [vitalsError, setVitalsError] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const lastCallNotificationId = useRef<string | null>(null);
 
   const {
@@ -105,6 +107,16 @@ export function AppointmentQueuePage() {
 
   const currentIndex = currentAppointment ? appointments.findIndex((appointment) => appointment.id === currentAppointment.id) : -1;
   const nextIndex = nextAppointment ? appointments.findIndex((appointment) => appointment.id === nextAppointment.id) : -1;
+  const totalPages = Math.max(1, Math.ceil(appointments.length / pageSize));
+  const paginatedAppointments = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return appointments.slice(start, start + pageSize);
+  }, [appointments, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [departmentFilter, doctorFilter, statusFilter, priorityFilter, branchFilter, queueDate]);
+
   const waitingCount = appointments.filter((appointment) => waitingStatuses.has(appointment.status)).length;
   const inConsultationCount = appointments.filter((appointment) => appointment.status === 'CHECKED_IN').length;
   const completedCount = appointments.filter((appointment) => appointment.status === 'COMPLETED').length;
@@ -295,21 +307,22 @@ export function AppointmentQueuePage() {
                     </td>
                   </tr>
                 ) : (
-                  appointments.map((appointment, index) => {
+                  paginatedAppointments.map((appointment, index) => {
                     const linkedVisit = visitForAppointment(appointment.id);
                     const canCheckIn = !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
                     const canTakeVitals = linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS';
+                    const globalIndex = (page - 1) * pageSize + index;
                     return (
                     <tr className={appointment.id === currentAppointment?.id ? 'queue-current-row' : ''} key={appointment.id}>
                       <td>
-                        <span className="queue-token-chip">{tokenFor(appointment, index, linkedVisit)}</span>
+                        <span className="queue-token-chip">{tokenFor(appointment, globalIndex, linkedVisit)}</span>
                       </td>
                       <td>{appointment.patient_name}</td>
                       <td>{appointment.patient_number}</td>
                       <td>{appointment.doctor_specialization}</td>
                       <td>{appointment.doctor_name}</td>
                       <td>{appointment.start_time}</td>
-                      <td>{waitMinutes(appointment, index)} min</td>
+                      <td>{waitMinutes(appointment, globalIndex)} min</td>
                       <td>
                         <span className={`status-badge ${appointmentPriorityClass(appointment.priority)}`}>
                           {appointmentPriorityLabels[appointment.priority]}
@@ -367,6 +380,53 @@ export function AppointmentQueuePage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {appointments.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderTop: '1px solid #f1f5f9',
+                fontSize: '0.82rem',
+                color: '#64748b',
+                background: '#ffffff',
+                borderBottomLeftRadius: '12px',
+                borderBottomRightRadius: '12px',
+              }}
+            >
+              <div>
+                Showing <strong>{Math.min((page - 1) * pageSize + 1, appointments.length)}</strong> to{' '}
+                <strong>{Math.min(page * pageSize, appointments.length)}</strong> of{' '}
+                <strong>{appointments.length}</strong> queue records
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  <i className="ph ph-caret-left" /> Previous
+                </button>
+                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  Next <i className="ph ph-caret-right" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <aside className="doc-card appointment-queue-assignment">

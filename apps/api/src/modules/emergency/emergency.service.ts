@@ -79,24 +79,45 @@ export class EmergencyService {
           );
         if (data.patient_id && !refs.patient)
           throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
-        const name = refs.patient
+        let patientId = refs.patient?._id ?? null;
+        let patientNumber = refs.patient?.patientNumber ?? null;
+        let name = refs.patient
           ? [refs.patient.firstName, refs.patient.middleName, refs.patient.lastName]
               .filter(Boolean)
               .join(' ')
           : data.provisional_identity!.display_name;
+
+        if (!refs.patient && data.provisional_identity) {
+          const provPatient = await this.repository.createProvisionalPatient(
+            {
+              displayName: data.provisional_identity.display_name,
+              estimatedAge: data.provisional_identity.estimated_age,
+              gender: data.provisional_identity.gender,
+              contact: data.provisional_identity.contact,
+              identityNotes: data.provisional_identity.identity_notes,
+            },
+            data.branch_id,
+            actor,
+            session,
+          );
+          patientId = provPatient._id;
+          patientNumber = provPatient.patientNumber;
+          name = [provPatient.firstName, provPatient.middleName, provPatient.lastName].filter(Boolean).join(' ') || data.provisional_identity.display_name;
+        }
+
         result = await this.repository.create(
           data,
           {
-            patientId: refs.patient?._id ?? null,
-            patientNumber: refs.patient?.patientNumber ?? null,
+            patientId,
+            patientNumber,
             patientName: name,
           },
           actor,
           session,
         );
-        if (data.patient_id)
+        if (patientId)
           await this.patients.addEmergencyTimeline(
-            data.patient_id,
+            patientId.toString(),
             'EMERGENCY_ENCOUNTER_REGISTERED',
             'Emergency encounter registered',
             `${result.encounter_number} was registered for emergency care.`,
@@ -373,7 +394,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, actor, session);
+        let current = await this.requireRecord(id, branchId, actor, session);
         const doctor = await this.repository.doctor(
           data.doctor_id,
           branchId,
@@ -390,7 +411,7 @@ export class EmergencyService {
         result = await this.repository.transition(
           id,
           branchId,
-          ['WAITING_FOR_DOCTOR', 'IN_CONSULTATION', 'IN_TREATMENT'],
+          ['REGISTERED', 'WAITING_FOR_TRIAGE', 'TRIAGED', 'WAITING_FOR_DOCTOR', 'IN_CONSULTATION', 'IN_TREATMENT'],
           target,
           'CONSULTATION_UPDATED',
           actor,
@@ -418,6 +439,44 @@ export class EmergencyService {
             409,
             'EMERGENCY_ENCOUNTER_NOT_ACTIONABLE',
           );
+        if (target === 'READY_FOR_DISPOSITION') {
+          if (!current.patientId || !current.patientNumber) {
+            if (current.provisionalIdentity) {
+              const provPatient = await this.repository.createProvisionalPatient(
+                current.provisionalIdentity,
+                branchId,
+                actor,
+                session,
+              );
+              await this.repository.updatePatientIdentity(
+                id,
+                branchId,
+                provPatient._id,
+                provPatient.patientNumber,
+                [provPatient.firstName, provPatient.lastName].filter(Boolean).join(' ') || current.patientName,
+                session,
+              );
+              current = await this.requireRecord(id, branchId, actor, session);
+            }
+          }
+          if (current.patientId) {
+            await this.repository.createOrGetAdmissionRequest(
+              current,
+              data.chief_complaint || data.diagnosis,
+              data.notes,
+              actor,
+              session,
+            );
+            await this.patients.addEmergencyTimeline(
+              current.patientId.toString(),
+              'EMERGENCY_CONSULTATION_UPDATED',
+              'Inpatient Admission Requested',
+              `${current.encounterNumber} is ready for admission. Admission request created and awaiting ward/bed allocation.`,
+              actor,
+              session,
+            );
+          }
+        }
         if (current.patientId)
           await this.patients.addEmergencyTimeline(
             current.patientId.toString(),
@@ -459,13 +518,49 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, actor, session);
-        if (!current.patientId || !current.patientNumber)
+        let current = await this.requireRecord(id, branchId, actor, session);
+        if (terminal.includes(current.status)) {
           throw new AppError(
-            'Link an existing patient before placing downstream orders',
+            `This emergency encounter has reached final disposition (${current.status.toLowerCase().replace(/_/g, ' ')}). New clinical orders cannot be placed.`,
             409,
-            'EMERGENCY_SOURCE_CONTEXT_UNSUPPORTED',
+            'EMERGENCY_ENCOUNTER_NOT_ACTIONABLE',
           );
+        }
+        if (!current.patientId || !current.patientNumber) {
+          if (current.provisionalIdentity) {
+            const provPatient = await this.repository.createProvisionalPatient(
+              current.provisionalIdentity,
+              branchId,
+              actor,
+              session,
+            );
+            await this.repository.updatePatientIdentity(
+              id,
+              branchId,
+              provPatient._id,
+              provPatient.patientNumber,
+              [provPatient.firstName, provPatient.lastName].filter(Boolean).join(' ') || current.patientName,
+              session,
+            );
+            current = await this.requireRecord(id, branchId, actor, session);
+          } else {
+            throw new AppError(
+              'Link an existing patient before placing downstream orders',
+              409,
+              'EMERGENCY_SOURCE_CONTEXT_UNSUPPORTED',
+            );
+          }
+        }
+        if (!current.patientId || !current.patientNumber) {
+          throw new AppError(
+            'Patient record could not be attached',
+            500,
+            'EMERGENCY_PATIENT_LINK_CONFLICT',
+          );
+        }
+        const patientIdStr = current.patientId.toString();
+        const patientNumberStr = current.patientNumber;
+
         if (!current.assignedDoctorId || !current.assignedDoctorName || !current.consultation)
           throw new AppError(
             'Doctor evaluation is required before orders',
@@ -477,8 +572,8 @@ export class EmergencyService {
           downstream = await this.prescriptions.submitForEmergency(
             {
               encounterId: id,
-              patientId: current.patientId.toString(),
-              patientNumber: current.patientNumber,
+              patientId: patientIdStr,
+              patientNumber: patientNumberStr,
               patientName: current.patientName,
               doctorId: current.assignedDoctorId.toString(),
               doctorName: current.assignedDoctorName,
@@ -523,8 +618,8 @@ export class EmergencyService {
           downstream = await this.clinicalOrders.submitForEmergency(
             {
               encounterId: id,
-              patientId: current.patientId.toString(),
-              patientNumber: current.patientNumber,
+              patientId: patientIdStr,
+              patientNumber: patientNumberStr,
               patientName: current.patientName,
               doctorId: current.assignedDoctorId.toString(),
               doctorName: current.assignedDoctorName,
@@ -574,7 +669,7 @@ export class EmergencyService {
           metadata,
           {
             encounterId: id,
-            patientId: current.patientId.toString(),
+            patientId: patientIdStr,
             downstreamId: downstream.id,
             orderType: data.order_type,
             sourceType: 'EMERGENCY_ENCOUNTER',
@@ -603,7 +698,7 @@ export class EmergencyService {
     try {
       let result;
       await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, actor, session);
+        let current = await this.requireRecord(id, branchId, actor, session);
         if (!current.consultation || !current.assignedDoctorId)
           throw new AppError(
             'Doctor evaluation is required before disposition',
@@ -656,6 +751,44 @@ export class EmergencyService {
             409,
             'EMERGENCY_DISPOSITION_NOT_ALLOWED',
           );
+        if (target === 'READY_FOR_DISPOSITION' || data.decision === 'ADMIT') {
+          if (!current.patientId || !current.patientNumber) {
+            if (current.provisionalIdentity) {
+              const provPatient = await this.repository.createProvisionalPatient(
+                current.provisionalIdentity,
+                branchId,
+                actor,
+                session,
+              );
+              await this.repository.updatePatientIdentity(
+                id,
+                branchId,
+                provPatient._id,
+                provPatient.patientNumber,
+                [provPatient.firstName, provPatient.lastName].filter(Boolean).join(' ') || current.patientName,
+                session,
+              );
+              current = await this.requireRecord(id, branchId, actor, session);
+            }
+          }
+          if (current.patientId) {
+            await this.repository.createOrGetAdmissionRequest(
+              current,
+              data.reason || data.summary || 'Emergency Inpatient Admission',
+              data.instructions || data.summary,
+              actor,
+              session,
+            );
+            await this.patients.addEmergencyTimeline(
+              current.patientId.toString(),
+              'EMERGENCY_DISPOSITION_CONFIRMED',
+              'Inpatient Admission Requested',
+              `${current.encounterNumber} admission disposition confirmed. Admission request created and awaiting ward/bed allocation.`,
+              actor,
+              session,
+            );
+          }
+        }
         if (current.patientId)
           await this.patients.addEmergencyTimeline(
             current.patientId.toString(),

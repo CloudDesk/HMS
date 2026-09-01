@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -261,65 +261,65 @@ function SortableHeader({
   );
 }
 
-function UserStatusChart({ users }: { users: UiUser[] }) {
-  const counts = statuses.map((status) => users.filter((user) => user.status === status).length);
-  const [activeCount = 0, inactiveCount = 0] = counts;
-  const total = Math.max(users.length, 1);
-  const activeDeg = (activeCount / total) * 360;
-  const inactiveDeg = activeDeg + (inactiveCount / total) * 360;
+// function UserStatusChart({ users }: { users: UiUser[] }) {
+//   const counts = statuses.map((status) => users.filter((user) => user.status === status).length);
+//   const [activeCount = 0, inactiveCount = 0] = counts;
+//   const total = Math.max(users.length, 1);
+//   const activeDeg = (activeCount / total) * 360;
+//   const inactiveDeg = activeDeg + (inactiveCount / total) * 360;
 
-  return (
-    <>
-      <div className="um-donut-wrap">
-        <div
-          aria-label="Users by status"
-          className="um-donut"
-          role="img"
-          style={{
-            background: `conic-gradient(#16a34a 0deg ${activeDeg}deg, #ea580c ${activeDeg}deg ${inactiveDeg}deg, #ef4444 ${inactiveDeg}deg 360deg)`,
-          }}
-        />
-      </div>
-      <div className="chart-legend-list">
-        {statuses.map((status, index) => (
-          <div className="cl-item" key={status}>
-            <div className="cl-left">
-              <div className={`cl-dot cl-dot-${status.toLowerCase()}`} />
-              <span>{status}</span>
-            </div>
-            <span className="cl-count">{counts[index]}</span>
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
+//   return (
+//     <div className="um-status-chart-content">
+//       <div className="um-donut-wrap">
+//         <div
+//           aria-label="Users by status"
+//           className="um-donut"
+//           role="img"
+//           style={{
+//             background: `conic-gradient(#16a34a 0deg ${activeDeg}deg, #ea580c ${activeDeg}deg ${inactiveDeg}deg, #ef4444 ${inactiveDeg}deg 360deg)`,
+//           }}
+//         />
+//       </div>
+//       <div className="chart-legend-list">
+//         {statuses.map((status, index) => (
+//           <div className="cl-item" key={status}>
+//             <div className="cl-left">
+//               <div className={`cl-dot cl-dot-${status.toLowerCase()}`} />
+//               <span>{status}</span>
+//             </div>
+//             <span className="cl-count">{counts[index]}</span>
+//           </div>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// }
 
-function UsersByRole({ users }: { users: UiUser[] }) {
-  const roleCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    users.forEach((user) => counts.set(user.role, (counts.get(user.role) ?? 0) + 1));
+// function UsersByRole({ users }: { users: UiUser[] }) {
+//   const roleCounts = useMemo(() => {
+//     const counts = new Map<string, number>();
+//     users.forEach((user) => counts.set(user.role, (counts.get(user.role) ?? 0) + 1));
 
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [users]);
-  const maxCount = Math.max(...roleCounts.map(([, count]) => count), 1);
+//     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+//   }, [users]);
+//   const maxCount = Math.max(...roleCounts.map(([, count]) => count), 1);
 
-  return (
-    <div id="role-bar-list">
-      {roleCounts.map(([role, count]) => (
-        <div className="role-bar-item" key={role}>
-          <div className="role-bar-header">
-            <span>{role}</span>
-            <span>{count}</span>
-          </div>
-          <div className="role-bar-track">
-            <div className="role-bar-fill" style={{ width: `${(count / maxCount) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+//   return (
+//     <div id="role-bar-list">
+//       {roleCounts.map(([role, count]) => (
+//         <div className="role-bar-item" key={role}>
+//           <div className="role-bar-header">
+//             <span>{role}</span>
+//             <span>{count}</span>
+//           </div>
+//           <div className="role-bar-track">
+//             <div className="role-bar-fill" style={{ width: `${(count / maxCount) * 100}%` }} />
+//           </div>
+//         </div>
+//       ))}
+//     </div>
+//   );
+// }
 
 export function UserManagementPage() {
   const feature = useUserManagementFeature();
@@ -739,9 +739,36 @@ export function UserManagementPage() {
           </div>
         </div>
 
-        <div className="um-body">
-          <div className="um-table-section card">
-            <div className="um-toolbar">
+        {/* <div className="um-charts-row">
+          <div className="card um-chart-card">
+            <div className="card-header">
+              <h3>Users by Status</h3>
+            </div>
+            {loading ? (
+              <div className="um-panel-loading">
+                <MedicalLoader size="small" text="Loading user status..." subtext="Analyzing account states" />
+              </div>
+            ) : (
+              <UserStatusChart users={pageUsers} />
+            )}
+          </div>
+
+          <div className="card um-chart-card">
+            <div className="card-header">
+              <h3>Users by Role</h3>
+            </div>
+            {loading ? (
+              <div className="um-panel-loading">
+                <MedicalLoader size="small" text="Loading role distribution..." subtext="Aggregating assignments" />
+              </div>
+            ) : (
+              <UsersByRole users={pageUsers} />
+            )}
+          </div>
+        </div> */}
+
+        <div className="um-table-section card">
+          <div className="um-toolbar">
               <div className="um-toolbar-row1">
                 <div className="um-search">
                   <i className="ph ph-magnifying-glass" aria-hidden="true" />
@@ -1051,37 +1078,7 @@ export function UserManagementPage() {
               </div>
             </div>
           </div>
-
-          <div className="um-right-panel">
-            <div className="card um-chart-card">
-              <div className="card-header">
-                <h3>Users by Status</h3>
-              </div>
-              {loading ? (
-                <div className="um-panel-loading">
-                  <MedicalLoader size="small" text="Loading user status..." subtext="Analyzing account states" />
-                </div>
-              ) : (
-                <UserStatusChart users={pageUsers} />
-              )}
-            </div>
-
-            <div className="card um-chart-card">
-              <div className="card-header">
-                <h3>Users by Role</h3>
-              </div>
-              {loading ? (
-                <div className="um-panel-loading">
-                  <MedicalLoader size="small" text="Loading role distribution..." subtext="Aggregating assignments" />
-                </div>
-              ) : (
-                <UsersByRole users={pageUsers} />
-              )}
-            </div>
-
-          </div>
         </div>
-      </div>
 
       <Modal
         footer={
