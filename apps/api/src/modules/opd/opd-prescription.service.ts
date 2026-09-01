@@ -27,7 +27,7 @@ export class OpdPrescriptionService {
   async saveDraft(visitId: string, data: SaveOpdPrescriptionDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
-    const consultation = await this.getConsultation(visitId);
+    const consultation = await this.getOrCreateConsultation(visit, userId);
     const current = await this.repository.getByVisit(visitId);
 
     if (current?.status === 'SUBMITTED') {
@@ -41,19 +41,12 @@ export class OpdPrescriptionService {
   async submit(visitId: string, data: SaveOpdPrescriptionDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit, true);
-    const consultation = await this.getConsultation(visitId);
+    const consultation = await this.getOrCreateConsultation(visit, userId);
     const current = await this.repository.getByVisit(visitId);
 
     if (current?.status === 'SUBMITTED') {
+      if (this.samePrescription(current, data)) return current;
       throw new AppError('Prescription has already been submitted', 400, 'PRESCRIPTION_SUBMITTED');
-    }
-
-    if (consultation.status !== 'COMPLETED') {
-      throw new AppError(
-        'Complete the consultation before submitting a prescription',
-        400,
-        'CONSULTATION_NOT_COMPLETED',
-      );
     }
 
     if (data.items.length === 0) {
@@ -130,10 +123,30 @@ export class OpdPrescriptionService {
     return visit;
   }
 
-  private async getConsultation(visitId: string) {
-    const consultation = await this.consultationRepository.getByVisit(visitId);
+  private async getOrCreateConsultation(visit: OpdVisit, userId: string) {
+    let consultation = await this.consultationRepository.getByVisit(visit.id);
     if (!consultation) {
-      throw new AppError('Start the consultation before creating a prescription', 400, 'CONSULTATION_REQUIRED');
+      if (['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'COMPLETED', 'CHECKED_IN', 'WAITING_FOR_VITALS'].includes(visit.status)) {
+        consultation = await this.consultationRepository.saveForVisit(
+          {
+            status: 'DRAFT',
+            visit,
+          },
+          userId,
+        );
+        if (visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'CHECKED_IN' || visit.status === 'WAITING_FOR_VITALS') {
+          await this.visitRepository.updateStatus(
+            visit.id,
+            {
+              notes: 'Doctor consultation started.',
+              status: 'IN_CONSULTATION',
+            },
+            userId,
+          );
+        }
+      } else {
+        throw new AppError('Start the consultation before creating a prescription', 400, 'CONSULTATION_REQUIRED');
+      }
     }
     return consultation;
   }

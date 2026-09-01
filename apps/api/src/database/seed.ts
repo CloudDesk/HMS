@@ -441,11 +441,17 @@ export const seedDatabase = async () => {
     const existing = await RoleModel.findOne({ code: definition.code }).select('_id permissionIds').lean();
     const role = await RoleModel.findOneAndUpdate(
       { code: definition.code },
-      { $set: {
-        name: definition.name,
-        type: 'system', status: 'active', deletedAt: null,
-        permissionIds: requiredIds,
-      } },
+      {
+        $set: {
+          name: definition.name,
+          type: 'system',
+          status: 'active',
+          deletedAt: null,
+        },
+        $setOnInsert: {
+          permissionIds: requiredIds,
+        },
+      },
       { upsert: true, returnDocument: 'after' },
     );
     roleIdsByCode.set(definition.code, role._id);

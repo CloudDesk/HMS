@@ -29,8 +29,8 @@ export type PharmacyDispensingFields = {
   version: number;
   items: PharmacyDispensingItemFields[];
   invoiceId?: Types.ObjectId | null;
-  confirmIdempotencyKey?: string | null;
-  reverseIdempotencyKey?: string | null;
+  confirmIdempotencyKey?: string;
+  reverseIdempotencyKey?: string;
   confirmedAt?: Date | null;
   confirmedBy?: Types.ObjectId | null;
   cancelledAt?: Date | null;
@@ -72,8 +72,8 @@ const schema = new Schema<PharmacyDispensingFields>({
   version: { type: Number, default: 0, required: true },
   items: { type: [itemSchema], default: [] },
   invoiceId: { type: Schema.Types.ObjectId, ref: 'BillingInvoice', default: null },
-  confirmIdempotencyKey: { type: String, default: null },
-  reverseIdempotencyKey: { type: String, default: null },
+  confirmIdempotencyKey: { type: String },
+  reverseIdempotencyKey: { type: String },
   confirmedAt: { type: Date, default: null }, confirmedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   cancelledAt: { type: Date, default: null }, cancelledBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   cancellationReason: { type: String, default: null },
@@ -88,7 +88,21 @@ schema.index({ patientId: 1, createdAt: -1 });
 schema.index({ sourceType: 1, encounterId: 1 });
 schema.index({ admissionId: 1, createdAt: -1 });
 schema.index({ procedureId: 1, createdAt: -1 });
-schema.index({ confirmIdempotencyKey: 1 }, { unique: true, sparse: true });
-schema.index({ reverseIdempotencyKey: 1 }, { unique: true, sparse: true });
+schema.index(
+  { confirmIdempotencyKey: 1 },
+  {
+    name: 'confirmIdempotencyKey_unique_string',
+    unique: true,
+    partialFilterExpression: { confirmIdempotencyKey: { $type: 'string' } },
+  },
+);
+schema.index(
+  { reverseIdempotencyKey: 1 },
+  {
+    name: 'reverseIdempotencyKey_unique_string',
+    unique: true,
+    partialFilterExpression: { reverseIdempotencyKey: { $type: 'string' } },
+  },
+);
 
 export const PharmacyDispensingModel = mongoose.model<PharmacyDispensingFields>('PharmacyDispensing', schema);

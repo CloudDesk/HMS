@@ -433,7 +433,7 @@ export function PharmacyMedicineInventoryPage() {
             <label className="form-field"><span>Unit Price <span className="required">*</span></span><input {...batchForm.register('unit_price', { valueAsNumber: true })} min={0} step={0.01} type="number" />{batchForm.formState.errors.unit_price ? <small className="field-error">{batchForm.formState.errors.unit_price.message}</small> : null}</label>
             <label className="form-field"><span>Opening Quantity <span className="required">*</span></span><input {...batchForm.register('opening_quantity', { valueAsNumber: true })} min={0} type="number" />{batchForm.formState.errors.opening_quantity ? <small className="field-error">{batchForm.formState.errors.opening_quantity.message}</small> : null}</label>
             <label className="form-field"><span>Barcode</span><input {...batchForm.register('barcode')} placeholder="Optional scan" /></label>
-            <label className="form-field"><span>Reason</span><input {...batchForm.register('reason')} placeholder="e.g. Supplier invoice 123" /></label>
+            <label className="form-field"><span>Source</span><input {...batchForm.register('reason')} placeholder="e.g. Supplier invoice 123" /></label>
           </div>
         </form>
       </Modal>

@@ -81,8 +81,8 @@ const invoiceSchema = new Schema<BillingInvoiceFields>(
     procedureId: { type: Schema.Types.ObjectId, default: null },
     appointmentId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
-    contextType: { type: String, enum: ['ADMISSION_REQUEST', 'PROCEDURE_BOOKING'], default: null },
-    contextId: { type: Schema.Types.ObjectId, default: null },
+    contextType: { type: String, enum: ['ADMISSION_REQUEST', 'PROCEDURE_BOOKING'] },
+    contextId: { type: Schema.Types.ObjectId },
     invoiceDate: { type: Date, required: true },
     status: {
       type: String,
@@ -108,7 +108,14 @@ invoiceSchema.index({ admissionId: 1 });
 invoiceSchema.index({ procedureId: 1 });
 invoiceSchema.index({ status: 1, createdAt: -1 });
 invoiceSchema.index({ branchId: 1, invoiceDate: -1, status: 1 });
-invoiceSchema.index({ contextType: 1, contextId: 1 }, { unique: true, partialFilterExpression: { contextId: { $type: 'objectId' } } });
+invoiceSchema.index(
+  { contextType: 1, contextId: 1 },
+  {
+    name: 'contextType_contextId_unique_objectId',
+    unique: true,
+    partialFilterExpression: { contextId: { $type: 'objectId' } },
+  },
+);
 
 const invoiceItemSchema = new Schema<BillingInvoiceItemFields>(
   {

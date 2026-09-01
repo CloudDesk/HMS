@@ -5,6 +5,7 @@ import {
   type OpdConsultationResponse,
   type OpdPrescriptionResponse,
   type SaveOpdConsultationPayload,
+  type SaveOpdPrescriptionPayload,
 } from '../api/opd';
 import type { PatientDocumentResponse } from '../api/patients';
 import type { ServiceResponse } from '../api/services';
@@ -578,6 +579,68 @@ export function OpdVisitPage() {
     }
   };
 
+  const handleNextStep = (nextTab: string) => {
+    void saveConsultationDraft();
+    setActiveTab(nextTab);
+    if (visit?.id) {
+      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(nextTab)}`, { replace: true });
+    }
+    requestAnimationFrame(() => {
+      const scrollContainer = document.querySelector('.main-content');
+      if (scrollContainer) {
+        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  };
+
+  const handleSendToPharmacy = async () => {
+    if (!visit) return;
+    if (prescriptionForm.items.length === 0) {
+      showToast('Add at least one medication before sending to pharmacy.', 'error');
+      return;
+    }
+    setUpdating('prescription-submit');
+    try {
+      const consultationPayload: SaveOpdConsultationPayload = {
+        allergies: consultationForm.allergies.trim() || null,
+        assessment: consultationForm.assessment.trim() || null,
+        chief_complaint: consultationForm.chief_complaint.trim() || null,
+        doctor_notes: consultationForm.doctor_notes.trim() || null,
+        family_history: consultationForm.family_history.trim() || null,
+        history_present_illness: consultationForm.history_present_illness.trim() || null,
+        past_history: consultationForm.past_history.trim() || null,
+        physical_examination: consultationForm.physical_examination.trim() || null,
+        treatment_plan: consultationForm.treatment_plan.trim() || null,
+      };
+      await feature.actions.saveWorkspaceDraft({ consultation: consultationPayload });
+
+      const prescriptionPayload: SaveOpdPrescriptionPayload = {
+        items: prescriptionForm.items.map((i) => ({
+          medicine_name: i.medicine_name,
+          strength: i.strength || null,
+          dosage: i.dosage,
+          route: i.route || 'ORAL',
+          frequency: i.frequency,
+          duration: i.duration,
+          quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+          intake_time: null,
+          instructions: i.instructions || null,
+        })),
+        follow_up_date: prescriptionForm.follow_up_date || null,
+        doctor_instructions: prescriptionForm.doctor_instructions || null,
+        patient_instructions: prescriptionForm.patient_instructions || null,
+      };
+      await feature.actions.submitPrescription({ visitId: visit.id, payload: prescriptionPayload });
+      showToast('Prescription sent to pharmacy successfully.');
+    } catch (error) {
+      showToast(getOpdErrorMessage(error), 'error');
+    } finally {
+      setUpdating('');
+    }
+  };
+
   const completeConsultation = async () => {
     if (!visit) return;
     setUpdating('consultation-complete');
@@ -1055,11 +1118,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        onClick={() => {
-                          saveConsultationDraft();
-                          setActiveTab('Diagnosis');
-                          navigate(`/opd/consultation?id=${visit.id}&tab=Diagnosis`, { replace: true });
-                        }}
+                        onClick={() => handleNextStep('Diagnosis')}
                         type="button"
                       >
                         Next: Diagnosis
@@ -1233,11 +1292,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        onClick={() => {
-                          saveConsultationDraft();
-                          setActiveTab('Prescription');
-                          navigate(`/opd/consultation?id=${visit.id}&tab=Prescription`, { replace: true });
-                        }}
+                        onClick={() => handleNextStep('Prescription')}
                         type="button"
                       >
                         Next: Prescription
@@ -1548,11 +1603,25 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        onClick={() => {
-                          saveConsultationDraft();
-                          setActiveTab('Lab Orders');
-                          navigate(`/opd/consultation?id=${visit.id}&tab=Lab Orders`, { replace: true });
-                        }}
+                        disabled={updating === 'prescription-submit'}
+                        onClick={() => void handleSendToPharmacy()}
+                        type="button"
+                      >
+                        {updating === 'prescription-submit' ? (
+                          <>
+                            <MedicalSpinner size="sm" />
+                            <span>Sending...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+                            Send To Pharmacy
+                          </>
+                        )}
+                      </button>
+                      <button
+                        className="doc-btn"
+                        onClick={() => handleNextStep('Lab Orders')}
                         type="button"
                       >
                         Next: Lab Orders
@@ -1768,11 +1837,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        onClick={() => {
-                          saveConsultationDraft();
-                          setActiveTab('Imaging Orders');
-                          navigate(`/opd/consultation?id=${visit.id}&tab=Imaging Orders`, { replace: true });
-                        }}
+                        onClick={() => handleNextStep('Imaging Orders')}
                         type="button"
                       >
                         Next: Imaging Orders
@@ -1967,11 +2032,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        onClick={() => {
-                          saveConsultationDraft();
-                          setActiveTab('Referral');
-                          navigate(`/opd/consultation?id=${visit.id}&tab=Referral`, { replace: true });
-                        }}
+                        onClick={() => handleNextStep('Referral')}
                         type="button"
                       >
                         Next: Referral
@@ -2073,11 +2134,7 @@ export function OpdVisitPage() {
                       </button>
                       <button
                         className="doc-btn primary"
-                        onClick={() => {
-                          saveConsultationDraft();
-                          setActiveTab('Follow-up');
-                          navigate(`/opd/consultation?id=${visit.id}&tab=Follow-up`, { replace: true });
-                        }}
+                        onClick={() => handleNextStep('Follow-up')}
                         type="button"
                       >
                         Next: Follow-up
@@ -2183,7 +2240,7 @@ export function OpdVisitPage() {
                       <button className="doc-btn" onClick={saveConsultationDraft} type="button">
                         Save Notes Draft
                       </button>
-                      <button className="doc-btn primary" onClick={() => setActiveTab('Documents')} type="button">
+                      <button className="doc-btn primary" onClick={() => handleNextStep('Documents')} type="button">
                         Next: Documents
                         <i className="ph ph-arrow-right" aria-hidden="true" />
                       </button>

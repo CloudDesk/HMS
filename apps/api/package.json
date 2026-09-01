@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "node --watch --env-file=.env.dev --import tsx src/server.ts",
     "build": "tsc -p tsconfig.json",
+    "migrate:billing-context-index": "node --import tsx src/scripts/migrate-billing-context-index.ts",
+    "migrate:clinical-context-visit-indexes": "node --import tsx src/scripts/migrate-clinical-context-visit-indexes.ts",
+    "migrate:pharmacy-dispensing-idempotency": "node --import tsx src/scripts/migrate-pharmacy-dispensing-idempotency.ts",
     "start": "node --env-file=.env.prod dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",

@@ -265,7 +265,7 @@ export function AppRouter() {
     title = 'Medicine Master';
     breadcrumbs = ['Home', 'Administration', 'Medicine Master'];
     content = <MedicineMasterPage />;
-  } else if (pathname === '/pharmacy' || pathname === '/pharmacy/queue') {
+  } else if (pathname === '/pharmacy' || pathname === '/pharmacy/queue' || pathname === '/pharmacy/orders') {
     title = 'Prescription Queue';
     breadcrumbs = ['Home', 'Pharmacy', 'Prescription Queue'];
     content = <PrescriptionQueuePage />;

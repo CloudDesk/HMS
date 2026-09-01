@@ -112,9 +112,9 @@ export function DiagnosticQueue({
             {isError ? <tr><td colSpan={columnCount} className="um-state-cell"><i className="ph ph-warning" /> Unable to load orders. Retry from this page.</td></tr> : null}
             {!isLoading && !isError && orders.length === 0 ? <tr><td colSpan={columnCount} className="um-state-cell"><i className="ph ph-inbox" /> No submitted orders match these filters.</td></tr> : null}
             {orders.map((order) => <tr key={order.id}>
-              <td><div className="user-cell-info"><strong>{order.patient_name}</strong><span className="muted-cell">{order.patient_number}</span></div></td>
-              <td><span className="status-badge">{sourceLabel(order.source_type)}</span><span className="muted-cell">{order.encounter_id?.slice(-8).toUpperCase() ?? 'No encounter'}</span></td>
-              <td><strong>{order.items.length}</strong><span className="muted-cell">{order.items.map((item) => item.service_name).join(', ')}</span></td>
+              <td><div className="user-cell-info"><strong>{order.patient_name}</strong></div></td>
+              <td><span className="status-badge">{sourceLabel(order.source_type)}</span></td>
+              <td><span className="service-text">{order.items.map((item) => item.service_name).join(', ')}</span></td>
               <td>{order.doctor_name}</td><td>{dateTime(order.submitted_at)}</td>
               <td><span className={`diagnostic-priority priority-${order.priority.toLowerCase()}`}>{order.priority}</span></td>
               <td><span className={`diagnostic-status status-${order.status.toLowerCase().replaceAll('_', '-')}`}>{label(order.status)}</span></td>

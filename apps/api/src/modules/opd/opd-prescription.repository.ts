@@ -172,6 +172,9 @@ export class OpdPrescriptionRepository {
     userId: string,
     session: ClientSession,
   ) {
+    const visitContext = context.source_type === 'OPD_VISIT'
+      ? { visitId: objectId(context.source_id) }
+      : {};
     const record = await OpdPrescriptionModel.findOneAndUpdate(
       { sourceType: context.source_type, sourceId: objectId(context.source_id), deletedAt: null },
       { $set: {
@@ -181,7 +184,7 @@ export class OpdPrescriptionRepository {
         admissionId: context.admission_id ? objectId(context.admission_id) : null,
         procedureId: context.procedure_id ? objectId(context.procedure_id) : null,
       }, $setOnInsert: {
-        sourceType: context.source_type, sourceId: objectId(context.source_id), visitId: context.source_type === 'OPD_VISIT' ? objectId(context.source_id) : null,
+        sourceType: context.source_type, sourceId: objectId(context.source_id), ...visitContext,
         consultationId: null, branchId: objectId(context.branch_id), patientId: objectId(context.patient_id),
         patientNumber: context.patient_number, patientName: context.patient_name, doctorId: objectId(context.doctor_id),
         doctorName: context.doctor_name, createdBy: objectId(userId),

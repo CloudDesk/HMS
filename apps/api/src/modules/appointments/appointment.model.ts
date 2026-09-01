@@ -86,5 +86,9 @@ appointmentSchema.index({ branchId: 1, departmentId: 1, utcDateTime: 1, appointm
 appointmentSchema.index({ patientNumber: 1 });
 appointmentSchema.index({ patientName: 1 });
 appointmentSchema.index({ doctorName: 1 });
+appointmentSchema.index(
+  { activeSlotKey: 1 },
+  { unique: true, partialFilterExpression: { activeSlotKey: { $type: 'string' } } },
+);
 
 export const AppointmentModel = mongoose.model<AppointmentFields>('Appointment', appointmentSchema);

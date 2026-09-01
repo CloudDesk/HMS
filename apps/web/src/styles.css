@@ -695,12 +695,12 @@ p {
   top: 0;
   z-index: 80;
   min-height: var(--header-height);
-  height: var(--header-height);
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0 2rem;
+  padding: 0.75rem 2rem;
   border-bottom: 1px solid var(--border);
   background: #ffffff;
 }
@@ -3190,6 +3190,7 @@ p {
 .opd-page {
   display: grid;
   gap: 1rem;
+  padding: 1.25rem 1.75rem;
 }
 
 .opd-page-header {
@@ -3215,6 +3216,7 @@ p {
 .opd-page-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.65rem;
 }
@@ -5154,6 +5156,7 @@ p {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0.4rem 0.65rem;
+  min-height: 38px;
   background: #ffffff;
   color: #0f172a;
   font-size: 0.82rem;

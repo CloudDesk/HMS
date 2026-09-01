@@ -67,7 +67,7 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
     encounterId: { type: Schema.Types.ObjectId, default: null },
     admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
     procedureId: { type: Schema.Types.ObjectId, ref: 'ProcedureBooking', default: null },
-    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
+    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit' },
     consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', default: null },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     patientNumber: { type: String, required: true },
@@ -114,7 +114,11 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
 
 opdClinicalOrderSchema.index(
   { visitId: 1, orderType: 1 },
-  { unique: true, partialFilterExpression: { visitId: { $type: 'objectId' } } },
+  {
+    name: 'visitId_orderType_unique_objectId',
+    unique: true,
+    partialFilterExpression: { visitId: { $type: 'objectId' } },
+  },
 );
 opdClinicalOrderSchema.index(
   { sourceType: 1, sourceId: 1, orderType: 1 },

@@ -2,13 +2,17 @@ import { z } from 'zod';
 import { AppError } from '../../shared/errors/app-error.js';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Object id is invalid');
+const optionalObjectId = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : val),
+  objectId.optional(),
+);
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use YYYY-MM-DD');
 const listSchema = z.object({
   search: z.string().trim().max(100).optional(),
   status: z.enum(['SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'RESULT_ENTERED', 'VERIFIED', 'COMPLETED']).optional(),
   priority: z.enum(['ROUTINE', 'URGENT', 'STAT']).optional(),
   date_from: dateOnly.optional(), date_to: dateOnly.optional(),
-  patient_id: objectId.optional(), doctor_id: objectId.optional(), branch_id: objectId.optional(),
+  patient_id: optionalObjectId, doctor_id: optionalObjectId, branch_id: optionalObjectId,
   page: z.coerce.number().int().min(1).optional(), limit: z.coerce.number().int().min(1).max(100).optional(),
 }).strict().refine((data) => !data.date_from || !data.date_to || data.date_from <= data.date_to, {
   message: 'date_from must be on or before date_to', path: ['date_from'],

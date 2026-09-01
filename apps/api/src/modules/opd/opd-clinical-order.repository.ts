@@ -47,34 +47,34 @@ const nullableString = (value: string | null | undefined) => {
 
 const toItem = (item: ClinicalOrderItemFields) => ({
   id: item._id.toString(),
-  service_id: item.serviceId.toString(),
-  service_name: item.serviceName,
-  investigation_name: item.investigationName,
-  category: item.category,
+  service_id: item.serviceId?.toString() ?? item._id.toString(),
+  service_name: item.serviceName ?? '',
+  investigation_name: item.investigationName ?? '',
+  category: item.category ?? '',
 });
 
 export const toClinicalOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder => ({
   id: record._id.toString(),
   originating_order_id: record._id.toString(),
-  source_type: record.sourceType,
+  source_type: record.sourceType ?? 'OPD_VISIT',
   encounter_id: record.encounterId?.toString() ?? record.visitId?.toString() ?? null,
   admission_id: record.admissionId?.toString() ?? null,
   procedure_id: record.procedureId?.toString() ?? null,
-  source_id: record.sourceId.toString(),
+  source_id: record.sourceId?.toString() ?? record.visitId?.toString() ?? record._id.toString(),
   visit_id: record.visitId?.toString() ?? null,
   consultation_id: record.consultationId?.toString() ?? null,
-  patient_id: record.patientId.toString(),
-  patient_number: record.patientNumber,
-  patient_name: record.patientName,
-  doctor_id: record.doctorId.toString(),
-  doctor_name: record.doctorName,
-  branch_id: record.branchId.toString(),
+  patient_id: record.patientId?.toString() ?? '',
+  patient_number: record.patientNumber ?? '',
+  patient_name: record.patientName ?? '',
+  doctor_id: record.doctorId?.toString() ?? '',
+  doctor_name: record.doctorName ?? '',
+  branch_id: record.branchId?.toString() ?? '',
   order_type: record.orderType,
   status: record.status,
   priority: record.priority,
   destination: record.destination ?? null,
   specimen_type: record.specimenType ?? null,
-  items: record.items.map(toItem),
+  items: (record.items ?? []).map(toItem),
   clinical_notes: record.clinicalNotes ?? null,
   instructions: record.instructions ?? null,
   submitted_at: record.submittedAt ?? null,
@@ -185,6 +185,9 @@ export class OpdClinicalOrderRepository {
     userId: string,
     session: ClientSession,
   ) {
+    const visitContext = context.source_type === 'OPD_VISIT'
+      ? { visitId: objectId(context.source_id) }
+      : {};
     const record = await OpdClinicalOrderModel.findOneAndUpdate(
       { sourceType: context.source_type, sourceId: objectId(context.source_id), orderType, deletedAt: null },
       { $set: {
@@ -197,7 +200,7 @@ export class OpdClinicalOrderRepository {
         procedureId: context.procedure_id ? objectId(context.procedure_id) : null,
       }, $setOnInsert: {
         sourceType: context.source_type, sourceId: objectId(context.source_id),
-        visitId: context.source_type === 'OPD_VISIT' ? objectId(context.source_id) : null, consultationId: null,
+        ...visitContext, consultationId: null,
         patientId: objectId(context.patient_id), patientNumber: context.patient_number, patientName: context.patient_name,
         doctorId: objectId(context.doctor_id), doctorName: context.doctor_name, branchId: objectId(context.branch_id),
         orderType, createdBy: objectId(userId),

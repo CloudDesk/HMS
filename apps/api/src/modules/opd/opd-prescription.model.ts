@@ -70,7 +70,7 @@ const opdPrescriptionSchema = new Schema<OpdPrescriptionFields>(
     encounterId: { type: Schema.Types.ObjectId, default: null },
     admissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
     procedureId: { type: Schema.Types.ObjectId, ref: 'ProcedureBooking', default: null },
-    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', default: null },
+    visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit' },
     consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', default: null },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
@@ -99,7 +99,11 @@ const opdPrescriptionSchema = new Schema<OpdPrescriptionFields>(
 
 opdPrescriptionSchema.index(
   { visitId: 1 },
-  { unique: true, partialFilterExpression: { visitId: { $type: 'objectId' } } },
+  {
+    name: 'visitId_unique_objectId',
+    unique: true,
+    partialFilterExpression: { visitId: { $type: 'objectId' } },
+  },
 );
 opdPrescriptionSchema.index(
   { sourceType: 1, sourceId: 1 },

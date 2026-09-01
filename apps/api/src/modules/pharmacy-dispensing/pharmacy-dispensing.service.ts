@@ -2,7 +2,7 @@ import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { createBillingNumber } from '../billing/billing-number.js';
 import type { BillingSourceType } from '../billing/billing.types.js';
-import type { PharmacyDispensingItemFields } from './pharmacy-dispensing.model.js';
+import type { PharmacyDispensingFields, PharmacyDispensingItemFields } from './pharmacy-dispensing.model.js';
 import type { PharmacyDispensingRepository } from './pharmacy-dispensing.repository.js';
 import type { PharmacyDispensingListQuery, PharmacyRequestMetadata, SavePharmacyDispensingDTO } from './pharmacy-dispensing.types.js';
 
@@ -27,6 +27,59 @@ const isResolvedDispensingItem = (item: PharmacyDispensingItemFields): item is R
   item.confirmedQuantity != null &&
   Number.isInteger(item.confirmedQuantity) &&
   item.confirmedQuantity > 0;
+
+const isDuplicateDispensingConfirmation = (error: unknown, key: string) => {
+  if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== 11000) {
+    return false;
+  }
+  if (!('keyPattern' in error) || typeof error.keyPattern !== 'object' || error.keyPattern === null) {
+    return false;
+  }
+  if (!('keyValue' in error) || typeof error.keyValue !== 'object' || error.keyValue === null) {
+    return false;
+  }
+  return (
+    (
+      'confirmIdempotencyKey' in error.keyPattern &&
+      'confirmIdempotencyKey' in error.keyValue &&
+      error.keyValue.confirmIdempotencyKey === key
+    ) ||
+    (
+      'idempotencyKey' in error.keyPattern &&
+      'idempotencyKey' in error.keyValue &&
+      error.keyValue.idempotencyKey === key
+    )
+  );
+};
+
+export function assertDispensingCanBeConfirmed<T extends Pick<PharmacyDispensingFields, 'status'>>(
+  dispensing: T | null,
+): asserts dispensing is T {
+  if (!dispensing) {
+    throw new AppError('Dispensing record not found', 404, 'DISPENSING_NOT_FOUND');
+  }
+  if (dispensing.status === 'CONFIRMED') {
+    throw new AppError(
+      'This prescription has already been dispensed.',
+      409,
+      'PRESCRIPTION_ALREADY_DISPENSED',
+    );
+  }
+  if (dispensing.status === 'CANCELLED') {
+    throw new AppError(
+      'Dispensing for this prescription has been cancelled.',
+      409,
+      'DISPENSING_CANCELLED',
+    );
+  }
+  if (dispensing.status === 'REVERSED') {
+    throw new AppError(
+      'Dispensing for this prescription has already been reversed.',
+      409,
+      'DISPENSING_REVERSED',
+    );
+  }
+}
 
 export class PharmacyDispensingService {
   constructor(private readonly repository: PharmacyDispensingRepository) {}
@@ -111,7 +164,7 @@ export class PharmacyDispensingService {
         if (prescription.sourceType === 'PROCEDURE_BOOKING' && (!prescription.procedureId || !prescription.encounterId || !await this.repository.hasActiveProcedureContext(prescription.procedureId.toString(), prescription.patientId.toString(), prescription.branchId.toString(), prescription.encounterId.toString(), session))) throw new AppError('Procedure booking is no longer active for dispensing', 409, 'PROCEDURE_CONTEXT_NOT_ACTIVE');
         if (prescription.sourceType === 'PROCEDURE_BOOKING' && (!billingVisit || billingVisit.patientId.toString() !== prescription.patientId.toString() || billingVisit.branchId.toString() !== prescription.branchId.toString())) throw new AppError('Procedure billing encounter context is invalid', 409, 'PROCEDURE_BILLING_CONTEXT_INVALID');
         const dispensing = await this.repository.getRawByPrescription(prescriptionId, session);
-        if (!dispensing || dispensing.status !== 'DRAFT') throw new AppError('Dispensing is not confirmable', 409, 'INVALID_STATE_TRANSITION');
+        assertDispensingCanBeConfirmed(dispensing);
         if (dispensing.version !== version) throw new AppError('Dispensing changed; refresh and retry', 409, 'STALE_VERSION');
         const dispensingItemIds = new Set(dispensing.items.map((item) => item.prescriptionItemId.toString()));
         if (dispensing.items.length !== prescription.items.length || dispensing.items.length === 0 || dispensingItemIds.size !== dispensing.items.length) {
@@ -149,6 +202,15 @@ export class PharmacyDispensingService {
         await this.repository.audit('pharmacy.dispensing.confirmed', actor, metadata, { dispensingId: dispensing._id.toString(), prescriptionId, invoiceId: invoice.id, stockItemCount: dispensing.items.length }, session);
         return this.repository.getByPrescription(prescriptionId, session);
       });
+    } catch (error) {
+      if (isDuplicateDispensingConfirmation(error, key)) {
+        throw new AppError(
+          'This dispensing confirmation request has already been processed.',
+          409,
+          'DISPENSING_CONFIRMATION_IDEMPOTENCY_CONFLICT',
+        );
+      }
+      throw error;
     } finally { await session.endSession(); }
   }
 

@@ -199,53 +199,69 @@ export class PharmacyDispensingRepository {
 
   async listPrescriptions(query: PharmacyDispensingListQuery) {
     const page = query.page ?? 1; const limit = query.limit ?? 20;
-const visits = await OpdVisitModel.find({
-  branchId: objectId(query.branch_id),
-  deletedAt: null,
-})
-  .select('_id branchId visitType')
-  .lean<VisitSourceRecord[]>();
 
-const visitById = new Map(
-  visits.map((visit) => [visit._id.toString(), visit]),
-);
+    const branchObjectId = objectId(query.branch_id);
 
-const filter: Record<string, unknown> = {
-  $or: [
-    { branchId: objectId(query.branch_id) },
-    { visitId: { $in: visits.map((visit) => visit._id) } },
-  ],
-  deletedAt: null,
-};
+    const visits = await OpdVisitModel.find({
+      branchId: branchObjectId,
+      deletedAt: null,
+    })
+      .select('_id branchId visitType')
+      .lean<VisitSourceRecord[]>();
 
-if (query.status === 'PENDING') {
-  filter.status = 'SUBMITTED';
-} else if (
-  query.status === 'CONFIRMED' ||
-  query.status === 'REVERSED'
-) {
-  const dispensingRecords = await PharmacyDispensingModel.find({
-    branchId: objectId(query.branch_id),
-    status: query.status,
-  })
-    .select('prescriptionId')
-    .lean<Array<{ prescriptionId: Types.ObjectId }>>();
+    const visitById = new Map(
+      visits.map((visit) => [visit._id.toString(), visit]),
+    );
 
-  filter._id = {
-    $in: dispensingRecords.map((record) => record.prescriptionId),
-  };
-  filter.status = query.status === 'CONFIRMED' ? 'DISPENSED' : 'SUBMITTED';
-} else if (query.status === 'CANCELLED') {
-  filter.status = 'CANCELLED';
-} else {
-  filter.status = {
-    $in: ['SUBMITTED', 'DISPENSED', 'CANCELLED'],
-  };
-}
-    if (query.search) filter.$or = [
-      { patientName: new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
-      { patientNumber: new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') },
-    ];
+    const branchFilter = {
+      $or: [
+        { branchId: branchObjectId },
+        { visitId: { $in: visits.map((visit) => visit._id) } },
+      ],
+    };
+
+    const andClauses: Record<string, unknown>[] = [branchFilter];
+
+    if (query.search) {
+      const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      andClauses.push({
+        $or: [
+          { patientName: new RegExp(escaped, 'i') },
+          { patientNumber: new RegExp(escaped, 'i') },
+        ],
+      });
+    }
+
+    const filter: Record<string, unknown> = {
+      deletedAt: null,
+      $and: andClauses,
+    };
+
+    if (query.status === 'PENDING') {
+      filter.status = 'SUBMITTED';
+    } else if (
+      query.status === 'CONFIRMED' ||
+      query.status === 'REVERSED'
+    ) {
+      const dispensingRecords = await PharmacyDispensingModel.find({
+        branchId: branchObjectId,
+        status: query.status,
+      })
+        .select('prescriptionId')
+        .lean<Array<{ prescriptionId: Types.ObjectId }>>();
+
+      filter._id = {
+        $in: dispensingRecords.map((record) => record.prescriptionId),
+      };
+      filter.status = query.status === 'CONFIRMED' ? 'DISPENSED' : 'SUBMITTED';
+    } else if (query.status === 'CANCELLED') {
+      filter.status = 'CANCELLED';
+    } else {
+      filter.status = {
+        $in: ['SUBMITTED', 'DISPENSED', 'CANCELLED'],
+      };
+    }
+
     const [prescriptions, total] = await Promise.all([
       OpdPrescriptionModel.find(filter).sort({ submittedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean<PrescriptionRecord[]>(),
       OpdPrescriptionModel.countDocuments(filter),
@@ -257,7 +273,7 @@ if (query.status === 'PENDING') {
     const mapped = prescriptions.map((prescription) => {
       const dispensing = byPrescription.get(prescription._id.toString());
       const visit = prescription.visitId ? visitById.get(prescription.visitId.toString()) : null;
-      const ctx = visit ?? { _id: prescription.sourceId, branchId: objectId(query.branch_id) };
+      const ctx = visit ?? { _id: prescription.sourceId ?? prescription._id, branchId: branchObjectId };
       if (!ctx) return null;
       return dispensing ? this.toDispensing(
         dispensing,
@@ -266,9 +282,9 @@ if (query.status === 'PENDING') {
         dispensing.invoiceId ? invoiceNumbers.get(dispensing.invoiceId.toString()) ?? null : null,
       ) : {
         id: '', prescription_id: prescription._id.toString(), patient_id: prescription.patientId.toString(),
-        source_type: prescription.sourceType, encounter_id: prescription.encounterId?.toString() ?? null, admission_id: prescription.admissionId?.toString() ?? null, procedure_id: prescription.procedureId?.toString() ?? null,
+        source_type: prescription.sourceType ?? 'OPD_VISIT', encounter_id: prescription.encounterId?.toString() ?? null, admission_id: prescription.admissionId?.toString() ?? null, procedure_id: prescription.procedureId?.toString() ?? null,
         patient_number: prescription.patientNumber, patient_name: prescription.patientName, doctor_name: prescription.doctorName,
-        visit_id: prescription.visitId?.toString() ?? prescription.sourceId.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null, invoice_number: null,
+        visit_id: prescription.visitId?.toString() ?? prescription.sourceId?.toString() ?? prescription._id.toString(), branch_id: query.branch_id, status: 'DRAFT' as const, version: 0, items: [], invoice_id: null, invoice_number: null,
         submitted_at: prescription.submittedAt ?? null, confirmed_at: null, cancelled_at: null, reversed_at: null, reversal_reason: null,
         created_at: prescription.createdAt, updated_at: prescription.updatedAt,
       };
