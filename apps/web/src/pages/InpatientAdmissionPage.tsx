@@ -572,7 +572,7 @@ export function InpatientAdmissionPage() {
         </div>
       </Modal>
 
-      <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Link Admission Consent">
+      <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Link Admission Consent" layer="top">
         <form className="modal-form-grid" onSubmit={uploadConsent}>
           <label className="span-2">Document Title <span className="required-asterisk">*</span><input {...consentForm.register('title')} /></label>
           <label>Signer / Guardian <span className="required-asterisk">*</span><input {...consentForm.register('signed_by_name')} /></label>

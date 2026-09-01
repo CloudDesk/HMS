@@ -147,8 +147,9 @@ export function BedManagementPage() {
           ))}
         </select>
         {permissions.canViewPolicy && <button className="btn-secondary" type="button" onClick={() => setModal('policy')}><i className="ph ph-sliders-horizontal" /> Policy</button>}
-        {permissions.canCreateWard && <button className="btn-secondary" type="button" onClick={() => setModal('ward')}><i className="ph ph-buildings" /> Add Ward</button>}
-        {permissions.canCreateBed && <button className="btn-primary" type="button" onClick={() => setModal('bed')}><i className="ph ph-bed" /> Add Bed</button>}
+        {/* Temporarily hidden from rendered UI per requirements */}
+        {/* {permissions.canCreateWard && <button className="btn-secondary" type="button" onClick={() => setModal('ward')}><i className="ph ph-buildings" /> Add Ward</button>} */}
+        {/* {permissions.canCreateBed && <button className="btn-primary" type="button" onClick={() => setModal('bed')}><i className="ph ph-bed" /> Add Bed</button>} */}
       </div>
     </header>
 

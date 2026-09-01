@@ -1495,7 +1495,6 @@ export function OpdVisitPage() {
                         </div>
                       )}
                     </div>
-
                     <div className="doc-form-grid three" style={{ gap: '0.75rem', marginBottom: '0.75rem' }}>
                       <label className="doc-field" htmlFor="medicine-search-sel">
                         <span>Medicine Search</span>
@@ -1548,9 +1547,7 @@ export function OpdVisitPage() {
                           <option value="Rectal">Rectal</option>
                         </select>
                       </label>
-                    </div>
 
-                    <div className="doc-form-grid four" style={{ gap: '0.75rem', alignItems: 'flex-end', marginBottom: '1.25rem' }}>
                       <label className="doc-field" htmlFor="medicine-frequency">
                         <span>Frequency</span>
                         <select
@@ -1570,12 +1567,25 @@ export function OpdVisitPage() {
                           <option value="HS">HS (At bedtime)</option>
                         </select>
                       </label>
+
                       <label className="doc-field" htmlFor="medicine-duration">
                         <span>Duration</span>
                         <select
                           id="medicine-duration"
-                          onChange={(e) => setMedicationForm((m) => ({ ...m, duration: e.target.value }))}
-                          value={medicationForm.duration || '5 Days'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setMedicationForm((m) => ({
+                              ...m,
+                              duration: val === 'Custom' ? '' : val,
+                            }));
+                          }}
+                          value={
+                            ['3 Days', '5 Days', '7 Days', '10 Days', '14 Days', '30 Days', 'Ongoing'].includes(medicationForm.duration)
+                              ? medicationForm.duration
+                              : medicationForm.duration === ''
+                                ? 'Custom'
+                                : 'Custom'
+                          }
                         >
                           <option value="3 Days">3 Days</option>
                           <option value="5 Days">5 Days</option>
@@ -1584,8 +1594,10 @@ export function OpdVisitPage() {
                           <option value="14 Days">14 Days</option>
                           <option value="30 Days">30 Days</option>
                           <option value="Ongoing">Ongoing / Chronic</option>
+                          <option value="Custom">Custom</option>
                         </select>
                       </label>
+
                       <label className="doc-field" htmlFor="medicine-instructions">
                         <span>Instructions</span>
                         <input
@@ -1595,11 +1607,35 @@ export function OpdVisitPage() {
                           value={medicationForm.instructions}
                         />
                       </label>
+
+                      {!['3 Days', '5 Days', '7 Days', '10 Days', '14 Days', '30 Days', 'Ongoing'].includes(medicationForm.duration) && (
+                        <>
+                          <div />
+                          <label className="doc-field" htmlFor="custom-duration-input">
+                            <span>Custom Duration <span style={{ color: '#ef4444' }}>*</span></span>
+                            <input
+                              id="custom-duration-input"
+                              onChange={(e) => setMedicationForm((m) => ({ ...m, duration: e.target.value }))}
+                              placeholder="e.g. 21 Days, 6 Weeks, 2 Months"
+                              value={medicationForm.duration}
+                            />
+                          </label>
+                          <div />
+                        </>
+                      )}
+                    </div>
+
+                    <div style={{ marginBottom: '1.25rem' }}>
                       <button
                         className="doc-btn primary"
                         onClick={() => {
                           if (!medicationForm.medicine_name.trim()) {
                             showToast('Select a medicine first.', 'error');
+                            return;
+                          }
+                          const finalDuration = medicationForm.duration.trim();
+                          if (!finalDuration) {
+                            showToast('Specify medication duration or select a custom duration.', 'error');
                             return;
                           }
                           setPrescriptionForm((prev) => ({
@@ -1611,7 +1647,7 @@ export function OpdVisitPage() {
                                 dosage: medicationForm.dosage || '1 tablet',
                                 route: medicationForm.route || 'Oral',
                                 frequency: medicationForm.frequency || 'BD',
-                                duration: medicationForm.duration || '5 Days',
+                                duration: finalDuration,
                                 local_id: `med-${Date.now()}`,
                               },
                             ],

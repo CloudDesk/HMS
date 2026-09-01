@@ -17,6 +17,7 @@ export type Department = {
 export type DepartmentListQuery = {
   search?: string;
   status?: DepartmentStatus;
+  isClinical?: boolean;
   branch_id?: string;
   page?: number;
   limit?: number;

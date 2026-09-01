@@ -66,10 +66,10 @@ export function InpatientWorkspacePage() {
       department_id: selectedAdmission.department_id || undefined,
       recommending_doctor_id: selectedAdmission.admitting_doctor_id || undefined,
       encounter_id:
-        selectedAdmission.admission_source === 'OPD' &&
-        selectedAdmission.source_reference_id &&
-        /^[a-f\d]{24}$/i.test(selectedAdmission.source_reference_id)
-          ? selectedAdmission.source_reference_id
+        selectedAdmission.source_type === 'OPD_VISIT' &&
+        selectedAdmission.source_id &&
+        /^[a-f\d]{24}$/i.test(selectedAdmission.source_id)
+          ? selectedAdmission.source_id
           : undefined,
       clinical_reason: selectedAdmission.reason?.trim() || undefined,
       sourceContext: 'Inpatient Admission',

@@ -48,6 +48,7 @@ export class DepartmentRepository {
     const limit = query.limit ?? 10;
     const filter: Record<string, unknown> = { deletedAt: null };
     if (query.status) filter.status = query.status;
+    if (typeof query.isClinical === 'boolean') filter.isClinical = query.isClinical;
     const andClauses: Record<string, unknown>[] = [];
     if (query.branch_id) {
       const bId = new Types.ObjectId(query.branch_id);

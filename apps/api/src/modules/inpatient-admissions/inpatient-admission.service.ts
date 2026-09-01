@@ -193,8 +193,8 @@ export class InpatientAdmissionService {
         }
 
         // 2. Financial Clearance Validation
-        // Existing billing policy: verify if invoice exists for this context or if there are unpaid charges
-        const invoices = await this.billing.list({ patient_id: admissionRecord.patientId.toString(), branch_id: branchId, page: 1, limit: 100 }, actor);
+        // Existing billing policy: verify if invoice exists for this inpatient admission context or if there are unpaid charges
+        const invoices = await this.billing.list({ admission_id: admissionRecord._id.toString(), branch_id: branchId, page: 1, limit: 100 }, actor, session);
         const activeInvoices = invoices.data.filter((inv) => inv.status !== 'CANCELLED');
         const totalOutstanding = activeInvoices.reduce((acc, inv) => acc + inv.balance_amount, 0);
 
@@ -208,12 +208,8 @@ export class InpatientAdmissionService {
         const discharged = await this.repository.markDischarged(id, branchId, actor, actorName, session);
         if (!discharged) throw new AppError('Admission status changed concurrently before discharge finalization', 409, 'ADMISSION_STATE_CONFLICT');
 
-        // 4. Release Allocated Bed (if allocated)
-        try {
-          await this.beds.releaseAdmissionBed(admissionRecord, false, 'Patient discharged from inpatient care', actor, metadata, session);
-        } catch (bedErr) {
-          // If bed is already released or unallocated, log/continue without failing discharge transaction
-        }
+        // 4. Release Allocated Bed (if allocated) - MUST NOT swallow errors to ensure transaction safety
+        await this.beds.releaseAdmissionBed(admissionRecord, false, 'Patient discharged from inpatient care', actor, metadata, session);
 
         // 5. Patient EHR Timeline & Audit Logging
         await this.patients.addAdmissionTimeline(admissionRecord.patientId.toString(), 'INPATIENT_DISCHARGED', 'Inpatient discharged', `Patient successfully discharged under ${admissionRecord.admissionNumber}. Bed ${discharged.bed_number} released.`, actor, session);

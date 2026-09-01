@@ -19,6 +19,7 @@ export type ReferralBookingItem = {
   priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
   appointment_id: string | null;
   appointment_number: string | null;
+  status: 'DRAFT' | 'SUBMITTED' | 'CANCELLED';
   submitted_at: string | null;
   bookable: boolean;
 };
@@ -38,6 +39,7 @@ const fromOpd = (item: OpdReferralResponse): ReferralBookingItem => ({
   priority: item.priority,
   appointment_id: item.appointment_id,
   appointment_number: item.appointment_number,
+  status: item.status as any,
   submitted_at: item.submitted_at,
   bookable: item.referral_type === 'INTERNAL' && Boolean(item.referred_doctor_id),
 });
@@ -57,6 +59,7 @@ const fromEmergency = (item: EmergencyReferralResponse): ReferralBookingItem => 
   priority: item.priority,
   appointment_id: item.appointment_id,
   appointment_number: item.appointment_number,
+  status: (item as any).status ?? 'SUBMITTED',
   submitted_at: item.submitted_at,
   bookable: Boolean(item.referred_doctor_id && item.patient_id),
 });

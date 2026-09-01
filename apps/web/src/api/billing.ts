@@ -81,6 +81,7 @@ export type BillingReceipt = {
 export type BillingInvoiceListParams = Partial<{
   invoice_number: string;
   patient_id: string;
+  admission_id: string;
   status: BillingInvoiceStatus;
   date_from: string;
   date_to: string;

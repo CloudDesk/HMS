@@ -174,4 +174,81 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
       (err: unknown) => err instanceof Error && 'code' in err && err.code === 'DEPARTMENT_ACCESS_DENIED',
     );
   });
+
+  await t.test('financial clearance blocks discharge when policy requires advance deposit and balance is outstanding', async () => {
+    const ctx = await makeContext();
+    (ctx.service as any).beds = {
+      getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: true }),
+      releaseAdmissionBed: async () => {},
+    };
+    (ctx.service as any).billing = {
+      list: async () => ({ data: [{ id: oid().toString(), status: 'PENDING', balance_amount: 1500 }] }),
+    };
+
+    await ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
+      hemodynamic_stability_24h: true,
+      post_op_recovery_cleared: true,
+      home_oral_med_converted: true,
+      summary_finalized: true,
+    }, ctx.actorId, {});
+
+    await assert.rejects(
+      async () => ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
+      (err: unknown) => err instanceof Error && 'code' in err && err.code === 'FINANCIAL_CLEARANCE_REQUIRED',
+    );
+
+    const check = await ctx.service.get(ctx.admissionId, ctx.branchId, ctx.actorId);
+    assert.equal(check.status, 'ADMITTED');
+  });
+
+  await t.test('unrelated OPD/patient invoice does not block inpatient discharge when inpatient balance is zero', async () => {
+    const ctx = await makeContext();
+    (ctx.service as any).beds = {
+      getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: true }),
+      releaseAdmissionBed: async () => {},
+    };
+    (ctx.service as any).billing = {
+      list: async (query: any) => {
+        // Assert that billing query specifically searches by admission_id
+        assert.equal(query.admission_id, ctx.admissionId);
+        return { data: [] };
+      },
+    };
+
+    await ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
+      hemodynamic_stability_24h: true,
+      post_op_recovery_cleared: true,
+      home_oral_med_converted: true,
+      summary_finalized: true,
+    }, ctx.actorId, {});
+
+    const result = await ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {});
+    assert.equal(result.status, 'DISCHARGED');
+  });
+
+  await t.test('transaction rolls back completely if releaseAdmissionBed fails', async () => {
+    const ctx = await makeContext();
+    (ctx.service as any).beds = {
+      getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: false }),
+      releaseAdmissionBed: async () => {
+        throw new Error('Bed release DB failure');
+      },
+    };
+
+    await ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
+      hemodynamic_stability_24h: true,
+      post_op_recovery_cleared: true,
+      home_oral_med_converted: true,
+      summary_finalized: true,
+    }, ctx.actorId, {});
+
+    await assert.rejects(
+      async () => ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
+      (err: unknown) => err instanceof Error && err.message === 'Bed release DB failure',
+    );
+
+    const reloaded = await ctx.service.get(ctx.admissionId, ctx.branchId, ctx.actorId);
+    assert.equal(reloaded.status, 'ADMITTED');
+    assert.equal(reloaded.discharged_at, null);
+  });
 });

@@ -12,6 +12,7 @@ export const listDepartmentsQuerySchema = {
   properties: {
     search: { type: 'string' },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    isClinical: { type: 'boolean' },
     branch_id: { type: 'string' },
     page: { type: 'integer', minimum: 1 },
     limit: { type: 'integer', minimum: 1, maximum: 100 },

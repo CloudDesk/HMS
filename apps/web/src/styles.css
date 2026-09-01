@@ -1419,6 +1419,10 @@ p {
   padding: 0.75rem;
 }
 
+.modal-overlay.layer-top {
+  z-index: 1100;
+}
+
 .modal-overlay.open {
   display: flex;
   animation: fade-in 0.18s ease;

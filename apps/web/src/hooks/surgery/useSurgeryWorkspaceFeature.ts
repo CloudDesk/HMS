@@ -52,7 +52,7 @@ export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookin
     branchId,
     Boolean(selectedBookingId && selectedBookingStatus && ['PENDING_CONFIRMATION', 'BOOKED'].includes(selectedBookingStatus)),
   );
-  const departments = useDepartmentsList({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
+  const departments = useDepartmentsList({ branch_id: branchId || undefined, status: 'ACTIVE', isClinical: true, page: 1, limit: 100 }, Boolean(branchId));
   const doctors = useDoctorsList({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
   const services = useServicesList({ status: 'ACTIVE', service_type: 'PROCEDURE', page: 1, limit: 100 });
   const patients = usePatientsList({ search: patientSearch, status: 'ACTIVE', page: 1, limit: 20 }, patientSearch.trim().length >= 2);

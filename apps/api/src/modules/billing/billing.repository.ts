@@ -226,13 +226,16 @@ export class BillingRepository {
     return activeBranches.map((branch) => String(branch._id));
   }
 
-  async list(query: BillingInvoiceListQuery, branchIds?: string[]) {
+  async list(query: BillingInvoiceListQuery, branchIds?: string[], session?: import('mongoose').ClientSession) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const match: Record<string, unknown> = { deletedAt: null };
     if (branchIds) match.branchId = { $in: branchIds.map(objectId) };
     if (query.invoice_number) match.invoiceNumber = new RegExp(escapeRegex(query.invoice_number), 'i');
     if (query.patient_id) match.patientId = objectId(query.patient_id);
+    if (query.admission_id) match.admissionId = objectId(query.admission_id);
+    if (query.context_type) match.contextType = query.context_type;
+    if (query.context_id) match.contextId = objectId(query.context_id);
     if (query.status) match.status = query.status;
     if (query.branch_id) match.branchId = objectId(query.branch_id);
     if (query.date_from || query.date_to) {
@@ -253,6 +256,11 @@ export class BillingRepository {
     const sortField = sortMap[query.sortBy ?? 'created_at'];
     const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
 
+    const countQuery = BillingInvoiceModel.countDocuments(match);
+    if (session) countQuery.session(session);
+
+    const aggregateOptions = session ? { session } : {};
+
     const [records, total] = await Promise.all([
       BillingInvoiceModel.aggregate<InvoiceListRow>([
         { $match: match },
@@ -260,8 +268,8 @@ export class BillingRepository {
         { $skip: (page - 1) * limit },
         { $limit: limit },
         ...invoiceLookupStages,
-      ]),
-      BillingInvoiceModel.countDocuments(match),
+      ], aggregateOptions),
+      countQuery,
     ]);
 
     return {

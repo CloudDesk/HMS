@@ -839,6 +839,7 @@ export function AdmissionRequestDetailModal({
         open={confirmAdmissionOpen}
         onClose={() => setConfirmAdmissionOpen(false)}
         title="Confirm Patient Admission?"
+        layer="top"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <p style={{ margin: 0, color: '#334155', fontSize: '0.88rem', lineHeight: 1.5 }}>

@@ -5,6 +5,7 @@ import type {
   InpatientVital,
 } from '../../api/inpatient-admissions';
 import type { ProcedureBooking, ProcedureRecommendation } from '../../api/surgery';
+import { useBillingInvoices } from '../../hooks/billing/useBilling';
 import { Modal } from '../ui/Modal';
 import { toast } from 'sonner';
 
@@ -623,49 +624,71 @@ function DischargePlanningTab({
     }
   }, [admission.discharge_summary]);
 
+  const { data: billingData, isLoading: billingLoading } = useBillingInvoices({
+    admission_id: admission.id,
+    branch_id: admission.branch_id,
+  }, Boolean(admission.id));
+
+  const activeInvoices = (billingData?.data ?? []).filter((inv) => inv.status !== 'CANCELLED');
+  const totalBilled = activeInvoices.reduce((acc, inv) => acc + inv.total_amount, 0);
+  const totalPaid = activeInvoices.reduce((acc, inv) => acc + inv.paid_amount, 0);
+  const totalBalance = activeInvoices.reduce((acc, inv) => acc + inv.balance_amount, 0);
+  const isFinanciallyCleared = activeInvoices.length > 0 ? totalBalance <= 0 : true;
+
   const isDischarged = admission.status === 'DISCHARGED';
 
   const handleSave = async () => {
-    if (!onSaveDischargeSummary) return;
-    setIsSaving(true);
     try {
-      await onSaveDischargeSummary({
-        hemodynamic_stability_24h: hemo,
-        post_op_recovery_cleared: postOp,
-        home_oral_med_converted: homeMed,
-        summary_finalized: docFinal,
-        notes: summaryNotes.trim() || null,
-      });
-      toast.success('Discharge summary saved to patient EHR timeline.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save discharge summary.');
+      setIsSaving(true);
+      if (onSaveDischargeSummary) {
+        await onSaveDischargeSummary({
+          hemodynamic_stability_24h: hemo,
+          post_op_recovery_cleared: postOp,
+          home_oral_med_converted: homeMed,
+          summary_finalized: docFinal,
+          notes: summaryNotes,
+        });
+      }
+      toast.success('Discharge readiness checklist and summary saved');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save discharge summary');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleFinalize = async () => {
-    if (!onFinalizeDischarge) return;
     try {
-      await onFinalizeDischarge();
+      if (onFinalizeDischarge) {
+        await onFinalizeDischarge();
+      }
       toast.success('Patient discharged successfully. Bed released.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Discharge finalization failed.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to finalize patient discharge');
     }
   };
 
   const clinicalReady = hemo && postOp && homeMed;
   const docFinalized = docFinal;
-  const canFinalize = clinicalReady && docFinalized && !isDischarged;
+  const canFinalize = clinicalReady && docFinalized && isFinanciallyCleared && !isDischarged;
 
   if (isDischarged) {
     return (
-      <div className="inpatient-tab-pane">
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontSize: '1.1rem', fontWeight: 700 }}>
-            <i className="ph ph-check-circle" style={{ fontSize: '1.5rem' }} /> Patient Discharged Successfully
+      <div className="inpatient-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#16a34a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+              <i className="ph ph-check" style={{ fontSize: '1.2rem' }} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#14532d' }}>Patient Discharged</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#166534' }}>
+                Operational discharge process has been completed. Workspace is read-only.
+              </p>
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem', background: '#ffffff', padding: '1rem', borderRadius: '6px', border: '1px solid #dcfce7' }}>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', background: '#ffffff', padding: '1rem', borderRadius: '6px', border: '1px solid #dcfce7' }}>
             <div>
               <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Discharge Date & Time</span>
               <strong style={{ color: '#0f172a', fontSize: '0.9rem' }}>
@@ -760,7 +783,13 @@ function DischargePlanningTab({
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Financial Clearance</span>
-              <strong style={{ color: '#16a34a' }}>✓ Cleared</strong>
+              {billingLoading ? (
+                <span style={{ color: '#64748b' }}>Checking...</span>
+              ) : isFinanciallyCleared ? (
+                <strong style={{ color: '#16a34a' }}>✓ Cleared ({activeInvoices.length > 0 ? `KES ${totalBilled.toLocaleString()}` : 'No billing'})</strong>
+              ) : (
+                <strong style={{ color: '#d97706' }}>⚠ Outstanding: KES {totalBalance.toLocaleString()}</strong>
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Bed Allocation ({admission.bed_number})</span>
@@ -772,7 +801,7 @@ function DischargePlanningTab({
             <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', padding: '8px 12px', borderRadius: '6px', fontSize: '0.78rem', color: '#d48806', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <i className="ph ph-warning" />
               <span>
-                Discharge cannot be finalized. {!clinicalReady ? 'Complete the readiness checklist.' : 'Check "Discharge summary finalized by attending doctor" and click Save.'}
+                Discharge cannot be finalized. {!clinicalReady ? 'Complete the readiness checklist.' : !docFinalized ? 'Check "Discharge summary finalized by attending doctor" and click Save.' : 'Please clear all outstanding bills first.'}
               </span>
             </div>
           )}

@@ -48,9 +48,9 @@ export class BillingService {
     private readonly advancePaymentService: AdvancePaymentService,
   ) {}
 
-  async list(query: BillingInvoiceListQuery, actorUserId: string) {
+  async list(query: BillingInvoiceListQuery, actorUserId: string, session?: import('mongoose').ClientSession) {
     const scope = await this.repository.resolveBranchScope(actorUserId, query.branch_id);
-    return this.repository.list(query, scope);
+    return this.repository.list(query, scope, session);
   }
 
   async getById(id: string, actorUserId: string) {

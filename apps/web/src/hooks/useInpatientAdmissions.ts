@@ -25,8 +25,8 @@ export const useInpatientAdmissions = (branchId: string, patientSearch: string, 
   const activePatients = useQuery({ queryKey: ['admissions', 'all-active-patients'], queryFn: () => patientsApi.list({ status: 'ACTIVE', page: 1, limit: 100 }), enabled: createOpen || allocationOpen, staleTime: LOOKUP_STALE_TIME });
   const doctors = useQuery({ queryKey: ['admissions', 'doctors', branchId], queryFn: () => doctorsApi.list({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }) });
   const allDoctors = useQuery({ queryKey: ['admissions', 'all-doctors'], queryFn: () => doctorsApi.list({ status: 'ACTIVE', page: 1, limit: 100 }) });
-  const departments = useQuery({ queryKey: ['admissions', 'departments', branchId], queryFn: () => departmentsApi.list({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }) });
-  const allDepartments = useQuery({ queryKey: ['admissions', 'all-departments'], queryFn: () => departmentsApi.list({ status: 'ACTIVE', page: 1, limit: 100 }) });
+  const departments = useQuery({ queryKey: ['admissions', 'departments', branchId], queryFn: () => departmentsApi.list({ branch_id: branchId || undefined, status: 'ACTIVE', isClinical: true, page: 1, limit: 100 }) });
+  const allDepartments = useQuery({ queryKey: ['admissions', 'all-departments'], queryFn: () => departmentsApi.list({ status: 'ACTIVE', isClinical: true, page: 1, limit: 100 }) });
   const wards = useQuery({ queryKey: ['admissions', 'wards', branchId], queryFn: () => admissionsConfigurationApi.wards({ branch_id: branchId, status: 'ACTIVE', page: 1, limit: 100 }), enabled: Boolean(branchId) });
   const beds = useQuery({ queryKey: ['admissions', 'available-beds', branchId], queryFn: () => admissionsConfigurationApi.beds({ branch_id: branchId, status: 'AVAILABLE', page: 1, limit: 100 }), enabled: Boolean(branchId) });
   const policy = useQuery({ queryKey: ['admissions', 'policy', branchId], queryFn: () => admissionsConfigurationApi.policy(branchId), enabled: Boolean(branchId), retry: false });

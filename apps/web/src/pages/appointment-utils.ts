@@ -36,12 +36,10 @@ export const appointmentPriorityLabels: Record<ApiAppointmentPriority, string> =
 
 export const formatAppointmentDate = (value: string | null | undefined, timezone?: string) => {
   if (!value) return '-';
-  const date = new Date(value);
+  const cleanValue = value.slice(0, 10);
+  const date = parseInputDate(cleanValue);
   if (Number.isNaN(date.getTime())) return '-';
   const fmt = toDateFnsFormat(getGlobalDateFormat());
-  if (timezone) {
-    return formatInTimeZone(date, timezone, fmt);
-  }
   return format(date, fmt);
 };
 

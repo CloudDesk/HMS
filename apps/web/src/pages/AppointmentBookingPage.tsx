@@ -438,7 +438,7 @@ clearErrors('start_time');
                       subtext="Checking doctor schedule and room allocation"
                     />
                   </div>
-                ) : slotOptions.length === 0 || !slotOptions.some((s) => s.isAvailable) ? (
+                ) : slotOptions.length === 0 ? (
                   <div className="appointment-no-slots-notice" role="alert">
                     <i className="ph ph-info" aria-hidden="true" />
                     <div>

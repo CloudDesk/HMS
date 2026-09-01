@@ -40,7 +40,7 @@ type NewProcedureRecommendationModalProps = {
   open: boolean;
   onClose: () => void;
   branchId: string;
-  departments: Array<{ id: string; name: string }>;
+  departments: Array<{ id: string; name: string; isClinical?: boolean }>;
   doctors: Array<{ id: string; display_name: string; department_id?: string }>;
   services: Array<{ id: string; name: string; department_id?: string }>;
   initialContext?: InitialProcedureContext | null;
@@ -424,11 +424,13 @@ export function NewProcedureRecommendationModal({
                 }}
               >
                 <option value="">Select Department</option>
-                {departments.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name}
-                  </option>
-                ))}
+                {departments
+                  .filter((item) => item.isClinical === true)
+                  .map((item) => (
+                    <option value={item.id} key={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
               </select>
               <FieldError text={errors.department_id?.message} />
             </div>

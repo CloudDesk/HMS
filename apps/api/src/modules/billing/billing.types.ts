@@ -79,6 +79,9 @@ export type BillingReceipt = {
 export type BillingInvoiceListQuery = {
   invoice_number?: string;
   patient_id?: string;
+  admission_id?: string;
+  context_type?: 'ADMISSION_REQUEST' | 'PROCEDURE_BOOKING' | 'INPATIENT_ADMISSION';
+  context_id?: string;
   status?: BillingInvoiceStatus;
   date_from?: string;
   date_to?: string;

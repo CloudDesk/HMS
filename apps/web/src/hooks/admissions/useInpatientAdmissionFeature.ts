@@ -73,7 +73,8 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
   );
   const departmentOptions = useMemo(() => {
     const scoped = domain.departments.data?.data;
-    return scoped && scoped.length > 0 ? scoped : (domain.allDepartments.data?.data ?? []);
+    const raw = scoped && scoped.length > 0 ? scoped : (domain.allDepartments.data?.data ?? []);
+    return raw.filter((dept) => dept.isClinical === true);
   }, [domain.allDepartments.data, domain.departments.data]);
   const doctorOptions = useMemo(() => {
     const scoped = domain.doctors.data?.data;
