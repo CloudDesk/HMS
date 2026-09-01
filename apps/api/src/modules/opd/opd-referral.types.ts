@@ -5,6 +5,7 @@ export type OpdReferralPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type OpdReferral = {
   id: string;
   visit_id: string;
+  branch_id: string;
   consultation_id: string;
   patient_id: string;
   patient_number: string;

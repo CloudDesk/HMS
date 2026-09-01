@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 export type DispensingStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED' | 'REVERSED';
-export type DispensingSourceType = 'OPD' | 'EMERGENCY' | 'IP_ADMISSION' | 'PROCEDURE' | 'SURGERY';
+export type DispensingSourceType = 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER' | 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING';
 export type DispensingQueueStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'REVERSED';
 export type DispensingItem = { id: string; prescription_item_id: string; prescribed_medicine_name: string; medicine_id: string | null; batch_id: string | null; medicine_name: string; batch_number: string; requested_quantity: number | null; confirmed_quantity: number | null; available_quantity: number; unit_price: number; line_total: number; pharmacist_instructions: string | null };
 export type Dispensing = { id: string; prescription_id: string; patient_id: string; source_type: DispensingSourceType; encounter_id: string | null; admission_id: string | null; procedure_id: string | null; patient_number: string; patient_name: string; doctor_name: string; visit_id: string; branch_id: string; status: DispensingStatus; version: number; items: DispensingItem[]; invoice_id: string | null; invoice_number: string | null; submitted_at: string | null; confirmed_at: string | null; cancelled_at: string | null; reversed_at: string | null; reversal_reason: string | null; created_at: string; updated_at: string };

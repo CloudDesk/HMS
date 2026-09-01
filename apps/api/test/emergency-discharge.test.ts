@@ -58,6 +58,7 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
       {} as unknown as ConstructorParameters<typeof EmergencyService>[3],
       {} as unknown as ConstructorParameters<typeof EmergencyService>[4],
       mockBilling as unknown as ConstructorParameters<typeof EmergencyService>[5],
+      {} as unknown as ConstructorParameters<typeof EmergencyService>[6],
     );
 
     const dispositionData = {
@@ -124,7 +125,7 @@ test('Emergency Discharge Financial Closure Tests (Finding 5)', async (t) => {
     const mockBilling = {
       isEncounterFinanciallyClosed: mock.fn(async () => false) // backend says unpaid
     };
-    const service = new EmergencyService(mockRepo as unknown as ConstructorParameters<typeof EmergencyService>[0], {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], mockBilling as unknown as ConstructorParameters<typeof EmergencyService>[5]);
+    const service = new EmergencyService(mockRepo as unknown as ConstructorParameters<typeof EmergencyService>[0], {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], mockBilling as unknown as ConstructorParameters<typeof EmergencyService>[5], {} as unknown as ConstructorParameters<typeof EmergencyService>[6]);
     
     // Simulate client sending rogue billingStatus
     const dispositionData = {

@@ -98,7 +98,7 @@ test('Department-Level Authorization Boundary Tests', async (t) => {
       departmentScope: mock.fn(async () => [cardiologyDept]), // User in Cardiology
     } as unknown as ConstructorParameters<typeof EmergencyService>[0];
 
-    const service = new EmergencyService(mockRepo, {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], {} as unknown as ConstructorParameters<typeof EmergencyService>[5]);
+    const service = new EmergencyService(mockRepo, {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], {} as unknown as ConstructorParameters<typeof EmergencyService>[5], {} as unknown as ConstructorParameters<typeof EmergencyService>[6]);
 
     await assert.rejects(
       async () => {
@@ -121,7 +121,7 @@ test('Department-Level Authorization Boundary Tests', async (t) => {
       departmentScope: mock.fn(async () => [cardiologyDept]), // User only has Cardiology
     } as unknown as ConstructorParameters<typeof EmergencyService>[0];
 
-    const service = new EmergencyService(mockRepo, {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], {} as unknown as ConstructorParameters<typeof EmergencyService>[5]);
+    const service = new EmergencyService(mockRepo, {} as unknown as ConstructorParameters<typeof EmergencyService>[1], {} as unknown as ConstructorParameters<typeof EmergencyService>[2], {} as unknown as ConstructorParameters<typeof EmergencyService>[3], {} as unknown as ConstructorParameters<typeof EmergencyService>[4], {} as unknown as ConstructorParameters<typeof EmergencyService>[5], {} as unknown as ConstructorParameters<typeof EmergencyService>[6]);
 
     // The user passes a cardiology ID in the body but the record is surgery.
     await assert.rejects(

@@ -23,6 +23,7 @@ const nullableString = (value: string | null | undefined) => value?.trim() || nu
 const toReferral = (record: OpdReferralLean): OpdReferral => ({
   id: record._id.toString(),
   visit_id: record.visitId.toString(),
+  branch_id: record.branchId?.toString() ?? '',
   consultation_id: record.consultationId.toString(),
   patient_id: record.patientId.toString(),
   patient_number: record.patientNumber,
@@ -81,6 +82,7 @@ export class OpdReferralRepository {
       {
         $set: {
           consultationId: objectId(data.consultation.id),
+          branchId: objectId(data.visit.branch_id),
           referralType: data.referral_type ?? null,
           specialty: nullableString(data.specialty),
           priority: data.priority ?? 'ROUTINE',

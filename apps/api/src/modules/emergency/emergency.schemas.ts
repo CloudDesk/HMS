@@ -161,3 +161,24 @@ export const priorityOverrideSchema = z.object({
   level: triageSchema.shape.level,
   reason: z.string().trim().min(3).max(1000),
 });
+export const emergencyReferralListSchema = z.object({
+  booked: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+export const emergencyReferralSchema = z.object({
+  target_department_id: id,
+  target_doctor_id: id.nullable().optional(),
+  priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
+  reason: z.string().trim().min(3).max(1000),
+  clinical_notes: z.string().trim().min(3).max(4000),
+});
+export const bookEmergencyReferralSchema = z.object({
+  appointment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  utc_datetime: z.string().datetime(),
+  duration_minutes: z.number().int().min(5).max(240),
+  visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
+  priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']).optional(),
+  notes: nullableText(2000),
+});

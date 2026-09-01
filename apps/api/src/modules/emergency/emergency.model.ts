@@ -2,6 +2,7 @@ import mongoose, { Schema, Types } from 'mongoose';
 import type {
   EmergencyDisposition,
   EmergencyOrderType,
+  EmergencyReferralPriority,
   EmergencyStatus,
   EmergencyTriageLevel,
 } from './emergency.types.js';
@@ -65,6 +66,24 @@ export type EmergencyEncounterFields = {
     plan: string;
     treatment?: string | null;
     notes?: string | null;
+  } | null;
+  referral?: {
+    sourceType: 'EMERGENCY_ENCOUNTER';
+    targetDepartmentId: Types.ObjectId;
+    targetDepartmentName: string;
+    targetDoctorId?: Types.ObjectId | null;
+    targetDoctorName?: string | null;
+    priority: EmergencyReferralPriority;
+    reason: string;
+    clinicalNotes: string;
+    status: 'SUBMITTED';
+    submittedAt: Date;
+    submittedBy: Types.ObjectId;
+    appointmentId?: Types.ObjectId | null;
+    appointmentNumber?: string | null;
+    appointmentDate?: Date | null;
+    appointmentStartTime?: string | null;
+    appointmentDurationMinutes?: number | null;
   } | null;
   orders: Array<{
     orderType: EmergencyOrderType;
@@ -195,6 +214,27 @@ const encounterSchema = new Schema<EmergencyEncounterFields>(
       },
       default: null,
     },
+    referral: {
+      type: {
+        sourceType: { type: String, enum: ['EMERGENCY_ENCOUNTER'], required: true },
+        targetDepartmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
+        targetDepartmentName: { type: String, required: true },
+        targetDoctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', default: null },
+        targetDoctorName: { type: String, default: null },
+        priority: { type: String, enum: ['ROUTINE', 'URGENT', 'EMERGENCY'], required: true },
+        reason: { type: String, required: true },
+        clinicalNotes: { type: String, required: true },
+        status: { type: String, enum: ['SUBMITTED'], required: true },
+        submittedAt: { type: Date, required: true },
+        submittedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        appointmentId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
+        appointmentNumber: { type: String, default: null },
+        appointmentDate: { type: Date, default: null },
+        appointmentStartTime: { type: String, default: null },
+        appointmentDurationMinutes: { type: Number, default: null },
+      },
+      default: null,
+    },
     orders: {
       type: [
         {
@@ -237,6 +277,8 @@ encounterSchema.index({ branchId: 1, status: 1, 'triage.effectiveLevel': 1, arri
 encounterSchema.index({ departmentId: 1, status: 1, arrivalAt: 1 });
 encounterSchema.index({ patientId: 1, createdAt: -1 }, { sparse: true });
 encounterSchema.index({ patientName: 1, encounterNumber: 1 });
+encounterSchema.index({ branchId: 1, 'referral.status': 1, 'referral.submittedAt': -1 });
+encounterSchema.index({ 'referral.targetDoctorId': 1, 'referral.status': 1, 'referral.submittedAt': -1 });
 encounterSchema.index(
   { inpatientAdmissionId: 1 },
   {

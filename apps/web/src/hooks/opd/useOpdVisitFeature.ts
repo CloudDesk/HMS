@@ -5,6 +5,7 @@ import type {
   ApiClinicalOrderType,
   SaveOpdClinicalOrderPayload,
   SaveOpdConsultationPayload,
+  SaveOpdFollowUpPayload,
   SaveOpdPrescriptionPayload,
   SaveOpdReferralPayload,
 } from '../../api/opd';
@@ -33,6 +34,7 @@ type SaveWorkspaceDraftInput = {
   laboratory?: SaveOpdClinicalOrderPayload;
   imaging?: SaveOpdClinicalOrderPayload;
   referral?: SaveOpdReferralPayload;
+  followUp?: SaveOpdFollowUpPayload;
 };
 
 type CompleteWorkspaceInput = SaveWorkspaceDraftInput & {
@@ -106,7 +108,10 @@ export function useOpdVisitFeature() {
       await workspace.mutations.saveClinicalOrderDraft({ visitId, type: 'IMAGING', payload: input.imaging }).catch(() => null);
     }
     if (input.referral) {
-      await workspace.mutations.saveReferralDraft({ visitId, payload: input.referral }).catch(() => null);
+      await workspace.mutations.saveReferralDraft({ visitId, payload: input.referral });
+    }
+    if (input.followUp) {
+      await workspace.mutations.saveFollowUpDraft({ visitId, payload: input.followUp });
     }
   };
 
@@ -124,7 +129,10 @@ export function useOpdVisitFeature() {
       await workspace.mutations.submitClinicalOrder({ visitId, type: 'IMAGING', payload: input.imaging });
     }
     if (input.referral) {
-      await workspace.mutations.submitReferral({ visitId, payload: input.referral }).catch(() => null);
+      await workspace.mutations.submitReferral({ visitId, payload: input.referral });
+    }
+    if (input.followUp) {
+      await workspace.mutations.scheduleFollowUp({ visitId, payload: input.followUp });
     }
     if (input.invoice) {
       await workspace.mutations.createBillingInvoice(input.invoice).catch(() => null);
@@ -157,6 +165,8 @@ export function useOpdVisitFeature() {
       vitals: workspace.vitals,
       consultation: workspace.consultation,
       prescription: workspace.prescription,
+      followUp: workspace.followUp,
+      referral: workspace.referral,
       laboratoryOrder: workspace.labOrder,
       imagingOrder: workspace.imagingOrder,
       doctors: workspace.doctors,
@@ -175,6 +185,7 @@ export function useOpdVisitFeature() {
       refetchVisit,
       createVitals: workspace.mutations.createVitals,
       submitReferral: workspace.mutations.submitReferral,
+      scheduleFollowUp: workspace.mutations.scheduleFollowUp,
       saveWorkspaceDraft,
       submitPrescription: workspace.mutations.submitPrescription,
       submitClinicalOrder: (

@@ -16,6 +16,7 @@ export type EmergencyStatus =
   | 'CANCELLED';
 export type EmergencyDisposition = 'DISCHARGE' | 'ADMIT' | 'TRANSFER' | 'LEFT';
 export type EmergencyOrderType = 'PHARMACY' | 'LABORATORY' | 'IMAGING';
+export type EmergencyReferralPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type EmergencyMetadata = { ipAddress?: string; userAgent?: string };
 export type EmergencyListQuery = {
   branch_id: string;
@@ -102,3 +103,24 @@ export type EmergencyDispositionDTO = {
   transfer_destination?: string | null;
 };
 export type EmergencyReasonDTO = { reason: string };
+export type EmergencyReferralDTO = {
+  target_department_id: string;
+  target_doctor_id?: string | null;
+  priority: EmergencyReferralPriority;
+  reason: string;
+  clinical_notes: string;
+};
+export type EmergencyReferralListQuery = {
+  booked?: boolean;
+  page?: number;
+  limit?: number;
+};
+export type BookEmergencyReferralDTO = {
+  appointment_date: string;
+  start_time: string;
+  utc_datetime: string;
+  duration_minutes: number;
+  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE';
+  priority?: EmergencyReferralPriority;
+  notes?: string | null;
+};

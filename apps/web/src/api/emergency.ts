@@ -76,6 +76,20 @@ export type EmergencyEncounter = {
     treatment: string | null;
     notes: string | null;
   } | null;
+  referral: {
+    source_type: 'EMERGENCY_ENCOUNTER';
+    target_department_id: string;
+    target_department_name: string;
+    target_doctor_id: string | null;
+    target_doctor_name: string | null;
+    priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+    reason: string;
+    clinical_notes: string;
+    status: 'SUBMITTED';
+    submitted_at: string;
+    appointment_id: string | null;
+    appointment_number: string | null;
+  } | null;
   orders: Array<{
     order_type: 'PHARMACY' | 'LABORATORY' | 'IMAGING';
     downstream_id: string;
@@ -189,7 +203,54 @@ export type DispositionPayload = {
   instructions?: string | null;
   transfer_destination?: string | null;
 };
-const qs = (params: Record<string, string | number | undefined>) => {
+export type EmergencyReferralPayload = {
+  target_department_id: string;
+  target_doctor_id?: string | null;
+  priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+  reason: string;
+  clinical_notes: string;
+};
+export type EmergencyReferralResponse = {
+  id: string;
+  source_type: 'EMERGENCY_ENCOUNTER';
+  source_id: string;
+  encounter_number: string;
+  emergency_identifier: string;
+  branch_id: string;
+  patient_id: string | null;
+  patient_number: string;
+  patient_name: string;
+  referring_doctor_id: string | null;
+  referring_doctor_name: string;
+  target_department_id: string;
+  target_department_name: string;
+  referred_doctor_id: string | null;
+  referred_doctor_name: string | null;
+  priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+  reason: string;
+  clinical_summary: string;
+  status: 'SUBMITTED';
+  submitted_at: string;
+  appointment_id: string | null;
+  appointment_number: string | null;
+  appointment_date: string | null;
+  appointment_start_time: string | null;
+  appointment_duration_minutes: number | null;
+};
+export type EmergencyReferralPage = {
+  data: EmergencyReferralResponse[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+};
+export type BookEmergencyReferralPayload = {
+  appointment_date: string;
+  start_time: string;
+  utc_datetime: string;
+  duration_minutes: number;
+  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE';
+  priority?: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+  notes?: string | null;
+};
+const qs = (params: Record<string, string | number | boolean | undefined>) => {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== '') query.set(key, String(value));
@@ -197,6 +258,22 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return `?${query.toString()}`;
 };
 export const emergencyApi = {
+  listReferrals: (params: { booked?: boolean; page?: number; limit?: number }) =>
+    apiClient.request<EmergencyReferralPage>(`/emergency/referrals${qs(params)}`),
+  getReferral: (id: string, branchId: string) =>
+    apiClient.request<EmergencyReferralResponse>(
+      `/emergency/encounters/${id}/referral${qs({ branch_id: branchId })}`,
+    ),
+  submitReferral: (id: string, branchId: string, body: EmergencyReferralPayload) =>
+    apiClient.request<EmergencyReferralResponse>(
+      `/emergency/encounters/${id}/referral${qs({ branch_id: branchId })}`,
+      { method: 'POST', body },
+    ),
+  bookReferral: (id: string, branchId: string, body: BookEmergencyReferralPayload) =>
+    apiClient.request<EmergencyReferralResponse>(
+      `/emergency/encounters/${id}/referral/book${qs({ branch_id: branchId })}`,
+      { method: 'POST', body },
+    ),
   list: (params: EmergencyListParams) =>
     apiClient.request<EmergencyPage>(`/emergency/encounters${qs(params)}`),
   summary: (branchId: string) =>

@@ -16,6 +16,10 @@ import {
   usePharmacyDispensingDetail,
 } from '../usePharmacyDispensing';
 import { useBranchesList } from '../branches/useBranches';
+import {
+  calculateDispensingLineTotal,
+  calculateDispensingTotal,
+} from '../../utils/pharmacy-dispensing';
 
 export type PharmacyDispensingFilters = {
   requestedBranch: string;
@@ -47,6 +51,7 @@ export type DispensingLineView = DispensingDraftLine & {
   lineTotal: number;
   batchOptions: MedicineBatch[];
   insufficientStock: boolean;
+  invalidQuantity: boolean;
 };
 
 const toDraftLine = (item: DispensingItem): DispensingDraftLine => ({
@@ -140,18 +145,21 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
     const batchOptions = isDraft ? activeBatches.filter((batch) => batch.medicine_id === line.medicineId) : [];
     const batch = isDraft ? batchOptions.find((candidate) => candidate.id === line.batchId) : undefined;
     const availableQuantity = isDraft ? batch?.quantity_on_hand ?? 0 : line.availableQuantitySnapshot;
-    const unitPrice = isDraft ? batch?.unit_price ?? 0 : line.unitPriceSnapshot;
+    const unitPrice = line.unitPriceSnapshot;
     const confirmedQuantity = line.confirmedQuantity ?? 0;
+    const invalidQuantity = !Number.isInteger(line.confirmedQuantity) || confirmedQuantity <= 0;
     return {
       ...line,
       batchNumber: batch?.batch_number ?? line.batchNumberSnapshot,
       availableQuantity,
       unitPrice,
-      lineTotal: unitPrice * confirmedQuantity,
+      lineTotal: calculateDispensingLineTotal(unitPrice, line.confirmedQuantity),
       batchOptions,
       insufficientStock: isDraft && (!batch || confirmedQuantity > availableQuantity),
+      invalidQuantity,
     };
   }), [activeBatches, draftLines, isDraft]);
+  const dispensingTotal = useMemo(() => calculateDispensingTotal(lines), [lines]);
 
   const updateLine = useCallback((id: string, update: (line: DispensingDraftLine) => DispensingDraftLine) => {
     setDraftLines((current) => current.map((line) => line.id === id ? update(line) : line));
@@ -329,6 +337,7 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
     isMutating,
     batchesLoading: batchesQuery.isLoading,
     lines,
+    dispensingTotal,
     actions: {
       openDispensing,
       closeDispensing,

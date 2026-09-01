@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { DispensingQueueStatus, DispensingSourceType, DispensingStatus } from '../api/pharmacy-dispensing';
+import type { DispensingQueueStatus, DispensingStatus } from '../api/pharmacy-dispensing';
+import { useCurrencyFormatter } from '../api/useSettings';
 import { Modal } from '../components/ui/Modal';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { usePharmacyDispensingFeature } from '../hooks/pharmacy/usePharmacyDispensingFeature';
 import { navigate, useAppLocation } from '../routing/navigation';
+import { dispensingSourceLabel } from '../utils/pharmacy-dispensing';
 
 const isQueueStatus = (value: string | null): value is DispensingQueueStatus =>
   value === 'PENDING' || value === 'CONFIRMED' || value === 'CANCELLED' || value === 'REVERSED';
@@ -24,15 +26,8 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('en', {
 }).format(new Date(value));
 
 const statusLabel = (status: DispensingStatus) => status === 'DRAFT' ? 'PENDING' : status;
-const sourceLabel = (source: DispensingSourceType) => ({
-  OPD: 'OPD',
-  EMERGENCY: 'Emergency',
-  IP_ADMISSION: 'IP / Admission',
-  PROCEDURE: 'Procedure',
-  SURGERY: 'Surgery',
-})[source];
-
 export function PrescriptionQueuePage() {
+  const formatMoney = useCurrencyFormatter();
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   const initialStatus = initialParams.get('status');
@@ -74,7 +69,7 @@ export function PrescriptionQueuePage() {
   const meta = queue.meta ?? { page, limit, total: 0, totalPages: 1 };
   const detail = queue.detail;
   const draftDisabled = queue.isMutating || queue.batchesLoading || !queue.permissions.canEdit;
-  const hasStockError = queue.lines.some((line) => line.insufficientStock);
+  const hasLineError = queue.lines.some((line) => line.insufficientStock || line.invalidQuantity);
 
   return (
     <>
@@ -127,7 +122,7 @@ export function PrescriptionQueuePage() {
                   queue.dispensings.map((dispensing) => (
                     <tr key={dispensing.prescription_id}>
                       <td><div className="user-cell-info"><strong>{dispensing.patient_name}</strong><span className="muted-cell">{dispensing.patient_number}</span></div></td>
-                      <td><span className={`dispensing-source source-${dispensing.source_type.toLowerCase().replaceAll('_', '-')}`}>{sourceLabel(dispensing.source_type)}</span></td>
+                      <td><span className={`dispensing-source source-${dispensing.source_type.toLowerCase().replaceAll('_', '-')}`}>{dispensingSourceLabel(dispensing.source_type)}</span></td>
                       <td>{dispensing.doctor_name}</td>
                       <td>{dispensing.items.length ? <strong>{dispensing.items.length} meds</strong> : <span className="muted-cell">Open to review</span>}</td>
                       <td>{formatDateTime(dispensing.submitted_at)}</td>
@@ -153,7 +148,7 @@ export function PrescriptionQueuePage() {
         footer={<>
           {detail?.status === 'DRAFT' && queue.permissions.canCancel ? <button className="secondary-action danger" disabled={queue.isMutating} onClick={() => void queue.actions.cancelDispensing(actionReason)} type="button">Cancel Dispensing</button> : null}
           {detail?.status === 'DRAFT' && queue.permissions.canEdit ? <button className="secondary-action" disabled={draftDisabled || !queue.isDirty} onClick={() => void queue.actions.saveDraft()} type="button">{queue.isMutating ? <><MedicalSpinner size="sm" /><span>Saving...</span></> : 'Save Draft'}</button> : null}
-          {detail?.status === 'DRAFT' && queue.permissions.canDispense ? <button className="primary-action" disabled={queue.isMutating || queue.batchesLoading || hasStockError} onClick={() => void queue.actions.confirmDispensing()} type="button">{queue.isMutating ? <><MedicalSpinner size="sm" /><span>Confirming...</span></> : 'Confirm Dispensing'}</button> : null}
+          {detail?.status === 'DRAFT' && queue.permissions.canDispense ? <button className="primary-action" disabled={queue.isMutating || queue.batchesLoading || hasLineError} onClick={() => void queue.actions.confirmDispensing()} type="button">{queue.isMutating ? <><MedicalSpinner size="sm" /><span>Confirming...</span></> : 'Confirm Dispensing'}</button> : null}
           {detail?.status === 'CONFIRMED' && queue.permissions.canReverse ? <button className="secondary-action danger" disabled={queue.isMutating || actionReason.trim().length < 3} onClick={() => void queue.actions.reverseDispensing(actionReason)} type="button">Reverse Dispensing</button> : null}
         </>}
         icon="ph-prescription"
@@ -173,7 +168,7 @@ export function PrescriptionQueuePage() {
             <div className="dispensing-summary" aria-label="Prescription summary">
               <div className="dispensing-summary-patient"><span>Patient</span><strong>{detail.patient_name}</strong><small>{detail.patient_number}</small></div>
               <div><span>Doctor</span><strong>{detail.doctor_name}</strong></div>
-              <div><span>Source</span><strong>{sourceLabel(detail.source_type)}</strong></div>
+              <div><span>Source</span><strong>{dispensingSourceLabel(detail.source_type)}</strong></div>
               <div><span>Status</span><strong>{statusLabel(detail.status)}</strong></div>
               <div><span>Submitted</span><strong>{formatDateTime(detail.submitted_at)}</strong></div>
             </div>
@@ -210,7 +205,9 @@ export function PrescriptionQueuePage() {
                             )}
                           </div>
                           <div className="dispensing-line-fact"><span>Available stock</span><strong>{line.availableQuantity}</strong>{line.insufficientStock ? <small className="field-error">Insufficient stock</small> : <small>Selected batch</small>}</div>
-                          <div className="dispensing-line-field"><label htmlFor={quantityInputId}>Final quantity</label><input className="dispensing-quantity" disabled={draftDisabled} id={quantityInputId} min="1" onChange={(event) => queue.actions.setConfirmedQuantity(line.id, event.target.value ? Number(event.target.value) : null)} onWheel={(event) => event.currentTarget.blur()} step="1" type="number" value={line.confirmedQuantity ?? ''} /></div>
+                          <div className="dispensing-line-field"><label htmlFor={quantityInputId}>Final quantity</label><input className="dispensing-quantity" disabled={draftDisabled} id={quantityInputId} min="1" onChange={(event) => queue.actions.setConfirmedQuantity(line.id, event.target.value ? Number(event.target.value) : null)} onWheel={(event) => event.currentTarget.blur()} step="1" type="number" value={line.confirmedQuantity ?? ''} />{line.invalidQuantity ? <small className="field-error">Enter a whole number greater than zero</small> : null}</div>
+                          <div className="dispensing-line-fact"><span>Unit price</span><strong>{formatMoney(line.unitPrice)}</strong><small>Selected batch rate</small></div>
+                          <div className="dispensing-line-fact"><span>Total</span><strong>{formatMoney(line.lineTotal)}</strong><small>Final quantity × unit price</small></div>
                         </div>
                       </> : <>
                         <div className="dispensing-medicine-name">
@@ -221,6 +218,8 @@ export function PrescriptionQueuePage() {
                           <div className="dispensing-line-fact"><span>Requested quantity</span><strong>{line.requestedQuantity ?? 'Not specified'}</strong></div>
                           <div className="dispensing-line-fact"><span>Dispensed quantity</span><strong>{line.confirmedQuantity ?? '—'}</strong></div>
                           <div className="dispensing-line-fact"><span>Batch</span><strong>{line.batchNumber || '—'}</strong></div>
+                          <div className="dispensing-line-fact"><span>Unit price</span><strong>{formatMoney(line.unitPrice)}</strong></div>
+                          <div className="dispensing-line-fact"><span>Total</span><strong>{formatMoney(line.lineTotal)}</strong></div>
                           <div className="dispensing-line-fact"><span>Dispensing status</span><strong>{statusLabel(detail.status)}</strong></div>
                         </div>
                       </>}
@@ -228,6 +227,7 @@ export function PrescriptionQueuePage() {
                   );
                 })}
               </div>
+              <div className="dispensing-total"><span>Dispensing total</span><strong>{formatMoney(queue.dispensingTotal)}</strong></div>
             </section>
 
             {detail.status === 'DRAFT' && queue.permissions.canEdit ? queue.lines.map((line) => <label className="form-field dispensing-instructions" key={`${line.id}-instructions`}><span>Pharmacist instructions — {line.prescribedMedicineName}</span><input disabled={draftDisabled} maxLength={500} onChange={(event) => queue.actions.setInstructions(line.id, event.target.value)} placeholder="Optional dispensing instructions" value={line.pharmacistInstructions} /></label>) : null}

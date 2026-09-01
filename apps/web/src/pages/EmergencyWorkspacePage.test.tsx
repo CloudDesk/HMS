@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,6 +26,7 @@ const encounter = {
   assigned_doctor_id: null,
   assigned_doctor_name: null,
   consultation: null,
+  referral: null,
   orders: [],
   disposition: null,
   inpatient_admission_id: null,
@@ -66,6 +69,7 @@ vi.mock('../hooks/emergency/useEmergencyWorkspaceFeature', () => ({
         triage: false,
         consultation: false,
         order: false,
+        referral: false,
         disposition: false,
         linkPatient: false,
         overridePriority: false,
@@ -76,6 +80,7 @@ vi.mock('../hooks/emergency/useEmergencyWorkspaceFeature', () => ({
       saveTriage: vi.fn(),
       saveConsultation: vi.fn(),
       submitOrder: vi.fn(),
+      submitReferral: vi.fn(),
       completeDisposition: vi.fn(),
       linkPatient: vi.fn(),
       overridePriority: vi.fn(),

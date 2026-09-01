@@ -85,7 +85,7 @@ export class OpdReferralService {
 
   async submit(visitId: string, data: SaveOpdReferralDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
-    this.ensureOpenVisit(visit);
+    this.ensureSubmittableVisit(visit);
     const consultation = await this.getConsultation(visitId);
     if (consultation.status !== 'COMPLETED') {
       throw new AppError('Complete the consultation before submitting referral', 400, 'CONSULTATION_NOT_COMPLETED');
@@ -193,6 +193,12 @@ export class OpdReferralService {
   private ensureOpenVisit(visit: OpdVisit) {
     if (terminalVisitStatuses.includes(visit.status)) {
       throw new AppError('Referral cannot be changed for a closed OPD visit', 400, 'VISIT_CLOSED');
+    }
+  }
+
+  private ensureSubmittableVisit(visit: OpdVisit) {
+    if (visit.status === 'CANCELLED' || visit.status === 'NO_SHOW') {
+      throw new AppError('Referral cannot be submitted for a cancelled or no-show OPD visit', 400, 'VISIT_CLOSED');
     }
   }
 }

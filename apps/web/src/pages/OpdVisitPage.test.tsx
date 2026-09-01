@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +20,8 @@ vi.mock('../hooks/opd/useOpdVisitFeature', () => ({
       vitals: null,
       consultation: null,
       prescription: null,
+      followUp: null,
+      referral: null,
       laboratoryOrder: null,
       imagingOrder: null,
       doctors: [],
@@ -36,6 +40,7 @@ vi.mock('../hooks/opd/useOpdVisitFeature', () => ({
       refetchVisit: vi.fn(),
       createVitals: vi.fn(),
       submitReferral: vi.fn(),
+      scheduleFollowUp: vi.fn(),
       saveWorkspaceDraft: vi.fn(),
       submitPrescription: vi.fn(),
       submitClinicalOrder: vi.fn(),
@@ -49,6 +54,7 @@ vi.mock('../hooks/opd/useOpdVisitFeature', () => ({
 }));
 
 vi.mock('../routing/navigation', () => ({ navigate: vi.fn() }));
+vi.mock('../context/BranchContext', () => ({ useActiveBranch: () => ({ activeBranchId: 'branch-1' }) }));
 
 import { OpdVisitPage } from './OpdVisitPage';
 

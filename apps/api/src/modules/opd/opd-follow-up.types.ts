@@ -34,6 +34,7 @@ export type SaveOpdFollowUpDTO = {
   follow_up_type?: OpdFollowUpType | null;
   next_visit_date?: string | null;
   start_time?: string | null;
+  utc_datetime?: string | null;
   duration_minutes?: number | null;
   assigned_doctor_id?: string | null;
   reason?: string | null;

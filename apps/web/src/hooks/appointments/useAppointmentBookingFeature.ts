@@ -3,8 +3,11 @@ import { usePatientsList, usePatientDetails } from '../patients/usePatients';
 import { useCreateAppointment, useAppointmentsList } from './useAppointments';
 import type { SaveAppointmentPayload } from '../../api/appointments';
 import { useBookReceptionReferral, useReceptionReferral } from '../reception/useReception';
+import { useBookEmergencyReferral, useEmergencyReferral } from '../emergency/useEmergency';
 import { useTimezone } from '../../api/useSettings';
 import { fromZonedTime } from 'date-fns-tz';
+import { useQueryClient } from '@tanstack/react-query';
+import { appointmentsKeys } from './useAppointments';
 
 export function useAppointmentBookingFeature(
   initialPatientId: string,
@@ -12,9 +15,17 @@ export function useAppointmentBookingFeature(
   selectedDoctorId: string,
   appointmentDate: string,
   referralVisitId = '',
+  emergencyReferralId = '',
+  emergencyBranchId = '',
 ) {
+  const queryClient = useQueryClient();
   const referralQuery = useReceptionReferral(referralVisitId, Boolean(referralVisitId));
-  const referral = referralQuery.data ?? null;
+  const emergencyReferralQuery = useEmergencyReferral(
+    emergencyReferralId,
+    emergencyBranchId,
+    Boolean(emergencyReferralId && emergencyBranchId),
+  );
+  const referral = referralQuery.data ?? emergencyReferralQuery.data ?? null;
   const effectivePatientId = initialPatientId || referral?.patient_id || '';
   // 1. Patient Data
   const { data: initialPatientData } = usePatientDetails(effectivePatientId, Boolean(effectivePatientId));
@@ -45,6 +56,7 @@ export function useAppointmentBookingFeature(
 
   const createAppointment = useCreateAppointment();
   const bookReferral = useBookReceptionReferral();
+  const bookEmergencyReferral = useBookEmergencyReferral();
   const timezone = useTimezone();
 
   const handleCreateAppointment = async (payload: SaveAppointmentPayload) => {
@@ -56,8 +68,25 @@ export function useAppointmentBookingFeature(
     
     const finalPayload = { ...payload, utc_datetime };
 
-    if (referral) {
-      return bookReferral.mutateAsync({ referralId: referral.id, payload: {
+    if (emergencyReferralQuery.data) {
+      const result = await bookEmergencyReferral.mutateAsync({
+        id: emergencyReferralQuery.data.id,
+        branchId: emergencyReferralQuery.data.branch_id,
+        body: {
+          appointment_date: payload.appointment_date ?? '',
+          start_time: payload.start_time ?? '',
+          utc_datetime: utc_datetime ?? '',
+          duration_minutes: payload.duration_minutes,
+          visit_type: payload.visit_type === 'EMERGENCY' ? 'NEW_CONSULTATION' : payload.visit_type,
+          priority: payload.priority,
+          notes: payload.notes,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() });
+      return result;
+    }
+    if (referralQuery.data) {
+      return bookReferral.mutateAsync({ referralId: referralQuery.data.id, payload: {
         appointment_date: payload.appointment_date ?? '', start_time: payload.start_time ?? '', utc_datetime,
         duration_minutes: payload.duration_minutes, visit_type: payload.visit_type === 'EMERGENCY' ? 'NEW_CONSULTATION' : payload.visit_type,
         priority: payload.priority, notes: payload.notes,
@@ -78,7 +107,7 @@ export function useAppointmentBookingFeature(
       slotLoading,
       existingApptsData,
       existingApptsLoading,
-      isSubmitting: createAppointment.isPending || bookReferral.isPending,
+      isSubmitting: createAppointment.isPending || bookReferral.isPending || bookEmergencyReferral.isPending,
     },
     actions: {
       searchPatientsRefetch,

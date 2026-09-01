@@ -4,14 +4,18 @@ import type { OpdPrescriptionRepository } from '../opd/opd-prescription.reposito
 import type { PatientService } from '../patients/patient.service.js';
 import type { ServiceRepository } from '../services/service.repository.js';
 import type { BillingService } from '../billing/billing.service.js';
-import type { EmergencyRepository, EmergencyLean } from './emergency.repository.js';
+import type { AppointmentService } from '../appointments/appointment.service.js';
+import { emergencyReferralDto, type EmergencyRepository, type EmergencyLean } from './emergency.repository.js';
 import type {
+  BookEmergencyReferralDTO,
   CreateEmergencyDTO,
   EmergencyConsultationDTO,
   EmergencyDispositionDTO,
   EmergencyListQuery,
   EmergencyMetadata,
   EmergencyOrderDTO,
+  EmergencyReferralDTO,
+  EmergencyReferralListQuery,
   EmergencyReasonDTO,
   EmergencyTriageDTO,
   EmergencyTriageLevel,
@@ -35,6 +39,7 @@ export class EmergencyService {
     private readonly prescriptions: OpdPrescriptionRepository,
     private readonly services: ServiceRepository,
     private readonly billing: BillingService,
+    private readonly appointments: AppointmentService,
   ) {}
   private async authorize(actor: string, branchId: string) {
     if (!(await this.repository.hasBranchAccess(actor, branchId)))
@@ -61,6 +66,131 @@ export class EmergencyService {
       throw new AppError('Emergency encounter not found', 404, 'EMERGENCY_ENCOUNTER_NOT_FOUND');
     await this.authorizeDepartment(actor, row.department_id);
     return row;
+  }
+  async listReferrals(query: EmergencyReferralListQuery, actor: string) {
+    return this.repository.listSubmittedReferrals(query, await this.repository.branchScope(actor));
+  }
+  async getReferral(id: string, branchId: string, actor: string) {
+    await this.authorize(actor, branchId);
+    const referral = await this.repository.getReferral(id, branchId);
+    if (!referral)
+      throw new AppError('Submitted Emergency referral not found', 404, 'EMERGENCY_REFERRAL_NOT_FOUND');
+    return referral;
+  }
+  async submitReferral(
+    id: string,
+    branchId: string,
+    data: EmergencyReferralDTO,
+    actor: string,
+    metadata: EmergencyMetadata,
+  ) {
+    await this.authorize(actor, branchId);
+    const session = await this.repository.session();
+    try {
+      let result;
+      await session.withTransaction(async () => {
+        const current = await this.requireRecord(id, branchId, actor, session);
+        if (terminal.includes(current.status))
+          throw new AppError('Terminal Emergency encounters cannot create referrals', 409, 'EMERGENCY_ENCOUNTER_NOT_ACTIONABLE');
+        if (!current.assignedDoctorId || !current.assignedDoctorName)
+          throw new AppError('Doctor evaluation is required before referral', 409, 'EMERGENCY_DOCTOR_REQUIRED');
+        if (current.referral) {
+          const same =
+            current.referral.targetDepartmentId.toString() === data.target_department_id &&
+            (current.referral.targetDoctorId?.toString() ?? null) === (data.target_doctor_id ?? null) &&
+            current.referral.priority === data.priority &&
+            current.referral.reason === data.reason.trim() &&
+            current.referral.clinicalNotes === data.clinical_notes.trim();
+          if (!same)
+            throw new AppError('An Emergency referral is already submitted for this encounter', 409, 'EMERGENCY_REFERRAL_ALREADY_SUBMITTED');
+          result = emergencyReferralDto(current);
+          return;
+        }
+        const department = await this.repository.department(data.target_department_id, branchId, session);
+        if (!department)
+          throw new AppError('Target clinical department was not found in this branch', 404, 'DEPARTMENT_NOT_FOUND');
+        const doctor = data.target_doctor_id
+          ? await this.repository.doctor(data.target_doctor_id, branchId, data.target_department_id, session)
+          : null;
+        if (data.target_doctor_id && !doctor)
+          throw new AppError('Target doctor was not found in the selected department', 404, 'DOCTOR_NOT_FOUND');
+        result = await this.repository.saveReferral(
+          id,
+          branchId,
+          data,
+          department.name,
+          doctor?.displayName ?? null,
+          actor,
+          session,
+        );
+        if (!result)
+          throw new AppError('Emergency referral was submitted concurrently; refresh and retry', 409, 'EMERGENCY_REFERRAL_CONFLICT');
+        await this.repository.audit('emergency.referral.submitted', actor, metadata, {
+          encounterId: id,
+          patientId: current.patientId?.toString() ?? null,
+          branchId,
+          referringDoctorId: current.assignedDoctorId.toString(),
+          targetDoctorId: data.target_doctor_id ?? null,
+          targetDepartmentId: data.target_department_id,
+          priority: data.priority,
+        }, session);
+      });
+      return result;
+    } finally {
+      await session.endSession();
+    }
+  }
+  async bookReferral(
+    id: string,
+    branchId: string,
+    data: BookEmergencyReferralDTO,
+    actor: string,
+    metadata: EmergencyMetadata,
+  ) {
+    const referral = await this.getReferral(id, branchId, actor);
+    if (referral.appointment_id) return referral;
+    if (!referral.patient_id)
+      throw new AppError('Link a registered patient before booking this Emergency referral', 409, 'EMERGENCY_PATIENT_REQUIRED');
+    if (!referral.referred_doctor_id)
+      throw new AppError('Assign an HMS doctor before booking this Emergency referral', 400, 'REFERRED_DOCTOR_REQUIRED');
+    const appointment = await this.appointments.create({
+      patient_id: referral.patient_id,
+      doctor_id: referral.referred_doctor_id,
+      appointment_date: data.appointment_date,
+      start_time: data.start_time,
+      utc_datetime: data.utc_datetime,
+      duration_minutes: data.duration_minutes,
+      visit_type: data.visit_type,
+      priority: data.priority ?? referral.priority,
+      reason: referral.reason,
+      notes: data.notes?.trim() || `Booked from Emergency referral ${referral.encounter_number}`,
+    }, actor);
+    const linked = await this.repository.linkReferralAppointment(id, branchId, appointment, actor);
+    if (!linked) {
+      await this.appointments.updateStatus(
+        appointment.id,
+        { status: 'CANCELLED', notes: 'Emergency referral was booked concurrently; automatic rollback' },
+        actor,
+      );
+      const concurrent = await this.repository.getReferral(id, branchId);
+      if (concurrent?.appointment_id) return concurrent;
+      throw new AppError('Emergency referral was booked concurrently; refresh the queue', 409, 'EMERGENCY_REFERRAL_BOOKING_CONFLICT');
+    }
+    const session = await this.repository.session();
+    try {
+      await session.withTransaction(async () => {
+        await this.repository.audit('emergency.referral.booked', actor, metadata, {
+          encounterId: id,
+          patientId: referral.patient_id,
+          branchId,
+          appointmentId: appointment.id,
+          targetDoctorId: referral.referred_doctor_id,
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+    return linked;
   }
   async create(data: CreateEmergencyDTO, actor: string, metadata: EmergencyMetadata) {
     await this.authorize(actor, data.branch_id);

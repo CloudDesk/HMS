@@ -310,6 +310,7 @@ export type SaveOpdFollowUpPayload = {
   follow_up_type?: ApiOpdFollowUpType | null;
   next_visit_date?: string | null;
   start_time?: string | null;
+  utc_datetime?: string | null;
   duration_minutes?: number | null;
   assigned_doctor_id?: string | null;
   reason?: string | null;
@@ -324,6 +325,7 @@ export type ApiOpdReferralPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type OpdReferralResponse = {
   id: string;
   visit_id: string;
+  branch_id: string;
   consultation_id: string;
   patient_id: string;
   patient_number: string;

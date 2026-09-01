@@ -221,6 +221,15 @@ export function EmergencyWorkspacePage() {
 
   const selected = state.selected;
 
+  useEffect(() => {
+    if (!selected?.referral) return;
+    setRefDeptId(selected.referral.target_department_id);
+    setRefDoctorId(selected.referral.target_doctor_id ?? '');
+    setRefPriority(selected.referral.priority);
+    setRefReason(selected.referral.reason);
+    setRefNotes(selected.referral.clinical_notes);
+  }, [selected?.referral]);
+
   const availableMedicines = state.availableMedicines;
   const labServices = state.labServices;
   const imagingServices = state.imagingServices;
@@ -477,10 +486,18 @@ export function EmergencyWorkspacePage() {
     const targetDept = state.departments.find((d) => d.id === refDeptId);
     const targetDoc = state.doctors.find((d) => d.id === refDoctorId);
 
-    toast.success(`Referral dispatched to ${targetDept?.name || 'Department'}${targetDoc ? ` (Dr. ${targetDoc.display_name})` : ''}.`);
-    setRefDeptId('');
-    setRefDoctorId('');
-    setRefNotes('');
+    try {
+      await actions.submitReferral(selected.id, {
+        target_department_id: refDeptId,
+        target_doctor_id: refDoctorId || null,
+        priority: refPriority as 'ROUTINE' | 'URGENT' | 'EMERGENCY',
+        reason: refReason,
+        clinical_notes: refNotes.trim() || selected.consultation?.plan || selected.chief_complaint,
+      });
+      toast.success(`Referral dispatched to ${targetDept?.name || 'Department'}${targetDoc ? ` (${targetDoc.display_name})` : ''}.`);
+    } catch (error) {
+      toast.error(message(error));
+    }
   };
 
   const confirmDisposition = disposition.handleSubmit(async (value) => {
@@ -1578,10 +1595,11 @@ export function EmergencyWorkspacePage() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
                   <button
                     className="btn-emergency-primary"
+                    disabled={state.pending.referral || Boolean(selected.referral)}
                     type="submit"
                     style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    <i className="ph ph-paper-plane-tilt" /> Dispatch Clinical Referral
+                    <i className="ph ph-paper-plane-tilt" /> {selected.referral ? 'Referral Submitted' : state.pending.referral ? 'Submitting...' : 'Dispatch Clinical Referral'}
                   </button>
                 </div>
               </form>

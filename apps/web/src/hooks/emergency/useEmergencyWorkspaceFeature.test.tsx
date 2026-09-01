@@ -18,6 +18,7 @@ const testState = vi.hoisted(() => {
     triage: vi.fn(async (input: unknown) => input),
     consultation: vi.fn(async (input: unknown) => input),
     order: vi.fn(async (input: unknown) => input),
+    referral: vi.fn(async (input: unknown) => input),
     disposition: vi.fn(async (input: unknown) => {
       sequence.push('disposition');
       return input;
@@ -108,6 +109,7 @@ vi.mock('./useEmergency', () => ({
     triage: { mutateAsync: testState.triage, isPending: false },
     consultation: { mutateAsync: testState.consultation, isPending: false },
     order: { mutateAsync: testState.order, isPending: false },
+    referral: { mutateAsync: testState.referral, isPending: false },
     disposition: { mutateAsync: testState.disposition, isPending: false },
     linkPatient: { mutateAsync: testState.linkPatient, isPending: false },
     overridePriority: { mutateAsync: testState.overridePriority, isPending: false },
@@ -137,6 +139,7 @@ describe('useEmergencyWorkspaceFeature workspace orchestration', () => {
       testState.triage,
       testState.consultation,
       testState.order,
+      testState.referral,
       testState.disposition,
       testState.linkPatient,
       testState.overridePriority,

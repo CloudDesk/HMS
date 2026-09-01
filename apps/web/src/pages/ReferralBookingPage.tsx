@@ -23,59 +23,153 @@ export function ReferralBookingPage() {
       {state.error ? <div className="form-error-banner">{state.error}</div> : null}
       <section className="doc-card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="table-responsive">
-          <table className="data-table">
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th>PATIENT</th>
-                <th>REFERRED BY</th>
-                <th>REFERRED TO</th>
-                <th>SPECIALTY</th>
-                <th>PRIORITY</th>
-                <th>STATUS</th>
-                <th>ACTIONS</th>
+                <th style={{ padding: '0.85rem 1rem' }}>PATIENT</th>
+                <th style={{ padding: '0.85rem 1rem' }}>REFERRED BY</th>
+                <th style={{ padding: '0.85rem 1rem' }}>SOURCE</th>
+                <th style={{ padding: '0.85rem 1rem' }}>REFERRED TO</th>
+                <th style={{ padding: '0.85rem 1rem' }}>SPECIALTY</th>
+                <th style={{ padding: '0.85rem 1rem' }}>PRIORITY</th>
+                <th style={{ padding: '0.85rem 1rem' }}>STATUS</th>
+                <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {state.loading ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
+                  <td colSpan={8} style={{ padding: '2.5rem 1rem' }}>
                     <MedicalLoader text="Loading referrals..." subtext="Accessing clinical referral queues" />
                   </td>
                 </tr>
               ) : state.referrals.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="um-state-cell">No submitted referrals found.</td>
+                  <td colSpan={8} className="um-state-cell">No submitted referrals found.</td>
                 </tr>
               ) : (
                 paginatedReferrals.map((item) => (
                   <tr key={item.id}>
-                    <td>
-                      <strong>{item.patient_name}</strong>
-                      <br />
-                      <small>{item.patient_number}</small>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle' }}>
+                      <strong style={{ display: 'block', color: '#0f172a' }}>
+                        {item.patient_name}
+                      </strong>
+                      <small style={{ color: '#64748b', fontSize: '0.76rem', display: 'block' }}>
+                        {item.patient_number}
+                      </small>
                     </td>
-                    <td>{item.referring_doctor_name}</td>
-                    <td>{item.referred_doctor_name ?? item.facility ?? 'Not assigned'}</td>
-                    <td>{item.specialty ?? '-'}</td>
-                    <td>{item.priority}</td>
-                    <td>
-                      <span className="doc-status active">
-                        {item.appointment_id ? `Booked ${item.appointment_number}` : 'Pending booking'}
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', color: '#334155' }}>
+                      {item.referring_doctor_name}
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', color: '#334155' }}>
+                      {item.source_type === 'EMERGENCY_ENCOUNTER' ? 'Emergency' : 'OPD'}
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', color: '#334155' }}>
+                      {item.referred_doctor_name ?? 'Not assigned'}
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', color: '#334155' }}>
+                      {item.specialty ?? '-'}
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', color: '#334155', fontWeight: 600 }}>
+                      {item.priority}
+                    </td>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle' }}>
+                      <span
+                        className={`doc-status ${
+                          item.appointment_id
+                            ? 'completed'
+                            : item.status === 'CANCELLED'
+                            ? 'cancelled'
+                            : 'active'
+                        }`}
+                      >
+                        {item.appointment_id
+                          ? `Booked ${item.appointment_number}`
+                          : item.status === 'CANCELLED'
+                          ? 'Cancelled'
+                          : 'Pending booking'}
                       </span>
                     </td>
-                    <td>
-                      <div className="table-actions">
-                        <button className="doc-btn" onClick={() => actions.openPatient(item.patient_id)} type="button">
-                          Patient
-                        </button>
+                    <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                      <div
+                        className="table-actions"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          gap: '6px',
+                        }}
+                      >
                         <button
-                          className="doc-btn primary"
-                          disabled={Boolean(item.appointment_id) || item.referral_type !== 'INTERNAL' || !item.referred_doctor_id}
-                          onClick={() => actions.openBooking(item.visit_id)}
                           type="button"
+                          disabled={!item.patient_id}
+                          onClick={() => item.patient_id && actions.openPatient(item.patient_id)}
+                          title="View Patient"
+                          aria-label="View Patient"
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            padding: 0,
+                            display: 'inline-grid',
+                            placeItems: 'center',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#334155',
+                            cursor: item.patient_id ? 'pointer' : 'not-allowed',
+                            opacity: item.patient_id ? 1 : 0.5,
+                            flexShrink: 0,
+                          }}
                         >
-                          Book
+                          <i className="ph ph-user" style={{ fontSize: '1rem' }} />
                         </button>
+                        {item.appointment_id ? (
+                          <button
+                            type="button"
+                            onClick={() => actions.openBooking(item)}
+                            title="View Appointment"
+                            aria-label="View Appointment"
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              padding: 0,
+                              display: 'inline-grid',
+                              placeItems: 'center',
+                              borderRadius: '6px',
+                              border: '1px solid #93c5fd',
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <i className="ph ph-calendar-check" style={{ fontSize: '1rem' }} />
+                          </button>
+                        ) : item.status !== 'CANCELLED' ? (
+                          <button
+                            type="button"
+                            disabled={!item.bookable}
+                            onClick={() => actions.openBooking(item)}
+                            title="Book Referral"
+                            aria-label="Book Referral"
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              padding: 0,
+                              display: 'inline-grid',
+                              placeItems: 'center',
+                              borderRadius: '6px',
+                              border: 'none',
+                              background: '#2563eb',
+                              color: '#ffffff',
+                              cursor: item.bookable ? 'pointer' : 'not-allowed',
+                              opacity: item.bookable ? 1 : 0.5,
+                              flexShrink: 0,
+                            }}
+                          >
+                            <i className="ph ph-calendar-plus" style={{ fontSize: '1rem' }} />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

@@ -3,6 +3,7 @@ import type { OpdReferralPriority, OpdReferralStatus, OpdReferralType } from './
 
 export type OpdReferralFields = {
   visitId: Types.ObjectId;
+  branchId?: Types.ObjectId;
   consultationId: Types.ObjectId;
   patientId: Types.ObjectId;
   patientNumber: string;
@@ -35,6 +36,7 @@ export type OpdReferralFields = {
 const opdReferralSchema = new Schema<OpdReferralFields>(
   {
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
     consultationId: { type: Schema.Types.ObjectId, ref: 'OpdConsultation', required: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     patientNumber: { type: String, required: true },
@@ -65,6 +67,7 @@ const opdReferralSchema = new Schema<OpdReferralFields>(
 );
 
 opdReferralSchema.index({ visitId: 1 }, { unique: true });
+opdReferralSchema.index({ branchId: 1, status: 1, submittedAt: -1 });
 opdReferralSchema.index({ patientId: 1, createdAt: -1 });
 opdReferralSchema.index({ referredDoctorId: 1, status: 1, createdAt: -1 });
 opdReferralSchema.index({ referralType: 1, status: 1, priority: 1, submittedAt: -1 });

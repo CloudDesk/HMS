@@ -37,14 +37,14 @@ export class OpdFollowUpService {
 
   async schedule(visitId: string, data: SaveOpdFollowUpDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
-    this.ensureOpenVisit(visit);
+    this.ensureSchedulableVisit(visit);
     const consultation = await this.getConsultation(visitId);
     if (consultation.status !== 'COMPLETED') {
       throw new AppError('Complete the consultation before scheduling follow-up', 400, 'CONSULTATION_NOT_COMPLETED');
     }
     const current = await this.repository.getByVisit(visitId);
     if (current?.status === 'SCHEDULED') {
-      throw new AppError('Follow-up has already been scheduled', 400, 'FOLLOW_UP_SCHEDULED');
+      return current;
     }
     this.validateSchedule(data);
 
@@ -54,6 +54,7 @@ export class OpdFollowUpService {
         doctor_id: data.assigned_doctor_id!,
         appointment_date: data.next_visit_date!,
         start_time: data.start_time!,
+        utc_datetime: data.utc_datetime!,
         duration_minutes: data.duration_minutes!,
         visit_type: 'FOLLOW_UP',
         priority: 'ROUTINE',
@@ -95,7 +96,7 @@ export class OpdFollowUpService {
   }
 
   private validateSchedule(data: SaveOpdFollowUpDTO) {
-    if (!data.follow_up_type || !data.next_visit_date || !data.start_time || !data.duration_minutes || !data.assigned_doctor_id) {
+    if (!data.follow_up_type || !data.next_visit_date || !data.start_time || !data.utc_datetime || !data.duration_minutes || !data.assigned_doctor_id) {
       throw new AppError('Follow-up type, date, time, duration and doctor are required', 400, 'VALIDATION_ERROR');
     }
     if (!data.reason?.trim()) {
@@ -120,6 +121,12 @@ export class OpdFollowUpService {
   private ensureOpenVisit(visit: OpdVisit) {
     if (terminalVisitStatuses.includes(visit.status)) {
       throw new AppError('Follow-up cannot be changed for a closed OPD visit', 400, 'VISIT_CLOSED');
+    }
+  }
+
+  private ensureSchedulableVisit(visit: OpdVisit) {
+    if (visit.status === 'CANCELLED' || visit.status === 'NO_SHOW') {
+      throw new AppError('Follow-up cannot be scheduled for a cancelled or no-show OPD visit', 400, 'VISIT_CLOSED');
     }
   }
 }

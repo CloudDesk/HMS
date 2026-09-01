@@ -274,6 +274,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       opdPrescriptionRepository,
       serviceRepository,
       billingService,
+      appointmentService,
     ),
     advancePayment: advancePaymentService,
   };

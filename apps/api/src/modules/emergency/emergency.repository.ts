@@ -1,4 +1,5 @@
 import mongoose, { Types, type ClientSession } from 'mongoose';
+import { AppError } from '../../shared/errors/app-error.js';
 import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
@@ -8,11 +9,14 @@ import { PatientModel } from '../patients/patient.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
 import { AdmissionRequestModel } from '../inpatient-admissions/inpatient-admission.model.js';
+import type { Appointment } from '../appointments/appointment.types.js';
 import { EmergencyEncounterModel, type EmergencyEncounterFields } from './emergency.model.js';
 import type {
   CreateEmergencyDTO,
   EmergencyListQuery,
   EmergencyMetadata,
+  EmergencyReferralDTO,
+  EmergencyReferralListQuery,
   EmergencyStatus,
   EmergencyTriageLevel,
 } from './emergency.types.js';
@@ -75,6 +79,22 @@ export const emergencyDto = (row: EmergencyLean) => ({
   assigned_doctor_id: row.assignedDoctorId?.toString() ?? null,
   assigned_doctor_name: row.assignedDoctorName ?? null,
   consultation: row.consultation ?? null,
+  referral: row.referral
+    ? {
+        source_type: row.referral.sourceType,
+        target_department_id: row.referral.targetDepartmentId.toString(),
+        target_department_name: row.referral.targetDepartmentName,
+        target_doctor_id: row.referral.targetDoctorId?.toString() ?? null,
+        target_doctor_name: row.referral.targetDoctorName ?? null,
+        priority: row.referral.priority,
+        reason: row.referral.reason,
+        clinical_notes: row.referral.clinicalNotes,
+        status: row.referral.status,
+        submitted_at: row.referral.submittedAt,
+        appointment_id: row.referral.appointmentId?.toString() ?? null,
+        appointment_number: row.referral.appointmentNumber ?? null,
+      }
+    : null,
   orders: row.orders.map((item) => ({
     order_type: item.orderType,
     downstream_id: item.downstreamId.toString(),
@@ -120,6 +140,38 @@ const emergencyQueueDto = (row: EmergencyLean) => ({
   updated_at: row.updatedAt,
 });
 
+export const emergencyReferralDto = (row: EmergencyLean) => {
+  const referral = row.referral;
+  if (!referral) throw new AppError('Emergency referral data is missing', 500, 'EMERGENCY_REFERRAL_INVALID');
+  return {
+    id: row._id.toString(),
+    source_type: referral.sourceType,
+    source_id: row._id.toString(),
+    encounter_number: row.encounterNumber,
+    emergency_identifier: row.emergencyIdentifier,
+    branch_id: row.branchId.toString(),
+    patient_id: row.patientId?.toString() ?? null,
+    patient_number: row.patientNumber ?? row.emergencyIdentifier,
+    patient_name: row.patientName,
+    referring_doctor_id: row.assignedDoctorId?.toString() ?? null,
+    referring_doctor_name: row.assignedDoctorName ?? 'Emergency team',
+    target_department_id: referral.targetDepartmentId.toString(),
+    target_department_name: referral.targetDepartmentName,
+    referred_doctor_id: referral.targetDoctorId?.toString() ?? null,
+    referred_doctor_name: referral.targetDoctorName ?? null,
+    priority: referral.priority,
+    reason: referral.reason,
+    clinical_summary: referral.clinicalNotes,
+    status: referral.status,
+    submitted_at: referral.submittedAt,
+    appointment_id: referral.appointmentId?.toString() ?? null,
+    appointment_number: referral.appointmentNumber ?? null,
+    appointment_date: referral.appointmentDate ?? null,
+    appointment_start_time: referral.appointmentStartTime ?? null,
+    appointment_duration_minutes: referral.appointmentDurationMinutes ?? null,
+  };
+};
+
 export class EmergencyRepository {
   constructor(private readonly sequenceService: SequenceService) {}
   async session() {
@@ -150,6 +202,19 @@ export class EmergencyRepository {
       deletedAt: null,
     });
     return superAdmin ? undefined : (user.departmentIds ?? []).map((id) => id.toString());
+  }
+  async branchScope(userId: string) {
+    const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null })
+      .select('branchIds roleIds')
+      .lean();
+    if (!user) return [];
+    const superAdmin = await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] },
+      code: 'SUPER_ADMIN',
+      status: 'active',
+      deletedAt: null,
+    });
+    return superAdmin ? undefined : (user.branchIds ?? []).map((id) => id.toString());
   }
   async references(data: CreateEmergencyDTO, session: ClientSession) {
     const branch = await BranchModel.findOne({
@@ -197,7 +262,20 @@ export class EmergencyRepository {
   async doctor(id: string, branchId?: string, departmentId?: string, session?: ClientSession) {
     const query = DoctorModel.findOne({
       _id: oid(id),
+      ...(branchId ? { branchId: oid(branchId) } : {}),
+      ...(departmentId ? { departmentId: oid(departmentId) } : {}),
       status: 'ACTIVE',
+      deletedAt: null,
+    });
+    if (session) query.session(session);
+    return query.lean();
+  }
+  async department(id: string, branchId: string, session?: ClientSession) {
+    const query = DepartmentModel.findOne({
+      _id: oid(id),
+      branchIds: oid(branchId),
+      status: 'ACTIVE',
+      isClinical: true,
       deletedAt: null,
     });
     if (session) query.session(session);
@@ -336,6 +414,97 @@ export class EmergencyRepository {
   async get(id: string, branchId: string) {
     const row = await this.getRecord(id, branchId);
     return row ? emergencyDto(row) : null;
+  }
+  async getReferral(id: string, branchId: string) {
+    const row = await EmergencyEncounterModel.findOne({
+      _id: oid(id),
+      branchId: oid(branchId),
+      'referral.status': 'SUBMITTED',
+    }).lean<EmergencyLean>();
+    return row ? emergencyReferralDto(row) : null;
+  }
+  async listSubmittedReferrals(query: EmergencyReferralListQuery, branchIds?: string[]) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const filter: Record<string, unknown> = {
+      'referral.status': 'SUBMITTED',
+      ...(branchIds ? { branchId: { $in: branchIds.map(oid) } } : {}),
+    };
+    if (query.booked !== undefined) {
+      filter['referral.appointmentId'] = query.booked ? { $ne: null } : null;
+    }
+    const [rows, total] = await Promise.all([
+      EmergencyEncounterModel.find(filter)
+        .sort({ 'referral.submittedAt': -1, _id: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean<EmergencyLean[]>(),
+      EmergencyEncounterModel.countDocuments(filter),
+    ]);
+    return {
+      data: rows.map(emergencyReferralDto),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+  async saveReferral(
+    id: string,
+    branchId: string,
+    data: EmergencyReferralDTO,
+    targetDepartmentName: string,
+    targetDoctorName: string | null,
+    actor: string,
+    session: ClientSession,
+  ) {
+    const row = await EmergencyEncounterModel.findOneAndUpdate(
+      { _id: oid(id), branchId: oid(branchId), referral: null },
+      {
+        $set: {
+          referral: {
+            sourceType: 'EMERGENCY_ENCOUNTER',
+            targetDepartmentId: oid(data.target_department_id),
+            targetDepartmentName,
+            targetDoctorId: data.target_doctor_id ? oid(data.target_doctor_id) : null,
+            targetDoctorName,
+            priority: data.priority,
+            reason: data.reason.trim(),
+            clinicalNotes: data.clinical_notes.trim(),
+            status: 'SUBMITTED',
+            submittedAt: new Date(),
+            submittedBy: oid(actor),
+            appointmentId: null,
+            appointmentNumber: null,
+            appointmentDate: null,
+            appointmentStartTime: null,
+            appointmentDurationMinutes: null,
+          },
+          updatedBy: oid(actor),
+        },
+      },
+      { returnDocument: 'after', session },
+    ).lean<EmergencyLean>();
+    return row ? emergencyReferralDto(row) : null;
+  }
+  async linkReferralAppointment(id: string, branchId: string, appointment: Appointment, actor: string) {
+    const row = await EmergencyEncounterModel.findOneAndUpdate(
+      {
+        _id: oid(id),
+        branchId: oid(branchId),
+        'referral.status': 'SUBMITTED',
+        'referral.appointmentId': null,
+      },
+      {
+        $set: {
+          'referral.appointmentId': oid(appointment.id),
+          'referral.appointmentNumber': appointment.appointment_number,
+          'referral.appointmentDate': appointment.appointment_date,
+          'referral.appointmentStartTime': appointment.start_time,
+          'referral.appointmentDurationMinutes': appointment.duration_minutes,
+          updatedBy: oid(actor),
+        },
+      },
+      { returnDocument: 'after' },
+    ).lean<EmergencyLean>();
+    return row ? emergencyReferralDto(row) : null;
   }
   async list(query: EmergencyListQuery, departments?: string[]) {
     const page = query.page ?? 1,

@@ -51,6 +51,8 @@ export function AppointmentBookingPage() {
   const { search } = useAppLocation();
   const initialPatientId = new URLSearchParams(search).get('patient') ?? '';
   const referralVisitId = new URLSearchParams(search).get('referral_visit') ?? '';
+  const emergencyReferralId = new URLSearchParams(search).get('emergency_referral') ?? '';
+  const emergencyBranchId = new URLSearchParams(search).get('branch_id') ?? '';
   const [step, setStep] = useState<BookingStep>(1);
   const [patientSearch, setPatientSearch] = useState('');
   const timezone = useTimezone();
@@ -101,7 +103,15 @@ const {
       searchPatientsRefetch,
       handleCreateAppointment,
     }
-  } = useAppointmentBookingFeature(initialPatientId, patientSearch, selectedDoctorId, appointmentDate, referralVisitId);
+  } = useAppointmentBookingFeature(
+    initialPatientId,
+    patientSearch,
+    selectedDoctorId,
+    appointmentDate,
+    referralVisitId,
+    emergencyReferralId,
+    emergencyBranchId,
+  );
 
   const selectedDoctor = useMemo(() => doctors.find((d) => d.id === selectedDoctorId), [doctors, selectedDoctorId]);
   

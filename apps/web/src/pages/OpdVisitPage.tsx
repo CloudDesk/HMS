@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { fromZonedTime } from 'date-fns-tz';
 import type { SaveBillingInvoiceItem } from '../api/billing';
 import {
   type ApiClinicalOrderPriority,
@@ -26,6 +27,7 @@ import {
 } from '../components/ui/ClinicalVitalCard';
 import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
 import { useActiveBranch } from '../context/BranchContext';
+import { useTimezone } from '../api/useSettings';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, calculateAge } from './patient-utils';
 import {
@@ -150,10 +152,11 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null
 
 export function OpdVisitPage() {
   const { activeBranchId } = useActiveBranch();
+  const timezone = useTimezone();
   const feature = useOpdVisitFeature();
   const {
     activeVisitId, activeTab, recentVisits, visit, patient, vitals, consultation,
-    prescription, laboratoryOrder, imagingOrder, doctors, masterMedicines, services,
+    prescription, followUp, referral, laboratoryOrder, imagingOrder, doctors, masterMedicines, services,
     branches, departments, documents, loading, loadError,
   } = feature.state;
   const { setActiveTab, selectVisit } = feature.actions;
@@ -181,6 +184,12 @@ export function OpdVisitPage() {
   const [referralDoctorId, setReferralDoctorId] = useState('');
   const [referralReason, setReferralReason] = useState('');
   const [referralBooking, setReferralBooking] = useState(false);
+
+  // Follow-up Tab (Tab 7) State
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpDoctorId, setFollowUpDoctorId] = useState('');
+  const [followUpStartTime, setFollowUpStartTime] = useState('09:00');
+  const [followUpDurationMinutes, setFollowUpDurationMinutes] = useState('30');
 
   // Derive unique specialties from Doctor Directory records
   const uniqueSpecialties = useMemo(() => {
@@ -507,6 +516,21 @@ export function OpdVisitPage() {
   }, [prescription]);
 
   useEffect(() => {
+    if (!referral) return;
+    setReferralSpecialty(referral.specialty ?? '');
+    setReferralDoctorId(referral.referred_doctor_id ?? '');
+    setReferralReason(referral.reason ?? '');
+  }, [referral]);
+
+  useEffect(() => {
+    if (!followUp) return;
+    setFollowUpDate(followUp.next_visit_date?.slice(0, 10) ?? '');
+    setFollowUpDoctorId(followUp.assigned_doctor_id ?? '');
+    setFollowUpStartTime(followUp.start_time ?? '09:00');
+    setFollowUpDurationMinutes(String(followUp.duration_minutes ?? 30));
+  }, [followUp]);
+
+  useEffect(() => {
     if (!laboratoryOrder?.items?.length) return;
     setLabOrders(laboratoryOrder.items.map((item) => ({
       id: item.service_id,
@@ -662,6 +686,9 @@ export function OpdVisitPage() {
     }
   };
 
+  const followUpUtcDateTime = () =>
+    fromZonedTime(`${followUpDate}T${followUpStartTime}:00`, timezone).toISOString();
+
   const completeConsultation = async () => {
     if (!visit) return;
     setUpdating('consultation-complete');
@@ -772,12 +799,27 @@ export function OpdVisitPage() {
           }
           : undefined;
 
+      const followUpPayload =
+        followUpDate && followUpDoctorId
+          ? {
+              follow_up_type: 'CLINICAL_REVIEW' as const,
+              next_visit_date: followUpDate,
+              start_time: followUpStartTime,
+              utc_datetime: followUpUtcDateTime(),
+              duration_minutes: Number(followUpDurationMinutes),
+              assigned_doctor_id: followUpDoctorId,
+              reason: 'Clinical follow-up review',
+              reminder_type: 'SMS' as const,
+            }
+          : undefined;
+
       await feature.actions.completeWorkspace({
         consultation: payload,
         prescription: prescriptionPayload,
         laboratory: laboratoryPayload,
         imaging: imagingPayload,
         referral: referralPayload,
+        followUp: followUpPayload,
         invoice:
           invoiceItems.length > 0
             ? {
@@ -790,6 +832,34 @@ export function OpdVisitPage() {
       });
       showToast('Consultation completed successfully!');
 
+    } catch (error) {
+      showToast(getOpdErrorMessage(error), 'error');
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const scheduleFollowUp = async () => {
+    if (!visit || !followUpDate || !followUpDoctorId) {
+      showToast('Please select a follow-up date and doctor.', 'error');
+      return;
+    }
+    setUpdating('follow-up-schedule');
+    try {
+      await feature.actions.scheduleFollowUp({
+        visitId: visit.id,
+        payload: {
+          follow_up_type: 'CLINICAL_REVIEW',
+          next_visit_date: followUpDate,
+          start_time: followUpStartTime,
+          utc_datetime: followUpUtcDateTime(),
+          duration_minutes: Number(followUpDurationMinutes),
+          assigned_doctor_id: followUpDoctorId,
+          reason: 'Clinical follow-up review',
+          reminder_type: 'SMS',
+        },
+      });
+      showToast('Follow-up scheduled and added to the doctor calendar.');
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
     } finally {
@@ -2226,17 +2296,53 @@ export function OpdVisitPage() {
                     <div className="doc-form-grid two">
                       <label className="doc-field" htmlFor="fu-date">
                         <span>Follow-up Date</span>
-                        <input id="fu-date" type="date" />
+                        <input
+                          disabled={followUp?.status === 'SCHEDULED'}
+                          id="fu-date"
+                          min={new Date().toISOString().slice(0, 10)}
+                          onChange={(event) => setFollowUpDate(event.target.value)}
+                          type="date"
+                          value={followUpDate}
+                        />
                       </label>
                       <label className="doc-field" htmlFor="fu-doctor">
                         <span>Doctor</span>
-                        <select id="fu-doctor">
+                        <select
+                          disabled={followUp?.status === 'SCHEDULED'}
+                          id="fu-doctor"
+                          onChange={(event) => setFollowUpDoctorId(event.target.value)}
+                          value={followUpDoctorId}
+                        >
                           <option value="">Select Doctor</option>
                           {doctors.map((d) => (
                             <option key={d.id} value={d.id}>
                               {d.display_name} - {d.specialization}
                             </option>
                           ))}
+                        </select>
+                      </label>
+                      <label className="doc-field" htmlFor="fu-time">
+                        <span>Start Time</span>
+                        <input
+                          disabled={followUp?.status === 'SCHEDULED'}
+                          id="fu-time"
+                          onChange={(event) => setFollowUpStartTime(event.target.value)}
+                          type="time"
+                          value={followUpStartTime}
+                        />
+                      </label>
+                      <label className="doc-field" htmlFor="fu-duration">
+                        <span>Duration</span>
+                        <select
+                          disabled={followUp?.status === 'SCHEDULED'}
+                          id="fu-duration"
+                          onChange={(event) => setFollowUpDurationMinutes(event.target.value)}
+                          value={followUpDurationMinutes}
+                        >
+                          <option value="15">15 minutes</option>
+                          <option value="30">30 minutes</option>
+                          <option value="45">45 minutes</option>
+                          <option value="60">60 minutes</option>
                         </select>
                       </label>
                     </div>
@@ -2252,7 +2358,7 @@ export function OpdVisitPage() {
                         <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
                       </button>
-                      {isVisitCompleted ? (
+                      {followUp?.status === 'SCHEDULED' ? (
                         <span
                           className="doc-btn"
                           style={{
@@ -2266,25 +2372,25 @@ export function OpdVisitPage() {
                           }}
                         >
                           <i className="ph ph-check-circle-fill" aria-hidden="true" />
-                          Consultation Completed
+                          Follow-up Scheduled
                         </span>
                       ) : (
                         <button
                           className="doc-btn success"
-                          disabled={updating === 'consultation-complete'}
-                          onClick={completeConsultation}
+                          disabled={updating === 'consultation-complete' || updating === 'follow-up-schedule' || !followUpDate || !followUpDoctorId}
+                          onClick={isVisitCompleted ? scheduleFollowUp : completeConsultation}
                           style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
                           type="button"
                         >
-                          {updating === 'consultation-complete' ? (
+                          {updating === 'consultation-complete' || updating === 'follow-up-schedule' ? (
                             <>
                               <MedicalSpinner size="sm" />
-                              <span>Completing...</span>
+                              <span>{isVisitCompleted ? 'Scheduling...' : 'Completing...'}</span>
                             </>
                           ) : (
                             <>
                               <i className="ph ph-check-circle" aria-hidden="true" />
-                              Complete Consultation
+                              {isVisitCompleted ? 'Schedule Follow-up' : 'Complete Consultation'}
                             </>
                           )}
                         </button>

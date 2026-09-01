@@ -7,11 +7,14 @@ import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
   consultationSchema,
+  bookEmergencyReferralSchema,
   createEmergencySchema,
   dispositionSchema,
   emergencyBranchSchema,
   emergencyIdSchema,
   emergencyListSchema,
+  emergencyReferralListSchema,
+  emergencyReferralSchema,
   linkPatientSchema,
   orderSchema,
   priorityOverrideSchema,
@@ -97,6 +100,56 @@ const dispositionPermission = async (
   throw new AppError('Permission required', 403, 'PERMISSION_REQUIRED');
 };
 export const registerEmergencyRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.get(
+    '/api/emergency/referrals',
+    { preHandler: requirePermission(services, 'OPD', 'OPD Referral', 'View') },
+    async (request) =>
+      ok(await services.emergency.listReferrals(parse(emergencyReferralListSchema, request.query), request.user!.id)),
+  );
+  app.get(
+    '/api/emergency/encounters/:id/referral',
+    { preHandler: requirePermission(services, 'OPD', 'OPD Referral', 'View') },
+    async (request) => {
+      const params = parse(emergencyIdSchema, request.params);
+      const query = parse(emergencyBranchSchema, request.query);
+      return ok(await services.emergency.getReferral(params.id, query.branch_id, request.user!.id));
+    },
+  );
+  app.post(
+    '/api/emergency/encounters/:id/referral',
+    { preHandler: requirePermission(services, 'Emergency', 'Consultation', 'Edit') },
+    async (request, reply) => {
+      const params = parse(emergencyIdSchema, request.params);
+      const query = parse(emergencyBranchSchema, request.query);
+      return reply.status(201).send(ok(await services.emergency.submitReferral(
+        params.id,
+        query.branch_id,
+        parse(emergencyReferralSchema, request.body),
+        request.user!.id,
+        meta(request),
+      )));
+    },
+  );
+  app.post(
+    '/api/emergency/encounters/:id/referral/book',
+    {
+      preHandler: [
+        ...requirePermission(services, 'OPD', 'OPD Referral', 'View'),
+        ...requirePermission(services, 'Appointments', 'Appointment Booking', 'Create'),
+      ],
+    },
+    async (request) => {
+      const params = parse(emergencyIdSchema, request.params);
+      const query = parse(emergencyBranchSchema, request.query);
+      return ok(await services.emergency.bookReferral(
+        params.id,
+        query.branch_id,
+        parse(bookEmergencyReferralSchema, request.body),
+        request.user!.id,
+        meta(request),
+      ));
+    },
+  );
   app.get(
     '/api/emergency/encounters',
     { preHandler: requirePermission(services, 'Emergency', 'Encounters', 'View') },

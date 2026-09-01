@@ -306,14 +306,14 @@
 
 .dispensing-line-grid {
   display: grid;
-  grid-template-columns: minmax(88px, 0.55fr) minmax(175px, 1.2fr) minmax(260px, 1.75fr) minmax(100px, 0.6fr) minmax(108px, 0.65fr);
+  grid-template-columns: minmax(82px, 0.55fr) minmax(155px, 1.1fr) minmax(225px, 1.55fr) minmax(92px, 0.6fr) minmax(100px, 0.65fr) minmax(105px, 0.7fr) minmax(105px, 0.7fr);
   gap: 10px;
   align-items: end;
   min-width: 0;
 }
 
 .dispensing-line-grid-summary {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: stretch;
 }
 
@@ -386,6 +386,28 @@
 .dispensing-reason {
   width: 100%;
   min-width: 0;
+}
+
+.dispensing-total {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 12px 14px;
+  border-top: 1px solid #dbe3ee;
+  background: #f8fafc;
+}
+
+.dispensing-total span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dispensing-total strong {
+  color: #0f172a;
+  font-size: 17px;
 }
 
 .dispensing-invoice {

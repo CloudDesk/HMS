@@ -4,6 +4,7 @@ import type {
   ConsultationPayload,
   DispositionPayload,
   EmergencyOrderPayload,
+  EmergencyReferralPayload,
   EmergencyTriageLevel,
   TriagePayload,
 } from '../../api/emergency';
@@ -294,6 +295,7 @@ export function useEmergencyWorkspaceFeature() {
         triage: emergency.triage.isPending,
         consultation: emergency.consultation.isPending,
         order: emergency.order.isPending,
+        referral: emergency.referral.isPending,
         disposition: emergency.disposition.isPending,
         linkPatient: emergency.linkPatient.isPending,
         overridePriority: emergency.overridePriority.isPending,
@@ -313,6 +315,8 @@ export function useEmergencyWorkspaceFeature() {
         emergency.consultation.mutateAsync({ id, body }),
       submitOrder: (id: string, body: EmergencyOrderPayload) =>
         emergency.order.mutateAsync({ id, body }),
+      submitReferral: (id: string, body: EmergencyReferralPayload) =>
+        emergency.referral.mutateAsync({ id, body }),
       completeDisposition: async (id: string, body: DispositionPayload) => {
         const encounter = await emergency.disposition.mutateAsync({ id, body });
         toast.success(`Patient disposition confirmed as ${body.decision}.`);
