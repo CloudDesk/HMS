@@ -13,12 +13,8 @@ export type GeneralSettings = {
 
 export type HospitalSettings = {
   hospitalName: string;
-  registrationNumber: string;
-  hospitalType: 'General' | 'Teaching' | 'Specialist';
   phone: string;
   email: string;
-  website: string | null;
-  bedCapacity: number;
   address: string;
   logoBlobName: string | null;
   logoContentType: string | null;
@@ -34,7 +30,6 @@ export type LocalizationSettings = {
 };
 
 export type UserPreferenceSettings = {
-  defaultRole: 'Nurse' | 'Receptionist' | 'Doctor';
   passwordMinLength: number;
   passwordExpiryDays: number;
   maxFailedLoginAttempts: number;

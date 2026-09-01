@@ -8,11 +8,13 @@ import {
   type LocalizationSettings,
   type UserPreferenceSettings,
 } from '../../api/settings';
+import { useEffect, useState } from 'react';
 
 export const settingsKeys = {
   all: ['settings'] as const,
   details: () => [...settingsKeys.all, 'detail'] as const,
   firstDayOfWeek: () => [...settingsKeys.all, 'runtime', 'firstDayOfWeek'] as const,
+  hospital: () => [...settingsKeys.all, 'runtime', 'hospital'] as const,
   auditLogs: () => [...settingsKeys.all, 'auditLogs'] as const,
   auditLogList: (params: { search?: string; action?: AuditAction; page?: number; limit?: number }) => [...settingsKeys.auditLogs(), params] as const,
 };
@@ -23,6 +25,47 @@ export function useSystemSettings(enabled = true) {
     queryFn: () => settingsApi.get(),
     enabled,
   });
+}
+
+export function useHospitalSettings() {
+  const query = useQuery({
+    queryKey: settingsKeys.hospital(),
+    queryFn: () => settingsApi.getRuntimeHospital(),
+  });
+
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const logoBlobName = query.data?.logoBlobName;
+
+  useEffect(() => {
+    if (!logoBlobName) {
+      setLogoUrl(null);
+      return;
+    }
+    let active = true;
+    settingsApi
+      .getLogo()
+      .then((blob) => {
+        if (active) {
+          setLogoUrl(URL.createObjectURL(blob));
+        }
+      })
+      .catch(() => {
+        if (active) setLogoUrl(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [logoBlobName]);
+
+  return {
+    hospitalName: query.data?.hospitalName ?? 'HMS Enterprise',
+    phone: query.data?.phone ?? '',
+    email: query.data?.email ?? '',
+    address: query.data?.address ?? '',
+    logoUrl,
+    hospitalSettings: query.data ?? null,
+    ...query,
+  };
 }
 
 export function useFirstDayOfWeek() {
@@ -44,6 +87,8 @@ export function useUpdateGeneralSettings() {
     mutationFn: (payload: Omit<GeneralSettings, 'version'>) => settingsApi.updateGeneral(payload),
     onSuccess: async () => {
       toast.success('General settings updated successfully');
+
+
       await queryClient.invalidateQueries({ queryKey: settingsKeys.details() });
     },
     onError: (error: unknown) => {
@@ -59,7 +104,10 @@ export function useUpdateHospitalSettings() {
     mutationFn: (payload: Omit<HospitalSettings, 'logoBlobName' | 'logoContentType'>) => settingsApi.updateHospital(payload),
     onSuccess: async () => {
       toast.success('Hospital settings updated successfully');
-      await queryClient.invalidateQueries({ queryKey: settingsKeys.details() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: settingsKeys.details() }),
+        queryClient.invalidateQueries({ queryKey: settingsKeys.hospital() }),
+      ]);
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : 'Failed to update hospital settings');
@@ -129,6 +177,16 @@ export function useUploadHospitalLogo() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => settingsApi.uploadLogo(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.all });
+    },
+  });
+}
+
+export function useDeleteHospitalLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => settingsApi.deleteLogo(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.all });
     },

@@ -36,12 +36,8 @@ const generalSchema = new Schema<GeneralSettings>(
 const hospitalSchema = new Schema<HospitalSettings>(
   {
     hospitalName: { type: String, required: true, trim: true },
-    registrationNumber: { type: String, required: true, trim: true },
-    hospitalType: { type: String, enum: ['General', 'Teaching', 'Specialist'], required: true },
     phone: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true, lowercase: true },
-    website: { type: String, default: null, trim: true },
-    bedCapacity: { type: Number, min: 0, max: 100000, required: true },
     address: { type: String, required: true, trim: true },
     logoBlobName: { type: String, default: null },
     logoContentType: { type: String, default: null },
@@ -63,7 +59,6 @@ const localizationSchema = new Schema<LocalizationSettings>(
 
 const userPreferencesSchema = new Schema<UserPreferenceSettings>(
   {
-    defaultRole: { type: String, enum: ['Nurse', 'Receptionist', 'Doctor'], required: true },
     passwordMinLength: { type: Number, min: 6, max: 32, required: true },
     passwordExpiryDays: { type: Number, min: 0, max: 3650, required: true },
     maxFailedLoginAttempts: { type: Number, min: 1, max: 20, required: true },

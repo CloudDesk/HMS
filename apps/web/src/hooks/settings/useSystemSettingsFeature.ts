@@ -10,13 +10,16 @@ import {
   useUpdateUserPreferences,
   useResetSettings,
   useUploadHospitalLogo,
+  useDeleteHospitalLogo,
 } from './useSettings';
-import type {
-  GeneralSettings,
-  HospitalSettings,
-  LocalizationSettings,
-  UserPreferenceSettings
+import {
+  settingsApi,
+  type GeneralSettings,
+  type HospitalSettings,
+  type LocalizationSettings,
+  type UserPreferenceSettings
 } from '../../api/settings';
+import { useEffect } from 'react';
 
 type TabId =
   | 'general'
@@ -66,6 +69,7 @@ export function useSystemSettingsFeature() {
   const updateUserPreferences = useUpdateUserPreferences();
   const resetSettings = useResetSettings();
   const uploadLogoMutation = useUploadHospitalLogo();
+  const deleteLogoMutation = useDeleteHospitalLogo();
 
   const [serverErrors, setServerErrors] = useState<FieldErrors>({});
 
@@ -85,6 +89,22 @@ export function useSystemSettingsFeature() {
     logoObjectUrl.current = nextUrl;
     setLogoUrl(nextUrl);
   }, []);
+
+  const serverLogoBlobName = settingsQuery.data?.hospital?.logoBlobName;
+
+  useEffect(() => {
+    if (!serverLogoBlobName) return;
+    let active = true;
+    settingsApi
+      .getLogo()
+      .then((blob) => {
+        if (active) replaceLogoUrl(URL.createObjectURL(blob));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [serverLogoBlobName, replaceLogoUrl]);
 
   const handleMutationError = useCallback((error: unknown) => {
     if (error instanceof ApiError) {
@@ -171,8 +191,20 @@ export function useSystemSettingsFeature() {
     }
   };
 
+  const removeLogo = async () => {
+    if (!canEdit) return;
+
+    try {
+      await deleteLogoMutation.mutateAsync();
+      replaceLogoUrl(null);
+      showMessage('Hospital logo removed.');
+    } catch (error) {
+      showMessage((error as Error).message || 'Failed to remove logo', 'error');
+    }
+  };
+
   const isFetching = settingsQuery.isFetching;
-  const isMutating = updateGeneralSettings.isPending || updateHospitalSettings.isPending || updateLocalizationSettings.isPending || updateUserPreferences.isPending || resetSettings.isPending || uploadLogoMutation.isPending;
+  const isMutating = updateGeneralSettings.isPending || updateHospitalSettings.isPending || updateLocalizationSettings.isPending || updateUserPreferences.isPending || resetSettings.isPending || uploadLogoMutation.isPending || deleteLogoMutation.isPending;
   const loadError = settingsQuery.error ? (settingsQuery.error as Error).message || 'Unable to load settings.' : '';
 
   return {
@@ -210,6 +242,7 @@ export function useSystemSettingsFeature() {
       updatePreferences,
       reset,
       uploadLogo,
+      removeLogo,
       showMessage,
       refetch: settingsQuery.refetch,
     }

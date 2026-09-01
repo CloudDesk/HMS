@@ -1,5 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../auth/useAuth';
+import { useActiveBranch } from '../../context/BranchContext';
+import { useHospitalSettings } from '../../hooks/settings/useSettings';
 
 type PrintReceiptLayoutProps = {
   title: string;
@@ -9,11 +11,21 @@ type PrintReceiptLayoutProps = {
 
 export function PrintReceiptLayout({ title, gridItems, children }: PrintReceiptLayoutProps) {
   const { user } = useAuth();
-  const activeBranchId = localStorage.getItem('activeBranchId');
+  const { activeBranchId } = useActiveBranch();
+  const { hospitalName, phone, email, address, logoUrl } = useHospitalSettings();
+
   const branchName =
     user?.branches?.find((b) => b.id === activeBranchId)?.name ||
     user?.branches?.[0]?.name ||
-    'HMS Medical Centre';
+    '';
+
+  const displayName = hospitalName
+    ? branchName && branchName !== hospitalName
+      ? `${hospitalName} - ${branchName}`
+      : hospitalName
+    : branchName || 'HMS Enterprise';
+
+  const contactDetails = [address, phone, email].filter(Boolean).join(' · ');
 
   const dateStr = new Date().toLocaleString('en-US', {
     month: 'short',
@@ -27,8 +39,15 @@ export function PrintReceiptLayout({ title, gridItems, children }: PrintReceiptL
   return (
     <article className="print-receipt-paper billing-receipt-paper" style={{ padding: '2rem', backgroundColor: 'white', color: 'black' }}>
       <header style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <i className="ph-fill ph-hospital" style={{ fontSize: '2rem', color: '#0f172a' }} />
-        <h3 style={{ margin: '0.5rem 0 0.25rem', fontSize: '1.25rem', fontWeight: 600 }}>{branchName}</h3>
+        {logoUrl ? (
+          <img alt={hospitalName} src={logoUrl} style={{ height: '48px', maxWidth: '200px', objectFit: 'contain', margin: '0 auto 0.5rem', display: 'block' }} />
+        ) : (
+          <i className="ph-fill ph-hospital" style={{ fontSize: '2rem', color: '#0f172a' }} />
+        )}
+        <h3 style={{ margin: '0.25rem 0', fontSize: '1.25rem', fontWeight: 600 }}>{displayName}</h3>
+        {contactDetails ? (
+          <p style={{ margin: '0 0 0.5rem', color: '#475569', fontSize: '0.8rem' }}>{contactDetails}</p>
+        ) : null}
         <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>{title}</p>
       </header>
 

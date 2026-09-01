@@ -1,35 +1,15 @@
-import { useEffect, useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
+import { useActiveBranch } from '../../context/BranchContext';
 
 export function BranchSelector() {
   const { user } = useAuth();
   const branches = user?.branches ?? [];
   const isSuperAdmin = user?.roles.some((r) => r.code === 'SUPER_ADMIN') ?? false;
-  const [selectedBranch, setSelectedBranch] = useState('');
+  const { activeBranchId, setActiveBranchId } = useActiveBranch();
 
   if (branches.length === 0 && isSuperAdmin) {
     return null;
   }
-
-  useEffect(() => {
-    const activeId = localStorage.getItem('activeBranchId');
-    const validBranch = branches.some((b) => b.id === activeId)
-      ? activeId!
-      : (branches[0]?.id ?? '');
-    setSelectedBranch(validBranch);
-    if (validBranch) {
-      localStorage.setItem('activeBranchId', validBranch);
-    }
-  }, [branches]);
-
-  const handleBranchChange = (branchId: string) => {
-    setSelectedBranch(branchId);
-    if (branchId) {
-      localStorage.setItem('activeBranchId', branchId);
-    } else {
-      localStorage.removeItem('activeBranchId');
-    }
-  };
 
   return (
     <label className="header-dropdown">
@@ -38,8 +18,8 @@ export function BranchSelector() {
       <select
         aria-label="Branch"
         disabled={branches.length <= 1}
-        onChange={(event) => handleBranchChange(event.target.value)}
-        value={selectedBranch}
+        onChange={(event) => setActiveBranchId(event.target.value)}
+        value={activeBranchId}
       >
         {branches.length === 0 && (
           <option value="">No assigned branch</option>

@@ -1,4 +1,5 @@
 import type { PatientResponse } from '../../api/patients';
+import { useHospitalSettings } from '../../hooks/settings/useSettings';
 import { patientInitials } from '../../pages/opd-utils';
 import { calculatePatientAge, formatDate, patientFullName } from '../../pages/patient-utils';
 import { Modal } from '../ui/Modal';
@@ -12,14 +13,21 @@ type PatientCardModalProps = {
 };
 
 export function PatientCardModal({ open, patient, onClose }: PatientCardModalProps) {
+  const { hospitalName, phone, address, logoUrl } = useHospitalSettings();
+  const hospitalSubText = [address, phone].filter(Boolean).join(' · ') || 'Hospital Management System';
+
   return (
     <Modal onClose={onClose} open={open} size="default" title="Patient ID Card">
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '0.5rem 0 0.25rem' }}>
         <div style={{ width: '340px', background: '#fff', borderRadius: '16px', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
           <div style={{ background: 'linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)', padding: '20px 20px 24px', position: 'relative' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <div style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '13px' }}>H</div>
-              <div><div style={{ color: '#fff', fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>HMS Enterprise</div><div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '10px' }}>Hospital Management System</div></div>
+              {logoUrl ? (
+                <img alt={hospitalName} src={logoUrl} style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain', background: 'rgba(255,255,255,0.2)' }} />
+              ) : (
+                <div style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '13px' }}>{hospitalName.charAt(0) || 'H'}</div>
+              )}
+              <div><div style={{ color: '#fff', fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>{hospitalName}</div><div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '10px' }}>{hospitalSubText}</div></div>
             </div>
             <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '20px', textTransform: 'uppercase' }}>Patient ID</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

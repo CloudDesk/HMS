@@ -58,7 +58,7 @@ export function SystemSettingsPage() {
   const { settings } = data;
   const { isFetching: loading, isMutating: busy, loadError } = status;
   const { canEdit } = rbac;
-  const { updateGeneral, updateHospital, updateLocalization, updatePreferences, reset, uploadLogo, showMessage, refetch: load } = actions;
+  const { updateGeneral, updateHospital, updateLocalization, updatePreferences, reset, uploadLogo, removeLogo, showMessage, refetch: load } = actions;
 
   const visibleTabs = useMemo(
     () => tabs.filter((tab) => tab.label.toLowerCase().includes(navSearch.trim().toLowerCase())),
@@ -69,7 +69,7 @@ export function SystemSettingsPage() {
     if (!settings) return null;
     const common = { busy, canEdit, serverErrors: errors };
     if (activeTab === 'general') return <GeneralSettingsForm {...common} value={settings.general} onSubmit={(data) => void updateGeneral(data)} onReset={() => reset('general')} />;
-    if (activeTab === 'hospital') return <HospitalSettingsForm {...common} value={settings.hospital} logoUrl={logoUrl} onLogo={uploadLogo} onSubmit={(data) => void updateHospital(data)} onReset={() => reset('hospital')} />;
+    if (activeTab === 'hospital') return <HospitalSettingsForm {...common} value={settings.hospital} logoUrl={logoUrl} onLogo={uploadLogo} onRemoveLogo={removeLogo} onSubmit={(data) => void updateHospital(data)} onReset={() => reset('hospital')} />;
     if (activeTab === 'localization') return <LocalizationSettingsForm {...common} value={settings.localization} onSubmit={(data) => void updateLocalization(data)} onReset={() => reset('localization')} />;
     if (activeTab === 'preferences') return <UserPreferencesForm {...common} value={settings.userPreferences} onSubmit={(data) => void updatePreferences(data)} onReset={() => reset('userPreferences')} />;
     if (activeTab === 'audit') return <AuditLogPanel onMessage={showMessage} onTotalChange={setAuditTotal} />;

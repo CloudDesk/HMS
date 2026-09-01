@@ -2,6 +2,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// @vitest-environment jsdom
+
 const testState = vi.hoisted(() => {
   const sequence: string[] = [];
   return {

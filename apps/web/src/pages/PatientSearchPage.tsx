@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,6 +15,7 @@ import { useAuth } from '../auth/useAuth';
 import { patientInitials } from './opd-utils';
 import { formatDate, patientFullName, calculatePatientAge } from './patient-utils';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
+import { useHospitalSettings } from '../hooks/settings/useSettings';
 
 
 type ColumnVisibility = {
@@ -117,6 +118,8 @@ export function PatientSearchPage() {
   
   
   const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
+  const { hospitalName, phone: hospitalPhone, address: hospitalAddress, logoUrl: hospitalLogoUrl } = useHospitalSettings();
+  const hospitalSubText = [hospitalAddress, hospitalPhone].filter(Boolean).join(' · ') || 'Hospital Management System';
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<UpdatePatientForm>({
     resolver: zodResolver(updatePatientSchema),
@@ -767,10 +770,14 @@ export function PatientSearchPage() {
               {/* Gradient header */}
               <div style={{ background: 'linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)', padding: '20px 20px 24px', position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <div style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '13px' }}>H</div>
+                  {hospitalLogoUrl ? (
+                    <img alt={hospitalName} src={hospitalLogoUrl} style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain', background: 'rgba(255,255,255,0.2)' }} />
+                  ) : (
+                    <div style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: '13px' }}>{hospitalName.charAt(0) || 'H'}</div>
+                  )}
                   <div>
-                    <div style={{ color: '#fff', fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>HMS Enterprise</div>
-                    <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '10px' }}>Hospital Management System</div>
+                    <div style={{ color: '#fff', fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>{hospitalName}</div>
+                    <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '10px' }}>{hospitalSubText}</div>
                   </div>
                 </div>
                 <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '20px', textTransform: 'uppercase' }}>Patient ID</span>

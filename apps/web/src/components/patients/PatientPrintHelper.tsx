@@ -1,6 +1,7 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { PatientResponse } from '../../api/patients';
+import { useHospitalSettings } from '../../hooks/settings/useSettings';
 import { patientInitials } from '../../pages/opd-utils';
 import { formatDate, patientFullName } from '../../pages/patient-utils';
 
@@ -11,6 +12,9 @@ export function PatientCardPrintView({ patient, targetWindow }: { patient: Patie
   const dob = formatDate(patient.date_of_birth);
   const registered = formatDate(patient.created_at);
   const statusColor = patient.status === 'ACTIVE' ? '#16a34a' : patient.status === 'DECEASED' ? '#6b7280' : '#dc2626';
+
+  const { hospitalName, phone, address, logoUrl } = useHospitalSettings();
+  const hospitalSubText = [address, phone].filter(Boolean).join(' · ') || 'Hospital Management System';
 
   const heights = [24, 18, 28, 14, 22, 28, 16, 24, 12, 28, 20, 16, 28, 18, 24, 28, 14, 20, 28, 16, 24, 12, 28, 18, 24, 16, 28, 22];
 
@@ -26,10 +30,14 @@ export function PatientCardPrintView({ patient, targetWindow }: { patient: Patie
       <div className="card">
         <div className="card-header">
           <div className="hospital-row">
-            <div className="hospital-logo">H</div>
+            {logoUrl ? (
+              <img alt={hospitalName} src={logoUrl} style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain', background: 'rgba(255,255,255,0.2)' }} />
+            ) : (
+              <div className="hospital-logo">{hospitalName.charAt(0) || 'H'}</div>
+            )}
             <div>
-              <div className="hospital-name">HMS Enterprise</div>
-              <div className="hospital-sub">Hospital Management System</div>
+              <div className="hospital-name">{hospitalName}</div>
+              <div className="hospital-sub">{hospitalSubText}</div>
             </div>
           </div>
           <span className="card-type-badge">Patient ID</span>

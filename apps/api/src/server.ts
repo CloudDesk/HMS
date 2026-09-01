@@ -26,7 +26,7 @@ try {
     services.administrationDashboard.refresh().catch((error: unknown) => {
       app.log.error({ error }, 'Administration dashboard snapshot refresh failed');
     });
-  }, 60_000);
+  }, 300_000);
   dashboardRefreshTimer.unref();
   const database = await services.database.healthCheck();
   app.log.info(

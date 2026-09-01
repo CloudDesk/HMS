@@ -39,7 +39,7 @@ const mockDomain = {
     error: null,
   },
   policy: { data: { admission_consent_required: true, admission_advance_deposit_required: false }, isLoading: false, error: null },
-  requestStats: { data: { data: { pendingValidation: 1, readyForConfirmation: 0, confirmed: 0, cancelled: 0 } } },
+  requestStats: { data: { pendingValidation: 1, readyForConfirmation: 0, confirmed: 0, cancelled: 0 } },
   departments: { data: { data: [{ id: 'dep-1', name: 'Cardiology' }] } },
   doctors: { data: { data: [{ id: 'doc-1', display_name: 'Dr. Smith' }] } },
   allDepartments: { data: { data: [] } },

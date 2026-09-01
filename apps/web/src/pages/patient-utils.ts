@@ -1,5 +1,8 @@
+import { format } from 'date-fns';
 import { ApiError } from '../api/api-error';
+import { getGlobalDateFormat } from '../api/useSettings';
 import type { PatientResponse } from '../api/patients';
+import { toDateFnsFormat } from '../utils/localization-utils';
 
 export const patientFullName = (patient: PatientResponse) =>
   [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
@@ -11,11 +14,7 @@ export const formatDate = (value: string | null | undefined) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('en', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  return format(date, toDateFnsFormat(getGlobalDateFormat()));
 };
 
 export const calculateAgeNumber = (dob: string | null | undefined): number => {
@@ -47,13 +46,9 @@ export const formatDateTime = (value: string | null | undefined) => {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('en', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  const datePart = format(date, toDateFnsFormat(getGlobalDateFormat()));
+  const timePart = new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(date);
+  return `${datePart}, ${timePart}`;
 };
 
 export const getPatientErrorMessage = (error: unknown) => {

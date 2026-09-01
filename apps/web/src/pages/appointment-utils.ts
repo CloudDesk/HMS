@@ -1,4 +1,6 @@
 import { ApiError } from '../api/api-error';
+import { getGlobalDateFormat } from '../api/useSettings';
+import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import type {
   ApiAppointmentPriority,
@@ -6,6 +8,7 @@ import type {
   ApiAppointmentVisitType,
   AppointmentResponse,
 } from '../api/appointments';
+import { toDateFnsFormat } from '../utils/localization-utils';
 
 export const appointmentStatusLabels: Record<ApiAppointmentStatus, string> = {
   SCHEDULED: 'Scheduled',
@@ -35,14 +38,11 @@ export const formatAppointmentDate = (value: string | null | undefined, timezone
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
+  const fmt = toDateFnsFormat(getGlobalDateFormat());
   if (timezone) {
-    return formatInTimeZone(date, timezone, 'dd MMM yyyy');
+    return formatInTimeZone(date, timezone, fmt);
   }
-  return new Intl.DateTimeFormat('en', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  return format(date, fmt);
 };
 
 export const formatAppointmentTime = (appointment: AppointmentResponse) => {

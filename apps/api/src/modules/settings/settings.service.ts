@@ -1,5 +1,6 @@
 import { AppError } from '../../shared/errors/app-error.js';
 import { createCsvStream } from '../../shared/http/csv.js';
+import { defaultHospitalSettings } from './settings.defaults.js';
 import { SettingsLogoStorage } from './settings.logo-storage.js';
 import { SettingsRepository } from './settings.repository.js';
 import type {
@@ -16,10 +17,6 @@ export type GeneralSettingsInput = Omit<GeneralSettings, 'version'>;
 export type HospitalSettingsInput = Omit<HospitalSettings, 'logoBlobName' | 'logoContentType'>;
 
 const trim = (value: string) => value.trim();
-const optionalTrim = (value: string | null) => {
-  const normalized = value?.trim() ?? '';
-  return normalized.length ? normalized : null;
-};
 
 export class SettingsService {
   constructor(
@@ -29,6 +26,14 @@ export class SettingsService {
 
   get() {
     return this.repository.get();
+  }
+
+  async getRuntimeHospitalSettings() {
+    try {
+      return (await this.repository.get()).hospital;
+    } catch {
+      return defaultHospitalSettings;
+    }
   }
 
   async getRuntimeUserPreferences() {
@@ -73,10 +78,8 @@ export class SettingsService {
     const value: HospitalSettings = {
       ...input,
       hospitalName: trim(input.hospitalName),
-      registrationNumber: trim(input.registrationNumber),
       phone: trim(input.phone),
       email: trim(input.email).toLowerCase(),
-      website: optionalTrim(input.website),
       address: trim(input.address),
       logoBlobName: current.hospital.logoBlobName,
       logoContentType: current.hospital.logoContentType,
@@ -194,5 +197,25 @@ export class SettingsService {
       contentType: settings.hospital.logoContentType,
       stream: await this.logoStorage.download(settings.hospital.logoBlobName),
     };
+  }
+
+  async deleteHospitalLogo(actorUserId: string, metadata: RequestMetadata) {
+    const current = await this.repository.get();
+    if (!current.hospital.logoBlobName) {
+      throw new AppError('Hospital logo has not been uploaded', 404, 'LOGO_NOT_FOUND');
+    }
+
+    const previousBlobName = current.hospital.logoBlobName;
+    const hospital = {
+      ...current.hospital,
+      logoBlobName: null,
+      logoContentType: null,
+    };
+
+    const settings = await this.repository.updateSection('hospital', hospital, actorUserId);
+    await this.repository.audit('settings.hospital.logo_deleted', actorUserId, metadata);
+    await this.logoStorage.delete(previousBlobName).catch(() => undefined);
+
+    return settings.hospital;
   }
 }

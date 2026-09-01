@@ -13,6 +13,9 @@ import type { AuthUserRecord } from '../auth/auth.types.js';
 import { PatientOtpRepository } from '../patient-portal/patient-otp.repository.js';
 import { PatientOtpService } from '../patient-portal/patient-otp.service.js';
 import { RoleRepository } from '../roles/role.repository.js';
+import { SettingsLogoStorage } from './settings.logo-storage.js';
+import { SettingsRepository } from './settings.repository.js';
+import { SettingsService } from './settings.service.js';
 import { UserRepository } from '../users/user.repository.js';
 import { UserService } from '../users/user.service.js';
 import type { UserRecord } from '../users/user.types.js';
@@ -20,12 +23,10 @@ import type { UserRecord } from '../users/user.types.js';
 const metadata = { ipAddress: '192.0.2.10', userAgent: 'settings-test' };
 
 const preferences = (overrides: Partial<{
-  defaultRole: 'Nurse' | 'Receptionist' | 'Doctor';
   passwordMinLength: number;
   maxFailedLoginAttempts: number;
   requireStrongPasswords: boolean;
 }> = {}) => ({
-  defaultRole: 'Nurse' as const,
   passwordMinLength: 10,
   passwordExpiryDays: 90,
   maxFailedLoginAttempts: 3,
@@ -62,13 +63,11 @@ const userRecord = (roleIds: string[]): UserRecord => ({
   patientId: null,
 });
 
-const createUserHarness = (input: { defaultRoleExists?: boolean } = {}) => {
+const createUserHarness = () => {
   const users = new UserRepository();
   const roles = new RoleRepository();
-  const nurseRole = { id: 'role-nurse', code: 'CLINICIAN_NURSE', name: 'Clinician / Nurse', status: 'active' as const };
   let createdRoleIds: string[] = [];
 
-  vi.spyOn(roles, 'findActiveByCode').mockResolvedValue(input.defaultRoleExists === false ? null : nurseRole);
   vi.spyOn(users, 'findByUniqueFields').mockResolvedValue(null);
   vi.spyOn(users, 'validateReferences').mockImplementation(async (branches, departments, roleIds) => ({
     branches: branches.length,
@@ -94,8 +93,11 @@ const createUserHarness = (input: { defaultRoleExists?: boolean } = {}) => {
     assertCanManageRoles: async () => undefined,
     assertCanManageUser: async () => undefined,
   };
+  const service = new UserService(users, roles, permissions, settings);
+  vi.spyOn(service as any, 'validateReferences').mockResolvedValue(undefined);
+
   return {
-    service: new UserService(users, roles, permissions, settings),
+    service,
     getCreatedRoleIds: () => createdRoleIds,
   };
 };
@@ -106,27 +108,20 @@ const createInput = (roleIds?: string[]) => ({
   email: 'new-user@example.test',
   fullName: 'New User',
   password: 'StrongPass1!',
-  branches: [{ id: 'branch-1', isPrimary: true }],
-  departments: [{ id: 'department-1', isPrimary: true }],
+  branches: [{ id: '650000000000000000000001', isPrimary: true }],
+  departments: [{ id: '650000000000000000000002', isPrimary: true }],
   roleIds,
 });
 
 describe('System Settings quick-win runtime behavior', () => {
-  it('uses the configured active role only when user creation omits an explicit role', async () => {
-    const defaultHarness = createUserHarness();
-    await defaultHarness.service.create(createInput(), 'actor-1', metadata);
-    expect(defaultHarness.getCreatedRoleIds()).toEqual(['role-nurse']);
-
-    const explicitHarness = createUserHarness();
-    await explicitHarness.service.create(createInput(['role-doctor']), 'actor-1', metadata);
-    expect(explicitHarness.getCreatedRoleIds()).toEqual(['role-doctor']);
-  });
-
-  it('preserves role-required behavior when the configured default role is unavailable', async () => {
-    const harness = createUserHarness({ defaultRoleExists: false });
+  it('requires explicit role selection during user creation', async () => {
+    const harness = createUserHarness();
     await expect(harness.service.create(createInput(), 'actor-1', metadata)).rejects.toMatchObject({
       code: 'ROLE_ASSIGNMENT_REQUIRED',
     });
+
+    await harness.service.create(createInput(['650000000000000000000003']), 'actor-1', metadata);
+    expect(harness.getCreatedRoleIds()).toEqual(['650000000000000000000003']);
   });
 
   it('enforces configured minimum length independently from strong complexity', () => {
@@ -240,5 +235,36 @@ describe('System Settings quick-win runtime behavior', () => {
       user: { username: 'successful-user' },
     });
     expect(clearFailedLogin).toHaveBeenCalledWith('user-2');
+  });
+
+  it('clears stored logoBlobName and logoContentType when deleting hospital logo', async () => {
+    const repository = new SettingsRepository();
+    const logoStorage = new SettingsLogoStorage();
+    let currentSettings = {
+      hospital: {
+        hospitalName: 'HMS Enterprise',
+        phone: '1234567890',
+        email: 'info@hms.test',
+        address: '123 Main St',
+        logoBlobName: 'logo-blob-123',
+        logoContentType: 'image/png',
+      },
+    };
+
+    vi.spyOn(repository, 'get').mockImplementation(async () => currentSettings as any);
+    vi.spyOn(repository, 'updateSection').mockImplementation(async (_section, data) => {
+      currentSettings.hospital = { ...currentSettings.hospital, ...data };
+      return currentSettings as any;
+    });
+    vi.spyOn(repository, 'audit').mockResolvedValue(undefined as any);
+    const deleteSpy = vi.spyOn(logoStorage, 'delete').mockResolvedValue(undefined as any);
+
+    const service = new SettingsService(repository, logoStorage);
+    const updated = await service.deleteHospitalLogo('user-1', metadata);
+
+    expect(updated.logoBlobName).toBeNull();
+    expect(updated.logoContentType).toBeNull();
+    expect(updated.hospitalName).toBe('HMS Enterprise');
+    expect(deleteSpy).toHaveBeenCalledWith('logo-blob-123');
   });
 });

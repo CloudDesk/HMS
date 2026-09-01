@@ -1146,10 +1146,13 @@
 .ss-switch input:disabled + .ss-slider { cursor: not-allowed; opacity: 0.6; }
 
 .ss-panel-footer { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid #e2e8f0; padding: 1rem 1.5rem; background: #fafafa; }
-.ss-panel-footer .btn-primary, .ss-panel-footer .btn-secondary, .ss-logo-upload .btn-secondary, .ss-state .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border-radius: 8px; padding: 0.6rem 1.4rem; font-size: 0.9rem; }
+.ss-panel-footer .btn-primary, .ss-panel-footer .btn-secondary, .ss-logo-upload .btn-secondary, .ss-logo-upload .btn-danger-outline, .ss-state .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border-radius: 8px; padding: 0.6rem 1.4rem; font-size: 0.9rem; transition: all 0.15s ease; cursor: pointer; }
 .ss-panel-footer .btn-primary { border: 0; background: #2563eb; color: #fff; font-weight: 600; }
 .ss-panel-footer .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
 .ss-panel-footer .btn-secondary, .ss-logo-upload .btn-secondary, .ss-state .btn-secondary { border: 1px solid #e2e8f0; background: #fff; color: #334155; font-weight: 500; }
+.ss-logo-upload .btn-secondary:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
+.ss-logo-upload .btn-danger-outline { border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; font-weight: 500; }
+.ss-logo-upload .btn-danger-outline:hover:not(:disabled) { background: #fee2e2; border-color: #fca5a5; color: #b91c1c; }
 .ss-panel-footer button:disabled, .ss-logo-upload button:disabled { cursor: not-allowed; opacity: 0.6; }
 
 .ss-logo-upload { display: flex; align-items: center; gap: 1.25rem; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 1rem; background: #f8fafc; }

@@ -580,7 +580,7 @@ export function UserManagementPage() {
       }
     }
 
-    if (modalMode !== 'create' && !formData.roleId) {
+    if (!formData.roleId) {
       userForm.setError('roleId', { message: 'Role assignment is required.' });
       return;
     }
@@ -1211,7 +1211,7 @@ export function UserManagementPage() {
                 {userForm.formState.errors.departmentId ? <small className="field-error">{userForm.formState.errors.departmentId.message}</small> : null}
               </label>
               <label className="form-field">
-                <span>Role {modalMode === 'create' ? null : <span className="required">*</span>}</span>
+                <span>Role <span className="required">*</span></span>
                 <select
                   aria-invalid={Boolean(userForm.formState.errors.roleId)}
                   disabled={!watchedDepartmentId}
@@ -1220,8 +1220,6 @@ export function UserManagementPage() {
                   <option value="">
                     {!watchedDepartmentId
                       ? 'Select a department first'
-                      : modalMode === 'create'
-                      ? 'Use configured default role'
                       : 'Select role'}
                   </option>
                   {availableRolesForDepartment.map((role) => (

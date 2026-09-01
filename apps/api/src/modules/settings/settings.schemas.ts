@@ -32,22 +32,14 @@ export const hospitalSettingsBodySchema = {
   additionalProperties: false,
   required: [
     'hospitalName',
-    'registrationNumber',
-    'hospitalType',
     'phone',
     'email',
-    'website',
-    'bedCapacity',
     'address',
   ],
   properties: {
     hospitalName: nonEmptyString,
-    registrationNumber: { ...nonEmptyString, maxLength: 100 },
-    hospitalType: { type: 'string', enum: ['General', 'Teaching', 'Specialist'] },
     phone: { type: 'string', pattern: '^\\+?[0-9\\s().-]{7,20}$' },
     email: { type: 'string', format: 'email', maxLength: 254 },
-    website: { type: ['string', 'null'], format: 'uri', maxLength: 500 },
-    bedCapacity: { type: 'integer', minimum: 0, maximum: 100000 },
     address: { type: 'string', minLength: 1, maxLength: 1000 },
   },
 } as const;
@@ -70,7 +62,6 @@ export const userPreferencesBodySchema = {
   type: 'object',
   additionalProperties: false,
   required: [
-    'defaultRole',
     'passwordMinLength',
     'passwordExpiryDays',
     'maxFailedLoginAttempts',
@@ -79,7 +70,6 @@ export const userPreferencesBodySchema = {
     'allowUserSelfRegistration',
   ],
   properties: {
-    defaultRole: { type: 'string', enum: ['Nurse', 'Receptionist', 'Doctor'] },
     passwordMinLength: { type: 'integer', minimum: 6, maximum: 32 },
     passwordExpiryDays: { type: 'integer', minimum: 0, maximum: 3650 },
     maxFailedLoginAttempts: { type: 'integer', minimum: 1, maximum: 20 },

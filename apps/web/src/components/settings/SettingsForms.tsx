@@ -1,8 +1,9 @@
-import { useRef, useEffect, type ChangeEvent } from 'react';
+import { useRef, useEffect, useState, type ChangeEvent } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { regionalConfig, currencySymbolMap } from '../../utils/localization-utils';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import {
   type GeneralSettings,
   type HospitalSettings,
@@ -29,19 +30,14 @@ const generalSchema = z.object({
 
 const hospitalSchema = z.object({
   hospitalName: z.string().min(1, 'Hospital Name is required.'),
-  registrationNumber: z.string().min(1, 'Registration Number is required.'),
-  hospitalType: z.enum(['General', 'Teaching', 'Specialist']),
   phone: z.string().regex(/^\+?[0-9\s().-]{7,20}$/, 'Enter a valid phone number.'),
   email: z.string().email('Enter a valid email address.'),
-  website: z.string().url('Enter a valid website URL.').or(z.literal('')).nullable(),
-  bedCapacity: z.number().int().min(0, 'Enter a bed capacity from 0 to 100000.').max(100000, 'Enter a bed capacity from 0 to 100000.'),
   address: z.string().min(1, 'Address is required.'),
   logoBlobName: z.string().nullable(),
   logoContentType: z.string().nullable(),
 });
 
 const userPreferencesSchema = z.object({
-  defaultRole: z.enum(['Nurse', 'Receptionist', 'Doctor']),
   passwordMinLength: z.number().int().min(6, 'Enter a value from 6 to 32.').max(32, 'Enter a value from 6 to 32.'),
   passwordExpiryDays: z.number().int().min(0, 'Enter a value from 0 to 3650.').max(3650, 'Enter a value from 0 to 3650.'),
   maxFailedLoginAttempts: z.number().int().min(1, 'Enter a value from 1 to 20.').max(20, 'Enter a value from 1 to 20.'),
@@ -60,9 +56,9 @@ type FormActions = {
 function FormFooter({ busy, canEdit, onReset }: Pick<FormActions, 'busy' | 'canEdit' | 'onReset'>) {
   return (
     <div className="ss-panel-footer">
-      <button className="btn-secondary" disabled={!canEdit || busy} onClick={onReset} type="button">
+      {/* <button className="btn-secondary" disabled={!canEdit || busy} onClick={onReset} type="button">
         Reset to Default
-      </button>
+      </button> */}
       <button className="btn-primary" disabled={!canEdit || busy} type="submit">
         <i className="ph ph-floppy-disk" aria-hidden="true" /> {busy ? 'Saving...' : 'Save Changes'}
       </button>
@@ -152,10 +148,11 @@ type HospitalFormProps = FormActions & {
   logoUrl: string | null;
   onSubmit: (data: HospitalSettings) => void;
   onLogo: (file: File) => void;
+  onRemoveLogo?: () => void;
   serverErrors?: FieldErrors;
 };
 
-export function HospitalSettingsForm({ value, logoUrl, onSubmit, onLogo, serverErrors, ...actions }: HospitalFormProps) {
+export function HospitalSettingsForm({ value, logoUrl, onSubmit, onLogo, onRemoveLogo, serverErrors, ...actions }: HospitalFormProps) {
   const form = useForm<HospitalSettings>({
     resolver: zodResolver(hospitalSchema),
     defaultValues: value,
@@ -174,6 +171,8 @@ export function HospitalSettingsForm({ value, logoUrl, onSubmit, onLogo, serverE
   }, [serverErrors, form]);
 
   const fileInput = useRef<HTMLInputElement>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   const selectLogo = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) onLogo(file);
@@ -181,37 +180,59 @@ export function HospitalSettingsForm({ value, logoUrl, onSubmit, onLogo, serverE
   };
 
   return (
-    <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
-      <div className="ss-panel-header">
-        <div className="ss-panel-title"><i className="ph ph-hospital" aria-hidden="true" /> Hospital Information</div>
-        <p className="ss-panel-desc">Configure your hospital&apos;s identity and contact details.</p>
-      </div>
-      <div className="ss-form-body">
-        <div className="ss-section-label">Identity</div>
-        <div className="ss-form-grid">
-          <SettingsField error={form.formState.errors.hospitalName?.message} fullWidth label="Hospital Name"><input disabled={!actions.canEdit} {...form.register('hospitalName')} /></SettingsField>
-          <SettingsField error={form.formState.errors.registrationNumber?.message} label="Registration Number"><input disabled={!actions.canEdit} {...form.register('registrationNumber')} /></SettingsField>
-          <SettingsField label="Hospital Type"><select disabled={!actions.canEdit} {...form.register('hospitalType')}><option>General</option><option value="Teaching">Teaching Hospital</option><option>Specialist</option></select></SettingsField>
-          <SettingsField error={form.formState.errors.phone?.message} label="Phone"><input disabled={!actions.canEdit} {...form.register('phone')} /></SettingsField>
-          <SettingsField error={form.formState.errors.email?.message} label="Email"><input disabled={!actions.canEdit} type="email" {...form.register('email')} /></SettingsField>
-          <SettingsField error={form.formState.errors.website?.message} label="Website"><input disabled={!actions.canEdit} type="url" {...form.register('website')} /></SettingsField>
-          <SettingsField error={form.formState.errors.bedCapacity?.message} label="Bed Capacity"><input disabled={!actions.canEdit} min={0} max={100000} type="number" {...form.register('bedCapacity', { valueAsNumber: true })} /></SettingsField>
-          <SettingsField error={form.formState.errors.address?.message} fullWidth label="Address"><textarea disabled={!actions.canEdit} rows={2} {...form.register('address')} /></SettingsField>
+    <>
+      <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
+        <div className="ss-panel-header">
+          <div className="ss-panel-title"><i className="ph ph-hospital" aria-hidden="true" /> Hospital Information</div>
+          <p className="ss-panel-desc">Configure your hospital&apos;s identity and contact details.</p>
         </div>
-        <div className="ss-section-label">Logo &amp; Branding</div>
-        <div className="ss-logo-upload">
-          <div className="ss-logo-preview">
-            {logoUrl ? <img alt="Hospital logo" src={logoUrl} /> : <i className="ph-fill ph-hospital" aria-hidden="true" />}
+        <div className="ss-form-body">
+          <div className="ss-section-label">Identity</div>
+          <div className="ss-form-grid">
+            <SettingsField error={form.formState.errors.hospitalName?.message} fullWidth label="Hospital Name"><input disabled={!actions.canEdit} {...form.register('hospitalName')} /></SettingsField>
+            <SettingsField error={form.formState.errors.phone?.message} label="Phone"><input disabled={!actions.canEdit} {...form.register('phone')} /></SettingsField>
+            <SettingsField error={form.formState.errors.email?.message} label="Email"><input disabled={!actions.canEdit} type="email" {...form.register('email')} /></SettingsField>
+            <SettingsField error={form.formState.errors.address?.message} fullWidth label="Address"><textarea disabled={!actions.canEdit} rows={2} {...form.register('address')} /></SettingsField>
           </div>
-          <div>
-            <input accept="image/png,image/jpeg" hidden onChange={selectLogo} ref={fileInput} type="file" />
-            <button className="btn-secondary" disabled={!actions.canEdit || actions.busy} onClick={() => fileInput.current?.click()} type="button"><i className="ph ph-upload-simple" aria-hidden="true" /> Upload Logo</button>
-            <p className="ss-logo-hint">PNG, JPG up to 2MB. Recommended: 200×200px</p>
+          <div className="ss-section-label">Logo &amp; Branding</div>
+          <div className="ss-logo-upload">
+            <div className="ss-logo-preview">
+              {logoUrl ? <img alt="Hospital logo" src={logoUrl} /> : <i className="ph-fill ph-hospital" aria-hidden="true" />}
+            </div>
+            <div>
+              <input accept="image/png,image/jpeg" hidden onChange={selectLogo} ref={fileInput} type="file" />
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button className="btn-secondary" disabled={!actions.canEdit || actions.busy} onClick={() => fileInput.current?.click()} type="button"><i className="ph ph-upload-simple" aria-hidden="true" /> Upload Logo</button>
+                {(logoUrl || value.logoBlobName) && onRemoveLogo ? (
+                  <button
+                    className="btn-danger-outline"
+                    disabled={!actions.canEdit || actions.busy}
+                    onClick={() => setConfirmOpen(true)}
+                    type="button"
+                  >
+                    <i className="ph ph-trash" aria-hidden="true" /> Remove Logo
+                  </button>
+                ) : null}
+              </div>
+              <p className="ss-logo-hint">PNG, JPG up to 2MB. Recommended: 200×200px</p>
+            </div>
           </div>
         </div>
-      </div>
-      <FormFooter {...actions} />
-    </form>
+        <FormFooter {...actions} />
+      </form>
+      <ConfirmDialog
+        confirmLabel="Remove Logo"
+        loading={actions.busy}
+        message="Are you sure you want to remove the hospital logo? Reports, receipts, and patient cards will revert to default branding."
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          onRemoveLogo?.();
+        }}
+        open={confirmOpen}
+        title="Remove Hospital Logo"
+      />
+    </>
   );
 }
 
@@ -344,7 +365,6 @@ export function UserPreferencesForm({ value, onSubmit, serverErrors, ...actions 
     <form className="ss-tab-panel active" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="ss-panel-header"><div className="ss-panel-title"><i className="ph ph-user-gear" aria-hidden="true" /> User Preferences</div><p className="ss-panel-desc">Default settings applied to new user accounts.</p></div>
       <div className="ss-form-body"><div className="ss-form-grid">
-        <SettingsField label="Default Role for New Users"><select disabled={!actions.canEdit} {...form.register('defaultRole')}><option>Receptionist</option><option>Nurse</option><option>Doctor</option></select></SettingsField>
         <SettingsField error={form.formState.errors.passwordMinLength?.message} label="Password Min Length"><input disabled={!actions.canEdit} min={6} max={32} type="number" {...form.register('passwordMinLength', { valueAsNumber: true })} /></SettingsField>
         <SettingsField error={form.formState.errors.passwordExpiryDays?.message} label="Password Expiry (days)"><input disabled={!actions.canEdit} min={0} max={3650} type="number" {...form.register('passwordExpiryDays', { valueAsNumber: true })} /></SettingsField>
         <SettingsField error={form.formState.errors.maxFailedLoginAttempts?.message} label="Max Failed Login Attempts"><input disabled={!actions.canEdit} min={1} max={20} type="number" {...form.register('maxFailedLoginAttempts', { valueAsNumber: true })} /></SettingsField>

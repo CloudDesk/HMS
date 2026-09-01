@@ -110,7 +110,7 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
       beds,
       requests: domain.requests.data?.data ?? [],
       policy: domain.policy.data,
-      counts: domain.requestStats?.data?.data ?? { pendingValidation: 0, readyForConfirmation: 0, confirmed: 0, cancelled: 0 },
+      counts: domain.requestStats?.data ?? { pendingValidation: 0, readyForConfirmation: 0, confirmed: 0, cancelled: 0 },
       departmentOptions,
       doctorOptions,
       availablePatients,

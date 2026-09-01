@@ -1,5 +1,6 @@
 import { getAccessibleSidebarModules } from '../../auth/access-control';
 import { useAuth } from '../../auth/useAuth';
+import { useHospitalSettings } from '../../hooks/settings/useSettings';
 import { NavLink } from './NavLink';
 import { SidebarNavGroup } from './SidebarNavGroup';
 
@@ -19,14 +20,19 @@ export function Sidebar({
   onToggleCollapsed,
 }: SidebarProps) {
   const { user } = useAuth();
+  const { hospitalName, logoUrl } = useHospitalSettings();
   const accessibleModules = getAccessibleSidebarModules(user?.permissions ?? [], user?.roles ?? []);
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
       <div className="sidebar-header">
-        <i className="ph ph-hospital brand-icon" aria-hidden="true" />
+        {logoUrl ? (
+          <img alt={hospitalName} src={logoUrl} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0 }} />
+        ) : (
+          <i className="ph ph-hospital brand-icon" aria-hidden="true" />
+        )}
         <div className="logo-text">
-          <h2>HMS</h2>
+          <h2>{hospitalName || 'HMS'}</h2>
           <p>Enterprise</p>
         </div>
         <button

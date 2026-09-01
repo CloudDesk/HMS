@@ -96,11 +96,7 @@ const eventForStatus = (status: UserStatus) => {
   return 'user.locked';
 };
 
-const defaultRoleCode = {
-  Nurse: 'CLINICIAN_NURSE',
-  Receptionist: 'RECEPTIONIST',
-  Doctor: 'DOCTOR',
-} as const;
+
 
 export class UserService {
   constructor(
@@ -146,7 +142,7 @@ export class UserService {
   }
 
   async create(input: CreateUserInput, actorUserId: string, metadata: RequestMetadata) {
-    const normalized = this.normalizeCreateInput(await this.applyConfiguredDefaultRole(input));
+    const normalized = this.normalizeCreateInput(input);
     assertPasswordPolicy(normalized.password, await this.getPasswordPolicy());
     await this.assertUniqueFields({
       username: normalized.username,
@@ -698,19 +694,7 @@ export class UserService {
     return normalized;
   }
 
-  private async applyConfiguredDefaultRole(input: CreateUserInput): Promise<CreateUserInput> {
-    if (input.roleIds?.some((roleId) => normalizeText(roleId))) {
-      return input;
-    }
 
-    const preferences = await this.settings?.getRuntimeUserPreferences();
-    if (!preferences) {
-      return input;
-    }
-
-    const role = await this.roleRepository.findActiveByCode(defaultRoleCode[preferences.defaultRole]);
-    return role ? { ...input, roleIds: [role.id] } : input;
-  }
 
   private async getPasswordPolicy() {
     const preferences = await this.settings?.getRuntimeUserPreferences() ?? null;

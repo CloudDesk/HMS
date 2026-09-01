@@ -37,6 +37,12 @@ export const registerSettingsRoutes = async (app: FastifyInstance, services: Ser
   );
 
   app.get(
+    '/api/settings/runtime/hospital',
+    { preHandler: authenticate(services) },
+    async () => ok(await services.settings.getRuntimeHospitalSettings()),
+  );
+
+  app.get(
     '/api/settings',
     { preHandler: requirePermission(services, 'Administration', 'Settings', 'View') },
     async () => ok(await services.settings.get()),
@@ -144,11 +150,23 @@ export const registerSettingsRoutes = async (app: FastifyInstance, services: Ser
 
   app.get(
     '/api/settings/hospital/logo',
-    { preHandler: requirePermission(services, 'Administration', 'Settings', 'View') },
+    { preHandler: authenticate(services) },
     async (_request, reply) => {
       const logo = await services.settings.downloadHospitalLogo();
       return reply.type(logo.contentType).send(logo.stream);
     },
+  );
+
+  app.delete(
+    '/api/settings/hospital/logo',
+    { preHandler: requirePermission(services, 'Administration', 'Settings', 'Edit') },
+    async (request) =>
+      ok(
+        await services.settings.deleteHospitalLogo(
+          request.user!.id,
+          metadataFromRequest(request),
+        ),
+      ),
   );
 
   app.get<{ Querystring: AuditLogQuery }>(

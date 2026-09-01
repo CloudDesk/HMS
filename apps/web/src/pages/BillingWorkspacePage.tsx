@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import type { BillingReceipt } from '../api/billing';
 import { useCurrencyFormatter } from '../api/useSettings';
+import { useHospitalSettings } from '../hooks/settings/useSettings';
 import { Modal } from '../components/ui/Modal';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { navigate, useAppLocation } from '../routing/navigation';
@@ -215,10 +216,24 @@ export function BillingWorkspacePage() {
 }
 function ReceiptPaper({ receipt }: { receipt: BillingReceipt }) {
   const formatBillingMoney = useCurrencyFormatter();
-  return <article className="billing-receipt-paper">
-    <header><i className="ph-fill ph-hospital" /><h3>HMS Medical Centre</h3><p>Official Payment Receipt</p></header>
+  const { hospitalName, phone, email, address, logoUrl } = useHospitalSettings();
+  const contactDetails = [address, phone, email].filter(Boolean).join(' · ');
+
+  return (
+    <article className="billing-receipt-paper">
+      <header>
+        {logoUrl ? (
+          <img alt={hospitalName} src={logoUrl} style={{ height: '40px', maxWidth: '160px', objectFit: 'contain', margin: '0 auto 0.25rem', display: 'block' }} />
+        ) : (
+          <i className="ph-fill ph-hospital" />
+        )}
+        <h3>{hospitalName}</h3>
+        {contactDetails ? <p style={{ margin: '2px 0 6px', color: '#64748b', fontSize: '0.8rem' }}>{contactDetails}</p> : null}
+        <p>Official Payment Receipt</p>
+      </header>
     <div className="billing-receipt-grid"><div><span>Receipt Number</span><strong>{receipt.receipt_number}</strong></div><div><span>Payment Number</span><strong>{receipt.payment.payment_number}</strong></div><div><span>Invoice Number</span><strong>{receipt.invoice.invoice_number}</strong></div><div><span>Payment Date</span><strong>{formatBillingDateTime(receipt.payment.payment_date)}</strong></div><div><span>Patient</span><strong>{receipt.invoice.patient_name ?? receipt.invoice.patient_id}</strong></div><div><span>Patient Number</span><strong>{receipt.invoice.patient_number ?? '-'}</strong></div><div><span>Payment Method</span><strong>{receipt.payment.payment_method.replaceAll('_', ' ')}</strong></div><div><span>Reference</span><strong>{receipt.payment.reference_number ?? 'Cash'}</strong></div></div>
     <div className="billing-receipt-amount"><span>Amount Received</span><strong>{formatBillingMoney(receipt.payment.amount)}</strong></div>
     <footer>Generated {formatBillingDateTime(receipt.generated_at)} / Electronically generated receipt</footer>
-  </article>;
+  </article>
+  );
 }

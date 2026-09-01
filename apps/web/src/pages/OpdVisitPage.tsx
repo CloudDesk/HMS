@@ -24,6 +24,7 @@ import {
   evaluateTemperature,
 } from '../components/ui/ClinicalVitalCard';
 import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
+import { useActiveBranch } from '../context/BranchContext';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, calculateAge } from './patient-utils';
 import {
@@ -147,6 +148,7 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null
 });
 
 export function OpdVisitPage() {
+  const { activeBranchId } = useActiveBranch();
   const feature = useOpdVisitFeature();
   const {
     activeVisitId, activeTab, recentVisits, visit, patient, vitals, consultation,
@@ -685,7 +687,7 @@ export function OpdVisitPage() {
             ? {
             patient_id: visit.patient_id,
             visit_id: visit.id,
-            branch_id: visit.branch_id || localStorage.getItem('activeBranchId') || '',
+            branch_id: visit.branch_id || activeBranchId || '',
             items: invoiceItems,
           }
             : undefined,

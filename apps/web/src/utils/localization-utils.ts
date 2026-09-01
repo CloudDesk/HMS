@@ -1,4 +1,6 @@
-﻿import type { LocalizationSettings } from '../api/settings';
+import type { LocalizationSettings } from '../api/settings';
+import { getGlobalDateFormat } from '../api/useSettings';
+import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 
 export type RegionalConfig = {
@@ -31,13 +33,13 @@ export const regionalConfig: Record<LocalizationSettings['country'], RegionalCon
     timezones: ['Africa/Lagos'],
     defaultTimezone: 'Africa/Lagos',
     defaultCurrency: 'NGN',
-    symbol: 'Γéª',
+    symbol: '₦',
   },
   India: {
     timezones: ['Asia/Kolkata'],
     defaultTimezone: 'Asia/Kolkata',
     defaultCurrency: 'INR',
-    symbol: 'Γé╣',
+    symbol: '₹',
   },
 };
 
@@ -45,23 +47,39 @@ export const currencySymbolMap: Record<LocalizationSettings['currency'], string>
   KES: 'KES',
   UGX: 'UGX',
   TZS: 'TSh',
-  NGN: 'Γéª',
-  INR: 'Γé╣',
+  NGN: '₦',
+  INR: '₹',
   USD: '$',
 };
 
-export const formatRegionalDate = (value: string | Date | null | undefined, timezone: string, formatStr = 'dd MMM yyyy') => {
+/**
+ * Converts a GeneralSettings dateFormat token to a date-fns format string.
+ * 'DD MMM YYYY' → 'dd MMM yyyy'
+ * 'YYYY-MM-DD'  → 'yyyy-MM-dd'
+ * 'MM/DD/YYYY'  → 'MM/dd/yyyy'
+ */
+export function toDateFnsFormat(token: string): string {
+  if (token === 'YYYY-MM-DD') return 'yyyy-MM-dd';
+  if (token === 'MM/DD/YYYY') return 'MM/dd/yyyy';
+  return 'dd MMM yyyy'; // default: 'DD MMM YYYY'
+}
+
+export const formatRegionalDate = (value: string | Date | null | undefined, timezone: string, formatStr?: string) => {
   if (!value) return '-';
   const date = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return '-';
-  if (!timezone) return new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
-  return formatInTimeZone(date, timezone, formatStr);
+  const fmt = formatStr ?? toDateFnsFormat(getGlobalDateFormat());
+  if (!timezone) return format(date, fmt);
+  return formatInTimeZone(date, timezone, fmt);
 };
 
 export const formatRegionalDateTime = (value: string | Date | null | undefined, timezone: string) => {
   if (!value) return '-';
   const date = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return '-';
-  if (!timezone) return new Intl.DateTimeFormat('en', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
-  return formatInTimeZone(date, timezone, 'dd MMM yyyy HH:mm');
+  const dtFmt = `${toDateFnsFormat(getGlobalDateFormat())} HH:mm`;
+  if (!timezone) return format(date, dtFmt);
+  return formatInTimeZone(date, timezone, dtFmt);
 };
+
+

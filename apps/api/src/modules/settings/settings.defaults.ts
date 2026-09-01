@@ -20,12 +20,8 @@ export const defaultGeneralSettings: GeneralSettings = {
 
 export const defaultHospitalSettings: HospitalSettings = {
   hospitalName: 'Nairobi General Hospital',
-  registrationNumber: 'KE-MH-2001-00412',
-  hospitalType: 'Teaching',
   phone: '+254700100200',
   email: 'info@nairobigeneral.co.ke',
-  website: 'https://nairobigeneral.co.ke',
-  bedCapacity: 350,
   address: 'Kenyatta Avenue, Nairobi, Kenya',
   logoBlobName: null,
   logoContentType: null,
@@ -41,7 +37,6 @@ export const defaultLocalizationSettings: LocalizationSettings = {
 };
 
 export const defaultUserPreferenceSettings: UserPreferenceSettings = {
-  defaultRole: 'Nurse',
   passwordMinLength: 8,
   passwordExpiryDays: 90,
   maxFailedLoginAttempts: 5,

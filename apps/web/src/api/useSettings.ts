@@ -56,3 +56,15 @@ export function useTimezone() {
   const settings = useSettings();
   return settings?.localization.timezone || 'Africa/Nairobi';
 }
+
+/** Returns the configured dateFormat token (e.g. 'DD MMM YYYY') from the module-level singleton.
+ *  Plain function (not a hook) so pure date utilities can call it without React context. */
+export function getGlobalDateFormat(): string {
+  return globalSettings?.general.dateFormat ?? 'DD MMM YYYY';
+}
+
+/** Hook version of getGlobalDateFormat — reactive to settings load. */
+export function useDateFormat() {
+  const settings = useSettings();
+  return settings?.general.dateFormat ?? 'DD MMM YYYY';
+}

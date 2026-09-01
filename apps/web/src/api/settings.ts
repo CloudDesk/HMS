@@ -16,12 +16,8 @@ export type GeneralSettings = {
 
 export type HospitalSettings = {
   hospitalName: string;
-  registrationNumber: string;
-  hospitalType: 'General' | 'Teaching' | 'Specialist';
   phone: string;
   email: string;
-  website: string | null;
-  bedCapacity: number;
   address: string;
   logoBlobName: string | null;
   logoContentType: string | null;
@@ -39,7 +35,6 @@ export const localizationSchema = z.object({
 export type LocalizationSettings = z.infer<typeof localizationSchema>;
 
 export type UserPreferenceSettings = {
-  defaultRole: 'Nurse' | 'Receptionist' | 'Doctor';
   passwordMinLength: number;
   passwordExpiryDays: number;
   maxFailedLoginAttempts: number;
@@ -60,7 +55,6 @@ export type SystemSettings = {
 export type FirstDayOfWeekSettings = Pick<LocalizationSettings, 'firstDayOfWeek'>;
 
 export type AuditAction = 'login' | 'create' | 'edit' | 'delete' | 'export';
-
 export type AuditLogItem = {
   id: string;
   actor: { id: string | null; name: string; profilePhotoUrl: string | null };
@@ -87,6 +81,9 @@ const queryString = (params: Record<string, string | number | undefined>) => {
 export const settingsApi = {
   getFirstDayOfWeek() {
     return apiClient.request<FirstDayOfWeekSettings>('/settings/runtime/first-day-of-week');
+  },
+  getRuntimeHospital() {
+    return apiClient.request<HospitalSettings>('/settings/runtime/hospital');
   },
   get() {
     return apiClient.request<SystemSettings>('/settings');
@@ -116,6 +113,9 @@ export const settingsApi = {
     const body = new FormData();
     body.set('logo', file);
     return apiClient.request<HospitalSettings>('/settings/hospital/logo', { method: 'POST', body });
+  },
+  deleteLogo() {
+    return apiClient.request<HospitalSettings>('/settings/hospital/logo', { method: 'DELETE' });
   },
   getLogo() {
     return apiClient.requestBlob('/settings/hospital/logo');
