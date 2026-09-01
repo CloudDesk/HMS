@@ -19,7 +19,24 @@ export type AdmissionSourceType =
   | 'TRANSFER'
   | 'PROCEDURE_BOOKING';
 export type AdmissionRequestStatus = 'PENDING_VALIDATION' | 'READY_FOR_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED';
-export type InpatientAdmission = { id: string; admission_number: string; patient_id: string; patient_number: string; patient_name: string; branch_id: string; ward_id: string; ward_name: string; bed_id: string; bed_number: string; admitting_doctor_id: string; admitting_doctor_name: string; department_id: string; department_name: string; admission_date: string; admission_type: AdmissionType; reason: string; notes: string | null; status: 'DRAFT' | 'ADMITTED' | 'CANCELLED'; request_id: string | null; source_type: AdmissionSourceType; source_id: string | null; created_at: string; updated_at: string };
+export type InpatientDischargeSummary = {
+  hemodynamic_stability_24h: boolean;
+  post_op_recovery_cleared: boolean;
+  home_oral_med_converted: boolean;
+  summary_finalized: boolean;
+  notes: string | null;
+  saved_by: string | null;
+  saved_by_name: string | null;
+  saved_at: string | null;
+};
+export type SaveDischargeSummaryPayload = {
+  hemodynamic_stability_24h: boolean;
+  post_op_recovery_cleared: boolean;
+  home_oral_med_converted: boolean;
+  summary_finalized: boolean;
+  notes?: string | null;
+};
+export type InpatientAdmission = { id: string; admission_number: string; patient_id: string; patient_number: string; patient_name: string; branch_id: string; ward_id: string; ward_name: string; bed_id: string; bed_number: string; admitting_doctor_id: string; admitting_doctor_name: string; department_id: string; department_name: string; admission_date: string; admission_type: AdmissionType; reason: string; notes: string | null; status: 'DRAFT' | 'ADMITTED' | 'DISCHARGED' | 'CANCELLED'; request_id: string | null; source_type: AdmissionSourceType; source_id: string | null; discharge_summary: InpatientDischargeSummary | null; discharged_at: string | null; discharged_by: string | null; discharged_by_name: string | null; created_at: string; updated_at: string };
 export type AdmissionRequest = { id: string; request_number: string; patient_id: string; patient_number: string; patient_name: string; branch_id: string; department_id: string; department_name: string; recommending_doctor_id: string; recommending_doctor_name: string; source_type: AdmissionSourceType; source_id: string | null; source_reference: string | null; admission_type: AdmissionType; priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY'; reason: string; notes: string | null; status: AdmissionRequestStatus; hold_id: string | null; ward_id: string | null; bed_id: string | null; consent_document_id: string | null; deposit_invoice_id: string | null; prerequisite_snapshot: { consent_required: boolean; consent_satisfied: boolean; deposit_required: boolean; deposit_satisfied: boolean; deposit_required_amount: number; deposit_paid_amount: number } | null; admission_id: string | null; cancellation_reason: string | null; created_at: string; updated_at: string };
 export type AdmissionPage = { data: InpatientAdmission[]; meta: { total: number; page: number; limit: number; totalPages: number } };
 export type AdmissionRequestPage = { data: AdmissionRequest[]; meta: { total: number; page: number; limit: number; totalPages: number } };
@@ -43,6 +60,8 @@ export const inpatientAdmissionsApi = {
   createRoundNote: (id: string, branchId: string, body: CreateInpatientRoundNotePayload) => apiClient.request<InpatientRoundNote>(`/admissions/inpatients/${id}/round-notes${query({ branch_id: branchId })}`, { method: 'POST', body }),
   vitals: (id: string, branchId: string) => apiClient.request<InpatientVital[]>(`/admissions/inpatients/${id}/vitals${query({ branch_id: branchId })}`),
   createVital: (id: string, branchId: string, body: CreateInpatientVitalPayload) => apiClient.request<InpatientVital>(`/admissions/inpatients/${id}/vitals${query({ branch_id: branchId })}`, { method: 'POST', body }),
+  saveDischargeSummary: (id: string, branchId: string, body: SaveDischargeSummaryPayload) => apiClient.request<InpatientAdmission>(`/admissions/inpatients/${id}/discharge-summary${query({ branch_id: branchId })}`, { method: 'POST', body }),
+  finalizeDischarge: (id: string, branchId: string) => apiClient.request<InpatientAdmission>(`/admissions/inpatients/${id}/finalize-discharge${query({ branch_id: branchId })}`, { method: 'POST' }),
   requests: (params: { branch_id: string; status?: AdmissionRequestStatus; source_type?: AdmissionSourceType; search?: string; page?: number; limit?: number }) => apiClient.request<AdmissionRequestPage>(`/admissions/requests${query(params)}`),
   requestStats: (branchId: string) => apiClient.request<AdmissionRequestStats>(`/admissions/request-stats${query({ branch_id: branchId })}`),
   request: (id: string, branchId: string) => apiClient.request<AdmissionRequest>(`/admissions/requests/${id}${query({ branch_id: branchId })}`),

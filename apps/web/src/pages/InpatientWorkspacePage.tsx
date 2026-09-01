@@ -48,11 +48,11 @@ export function InpatientWorkspacePage() {
     admittedList, filteredInpatients, recommendations: currentPatientRecommendations,
     bookings: currentPatientBookings, roundNotes: currentPatientRounds,
     vitals: currentPatientVitals, diagnosticOrders: currentPatientOrders,
-    laboratoryServices, imagingServices, loading, errors, pending,
+    laboratoryServices, imagingServices, isDischarging, loading, errors, pending,
   } = feature.state;
   const {
     setBranchId, selectAdmission: setSelectedAdmission, refreshAdmissions,
-    createRoundNote, createVital, submitClinicalOrder,
+    createRoundNote, createVital, submitClinicalOrder, saveDischargeSummary, finalizeDischarge,
   } = feature.actions;
 
   const procedureInitialContext = useMemo(() => {
@@ -373,6 +373,9 @@ export function InpatientWorkspacePage() {
         onOpenAddRoundNote={() => setRoundModalOpen(true)}
         onOpenRecordVitals={() => setVitalsModalOpen(true)}
         onOpenAddOrder={() => setOrderModalOpen(true)}
+        onSaveDischargeSummary={saveDischargeSummary}
+        onFinalizeDischarge={finalizeDischarge}
+        isDischarging={isDischarging}
       />
 
       {/* Modal: New Procedure Recommendation (Shared Surgery Modal) */}

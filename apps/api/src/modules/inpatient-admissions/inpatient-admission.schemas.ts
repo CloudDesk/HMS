@@ -7,7 +7,14 @@ const referenceId = z
   .transform((val) => (val && typeof val === 'string' && val.trim().length > 0 ? val.trim() : null));
 
 export const createInpatientAdmissionSchema = z.object({ patient_id: id, branch_id: id, ward_id: id, bed_id: id, hold_id: referenceId.optional(), admitting_doctor_id: id, department_id: id, admission_date: z.string().datetime({ offset: true }), admission_type: z.enum(['MEDICAL', 'SURGICAL', 'MATERNITY', 'PAEDIATRIC', 'OBSERVATION', 'OTHER']), reason: text('Reason', 500), notes: z.string().trim().max(1000).nullable().optional() });
-export const listInpatientAdmissionsSchema = z.object({ branch_id: id, status: z.enum(['DRAFT', 'ADMITTED', 'CANCELLED']).optional(), page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) });
+export const saveDischargeSummarySchema = z.object({
+  hemodynamic_stability_24h: z.boolean(),
+  post_op_recovery_cleared: z.boolean(),
+  home_oral_med_converted: z.boolean(),
+  summary_finalized: z.boolean(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+}).strict();
+export const listInpatientAdmissionsSchema = z.object({ branch_id: id, status: z.enum(['DRAFT', 'ADMITTED', 'DISCHARGED', 'CANCELLED']).optional(), page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) });
 export const inpatientAdmissionIdSchema = z.object({ id });
 export const createInpatientRoundNoteSchema = z.object({
   subjective: text('Subjective findings', 4000),

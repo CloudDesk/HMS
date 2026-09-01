@@ -12,7 +12,7 @@ export const ADMISSION_TYPES = [
 ] as const;
 
 export type AdmissionType = (typeof ADMISSION_TYPES)[number];
-export type AdmissionStatus = 'DRAFT' | 'ADMITTED' | 'CANCELLED';
+export type AdmissionStatus = 'DRAFT' | 'ADMITTED' | 'DISCHARGED' | 'CANCELLED';
 export const ADMISSION_SOURCE_TYPES = [
   'DIRECT',
   'OPD_VISIT',
@@ -25,6 +25,25 @@ export const ADMISSION_SOURCE_TYPES = [
 export type AdmissionSourceType = (typeof ADMISSION_SOURCE_TYPES)[number];
 export type AdmissionRequestStatus = 'PENDING_VALIDATION' | 'READY_FOR_CONFIRMATION' | 'CONFIRMED' | 'CANCELLED';
 export type AdmissionPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+
+export type SaveDischargeSummaryDTO = {
+  hemodynamic_stability_24h: boolean;
+  post_op_recovery_cleared: boolean;
+  home_oral_med_converted: boolean;
+  summary_finalized: boolean;
+  notes?: string | null;
+};
+
+export type InpatientDischargeSummary = {
+  hemodynamic_stability_24h: boolean;
+  post_op_recovery_cleared: boolean;
+  home_oral_med_converted: boolean;
+  summary_finalized: boolean;
+  notes: string | null;
+  saved_by: string | null;
+  saved_by_name: string | null;
+  saved_at: Date | null;
+};
 
 export type CreateInpatientAdmissionDTO = {
   patient_id: string;
@@ -63,6 +82,10 @@ export type InpatientAdmission = {
   request_id: string | null;
   source_type: AdmissionSourceType;
   source_id: string | null;
+  discharge_summary: InpatientDischargeSummary | null;
+  discharged_at: Date | null;
+  discharged_by: string | null;
+  discharged_by_name: string | null;
   created_at: Date;
   updated_at: Date;
 };

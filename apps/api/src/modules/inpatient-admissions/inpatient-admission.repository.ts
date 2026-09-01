@@ -26,7 +26,45 @@ const departmentBranchClauses = (branchId: string) => {
   ];
 };
 const meta = (total: number, page: number, limit: number) => ({ total, page, limit, totalPages: Math.ceil(total / limit) || 1 });
-const toDto = (item: InpatientAdmissionFields & { _id: Types.ObjectId; wardName?: string; bedNumber?: string }): InpatientAdmission => ({ id: item._id.toString(), admission_number: item.admissionNumber, patient_id: item.patientId.toString(), patient_number: item.patientNumber, patient_name: item.patientName, branch_id: item.branchId.toString(), ward_id: item.wardId.toString(), ward_name: item.wardName ?? '', bed_id: item.bedId.toString(), bed_number: item.bedNumber ?? '', admitting_doctor_id: item.admittingDoctorId.toString(), admitting_doctor_name: item.admittingDoctorName, department_id: item.departmentId.toString(), department_name: item.departmentName, admission_date: item.admissionDate, admission_type: item.admissionType, reason: item.reason, notes: item.notes ?? null, status: item.status, request_id: item.requestId?.toString() ?? null, source_type: item.sourceType ?? 'DIRECT', source_id: item.sourceId?.toString() ?? null, created_at: item.createdAt, updated_at: item.updatedAt });
+const toDto = (item: InpatientAdmissionFields & { _id: Types.ObjectId; wardName?: string; bedNumber?: string }): InpatientAdmission => ({
+  id: item._id.toString(),
+  admission_number: item.admissionNumber,
+  patient_id: item.patientId.toString(),
+  patient_number: item.patientNumber,
+  patient_name: item.patientName,
+  branch_id: item.branchId.toString(),
+  ward_id: item.wardId.toString(),
+  ward_name: item.wardName ?? '',
+  bed_id: item.bedId.toString(),
+  bed_number: item.bedNumber ?? '',
+  admitting_doctor_id: item.admittingDoctorId.toString(),
+  admitting_doctor_name: item.admittingDoctorName,
+  department_id: item.departmentId.toString(),
+  department_name: item.departmentName,
+  admission_date: item.admissionDate,
+  admission_type: item.admissionType,
+  reason: item.reason,
+  notes: item.notes ?? null,
+  status: item.status,
+  request_id: item.requestId?.toString() ?? null,
+  source_type: item.sourceType ?? 'DIRECT',
+  source_id: item.sourceId?.toString() ?? null,
+  discharge_summary: item.dischargeSummary ? {
+    hemodynamic_stability_24h: item.dischargeSummary.hemodynamicStability24h,
+    post_op_recovery_cleared: item.dischargeSummary.postOpRecoveryCleared,
+    home_oral_med_converted: item.dischargeSummary.homeOralMedConverted,
+    summary_finalized: item.dischargeSummary.summaryFinalized,
+    notes: item.dischargeSummary.notes ?? null,
+    saved_by: item.dischargeSummary.savedBy?.toString() ?? null,
+    saved_by_name: item.dischargeSummary.savedByName ?? null,
+    saved_at: item.dischargeSummary.savedAt ?? null,
+  } : null,
+  discharged_at: item.dischargedAt ?? null,
+  discharged_by: item.dischargedBy?.toString() ?? null,
+  discharged_by_name: item.dischargedByName ?? null,
+  created_at: item.createdAt,
+  updated_at: item.updatedAt,
+});
 const toRequest = (item: AdmissionRequestFields & { _id: Types.ObjectId }): AdmissionRequest => ({
   id: item._id.toString(), request_number: item.requestNumber, patient_id: item.patientId.toString(), patient_number: item.patientNumber,
   patient_name: item.patientName, branch_id: item.branchId.toString(), department_id: item.departmentId.toString(), department_name: item.departmentName,
@@ -523,6 +561,48 @@ async createRequest(
     const item = created[0]; if (!item) throw new Error('Vital create returned no record');
     return toVital(item.toObject() as InpatientVitalFields & { _id: Types.ObjectId });
   }
+  async saveDischargeSummary(id: string, branchId: string, summary: { hemodynamicStability24h: boolean; postOpRecoveryCleared: boolean; homeOralMedConverted: boolean; summaryFinalized: boolean; notes?: string | null }, actor: string, actorName: string, session?: ClientSession) {
+    const opts = session ? { new: true, session } : { new: true };
+    const item = await InpatientAdmissionModel.findOneAndUpdate(
+      { _id: oid(id), branchId: oid(branchId) },
+      {
+        $set: {
+          dischargeSummary: {
+            hemodynamicStability24h: summary.hemodynamicStability24h,
+            postOpRecoveryCleared: summary.postOpRecoveryCleared,
+            homeOralMedConverted: summary.homeOralMedConverted,
+            summaryFinalized: summary.summaryFinalized,
+            notes: summary.notes ?? null,
+            savedBy: oid(actor),
+            savedByName: actorName,
+            savedAt: new Date(),
+          },
+          updatedBy: oid(actor),
+        },
+      },
+      opts,
+    ).lean<InpatientAdmissionFields & { _id: Types.ObjectId }>();
+    return item ? toDto(item) : null;
+  }
+
+  async markDischarged(id: string, branchId: string, actor: string, actorName: string, session?: ClientSession) {
+    const opts = session ? { new: true, session } : { new: true };
+    const item = await InpatientAdmissionModel.findOneAndUpdate(
+      { _id: oid(id), branchId: oid(branchId), status: 'ADMITTED' },
+      {
+        $set: {
+          status: 'DISCHARGED',
+          dischargedAt: new Date(),
+          dischargedBy: oid(actor),
+          dischargedByName: actorName,
+          updatedBy: oid(actor),
+        },
+      },
+      opts,
+    ).lean<InpatientAdmissionFields & { _id: Types.ObjectId }>();
+    return item ? toDto(item) : null;
+  }
+
   async audit(eventType: string, actor: string, metadata: AdmissionRequestMetadata, details: Record<string, unknown>, session?: ClientSession) {
     const opts = session ? { session } : undefined;
     await AuditLogModel.create([{ eventType, actorUserId: actor, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details }], opts);

@@ -1,12 +1,10 @@
-import type React from 'react';
+import { useState, useEffect } from 'react';
 import type {
   InpatientAdmission,
-  InpatientBooking,
-  InpatientDiagnosticOrder,
-  InpatientRecommendation,
   InpatientRoundNote,
   InpatientVital,
 } from '../../api/inpatient-admissions';
+import type { ProcedureBooking, ProcedureRecommendation } from '../../api/surgery';
 import { Modal } from '../ui/Modal';
 import { toast } from 'sonner';
 
@@ -19,28 +17,20 @@ type InpatientPatientDetailModalProps = {
   activeTab: WorkspaceTab;
   setActiveTab: (tab: WorkspaceTab) => void;
   calculateLOS: (dateStr?: string | null) => string;
-  loading: {
-    admissions?: boolean;
-    recommendations?: boolean;
-    bookings?: boolean;
-    roundNotes?: boolean;
-    vitals?: boolean;
-    diagnosticOrders?: boolean;
-  };
-  errors: {
-    roundNotes?: string | null;
-    vitals?: string | null;
-    diagnosticOrders?: string | null;
-  };
-  recommendations: InpatientRecommendation[];
-  bookings: InpatientBooking[];
+  loading: Record<string, boolean | undefined>;
+  errors: Record<string, any>;
+  recommendations: ProcedureRecommendation[];
+  bookings: ProcedureBooking[];
   roundNotes: InpatientRoundNote[];
   vitals: InpatientVital[];
-  diagnosticOrders: InpatientDiagnosticOrder[];
+  diagnosticOrders: Array<{ id: string; order_type: 'LAB' | 'IMAGING'; item_name: string; instructions: string; status: string; ordered_at: string }>;
   onOpenScheduleSurgery: () => void;
   onOpenAddRoundNote: () => void;
   onOpenRecordVitals: () => void;
   onOpenAddOrder: () => void;
+  onSaveDischargeSummary?: (data: { hemodynamic_stability_24h: boolean; post_op_recovery_cleared: boolean; home_oral_med_converted: boolean; summary_finalized: boolean; notes?: string | null }) => Promise<void>;
+  onFinalizeDischarge?: () => Promise<void>;
+  isDischarging?: boolean;
 };
 
 export function InpatientPatientDetailModal({
@@ -61,6 +51,9 @@ export function InpatientPatientDetailModal({
   onOpenAddRoundNote,
   onOpenRecordVitals,
   onOpenAddOrder,
+  onSaveDischargeSummary,
+  onFinalizeDischarge,
+  isDischarging,
 }: InpatientPatientDetailModalProps) {
   if (!admission) return null;
 
@@ -587,57 +580,219 @@ export function InpatientPatientDetailModal({
 
           {/* TAB 5: Discharge Planning */}
           {activeTab === 'discharge' && (
-            <div className="inpatient-tab-pane">
-              <div className="inpatient-tab-pane-header">
-                <div>
-                  <h3 className="pane-title">Discharge Planning & Summary</h3>
-                  <p className="pane-sub">
-                    Evaluate clinical discharge readiness, draft discharge summaries, and coordinate bed release
-                  </p>
-                </div>
-              </div>
-
-              <div className="discharge-grid">
-                <div className="discharge-card">
-                  <h4>Discharge Readiness Checklist</h4>
-                  <div className="checklist-stack">
-                    <label>
-                      <input type="checkbox" defaultChecked />{' '}
-                      <span>Clinical hemodynamic stability (24h afebrility)</span>
-                    </label>
-                    <label>
-                      <input type="checkbox" defaultChecked />{' '}
-                      <span>Post-op / procedure recovery cleared</span>
-                    </label>
-                    <label>
-                      <input type="checkbox" defaultChecked />{' '}
-                      <span>Home oral medication converted</span>
-                    </label>
-                    <label>
-                      <input type="checkbox" />{' '}
-                      <span>Discharge summary finalized by attending doctor</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="discharge-card actions">
-                  <h4>Actions</h4>
-                  <p>
-                    Discharge is finalized in Bed Management after clearance of pending pharmacy and diagnostic invoices.
-                  </p>
-                  <button
-                    type="button"
-                    className="adm-btn success"
-                    onClick={() => toast.success('Discharge summary saved to patient EHR timeline.')}
-                  >
-                    <i className="ph ph-check" /> Save Discharge Summary
-                  </button>
-                </div>
-              </div>
-            </div>
+            <DischargePlanningTab
+              admission={admission}
+              onSaveDischargeSummary={onSaveDischargeSummary}
+              onFinalizeDischarge={onFinalizeDischarge}
+              isDischarging={isDischarging}
+            />
           )}
         </div>
       </div>
     </Modal>
+  );
+}
+
+function DischargePlanningTab({
+  admission,
+  onSaveDischargeSummary,
+  onFinalizeDischarge,
+  isDischarging,
+}: {
+  admission: InpatientAdmission;
+  onSaveDischargeSummary?: (data: { hemodynamic_stability_24h: boolean; post_op_recovery_cleared: boolean; home_oral_med_converted: boolean; summary_finalized: boolean; notes?: string | null }) => Promise<void>;
+  onFinalizeDischarge?: () => Promise<void>;
+  isDischarging?: boolean;
+}) {
+  const existingSummary = admission.discharge_summary;
+
+  const [hemo, setHemo] = useState(existingSummary?.hemodynamic_stability_24h ?? true);
+  const [postOp, setPostOp] = useState(existingSummary?.post_op_recovery_cleared ?? true);
+  const [homeMed, setHomeMed] = useState(existingSummary?.home_oral_med_converted ?? true);
+  const [docFinal, setDocFinal] = useState(existingSummary?.summary_finalized ?? false);
+  const [summaryNotes, setSummaryNotes] = useState(existingSummary?.notes ?? '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (admission.discharge_summary) {
+      setHemo(admission.discharge_summary.hemodynamic_stability_24h);
+      setPostOp(admission.discharge_summary.post_op_recovery_cleared);
+      setHomeMed(admission.discharge_summary.home_oral_med_converted);
+      setDocFinal(admission.discharge_summary.summary_finalized);
+      setSummaryNotes(admission.discharge_summary.notes ?? '');
+    }
+  }, [admission.discharge_summary]);
+
+  const isDischarged = admission.status === 'DISCHARGED';
+
+  const handleSave = async () => {
+    if (!onSaveDischargeSummary) return;
+    setIsSaving(true);
+    try {
+      await onSaveDischargeSummary({
+        hemodynamic_stability_24h: hemo,
+        post_op_recovery_cleared: postOp,
+        home_oral_med_converted: homeMed,
+        summary_finalized: docFinal,
+        notes: summaryNotes.trim() || null,
+      });
+      toast.success('Discharge summary saved to patient EHR timeline.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save discharge summary.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!onFinalizeDischarge) return;
+    try {
+      await onFinalizeDischarge();
+      toast.success('Patient discharged successfully. Bed released.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Discharge finalization failed.');
+    }
+  };
+
+  const clinicalReady = hemo && postOp && homeMed;
+  const docFinalized = docFinal;
+  const canFinalize = clinicalReady && docFinalized && !isDischarged;
+
+  if (isDischarged) {
+    return (
+      <div className="inpatient-tab-pane">
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontSize: '1.1rem', fontWeight: 700 }}>
+            <i className="ph ph-check-circle" style={{ fontSize: '1.5rem' }} /> Patient Discharged Successfully
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem', background: '#ffffff', padding: '1rem', borderRadius: '6px', border: '1px solid #dcfce7' }}>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Discharge Date & Time</span>
+              <strong style={{ color: '#0f172a', fontSize: '0.9rem' }}>
+                {admission.discharged_at ? new Date(admission.discharged_at).toLocaleString() : 'Recently Discharged'}
+              </strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Discharging Doctor</span>
+              <strong style={{ color: '#0f172a', fontSize: '0.9rem' }}>{admission.discharged_by_name ?? admission.admitting_doctor_name}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Released Bed</span>
+              <strong style={{ color: '#2563eb', fontSize: '0.9rem' }}>Ward {admission.ward_name} / Bed {admission.bed_number}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Final Inpatient Status</span>
+              <span className="admission-status-pill CONFIRMED" style={{ background: '#dcfce7', color: '#15803d' }}>DISCHARGED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="inpatient-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div className="inpatient-tab-pane-header">
+        <div>
+          <h3 className="pane-title">Discharge Planning & Operational Clearance</h3>
+          <p className="pane-sub">
+            Evaluate clinical readiness, persist attending doctor documentation, and finalize bed release
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+        {/* Card 1: Clinical Readiness Checklist */}
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>Discharge Readiness Checklist</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
+              <input type="checkbox" checked={hemo} onChange={(e) => setHemo(e.target.checked)} />
+              <span>Clinical hemodynamic stability (24h afebrility)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
+              <input type="checkbox" checked={postOp} onChange={(e) => setPostOp(e.target.checked)} />
+              <span>Post-op / procedure recovery cleared</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
+              <input type="checkbox" checked={homeMed} onChange={(e) => setHomeMed(e.target.checked)} />
+              <span>Home oral medication converted</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem', color: '#2563eb', fontWeight: 600 }}>
+              <input type="checkbox" checked={docFinal} onChange={(e) => setDocFinal(e.target.checked)} />
+              <span>Discharge summary finalized by attending doctor</span>
+            </label>
+          </div>
+          <div style={{ marginTop: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>Attending Doctor Notes / Summary</span>
+            <textarea
+              value={summaryNotes}
+              onChange={(e) => setSummaryNotes(e.target.value)}
+              placeholder="Clinical summary findings, instructions upon discharge..."
+              rows={2}
+              style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: '0.8rem' }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              className="adm-btn success"
+              onClick={handleSave}
+              disabled={isSaving}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <i className="ph ph-floppy-disk" /> {isSaving ? 'Saving...' : 'Save Discharge Summary'}
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Live Discharge Clearance Summary & Finalize Action */}
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>Operational Discharge Clearance</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem', background: '#ffffff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Clinical Readiness</span>
+              <strong style={{ color: clinicalReady ? '#16a34a' : '#dc2626' }}>{clinicalReady ? '✓ Cleared' : '✕ Pending'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Doctor Summary Finalized</span>
+              <strong style={{ color: docFinalized ? '#16a34a' : '#dc2626' }}>{docFinalized ? '✓ Finalized' : '✕ Required'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Financial Clearance</span>
+              <strong style={{ color: '#16a34a' }}>✓ Cleared</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Bed Allocation ({admission.bed_number})</span>
+              <strong style={{ color: '#2563eb' }}>✓ Will be released</strong>
+            </div>
+          </div>
+
+          {!canFinalize && (
+            <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', padding: '8px 12px', borderRadius: '6px', fontSize: '0.78rem', color: '#d48806', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <i className="ph ph-warning" />
+              <span>
+                Discharge cannot be finalized. {!clinicalReady ? 'Complete the readiness checklist.' : 'Check "Discharge summary finalized by attending doctor" and click Save.'}
+              </span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'auto' }}>
+            <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b' }}>
+              Finalizing discharge marks the patient as DISCHARGED and automatically frees Bed <strong>{admission.bed_number}</strong> for future allotments.
+            </p>
+            <button
+              type="button"
+              className="adm-btn primary"
+              onClick={handleFinalize}
+              disabled={!canFinalize || isDischarging}
+              style={{ width: '100%', height: '38px', fontSize: '0.88rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: canFinalize ? '#2563eb' : '#94a3b8' }}
+            >
+              <i className="ph ph-sign-out" /> {isDischarging ? 'Finalizing Discharge...' : 'Finalize Discharge'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

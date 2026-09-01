@@ -2,14 +2,40 @@ import mongoose, { Schema, Types } from 'mongoose';
 import { ADMISSION_SOURCE_TYPES, ADMISSION_TYPES, type AdmissionPriority, type AdmissionRequestStatus, type AdmissionSourceType, type AdmissionStatus, type AdmissionType } from './inpatient-admission.types.js';
 
 
+export type InpatientDischargeSummaryFields = {
+  hemodynamicStability24h: boolean;
+  postOpRecoveryCleared: boolean;
+  homeOralMedConverted: boolean;
+  summaryFinalized: boolean;
+  notes?: string | null;
+  savedBy?: Types.ObjectId | null;
+  savedByName?: string | null;
+  savedAt?: Date | null;
+};
+
 export type InpatientAdmissionFields = {
   admissionNumber: string; patientId: Types.ObjectId; patientNumber: string; patientName: string;
   branchId: Types.ObjectId; wardId: Types.ObjectId; bedId: Types.ObjectId;
   admittingDoctorId: Types.ObjectId; admittingDoctorName: string; departmentId: Types.ObjectId; departmentName: string;
   admissionDate: Date; admissionType: AdmissionType; reason: string; notes?: string | null; status: AdmissionStatus;
   requestId?: Types.ObjectId | null; sourceType: AdmissionSourceType; sourceId?: Types.ObjectId | null;
+  dischargeSummary?: InpatientDischargeSummaryFields | null;
+  dischargedAt?: Date | null;
+  dischargedBy?: Types.ObjectId | null;
+  dischargedByName?: string | null;
   createdBy: Types.ObjectId; updatedBy: Types.ObjectId; createdAt: Date; updatedAt: Date;
 };
+
+const dischargeSummarySchema = new Schema<InpatientDischargeSummaryFields>({
+  hemodynamicStability24h: { type: Boolean, required: true, default: false },
+  postOpRecoveryCleared: { type: Boolean, required: true, default: false },
+  homeOralMedConverted: { type: Boolean, required: true, default: false },
+  summaryFinalized: { type: Boolean, required: true, default: false },
+  notes: { type: String, default: null },
+  savedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  savedByName: { type: String, default: null },
+  savedAt: { type: Date, default: null },
+}, { _id: false });
 
 const schema = new Schema<InpatientAdmissionFields>({
   admissionNumber: { type: String, required: true, unique: true }, patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
@@ -18,10 +44,14 @@ const schema = new Schema<InpatientAdmissionFields>({
   admittingDoctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true }, admittingDoctorName: { type: String, required: true },
   departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true }, departmentName: { type: String, required: true },
   admissionDate: { type: Date, required: true }, admissionType: { type: String, enum: ADMISSION_TYPES, required: true },
-  reason: { type: String, required: true, trim: true }, notes: { type: String, default: null }, status: { type: String, enum: ['DRAFT', 'ADMITTED', 'CANCELLED'], required: true, default: 'ADMITTED' },
+  reason: { type: String, required: true, trim: true }, notes: { type: String, default: null }, status: { type: String, enum: ['DRAFT', 'ADMITTED', 'DISCHARGED', 'CANCELLED'], required: true, default: 'ADMITTED' },
   requestId: { type: Schema.Types.ObjectId, ref: 'AdmissionRequest', default: null },
   sourceType: { type: String, enum: ADMISSION_SOURCE_TYPES, required: true, default: 'DIRECT' },
   sourceId: { type: Schema.Types.ObjectId, default: null },
+  dischargeSummary: { type: dischargeSummarySchema, default: null },
+  dischargedAt: { type: Date, default: null },
+  dischargedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  dischargedByName: { type: String, default: null },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }, updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 schema.index({ branchId: 1, status: 1, admissionDate: -1 });

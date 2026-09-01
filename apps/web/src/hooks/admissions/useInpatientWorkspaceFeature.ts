@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CreateRecommendationPayload } from '../../api/surgery';
-import type { InpatientAdmission } from '../../api/inpatient-admissions';
+import { inpatientAdmissionsApi, type InpatientAdmission } from '../../api/inpatient-admissions';
 import { useAppLocation } from '../../routing/navigation';
 import { useBranchesList } from '../branches/useBranches';
 import { useDepartmentsList } from '../departments/useDepartments';
@@ -118,6 +118,27 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
     setSelectedAdmission(null);
   };
 
+  const [isDischarging, setIsDischarging] = useState(false);
+
+  const saveDischargeSummary = async (data: { hemodynamic_stability_24h: boolean; post_op_recovery_cleared: boolean; home_oral_med_converted: boolean; summary_finalized: boolean; notes?: string | null }) => {
+    if (!selectedAdmission) return;
+    const updated = await inpatientAdmissionsApi.saveDischargeSummary(selectedAdmission.id, branchId, data);
+    setSelectedAdmission(updated);
+    void refreshAdmissions();
+  };
+
+  const finalizeDischarge = async () => {
+    if (!selectedAdmission) return;
+    setIsDischarging(true);
+    try {
+      const updated = await inpatientAdmissionsApi.finalizeDischarge(selectedAdmission.id, branchId);
+      setSelectedAdmission(updated);
+      void refreshAdmissions();
+    } finally {
+      setIsDischarging(false);
+    }
+  };
+
   return {
     state: {
       branchId,
@@ -136,6 +157,7 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
       diagnosticOrders,
       laboratoryServices: clinical.laboratoryServices,
       imagingServices: clinical.imagingServices,
+      isDischarging,
       loading: {
         admissions: admissionsQuery.isLoading,
         recommendations: surgery.recommendations.isLoading,
@@ -167,6 +189,8 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
       createRoundNote: clinical.createRoundNote.mutateAsync,
       createVital: clinical.createVital.mutateAsync,
       submitClinicalOrder: clinical.submitClinicalOrder.mutateAsync,
+      saveDischargeSummary,
+      finalizeDischarge,
     },
   };
 }
