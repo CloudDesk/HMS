@@ -13,6 +13,15 @@ export const registerAdministrationDashboardRoutes = async (
     { preHandler: requirePermission(services, 'Administration', 'Dashboard', 'View') },
     async () => ok(await services.administrationDashboard.get()),
   );
+  app.get(
+    '/api/administration/dashboard/overview',
+    { preHandler: requirePermission(services, 'Administration', 'Dashboard', 'View') },
+    async (request) => {
+      const query = request.query as { branch_id?: string };
+      const financialAccess = await services.permissions.userHasPermission(request.user!.id, 'Billing', 'Invoices', 'View');
+      return ok(await services.administrationDashboard.getExecutiveOverview(request.user!.id, query.branch_id, financialAccess));
+    },
+  );
   app.get('/api/reports/phase-2', { preHandler: requirePermission(services, 'Reports', 'Phase 2 Reports', 'View') }, async (request) => {
     const query = phaseTwoReportQuerySchema.parse(request.query);
     const financialAccess = await services.permissions.userHasPermission(request.user!.id, 'Billing', 'Invoices', 'View');

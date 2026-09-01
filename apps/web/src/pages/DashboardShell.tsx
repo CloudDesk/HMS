@@ -23,6 +23,8 @@ import { PhaseTwoReportsPage } from './PhaseTwoReportsPage';
 import { useCurrencyFormatter } from '../api/useSettings';
 
 
+import { useBranchesList } from '../hooks/branches/useBranches';
+
 type StatCardProps = {
   icon: string;
   label: string;
@@ -33,14 +35,16 @@ type StatCardProps = {
 
 function StatCard({ icon, label, note, tone, value }: StatCardProps) {
   return (
-    <div className="stat-card">
-      <div className={`stat-icon ${tone}`}>
-        <i className={`ph-fill ${icon}`} aria-hidden="true" />
+    <div className="stat-card" style={{ minWidth: 0, padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+      <div className={`stat-icon ${tone}`} style={{ flexShrink: 0 }}>
+        <i className={`ph ${icon}`} aria-hidden="true" style={{ fontSize: '1.5rem' }} />
       </div>
-      <div className="stat-info">
-        <p>{label}</p>
-        <h3>{typeof value === 'number' ? value.toLocaleString() : value}</h3>
-        <span>{note}</span>
+      <div className="stat-info" style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+        <p style={{ margin: 0, fontSize: '0.825rem', fontWeight: 600, color: '#64748b', whiteSpace: 'normal', lineHeight: 1.2 }}>{label}</p>
+        <h3 style={{ margin: '0.2rem 0', fontSize: '1.35rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </h3>
+        <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{note}</span>
       </div>
     </div>
   );
@@ -49,66 +53,162 @@ function StatCard({ icon, label, note, tone, value }: StatCardProps) {
 function ExecutiveOverviewTab() {
   const { user } = useAuth();
   const firstName = user?.fullName?.split(' ')[0] ?? user?.username ?? 'User';
-  const { data, isLoading: loading, isError, refresh } = useDashboardOverviewFeature();
+  const { data, isLoading: loading, isError, isFetching, refresh, selectedBranchId, setSelectedBranchId } = useDashboardOverviewFeature();
   const formatMoney = useCurrencyFormatter();
+  const { data: branchesData } = useBranchesList({ limit: 100 });
 
+  const accessibleBranches = branchesData?.data || [];
   const loadError = isError ? 'Executive dashboard metrics could not be updated.' : '';
+
   const maxRevenue = Math.max(1, ...data.trend.map((t) => t.revenue));
+  const maxEncounters = Math.max(1, ...data.trend.map((t) => t.encounters));
+
+  const totalBilled = data.financialSummary?.totalBilledAmount;
+  const totalCollected = data.financialSummary?.collectedFunds;
+  const pendingBalance = data.financialSummary?.pendingOutstanding;
+  const collectionRate = totalBilled && totalBilled > 0 ? Math.min(100, Math.round(((totalCollected ?? 0) / totalBilled) * 100)) : 0;
 
   return (
     <div className="dashboard-grid">
-      <div className="appointment-page-header">
+      <div className="appointment-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div className="appointment-page-title">
           <h2>Hospital Executive Overview</h2>
           <p>Welcome back, {firstName}. Live enterprise health, encounters, and financial performance.</p>
         </div>
-        <button className="secondary-action" disabled={loading} onClick={() => refresh()} type="button">
-          <i className="ph ph-arrow-clockwise" aria-hidden="true" />
-          Refresh Live Data
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {accessibleBranches.length > 1 ? (
+            <select
+              className="doc-form-select"
+              style={{ padding: '0.45rem 0.75rem', fontSize: '0.85rem', borderRadius: '6px', borderColor: '#cbd5e1' }}
+              value={selectedBranchId ?? ''}
+              onChange={(e) => setSelectedBranchId(e.target.value || undefined)}
+            >
+              <option value="">All Accessible Branches ({accessibleBranches.length})</option>
+              {accessibleBranches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          ) : null}
+          <button className="secondary-action" disabled={loading || isFetching} onClick={() => refresh()} type="button">
+            <i className={`ph ph-arrow-clockwise${isFetching ? ' ph-spin' : ''}`} aria-hidden="true" />
+            {isFetching ? 'Refreshing...' : 'Refresh Live Data'}
+          </button>
+        </div>
       </div>
 
-      {loadError ? <div className="um-state-cell" role="alert">{loadError}</div> : null}
+      {loadError ? <div className="um-state-cell" role="alert" style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '0.75rem', borderRadius: '6px' }}>{loadError}</div> : null}
 
-      <div className="stat-cards-container stat-cards-container--five">
-        <StatCard icon="ph-users" label="Registered Patients" note="Active patient directory" tone="blue" value={data.registeredPatients} />
-        <StatCard icon="ph-stethoscope" label="Active Doctors" note="On-duty clinical staff" tone="green" value={data.activeDoctors} />
-        <StatCard icon="ph-calendar-check" label="Today's Appointments" note="Bookings & encounters" tone="orange" value={data.appointmentsToday} />
-        <StatCard icon="ph-first-aid" label="OPD Visits Today" note="Checked-in patient visits" tone="purple" value={data.opdVisitsToday} />
-        <StatCard icon="ph-receipt" label="Today Billed Revenue" note="Live billing summary" tone="green" value={data.billedTotal === null ? '--' : formatMoney(data.billedTotal)} />
+      <div className="stat-cards-container stat-cards-container--five" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+        <StatCard icon="ph-users" label="Registered Patients" note="Active patient directory" tone="blue" value={loading ? '...' : data.kpis.registeredPatients} />
+        <StatCard icon="ph-stethoscope" label="Active Doctors" note="On-duty clinical staff" tone="green" value={loading ? '...' : data.kpis.activeDoctors} />
+        <StatCard icon="ph-calendar-check" label="Today's Appointments" note="Bookings for today" tone="orange" value={loading ? '...' : data.kpis.todayAppointments} />
+        <StatCard icon="ph-first-aid" label="OPD Visits Today" note="Checked-in patient visits" tone="purple" value={loading ? '...' : data.kpis.todayOpdVisits} />
+        <StatCard icon="ph-receipt" label="Today's Billed Revenue" note="Live billing summary" tone="green" value={loading ? '...' : (data.kpis.todayBilledRevenue === null ? 'Restricted' : formatMoney(data.kpis.todayBilledRevenue))} />
       </div>
 
-      <div className="doc-grid dashboard-main executive-dashboard-main">
+      {/* Operational Highlights */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <i className="ph ph-hourglass" style={{ fontSize: '1.4rem', color: '#ea580c' }} />
+          <div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Patients Waiting</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>{loading ? '...' : data.operationalMetrics.patientsWaiting}</div>
+          </div>
+        </div>
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <i className="ph ph-user-focus" style={{ fontSize: '1.4rem', color: '#2563eb' }} />
+          <div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>In Consultation</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>{loading ? '...' : data.operationalMetrics.patientsInConsultation}</div>
+          </div>
+        </div>
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <i className="ph ph-check-circle" style={{ fontSize: '1.4rem', color: '#16a34a' }} />
+          <div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Completed Today</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>{loading ? '...' : data.operationalMetrics.completedConsultationsToday}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="doc-grid dashboard-main executive-dashboard-main" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem', marginTop: '1.25rem' }}>
+        {/* 7-Day Trend Chart */}
         <article className="doc-card">
-          <div className="doc-card-header">
+          <div className="doc-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <h3>7-Day Revenue &amp; Encounter Flow</h3>
               <p>Combined outpatient volume &amp; financial collections trend</p>
             </div>
-          </div>
-          <div className="doc-chart">
-            <svg className="doc-line-chart" viewBox="0 0 700 200" role="img" aria-label="Revenue and visit trend">
-              {[0, 1, 2, 3].map((line) => (
-                <line key={line} x1="30" x2="670" y1={30 + line * 45} y2={30 + line * 45} stroke="#e2e8f0" strokeDasharray="4 4" />
-              ))}
-              <polyline
-                fill="none"
-                stroke="#2563eb"
-                strokeWidth="3"
-                points={data.trend.map((pt, idx) => `${30 + idx * 105},${165 - (pt.revenue / maxRevenue) * 120}`).join(' ')}
-              />
-              {data.trend.map((pt, idx) => (
-                <circle cx={30 + idx * 105} cy={165 - (pt.revenue / maxRevenue) * 120} fill="#2563eb" key={pt.day} r="5" />
-              ))}
-            </svg>
-            <div className="doc-chart-axis" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 1rem 0 1rem' }}>
-              {data.trend.map((pt) => (
-                <span key={pt.day} style={{ fontSize: '0.8rem', color: '#64748b' }}>{pt.day} ({formatMoney(pt.revenue)})</span>
-              ))}
+            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', fontWeight: 600 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#2563eb' }}>
+                <span style={{ width: '10px', height: '10px', backgroundColor: '#2563eb', borderRadius: '50%', display: 'inline-block' }} />
+                Revenue (KES)
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#9333ea' }}>
+                <span style={{ width: '10px', height: '10px', backgroundColor: '#9333ea', borderRadius: '2px', display: 'inline-block' }} />
+                Encounters
+              </span>
             </div>
+          </div>
+          <div className="doc-chart" style={{ padding: '1rem 0.5rem 0.5rem' }}>
+            {loading ? (
+              <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                Loading 7-day trend analysis...
+              </div>
+            ) : (
+              <>
+                <svg className="doc-line-chart" viewBox="0 0 700 210" role="img" aria-label="Revenue and visit trend" style={{ width: '100%', height: 'auto' }}>
+                  {[0, 1, 2, 3, 4].map((line) => (
+                    <line key={line} x1="40" x2="660" y1={20 + line * 38} y2={20 + line * 38} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                  ))}
+                  {/* Encounters Bars */}
+                  {data.trend.map((pt, idx) => {
+                    const x = 55 + idx * 96;
+                    const barHeight = Math.max(4, (pt.encounters / maxEncounters) * 110);
+                    const y = 172 - barHeight;
+                    return (
+                      <g key={`bar-${pt.date}`}>
+                        <rect x={x - 12} y={y} width="24" height={barHeight} fill="#e9d5ff" rx="3" />
+                        <text x={x} y={y - 5} textAnchor="middle" fill="#7e22ce" fontSize="10" fontWeight="600">
+                          {pt.encounters > 0 ? pt.encounters : ''}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Revenue Line */}
+                  <polyline
+                    fill="none"
+                    stroke="#2563eb"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={data.trend.map((pt, idx) => `${55 + idx * 96},${172 - (pt.revenue / maxRevenue) * 130}`).join(' ')}
+                  />
+                  {data.trend.map((pt, idx) => {
+                    const cx = 55 + idx * 96;
+                    const cy = 172 - (pt.revenue / maxRevenue) * 130;
+                    return (
+                      <g key={`pt-${pt.date}`}>
+                        <circle cx={cx} cy={cy} fill="#2563eb" stroke="#ffffff" strokeWidth="2" r="5" />
+                      </g>
+                    );
+                  })}
+                </svg>
+                <div className="doc-chart-axis" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.5rem 0 0.5rem' }}>
+                  {data.trend.map((pt) => (
+                    <div key={pt.date} style={{ textAlign: 'center', width: '90px' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155' }}>{pt.day}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#2563eb', fontWeight: 500 }}>{formatMoney(pt.revenue)}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </article>
 
+        {/* Financial Settlement Summary */}
         <article className="doc-card">
           <div className="doc-card-header">
             <div>
@@ -116,25 +216,42 @@ function ExecutiveOverviewTab() {
               <p>Real-time collections vs outstanding</p>
             </div>
           </div>
-          <div className="opd-summary-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0' }}>
-            <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-              <span>Total Billed Amount</span>
-              <strong style={{ color: '#0f172a' }}>{data.billedTotal === null ? '--' : formatMoney(data.billedTotal)}</strong>
+          {data.financialSummary === null ? (
+            <div style={{ padding: '1.5rem 1rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
+              <i className="ph ph-lock-key" style={{ fontSize: '1.8rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }} />
+              Financial metrics are restricted for your assigned user role.
             </div>
-            <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-              <span>Collected Funds</span>
-              <strong style={{ color: '#16a34a' }}>{data.collectedTotal === null ? '--' : formatMoney(data.collectedTotal)}</strong>
+          ) : (
+            <div className="opd-summary-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0' }}>
+              <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Total Billed Amount</span>
+                <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{formatMoney(totalBilled ?? 0)}</strong>
+              </div>
+              <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Collected Funds</span>
+                <strong style={{ color: '#16a34a', fontSize: '0.95rem' }}>{formatMoney(totalCollected ?? 0)}</strong>
+              </div>
+              <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Pending Outstanding</span>
+                <strong style={{ color: '#ea580c', fontSize: '0.95rem' }}>{formatMoney(pendingBalance ?? 0)}</strong>
+              </div>
+              <div style={{ marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginBottom: '0.35rem' }}>
+                  <span>Collection Settlement Rate</span>
+                  <strong>{collectionRate}%</strong>
+                </div>
+                <div style={{ width: '100%', height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${collectionRate}%`, height: '100%', backgroundColor: '#16a34a', borderRadius: '4px', transition: 'width 0.3s' }} />
+                </div>
+              </div>
             </div>
-            <div className="opd-summary-row" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Pending Outstanding</span>
-              <strong style={{ color: '#ea580c' }}>{data.billedTotal === null || data.collectedTotal === null ? '--' : formatMoney(Math.max(0, data.billedTotal - data.collectedTotal))}</strong>
-            </div>
-          </div>
+          )}
         </article>
       </div>
 
+      {/* Live OPD Patient Encounters Table */}
       <div className="card appointments-card" style={{ marginTop: '1.25rem' }}>
-        <div className="card-header">
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h3>Live OPD Patient Encounters</h3>
             <p>Real-time check-ins and clinical status tracking</p>
@@ -143,7 +260,9 @@ function ExecutiveOverviewTab() {
         {loading ? (
           <div className="um-state-cell">Loading live encounter stream...</div>
         ) : data.recentVisits.length === 0 ? (
-          <div className="patient-empty-inline">No OPD visits recorded today.</div>
+          <div className="patient-empty-inline" style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b' }}>
+            No OPD visits recorded today for the selected branch.
+          </div>
         ) : (
           <div className="um-table-section">
             <table className="data-table">

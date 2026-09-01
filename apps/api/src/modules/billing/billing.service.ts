@@ -250,18 +250,30 @@ export class BillingService {
         if (invoice.status === 'DRAFT') throw new AppError('Finalize the invoice before collecting payment', 409, 'INVOICE_NOT_PENDING');
         if (invoice.status === 'CANCELLED') throw new AppError('Cannot pay a cancelled invoice', 409, 'INVOICE_CANCELLED');
         if (invoice.status === 'PAID' || invoice.balance_amount === 0) throw new AppError('Invoice is already paid', 409, 'INVOICE_PAID');
-        if (data.amount > invoice.balance_amount) {
-          throw new AppError('Payment cannot exceed the invoice balance', 409, 'PAYMENT_EXCEEDS_BALANCE', {
-            balance_amount: invoice.balance_amount,
-          });
+        const amount = roundMoney(data.amount);
+        if (amount <= 0) {
+          throw new AppError('Payment amount must be greater than zero', 400, 'INVALID_PAYMENT_AMOUNT');
         }
-        const payment = await this.repository.createPayment(invoice, createBillingNumber('PAY'), data, actorUserId, session);
-        const updated = await this.repository.applyPayment(invoice, data.amount, actorUserId, session);
+        const currentBalance = roundMoney(invoice.balance_amount);
+        if (amount > currentBalance) {
+          const formattedBalance = currentBalance.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+          throw new AppError(
+            `Payment amount cannot exceed the outstanding balance of KES ${formattedBalance}.`,
+            400,
+            'PAYMENT_EXCEEDS_BALANCE',
+            { balance_amount: currentBalance },
+          );
+        }
+        const payment = await this.repository.createPayment(invoice, createBillingNumber('PAY'), { ...data, amount }, actorUserId, session);
+        const updated = await this.repository.applyPayment(invoice, amount, actorUserId, session);
         if (!updated) throw new AppError('Invoice balance changed; refresh and retry', 409, 'PAYMENT_CONFLICT');
 
         if (updated.context_type === 'ADMISSION_REQUEST' || updated.context_type === 'PROCEDURE_BOOKING') {
           if (updated.context_id) {
-            await this.advancePaymentService.processPayment(updated.context_type, updated.context_id, data.amount, actorUserId, session);
+            await this.advancePaymentService.processPayment(updated.context_type, updated.context_id, amount, actorUserId, session);
           }
         }
 
