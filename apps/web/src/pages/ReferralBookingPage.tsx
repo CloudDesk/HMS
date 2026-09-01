@@ -1,8 +1,17 @@
+import { useMemo, useState } from 'react';
 import { useReferralBookingFeature } from '../hooks/reception/useReferralBookingFeature';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 
 export function ReferralBookingPage() {
   const { state, actions } = useReferralBookingFeature();
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(state.referrals.length / pageSize));
+  const paginatedReferrals = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return state.referrals.slice(start, start + pageSize);
+  }, [state.referrals, page, pageSize]);
+
   return (
     <div className="appointment-page">
       <section className="appointment-page-header">
@@ -38,7 +47,7 @@ export function ReferralBookingPage() {
                   <td colSpan={7} className="um-state-cell">No submitted referrals found.</td>
                 </tr>
               ) : (
-                state.referrals.map((item) => (
+                paginatedReferrals.map((item) => (
                   <tr key={item.id}>
                     <td>
                       <strong>{item.patient_name}</strong>
@@ -75,6 +84,53 @@ export function ReferralBookingPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {state.referrals.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 16px',
+              borderTop: '1px solid #f1f5f9',
+              fontSize: '0.82rem',
+              color: '#64748b',
+              background: '#ffffff',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+            }}
+          >
+            <div>
+              Showing <strong>{Math.min((page - 1) * pageSize + 1, state.referrals.length)}</strong> to{' '}
+              <strong>{Math.min(page * pageSize, state.referrals.length)}</strong> of{' '}
+              <strong>{state.referrals.length}</strong> referrals
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-secondary compact"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+              >
+                <i className="ph ph-caret-left" /> Previous
+              </button>
+              <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn-secondary compact"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+              >
+                Next <i className="ph ph-caret-right" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

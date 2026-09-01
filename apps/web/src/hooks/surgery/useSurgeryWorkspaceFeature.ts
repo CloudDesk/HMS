@@ -40,9 +40,12 @@ export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookin
       setBranchId(main ? main.id : (branches[0]?.id ?? ''));
     }
   }, [branchId, branches]);
-  useEffect(() => { const params = new URLSearchParams({ tab }); if (branchId) params.set('branch_id', branchId); if (status) params.set('status', status); if (date) params.set('date', date); if (searchText) params.set('search', searchText); navigate(`/surgery?${params.toString()}`, { replace: true }); }, [branchId, date, searchText, status, tab]);
-  const from = tab === 'schedule' ? new Date(`${date}T00:00:00`).toISOString() : undefined; const to = tab === 'schedule' ? new Date(`${date}T23:59:59`).toISOString() : undefined;
-  const surgery = useSurgery({ branch_id: branchId, status: status || undefined, search: searchText || undefined, from, to, page: 1, limit: 100 }, { recommendations: Boolean(branchId) && tab === 'recommendations', bookings: Boolean(branchId) && (tab === 'bookings' || tab === 'schedule') });
+  const from = tab === 'schedule' ? new Date(`${date}T00:00:00`).toISOString() : undefined;
+  const to = tab === 'schedule' ? new Date(`${date}T23:59:59`).toISOString() : undefined;
+  const surgery = useSurgery(
+    { branch_id: branchId, status: status || undefined, search: searchText || undefined, from, to, page: 1, limit: 100 },
+    { recommendations: Boolean(branchId), bookings: Boolean(branchId) },
+  );
   const advancePayment = useAdvancePaymentFeature('PROCEDURE_BOOKING', selectedBookingId);
   const downstream = useSurgeryDownstreamFeature(
     selectedBookingId,

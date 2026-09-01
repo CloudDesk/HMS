@@ -76,6 +76,18 @@ export function OpdQueuePage() {
   const averageWait = readyVisits.length ? Math.round(readyVisits.reduce((total, visit) => total + waitMinutes(visit), 0) / readyVisits.length) : 0;
   const isPastDate = Boolean(filters.date && filters.date < todayInputValue());
 
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(clinicianVisits.length / pageSize));
+  const paginatedVisits = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return clinicianVisits.slice(start, start + pageSize);
+  }, [clinicianVisits, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
   const startConsultation = async (visit: OpdVisitResponse) => {
     if (!canEditVisit) return;
     try {
@@ -131,9 +143,11 @@ export function OpdQueuePage() {
                 </tr>
               ) : clinicianVisits.length === 0 ? (
                 <tr><td className="um-state-cell" colSpan={7}>No patients are ready for consultation for the selected filters.</td></tr>
-              ) : clinicianVisits.map((visit, index) => (
+              ) : paginatedVisits.map((visit, index) => {
+                const globalIndex = (page - 1) * pageSize + index;
+                return (
                 <tr key={visit.id}>
-                  <td><span className="queue-token-chip">{tokenFor(visit, index)}</span></td>
+                  <td><span className="queue-token-chip">{tokenFor(visit, globalIndex)}</span></td>
                   <td><div className="doc-person"><span className="doc-avatar">{patientInitials(visit.patient_name)}</span><div><strong>{visit.patient_name}</strong><span>{visit.visit_number}</span></div></div></td>
                   <td><strong>{visit.doctor_name}</strong><br /><small>{visit.doctor_specialization}</small></td>
                   <td>{waitMinutes(visit)} min</td>
@@ -145,10 +159,58 @@ export function OpdQueuePage() {
                     <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button"><i className="ph ph-arrow-square-out" aria-hidden="true" /></button>
                   </div></td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {clinicianVisits.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 16px',
+              borderTop: '1px solid #f1f5f9',
+              fontSize: '0.82rem',
+              color: '#64748b',
+              background: '#ffffff',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+            }}
+          >
+            <div>
+              Showing <strong>{Math.min((page - 1) * pageSize + 1, clinicianVisits.length)}</strong> to{' '}
+              <strong>{Math.min(page * pageSize, clinicianVisits.length)}</strong> of{' '}
+              <strong>{clinicianVisits.length}</strong> clinical visits
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-secondary compact"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+              >
+                <i className="ph ph-caret-left" /> Previous
+              </button>
+              <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn-secondary compact"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+              >
+                Next <i className="ph ph-caret-right" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

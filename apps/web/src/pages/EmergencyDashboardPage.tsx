@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -188,6 +188,14 @@ export function EmergencyDashboardPage() {
   });
 
   const encounters = state.encounters;
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(encounters.length / pageSize));
+  const paginatedEncounters = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return encounters.slice(start, start + pageSize);
+  }, [encounters, page, pageSize]);
+
   const activeEncounters = encounters.filter(
     (item) =>
       !['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(
@@ -371,7 +379,7 @@ export function EmergencyDashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  encounters.map((item: EmergencyEncounter) => {
+                  paginatedEncounters.map((item: EmergencyEncounter) => {
                     const level = item.triage?.effective_level ?? item.triage?.level;
                     const initials = (item.patient_name || 'ER')
                       .split(' ')
@@ -457,6 +465,53 @@ export function EmergencyDashboardPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {encounters.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderTop: '1px solid #f1f5f9',
+                fontSize: '0.82rem',
+                color: '#64748b',
+                background: '#ffffff',
+                borderBottomLeftRadius: '12px',
+                borderBottomRightRadius: '12px',
+              }}
+            >
+              <div>
+                Showing <strong>{Math.min((page - 1) * pageSize + 1, encounters.length)}</strong> to{' '}
+                <strong>{Math.min(page * pageSize, encounters.length)}</strong> of{' '}
+                <strong>{encounters.length}</strong> emergency encounters
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  <i className="ph ph-caret-left" /> Previous
+                </button>
+                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  Next <i className="ph ph-caret-right" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: ER Alerts, Bed Availability & Quick Actions */}

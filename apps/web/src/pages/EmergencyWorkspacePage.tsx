@@ -7,6 +7,7 @@ import type { ServiceResponse } from '../api/services';
 import { ICD10_DIAGNOSES } from '../data/icd10-diagnoses';
 import { useEmergencyWorkspaceFeature } from '../hooks/emergency/useEmergencyWorkspaceFeature';
 import { Modal } from '../components/ui/Modal';
+import { navigate } from '../routing/navigation';
 import type { EmergencyStatus, EmergencyTriageLevel } from '../api/emergency';
 
 const id = z.string().min(1, 'Required');
@@ -359,6 +360,10 @@ export function EmergencyWorkspacePage() {
       toast.error('Please select or enter a medication name.');
       return;
     }
+    if (['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)) {
+      toast.error(`This emergency encounter has reached final disposition (${selected.status.toLowerCase().replace(/_/g, ' ')}). New orders cannot be placed.`);
+      return;
+    }
 
     try {
       await actions.submitOrder(selected.id, {
@@ -391,6 +396,10 @@ export function EmergencyWorkspacePage() {
   const handleAddLabOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+    if (['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)) {
+      toast.error(`This emergency encounter has reached final disposition (${selected.status.toLowerCase().replace(/_/g, ' ')}). New orders cannot be placed.`);
+      return;
+    }
     if (!labServiceId) {
       toast.error('Please select a laboratory test from the catalogue.');
       return;
@@ -424,6 +433,10 @@ export function EmergencyWorkspacePage() {
   const handleAddImagingOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+    if (['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)) {
+      toast.error(`This emergency encounter has reached final disposition (${selected.status.toLowerCase().replace(/_/g, ' ')}). New orders cannot be placed.`);
+      return;
+    }
     if (!imgServiceId) {
       toast.error('Please select an imaging study from the catalogue.');
       return;
@@ -828,35 +841,51 @@ export function EmergencyWorkspacePage() {
                     </div>
                   </div>
 
-                  <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.8rem', color: '#475569', fontWeight: 700 }}>Pain Score (0 - 10)</h4>
+                  <h4 style={{ margin: '1rem 0 0.5rem', fontSize: '0.8rem', color: '#475569', fontWeight: 700 }}>
+                    Pain Score (0 - 10):{' '}
+                    <strong style={{ color: triage.watch('pain_score') !== undefined && triage.watch('pain_score') !== null ? '#dc2626' : '#64748b' }}>
+                      {triage.watch('pain_score') !== undefined && triage.watch('pain_score') !== null
+                        ? `${triage.watch('pain_score')} / 10 ${
+                            triage.watch('pain_score') === 0
+                              ? '(No Pain)'
+                              : Number(triage.watch('pain_score')) <= 3
+                              ? '(Mild)'
+                              : Number(triage.watch('pain_score')) <= 6
+                              ? '(Moderate)'
+                              : '(Severe)'
+                          }`
+                        : 'Not selected'}
+                    </strong>
+                  </h4>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {Array.from({ length: 11 }, (_, i) => (
-                      <label
-                        key={i}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '38px',
-                          height: '36px',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontWeight: 700,
-                          fontSize: '0.84rem',
-                          background: triage.watch('pain_score') === i ? '#dc2626' : '#fff',
-                          color: triage.watch('pain_score') === i ? '#fff' : '#1e293b',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          value={i}
-                          {...triage.register('pain_score', numericInput)}
-                          style={{ display: 'none' }}
-                        />
-                        {i}
-                      </label>
-                    ))}
+                    {Array.from({ length: 11 }, (_, i) => {
+                      const isSelected = Number(triage.watch('pain_score')) === i;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => triage.setValue('pain_score', i, { shouldValidate: true, shouldDirty: true })}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '38px',
+                            height: '36px',
+                            border: isSelected ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            fontSize: '0.84rem',
+                            background: isSelected ? '#dc2626' : '#ffffff',
+                            color: isSelected ? '#ffffff' : '#1e293b',
+                            boxShadow: isSelected ? '0 2px 4px rgba(220, 38, 38, 0.25)' : 'none',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {i}
+                        </button>
+                      );
+                    })}
                   </div>
                 </section>
 
@@ -1138,6 +1167,13 @@ export function EmergencyWorkspacePage() {
                     <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>Prescribe stat and ongoing medications from hospital pharmacy master</p>
                   </div>
 
+                  {selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status) && (
+                    <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <i className="ph ph-warning-circle" style={{ fontSize: '1.2rem', color: '#dc2626' }} />
+                      This emergency encounter has reached final disposition ({selected.status.toLowerCase().replace(/_/g, ' ')}). Prescriptions and orders are locked.
+                    </div>
+                  )}
+
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem' }}>
                     <div className="adm-field" style={{ gridColumn: 'span 2' }}>
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Medicine Name *</label>
@@ -1148,6 +1184,7 @@ export function EmergencyWorkspacePage() {
                           const med = availableMedicines.find((m) => m.name === e.target.value);
                           if (med?.strength) setMedDosage(med.strength);
                         }}
+                        disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}
                         required
                       >
                         <option value="">Select medicine from catalogue ({availableMedicines.length} available)</option>
@@ -1161,7 +1198,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Priority</label>
-                      <select value={medPriority} onChange={(e) => setMedPriority(orderPriorityOf(e.target.value))}>
+                      <select value={medPriority} onChange={(e) => setMedPriority(orderPriorityOf(e.target.value))} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}>
                         <option value="STAT">STAT (Immediate)</option>
                         <option value="URGENT">Urgent</option>
                         <option value="ROUTINE">Routine</option>
@@ -1170,12 +1207,12 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Dosage / Strength</label>
-                      <input placeholder="e.g. 500 mg" value={medDosage} onChange={(e) => setMedDosage(e.target.value)} />
+                      <input placeholder="e.g. 500 mg" value={medDosage} onChange={(e) => setMedDosage(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)} />
                     </div>
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Route</label>
-                      <select value={medRoute} onChange={(e) => setMedRoute(e.target.value)}>
+                      <select value={medRoute} onChange={(e) => setMedRoute(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}>
                         <option value="IV">IV (Intravenous)</option>
                         <option value="Oral">Oral</option>
                         <option value="IM">IM (Intramuscular)</option>
@@ -1188,7 +1225,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Frequency</label>
-                      <select value={medFrequency} onChange={(e) => setMedFrequency(e.target.value)}>
+                      <select value={medFrequency} onChange={(e) => setMedFrequency(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}>
                         <option value="STAT">STAT (Once immediately)</option>
                         <option value="OD">Once daily (OD)</option>
                         <option value="BD">Twice daily (BD)</option>
@@ -1201,12 +1238,12 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Quantity</label>
-                      <input type="number" value={medQuantity} onChange={(e) => setMedQuantity(e.target.value)} />
+                      <input type="number" value={medQuantity} onChange={(e) => setMedQuantity(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)} />
                     </div>
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Special Instructions</label>
-                      <input placeholder="Infuse over 30 mins, with fluids..." value={medInstructions} onChange={(e) => setMedInstructions(e.target.value)} />
+                      <input placeholder="Infuse over 30 mins, with fluids..." value={medInstructions} onChange={(e) => setMedInstructions(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)} />
                     </div>
                   </div>
 
@@ -1214,8 +1251,8 @@ export function EmergencyWorkspacePage() {
                     <button
                       className="btn-emergency-primary"
                       type="submit"
-                      disabled={state.pending.order}
-                      style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+                      disabled={state.pending.order || (selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status))}
+                      style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status) ? 0.5 : 1 }}
                     >
                       <i className="ph ph-plus-circle" /> Submit Medication Order
                     </button>
@@ -1268,10 +1305,17 @@ export function EmergencyWorkspacePage() {
                     <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>Order emergency laboratory tests from the hospital catalogue</p>
                   </div>
 
+                  {selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status) && (
+                    <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <i className="ph ph-warning-circle" style={{ fontSize: '1.2rem', color: '#dc2626' }} />
+                      This emergency encounter has reached final disposition ({selected.status.toLowerCase().replace(/_/g, ' ')}). Lab orders are locked.
+                    </div>
+                  )}
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '0.85rem' }}>
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Lab Test Service *</label>
-                      <select value={labServiceId} onChange={(e) => setLabServiceId(e.target.value)} required>
+                      <select value={labServiceId} onChange={(e) => setLabServiceId(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)} required>
                         <option value="">Select Lab Test from catalogue ({labServices.length} available)</option>
                         {labServices.map((s: ServiceResponse) => (
                           <option key={s.id} value={s.id}>
@@ -1283,7 +1327,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Priority</label>
-                      <select value={labPriority} onChange={(e) => setLabPriority(orderPriorityOf(e.target.value))}>
+                      <select value={labPriority} onChange={(e) => setLabPriority(orderPriorityOf(e.target.value))} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}>
                         <option value="STAT">STAT (Immediate Emergency)</option>
                         <option value="URGENT">Urgent</option>
                         <option value="ROUTINE">Routine</option>
@@ -1292,7 +1336,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Specimen Type</label>
-                      <select value={labSpecimen} onChange={(e) => setLabSpecimen(e.target.value)}>
+                      <select value={labSpecimen} onChange={(e) => setLabSpecimen(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}>
                         <option value="Blood">Whole Blood / Serum</option>
                         <option value="Arterial Blood Gas">Arterial Blood Gas (ABG)</option>
                         <option value="Urine">Urine Sample</option>
@@ -1308,6 +1352,7 @@ export function EmergencyWorkspacePage() {
                       placeholder="e.g. Acute chest pain, rule out myocardial infarction..."
                       value={labClinicalNotes}
                       onChange={(e) => setLabClinicalNotes(e.target.value)}
+                      disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}
                     />
                   </div>
 
@@ -1315,8 +1360,8 @@ export function EmergencyWorkspacePage() {
                     <button
                       className="btn-emergency-primary"
                       type="submit"
-                      disabled={state.pending.order}
-                      style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+                      disabled={state.pending.order || (selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status))}
+                      style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status) ? 0.5 : 1 }}
                     >
                       <i className="ph ph-flask" /> Submit Lab Order
                     </button>
@@ -1369,10 +1414,17 @@ export function EmergencyWorkspacePage() {
                     <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: '#64748b' }}>Order emergency X-Ray, CT, Ultrasound FAST, and MRI</p>
                   </div>
 
+                  {selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status) && (
+                    <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <i className="ph ph-warning-circle" style={{ fontSize: '1.2rem', color: '#dc2626' }} />
+                      This emergency encounter has reached final disposition ({selected.status.toLowerCase().replace(/_/g, ' ')}). Imaging orders are locked.
+                    </div>
+                  )}
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '0.85rem' }}>
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Imaging Service *</label>
-                      <select value={imgServiceId} onChange={(e) => setImgServiceId(e.target.value)} required>
+                      <select value={imgServiceId} onChange={(e) => setImgServiceId(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)} required>
                         <option value="">Select Imaging Study ({imagingServices.length} available)</option>
                         {imagingServices.map((s: ServiceResponse) => (
                           <option key={s.id} value={s.id}>
@@ -1384,7 +1436,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Modality</label>
-                      <select value={imgModality} onChange={(e) => setImgModality(e.target.value)}>
+                      <select value={imgModality} onChange={(e) => setImgModality(e.target.value)} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}>
                         <option value="X-Ray">X-Ray</option>
                         <option value="CT Scan">CT Scan</option>
                         <option value="Ultrasound">Ultrasound FAST</option>
@@ -1395,7 +1447,7 @@ export function EmergencyWorkspacePage() {
 
                     <div className="adm-field">
                       <label style={{ fontSize: '0.76rem', fontWeight: 600 }}>Priority</label>
-                      <select value={imgPriority} onChange={(e) => setImgPriority(orderPriorityOf(e.target.value))}>
+                      <select value={imgPriority} onChange={(e) => setImgPriority(orderPriorityOf(e.target.value))} disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}>
                         <option value="STAT">STAT (Immediate)</option>
                         <option value="URGENT">Urgent</option>
                         <option value="ROUTINE">Routine</option>
@@ -1409,6 +1461,7 @@ export function EmergencyWorkspacePage() {
                       placeholder="e.g. Chest trauma, rule out pneumothorax / rib fractures..."
                       value={imgNotes}
                       onChange={(e) => setImgNotes(e.target.value)}
+                      disabled={selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status)}
                     />
                   </div>
 
@@ -1416,8 +1469,8 @@ export function EmergencyWorkspacePage() {
                     <button
                       className="btn-emergency-primary"
                       type="submit"
-                      disabled={state.pending.order}
-                      style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+                      disabled={state.pending.order || (selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status))}
+                      style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: selected && ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(selected.status) ? 0.5 : 1 }}
                     >
                       <i className="ph ph-film-strip" /> Submit Imaging Order
                     </button>
@@ -1561,6 +1614,25 @@ export function EmergencyWorkspacePage() {
             {/* Tab 11: Disposition */}
             {activeTab === 'Disposition' && (
               <form onSubmit={confirmDisposition} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {selected?.status === 'READY_FOR_DISPOSITION' && (
+                  <div style={{ padding: '14px 18px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <i className="ph ph-bed" style={{ fontSize: '1.5rem', color: '#2563eb' }} />
+                      <div>
+                        <strong style={{ color: '#1e40af', fontSize: '0.9rem', display: 'block' }}>Admission Request Active</strong>
+                        <span style={{ fontSize: '0.8rem', color: '#3b82f6' }}>Patient details have been captured and the record is waiting for Ward & Bed allocation in Inpatient Bed Management.</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-secondary compact"
+                      onClick={() => navigate(`/admissions/inpatients?branch_id=${state.branchId}`)}
+                      style={{ padding: '6px 14px', fontSize: '0.82rem', background: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                    >
+                      <i className="ph ph-arrow-square-out" /> Open Bed Allocation
+                    </button>
+                  </div>
+                )}
                 <section className="emergency-form-section" style={{ background: '#fff', borderRadius: '10px', padding: '18px', border: '1px solid #e2e8f0' }}>
                   <div className="emergency-form-head" style={{ marginBottom: '14px' }}>
                     <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Final Emergency Disposition</h3>

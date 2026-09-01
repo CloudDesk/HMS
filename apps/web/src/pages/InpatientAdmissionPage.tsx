@@ -219,6 +219,9 @@ export function InpatientAdmissionPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDate, setFilterDate] = useState(new Date().toISOString().slice(0, 10));
 
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
   const filteredRequests = useMemo(() => {
     return requests.filter((r) => {
       if (filterDepartment && r.department_id !== filterDepartment) return false;
@@ -229,6 +232,16 @@ export function InpatientAdmissionPage() {
       return true;
     });
   }, [requests, filterDepartment, filterAdmissionType, filterPriority, filterSource, filterStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const paginatedRequests = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRequests.slice(start, start + pageSize);
+  }, [filteredRequests, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterDepartment, filterAdmissionType, filterPriority, filterSource, filterStatus, requestSearch, filterDate]);
 
   return (
     <div className="admissions-page">
@@ -408,7 +421,7 @@ export function InpatientAdmissionPage() {
                   </td>
                 </tr>
               ) : (
-                filteredRequests.map((item) => {
+                paginatedRequests.map((item) => {
                   const initials = (item.patient_name || 'PT')
                     .split(' ')
                     .map((n) => n[0])
@@ -512,6 +525,53 @@ export function InpatientAdmissionPage() {
               )}
             </tbody>
           </table>
+
+          {/* Pagination Controls */}
+          {filteredRequests.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderTop: '1px solid #f1f5f9',
+                fontSize: '0.82rem',
+                color: '#64748b',
+                background: '#ffffff',
+                borderBottomLeftRadius: '12px',
+                borderBottomRightRadius: '12px',
+              }}
+            >
+              <div>
+                Showing <strong>{Math.min((page - 1) * pageSize + 1, filteredRequests.length)}</strong> to{' '}
+                <strong>{Math.min(page * pageSize, filteredRequests.length)}</strong> of{' '}
+                <strong>{filteredRequests.length}</strong> admission requests
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  <i className="ph ph-caret-left" /> Previous
+                </button>
+                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary compact"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                >
+                  Next <i className="ph ph-caret-right" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Side Review Panel */}
@@ -757,11 +817,13 @@ export function InpatientAdmissionPage() {
 
     {/* Modal: New Admission Request */}
     <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New Admission Request">
-      <form onSubmit={createRequest} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-          <label className="form-field">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>Patient *</span>
+      <form onSubmit={createRequest} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: '580px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
+                Patient <span style={{ color: '#dc2626' }}>*</span>
+              </span>
               {selectedSourceType === 'DIRECT' && (
                 <button
                   type="button"
@@ -769,7 +831,7 @@ export function InpatientAdmissionPage() {
                     setCreateOpen(false);
                     navigate('/patients/search?action=register');
                   }}
-                  style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
                 >
                   + New Patient
                 </button>
@@ -778,7 +840,7 @@ export function InpatientAdmissionPage() {
             <select
               value={createForm.watch('patient_id') || ''}
               onChange={(e) => handlePatientSelect(e.target.value)}
-              style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', padding: '0 8px' }}
+              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
             >
               <option value="">
                 {selectedSourceType === 'OPD_VISIT'
@@ -796,19 +858,30 @@ export function InpatientAdmissionPage() {
             <small className="form-error">{createForm.formState.errors.patient_id?.message}</small>
           </label>
 
-          <label className="form-field">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Department *</span>
-            <select {...createForm.register('department_id')} style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', padding: '0 8px' }}>
+          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+              Department <span style={{ color: '#dc2626' }}>*</span>
+            </span>
+            <select
+              {...createForm.register('department_id')}
+              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
+            >
               <option value="">Select department</option>
               {departmentOptions.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}</option>
               ))}
             </select>
+            <small className="form-error">{createForm.formState.errors.department_id?.message}</small>
           </label>
 
-          <label className="form-field">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Admission Type *</span>
-            <select {...createForm.register('admission_type')} style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', padding: '0 8px' }}>
+          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+              Admission Type <span style={{ color: '#dc2626' }}>*</span>
+            </span>
+            <select
+              {...createForm.register('admission_type')}
+              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
+            >
               <option value="INPATIENT">Inpatient</option>
               <option value="OBSERVATION">Observation</option>
               <option value="DAY_CARE">Day Care</option>
@@ -818,19 +891,29 @@ export function InpatientAdmissionPage() {
           </label>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-          <label className="form-field">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Priority *</span>
-            <select {...createForm.register('priority')} style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', padding: '0 8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+              Priority <span style={{ color: '#dc2626' }}>*</span>
+            </span>
+            <select
+              {...createForm.register('priority')}
+              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
+            >
               <option value="ROUTINE">Routine</option>
               <option value="URGENT">Urgent</option>
               <option value="EMERGENCY">Emergency</option>
             </select>
           </label>
 
-          <label className="form-field">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Source *</span>
-            <select {...createForm.register('source_type')} style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', padding: '0 8px' }}>
+          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+              Source <span style={{ color: '#dc2626' }}>*</span>
+            </span>
+            <select
+              {...createForm.register('source_type')}
+              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
+            >
               <option value="EMERGENCY_ENCOUNTER">Emergency</option>
               <option value="OPD_VISIT">OPD</option>
               <option value="REFERRAL">Referral</option>
@@ -839,33 +922,46 @@ export function InpatientAdmissionPage() {
             </select>
           </label>
 
-          <label className="form-field">
-            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Requested By *</span>
-            <select {...createForm.register('recommending_doctor_id')} style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', padding: '0 8px' }}>
+          <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+              Requested By <span style={{ color: '#dc2626' }}>*</span>
+            </span>
+            <select
+              {...createForm.register('recommending_doctor_id')}
+              style={{ height: '38px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '0 10px', fontSize: '0.84rem', color: '#0f172a', background: '#ffffff' }}
+            >
               <option value="">Select doctor</option>
               {doctorOptions.map((item) => (
                 <option key={item.id} value={item.id}>{item.display_name}</option>
               ))}
             </select>
+            <small className="form-error">{createForm.formState.errors.recommending_doctor_id?.message}</small>
           </label>
         </div>
 
-        <label className="form-field">
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Clinical Summary *</span>
+        <label className="form-field" style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+            Clinical Summary <span style={{ color: '#dc2626' }}>*</span>
+          </span>
           <textarea
             {...createForm.register('reason')}
             placeholder="Clinical justification and summary for admission..."
             rows={4}
-            style={{ borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', padding: '8px' }}
+            style={{ borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', padding: '10px', fontSize: '0.84rem', color: '#0f172a', resize: 'vertical' }}
           />
           <small className="form-error">{createForm.formState.errors.reason?.message}</small>
         </label>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-          <button type="button" className="btn-secondary" onClick={() => setCreateOpen(false)}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
+          <button type="button" className="btn-secondary" onClick={() => setCreateOpen(false)} style={{ padding: '0.5rem 1.25rem', borderRadius: '6px' }}>
             Cancel
           </button>
-          <button className="btn-primary" disabled={pending.createRequest || !branchId} type="submit">
+          <button
+            className="btn-primary"
+            disabled={pending.createRequest || !branchId}
+            type="submit"
+            style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', background: '#2563eb', color: '#fff', fontWeight: 600 }}
+          >
             Create Request
           </button>
         </div>

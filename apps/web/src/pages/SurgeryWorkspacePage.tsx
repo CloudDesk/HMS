@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import type { ProcedureBooking, ProcedureRecommendation } from '../api/surgery';
+import { surgeryApi } from '../api/surgery';
 import { Modal } from '../components/ui/Modal';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
@@ -30,6 +31,24 @@ export function SurgeryWorkspacePage() {
   const [recommendationOpen, setRecommendationOpen] = useState(false); const [bookingFor, setBookingFor] = useState<ProcedureRecommendation | null>(null); const [selected, setSelected] = useState<ProcedureBooking | null>(null); const [actionMode, setActionMode] = useState<ActionMode>(null);
   const [viewBookingDetail, setViewBookingDetail] = useState<ProcedureBooking | null>(null);
   const feature = useSurgeryWorkspaceFeature({ selectedBookingId: selected?.id, selectedBookingStatus: selected?.status }); const { state, actions } = feature;
+
+  const handleViewBooking = async (bookingId: string) => {
+    const found = state.bookings.find((b) => b.id === bookingId);
+    if (found) {
+      setViewBookingDetail(found);
+      return;
+    }
+    try {
+      const fetched = await surgeryApi.booking(bookingId, state.branchId);
+      if (fetched) {
+        setViewBookingDetail(fetched);
+      } else {
+        toast.error('Booking record not found.');
+      }
+    } catch {
+      toast.error('Unable to load booking details.');
+    }
+  };
   const recommendationForm = useForm<RecommendationValues>({ resolver: zodResolver(recommendationSchema), defaultValues: { patient_id: '', department_id: '', recommending_doctor_id: '', service_id: '', encounter_id: '', clinical_reason: '', notes: '' } });
   const bookingForm = useForm<BookingValues>({ resolver: zodResolver(bookingSchema), defaultValues: { doctor_id: '', scheduled_start: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', notes: '' } });
   const actionForm = useForm<ActionValues>({ resolver: zodResolver(actionSchema), defaultValues: { scheduled_start: '', doctor_id: '', hold_id: '', consent_document_id: '', deposit_invoice_id: '', reason: '' } });
@@ -342,14 +361,7 @@ export function SurgeryWorkspacePage() {
                         ) : item.booking_id ? (
                           <button
                             className="btn-secondary compact"
-                            onClick={() => {
-                              const found = state.bookings.find((b) => b.id === item.booking_id);
-                              if (found) {
-                                setViewBookingDetail(found);
-                              } else {
-                                actions.setTab('bookings');
-                              }
-                            }}
+                            onClick={() => void handleViewBooking(item.booking_id!)}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', fontSize: '0.78rem', whiteSpace: 'nowrap' }}
                           >
                             <i className="ph ph-eye" /> View Booking
