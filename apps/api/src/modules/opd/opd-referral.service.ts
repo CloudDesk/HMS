@@ -92,7 +92,7 @@ export class OpdReferralService {
     }
     const current = await this.repository.getByVisit(visitId);
     if (current?.status === 'SUBMITTED') {
-      throw new AppError('Referral has already been submitted', 400, 'REFERRAL_SUBMITTED');
+      return current;
     }
     this.validateSubmission(data);
     const doctor = await this.getInternalDoctor(data.referred_doctor_id);

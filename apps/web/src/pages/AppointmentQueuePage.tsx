@@ -12,7 +12,7 @@ import { useAppointmentQueueFeature, type QueueStatusFilter, type QueuePriorityF
 import { toast } from 'sonner';
 import type { OpdVisitResponse } from '../api/opd';
 import { VitalsCaptureModal } from '../components/opd/VitalsCaptureModal';
-import { getOpdErrorMessage } from './opd-utils';
+import { getOpdErrorMessage, opdVisitStatusLabels, visitStatusClass } from './opd-utils';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 
 const waitingStatuses = new Set<ApiAppointmentStatus>(['SCHEDULED', 'CONFIRMED', 'SKIPPED']);
@@ -311,6 +311,8 @@ export function AppointmentQueuePage() {
                     const linkedVisit = visitForAppointment(appointment.id);
                     const canCheckIn = !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
                     const canTakeVitals = linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS';
+                    const canStartConsultation = linkedVisit?.status === 'READY_FOR_CONSULTATION' || linkedVisit?.status === 'SKIPPED';
+                    const isInConsultation = linkedVisit?.status === 'IN_CONSULTATION';
                     const globalIndex = (page - 1) * pageSize + index;
                     return (
                     <tr className={appointment.id === currentAppointment?.id ? 'queue-current-row' : ''} key={appointment.id}>
@@ -329,8 +331,8 @@ export function AppointmentQueuePage() {
                         </span>
                       </td>
                       <td>
-                        <span className={`status-badge ${appointmentStatusClass(appointment.status)}`}>
-                          {appointmentStatusLabels[appointment.status]}
+                        <span className={`status-badge ${linkedVisit ? visitStatusClass(linkedVisit.status) : appointmentStatusClass(appointment.status)}`}>
+                          {linkedVisit ? opdVisitStatusLabels[linkedVisit.status] : appointmentStatusLabels[appointment.status]}
                         </span>
                       </td>
                       <td>
@@ -363,10 +365,32 @@ export function AppointmentQueuePage() {
                               Take Vitals
                             </button>
                           ) : null}
+                          {canStartConsultation && linkedVisit ? (
+                            <button
+                              className="doc-btn primary compact"
+                              disabled={updating || !canEditVisit}
+                              onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}
+                              title="Start consultation"
+                              type="button"
+                            >
+                              <i className="ph ph-stethoscope" aria-hidden="true" />
+                              Start Consultation
+                            </button>
+                          ) : null}
+                          {isInConsultation && linkedVisit ? (
+                            <button
+                              className="doc-btn primary compact"
+                              onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}
+                              title="Open consultation"
+                              type="button"
+                            >
+                              Open Consultation
+                            </button>
+                          ) : null}
                           <button
                             className="doc-action"
-                            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
-                            title="Open patient"
+                            onClick={() => navigate(linkedVisit ? `/opd/visit?id=${encodeURIComponent(linkedVisit.id)}` : `/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
+                            title={linkedVisit ? "Open visit" : "Open patient"}
                             type="button"
                           >
                             <i className="ph ph-arrow-square-out" aria-hidden="true" />

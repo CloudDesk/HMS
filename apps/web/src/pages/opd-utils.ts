@@ -85,7 +85,7 @@ export const getOpdErrorMessage = (error: unknown) => {
     if (error.status === 403) return 'You do not have permission to access OPD visits.';
     if (error.status === 404) return 'OPD visit not found.';
     if (error.status === 409) return error.message || 'An active OPD visit already exists.';
-    if (error.status >= 500) return 'The OPD service is unavailable. Please try again shortly.';
+    if (error.status >= 500) return error.message || 'An unexpected error occurred while processing the OPD request.';
     return error.message;
   }
 

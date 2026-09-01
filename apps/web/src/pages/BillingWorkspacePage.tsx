@@ -35,8 +35,10 @@ const itemSchema = z.object({
   quantity: z.number().int().min(1, 'Quantity must be at least one.'),
 });
 
-const paymentSchema = z.object({
-  amount: z.number().positive('Enter a payment amount.'),
+const createPaymentSchema = (balanceAmount: number, formatMoney: (val: number) => string) => z.object({
+  amount: z.number({ message: 'Enter a valid payment amount.' })
+    .positive('Payment amount must be greater than zero.')
+    .refine((val) => val <= balanceAmount, `Payment amount cannot exceed the outstanding balance of ${formatMoney(balanceAmount)}.`),
   payment_method: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']),
   payment_date: z.string().min(1, 'Payment date is required.'),
   reference_number: z.string().trim().max(100),
@@ -48,7 +50,7 @@ const paymentSchema = z.object({
 
 type InvoiceForm = z.infer<typeof invoiceSchema>;
 type ItemForm = z.infer<typeof itemSchema>;
-type PaymentForm = z.infer<typeof paymentSchema>;
+type PaymentForm = z.infer<ReturnType<typeof createPaymentSchema>>;
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function BillingWorkspacePage() {
@@ -71,16 +73,11 @@ export function BillingWorkspacePage() {
     resolver: zodResolver(itemSchema),
     defaultValues: { service_type: 'CONSULTATION', service_id: '', quantity: 1 },
   });
-  const paymentForm = useForm<PaymentForm>({
-    resolver: zodResolver(paymentSchema),
-    defaultValues: { amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' },
-  });
 
   const selectedBranch = invoiceForm.watch('branch_id');
   const selectedPatient = invoiceForm.watch('patient_id');
   const selectedSource = itemForm.watch('service_type');
   const selectedServiceId = itemForm.watch('service_id');
-  const paymentMethod = paymentForm.watch('payment_method');
   const selectedVisit = invoiceForm.watch('visit_id');
 
   const {
@@ -97,11 +94,25 @@ export function BillingWorkspacePage() {
     onPopulate: setDraftItems,
   });
 
+  const invoice = invoiceQuery.data;
+  const balanceAmount = invoice?.balance_amount ?? 0;
+  const paymentSchema = useMemo(() => createPaymentSchema(balanceAmount, formatBillingMoney), [balanceAmount, formatBillingMoney]);
+
+  const paymentForm = useForm<PaymentForm>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: { amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' },
+  });
+
+  const paymentMethod = paymentForm.watch('payment_method');
+  const enteredAmount = paymentForm.watch('amount');
+
+  const isAmountExcessive = typeof enteredAmount === 'number' && !Number.isNaN(enteredAmount) && enteredAmount > balanceAmount;
+  const isAmountInvalid = typeof enteredAmount !== 'number' || Number.isNaN(enteredAmount) || enteredAmount <= 0 || isAmountExcessive;
+
   useEffect(() => {
     if (createMode && !selectedBranch && branches.length === 1) invoiceForm.setValue('branch_id', branches[0]!.id);
   }, [branches, createMode, invoiceForm, selectedBranch]);
 
-  const invoice = invoiceQuery.data;
   useEffect(() => {
     if (!invoice) return;
     invoiceForm.reset({
@@ -203,8 +214,8 @@ export function BillingWorkspacePage() {
         {editable && canEdit ? <><button className="btn-secondary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ id: invoiceId, payload: { invoice_date: values.invoice_date, discount_amount: values.discount_amount, tax_amount: values.tax_amount }, finalize: false }))} type="button">Save Changes</button>{invoice.status === 'DRAFT' ? <button className="btn-primary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ id: invoiceId, payload: { invoice_date: values.invoice_date, discount_amount: values.discount_amount, tax_amount: values.tax_amount }, finalize: true }))} type="button">Finalize Invoice</button> : null}</> : null}
       </aside>
     </div>
-    <Modal footer={<><button className="btn-secondary" onClick={() => setPaymentOpen(false)} type="button">Cancel</button><button className="btn-primary" disabled={paymentMutation.isPending} onClick={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))} type="button">{paymentMutation.isPending ? <><MedicalSpinner size="sm" /><span>Collecting...</span></> : 'Collect Payment'}</button></>} icon="ph-currency-circle-dollar" onClose={() => setPaymentOpen(false)} open={paymentOpen} title="Collect Payment">
-      <div className="billing-payment-summary"><span>Invoice balance</span><strong>{formatBillingMoney(invoice.balance_amount)}</strong></div><form className="billing-modal-form" onSubmit={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))}><label><span>Amount *</span><input max={invoice.balance_amount} min="0.01" step="0.01" type="number" {...paymentForm.register('amount', { valueAsNumber: true })} /><small>{paymentForm.formState.errors.amount?.message}</small></label><label><span>Payment Method *</span><select {...paymentForm.register('payment_method')}><option value="CASH">Cash</option><option value="CARD">Card</option><option value="UPI">UPI</option><option value="BANK_TRANSFER">Bank Transfer</option></select></label><label><span>Payment Date *</span><input type="date" {...paymentForm.register('payment_date')} /></label><label><span>Reference Number {paymentMethod === 'CASH' ? '(optional)' : '*'}</span><input {...paymentForm.register('reference_number')} /><small>{paymentForm.formState.errors.reference_number?.message}</small></label></form>
+    <Modal footer={<><button className="btn-secondary" onClick={() => setPaymentOpen(false)} type="button">Cancel</button><button className="btn-primary" disabled={paymentMutation.isPending || isAmountInvalid || !paymentForm.formState.isValid} onClick={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))} type="button">{paymentMutation.isPending ? <><MedicalSpinner size="sm" /><span>Collecting...</span></> : 'Collect Payment'}</button></>} icon="ph-currency-circle-dollar" onClose={() => setPaymentOpen(false)} open={paymentOpen} title="Collect Payment">
+      <div className="billing-payment-summary"><span>Invoice balance</span><strong>{formatBillingMoney(invoice.balance_amount)}</strong></div><form className="billing-modal-form" onSubmit={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))}><label><span>Amount *</span><input max={invoice.balance_amount} min="0.01" step="0.01" type="number" {...paymentForm.register('amount', { valueAsNumber: true })} />{paymentForm.formState.errors.amount?.message ? <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>{paymentForm.formState.errors.amount.message}</small> : isAmountExcessive ? <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>Payment amount cannot exceed the outstanding balance of {formatBillingMoney(invoice.balance_amount)}.</small> : null}</label><label><span>Payment Method *</span><select {...paymentForm.register('payment_method')}><option value="CASH">Cash</option><option value="CARD">Card</option><option value="UPI">UPI</option><option value="BANK_TRANSFER">Bank Transfer</option></select></label><label><span>Payment Date *</span><input type="date" {...paymentForm.register('payment_date')} /></label><label><span>Reference Number {paymentMethod === 'CASH' ? '(optional)' : '*'}</span><input {...paymentForm.register('reference_number')} /><small>{paymentForm.formState.errors.reference_number?.message}</small></label></form>
     </Modal>
     <Modal footer={<><button className="btn-secondary" onClick={() => setCancelOpen(false)} type="button">Keep Invoice</button><button className="btn-danger" disabled={cancelMutation.isPending} onClick={() => cancelMutation.mutate(invoiceId, { onSuccess: () => setCancelOpen(false) })} type="button">Cancel Invoice</button></>} icon="ph-warning" onClose={() => setCancelOpen(false)} open={cancelOpen} title="Cancel Invoice">
       <p>This cancels the unpaid invoice and prevents future payments. This action is audit logged.</p>

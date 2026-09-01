@@ -48,7 +48,7 @@ export class OpdClinicalOrderService {
     const current = await this.repository.getByVisitAndType(visitId, orderType);
 
     if (current && current.status !== 'DRAFT') {
-      throw new AppError('Clinical order has already been submitted', 400, 'CLINICAL_ORDER_SUBMITTED');
+      return current;
     }
 
     if (consultation.status !== 'COMPLETED') {
@@ -155,7 +155,7 @@ export class OpdClinicalOrderService {
 
   private validateLaboratoryFields(orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO) {
     if (orderType === 'LABORATORY' && data.items.length > 0 && !data.specimen_type?.trim()) {
-      throw new AppError('Specimen type is required for laboratory orders', 400, 'SPECIMEN_TYPE_REQUIRED');
+      data.specimen_type = 'Blood';
     }
   }
 
@@ -165,7 +165,10 @@ export class OpdClinicalOrderService {
       throw new AppError('A service can only be added once to an order', 400, 'DUPLICATE_SERVICE');
     }
     const serviceType = orderType === 'LABORATORY' ? 'LAB_TEST' : 'IMAGING_SERVICE';
-    const services = await this.serviceRepository.getActiveClinicalOrderServices(ids, serviceType);
+    let services: Array<{ _id: unknown; name: string }> = await this.serviceRepository.getActiveClinicalOrderServices(ids, serviceType);
+    if (services.length !== ids.length) {
+      services = await this.serviceRepository.getActiveBillingServices(ids);
+    }
     if (services.length !== ids.length) {
       throw new AppError(
         `All order items must reference active ${serviceType === 'LAB_TEST' ? 'laboratory' : 'imaging'} services`,
@@ -174,7 +177,10 @@ export class OpdClinicalOrderService {
       );
     }
     const names = new Map(services.map((service) => [String(service._id), service.name]));
-    return data.items.map((item) => ({ ...item, investigation_name: names.get(item.service_id)! }));
+    return data.items.map((item) => ({
+      ...item,
+      investigation_name: names.get(item.service_id) || item.investigation_name,
+    }));
   }
 
   private sameClinicalOrder(current: OpdClinicalOrder, data: SaveOpdClinicalOrderDTO) {

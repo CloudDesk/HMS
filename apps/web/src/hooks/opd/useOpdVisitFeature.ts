@@ -6,6 +6,7 @@ import type {
   SaveOpdClinicalOrderPayload,
   SaveOpdConsultationPayload,
   SaveOpdPrescriptionPayload,
+  SaveOpdReferralPayload,
 } from '../../api/opd';
 import type { UploadPatientDocumentPayload } from '../../api/patients';
 import { navigate, useAppLocation } from '../../routing/navigation';
@@ -31,6 +32,7 @@ type SaveWorkspaceDraftInput = {
   prescription?: SaveOpdPrescriptionPayload;
   laboratory?: SaveOpdClinicalOrderPayload;
   imaging?: SaveOpdClinicalOrderPayload;
+  referral?: SaveOpdReferralPayload;
 };
 
 type CompleteWorkspaceInput = SaveWorkspaceDraftInput & {
@@ -103,6 +105,9 @@ export function useOpdVisitFeature() {
     if (input.imaging) {
       await workspace.mutations.saveClinicalOrderDraft({ visitId, type: 'IMAGING', payload: input.imaging }).catch(() => null);
     }
+    if (input.referral) {
+      await workspace.mutations.saveReferralDraft({ visitId, payload: input.referral }).catch(() => null);
+    }
   };
 
   const completeWorkspace = async (input: CompleteWorkspaceInput) => {
@@ -118,13 +123,19 @@ export function useOpdVisitFeature() {
     if (input.imaging) {
       await workspace.mutations.submitClinicalOrder({ visitId, type: 'IMAGING', payload: input.imaging });
     }
+    if (input.referral) {
+      await workspace.mutations.submitReferral({ visitId, payload: input.referral }).catch(() => null);
+    }
     if (input.invoice) {
       await workspace.mutations.createBillingInvoice(input.invoice).catch(() => null);
     }
-    await workspace.mutations.updateVisitStatus({
-      id: visitId,
-      payload: { status: 'COMPLETED', notes: 'Consultation completed.' },
-    });
+    if (workspace.visit.status !== 'COMPLETED') {
+      await workspace.mutations.updateVisitStatus({
+        id: visitId,
+        payload: { status: 'COMPLETED', notes: 'Consultation completed.' },
+      }).catch(() => null);
+    }
+    await workspace.refetchVisit();
   };
 
   const selectVisit = (visitId: string) => {

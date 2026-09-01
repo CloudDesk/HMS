@@ -203,20 +203,41 @@ export function OpdVisitPage() {
     const selectedDoc = doctors.find((d) => d.id === referralDoctorId);
     setReferralBooking(true);
     try {
-      await feature.actions.submitReferral({
-        visitId: visit.id,
-        payload: {
-          referral_type: 'INTERNAL',
-          specialty: referralSpecialty,
-          referred_doctor_id: referralDoctorId,
-          reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
-          clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
-        },
-      });
-      showToast(`Referral submitted successfully to ${selectedDoc?.display_name ?? 'Doctor'}!`);
-      setReferralReason('');
-      setReferralDoctorId('');
-      setReferralSpecialty('');
+      if (visit.status !== 'COMPLETED') {
+        await feature.actions.saveWorkspaceDraft({
+          consultation: {
+            allergies: consultationForm.allergies.trim() || null,
+            assessment: consultationForm.assessment.trim() || null,
+            chief_complaint: consultationForm.chief_complaint.trim() || null,
+            doctor_notes: consultationForm.doctor_notes.trim() || null,
+            family_history: consultationForm.family_history.trim() || null,
+            history_present_illness: consultationForm.history_present_illness.trim() || null,
+            past_history: consultationForm.past_history.trim() || null,
+            physical_examination: consultationForm.physical_examination.trim() || null,
+            treatment_plan: consultationForm.treatment_plan.trim() || null,
+          },
+          referral: {
+            referral_type: 'INTERNAL',
+            specialty: referralSpecialty,
+            referred_doctor_id: referralDoctorId,
+            reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+            clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
+          },
+        });
+        showToast('Referral details saved. Complete the consultation to submit this referral.');
+      } else {
+        await feature.actions.submitReferral({
+          visitId: visit.id,
+          payload: {
+            referral_type: 'INTERNAL',
+            specialty: referralSpecialty,
+            referred_doctor_id: referralDoctorId,
+            reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+            clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
+          },
+        });
+        showToast(`Referral submitted successfully to ${selectedDoc?.display_name ?? 'Doctor'}!`);
+      }
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
     } finally {
@@ -687,7 +708,7 @@ export function OpdVisitPage() {
             items: labOrders.map((o) => ({
               service_id: o.id,
               investigation_name: o.name,
-              category: o.category || labCategory,
+              category: o.category && o.category !== 'All' ? o.category : 'Hematology',
             })),
           }
           : undefined;
@@ -700,7 +721,7 @@ export function OpdVisitPage() {
             items: imagingOrders.map((o) => ({
               service_id: o.id,
               investigation_name: o.name,
-              category: o.category || imagingCategory,
+              category: o.category && o.category !== 'All' ? o.category : 'Imaging',
             })),
           }
           : undefined;
@@ -740,11 +761,23 @@ export function OpdVisitPage() {
         });
       }
 
+      const referralPayload =
+        referralDoctorId && referralSpecialty
+          ? {
+            referral_type: 'INTERNAL' as const,
+            specialty: referralSpecialty,
+            referred_doctor_id: referralDoctorId,
+            reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+            clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
+          }
+          : undefined;
+
       await feature.actions.completeWorkspace({
         consultation: payload,
         prescription: prescriptionPayload,
         laboratory: laboratoryPayload,
         imaging: imagingPayload,
+        referral: referralPayload,
         invoice:
           invoiceItems.length > 0
             ? {
@@ -755,7 +788,7 @@ export function OpdVisitPage() {
           }
             : undefined,
       });
-      showToast('Consultation completed successfully! Orders routed to Pharmacy, Lab & Imaging.');
+      showToast('Consultation completed successfully!');
 
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
@@ -839,22 +872,35 @@ export function OpdVisitPage() {
     }
   };
 
+  const isVisitCompleted = visit?.status === 'COMPLETED';
+
   const isTabCompleted = (tabName: string): boolean => {
     switch (tabName) {
       case 'Consultation':
-        return Boolean(consultationForm.chief_complaint.trim());
+        return Boolean(
+          consultationForm.chief_complaint.trim() ||
+            consultationForm.assessment.trim() ||
+            consultation?.chief_complaint,
+        );
       case 'Vitals':
         return Boolean(vitalsForm.blood_pressure_systolic.trim() || vitalsForm.pulse_bpm.trim());
       case 'Diagnosis':
-        return selectedDiagnoses.length > 0;
+        return selectedDiagnoses.length > 0 || Boolean(consultationForm.assessment.trim());
       case 'Prescription':
-        return prescriptionForm.items.length > 0;
-      case 'Orders & Labs':
-        return false;
-      case 'Procedure':
-        return Boolean(consultationForm.treatment_plan.trim());
+        return prescriptionForm.items.length > 0 || Boolean(prescription?.items?.length);
+      case 'Lab Orders':
+        return labOrders.length > 0 || Boolean(laboratoryOrder?.items?.length);
+      case 'Imaging Orders':
+        return imagingOrders.length > 0 || Boolean(imagingOrder?.items?.length);
+      case 'Referral':
+        return (
+          Boolean(referralSpecialty?.trim()) ||
+          Boolean(referralReason?.trim())
+        );
       case 'Follow-up':
-        return Boolean(prescriptionForm.follow_up_date);
+        return (
+          Boolean(prescriptionForm.follow_up_date)
+        );
       case 'Notes':
         return Boolean(consultationForm.doctor_notes.trim());
       case 'Documents':
@@ -984,6 +1030,26 @@ export function OpdVisitPage() {
           {/* Main Layout: 9 Workspace Tabs on Left, Patient Summary on Right */}
           <div className="opd-workspace">
             <main className="opd-clinical-main">
+              {isVisitCompleted ? (
+                <div
+                  className="opd-completed-banner"
+                  style={{
+                    padding: '0.75rem 1.25rem',
+                    marginBottom: '1rem',
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '0.5rem',
+                    color: '#166534',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  <i className="ph ph-check-circle-fill" aria-hidden="true" style={{ fontSize: '1.25rem', color: '#16a34a' }} />
+                  <span>Consultation Completed &mdash; Details are locked in read-only mode.</span>
+                </div>
+              ) : null}
               {/* 9 Workspace Tabs Bar */}
               <div className="opd-workspace-tabs" role="tablist" aria-label="Consultation tabs">
                 {WORKSPACE_TABS.map((tab) => {
@@ -1008,6 +1074,8 @@ export function OpdVisitPage() {
                   );
                 })}
               </div>
+
+              <fieldset disabled={isVisitCompleted} style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}>
 
               {/* TAB 1: CONSULTATION */}
               {activeTab === 'Consultation' ? (
@@ -2180,29 +2248,47 @@ export function OpdVisitPage() {
                       Auto-save enabled
                     </span>
                     <div>
-                      <button className="doc-btn" onClick={saveConsultationDraft} type="button">
+                      <button className="doc-btn" disabled={isVisitCompleted || updating !== ''} onClick={saveConsultationDraft} type="button">
                         <i className="ph ph-floppy-disk" aria-hidden="true" />
                         Save Draft
                       </button>
-                      <button
-                        className="doc-btn success"
-                        disabled={updating === 'consultation-complete' || visit.status === 'COMPLETED'}
-                        onClick={completeConsultation}
-                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
-                        type="button"
-                      >
-                        {updating === 'consultation-complete' ? (
-                          <>
-                            <MedicalSpinner size="sm" />
-                            <span>Completing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <i className="ph ph-check-circle" aria-hidden="true" />
-                            Complete Consultation
-                          </>
-                        )}
-                      </button>
+                      {isVisitCompleted ? (
+                        <span
+                          className="doc-btn"
+                          style={{
+                            backgroundColor: '#dcfce7',
+                            borderColor: '#bbf7d0',
+                            color: '#15803d',
+                            fontWeight: 600,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                          }}
+                        >
+                          <i className="ph ph-check-circle-fill" aria-hidden="true" />
+                          Consultation Completed
+                        </span>
+                      ) : (
+                        <button
+                          className="doc-btn success"
+                          disabled={updating === 'consultation-complete'}
+                          onClick={completeConsultation}
+                          style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                          type="button"
+                        >
+                          {updating === 'consultation-complete' ? (
+                            <>
+                              <MedicalSpinner size="sm" />
+                              <span>Completing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="ph ph-check-circle" aria-hidden="true" />
+                              Complete Consultation
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -2358,6 +2444,7 @@ export function OpdVisitPage() {
 
                 </article>
               ) : null}
+              </fieldset>
             </main>
 
             {/* Right Summary Side Panel (Matching Image 1 Reference) */}

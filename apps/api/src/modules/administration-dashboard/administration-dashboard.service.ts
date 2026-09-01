@@ -18,6 +18,10 @@ export class AdministrationDashboardService {
     return this.repository.refreshSnapshot();
   }
 
+  async getExecutiveOverview(userId: string, branchId?: string, financialAccess = true) {
+    return this.repository.getExecutiveOverview(userId, branchId, financialAccess);
+  }
+
   async getPhaseTwoReports(query: PhaseTwoReportQuery, actor: string, financialAccess: boolean) {
     await this.phaseTwoReports.authorizeBranch(actor, query.branch_id);
     return this.phaseTwoReports.bundle(query, financialAccess);
