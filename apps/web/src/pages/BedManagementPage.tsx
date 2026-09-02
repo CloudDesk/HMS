@@ -481,16 +481,6 @@ export function BedManagementPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="ward-table-badge">{wards.length} Wards Active</span>
-          {permissions.canCreateWard && (
-            <button
-              className="btn-primary"
-              onClick={() => setModal('ward')}
-              type="button"
-              style={{ padding: '6px 14px', fontSize: '0.8rem', height: '34px', background: '#3b82f6', border: 'none' }}
-            >
-              <i className="ph ph-plus" /> New Ward
-            </button>
-          )}
         </div>
       </div>
       <div className="table-scroll">
