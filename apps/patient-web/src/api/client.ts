@@ -23,7 +23,6 @@ const requestOnce = async <T>(path: string, options: Options<T>) => {
   const response = await fetch(
     `${appConfig.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
     {
-      credentials: 'include',
       ...options,
       credentials: options.credentials ?? 'include',
       headers,
@@ -69,7 +68,6 @@ const downloadOnce = async (path: string, options: Options) => {
   const response = await fetch(
     `${appConfig.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
     {
-      credentials: 'include',
       ...options,
       credentials: options.credentials ?? 'include',
       headers,

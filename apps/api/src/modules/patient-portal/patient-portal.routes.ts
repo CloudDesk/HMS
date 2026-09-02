@@ -345,7 +345,6 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       const { registrationToken } = await services.patientPortal.verifyOtp(
         parsed.data.phone,
         parsed.data.otp,
-        metadataFromRequest(request),
       );
       throw new AppError(
         'This patient is a minor. A parent or guardian account must be linked before signing in.',
@@ -365,7 +364,6 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       const { registrationToken } = await services.patientPortal.verifyOtp(
         parsed.data.phone,
         parsed.data.otp,
-        metadataFromRequest(request),
       );
       throw new AppError(
         'No portal account or patient record matches this number. Register as a new patient first.',
@@ -378,7 +376,6 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     const verification = await services.patientPortal.verifyAndConsumeOtp(
       parsed.data.phone,
       parsed.data.otp,
-      metadataFromRequest(request),
     );
     if (status === 'ACCOUNT_NOT_LINKED') {
       await services.patientPortal.activateExistingPatientByPhone(parsed.data.phone, metadataFromRequest(request));

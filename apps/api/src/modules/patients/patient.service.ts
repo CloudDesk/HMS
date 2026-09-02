@@ -471,7 +471,7 @@ export class PatientService {
   }
 
   async addAdmissionTimeline(patientId: string, eventType: 'ADMISSION_REQUEST_CREATED' | 'INPATIENT_ADMISSION_CONFIRMED' | 'ADMISSION_REQUEST_CANCELLED' | 'INPATIENT_DISCHARGE_SUMMARY_SAVED' | 'INPATIENT_DISCHARGED', title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
-    return this.repository.addTimelineEvent(patientId, { event_type: eventType as any, title, description }, actor, session);
+    return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
   }
 
   async addProcedureTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `PROCEDURE_${string}`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
