@@ -393,7 +393,7 @@ export function InpatientWorkspacePage() {
       />
 
       {/* Modal: Daily Doctor Round Note */}
-      <Modal open={roundModalOpen} onClose={() => setRoundModalOpen(false)} title="Record Doctor Ward Round Note (SOAP)">
+      <Modal open={roundModalOpen} onClose={() => setRoundModalOpen(false)} title="Record Doctor Ward Round Note (SOAP)" layer="top">
         <form onSubmit={handleAddRoundNote} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: '460px' }}>
           <label className="adm-field">
             <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#334155' }}>Subjective (Patient symptoms & complaints)</span>
@@ -448,7 +448,7 @@ export function InpatientWorkspacePage() {
       </Modal>
 
       {/* Modal: Bedside Vitals */}
-      <Modal open={vitalsModalOpen} onClose={() => setVitalsModalOpen(false)} title="Record Inpatient Bedside Vitals">
+      <Modal open={vitalsModalOpen} onClose={() => setVitalsModalOpen(false)} title="Record Inpatient Bedside Vitals" layer="top">
         <form onSubmit={handleRecordVitals} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: '420px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <label className="adm-field">
@@ -499,7 +499,7 @@ export function InpatientWorkspacePage() {
       </Modal>
 
       {/* Modal: Diagnostic Order */}
-      <Modal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} title="Place Inpatient Diagnostic Order">
+      <Modal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} title="Place Inpatient Diagnostic Order" layer="top">
         <form onSubmit={handleAddOrder} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: '420px' }}>
           <label className="adm-field">
             <span style={{ fontSize: '0.76rem', fontWeight: 600 }}>Order Category *</span>
