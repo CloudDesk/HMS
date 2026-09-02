@@ -21,6 +21,13 @@ export const buildApp = async () => {
   await registerRequestContext(app);
 
   // Refresh tokens are stored in HttpOnly cookies and validated by the auth service.
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('X-XSS-Protection', '0');
+  });
+
   await app.register(cookie);
 
   await app.register(cors, {

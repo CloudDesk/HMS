@@ -5,6 +5,7 @@ import { useAuth } from '../auth/useAuth';
 import { appConfig } from '../config';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { authApi } from '../auth/auth-api';
+import { getSafeReturnPath } from '../routing/routes';
 
 const VERIFIED_MOBILE_KEY = 'hms_patient_verified_mobile';
 
@@ -25,16 +26,15 @@ export function PatientLoginPage() {
     }, 1000);
     return () => window.clearInterval(timer);
   }, [resendCountdown]);
-  const requestedPath = new URLSearchParams(search).get('return');
-  const safeReturnPath = requestedPath?.startsWith('/') && !requestedPath.startsWith('//') ? requestedPath : null;
+  const safeReturnPath = getSafeReturnPath(search);
 
   useEffect(() => {
     const isPortalUser = Boolean(user?.patientId || user?.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'));
     if (status === 'authenticated' && isPortalUser) navigate(safeReturnPath ?? '/portal', { replace: true });
   }, [safeReturnPath, status, user]);
 
-  const continueToRegistration = (mode: 'new' | 'guardian') => {
-    sessionStorage.setItem(VERIFIED_MOBILE_KEY, JSON.stringify({ phone: phone.trim(), otp, mode, verifiedAt: Date.now() }));
+  const continueToRegistration = (mode: 'new' | 'guardian', registrationToken: string) => {
+    sessionStorage.setItem(VERIFIED_MOBILE_KEY, JSON.stringify({ phone: phone.trim(), registrationToken, mode, verifiedAt: Date.now() }));
     const params = new URLSearchParams({ mode, verified: '1' });
     if (safeReturnPath) params.set('return', safeReturnPath);
     navigate(`/signup?${params.toString()}`);
@@ -79,13 +79,24 @@ export function PatientLoginPage() {
     try {
       await loginWithOtp(phone.trim(), otp);
     } catch (requestError) {
-      if (requestError instanceof ApiError && requestError.code === 'NEW_PATIENT_REQUIRES_REGISTRATION') {
-        clearAuthError(); continueToRegistration('new');
-      } else if (requestError instanceof ApiError && requestError.code === 'MINOR_GUARDIAN_ACCOUNT_REQUIRED') {
-        clearAuthError(); continueToRegistration('guardian');
-      } else {
-        setError(requestError instanceof ApiError ? requestError.message : 'Sign in could not be completed. Please try again.');
+      if (requestError instanceof ApiError && (requestError.code === 'NEW_PATIENT_REQUIRES_REGISTRATION' || requestError.code === 'MINOR_GUARDIAN_ACCOUNT_REQUIRED')) {
+        const mode = requestError.code === 'MINOR_GUARDIAN_ACCOUNT_REQUIRED' ? 'guardian' : 'new';
+        let registrationToken = (requestError.details as { registrationToken?: string } | undefined)?.registrationToken;
+        if (!registrationToken) {
+          try {
+            const verified = await authApi.verifyOtp(phone.trim(), otp);
+            registrationToken = verified.registrationToken;
+          } catch {
+            // fallback
+          }
+        }
+        if (registrationToken) {
+          clearAuthError();
+          continueToRegistration(mode, registrationToken);
+          return;
+        }
       }
+      setError(requestError instanceof ApiError ? requestError.message : 'Sign in could not be completed. Please try again.');
     } finally { setSubmitting(false); }
   };
 

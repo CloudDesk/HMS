@@ -1,4 +1,6 @@
 import { isIP } from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 
 type AppEnv = 'dev' | 'test' | 'prod';
 
@@ -6,6 +8,22 @@ const appEnvironment = process.env.APP_ENV ?? 'dev';
 if (!['dev', 'test', 'prod'].includes(appEnvironment)) {
   throw new Error('APP_ENV must be one of dev, test, or prod');
 }
+
+const isServerless = Boolean(
+  process.env.NETLIFY ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.VERCEL ||
+  process.env.LAMBDA_TASK_ROOT ||
+  (typeof process.cwd === 'function' && process.cwd().startsWith('/var/task')),
+);
+
+const getDefaultStoragePath = (subDir: string) => {
+  if (isServerless) {
+    return path.join(os.tmpdir(), 'hms-storage', subDir);
+  }
+
+  return `./storage/${subDir}`;
+};
 
 const parseInteger = (value: string | undefined, fallback: number) => {
   if (!value) {
@@ -48,11 +66,12 @@ export const parseTrustProxy = (value: string | undefined): false | string[] => 
     );
   }
 
-  const trustedProxies = normalized.split(',').map((entry) => entry.trim()).filter(Boolean);
+  const trustedProxies = normalized
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
   if (trustedProxies.length === 0 || trustedProxies.some((entry) => !isValidTrustedProxy(entry))) {
-    throw new Error(
-      'TRUST_PROXY contains an invalid proxy address, CIDR range, or named range',
-    );
+    throw new Error('TRUST_PROXY contains an invalid proxy address, CIDR range, or named range');
   }
 
   return trustedProxies;
@@ -182,8 +201,10 @@ export const env = {
   },
   storage: {
     provider: process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER ?? 'local',
-    localPatientDocumentsPath: process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? './storage/patient-documents',
-    localHospitalLogosPath: process.env.LOCAL_HOSPITAL_LOGO_STORAGE_PATH ?? './storage/hospital-logos',
+    localPatientDocumentsPath:
+      process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? getDefaultStoragePath('patient-documents'),
+    localHospitalLogosPath:
+      process.env.LOCAL_HOSPITAL_LOGO_STORAGE_PATH ?? getDefaultStoragePath('hospital-logos'),
     gcpPatientDocumentsBucket: process.env.GCP_PATIENT_DOCUMENTS_BUCKET ?? '',
   },
   upload: {
@@ -218,19 +239,67 @@ export const env = {
     passwordResetTtlMinutes: parseInteger(process.env.AUTH_PASSWORD_RESET_TTL_MINUTES, 30),
     patientPortalDemoOtpEnabled,
     patientPortalDemoOtp,
-    otpTtlSeconds: parsePositiveInteger('AUTH_OTP_TTL_SECONDS', process.env.AUTH_OTP_TTL_SECONDS, 300),
-    otpResendCooldownSeconds: parsePositiveInteger('AUTH_OTP_RESEND_COOLDOWN_SECONDS', process.env.AUTH_OTP_RESEND_COOLDOWN_SECONDS, 60),
-    otpMaxVerificationAttempts: parsePositiveInteger('AUTH_OTP_MAX_VERIFICATION_ATTEMPTS', process.env.AUTH_OTP_MAX_VERIFICATION_ATTEMPTS, 3),
-    otpIdentityRequestLimit: parsePositiveInteger('AUTH_OTP_IDENTITY_REQUEST_LIMIT', process.env.AUTH_OTP_IDENTITY_REQUEST_LIMIT, 5),
-    otpIdentityWindowSeconds: parsePositiveInteger('AUTH_OTP_IDENTITY_WINDOW_SECONDS', process.env.AUTH_OTP_IDENTITY_WINDOW_SECONDS, 3600),
-    otpIpRequestLimit: parsePositiveInteger('AUTH_OTP_IP_REQUEST_LIMIT', process.env.AUTH_OTP_IP_REQUEST_LIMIT, 20),
-    otpIpRequestWindowSeconds: parsePositiveInteger('AUTH_OTP_IP_REQUEST_WINDOW_SECONDS', process.env.AUTH_OTP_IP_REQUEST_WINDOW_SECONDS, 600),
-    otpVerificationIpLimit: parsePositiveInteger('AUTH_OTP_VERIFICATION_IP_LIMIT', process.env.AUTH_OTP_VERIFICATION_IP_LIMIT, 30),
-    otpVerificationIdentityLimit: parsePositiveInteger('AUTH_OTP_VERIFICATION_IDENTITY_LIMIT', process.env.AUTH_OTP_VERIFICATION_IDENTITY_LIMIT, 10),
-    otpVerificationWindowSeconds: parsePositiveInteger('AUTH_OTP_VERIFICATION_WINDOW_SECONDS', process.env.AUTH_OTP_VERIFICATION_WINDOW_SECONDS, 600),
+    otpTtlSeconds: parsePositiveInteger(
+      'AUTH_OTP_TTL_SECONDS',
+      process.env.AUTH_OTP_TTL_SECONDS,
+      300,
+    ),
+    otpResendCooldownSeconds: parsePositiveInteger(
+      'AUTH_OTP_RESEND_COOLDOWN_SECONDS',
+      process.env.AUTH_OTP_RESEND_COOLDOWN_SECONDS,
+      60,
+    ),
+    otpMaxVerificationAttempts: parsePositiveInteger(
+      'AUTH_OTP_MAX_VERIFICATION_ATTEMPTS',
+      process.env.AUTH_OTP_MAX_VERIFICATION_ATTEMPTS,
+      3,
+    ),
+    otpIdentityRequestLimit: parsePositiveInteger(
+      'AUTH_OTP_IDENTITY_REQUEST_LIMIT',
+      process.env.AUTH_OTP_IDENTITY_REQUEST_LIMIT,
+      5,
+    ),
+    otpIdentityWindowSeconds: parsePositiveInteger(
+      'AUTH_OTP_IDENTITY_WINDOW_SECONDS',
+      process.env.AUTH_OTP_IDENTITY_WINDOW_SECONDS,
+      3600,
+    ),
+    otpIpRequestLimit: parsePositiveInteger(
+      'AUTH_OTP_IP_REQUEST_LIMIT',
+      process.env.AUTH_OTP_IP_REQUEST_LIMIT,
+      20,
+    ),
+    otpIpRequestWindowSeconds: parsePositiveInteger(
+      'AUTH_OTP_IP_REQUEST_WINDOW_SECONDS',
+      process.env.AUTH_OTP_IP_REQUEST_WINDOW_SECONDS,
+      600,
+    ),
+    otpVerificationIpLimit: parsePositiveInteger(
+      'AUTH_OTP_VERIFICATION_IP_LIMIT',
+      process.env.AUTH_OTP_VERIFICATION_IP_LIMIT,
+      30,
+    ),
+    otpVerificationIdentityLimit: parsePositiveInteger(
+      'AUTH_OTP_VERIFICATION_IDENTITY_LIMIT',
+      process.env.AUTH_OTP_VERIFICATION_IDENTITY_LIMIT,
+      10,
+    ),
+    otpVerificationWindowSeconds: parsePositiveInteger(
+      'AUTH_OTP_VERIFICATION_WINDOW_SECONDS',
+      process.env.AUTH_OTP_VERIFICATION_WINDOW_SECONDS,
+      600,
+    ),
     loginIpLimit: parsePositiveInteger('AUTH_LOGIN_IP_LIMIT', process.env.AUTH_LOGIN_IP_LIMIT, 20),
-    loginIdentityLimit: parsePositiveInteger('AUTH_LOGIN_IDENTITY_LIMIT', process.env.AUTH_LOGIN_IDENTITY_LIMIT, 10),
-    loginWindowSeconds: parsePositiveInteger('AUTH_LOGIN_WINDOW_SECONDS', process.env.AUTH_LOGIN_WINDOW_SECONDS, 900),
+    loginIdentityLimit: parsePositiveInteger(
+      'AUTH_LOGIN_IDENTITY_LIMIT',
+      process.env.AUTH_LOGIN_IDENTITY_LIMIT,
+      10,
+    ),
+    loginWindowSeconds: parsePositiveInteger(
+      'AUTH_LOGIN_WINDOW_SECONDS',
+      process.env.AUTH_LOGIN_WINDOW_SECONDS,
+      900,
+    ),
     passwordPolicy: {
       minLength: parseInteger(process.env.AUTH_PASSWORD_MIN_LENGTH, 8),
       requireUppercase: parseBoolean(process.env.AUTH_PASSWORD_REQUIRE_UPPERCASE, true),
@@ -249,14 +318,13 @@ export const env = {
     },
   },
   patientPortal: {
-    rescheduleAllowedStatuses: parseCsv(
-      process.env.PATIENT_PORTAL_RESCHEDULE_ALLOWED_STATUSES,
-      ['SCHEDULED', 'CONFIRMED', 'NO_SHOW', 'SKIPPED'],
-    ),
-    rescheduleMinimumHours: parseInteger(
-      process.env.PATIENT_PORTAL_RESCHEDULE_MINIMUM_HOURS,
-      2,
-    ),
+    rescheduleAllowedStatuses: parseCsv(process.env.PATIENT_PORTAL_RESCHEDULE_ALLOWED_STATUSES, [
+      'SCHEDULED',
+      'CONFIRMED',
+      'NO_SHOW',
+      'SKIPPED',
+    ]),
+    rescheduleMinimumHours: parseInteger(process.env.PATIENT_PORTAL_RESCHEDULE_MINIMUM_HOURS, 2),
   },
   sms: {
     provider: process.env.SMS_GATEWAY_PROVIDER ?? 'MOCK',
@@ -267,4 +335,8 @@ export const env = {
 
 if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {
   throw new Error('JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET are required');
+}
+
+if (env.app.environment === 'prod' && env.auth.patientPortalDemoOtp) {
+  throw new Error('PATIENT_PORTAL_DEMO_OTP must not be configured in production');
 }

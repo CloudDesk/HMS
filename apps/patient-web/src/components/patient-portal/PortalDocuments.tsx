@@ -2,6 +2,10 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { patientPortalApi, type PortalDocument } from '../../api/patient-portal';
+import { portalQueryKeys } from '../../api/query-keys';
+import { Pagination } from './Pagination';
+
+const PAGE_SIZE = 5;
 
 const formatSize = (bytes: number) =>
   bytes < 1024 * 1024
@@ -26,9 +30,16 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
   const [documentDate, setDocumentDate] = useState('');
   const [description, setDescription] = useState('');
   const query = useQuery({
-    queryKey: ['patient-portal-documents', patientId],
+    queryKey: portalQueryKeys.documents(patientId),
     queryFn: () => patientPortalApi.documents(patientId),
   });
+
+  const [page, setPage] = useState(1);
+  const totalDocuments = query.data?.data.length ?? 0;
+  const paginatedDocuments = (query.data?.data ?? []).slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   const chooseFile = (next: File | undefined) => {
     if (!next) return;
@@ -64,7 +75,9 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
         description: description.trim(),
         file,
       });
-      await queryClient.invalidateQueries({ queryKey: ['patient-portal-documents', patientId] });
+      await queryClient.invalidateQueries({
+        queryKey: portalQueryKeys.documents(patientId),
+      });
       toast.success('Document uploaded and sent for hospital review.');
       reset();
       setUploadOpen(false);
@@ -146,54 +159,59 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
               >
                 <option value="CLINICAL">Previous medical record</option>
                 <option value="INSURANCE">Insurance document</option>
-                <option value="OTHER">Other document</option>
+                <option value="CLINICAL">Clinical / Lab / Imaging</option>
+                <option value="INSURANCE">Insurance / Guarantee Letter</option>
+                <option value="OTHER">Identification / Other</option>
               </select>
             </label>
             <label>
-              <span>
-                Document title <b>*</b>
-              </span>
+              <span>Document title *</span>
               <input
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="e.g. Discharge summary"
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Previous Discharge Summary"
+                required
+                type="text"
                 value={title}
               />
             </label>
             <label>
-              <span>Hospital or provider</span>
+              <span>Issuing facility / doctor</span>
               <input
-                onChange={(event) => setProviderName(event.target.value)}
-                placeholder="Previous hospital or doctor"
+                onChange={(e) => setProviderName(e.target.value)}
+                placeholder="e.g. Nairobi Hospital"
+                type="text"
                 value={providerName}
               />
             </label>
             <label>
               <span>Document date</span>
               <input
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(event) => setDocumentDate(event.target.value)}
+                onChange={(e) => setDocumentDate(e.target.value)}
                 type="date"
                 value={documentDate}
               />
             </label>
             <label className="wide">
-              <span>Notes</span>
+              <span>Notes / Description</span>
               <textarea
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Add context that may help the care team"
-                rows={3}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Additional details about this record…"
+                rows={2}
                 value={description}
               />
             </label>
-            <label className="portal-document-drop wide">
-              <input
-                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                onChange={(event) => chooseFile(event.target.files?.[0])}
-                ref={fileInput}
-                type="file"
-              />
-              <i className="ph ph-cloud-arrow-up" />
-              <strong>{file ? file.name : 'Choose a document'}</strong>
+          </div>
+          <div className="portal-document-drop">
+            <input
+              accept=".pdf,image/jpeg,image/png"
+              onChange={(e) => chooseFile(e.target.files?.[0])}
+              ref={fileInput}
+              style={{ display: 'none' }}
+              type="file"
+            />
+            <label onClick={() => fileInput.current?.click()} style={{ cursor: 'pointer' }}>
+              <i className="ph ph-file-arrow-up" />
+              <strong>{file ? file.name : 'Click to select a file from your device'}</strong>
               <span>{file ? formatSize(file.size) : 'PDF, JPG or PNG up to 10 MB'}</span>
             </label>
           </div>
@@ -214,58 +232,76 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
           </div>
         </form>
       ) : null}
+
       <div className="portal-document-list">
         {query.isLoading ? (
           <div className="portal-empty">
             <div className="portal-spinner" />
             <strong>Loading documents…</strong>
           </div>
-        ) : query.data?.data.length ? (
-          query.data.data.map((document) => (
-            <article key={document.id}>
-              <div className="portal-document-icon">
-                <i
-                  className={`ph ${document.mime_type === 'application/pdf' ? 'ph-file-pdf' : 'ph-file-image'}`}
-                />
-              </div>
-              <div className="portal-document-main">
-                <div>
-                  <h3>{document.title}</h3>
-                  <span
-                    className={`portal-document-status ${document.review_status.toLowerCase()}`}
-                  >
-                    {reviewLabel(document.review_status)}
-                  </span>
+        ) : query.isError ? (
+          <div className="portal-empty portal-empty--error">
+            <i className="ph ph-warning-circle" />
+            <strong>Unable to load documents</strong>
+            <span>We encountered an issue loading your medical records. Please try again.</span>
+            <button onClick={() => void query.refetch()} type="button">
+              Try again
+            </button>
+          </div>
+        ) : totalDocuments > 0 ? (
+          <>
+            {paginatedDocuments.map((document) => (
+              <article key={document.id}>
+                <div className="portal-document-icon">
+                  <i
+                    className={`ph ${document.mime_type === 'application/pdf' ? 'ph-file-pdf' : 'ph-file-image'}`}
+                  />
                 </div>
-                <p>
-                  {document.provider_name ||
-                    (document.source === 'HOSPITAL' ? 'HMS hospital record' : 'Patient supplied')}
-                </p>
-                <small>
-                  {document.document_date
-                    ? `Document dated ${formatDate(document.document_date)} · `
-                    : ''}
-                  Uploaded {formatDate(document.created_at)} ·{' '}
-                  {formatSize(document.file_size_bytes)}
-                </small>
-                {document.description ? <span>{document.description}</span> : null}
-              </div>
-              <div className="portal-document-row-actions">
-                <button onClick={() => void view(document)} type="button">
-                  <i className="ph ph-eye" /> View
-                </button>
-                <button
-                  aria-label={`Download ${document.title}`}
-                  className="icon-only"
-                  onClick={() => void download(document)}
-                  title="Download document"
-                  type="button"
-                >
-                  <i className="ph ph-download-simple" />
-                </button>
-              </div>
-            </article>
-          ))
+                <div className="portal-document-main">
+                  <div>
+                    <h3>{document.title}</h3>
+                    <span
+                      className={`portal-document-status ${document.review_status.toLowerCase()}`}
+                    >
+                      {reviewLabel(document.review_status)}
+                    </span>
+                  </div>
+                  <p>
+                    {document.provider_name ||
+                      (document.source === 'HOSPITAL' ? 'HMS hospital record' : 'Patient supplied')}
+                  </p>
+                  <small>
+                    {document.document_date
+                      ? `Document dated ${formatDate(document.document_date)} · `
+                      : ''}
+                    Uploaded {formatDate(document.created_at)} ·{' '}
+                    {formatSize(document.file_size_bytes)}
+                  </small>
+                  {document.description ? <span>{document.description}</span> : null}
+                </div>
+                <div className="portal-document-row-actions">
+                  <button onClick={() => void view(document)} type="button">
+                    <i className="ph ph-eye" /> View
+                  </button>
+                  <button
+                    aria-label={`Download ${document.title}`}
+                    className="icon-only"
+                    onClick={() => void download(document)}
+                    title="Download document"
+                    type="button"
+                  >
+                    <i className="ph ph-download-simple" />
+                  </button>
+                </div>
+              </article>
+            ))}
+            <Pagination
+              currentPage={page}
+              onPageChange={setPage}
+              pageSize={PAGE_SIZE}
+              totalItems={totalDocuments}
+            />
+          </>
         ) : (
           <div className="portal-empty">
             <i className="ph ph-files" />

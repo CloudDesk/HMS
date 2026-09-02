@@ -8,6 +8,7 @@ import {
   type PatientTimelineEventFields,
 } from './patient.model.js';
 import { PatientNumberSequenceModel } from './patient-number.model.js';
+import { buildPhoneMongoFilter } from '../../utils/phone.js';
 import type {
   CreatePatientDTO,
   CreatePatientDocumentDTO,
@@ -21,6 +22,7 @@ import type {
   UpdatePatientDTO,
 } from './patient.types.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { RefreshTokenModel } from '../auth/refresh-token.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
@@ -299,7 +301,7 @@ export class PatientRepository {
     ];
 
     if (data.phone) {
-      filters.push({ phone: data.phone.trim() });
+      filters.push(buildPhoneMongoFilter(data.phone));
     }
 
     const patients = await PatientModel.find({
@@ -336,7 +338,19 @@ export class PatientRepository {
     return patient ? toPatient(patient) : undefined;
   }
 
-
+  async syncPortalOwnerPhone(patientId: string, phone: string | null) {
+    const owner = await UserModel.findOneAndUpdate(
+      { patientId: new Types.ObjectId(patientId), deletedAt: null },
+      { $set: { phone: nullableString(phone), updatedAt: new Date() } },
+      { returnDocument: 'after' },
+    ).select('_id').lean();
+    if (owner) {
+      await RefreshTokenModel.updateMany(
+        { userId: owner._id, revokedAt: null },
+        { $set: { revokedAt: new Date() } },
+      );
+    }
+  }
 
   async addTimelineEvent(
     patientId: string,

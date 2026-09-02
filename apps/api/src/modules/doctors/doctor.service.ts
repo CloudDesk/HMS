@@ -398,17 +398,31 @@ export class DoctorService {
     const appointments = await this.appointmentRepository.listActiveWindows(id, date);
     const slots = schedule.working_blocks.flatMap((block) => {
       const duration = block.slot_duration_minutes;
-      const blockSlots: Array<{ start_time: string; end_time: string; max_patients_per_slot?: number }> = [];
+      const blockSlots: Array<{
+        start_time: string;
+        end_time: string;
+        max_patients_per_slot: number;
+        available: boolean;
+        is_available: boolean;
+        reason?: string;
+      }> = [];
       for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += duration) {
-        if (isToday && current <= currentMinutesNow) {
-          continue;
-        }
+        const isPast = isToday && current <= currentMinutesNow;
         const startTime = toTime(current);
         const endTime = toTime(current + duration);
         const conflict = appointments.some(
           (appointment) => startTime < appointment.end_time && endTime > appointment.start_time,
         );
-        if (!conflict) blockSlots.push({ start_time: startTime, end_time: endTime, max_patients_per_slot: block.max_patients_per_slot ?? 1 });
+        const available = !isPast && !conflict;
+        const reason = conflict ? 'Booked' : isPast ? 'Time passed' : undefined;
+        blockSlots.push({
+          start_time: startTime,
+          end_time: endTime,
+          max_patients_per_slot: block.max_patients_per_slot ?? 1,
+          available,
+          is_available: available,
+          reason,
+        });
       }
       return blockSlots;
     });

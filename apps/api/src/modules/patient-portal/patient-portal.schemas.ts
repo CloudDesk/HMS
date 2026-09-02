@@ -24,10 +24,11 @@ export const patientOtpRequestResponseSchema = apiResponseSchema({
 
 export const patientOtpVerifyResponseSchema = apiResponseSchema({
   type: 'object',
-  required: ['success'],
+  required: ['success', 'registrationToken'],
   additionalProperties: false,
   properties: {
     success: { type: 'boolean' },
+    registrationToken: { type: 'string' },
   },
 });
 

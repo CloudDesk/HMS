@@ -4,13 +4,24 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "22"
+  NODE_VERSION = "20"
   NPM_FLAGS = "--include=dev"
   VITE_APP_ENV = "prod"
   VITE_API_BASE_URL = "/api"
 
 [functions]
   node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), screen-wake-lock=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    X-XSS-Protection = "0"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
 
 [[redirects]]
   from = "/api/*"

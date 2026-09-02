@@ -1,23 +1,25 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError } from '../api/api-error';
-import { patientPortalApi, type PublicBranch } from '../api/patient-portal';
+import { patientPortalApi } from '../api/patient-portal';
+import { portalQueryKeys } from '../api/query-keys';
 import { useAuth } from '../auth/useAuth';
 import { navigate, useAppLocation } from '../routing/navigation';
 
 type RegistrationMode = 'new' | 'guardian';
-type VerifiedMobile = { phone: string; otp: string; mode: RegistrationMode; verifiedAt: number };
+type VerifiedMobile = { phone: string; registrationToken: string; mode: RegistrationMode; verifiedAt: number };
 const VERIFIED_MOBILE_KEY = 'hms_patient_verified_mobile';
 
-const publicQueryRecovery = {
-  retry: 5,
-  retryDelay: (attempt: number) => Math.min(1_000 * 2 ** attempt, 8_000),
-  refetchOnMount: 'always' as const,
+const publicQueryConfig = {
+  staleTime: 5 * 60 * 1000,
+  gcTime: 10 * 60 * 1000,
+  retry: 1,
+  refetchOnMount: false,
   refetchOnReconnect: true,
-  refetchOnWindowFocus: true,
+  refetchOnWindowFocus: false,
 };
 
 const schema = z.object({
@@ -43,33 +45,29 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function PatientSignupPage() {
-  const { status, user, restoreSession, activateGuardian } = useAuth();
+  const { status, user, signup, activateGuardian } = useAuth();
   const { search } = useAppLocation();
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const [verified] = useState<VerifiedMobile | null>(() => {
     try {
-      const value = JSON.parse(sessionStorage.getItem(VERIFIED_MOBILE_KEY) ?? 'null') as VerifiedMobile | null;
-      return value?.phone && value?.otp && Date.now() - value.verifiedAt < 15 * 60 * 1000 ? value : null;
+      const value = JSON.parse(sessionStorage.getItem(VERIFIED_MOBILE_KEY) ?? 'null') as (VerifiedMobile & { otp?: string }) | null;
+      const token = value?.registrationToken;
+      return value?.phone && token && Date.now() - value.verifiedAt < 15 * 60 * 1000
+        ? { phone: value.phone, registrationToken: token, mode: value.mode, verifiedAt: value.verifiedAt }
+        : null;
     } catch { return null; }
   });
   const guardianRequired = verified?.mode === 'guardian';
   const [mode, setMode] = useState<RegistrationMode>(guardianRequired || params.get('mode') === 'guardian' ? 'guardian' : 'new');
   const [requestError, setRequestError] = useState('');
-  const registrationStarted = useRef(false);
-  const guardianAccountReady = useRef(false);
-  const [registrationComplete, setRegistrationComplete] = useState(false);
+  const [existingAccountConflict, setExistingAccountConflict] = useState(false);
 
   const branchesQuery = useQuery({
-    queryKey: ['public-branches'],
+    queryKey: portalQueryKeys.branches({ limit: 100 }),
     queryFn: () => patientPortalApi.publicBranches({ limit: 100 }),
-    ...publicQueryRecovery,
+    ...publicQueryConfig,
   });
-  const rawBranches = branchesQuery.data;
-  const branches: PublicBranch[] = Array.isArray(rawBranches?.data)
-    ? rawBranches.data
-    : Array.isArray(rawBranches)
-      ? (rawBranches as unknown as PublicBranch[])
-      : [];
+  const branches = branchesQuery.data?.data ?? [];
   const branchesLoading = branchesQuery.isLoading;
 
   const { register, handleSubmit, setError, clearErrors, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -85,15 +83,17 @@ export function PatientSignupPage() {
 
   useEffect(() => {
     const isPortalUser = Boolean(user?.patientId || user?.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'));
-    if (status === 'authenticated' && isPortalUser && (!registrationStarted.current || registrationComplete)) {
+    if (status === 'authenticated' && isPortalUser) {
       sessionStorage.removeItem(VERIFIED_MOBILE_KEY);
       navigate(safeReturnPath ?? '/portal', { replace: true });
     }
-  }, [registrationComplete, safeReturnPath, status, user]);
+  }, [safeReturnPath, status, user]);
 
   const submit = async (values: FormValues) => {
     if (!verified) return;
-    setRequestError(''); clearErrors();
+    setRequestError('');
+    setExistingAccountConflict(false);
+    clearErrors();
     if (mode === 'guardian' && !values.legal_consent) {
       setError('legal_consent', { message: 'Guardian confirmation and consent are required.' }); return;
     }
@@ -108,40 +108,49 @@ export function PatientSignupPage() {
       adultDate.setFullYear(adultDate.getFullYear() + 15);
       if (adultDate <= new Date()) { setError('child_date_of_birth', { message: 'Manage a child is only for patients under 15.' }); return; }
     }
-    registrationStarted.current = true;
     try {
       if (mode === 'guardian' && guardianRequired) {
         await activateGuardian({
-          phone: verified.phone, otp: verified.otp, fullName: values.full_name, email: values.email, relationship: values.relationship,
+          phone: verified.phone,
+          registrationToken: verified.registrationToken,
+          fullName: values.full_name,
+          email: values.email,
+          relationship: values.relationship,
           address: { line1: values.line1 || null, city: values.city || null, state: values.state || null, country: values.country || null, postal_code: values.postal_code || null },
-          identification: { type: values.identification_type || null, number: values.identification_number || null }, legalConsentAccepted: true,
+          identification: { type: values.identification_type || null, number: values.identification_number || null },
+          legalConsentAccepted: true,
         });
       } else {
-        if (!guardianAccountReady.current) {
-          await patientPortalApi.signup({
-            account_type: mode === 'guardian' ? 'GUARDIAN' : 'PATIENT', full_name: values.full_name, email: values.email,
-            phone: verified.phone, otp: verified.otp,
-            guardian_profile: mode === 'guardian' ? {
-              relationship: values.relationship,
-              address: { line1: values.line1 || null, city: values.city || null, state: values.state || null, country: values.country || null, postal_code: values.postal_code || null },
-              identification: { type: values.identification_type || null, number: values.identification_number || null }, legal_consent_accepted: true,
-            } : undefined,
-          });
-          await restoreSession();
-          guardianAccountReady.current = mode === 'guardian';
-        }
-        if (mode === 'guardian') {
-          await patientPortalApi.addDependent({
-            first_name: values.child_first_name!.trim(), last_name: values.child_last_name!.trim(),
-            date_of_birth: values.child_date_of_birth!, gender: values.child_gender,
-            preferred_branch_id: values.child_preferred_branch_id!, blood_group: values.child_blood_group || null,
+        await signup({
+          account_type: mode === 'guardian' ? 'GUARDIAN' : 'PATIENT',
+          full_name: values.full_name,
+          email: values.email,
+          phone: verified.phone,
+          registration_token: verified.registrationToken,
+          guardian_profile: mode === 'guardian' ? {
+            relationship: values.relationship,
+            address: { line1: values.line1 || null, city: values.city || null, state: values.state || null, country: values.country || null, postal_code: values.postal_code || null },
+            identification: { type: values.identification_type || null, number: values.identification_number || null },
+            legal_consent_accepted: true,
+          } : undefined,
+          initial_dependent: mode === 'guardian' ? {
+            first_name: values.child_first_name!.trim(),
+            last_name: values.child_last_name!.trim(),
+            date_of_birth: values.child_date_of_birth!,
+            gender: values.child_gender,
+            preferred_branch_id: values.child_preferred_branch_id!,
+            blood_group: values.child_blood_group || null,
             address: { line1: values.line1 || null, city: values.city || null, state: values.state || null, country: values.country || null, postal_code: values.postal_code || null },
             relationship: values.relationship,
-          });
-        }
+          } : undefined,
+        });
       }
-      setRegistrationComplete(true);
-    } catch (error) { setRequestError(error instanceof ApiError ? error.message : 'Your portal account could not be created.'); }
+    } catch (error) {
+      if (error instanceof ApiError && (error.code === 'EXISTING_PATIENT_REQUIRES_ACTIVATION' || error.status === 409)) {
+        setExistingAccountConflict(true);
+      }
+      setRequestError(error instanceof ApiError ? error.message : 'Your portal account could not be created.');
+    }
   };
 
   if (!verified) return <main className="patient-login-page patient-signup-page">
@@ -154,11 +163,25 @@ export function PatientSignupPage() {
     <section className="patient-login-panel" aria-labelledby="patient-signup-title"><div className="patient-login-form-wrap patient-signup-form-wrap">
       <p className="patient-login-kicker">Mobile number verified</p><h2 id="patient-signup-title">Complete portal access</h2><p className="patient-login-subtitle">Verified mobile: <strong>{verified.phone}</strong></p>
       <div className="portal-registration-modes portal-registration-modes--two">
-        {!guardianRequired ? <button className={mode === 'new' ? 'active' : ''} onClick={() => { setMode('new'); setRequestError(''); }} type="button"><i className="ph ph-user-plus" /><span><strong>Register myself</strong><small>Create my patient record</small></span></button> : null}
-        <button className={mode === 'guardian' ? 'active' : ''} onClick={() => { setMode('guardian'); setRequestError(''); }} type="button"><i className="ph ph-users-three" /><span><strong>Manage a child</strong><small>Create guardian access</small></span></button>
+        {!guardianRequired ? <button className={mode === 'new' ? 'active' : ''} onClick={() => { setMode('new'); setRequestError(''); setExistingAccountConflict(false); }} type="button"><i className="ph ph-user-plus" /><span><strong>Register myself</strong><small>Create my patient record</small></span></button> : null}
+        <button className={mode === 'guardian' ? 'active' : ''} onClick={() => { setMode('guardian'); setRequestError(''); setExistingAccountConflict(false); }} type="button"><i className="ph ph-users-three" /><span><strong>Manage a child</strong><small>Create guardian access</small></span></button>
       </div>
       {guardianRequired ? <div className="patient-login-help"><i className="ph ph-info" /><span>This number matches a minor patient, so an adult parent or guardian account is required.</span></div> : null}
-      {requestError ? <div className="auth-alert auth-alert--error" role="alert">{requestError}</div> : null}
+      {requestError ? (
+        <div className="auth-alert auth-alert--error" role="alert">
+          <div>{requestError}</div>
+          {existingAccountConflict ? (
+            <button
+              className="patient-staff-link"
+              onClick={() => navigate(`/login${safeReturnPath ? `?return=${encodeURIComponent(safeReturnPath)}` : ''}`)}
+              style={{ marginTop: '0.5rem', display: 'inline-flex', padding: 0 }}
+              type="button"
+            >
+              Sign in with mobile number instead <i className="ph ph-arrow-right" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <form autoComplete="off" className="patient-login-form" onSubmit={handleSubmit(submit)} noValidate>
         {mode === 'guardian' ? (
           <>
@@ -216,14 +239,40 @@ export function PatientSignupPage() {
                     <span>Preferred branch <b>*</b></span>
                     <div className="patient-login-input">
                       <i className="ph ph-buildings" />
-                      <select disabled={branchesLoading} {...register('child_preferred_branch_id')}>
-                        <option value="">{branchesLoading ? 'Loading branches…' : 'Select a branch'}</option>
+                      <select disabled={branchesLoading || branchesQuery.isError} {...register('child_preferred_branch_id')}>
+                        <option value="">
+                          {branchesLoading
+                            ? 'Loading branches…'
+                            : branchesQuery.isError
+                              ? 'Failed to load branches'
+                              : 'Select a branch'}
+                        </option>
                         {branches.map((branch) => (
                           <option key={branch.id} value={branch.id}>{branch.name}{branch.city ? ` · ${branch.city}` : ''}</option>
                         ))}
                       </select>
                     </div>
-                    {errors.child_preferred_branch_id ? <small className="portal-field-error">{errors.child_preferred_branch_id.message}</small> : null}
+                    {branchesQuery.isError ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
+                        <small className="portal-field-error">Could not load branches.</small>
+                        <button
+                          onClick={() => void branchesQuery.refetch()}
+                          style={{
+                            fontSize: '0.72rem',
+                            padding: '0.15rem 0.5rem',
+                            background: 'transparent',
+                            border: '1px solid var(--portal-border, #cbd5e1)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                          }}
+                          type="button"
+                        >
+                          <i className="ph ph-arrows-clockwise" /> Retry
+                        </button>
+                      </div>
+                    ) : errors.child_preferred_branch_id ? (
+                      <small className="portal-field-error">{errors.child_preferred_branch_id.message}</small>
+                    ) : null}
                   </label>
                 </div>
               </>
@@ -293,14 +342,39 @@ export function PatientSignupPage() {
               <input autoComplete="email" placeholder="Email address" type="email" {...register('email')} />
             </Field>
             <Field error={errors.preferred_branch_id?.message} icon="ph-buildings" label="Preferred branch">
-              <select disabled={branchesLoading} {...register('preferred_branch_id')}>
-                <option value="">{branchesLoading ? 'Loading branches…' : 'Select a branch'}</option>
+              <select disabled={branchesLoading || branchesQuery.isError} {...register('preferred_branch_id')}>
+                <option value="">
+                  {branchesLoading
+                    ? 'Loading branches…'
+                    : branchesQuery.isError
+                      ? 'Failed to load branches'
+                      : 'Select a branch'}
+                </option>
                 {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.name}{branch.city ? ` · ${branch.city}` : ''}
                   </option>
                 ))}
               </select>
+              {branchesQuery.isError ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
+                  <small className="portal-field-error">Could not load branches.</small>
+                  <button
+                    onClick={() => void branchesQuery.refetch()}
+                    style={{
+                      fontSize: '0.72rem',
+                      padding: '0.15rem 0.5rem',
+                      background: 'transparent',
+                      border: '1px solid var(--portal-border, #cbd5e1)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                    type="button"
+                  >
+                    <i className="ph ph-arrows-clockwise" /> Retry
+                  </button>
+                </div>
+              ) : null}
             </Field>
           </>
         )}

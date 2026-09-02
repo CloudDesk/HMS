@@ -36,54 +36,6 @@ const guardianProfileSchema = z.object({
   legal_consent_accepted: z.literal(true),
 });
 
-const registerSchema = z.object({
-  account_type: z.enum(['PATIENT', 'GUARDIAN']),
-  full_name: z.string().trim().min(2).max(160),
-  email: z.string().trim().email(),
-  phone: z.string().trim().min(7).max(20),
-  otp: z.string().regex(/^\d{4}$/),
-  guardian_profile: guardianProfileSchema.optional(),
-}).superRefine((value, context) => {
-  if (value.account_type === 'GUARDIAN' && !value.guardian_profile) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['guardian_profile'], message: 'Guardian details and consent are required' });
-  }
-});
-type RegisterBody = z.infer<typeof registerSchema>;
-
-const otpLoginSchema = z.object({
-  phone: z.string().trim().min(7).max(20),
-  otp: z.string().regex(/^\d{4}$/),
-});
-type OtpLoginBody = z.infer<typeof otpLoginSchema>;
-
-const guardianActivationSchema = otpLoginSchema.extend({
-  full_name: z.string().trim().min(2).max(160),
-  email: z.string().trim().email(),
-  relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']),
-  address: guardianProfileSchema.shape.address,
-  identification: guardianProfileSchema.shape.identification,
-  legal_consent_accepted: z.literal(true),
-});
-type GuardianActivationBody = z.infer<typeof guardianActivationSchema>;
-
-const existingPatientActivationSchema = otpLoginSchema.extend({
-  patient_number: z.string().trim().regex(/^HMS-\d{4}-\d{6}$/i),
-  date_of_birth: z.string().date(),
-  email: z.string().trim().email(),
-});
-type ExistingPatientActivationBody = z.infer<typeof existingPatientActivationSchema>;
-
-const requestOtpSchema = z.object({
-  phone: z.string().trim().min(7).max(20),
-});
-type RequestOtpBody = z.infer<typeof requestOtpSchema>;
-
-const verifyOtpSchema = z.object({
-  phone: z.string().trim().min(7).max(20),
-  otp: z.string().regex(/^\d{4}$/),
-});
-type VerifyOtpBody = z.infer<typeof verifyOtpSchema>;
-
 const patientProfileSchema = z.object({
   first_name: z.string().trim().min(1).max(100),
   last_name: z.string().trim().min(1).max(100),
@@ -106,6 +58,76 @@ const patientProfileSchema = z.object({
 });
 type PatientProfileBody = z.infer<typeof patientProfileSchema>;
 
+const dependentSchema = patientProfileSchema.extend({ relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']) });
+type DependentBody = z.infer<typeof dependentSchema>;
+
+const registerSchema = z.object({
+  account_type: z.enum(['PATIENT', 'GUARDIAN']),
+  full_name: z.string().trim().min(2).max(160),
+  email: z.string().trim().email(),
+  phone: z.string().trim().min(7).max(20),
+  registration_token: z.string().min(10).optional(),
+  otp: z.string().regex(/^\d{4}$/).optional(),
+  guardian_profile: guardianProfileSchema.optional(),
+  initial_dependent: dependentSchema.optional(),
+}).superRefine((value, context) => {
+  if (!value.registration_token && !value.otp) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['registration_token'], message: 'Verification is required' });
+  }
+  if (value.account_type === 'GUARDIAN' && !value.guardian_profile) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['guardian_profile'], message: 'Guardian details and consent are required' });
+  }
+});
+type RegisterBody = z.infer<typeof registerSchema>;
+
+const otpLoginSchema = z.object({
+  phone: z.string().trim().min(7).max(20),
+  otp: z.string().regex(/^\d{4}$/),
+});
+type OtpLoginBody = z.infer<typeof otpLoginSchema>;
+
+const guardianActivationSchema = z.object({
+  phone: z.string().trim().min(7).max(20),
+  registration_token: z.string().min(10).optional(),
+  otp: z.string().regex(/^\d{4}$/).optional(),
+  full_name: z.string().trim().min(2).max(160),
+  email: z.string().trim().email(),
+  relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']),
+  address: guardianProfileSchema.shape.address,
+  identification: guardianProfileSchema.shape.identification,
+  legal_consent_accepted: z.literal(true),
+}).superRefine((value, context) => {
+  if (!value.registration_token && !value.otp) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['registration_token'], message: 'Verification is required' });
+  }
+});
+type GuardianActivationBody = z.infer<typeof guardianActivationSchema>;
+
+const existingPatientActivationSchema = z.object({
+  phone: z.string().trim().min(7).max(20),
+  registration_token: z.string().min(10).optional(),
+  otp: z.string().regex(/^\d{4}$/).optional(),
+  patient_number: z.string().trim().regex(/^HMS-\d{4}-\d{6}$/i),
+  date_of_birth: z.string().date(),
+  email: z.string().trim().email(),
+}).superRefine((value, context) => {
+  if (!value.registration_token && !value.otp) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['registration_token'], message: 'Verification is required' });
+  }
+});
+type ExistingPatientActivationBody = z.infer<typeof existingPatientActivationSchema>;
+
+const requestOtpSchema = z.object({
+  phone: z.string().trim().min(7).max(20),
+});
+type RequestOtpBody = z.infer<typeof requestOtpSchema>;
+
+const verifyOtpSchema = z.object({
+  phone: z.string().trim().min(7).max(20),
+  otp: z.string().regex(/^\d{4}$/),
+});
+type VerifyOtpBody = z.infer<typeof verifyOtpSchema>;
+
 const updatePatientProfileSchema = patientProfileSchema.extend({
   middle_name: z.string().trim().max(100).nullable().optional(),
   email: z.string().trim().email().nullable().optional(),
@@ -125,9 +147,6 @@ const updateGuardianProfileSchema = z.object({
   identification: guardianProfileSchema.shape.identification.optional(),
 });
 type UpdateGuardianProfileBody = z.infer<typeof updateGuardianProfileSchema>;
-
-const dependentSchema = patientProfileSchema.extend({ relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']) });
-type DependentBody = z.infer<typeof dependentSchema>;
 
 const linkDependentSchema = z.object({
   patient_number: z.string().trim().regex(/^HMS-\d{4}-\d{6}$/i),
@@ -255,18 +274,27 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
   }, async (request) => {
     const parsed = verifyOtpSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid mobile number and 4-digit code', 400, 'VALIDATION_ERROR');
-    await services.patientPortal.verifyOtp(parsed.data.phone, parsed.data.otp, metadataFromRequest(request));
-    return ok({ success: true });
+    const result = await services.patientPortal.verifyOtp(
+      parsed.data.phone,
+      parsed.data.otp,
+      metadataFromRequest(request),
+    );
+    return ok({ success: true, registrationToken: result.registrationToken });
   });
 
   app.post<{ Body: RegisterBody }>('/api/patient-portal/signup', async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Invalid portal registration details', 400, 'VALIDATION_ERROR');
-    const verification = await services.patientPortal.verifyAndConsumeOtp(
-      parsed.data.phone,
-      parsed.data.otp,
-      metadataFromRequest(request),
-    );
+    const verification = parsed.data.registration_token
+      ? await services.patientPortal.verifyAndConsumeRegistrationToken(
+          parsed.data.phone,
+          parsed.data.registration_token,
+        )
+      : await services.patientPortal.verifyAndConsumeOtp(
+          parsed.data.phone,
+          parsed.data.otp!,
+          metadataFromRequest(request),
+        );
     const account = await services.patientPortal.register({
       accountType: parsed.data.account_type,
       fullName: parsed.data.full_name,
@@ -278,14 +306,26 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
         address: parsed.data.guardian_profile.address ? { ...parsed.data.guardian_profile.address, postalCode: parsed.data.guardian_profile.address.postal_code } : undefined,
         identification: parsed.data.guardian_profile.identification,
       } : undefined,
+      initialDependent: parsed.data.initial_dependent ? {
+        firstName: parsed.data.initial_dependent.first_name,
+        lastName: parsed.data.initial_dependent.last_name,
+        dateOfBirth: parsed.data.initial_dependent.date_of_birth,
+        gender: parsed.data.initial_dependent.gender,
+        preferredBranchId: parsed.data.initial_dependent.preferred_branch_id,
+        bloodGroup: parsed.data.initial_dependent.blood_group,
+        address: parsed.data.initial_dependent.address ? {
+          ...parsed.data.initial_dependent.address,
+          postalCode: parsed.data.initial_dependent.address.postal_code,
+        } : undefined,
+        relationship: parsed.data.initial_dependent.relationship,
+      } : undefined,
     }, metadataFromRequest(request));
     const session = await services.auth.loginPatientAfterOtpVerification(
       parsed.data.phone,
       verification,
       metadataFromRequest(request),
     );
-    setRefreshSessionCookie(reply, session.tokens.refreshToken);
-    return reply.status(201).send(ok(account));
+    return reply.status(201).send(ok({ account, ...establishRefreshSession(reply, session) }));
   });
 
   app.post<{ Body: OtpLoginBody }>('/api/patient-portal/login/otp', {
@@ -294,14 +334,24 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     const parsed = otpLoginSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid mobile number and 4-digit code', 400, 'VALIDATION_ERROR');
     
-    await services.patientPortal.assertOtpValidForPendingFlow(parsed.data.phone, parsed.data.otp, metadataFromRequest(request));
+    await services.patientPortal.assertOtpValidForPendingFlow(
+      parsed.data.phone,
+      parsed.data.otp,
+      metadataFromRequest(request),
+    );
 
     const status = await services.patientPortal.getUnlinkedPatientLoginStatus(parsed.data.phone);
     if (status === 'MINOR_REQUIRES_GUARDIAN') {
+      const { registrationToken } = await services.patientPortal.verifyOtp(
+        parsed.data.phone,
+        parsed.data.otp,
+        metadataFromRequest(request),
+      );
       throw new AppError(
         'This patient is a minor. A parent or guardian account must be linked before signing in.',
         409,
         'MINOR_GUARDIAN_ACCOUNT_REQUIRED',
+        { registrationToken },
       );
     }
     if (status === 'MULTIPLE_PATIENT_MATCHES') {
@@ -312,12 +362,23 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       );
     }
     if (status === 'NEW_PATIENT_REQUIRES_REGISTRATION') {
-      throw new AppError('No portal account or patient record matches this number. Register as a new patient first.', 409, 'NEW_PATIENT_REQUIRES_REGISTRATION');
+      const { registrationToken } = await services.patientPortal.verifyOtp(
+        parsed.data.phone,
+        parsed.data.otp,
+        metadataFromRequest(request),
+      );
+      throw new AppError(
+        'No portal account or patient record matches this number. Register as a new patient first.',
+        409,
+        'NEW_PATIENT_REQUIRES_REGISTRATION',
+        { registrationToken },
+      );
     }
 
     const verification = await services.patientPortal.verifyAndConsumeOtp(
       parsed.data.phone,
       parsed.data.otp,
+      metadataFromRequest(request),
     );
     if (status === 'ACCOUNT_NOT_LINKED') {
       await services.patientPortal.activateExistingPatientByPhone(parsed.data.phone, metadataFromRequest(request));
@@ -334,11 +395,16 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
   app.post<{ Body: ExistingPatientActivationBody }>('/api/patient-portal/existing-patient/activate', async (request, reply) => {
     const parsed = existingPatientActivationSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter a valid MRN, registered mobile number, date of birth, email and code', 400, 'VALIDATION_ERROR');
-    const verification = await services.patientPortal.verifyAndConsumeOtp(
-      parsed.data.phone,
-      parsed.data.otp,
-      metadataFromRequest(request),
-    );
+    const verification = parsed.data.registration_token
+      ? await services.patientPortal.verifyAndConsumeRegistrationToken(
+          parsed.data.phone,
+          parsed.data.registration_token,
+        )
+      : await services.patientPortal.verifyAndConsumeOtp(
+          parsed.data.phone,
+          parsed.data.otp!,
+          metadataFromRequest(request),
+        );
     const result = await services.patientPortal.activateExistingPatient({
       patientNumber: parsed.data.patient_number, phone: parsed.data.phone,
       dateOfBirth: parsed.data.date_of_birth, email: parsed.data.email,
@@ -355,7 +421,16 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
   app.post<{ Body: GuardianActivationBody }>('/api/patient-portal/guardian-activation', async (request, reply) => {
     const parsed = guardianActivationSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Enter valid parent or guardian details', 400, 'VALIDATION_ERROR');
-    const verification = await services.patientPortal.verifyAndConsumeOtp(parsed.data.phone, parsed.data.otp, metadataFromRequest(request));
+    const verification = parsed.data.registration_token
+      ? await services.patientPortal.verifyAndConsumeRegistrationToken(
+          parsed.data.phone,
+          parsed.data.registration_token,
+        )
+      : await services.patientPortal.verifyAndConsumeOtp(
+          parsed.data.phone,
+          parsed.data.otp!,
+          metadataFromRequest(request),
+        );
     await services.patientPortal.activateGuardianForMinor({
       fullName: parsed.data.full_name,
       email: parsed.data.email,

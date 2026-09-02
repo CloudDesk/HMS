@@ -1,10 +1,11 @@
-import { createHash, createHmac, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { SmsService } from '../../shared/services/sms.service.js';
 import type { RequestMetadata } from '../users/user.types.js';
 import { AuthRateLimitRepository } from '../auth/auth-rate-limit.repository.js';
 import { PatientOtpRepository } from './patient-otp.repository.js';
+import { RegistrationTokenModel } from './registration-token.model.js';
 
 const verificationBrand = Symbol('patient-otp-verification');
 
@@ -122,6 +123,46 @@ export class PatientOtpService {
     await this.enforceVerificationLimits(normalizedPhone, metadata, this.now());
     if (this.isDemoOtp(otp)) return;
     await this.assertChallengeValid(normalizedPhone, otp, this.now());
+  }
+
+  async verifyAndIssueRegistrationToken(
+    phone: string,
+    otp: string,
+    metadata?: RequestMetadata,
+  ) {
+    const verification = await this.verifyAndConsume(phone, otp, metadata);
+    const token = randomBytes(32).toString('hex');
+    await RegistrationTokenModel.create({
+      phone: verification.phone,
+      tokenHash: createHash('sha256').update(token).digest('hex'),
+      mode: 'any',
+      expiresAt: new Date(this.now().getTime() + 15 * 60 * 1000),
+      consumedAt: null,
+    });
+    return { registrationToken: token };
+  }
+
+  async consumeRegistrationToken(phone: string, token: string): Promise<PatientOtpVerification> {
+    const normalizedPhone = normalizePatientOtpIdentity(phone);
+    const now = this.now();
+    const registrationToken = await RegistrationTokenModel.findOneAndUpdate(
+      {
+        phone: normalizedPhone,
+        tokenHash: createHash('sha256').update(token).digest('hex'),
+        consumedAt: null,
+        expiresAt: { $gt: now },
+      },
+      { $set: { consumedAt: now } },
+      { new: true },
+    );
+    if (!registrationToken) {
+      throw new AppError(
+        'The registration session is invalid or has expired. Please verify your mobile number again.',
+        401,
+        'INVALID_REGISTRATION_TOKEN',
+      );
+    }
+    return this.verification(normalizedPhone, `registration:${registrationToken.id}`);
   }
 
   private async assertChallengeValid(normalizedPhone: string, otp: string, now: Date) {

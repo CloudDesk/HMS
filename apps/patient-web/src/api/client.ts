@@ -1,18 +1,20 @@
+import type { z } from 'zod';
 import { tokenStorage } from '../auth/token-storage';
 import { appConfig } from '../config';
 import { ApiError } from './api-error';
 
-type Options = Omit<RequestInit, 'body'> & {
+export type Options<T = unknown> = Omit<RequestInit, 'body'> & {
   auth?: boolean;
   retryOnUnauthorized?: boolean;
   body?: unknown;
+  schema?: z.ZodType<T>;
 };
 type RefreshHandler = () => Promise<string | null>;
 let refreshHandler: RefreshHandler | null = null;
 let unauthorizedHandler: (() => void) | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
-const requestOnce = async <T>(path: string, options: Options) => {
+const requestOnce = async <T>(path: string, options: Options<T>) => {
   const headers = new Headers(options.headers);
   if (options.body !== undefined && !(options.body instanceof FormData))
     headers.set('content-type', 'application/json');
@@ -21,6 +23,7 @@ const requestOnce = async <T>(path: string, options: Options) => {
   const response = await fetch(
     `${appConfig.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
     {
+      credentials: 'include',
       ...options,
       credentials: options.credentials ?? 'include',
       headers,
@@ -33,15 +36,30 @@ const requestOnce = async <T>(path: string, options: Options) => {
     },
   );
   const payload = response.headers.get('content-type')?.includes('application/json')
-    ? ((await response.json()) as { data?: T; error?: { message?: string; code?: string } })
+    ? ((await response.json()) as { data?: unknown; error?: { message?: string; code?: string; details?: unknown } })
     : null;
   if (!response.ok)
     throw new ApiError(
       payload?.error?.message ?? response.statusText ?? 'Request failed',
       response.status,
       payload?.error?.code,
+      payload?.error?.details,
     );
-  return (payload?.data ?? payload) as T;
+
+  const rawData = payload?.data !== undefined ? payload.data : payload;
+  if (options.schema) {
+    const parseResult = options.schema.safeParse(rawData);
+    if (!parseResult.success) {
+      throw new ApiError(
+        'Response contract validation failed',
+        response.status,
+        'SCHEMA_VALIDATION_ERROR',
+        parseResult.error.format(),
+      );
+    }
+    return parseResult.data;
+  }
+  return rawData as T;
 };
 
 const downloadOnce = async (path: string, options: Options) => {
@@ -51,6 +69,7 @@ const downloadOnce = async (path: string, options: Options) => {
   const response = await fetch(
     `${appConfig.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
     {
+      credentials: 'include',
       ...options,
       credentials: options.credentials ?? 'include',
       headers,
@@ -64,12 +83,13 @@ const downloadOnce = async (path: string, options: Options) => {
   );
   if (!response.ok) {
     const payload = response.headers.get('content-type')?.includes('application/json')
-      ? ((await response.json()) as { error?: { message?: string; code?: string } })
+      ? ((await response.json()) as { error?: { message?: string; code?: string; details?: unknown } })
       : null;
     throw new ApiError(
       payload?.error?.message ?? response.statusText ?? 'Download failed',
       response.status,
       payload?.error?.code,
+      payload?.error?.details,
     );
   }
   const disposition = response.headers.get('content-disposition');
@@ -86,12 +106,16 @@ export const apiClient = {
   setUnauthorizedHandler(handler: (() => void) | null) {
     unauthorizedHandler = handler;
   },
-  async request<T>(path: string, options: Options = {}) {
+  async request<T>(path: string, options: Options<T> = {}) {
     if (options.auth !== false && tokenStorage.isAccessTokenExpired() && refreshHandler) {
       refreshPromise ??= refreshHandler().finally(() => {
         refreshPromise = null;
       });
-      await refreshPromise;
+      const token = await refreshPromise;
+      if (!token) {
+        unauthorizedHandler?.();
+        throw new ApiError('Session expired. Please sign in again.', 401, 'SESSION_EXPIRED');
+      }
     }
     try {
       return await requestOnce<T>(path, options);
@@ -120,7 +144,11 @@ export const apiClient = {
       refreshPromise ??= refreshHandler().finally(() => {
         refreshPromise = null;
       });
-      await refreshPromise;
+      const token = await refreshPromise;
+      if (!token) {
+        unauthorizedHandler?.();
+        throw new ApiError('Session expired. Please sign in again.', 401, 'SESSION_EXPIRED');
+      }
     }
     try {
       return await downloadOnce(path, options);
