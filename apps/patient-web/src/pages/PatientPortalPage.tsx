@@ -63,8 +63,9 @@ export function PatientPortalPage() {
         <span>This may take a moment.</span>
       </main>
     );
+  }
 
-  if (contextQuery.isError || !contextQuery.data)
+  if (contextQuery.isError || !contextQuery.data) {
     return (
       <main className="patient-portal-state patient-portal-state--error">
         <i className="ph ph-warning-circle" />
@@ -155,7 +156,7 @@ export function PatientPortalPage() {
     );
   }
 
-  if (overviewQuery.isLoading || !selectedPatientId)
+  if (overviewQuery.isLoading || !selectedPatientId) {
     return (
       <main className="patient-portal-state">
         <div className="portal-spinner" />
@@ -163,8 +164,9 @@ export function PatientPortalPage() {
         <span>This may take a moment.</span>
       </main>
     );
+  }
 
-  if (overviewQuery.isError || !overviewQuery.data)
+  if (overviewQuery.isError || !overviewQuery.data) {
     return (
       <main className="patient-portal-state patient-portal-state--error">
         <i className="ph ph-warning-circle" />
@@ -180,6 +182,17 @@ export function PatientPortalPage() {
   const data = overviewQuery.data;
   const hasSelfProfile = portalContext.patients.some((item) => item.relationship === 'SELF');
   const patient = data.patient;
+  const upcomingAppointments = [...data.appointments]
+    .filter(
+      (item) =>
+        new Date(item.appointment_date).getTime() >= new Date().setHours(0, 0, 0, 0) &&
+        !['CANCELLED', 'COMPLETED', 'NO_SHOW'].includes(item.status),
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime(),
+    )
+    .slice(0, 3);
   const initials = `${patient.first_name[0] ?? ''}${patient.last_name[0] ?? ''}`.toUpperCase();
   const selectedPatientContext = portalContext.patients.find(
     (item) => item.id === selectedPatientId,
