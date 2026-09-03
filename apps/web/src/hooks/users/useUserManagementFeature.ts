@@ -231,7 +231,7 @@ export function useUserManagementFeature() {
       summary: usersSummaryQuery.data ?? { total: 0, active: 0, inactive: 0, locked: 0, addedThisMonth: 0 },
       roleOptions: (rolesQuery.data?.items ?? []).filter((role) => role.status === 'active'),
       branchOptions: branchesQuery.data?.data ?? [],
-      departmentOptions: (departmentsQuery.data?.data ?? []).filter((dept) => !dept.isClinical),
+      departmentOptions: departmentsQuery.data?.data ?? [],
       passwordPolicy: passwordPolicyQuery.data ?? null,
     },
     status: {

@@ -11,7 +11,11 @@ import {
   setRefreshSessionCookie,
 } from '../auth/auth-session-cookie.js';
 import {
+  patientPortalAppointmentsResponseSchema,
   patientPortalContextResponseSchema,
+  patientPortalDocumentsResponseSchema,
+  patientPortalInvoiceDetailResponseSchema,
+  patientPortalOverviewResponseSchema,
   patientPortalSessionResponseSchema,
   patientOtpRequestResponseSchema,
   patientOtpVerifyResponseSchema,
@@ -379,12 +383,21 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
   }, async (request) =>
     ok(await services.patientPortal.context(request.user!.id)));
 
-  app.get<{ Querystring: { patient_id?: string } }>('/api/patient-portal/overview', { preHandler: authenticate(services) }, async (request) =>
-    ok(await services.patientPortal.overview(request.user!.id, request.query.patient_id)));
+  app.get<{ Querystring: { patient_id?: string } }>(
+    '/api/patient-portal/overview',
+    {
+      preHandler: authenticate(services),
+      schema: { response: { 200: patientPortalOverviewResponseSchema } },
+    },
+    async (request) => ok(await services.patientPortal.overview(request.user!.id, request.query.patient_id)),
+  );
 
   app.get<{ Params: { patientId: string; invoiceId: string } }>(
     '/api/patient-portal/patients/:patientId/invoices/:invoiceId',
-    { preHandler: authenticate(services) },
+    {
+      preHandler: authenticate(services),
+      schema: { response: { 200: patientPortalInvoiceDetailResponseSchema } },
+    },
     async (request) => ok(await services.patientPortal.invoice(
       request.user!.id,
       request.params.patientId,
@@ -392,10 +405,17 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     )),
   );
 
-  app.get<{ Querystring: PortalDocumentsQuery }>('/api/patient-portal/documents', { preHandler: authenticate(services) }, async (request) => {
-    const query = portalDocumentsQuerySchema.parse(request.query);
-    return ok(await services.patientPortal.listDocuments(request.user!.id, query.patient_id, query.page, query.limit));
-  });
+  app.get<{ Querystring: PortalDocumentsQuery }>(
+    '/api/patient-portal/documents',
+    {
+      preHandler: authenticate(services),
+      schema: { response: { 200: patientPortalDocumentsResponseSchema } },
+    },
+    async (request) => {
+      const query = portalDocumentsQuerySchema.parse(request.query);
+      return ok(await services.patientPortal.listDocuments(request.user!.id, query.patient_id, query.page, query.limit));
+    },
+  );
 
   app.post('/api/patient-portal/documents/upload', { preHandler: authenticate(services) }, async (request, reply) => {
     const file = await request.file();
@@ -507,9 +527,15 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     return reply.status(201).send(ok(result));
   });
 
-  app.get<{ Querystring: PortalAppointmentsQuery }>('/api/patient-portal/appointments', { preHandler: authenticate(services) }, async (request) => {
-    const query = portalAppointmentsQuerySchema.parse(request.query);
-    return ok(await services.patientPortal.listAppointments(request.user!.id, query.patient_id, {
+  app.get<{ Querystring: PortalAppointmentsQuery }>(
+    '/api/patient-portal/appointments',
+    {
+      preHandler: authenticate(services),
+      schema: { response: { 200: patientPortalAppointmentsResponseSchema } },
+    },
+    async (request) => {
+      const query = portalAppointmentsQuerySchema.parse(request.query);
+      return ok(await services.patientPortal.listAppointments(request.user!.id, query.patient_id, {
       scope: query.scope,
       status: query.status,
       page: query.page,

@@ -19,7 +19,7 @@ type InpatientPatientDetailModalProps = {
   setActiveTab: (tab: WorkspaceTab) => void;
   calculateLOS: (dateStr?: string | null) => string;
   loading: Record<string, boolean | undefined>;
-  errors: Record<string, any>;
+  errors: Record<string, unknown>;
   recommendations: ProcedureRecommendation[];
   bookings: ProcedureBooking[];
   roundNotes: InpatientRoundNote[];
@@ -631,7 +631,6 @@ function DischargePlanningTab({
 
   const activeInvoices = (billingData?.data ?? []).filter((inv) => inv.status !== 'CANCELLED');
   const totalBilled = activeInvoices.reduce((acc, inv) => acc + inv.total_amount, 0);
-  const totalPaid = activeInvoices.reduce((acc, inv) => acc + inv.paid_amount, 0);
   const totalBalance = activeInvoices.reduce((acc, inv) => acc + inv.balance_amount, 0);
   const isFinanciallyCleared = activeInvoices.length > 0 ? totalBalance <= 0 : true;
 
@@ -650,8 +649,8 @@ function DischargePlanningTab({
         });
       }
       toast.success('Discharge readiness checklist and summary saved');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save discharge summary');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save discharge summary');
     } finally {
       setIsSaving(false);
     }
@@ -663,8 +662,8 @@ function DischargePlanningTab({
         await onFinalizeDischarge();
       }
       toast.success('Patient discharged successfully. Bed released.');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to finalize patient discharge');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to finalize patient discharge');
     }
   };
 

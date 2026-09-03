@@ -87,3 +87,79 @@ export const replaceRolePermissionsBodySchema = {
     },
   },
 } as const;
+
+export const permissionResponseDataSchema = {
+  type: 'object',
+  required: ['id', 'code', 'name', 'module', 'screen', 'action', 'type', 'status'],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    code: { type: 'string' },
+    name: { type: 'string' },
+    module: { type: 'string' },
+    screen: { type: 'string' },
+    action: { type: 'string' },
+    description: { type: ['string', 'null'] },
+    type: { type: 'string', enum: ['system', 'custom'] },
+    status: { type: 'string', enum: ['active', 'inactive'] },
+    categoryId: { type: ['string', 'null'] },
+    categoryCode: { type: ['string', 'null'] },
+    categoryName: { type: ['string', 'null'] },
+    groupId: { type: ['string', 'null'] },
+    groupCode: { type: ['string', 'null'] },
+    groupName: { type: ['string', 'null'] },
+    roleCount: { type: 'integer' },
+    createdAt: { type: 'string' },
+    updatedAt: { type: 'string' },
+    deletedAt: { type: ['string', 'null'] },
+    createdBy: { type: ['string', 'null'] },
+    updatedBy: { type: ['string', 'null'] },
+    deletedBy: { type: ['string', 'null'] },
+    audit: {
+      type: 'object',
+      properties: {
+        createdAt: { type: 'string' },
+        updatedAt: { type: 'string' },
+        createdBy: { type: ['string', 'null'] },
+        updatedBy: { type: ['string', 'null'] },
+      },
+    },
+  },
+} as const;
+
+export const permissionResponseSchema = {
+  type: 'object',
+  required: ['data'],
+  additionalProperties: false,
+  properties: {
+    data: permissionResponseDataSchema,
+  },
+} as const;
+
+export const permissionListResponseSchema = {
+  type: 'object',
+  required: ['data'],
+  additionalProperties: false,
+  properties: {
+    data: {
+      type: 'object',
+      required: ['items', 'meta'],
+      additionalProperties: false,
+      properties: {
+        items: { type: 'array', items: permissionResponseDataSchema },
+        meta: {
+          type: 'object',
+          required: ['page', 'limit', 'total', 'totalPages'],
+          additionalProperties: false,
+          properties: {
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            total: { type: 'integer' },
+            totalPages: { type: 'integer' },
+          },
+        },
+      },
+    },
+  },
+} as const;
+

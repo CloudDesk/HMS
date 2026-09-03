@@ -60,6 +60,9 @@ export class AdministrationDashboardRepository {
     );
 
     if (branchId) {
+      if (!Types.ObjectId.isValid(branchId)) {
+        throw new AppError('Invalid branch ID format', 400, 'INVALID_BRANCH_ID');
+      }
       const branchExists = Boolean(await BranchModel.exists({ _id: new Types.ObjectId(branchId), status: 'ACTIVE', deletedAt: null }));
       if (!branchExists) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
       const assigned = (user.branchIds ?? []).some((id) => id.toString() === branchId);

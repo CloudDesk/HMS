@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { ClientSession } from 'mongoose';
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AppointmentService } from '../appointments/appointment.service.js';
@@ -248,6 +249,33 @@ export class PatientPortalService {
     return this.repository.getUnlinkedPatientLoginStatus(phone);
   }
 
+  private async executePortalTransaction<T>(
+    callback: (session?: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.repository.session();
+    try {
+      let result: T | undefined;
+      try {
+        await session.withTransaction(async () => {
+          result = await callback(session);
+        });
+        return result!;
+      } catch (err: unknown) {
+        if (
+          err instanceof Error &&
+          (err.message.includes('Transaction numbers are only allowed') ||
+           err.message.includes('retryable writes') ||
+           err.message.includes('standalone'))
+        ) {
+          return await callback(undefined);
+        }
+        throw err;
+      }
+    } finally {
+      await session.endSession().catch(() => {});
+    }
+  }
+
   async activateExistingPatientByPhone(phone: string, metadata: RequestMetadata) {
     const patient = await this.repository.getUniqueUnlinkedAdultPatientByPhone(phone);
     if (!patient) {
@@ -264,7 +292,10 @@ export class PatientPortalService {
       phone,
       password: `Aa1!${randomBytes(32).toString('base64url')}`,
     }, metadata);
-    await this.repository.linkPortalAccountToPatient(account.id, patient.id);
+
+    await this.executePortalTransaction(async (session) => {
+      await this.repository.linkPortalAccountToPatient(account.id, patient.id, session);
+    });
     return { account, patientId: patient.id, patientNumber: patient.patientNumber };
   }
 
@@ -285,12 +316,15 @@ export class PatientPortalService {
       phone: input.phone,
       password: `Aa1!${randomBytes(32).toString('base64url')}`,
     }, metadata);
-    await this.repository.upsertGuardianProfile(account.id, {
-      fullName: input.fullName, email: input.email, phone: input.phone, relationship: input.relationship,
-      address: input.address, identification: input.identification, legalConsentAccepted: input.legalConsentAccepted,
+
+    await this.executePortalTransaction(async (session) => {
+      await this.repository.upsertGuardianProfile(account.id, {
+        fullName: input.fullName, email: input.email, phone: input.phone, relationship: input.relationship,
+        address: input.address, identification: input.identification, legalConsentAccepted: input.legalConsentAccepted,
+      }, session);
+      await this.repository.ensureAccessGrant(account.id, child.id, input.relationship, session);
+      await this.repository.auditGuardianLink(account.id, child.id, input.relationship, session);
     });
-    await this.repository.ensureAccessGrant(account.id, child.id, input.relationship);
-    await this.repository.auditGuardianLink(account.id, child.id, input.relationship);
     return { account, child };
   }
 
@@ -301,24 +335,32 @@ export class PatientPortalService {
       throw new AppError('Parent or guardian full name is required for patients under 15.', 400, 'GUARDIAN_DETAILS_REQUIRED');
     }
     await this.requireActiveBranch(input.preferredBranchId);
-    const existingPatientId = await this.repository.linkExistingSelfPatient({
-      userId,
-      ...input,
-      email: context.account.email,
-      phone: context.account.phone,
+
+    const result = await this.executePortalTransaction(async (session) => {
+      const existingPatientId = await this.repository.linkExistingSelfPatient({
+        userId,
+        ...input,
+        email: context.account.email,
+        phone: context.account.phone,
+      }, session);
+      if (existingPatientId) {
+        return { patientId: existingPatientId };
+      }
+      const patientId = await this.repository.createPortalPatient({
+        userId,
+        ...input,
+        email: context.account.email,
+        phone: context.account.phone,
+        relationship: isMinor(input.dateOfBirth)
+          ? (input.emergencyContact?.relationship as PatientAccessRelationship || 'PARENT')
+          : 'SELF',
+      }, session);
+      if (!patientId) throw new AppError('A possible existing patient record was found. Contact hospital staff to link it safely.', 409, 'DUPLICATE_PATIENT');
+      return { patientId };
     });
-    if (existingPatientId) return { patientId: existingPatientId };
-    const patientId = await this.repository.createPortalPatient({
-      userId,
-      ...input,
-      email: context.account.email,
-      phone: context.account.phone,
-      relationship: isMinor(input.dateOfBirth)
-        ? (input.emergencyContact?.relationship as PatientAccessRelationship || 'PARENT')
-        : 'SELF',
-    });
-    if (!patientId) throw new AppError('A possible existing patient record was found. Contact hospital staff to link it safely.', 409, 'DUPLICATE_PATIENT');
-    return { patientId };
+
+    if (!result) throw new AppError('Failed to complete patient profile', 500, 'INTERNAL_SERVER_ERROR');
+    return result;
   }
 
   async addDependent(
@@ -328,13 +370,19 @@ export class PatientPortalService {
     const context = await this.context(userId);
     if (context.account.type !== 'GUARDIAN') throw new AppError('A guardian account is required to add a dependent', 403, 'GUARDIAN_ACCOUNT_REQUIRED');
     await this.requireActiveBranch(input.preferredBranchId);
-    const patientId = await this.repository.createPortalPatient({
-      userId,
-      ...input,
-      relationship: input.relationship,
+
+    const result = await this.executePortalTransaction(async (session) => {
+      const patientId = await this.repository.createPortalPatient({
+        userId,
+        ...input,
+        relationship: input.relationship,
+      }, session);
+      if (!patientId) throw new AppError('A possible existing patient record was found. Hospital staff must verify and link that patient.', 409, 'DUPLICATE_PATIENT');
+      return { patientId };
     });
-    if (!patientId) throw new AppError('A possible existing patient record was found. Hospital staff must verify and link that patient.', 409, 'DUPLICATE_PATIENT');
-    return { patientId };
+
+    if (!result) throw new AppError('Failed to add dependent', 500, 'INTERNAL_SERVER_ERROR');
+    return result;
   }
 
   async linkExistingDependent(
@@ -346,8 +394,11 @@ export class PatientPortalService {
     if (!input.legalConsentAccepted) throw new AppError('Guardian confirmation and consent are required', 400, 'GUARDIAN_CONSENT_REQUIRED');
     const patient = await this.repository.findPatientToLinkAsDependent(input);
     if (!patient) throw new AppError('MRN and date of birth do not match an active patient record', 404, 'PATIENT_IDENTITY_NOT_MATCHED');
-    await this.repository.ensureAccessGrant(userId, String(patient._id), input.relationship);
-    await this.repository.auditGuardianLink(userId, String(patient._id), input.relationship);
+
+    await this.executePortalTransaction(async (session) => {
+      await this.repository.ensureAccessGrant(userId, String(patient._id), input.relationship, session);
+      await this.repository.auditGuardianLink(userId, String(patient._id), input.relationship, session);
+    });
     return { patientId: String(patient._id), patientNumber: input.patientNumber.trim().toUpperCase() };
   }
 
@@ -421,7 +472,7 @@ export class PatientPortalService {
   }
 
   async verifyOtp(phone: string, otp: string, metadata?: RequestMetadata) {
-    return this.otp.verifyAndConsume(phone, otp, metadata);
+    return this.otp.assertValidForPendingFlow(phone, otp, metadata);
   }
 
   async verifyAndConsumeOtp(phone: string, otp: string, metadata?: RequestMetadata) {

@@ -424,7 +424,7 @@ export function NewProcedureRecommendationModal({
                 }}
               >
                 <option value="">Select Department</option>
-                {departments
+                {(departments ?? [])
                   .filter((item) => item.isClinical === true)
                   .map((item) => (
                     <option value={item.id} key={item.id}>

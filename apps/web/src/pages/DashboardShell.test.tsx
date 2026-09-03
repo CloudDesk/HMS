@@ -3,6 +3,7 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AuthPermission, AuthUser } from '../auth/auth-types';
 
 const testState = vi.hoisted(() => ({
@@ -10,13 +11,19 @@ const testState = vi.hoisted(() => ({
   navigate: vi.fn(),
   executiveHook: vi.fn(() => ({
     data: {
-      activeDoctors: 0,
-      appointmentsToday: 0,
-      billedTotal: 0,
-      collectedTotal: 0,
-      opdVisitsToday: 0,
+      kpis: {
+        activeDoctors: 0,
+        todayAppointments: 0,
+        todayBilledRevenue: 0,
+        todayOpdVisits: 0,
+        registeredPatients: 0,
+      },
+      operationalMetrics: {
+        patientsWaiting: 0,
+        patientsInConsultation: 0,
+        completedConsultationsToday: 0,
+      },
       recentVisits: [],
-      registeredPatients: 0,
       trend: [],
     },
     isLoading: false,
@@ -81,7 +88,29 @@ describe('permission-driven dashboard shell', () => {
   beforeEach(() => {
     testState.search = '';
     testState.navigate.mockReset();
-    testState.executiveHook.mockClear();
+    testState.executiveHook.mockImplementation(() => ({
+      data: {
+        kpis: {
+          activeDoctors: 0,
+          todayAppointments: 0,
+          todayBilledRevenue: 0,
+          todayOpdVisits: 0,
+          registeredPatients: 0,
+        },
+        operationalMetrics: {
+          patientsWaiting: 0,
+          patientsInConsultation: 0,
+          completedConsultationsToday: 0,
+        },
+        recentVisits: [],
+        trend: [],
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      canViewExecutive: true,
+      refresh: vi.fn(),
+    }));
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -93,7 +122,9 @@ describe('permission-driven dashboard shell', () => {
   });
 
   const render = async (children: ReactNode = <DashboardShell />) => {
-    await act(async () => root.render(children));
+    testState.executiveHook.mockClear();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => root.render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>));
   };
 
   it('preserves the six-tab Super Admin executive dashboard', async () => {

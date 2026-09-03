@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import type { ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { Appointment } from '../appointments/appointment.types.js';
@@ -229,40 +230,54 @@ export class OpdVisitService {
 
     await this.ensureNoActiveVisit(appointment.patient_id);
     const sequence = await this.sequenceService.getNextSequence('opd_visit');
-    const visit = await this.repository.create(
-      {
-        appointmentId: appointment.id,
-        visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
-        queueTokenNumber: sequence + 1,
-        patientId: appointment.patient_id,
-        patientNumber: appointment.patient_number,
-        patientName: appointment.patient_name,
-        doctorId: appointment.doctor_id,
-        doctorName: appointment.doctor_name,
-        doctorSpecialization: appointment.doctor_specialization,
-        branchId: appointment.branch_id,
-        departmentId: appointment.department_id,
-        visitDate: todayUtc(),
-        checkInTime: new Date(),
-        visit_type: appointmentVisitType(appointment),
-        priority: data.priority ?? appointment.priority,
-        reason: data.reason ?? appointment.reason,
-        notes: data.notes,
-      },
-      userId,
-    );
+    const session = await this.repository.session();
+    let visit: OpdVisit | undefined;
+    try {
+      await session.withTransaction(async () => {
+        visit = await this.repository.create(
+          {
+            appointmentId: appointment.id,
+            visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
+            queueTokenNumber: sequence + 1,
+            patientId: appointment.patient_id,
+            patientNumber: appointment.patient_number,
+            patientName: appointment.patient_name,
+            doctorId: appointment.doctor_id,
+            doctorName: appointment.doctor_name,
+            doctorSpecialization: appointment.doctor_specialization,
+            branchId: appointment.branch_id,
+            departmentId: appointment.department_id,
+            visitDate: todayUtc(),
+            checkInTime: new Date(),
+            visit_type: appointmentVisitType(appointment),
+            priority: data.priority ?? appointment.priority,
+            reason: data.reason ?? appointment.reason,
+            notes: data.notes,
+          },
+          userId,
+          session,
+        );
 
-    const checkedInAppointment = await this.appointmentRepository.updateStatus(
-      appointment.id,
-      { status: 'CHECKED_IN', notes: data.notes },
-      userId,
-      scope,
-    );
-    if (checkedInAppointment && appointment.status !== checkedInAppointment.status) {
-      await this.appointmentRepository.auditStatusTransition(checkedInAppointment, appointment.status, userId);
+        const checkedInAppointment = await this.appointmentRepository.updateStatus(
+          appointment.id,
+          { status: 'CHECKED_IN', notes: data.notes },
+          userId,
+          scope,
+          session,
+        );
+        if (checkedInAppointment && appointment.status !== checkedInAppointment.status) {
+          await this.appointmentRepository.auditStatusTransition(checkedInAppointment, appointment.status, userId, session);
+        }
+        await this.addVisitCreatedTimeline(visit, userId, session);
+        await this.repository.auditCreated(visit, userId, session);
+      });
+    } finally {
+      await session.endSession();
     }
-    await this.addVisitCreatedTimeline(visit, userId);
-    await this.repository.auditCreated(visit, userId);
+
+    if (!visit) {
+      throw new AppError('Failed to check in appointment for OPD visit', 500, 'INTERNAL_SERVER_ERROR');
+    }
     return visit;
   }
 
@@ -340,7 +355,7 @@ export class OpdVisitService {
     }
   }
 
-  private async addVisitCreatedTimeline(visit: OpdVisit, userId: string) {
+  private async addVisitCreatedTimeline(visit: OpdVisit, userId: string, session?: ClientSession) {
     await this.patientRepository.addTimelineEvent(
       visit.patient_id,
       {
@@ -349,6 +364,7 @@ export class OpdVisitService {
         description: `${visit.visit_number} checked in for ${visit.doctor_name}.`,
       },
       userId,
+      session,
     );
   }
 

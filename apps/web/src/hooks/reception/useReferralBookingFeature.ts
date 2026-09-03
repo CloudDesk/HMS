@@ -39,7 +39,7 @@ const fromOpd = (item: OpdReferralResponse): ReferralBookingItem => ({
   priority: item.priority,
   appointment_id: item.appointment_id,
   appointment_number: item.appointment_number,
-  status: item.status as any,
+  status: item.status as ReferralBookingItem['status'],
   submitted_at: item.submitted_at,
   bookable: item.referral_type === 'INTERNAL' && Boolean(item.referred_doctor_id),
 });
@@ -59,7 +59,7 @@ const fromEmergency = (item: EmergencyReferralResponse): ReferralBookingItem => 
   priority: item.priority,
   appointment_id: item.appointment_id,
   appointment_number: item.appointment_number,
-  status: (item as any).status ?? 'SUBMITTED',
+  status: ('status' in item ? String(item.status) : 'SUBMITTED') as ReferralBookingItem['status'],
   submitted_at: item.submitted_at,
   bookable: Boolean(item.referred_doctor_id && item.patient_id),
 });

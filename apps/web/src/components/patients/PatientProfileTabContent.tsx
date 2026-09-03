@@ -9,6 +9,8 @@ import { PatientOverviewTab } from './PatientOverviewTab';
 
 type PatientProfileFeature = ReturnType<typeof usePatientProfileFeature>;
 
+import type { PatientDocumentResponse } from '../../api/patients';
+
 type PatientProfileTabContentProps = {
   patient: PatientResponse;
   prescriptions: OpdPrescriptionResponse[];
@@ -20,6 +22,17 @@ type PatientProfileTabContentProps = {
   onViewLabOrder: (order: DiagnosticOrder) => void;
   onViewImagingOrder: (order: DiagnosticOrder) => void;
   onViewInvoice: (invoice: BillingInvoice) => void;
+  onViewDocument?: (document: PatientDocumentResponse) => void;
+  onDownloadDocument?: (document: PatientDocumentResponse) => void;
+  onReviewDocument?: (document: PatientDocumentResponse, decision: 'VERIFIED' | 'REJECTED') => void;
+  canEditAllDetails?: boolean;
+};
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 function EmptyRecords({ message }: { message: string }) {
@@ -37,6 +50,10 @@ export function PatientProfileTabContent({
   onViewLabOrder,
   onViewImagingOrder,
   onViewInvoice,
+  onViewDocument,
+  onDownloadDocument,
+  onReviewDocument,
+  canEditAllDetails,
 }: PatientProfileTabContentProps) {
   const {
     activeTab,
@@ -319,8 +336,53 @@ export function PatientProfileTabContent({
           ) : (
             <div className="table-responsive">
               <table className="data-table">
-                <thead><tr><th>DATE</th><th>TITLE</th><th>FILE</th><th>TYPE</th><th>UPLOADED BY</th></tr></thead>
-                <tbody>{documents.map((document) => <tr key={document.id}><td>{formatDate(document.created_at)}</td><td><strong>{document.title}</strong></td><td>{document.file_name}</td><td>{document.document_type}</td><td>{document.uploaded_by_name || 'Recorded user'}</td></tr>)}</tbody>
+                <thead>
+                  <tr>
+                    <th>DATE</th>
+                    <th>TITLE</th>
+                    <th>FILE</th>
+                    <th>TYPE</th>
+                    <th>UPLOADED BY</th>
+                    {(onViewDocument || onDownloadDocument || onReviewDocument) && <th>ACTIONS</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.map((document) => (
+                    <tr key={document.id}>
+                      <td>{formatDate(document.created_at)}</td>
+                      <td><strong>{document.title}</strong></td>
+                      <td>{document.file_name}</td>
+                      <td>{document.document_type}</td>
+                      <td>{document.uploaded_by_name || 'Recorded user'}</td>
+                      {(onViewDocument || onDownloadDocument || onReviewDocument) && (
+                        <td>
+                          <div className="table-actions">
+                            {onViewDocument && (
+                              <button className="icon-button" onClick={() => onViewDocument(document)} title="View document" type="button">
+                                <i className="ph ph-eye" aria-hidden="true" />
+                              </button>
+                            )}
+                            {onDownloadDocument && (
+                              <button className="icon-button" onClick={() => onDownloadDocument(document)} title={`Download ${formatFileSize(document.file_size_bytes)}`} type="button">
+                                <i className="ph ph-download-simple" aria-hidden="true" />
+                              </button>
+                            )}
+                            {canEditAllDetails && onReviewDocument && document.review_status === 'PENDING' && (
+                              <>
+                                <button className="icon-button" onClick={() => onReviewDocument(document, 'VERIFIED')} title="Verify document" type="button">
+                                  <i className="ph ph-check-circle" aria-hidden="true" />
+                                </button>
+                                <button className="icon-button danger" onClick={() => onReviewDocument(document, 'REJECTED')} title="Reject document" type="button">
+                                  <i className="ph ph-x-circle" aria-hidden="true" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}

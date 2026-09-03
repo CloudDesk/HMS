@@ -95,33 +95,48 @@ export class AdvancePaymentRepository {
     userId: string,
     session?: ClientSession,
   ): Promise<AdvancePaymentRecord | null> {
-    const existing = await AdvancePaymentModel.findOne({ source_type: sourceType, source_id: sourceId }).lean<AdvancePaymentLean>();
-    if (!existing) return null;
-
-    const newPaidAmount = existing.paid_amount + amount;
-
-    let payment_status = existing.payment_status;
-    if (payment_status !== 'CANCELLED') {
-      if (newPaidAmount >= existing.required_amount && existing.required_amount > 0) {
-        payment_status = 'PAID';
-      } else if (newPaidAmount > 0) {
-        payment_status = 'PARTIALLY_PAID';
-      } else {
-        payment_status = 'PENDING';
-      }
+    if (amount <= 0) {
+      throw new Error('Payment amount must be greater than zero');
     }
 
     const updated = await AdvancePaymentModel.findOneAndUpdate(
-      { _id: existing._id },
-      {
-        $set: {
-          paid_amount: newPaidAmount,
-          balance_amount: Math.max(0, existing.required_amount - newPaidAmount),
-          payment_status,
-          updated_by: userId,
+      { source_type: sourceType, source_id: sourceId },
+      [
+        {
+          $set: {
+            paid_amount: { $add: ['$paid_amount', amount] },
+            balance_amount: {
+              $max: [0, { $subtract: ['$required_amount', { $add: ['$paid_amount', amount] }] }],
+            },
+            payment_status: {
+              $cond: {
+                if: { $eq: ['$payment_status', 'CANCELLED'] },
+                then: 'CANCELLED',
+                else: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $gt: ['$required_amount', 0] },
+                        { $gte: [{ $add: ['$paid_amount', amount] }, '$required_amount'] },
+                      ],
+                    },
+                    then: 'PAID',
+                    else: {
+                      $cond: {
+                        if: { $gt: [{ $add: ['$paid_amount', amount] }, 0] },
+                        then: 'PARTIALLY_PAID',
+                        else: 'PENDING',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            updated_by: userId,
+          },
         },
-      },
-      { new: true, session },
+      ],
+      { returnDocument: 'after', session, updatePipeline: true },
     ).lean<AdvancePaymentLean>();
 
     return updated ? toRecord(updated) : null;

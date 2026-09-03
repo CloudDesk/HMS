@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const recommendation = {
   id: 'recommendation-1',
@@ -84,7 +85,8 @@ describe('SurgeryWorkspacePage feature-hook rendering', () => {
   });
 
   it('renders patient and procedure context supplied by the feature hook', async () => {
-    await act(async () => root.render(<SurgeryWorkspacePage />));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><SurgeryWorkspacePage /></QueryClientProvider>));
 
     expect(container.textContent).toContain('Surgery & Procedures');
     expect(container.textContent).toContain('Surgery Patient');
@@ -94,13 +96,14 @@ describe('SurgeryWorkspacePage feature-hook rendering', () => {
   });
 
   it('preserves recommendation loading and error rendering', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     testState.loading = true;
-    await act(async () => root.render(<SurgeryWorkspacePage />));
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><SurgeryWorkspacePage /></QueryClientProvider>));
     expect(container.textContent).toContain('Loading recommendations');
 
     testState.loading = false;
     testState.error = true;
-    await act(async () => root.render(<SurgeryWorkspacePage />));
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><SurgeryWorkspacePage /></QueryClientProvider>));
     expect(container.textContent).toContain('Unable to load recommendations');
   });
 });

@@ -20,7 +20,7 @@ const rethrowDuplicate = (error: unknown): never => {
 
 async function executeWithOptionalTransaction<T>(
   repository: InpatientAdmissionRepository,
-  operation: (session: any) => Promise<T>,
+  operation: (session: ClientSession) => Promise<T>,
 ): Promise<T> {
   let session: ClientSession | null = null;
   try {
@@ -35,22 +35,21 @@ async function executeWithOptionalTransaction<T>(
     }
     return result;
   } catch (error: unknown) {
+    if (error instanceof AppError) {
+      throw error;
+    }
     const msg = error instanceof Error ? error.message.toLowerCase() : '';
-    const canRetryWithoutTransaction =
+    if (
       msg.includes('transaction') ||
       msg.includes('replica set') ||
       msg.includes('sharded cluster') ||
-      msg.includes('standalone') ||
-      msg.includes('active transaction number');
-
-    if (canRetryWithoutTransaction) {
-      if (!session) {
-        throw error;
-      }
-
-      await session.endSession().catch(() => {});
-      session = null;
-      return await operation(undefined);
+      msg.includes('standalone')
+    ) {
+      throw new AppError(
+        'Database transaction required for atomic admission operation',
+        500,
+        'TRANSACTION_REQUIRED',
+      );
     }
     throw error;
   } finally {

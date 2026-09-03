@@ -17,7 +17,7 @@ describe('Clinical Department Filtering', () => {
     { id: '8', name: 'Reception', isClinical: false },
     { id: '9', name: 'Administration', isClinical: false },
     { id: '10', name: 'Unknown Dept', isClinical: undefined },
-    { id: '11', name: 'Null Dept', isClinical: null as any },
+    { id: '11', name: 'Null Dept', isClinical: null as unknown as boolean },
   ];
 
   test('includes departments where isClinical is explicitly true', () => {

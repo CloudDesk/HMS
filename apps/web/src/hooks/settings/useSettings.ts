@@ -42,11 +42,13 @@ export function useHospitalSettings() {
       return;
     }
     let active = true;
+    let createdUrl: string | null = null;
     settingsApi
       .getLogo()
       .then((blob) => {
         if (active) {
-          setLogoUrl(URL.createObjectURL(blob));
+          createdUrl = URL.createObjectURL(blob);
+          setLogoUrl(createdUrl);
         }
       })
       .catch(() => {
@@ -54,6 +56,9 @@ export function useHospitalSettings() {
       });
     return () => {
       active = false;
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
     };
   }, [logoBlobName]);
 

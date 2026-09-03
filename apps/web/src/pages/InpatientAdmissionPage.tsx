@@ -336,7 +336,7 @@ export function InpatientAdmissionPage() {
         signed_by_name: values.signed_by_name,
         signed_at: new Date(values.signed_at).toISOString(),
         valid_until: values.valid_until ? new Date(values.valid_until).toISOString() : undefined,
-        context_type: 'INPATIENT_ADMISSION',
+        context_type: 'ADMISSION',
         context_id: selected.id,
         admission_id: selected.id,
         branch_id: branchId,

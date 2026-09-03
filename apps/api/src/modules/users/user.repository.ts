@@ -66,6 +66,8 @@ const mapUser = (user: UserDoc): UserRecord => ({
   patientId: user.patientId ? String(user.patientId) : null,
 });
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export class UserRepository {
   async findById(id: string) {
     const user = await UserModel.findOne({ _id: id, deletedAt: null }).lean();
@@ -96,11 +98,12 @@ export class UserRepository {
     }
 
     const orConditions: Array<Record<string, unknown>> = [];
+
     if (fields.username) {
-      orConditions.push({ username: new RegExp(`^${fields.username}$`, 'i') });
+      orConditions.push({ username: new RegExp(`^${escapeRegex(fields.username)}$`, 'i') });
     }
     if (fields.email) {
-      orConditions.push({ email: new RegExp(`^${fields.email}$`, 'i') });
+      orConditions.push({ email: new RegExp(`^${escapeRegex(fields.email)}$`, 'i') });
     }
     if (fields.employeeCode) {
       orConditions.push({ employeeCode: fields.employeeCode });
@@ -115,9 +118,9 @@ export class UserRepository {
       return null;
     }
 
-    const query = UserModel.findOne(filter);
-    if (session) query.session(session);
-    const user = await query.lean();
+    const queryDoc = UserModel.findOne(filter);
+    if (session) queryDoc.session(session);
+    const user = await queryDoc.lean();
     return user ? mapUser(user as unknown as UserDoc) : null;
   }
 
@@ -141,7 +144,7 @@ export class UserRepository {
       filter.roleIds = query.roleId;
     }
     if (query.search) {
-      const searchRegex = new RegExp(query.search, 'i');
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
       filter.$or = [
         { username: searchRegex },
         { email: searchRegex },

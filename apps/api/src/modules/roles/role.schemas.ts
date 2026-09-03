@@ -85,3 +85,99 @@ export const roleAuditQuerySchema = {
     limit: { type: 'integer', minimum: 1, maximum: 100 },
   },
 } as const;
+
+export const roleResponseDataSchema = {
+  type: 'object',
+  required: ['id', 'code', 'name', 'type', 'status'],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    code: { type: 'string' },
+    name: { type: 'string' },
+    description: { type: ['string', 'null'] },
+    type: { type: 'string', enum: ['system', 'custom'] },
+    status: { type: 'string', enum: ['active', 'inactive'] },
+    color: { type: ['string', 'null'] },
+    userCount: { type: 'integer' },
+    permissions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          code: { type: 'string' },
+          module: { type: 'string' },
+          screen: { type: 'string' },
+          action: { type: 'string' },
+        },
+      },
+    },
+    users: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          username: { type: 'string' },
+          fullName: { type: 'string' },
+          email: { type: ['string', 'null'] },
+          status: { type: 'string' },
+          assignedAt: { type: 'string' },
+          assignedBy: { type: ['string', 'null'] },
+        },
+      },
+    },
+    createdAt: { type: 'string' },
+    updatedAt: { type: 'string' },
+    deletedAt: { type: ['string', 'null'] },
+    createdBy: { type: ['string', 'null'] },
+    updatedBy: { type: ['string', 'null'] },
+    deletedBy: { type: ['string', 'null'] },
+    audit: {
+      type: 'object',
+      properties: {
+        createdAt: { type: 'string' },
+        updatedAt: { type: 'string' },
+        createdBy: { type: ['string', 'null'] },
+        updatedBy: { type: ['string', 'null'] },
+      },
+    },
+  },
+} as const;
+
+export const roleResponseSchema = {
+  type: 'object',
+  required: ['data'],
+  additionalProperties: false,
+  properties: {
+    data: roleResponseDataSchema,
+  },
+} as const;
+
+export const roleListResponseSchema = {
+  type: 'object',
+  required: ['data'],
+  additionalProperties: false,
+  properties: {
+    data: {
+      type: 'object',
+      required: ['items', 'meta'],
+      additionalProperties: false,
+      properties: {
+        items: { type: 'array', items: roleResponseDataSchema },
+        meta: {
+          type: 'object',
+          required: ['page', 'limit', 'total', 'totalPages'],
+          additionalProperties: false,
+          properties: {
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            total: { type: 'integer' },
+            totalPages: { type: 'integer' },
+          },
+        },
+      },
+    },
+  },
+} as const;
+

@@ -210,14 +210,37 @@ export class PhaseTwoReportRepository {
         category: { $literal: 'Procedure' }, consent_status: { $literal: 'PENDING' }, required_at: '$scheduledStart',
       } },
     ];
-    const [admissionRows, procedureRows, admissionTotal, procedureTotal] = await Promise.all([
-      admissionPipeline.length ? AdmissionRequestModel.aggregate([...admissionPipeline, { $sort: { required_at: -1 } }, { $limit: page * limit }]) : Promise.resolve([]),
-      ProcedureBookingModel.aggregate([...procedurePipeline, { $sort: { required_at: -1 } }, { $limit: page * limit }]),
-      admissionPipeline.length ? AdmissionRequestModel.aggregate([...admissionPipeline, { $count: 'total' }]) : Promise.resolve([]),
-      ProcedureBookingModel.aggregate([...procedurePipeline, { $count: 'total' }]),
+    const unionPipeline: PipelineStage[] = [
+      ...admissionPipeline,
+      {
+        $unionWith: {
+          coll: 'procedurebookings',
+          pipeline: procedurePipeline as any,
+        },
+      } as unknown as PipelineStage,
+    ];
+
+    const [rows, totalCount] = await Promise.all([
+      admissionPipeline.length
+        ? AdmissionRequestModel.aggregate([
+            ...unionPipeline,
+            { $sort: { required_at: -1 } },
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+          ])
+        : ProcedureBookingModel.aggregate([
+            ...procedurePipeline,
+            { $sort: { required_at: -1 } },
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+          ]),
+      admissionPipeline.length
+        ? AdmissionRequestModel.aggregate([...unionPipeline, { $count: 'total' }])
+        : ProcedureBookingModel.aggregate([...procedurePipeline, { $count: 'total' }]),
     ]);
-    const combined = [...admissionRows, ...procedureRows].sort((a, b) => new Date(b.required_at as Date).getTime() - new Date(a.required_at as Date).getTime()).slice((page - 1) * limit, page * limit) as ConsentPendingRow[];
-    return pageResult(combined, Number(admissionTotal[0]?.total ?? 0) + Number(procedureTotal[0]?.total ?? 0), page, limit);
+
+    const total = Number(totalCount[0]?.total ?? 0);
+    return pageResult(rows as ConsentPendingRow[], total, page, limit);
   }
 
   async departmentPending(query: PhaseTwoReportQuery): Promise<ReportPage<DepartmentPendingRow>> {
@@ -235,13 +258,29 @@ export class PhaseTwoReportRepository {
       _id: 0, id: { $toString: '$_id' }, department: { $literal: 'PHARMACY' }, source_type: '$sourceType', patient_number: '$patientNumber', patient_name: '$patientName',
       request_date: '$submittedAt', status: 1, encounter_id: { $toString: '$sourceId' }, admission_id: { $literal: null }, procedure_id: { $literal: null },
     } }];
-    const [orders, prescriptions, orderTotal, prescriptionTotal] = await Promise.all([
-      OpdClinicalOrderModel.aggregate([...orderPipeline, { $sort: { request_date: -1 } }, { $limit: page * limit }]),
-      OpdPrescriptionModel.aggregate([...prescriptionPipeline, { $sort: { request_date: -1 } }, { $limit: page * limit }]),
-      OpdClinicalOrderModel.countDocuments(orderMatch), OpdPrescriptionModel.countDocuments(prescriptionMatch),
+
+    const unionPipeline: PipelineStage[] = [
+      ...orderPipeline,
+      {
+        $unionWith: {
+          coll: 'opdprescriptions',
+          pipeline: prescriptionPipeline as any,
+        },
+      } as unknown as PipelineStage,
+    ];
+
+    const [rows, totalCount] = await Promise.all([
+      OpdClinicalOrderModel.aggregate([
+        ...unionPipeline,
+        { $sort: { request_date: -1 } },
+        { $skip: (page - 1) * limit },
+        { $limit: limit },
+      ]),
+      OpdClinicalOrderModel.aggregate([...unionPipeline, { $count: 'total' }]),
     ]);
-    const combined = [...orders, ...prescriptions].sort((a, b) => new Date(b.request_date as Date).getTime() - new Date(a.request_date as Date).getTime()).slice((page - 1) * limit, page * limit) as DepartmentPendingRow[];
-    return pageResult(combined, orderTotal + prescriptionTotal, page, limit);
+
+    const total = Number(totalCount[0]?.total ?? 0);
+    return pageResult(rows as DepartmentPendingRow[], total, page, limit);
   }
 
   async bundle(query: PhaseTwoReportQuery, financialAccess: boolean): Promise<PhaseTwoReportBundle> {

@@ -72,17 +72,17 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
       addAdmissionTimeline: async () => {},
     };
 
-    const repository = new InpatientAdmissionRepository({} as any);
+    const repository = new InpatientAdmissionRepository({} as never);
     const service = new InpatientAdmissionService(
       repository,
-      mockBeds as any,
-      mockPatients as any,
-      mockBilling as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockBeds as never,
+      mockPatients as never,
+      mockBilling as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
     );
 
     return {
@@ -177,11 +177,11 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
 
   await t.test('financial clearance blocks discharge when policy requires advance deposit and balance is outstanding', async () => {
     const ctx = await makeContext();
-    (ctx.service as any).beds = {
+    (ctx.service as unknown as { beds: unknown }).beds = {
       getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: true }),
       releaseAdmissionBed: async () => {},
     };
-    (ctx.service as any).billing = {
+    (ctx.service as unknown as { billing: unknown }).billing = {
       list: async () => ({ data: [{ id: oid().toString(), status: 'PENDING', balance_amount: 1500 }] }),
     };
 
@@ -203,12 +203,12 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
 
   await t.test('unrelated OPD/patient invoice does not block inpatient discharge when inpatient balance is zero', async () => {
     const ctx = await makeContext();
-    (ctx.service as any).beds = {
+    (ctx.service as unknown as { beds: unknown }).beds = {
       getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: true }),
       releaseAdmissionBed: async () => {},
     };
-    (ctx.service as any).billing = {
-      list: async (query: any) => {
+    (ctx.service as unknown as { billing: unknown }).billing = {
+      list: async (query: Record<string, unknown>) => {
         // Assert that billing query specifically searches by admission_id
         assert.equal(query.admission_id, ctx.admissionId);
         return { data: [] };
@@ -228,7 +228,7 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
 
   await t.test('transaction rolls back completely if releaseAdmissionBed fails', async () => {
     const ctx = await makeContext();
-    (ctx.service as any).beds = {
+    (ctx.service as unknown as { beds: unknown }).beds = {
       getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: false }),
       releaseAdmissionBed: async () => {
         throw new Error('Bed release DB failure');

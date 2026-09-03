@@ -44,12 +44,20 @@ type FormValues = z.infer<typeof schema>;
 
 export function PatientSignupPage() {
   const { status, user, restoreSession, activateGuardian } = useAuth();
-  const { search } = useAppLocation();
+  const { search, state: locationState } = useAppLocation();
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const [verified] = useState<VerifiedMobile | null>(() => {
     try {
-      const value = JSON.parse(sessionStorage.getItem(VERIFIED_MOBILE_KEY) ?? 'null') as VerifiedMobile | null;
-      return value?.phone && value?.otp && Date.now() - value.verifiedAt < 15 * 60 * 1000 ? value : null;
+      const locState = locationState as { phone?: string; otp?: string; mode?: RegistrationMode } | undefined;
+      const stored = JSON.parse(sessionStorage.getItem(VERIFIED_MOBILE_KEY) ?? 'null') as VerifiedMobile | null;
+      const phone = locState?.phone || stored?.phone;
+      const mode: RegistrationMode = (locState?.mode || stored?.mode || 'new') as RegistrationMode;
+      const otp = locState?.otp || stored?.otp || '';
+      const verifiedAt = stored?.verifiedAt ?? Date.now();
+      if (phone && Date.now() - verifiedAt < 15 * 60 * 1000) {
+        return { phone, otp, mode, verifiedAt };
+      }
+      return null;
     } catch { return null; }
   });
   const guardianRequired = verified?.mode === 'guardian';

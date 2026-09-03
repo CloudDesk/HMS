@@ -208,7 +208,8 @@ export class OpdPrescriptionRepository {
     }
 
     if (search) {
-      const searchRegex = new RegExp(search, 'i');
+      const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapeRegex(search), 'i');
       filter.$or = [
         { patientName: searchRegex },
         { patientNumber: searchRegex },

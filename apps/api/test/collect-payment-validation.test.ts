@@ -29,7 +29,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     let currentPaid = 0;
     let currentStatus = 'PENDING';
 
-    const mockRepo: any = {
+    const mockRepo: Record<string, unknown> = {
       resolveBranchScope: mock.fn(async () => null),
       getById: mock.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
@@ -82,13 +82,13 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     };
 
     const service = new BillingService(
-      mockRepo,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       advancePaymentService,
     );
 
@@ -109,7 +109,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     let currentPaid = 0;
     let currentStatus = 'PENDING';
 
-    const mockRepo: any = {
+    const mockRepo: Record<string, unknown> = {
       resolveBranchScope: mock.fn(async () => null),
       getById: mock.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
@@ -162,13 +162,13 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     };
 
     const service = new BillingService(
-      mockRepo,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       advancePaymentService,
     );
 
@@ -185,7 +185,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
   });
 
   await t.test('3. Payment greater than outstanding balance is rejected with 400 PAYMENT_EXCEEDS_BALANCE', async () => {
-    const mockRepo: any = {
+    const mockRepo: Record<string, unknown> = {
       resolveBranchScope: mock.fn(async () => null),
       getById: mock.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
@@ -198,13 +198,13 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     };
 
     const service = new BillingService(
-      mockRepo,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       advancePaymentService,
     );
 
@@ -217,7 +217,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
           metadata,
         );
       },
-      (err: any) => {
+      (err: unknown) => {
         assert.ok(err instanceof AppError);
         assert.equal(err.statusCode, 400);
         assert.equal(err.code, 'PAYMENT_EXCEEDS_BALANCE');
@@ -228,7 +228,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
   });
 
   await t.test('4. Zero payment is rejected with 400 INVALID_PAYMENT_AMOUNT', async () => {
-    const mockRepo: any = {
+    const mockRepo: Record<string, unknown> = {
       resolveBranchScope: mock.fn(async () => null),
       getById: mock.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
@@ -239,13 +239,13 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     };
 
     const service = new BillingService(
-      mockRepo,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       advancePaymentService,
     );
 
@@ -258,7 +258,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
           metadata,
         );
       },
-      (err: any) => {
+      (err: unknown) => {
         assert.ok(err instanceof AppError);
         assert.equal(err.statusCode, 400);
         assert.equal(err.code, 'INVALID_PAYMENT_AMOUNT');
@@ -268,7 +268,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
   });
 
   await t.test('5. Negative payment is rejected with 400 INVALID_PAYMENT_AMOUNT', async () => {
-    const mockRepo: any = {
+    const mockRepo: Record<string, unknown> = {
       resolveBranchScope: mock.fn(async () => null),
       getById: mock.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
@@ -279,13 +279,13 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     };
 
     const service = new BillingService(
-      mockRepo,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       advancePaymentService,
     );
 
@@ -298,7 +298,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
           metadata,
         );
       },
-      (err: any) => {
+      (err: unknown) => {
         assert.ok(err instanceof AppError);
         assert.equal(err.statusCode, 400);
         assert.equal(err.code, 'INVALID_PAYMENT_AMOUNT');
@@ -308,7 +308,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
   });
 
   await t.test('6. Invoice with zero balance (PAID) rejects payment', async () => {
-    const mockRepo: any = {
+    const mockRepo: Record<string, unknown> = {
       resolveBranchScope: mock.fn(async () => null),
       getById: mock.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
@@ -321,13 +321,13 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     };
 
     const service = new BillingService(
-      mockRepo,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       advancePaymentService,
     );
 
@@ -340,7 +340,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
           metadata,
         );
       },
-      (err: any) => {
+      (err: unknown) => {
         assert.ok(err instanceof AppError);
         assert.equal(err.statusCode, 409);
         assert.equal(err.code, 'INVOICE_PAID');
@@ -352,7 +352,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
   await t.test('7 & 8. Stale frontend balance / concurrent payment prevents total payments from exceeding total', async () => {
     // Database balance is actually 2,300 because KES 2,000 was collected previously.
     // Client attempts to submit 4,300 based on old UI state.
-    const mockRepo: any = {
+    const mockRepo: Record<string, unknown> = {
       resolveBranchScope: mock.fn(async () => null),
       getById: mock.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
@@ -365,13 +365,13 @@ test('Collect Payment Amount Validation Suite', async (t) => {
     };
 
     const service = new BillingService(
-      mockRepo,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      mockRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       advancePaymentService,
     );
 
@@ -384,7 +384,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
           metadata,
         );
       },
-      (err: any) => {
+      (err: unknown) => {
         assert.ok(err instanceof AppError);
         assert.equal(err.statusCode, 400);
         assert.equal(err.code, 'PAYMENT_EXCEEDS_BALANCE');

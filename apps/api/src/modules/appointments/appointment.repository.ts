@@ -261,6 +261,7 @@ export class AppointmentRepository {
     data: UpdateAppointmentStatusDTO,
     userId: string,
     branchIds?: string[],
+    session?: ClientSession,
   ): Promise<Appointment | undefined> {
     const appointment = await AppointmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}) },
@@ -274,7 +275,7 @@ export class AppointmentRepository {
           updatedBy: toObjectId(userId),
         },
       },
-      { new: true, lean: true },
+      { new: true, lean: true, session },
     ).lean<AppointmentLean>();
 
     return appointment ? toAppointment(appointment) : undefined;
@@ -387,24 +388,30 @@ async findPatientConflict(
   return appointment ? toAppointment(appointment) : undefined;
 }
 
-async auditStatusTransition(
-  appointment: Appointment,
-  previousStatus: Appointment['status'],
-  actorUserId: string,
-) {
-  await AuditLogModel.create({
-    actorUserId,
-    eventType: 'appointment.status.updated',
-    metadataJson: {
-      appointmentId: appointment.id,
-      appointmentNumber: appointment.appointment_number,
-      fromStatus: previousStatus,
-      patientId: appointment.patient_id,
-      toStatus: appointment.status,
-      reason: appointment.notes,
-    },
-  });
-}
+  async auditStatusTransition(
+    appointment: Appointment,
+    previousStatus: Appointment['status'],
+    actorUserId: string,
+    session?: ClientSession,
+  ) {
+    await AuditLogModel.create(
+      [
+        {
+          actorUserId,
+          eventType: 'appointment.status.updated',
+          metadataJson: {
+            appointmentId: appointment.id,
+            appointmentNumber: appointment.appointment_number,
+            fromStatus: previousStatus,
+            patientId: appointment.patient_id,
+            toStatus: appointment.status,
+            reason: appointment.notes,
+          },
+        },
+      ],
+      { session },
+    );
+  }
 
 async auditCreated(appointment: Appointment, actorUserId: string, session?: ClientSession) {
   await AuditLogModel.create([{

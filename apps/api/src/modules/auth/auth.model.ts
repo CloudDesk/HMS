@@ -21,6 +21,8 @@ const passwordResetTokenSchema = new Schema<IPasswordResetToken>(
   },
 );
 
+passwordResetTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 export const PasswordResetTokenModel = mongoose.model<IPasswordResetToken>('PasswordResetToken', passwordResetTokenSchema);
 
 export interface IAuditLog extends Document {

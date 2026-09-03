@@ -5,7 +5,22 @@ import { useHospitalSettings } from '../../hooks/settings/useSettings';
 import { patientInitials } from '../../pages/opd-utils';
 import { formatDate, patientFullName } from '../../pages/patient-utils';
 
-export function PatientCardPrintView({ patient, targetWindow }: { patient: PatientResponse, targetWindow: Window }) {
+export type PatientCardHospitalSettings = {
+  hospitalName?: string;
+  phone?: string;
+  address?: string;
+  logoUrl?: string | null;
+};
+
+export function PatientCardPrintView({
+  patient,
+  targetWindow,
+  hospitalSettings,
+}: {
+  patient: PatientResponse;
+  targetWindow: Window;
+  hospitalSettings?: PatientCardHospitalSettings;
+}) {
   const fullName = patientFullName(patient);
   const initials = patientInitials(fullName);
   const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
@@ -13,7 +28,13 @@ export function PatientCardPrintView({ patient, targetWindow }: { patient: Patie
   const registered = formatDate(patient.created_at);
   const statusColor = patient.status === 'ACTIVE' ? '#16a34a' : patient.status === 'DECEASED' ? '#6b7280' : '#dc2626';
 
-  const { hospitalName, phone, address, logoUrl } = useHospitalSettings();
+  const queriedSettings = useHospitalSettings();
+  const settings = hospitalSettings ?? queriedSettings;
+
+  const hospitalName = settings.hospitalName || 'Hospital Management System';
+  const phone = settings.phone;
+  const address = settings.address;
+  const logoUrl = settings.logoUrl;
   const hospitalSubText = [address, phone].filter(Boolean).join(' · ') || 'Hospital Management System';
 
   const heights = [24, 18, 28, 14, 22, 28, 16, 24, 12, 28, 20, 16, 28, 18, 24, 28, 14, 20, 28, 16, 24, 12, 28, 18, 24, 16, 28, 22];
@@ -112,7 +133,7 @@ export function PatientCardPrintView({ patient, targetWindow }: { patient: Patie
   );
 }
 
-export function executePrintPatientCard(patient: PatientResponse) {
+export function executePrintPatientCard(patient: PatientResponse, hospitalSettings?: PatientCardHospitalSettings) {
   const printWindow = window.open('', '_blank', 'width=480,height=700,scrollbars=no,toolbar=no,menubar=no');
   if (!printWindow) return;
 
@@ -158,5 +179,5 @@ export function executePrintPatientCard(patient: PatientResponse) {
   doc.body.appendChild(rootDiv);
 
   const root = createRoot(rootDiv);
-  root.render(<PatientCardPrintView patient={patient} targetWindow={printWindow} />);
+  root.render(<PatientCardPrintView patient={patient} targetWindow={printWindow} hospitalSettings={hospitalSettings} />);
 }

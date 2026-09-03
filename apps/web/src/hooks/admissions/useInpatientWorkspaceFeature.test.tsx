@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const admission = {
   id: 'admission-1', admission_number: 'IP-001', patient_id: 'patient-1', patient_number: 'MRN-001',
@@ -92,7 +93,8 @@ describe('useInpatientWorkspaceFeature orchestration', () => {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
-    await act(async () => root.render(<Harness />));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>));
   });
 
   afterEach(async () => {
@@ -132,7 +134,8 @@ describe('useInpatientWorkspaceFeature orchestration', () => {
   it('aggregates admission loading/error state and preserves scoped request gating', async () => {
     testState.admissionLoading = true;
     testState.admissionError = new Error('Admissions unavailable.');
-    await act(async () => root.render(<Harness />));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>));
     expect(feature?.state.loading.admissions).toBe(true);
     expect(feature?.state.errors.admissions).toBe(testState.admissionError);
 
@@ -140,7 +143,7 @@ describe('useInpatientWorkspaceFeature orchestration', () => {
     await act(async () => {
       root.unmount();
       root = createRoot(container);
-      root.render(<Harness />);
+      root.render(<QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>);
     });
     expect(testState.wardCalls.at(-1)).toBe(false);
     expect(testState.surgeryCalls.at(-1)).toEqual(expect.objectContaining({

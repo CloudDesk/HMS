@@ -260,4 +260,90 @@ describe('M-013 high-risk HTTP response contracts', () => {
     expect(response.body).not.toContain('passwordHash');
     expect(response.body).not.toContain('clinicalNotes');
   });
+
+  it('filters internal fields from patient portal overview response', async () => {
+    vi.spyOn(built.services.auth, 'authenticateAccessToken').mockResolvedValue({
+      ...authenticatedUser,
+      id: 'patient-user-id',
+      patientId: 'patient-id',
+    });
+    vi.spyOn(built.services.patientPortal, 'overview').mockResolvedValue({
+      patient: {
+        id: 'patient-id',
+        patient_number: 'HMS-2026-000001',
+        first_name: 'Jane',
+        middle_name: null,
+        last_name: 'Doe',
+        date_of_birth: '1990-01-01',
+        gender: 'FEMALE',
+        phone: '+254712345678',
+        email: 'jane@example.test',
+        address: {},
+        emergency_contact: {},
+        blood_group: 'O+',
+        status: 'ACTIVE',
+        created_at: '2026-01-01T00:00:00.000Z',
+        secretInternalNote: 'drop-me-internal-patient-note',
+      },
+      summary: {
+        upcoming_appointments: 1,
+        outstanding_invoices: 0,
+        verified_lab_results: 0,
+        verified_imaging_reports: 0,
+        internalDbCount: 999,
+      },
+      appointments: [],
+      invoices: [],
+      laboratory_results: [],
+      imaging_reports: [],
+      prescriptions: [],
+      purchased_medicines: [],
+      internalDebugData: 'drop-me-debug',
+    } as unknown as Awaited<ReturnType<typeof built.services.patientPortal.overview>>);
+
+    const response = await built.app.inject({
+      method: 'GET',
+      url: '/api/patient-portal/overview',
+      headers: { authorization: 'Bearer patient-token' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('HMS-2026-000001');
+    expect(response.body).not.toContain('drop-me-internal-patient-note');
+    expect(response.body).not.toContain('drop-me-debug');
+  });
+
+  it('filters internal fields from advance payments response', async () => {
+    vi.spyOn(built.services.auth, 'authenticateAccessToken').mockResolvedValue(authenticatedUser);
+    vi.spyOn(built.services.permissions, 'userHasPermission').mockResolvedValue(true);
+    vi.spyOn(built.services.advancePayment, 'getBySource').mockResolvedValue({
+      id: 'adv-pay-id',
+      patient_id: 'patient-id',
+      source_type: 'ADMISSION_REQUEST',
+      source_id: 'req-id',
+      branch_id: 'branch-id',
+      required_amount: 5000,
+      paid_amount: 5000,
+      balance_amount: 0,
+      requirement_status: 'REQUIRED',
+      payment_status: 'PAID',
+      created_by: 'user-id',
+      updated_by: 'user-id',
+      created_at: new Date('2026-08-01T00:00:00.000Z'),
+      updated_at: new Date('2026-08-01T00:00:00.000Z'),
+      internalAccountingSecret: 'drop-me-bank-secret',
+    } as unknown as Awaited<ReturnType<typeof built.services.advancePayment.getBySource>>);
+
+    const response = await built.app.inject({
+      method: 'GET',
+      url: '/api/advance-payments?source_type=ADMISSION_REQUEST&source_id=req-id',
+      headers: { authorization: 'Bearer staff-token' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('adv-pay-id');
+    expect(response.body).not.toContain('internalAccountingSecret');
+    expect(response.body).not.toContain('drop-me-bank-secret');
+  });
 });
+

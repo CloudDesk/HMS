@@ -61,6 +61,8 @@ const toPersistence = (data: CreateBranchDTO | UpdateBranchDTO) =>
     }).filter(([, value]) => value !== undefined),
   );
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export class BranchRepository {
   async list(query: BranchListQuery) {
     const page = query.page ?? 1;
@@ -72,7 +74,7 @@ export class BranchRepository {
       filter.status = query.status;
     }
     if (query.search) {
-      const searchRegex = new RegExp(query.search, 'i');
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
       filter.$or = [{ name: searchRegex }, { code: searchRegex }];
     }
 
@@ -112,7 +114,7 @@ export class BranchRepository {
   }
 
   async getByCode(code: string): Promise<Branch | undefined> {
-    const branch = await BranchModel.findOne({ code: new RegExp(`^${code}$`, 'i'), deletedAt: null }).lean();
+    const branch = await BranchModel.findOne({ code: new RegExp(`^${escapeRegex(code)}$`, 'i'), deletedAt: null }).lean();
     return branch ? toBranch(branch) : undefined;
   }
 

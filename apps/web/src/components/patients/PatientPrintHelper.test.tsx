@@ -3,6 +3,7 @@
  */
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { PatientCardPrintView } from './PatientPrintHelper';
 
@@ -35,10 +36,15 @@ describe('H-004 - PatientPrintHelper XSS Security Tests', () => {
     };
 
     const targetWindow = { print: vi.fn() } as unknown as Window;
+    const queryClient = new QueryClient();
 
     const root = createRoot(container);
     await act(async () => {
-      root.render(<PatientCardPrintView patient={maliciousPatient} targetWindow={targetWindow} />);
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <PatientCardPrintView patient={maliciousPatient} targetWindow={targetWindow} />
+        </QueryClientProvider>,
+      );
     });
 
     const html = container.innerHTML;

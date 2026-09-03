@@ -42,11 +42,11 @@ const queryString = (params: Record<string, unknown>) => {
 export const advancePaymentApi = {
   get(sourceType: AdvanceSourceType, sourceId: string) {
     return apiClient.request<AdvancePayment>(
-      `/advance-payment${queryString({ source_type: sourceType, source_id: sourceId })}`
+      `/advance-payments${queryString({ source_type: sourceType, source_id: sourceId })}`
     );
   },
   sync(payload: SyncAdvancePaymentPayload) {
-    return apiClient.request<AdvancePayment>('/advance-payment/sync', {
+    return apiClient.request<AdvancePayment>('/advance-payments/sync', {
       method: 'POST',
       body: payload,
     });

@@ -110,7 +110,6 @@ export class AppointmentService {
   ) {}
 
   async list(query: AppointmentListQuery, userId?: string) {
-    await this.reconcilePastAppointments();
     this.validateListQuery(query);
     const scope = userId
       ? await this.repository.resolveBranchScope(userId, query.branch_id)

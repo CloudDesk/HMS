@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import Fastify from 'fastify';
 import { env } from './config/env.js';
+import { resolveAllowedCorsOrigins } from './config/env.js';
 import { loggerConfig } from './config/logger.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
 import { registerRequestContext } from './middleware/request-context.js';
@@ -23,8 +24,10 @@ export const buildApp = async () => {
   // Refresh tokens are stored in HttpOnly cookies and validated by the auth service.
   await app.register(cookie);
 
+  const allowedCorsOrigins = resolveAllowedCorsOrigins(env.cors.origins);
+
   await app.register(cors, {
-    origin: env.cors.origins.includes('*') ? true : env.cors.origins,
+    origin: allowedCorsOrigins,
     credentials: true,
     exposedHeaders: ['content-disposition'],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

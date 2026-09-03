@@ -117,7 +117,17 @@ assertPatientPortalDemoOtpConfiguration({
   production: productionEnvironment,
 });
 
-const parseCorsOrigins = (value: string | undefined) => {
+assertPatientPortalDemoOtpConfiguration({
+  enabled: patientPortalDemoOtpEnabled,
+  otp: patientPortalDemoOtp,
+  production: productionEnvironment,
+});
+
+export const resolveAllowedCorsOrigins = (origins: string[]): string[] => {
+  return origins.filter((origin) => origin !== '*');
+};
+
+export const parseCorsOrigins = (value: string | undefined) => {
   const defaults = [
     'http://localhost:5173',
     'http://localhost:5174',
@@ -135,6 +145,39 @@ const parseCorsOrigins = (value: string | undefined) => {
 
   return Array.from(new Set([...userOrigins, ...defaults]));
 };
+
+export const resolveJwtSecrets = (input: {
+  accessTokenSecretEnv?: string;
+  refreshTokenSecretEnv?: string;
+  production: boolean;
+}) => {
+  const accessEnv = input.accessTokenSecretEnv?.trim();
+  const refreshEnv = input.refreshTokenSecretEnv?.trim();
+
+  if (input.production) {
+    if (!accessEnv) {
+      throw new Error('JWT_ACCESS_TOKEN_SECRET is required in production environments');
+    }
+    if (!refreshEnv) {
+      throw new Error('JWT_REFRESH_TOKEN_SECRET is required in production environments');
+    }
+    return {
+      accessTokenSecret: accessEnv,
+      refreshTokenSecret: refreshEnv,
+    };
+  }
+
+  return {
+    accessTokenSecret: accessEnv || 'dev-access-token-secret-change-me',
+    refreshTokenSecret: refreshEnv || 'dev-refresh-token-secret-change-me',
+  };
+};
+
+const jwtSecrets = resolveJwtSecrets({
+  accessTokenSecretEnv: process.env.JWT_ACCESS_TOKEN_SECRET,
+  refreshTokenSecretEnv: process.env.JWT_REFRESH_TOKEN_SECRET,
+  production: productionEnvironment,
+});
 
 const parseDnsServers = (value: string | undefined) =>
   (value ?? '')
@@ -205,12 +248,8 @@ export const env = {
     ]),
   },
   auth: {
-    accessTokenSecret:
-      process.env.JWT_ACCESS_TOKEN_SECRET ??
-      (process.env.APP_ENV === 'prod' ? '' : 'dev-access-token-secret-change-me'),
-    refreshTokenSecret:
-      process.env.JWT_REFRESH_TOKEN_SECRET ??
-      (process.env.APP_ENV === 'prod' ? '' : 'dev-refresh-token-secret-change-me'),
+    accessTokenSecret: jwtSecrets.accessTokenSecret,
+    refreshTokenSecret: jwtSecrets.refreshTokenSecret,
     accessTokenTtlSeconds: parseInteger(process.env.JWT_ACCESS_TOKEN_TTL_SECONDS, 900),
     refreshTokenTtlSeconds: parseInteger(process.env.JWT_REFRESH_TOKEN_TTL_SECONDS, 604_800),
     failedLoginLimit: parseInteger(process.env.AUTH_FAILED_LOGIN_LIMIT, 5),

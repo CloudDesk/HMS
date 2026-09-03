@@ -53,7 +53,7 @@ type FormActions = {
   onReset: () => void;
 };
 
-function FormFooter({ busy, canEdit, onReset }: Pick<FormActions, 'busy' | 'canEdit' | 'onReset'>) {
+function FormFooter({ busy, canEdit }: Pick<FormActions, 'busy' | 'canEdit'>) {
   return (
     <div className="ss-panel-footer">
       {/* <button className="btn-secondary" disabled={!canEdit || busy} onClick={onReset} type="button">

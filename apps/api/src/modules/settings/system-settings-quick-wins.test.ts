@@ -94,7 +94,7 @@ const createUserHarness = () => {
     assertCanManageUser: async () => undefined,
   };
   const service = new UserService(users, roles, permissions, settings);
-  vi.spyOn(service as any, 'validateReferences').mockResolvedValue(undefined);
+  vi.spyOn(service as unknown as { validateReferences: () => Promise<void> }, 'validateReferences').mockResolvedValue(undefined);
 
   return {
     service,
@@ -240,24 +240,24 @@ describe('System Settings quick-win runtime behavior', () => {
   it('clears stored logoBlobName and logoContentType when deleting hospital logo', async () => {
     const repository = new SettingsRepository();
     const logoStorage = new SettingsLogoStorage();
-    let currentSettings = {
+    const currentSettings = {
       hospital: {
         hospitalName: 'HMS Enterprise',
         phone: '1234567890',
         email: 'info@hms.test',
         address: '123 Main St',
-        logoBlobName: 'logo-blob-123',
-        logoContentType: 'image/png',
+        logoBlobName: 'logo-blob-123' as string | null,
+        logoContentType: 'image/png' as string | null,
       },
     };
 
-    vi.spyOn(repository, 'get').mockImplementation(async () => currentSettings as any);
+    vi.spyOn(repository, 'get').mockImplementation(async () => currentSettings as never);
     vi.spyOn(repository, 'updateSection').mockImplementation(async (_section, data) => {
       currentSettings.hospital = { ...currentSettings.hospital, ...data };
-      return currentSettings as any;
+      return currentSettings as never;
     });
-    vi.spyOn(repository, 'audit').mockResolvedValue(undefined as any);
-    const deleteSpy = vi.spyOn(logoStorage, 'delete').mockResolvedValue(undefined as any);
+    vi.spyOn(repository, 'audit').mockResolvedValue(undefined as never);
+    const deleteSpy = vi.spyOn(logoStorage, 'delete').mockResolvedValue(undefined as never);
 
     const service = new SettingsService(repository, logoStorage);
     const updated = await service.deleteHospitalLogo('user-1', metadata);

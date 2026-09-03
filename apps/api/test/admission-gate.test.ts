@@ -62,8 +62,24 @@ test('InpatientAdmissionService - Advance Payment Gating', async (t) => {
       addAdmissionTimeline: mock.fn(async () => {})
     } as unknown as ConstructorParameters<typeof InpatientAdmissionService>[2];
 
+    const mockBilling = {
+      verifyAdmissionDeposit: mock.fn(async (_patientId: string, _branchId: string, requestId: string, _invoiceId: string | null, requiredAmount: number) => {
+        const record = await advancePaymentRepository.findBySource('ADMISSION_REQUEST', requestId);
+        const paid = record?.paid_amount ?? 0;
+        return {
+          required_amount: requiredAmount,
+          paid_amount: paid,
+          remaining_amount: Math.max(0, requiredAmount - paid),
+          satisfied: paid >= requiredAmount,
+          invoice_id: 'inv-1',
+          payment_ids: ['pay-1'],
+          verified_at: new Date(),
+        };
+      }),
+    } as unknown as ConstructorParameters<typeof InpatientAdmissionService>[3];
+
     return new InpatientAdmissionService(
-      mockRepo, mockBeds, mockPatients, {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[3], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[4], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[5], advancePaymentService, {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[7], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[8]
+      mockRepo, mockBeds, mockPatients, mockBilling, {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[4], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[5], advancePaymentService, {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[7], {} as unknown as ConstructorParameters<typeof InpatientAdmissionService>[8]
     );
   };
 

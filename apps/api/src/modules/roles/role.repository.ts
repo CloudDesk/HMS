@@ -45,6 +45,8 @@ const mapRole = (role: RoleDoc, userCount: number): RoleRecord => ({
   deletedBy: role.deletedBy ? String(role.deletedBy) : null,
 });
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export class RoleRepository {
   async findActiveByCode(code: string, session?: ClientSession) {
     const query = RoleModel.findOne({ code, status: 'active', deletedAt: null }).select('_id code name status');
@@ -79,10 +81,10 @@ export class RoleRepository {
 
     const orConditions: Array<Record<string, unknown>> = [];
     if (fields.code) {
-      orConditions.push({ code: new RegExp(`^${fields.code}$`, 'i') });
+      orConditions.push({ code: new RegExp(`^${escapeRegex(fields.code)}$`, 'i') });
     }
     if (fields.name) {
-      orConditions.push({ name: new RegExp(`^${fields.name}$`, 'i') });
+      orConditions.push({ name: new RegExp(`^${escapeRegex(fields.name)}$`, 'i') });
     }
 
     if (orConditions.length > 0) {
@@ -112,7 +114,7 @@ export class RoleRepository {
       filter.type = query.type;
     }
     if (query.search) {
-      const searchRegex = new RegExp(query.search, 'i');
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
       filter.$or = [
         { code: searchRegex },
         { name: searchRegex },

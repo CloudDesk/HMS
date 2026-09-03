@@ -1,4 +1,4 @@
-import { Types, type PipelineStage } from 'mongoose';
+import mongoose, { Types, type ClientSession, type PipelineStage } from 'mongoose';
 import { AppointmentModel } from '../appointments/appointment.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { BillingInvoiceItemModel, BillingInvoiceModel, BillingPaymentModel } from '../billing/billing.model.js';
@@ -34,14 +34,16 @@ type PortalAppointmentHistoryItem = {
   id: string;
   appointment_number: string;
   patient_id: string;
+  patient_name: string;
   doctor_id: string;
   doctor_name: string;
   doctor_specialization: string;
-  department_id: string;
   branch_id: string;
-  appointment_date: Date;
+  branch_name: string;
+  department_id: string;
+  department_name: string;
+  appointment_date: string;
   start_time: string;
-  end_time: string;
   duration_minutes: number;
   visit_type: string;
   status: string;
@@ -58,6 +60,10 @@ type PortalAppointmentHistoryAggregation = {
 };
 
 export class PatientPortalRepository {
+  session() {
+    return mongoose.startSession();
+  }
+
   async listPublicBranches(query: { page: number; limit: number; search?: string }) {
     const filter: Record<string, unknown> = {
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
@@ -472,24 +478,33 @@ export class PatientPortalRepository {
     };
   }
 
-  async auditGuardianLink(userId: string, patientId: string, relationship: PatientAccessRelationship) {
-    await AuditLogModel.create({
-      eventType: 'patient_portal.guardian.linked',
-      actorUserId: userId,
-      subjectUserId: userId,
-      metadataJson: { patientId, relationship },
-    });
+  async auditGuardianLink(userId: string, patientId: string, relationship: PatientAccessRelationship, session?: ClientSession) {
+    await AuditLogModel.create(
+      [
+        {
+          eventType: 'patient_portal.guardian.linked',
+          actorUserId: userId,
+          subjectUserId: userId,
+          metadataJson: { patientId, relationship },
+        },
+      ],
+      session ? { session } : undefined,
+    );
   }
 
-  async upsertGuardianProfile(userId: string, input: {
-    fullName: string;
-    phone: string;
-    email: string;
-    relationship: GuardianRelationship;
-    address?: { line1?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null };
-    identification?: { type?: string | null; number?: string | null };
-    legalConsentAccepted: boolean;
-  }) {
+  async upsertGuardianProfile(
+    userId: string,
+    input: {
+      fullName: string;
+      phone: string;
+      email: string;
+      relationship: GuardianRelationship;
+      address?: { line1?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null };
+      identification?: { type?: string | null; number?: string | null };
+      legalConsentAccepted: boolean;
+    },
+    session?: ClientSession,
+  ) {
     return GuardianProfileModel.findOneAndUpdate(
       { userId: objectId(userId) },
       {
@@ -500,7 +515,7 @@ export class PatientPortalRepository {
           legalConsentAcceptedAt: new Date(),
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after', session },
     ).lean();
   }
 
@@ -551,11 +566,12 @@ export class PatientPortalRepository {
     return patients.length === 1 ? patients[0]! : null;
   }
 
-  async linkPortalAccountToPatient(userId: string, patientId: string) {
-    await this.ensureAccessGrant(userId, patientId, 'SELF');
+  async linkPortalAccountToPatient(userId: string, patientId: string, session?: ClientSession) {
+    await this.ensureAccessGrant(userId, patientId, 'SELF', session);
     await UserModel.updateOne(
       { _id: objectId(userId), deletedAt: null },
       { $set: { patientId: objectId(patientId), updatedBy: objectId(userId) } },
+      { session },
     );
   }
 
@@ -567,19 +583,22 @@ export class PatientPortalRepository {
     return patients.length === 1 ? patients[0]! : null;
   }
 
-  async createPortalPatient(input: {
-    userId: string;
-    firstName: string;
-    lastName: string;
-    dateOfBirth: string;
-    gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
-    email?: string | null;
-    phone?: string | null;
-    bloodGroup?: string | null;
-    address?: { line1?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null };
-    relationship: PatientAccessRelationship;
-    preferredBranchId: string;
-  }) {
+  async createPortalPatient(
+    input: {
+      userId: string;
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
+      email?: string | null;
+      phone?: string | null;
+      bloodGroup?: string | null;
+      address?: { line1?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null };
+      relationship: PatientAccessRelationship;
+      preferredBranchId: string;
+    },
+    session?: ClientSession,
+  ) {
     const normalizedPhone = input.phone?.replace(/\D/g, '') ?? '';
     const contactFilters: Record<string, unknown>[] = [];
     if (input.email?.trim()) {
@@ -600,100 +619,142 @@ export class PatientPortalRepository {
       duplicateFilter.$or = contactFilters;
     }
 
-    const duplicate = await PatientModel.exists(duplicateFilter);
+    const duplicateQuery = PatientModel.exists(duplicateFilter);
+    const duplicate = await (session ? duplicateQuery.session(session) : duplicateQuery);
     if (duplicate) return null;
 
     const patientNumber = await allocatePatientNumber();
-    const patient = await PatientModel.create({
-      patientNumber,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      dateOfBirth: new Date(input.dateOfBirth),
-      gender: input.gender,
-      email: input.email?.trim() || null,
-      phone: input.phone?.trim() || null,
-      bloodGroup: input.bloodGroup?.trim() || null,
-      address: input.address ?? {},
-      registrationBranchId: objectId(input.preferredBranchId),
-      status: 'ACTIVE',
-      createdBy: objectId(input.userId),
-      updatedBy: objectId(input.userId),
-    });
+    const patientRecords = await PatientModel.create(
+      [
+        {
+          patientNumber,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          dateOfBirth: new Date(input.dateOfBirth),
+          gender: input.gender,
+          email: input.email?.trim() || null,
+          phone: input.phone?.trim() || null,
+          bloodGroup: input.bloodGroup?.trim() || null,
+          address: input.address ?? {},
+          registrationBranchId: objectId(input.preferredBranchId),
+          status: 'ACTIVE',
+          createdBy: objectId(input.userId),
+          updatedBy: objectId(input.userId),
+        },
+      ],
+      session ? { session } : undefined,
+    );
+    const patient = patientRecords[0]!;
+
     await Promise.all([
-      PatientAccessGrantModel.create({
-        userId: objectId(input.userId),
-        patientId: patient._id,
-        relationship: input.relationship,
-        status: 'VERIFIED',
-        isPrimary: input.relationship === 'SELF',
-        verifiedBy: objectId(input.userId),
-        verifiedAt: new Date(),
-      }),
-      PatientTimelineEventModel.create({
-        patientId: patient._id,
-        eventType: 'REGISTRATION',
-        title: input.relationship === 'SELF' ? 'Patient self-registration completed' : 'Dependent registered by guardian',
-        description: `${input.firstName.trim()} ${input.lastName.trim()} was registered through the patient portal.`,
-        occurredAt: new Date(),
-        createdBy: objectId(input.userId),
-      }),
-      AuditLogModel.create({
-        eventType: 'patient_portal.patient.created',
-        actorUserId: input.userId,
-        metadataJson: { patientId: String(patient._id), relationship: input.relationship },
-      }),
+      PatientAccessGrantModel.create(
+        [
+          {
+            userId: objectId(input.userId),
+            patientId: patient._id,
+            relationship: input.relationship,
+            status: 'VERIFIED',
+            isPrimary: input.relationship === 'SELF',
+            verifiedBy: objectId(input.userId),
+            verifiedAt: new Date(),
+          },
+        ],
+        session ? { session } : undefined,
+      ),
+      PatientTimelineEventModel.create(
+        [
+          {
+            patientId: patient._id,
+            eventType: 'REGISTRATION',
+            title: input.relationship === 'SELF' ? 'Patient self-registration completed' : 'Dependent registered by guardian',
+            description: `${input.firstName.trim()} ${input.lastName.trim()} was registered through the patient portal.`,
+            occurredAt: new Date(),
+            createdBy: objectId(input.userId),
+          },
+        ],
+        session ? { session } : undefined,
+      ),
+      AuditLogModel.create(
+        [
+          {
+            eventType: 'patient_portal.patient.created',
+            actorUserId: input.userId,
+            metadataJson: { patientId: String(patient._id), relationship: input.relationship },
+          },
+        ],
+        session ? { session } : undefined,
+      ),
     ]);
+
     if (input.relationship === 'SELF') {
-      await UserModel.updateOne({ _id: objectId(input.userId) }, { $set: { patientId: patient._id, updatedBy: objectId(input.userId) } });
+      await UserModel.updateOne(
+        { _id: objectId(input.userId) },
+        { $set: { patientId: patient._id, updatedBy: objectId(input.userId) } },
+        { session },
+      );
     }
     return String(patient._id);
   }
 
-  async linkExistingSelfPatient(input: {
-    userId: string;
-    firstName: string;
-    lastName: string;
-    dateOfBirth: string;
-    email?: string | null;
-    phone?: string | null;
-    preferredBranchId: string;
-  }) {
+  async linkExistingSelfPatient(
+    input: {
+      userId: string;
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      email?: string | null;
+      phone?: string | null;
+      preferredBranchId: string;
+    },
+    session?: ClientSession,
+  ) {
     const normalizedPhone = input.phone?.replace(/\D/g, '') ?? '';
     const contactMatches: Record<string, unknown>[] = [];
     if (input.email) contactMatches.push({ email: new RegExp(`^${escapeRegex(input.email)}$`, 'i') });
     if (input.phone) contactMatches.push({ phone: { $in: [input.phone, normalizedPhone, `+${normalizedPhone}`] } });
     if (contactMatches.length === 0) return null;
-    const patients = await PatientModel.find({
+    const findQuery = PatientModel.find({
       status: 'ACTIVE',
       deletedAt: null,
       firstName: new RegExp(`^${escapeRegex(input.firstName)}$`, 'i'),
       lastName: new RegExp(`^${escapeRegex(input.lastName)}$`, 'i'),
       dateOfBirth: new Date(input.dateOfBirth),
       $or: contactMatches,
-    }).select('_id registrationBranchId').limit(2).lean();
+    }).select('_id registrationBranchId').limit(2);
+    const patients = await (session ? findQuery.session(session) : findQuery).lean();
     if (patients.length !== 1) return null;
     const patient = patients[0]!;
     await Promise.all([
-      this.ensureAccessGrant(input.userId, String(patient._id), 'SELF'),
-      UserModel.updateOne({ _id: objectId(input.userId) }, { $set: { patientId: patient._id, updatedBy: objectId(input.userId) } }),
+      this.ensureAccessGrant(input.userId, String(patient._id), 'SELF', session),
+      UserModel.updateOne(
+        { _id: objectId(input.userId) },
+        { $set: { patientId: patient._id, updatedBy: objectId(input.userId) } },
+        { session },
+      ),
       patient.registrationBranchId ? Promise.resolve() : PatientModel.updateOne(
         { _id: patient._id },
         { $set: { registrationBranchId: objectId(input.preferredBranchId), updatedBy: objectId(input.userId) } },
+        { session },
       ),
-      AuditLogModel.create({
-        eventType: 'patient_portal.patient.self_linked',
-        actorUserId: input.userId,
-        metadataJson: { patientId: String(patient._id) },
-      }),
+      AuditLogModel.create(
+        [
+          {
+            eventType: 'patient_portal.patient.self_linked',
+            actorUserId: input.userId,
+            metadataJson: { patientId: String(patient._id) },
+          },
+        ],
+        session ? { session } : undefined,
+      ),
     ]);
     return String(patient._id);
   }
 
-  async ensureAccessGrant(userId: string, patientId: string, relationship: PatientAccessRelationship) {
+  async ensureAccessGrant(userId: string, patientId: string, relationship: PatientAccessRelationship, session?: ClientSession) {
     await PatientAccessGrantModel.updateOne(
       { userId: objectId(userId), patientId: objectId(patientId) },
       { $set: { relationship, status: 'VERIFIED', isPrimary: relationship === 'SELF', verifiedAt: new Date(), revokedAt: null } },
-      { upsert: true },
+      { upsert: true, session },
     );
   }
 

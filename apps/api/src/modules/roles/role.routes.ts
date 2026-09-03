@@ -7,9 +7,11 @@ import {
   assignRoleUserBodySchema,
   createRoleBodySchema,
   listRolesQuerySchema,
-  roleIdParamsSchema,
-  roleUserParamsSchema,
   roleAuditQuerySchema,
+  roleIdParamsSchema,
+  roleListResponseSchema,
+  roleResponseSchema,
+  roleUserParamsSchema,
   updateRoleBodySchema,
   updateRoleStatusBodySchema,
 } from './role.schemas.js';
@@ -64,6 +66,7 @@ export const registerRoleRoutes = async (app: FastifyInstance, services: Service
       preHandler: requirePermission(services, 'Administration', 'Roles', 'View'),
       schema: {
         querystring: listRolesQuerySchema,
+        response: { 200: roleListResponseSchema },
       },
     },
     async (request) => ok(await services.roles.list(request.query)),
@@ -75,6 +78,7 @@ export const registerRoleRoutes = async (app: FastifyInstance, services: Service
       preHandler: requirePermission(services, 'Administration', 'Roles', 'View'),
       schema: {
         params: roleIdParamsSchema,
+        response: { 200: roleResponseSchema },
       },
     },
     async (request) => ok(await services.roles.getById(request.params.id)),

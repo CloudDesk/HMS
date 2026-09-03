@@ -16,3 +16,5 @@ export function useSurgery(params: SurgeryListParams, enabled: { recommendations
   return { recommendations, bookings, createRecommendation, cancelRecommendation, createBooking, confirmBooking, rescheduleBooking, cancelBooking, completeBooking };
 }
 export function useSurgeryAlternatives(params: { branch_id: string; department_id: string; service_id: string; scheduled_start: string; doctor_id?: string }, enabled: boolean) { return useQuery({ queryKey: surgeryKeys.alternatives(params), queryFn: () => surgeryService.alternatives(params), enabled }); }
+export const fetchSurgeryBooking = (id: string, branchId: string) => surgeryService.booking(id, branchId);
+

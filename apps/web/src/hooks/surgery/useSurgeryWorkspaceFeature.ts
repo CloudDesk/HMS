@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
-import { navigate, useAppLocation } from '../../routing/navigation';
+import { useAppLocation } from '../../routing/navigation';
 import { useBranchesList } from '../branches/useBranches';
 import { useDepartmentsList } from '../departments/useDepartments';
 import { useDoctorsList } from '../doctors/useDoctors';
@@ -10,7 +10,7 @@ import { useLinkProcedureBillingContext } from '../billing/useBilling';
 import { useConsentTemplates } from '../consents/useConsents';
 import { useUploadPatientDocument } from '../patients/usePatients';
 import { useAdvancePaymentFeature } from '../advance-payment/useAdvancePaymentFeature';
-import { useSurgery, useSurgeryAlternatives } from './useSurgery';
+import { fetchSurgeryBooking, useSurgery, useSurgeryAlternatives } from './useSurgery';
 import { useSurgeryDownstreamFeature } from './useSurgeryDownstreamFeature';
 export type SurgeryTab = 'recommendations' | 'bookings' | 'schedule';
 const isTab = (value: string | null): value is SurgeryTab => value === 'recommendations' || value === 'bookings' || value === 'schedule';
@@ -85,7 +85,7 @@ export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookin
   };
   return {
     state: {
-      tab, branchId, status, date, searchText, patientSearch, branches,
+      tab, branchId, status, date, searchText, patientSearch, branches, isSuperAdmin,
       departments: departments.data?.data ?? [], doctors: doctors.data?.data ?? [],
       services: services.data?.data ?? [], patients: patients.data?.data ?? [],
       recommendations: surgery.recommendations.data?.data ?? [], bookings: surgery.bookings.data?.data ?? [],
@@ -109,8 +109,19 @@ export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookin
       createRecommendation: surgery.createRecommendation.mutateAsync,
       createBooking: surgery.createBooking.mutateAsync,
       executeWorkflowAction,
+      cancelRecommendation: (id: string, payload: { reason: string }) =>
+        surgery.cancelRecommendation.mutateAsync({ id, reason: payload.reason }),
+      confirmBooking: (id: string, payload: { hold_id?: string; consent_document_id?: string; deposit_invoice_id?: string }) =>
+        surgery.confirmBooking.mutateAsync({ id, body: payload }),
+      rescheduleBooking: (id: string, payload: { scheduled_start: string; doctor_id?: string; reason: string }) =>
+        surgery.rescheduleBooking.mutateAsync({ id, body: payload }),
+      cancelBooking: (id: string, payload: { reason: string }) =>
+        surgery.cancelBooking.mutateAsync({ id, reason: payload.reason }),
+      completeBooking: (id: string) =>
+        surgery.completeBooking.mutateAsync(id),
       uploadConsent: uploadConsent.mutateAsync,
       linkDeposit,
+      fetchBookingDetails: (id: string) => fetchSurgeryBooking(id, branchId),
     },
   };
 }

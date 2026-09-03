@@ -8,3 +8,9 @@ export const useAvailableBeds = (branchId: string) => useQuery({
 export const useBedAvailabilitySummary = (branchId: string) => useQuery({
   queryKey: ['admissions', 'bed-summary', branchId], queryFn: () => admissionsConfigurationService.summary(branchId), enabled: Boolean(branchId),
 });
+export const useReservedBeds = (branchId: string, enabled = true) => useQuery({
+  queryKey: ['admissions', 'reserved-beds', branchId],
+  queryFn: () => admissionsConfigurationService.beds({ branch_id: branchId, status: 'RESERVED', page: 1, limit: 100 }),
+  enabled: Boolean(branchId) && enabled,
+});
+

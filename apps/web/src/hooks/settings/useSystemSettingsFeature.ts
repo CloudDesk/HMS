@@ -95,14 +95,21 @@ export function useSystemSettingsFeature() {
   useEffect(() => {
     if (!serverLogoBlobName) return;
     let active = true;
+    let createdUrl: string | null = null;
     settingsApi
       .getLogo()
       .then((blob) => {
-        if (active) replaceLogoUrl(URL.createObjectURL(blob));
+        if (active) {
+          createdUrl = URL.createObjectURL(blob);
+          replaceLogoUrl(createdUrl);
+        }
       })
       .catch(() => undefined);
     return () => {
       active = false;
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
     };
   }, [serverLogoBlobName, replaceLogoUrl]);
 

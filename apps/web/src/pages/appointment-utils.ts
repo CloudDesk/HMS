@@ -1,7 +1,6 @@
 import { ApiError } from '../api/api-error';
 import { getGlobalDateFormat } from '../api/useSettings';
 import { format } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
 import type {
   ApiAppointmentPriority,
   ApiAppointmentStatus,
@@ -35,6 +34,7 @@ export const appointmentPriorityLabels: Record<ApiAppointmentPriority, string> =
 };
 
 export const formatAppointmentDate = (value: string | null | undefined, timezone?: string) => {
+  void timezone;
   if (!value) return '-';
   const cleanValue = value.slice(0, 10);
   const date = parseInputDate(cleanValue);

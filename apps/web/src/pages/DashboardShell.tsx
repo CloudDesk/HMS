@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { useDashboardOverviewFeature } from '../hooks/dashboard/useDashboardOverviewFeature';
 import { useAuth } from '../auth/useAuth';
 import {
@@ -10,17 +10,44 @@ import {
 import type { AuthUser } from '../auth/auth-types';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDateTime } from './patient-utils';
-import { DoctorDashboardPage } from './DoctorDashboardPage';
-import { AppointmentDashboardPage } from './AppointmentDashboardPage';
-import { OpdDashboardPage } from './OpdDashboardPage';
-import { BillingDashboardPage } from './BillingDashboardPage';
-import { AdministrationDashboardPage } from './AdministrationDashboardPage';
-import { PrescriptionQueuePage } from './PrescriptionQueuePage';
-import { PharmacyMedicineInventoryPage } from './PharmacyMedicineInventoryPage';
-import { LaboratoryQueuePage } from './LaboratoryQueuePage';
-import { ImagingQueuePage } from './ImagingQueuePage';
-import { PhaseTwoReportsPage } from './PhaseTwoReportsPage';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { useCurrencyFormatter } from '../api/useSettings';
+
+const DoctorDashboardPage = lazy(() => import('./DoctorDashboardPage').then((m) => ({ default: m.DoctorDashboardPage })));
+const AppointmentDashboardPage = lazy(() => import('./AppointmentDashboardPage').then((m) => ({ default: m.AppointmentDashboardPage })));
+const OpdDashboardPage = lazy(() => import('./OpdDashboardPage').then((m) => ({ default: m.OpdDashboardPage })));
+const BillingDashboardPage = lazy(() => import('./BillingDashboardPage').then((m) => ({ default: m.BillingDashboardPage })));
+const AdministrationDashboardPage = lazy(() => import('./AdministrationDashboardPage').then((m) => ({ default: m.AdministrationDashboardPage })));
+const PrescriptionQueuePage = lazy(() => import('./PrescriptionQueuePage').then((m) => ({ default: m.PrescriptionQueuePage })));
+const PharmacyMedicineInventoryPage = lazy(() => import('./PharmacyMedicineInventoryPage').then((m) => ({ default: m.PharmacyMedicineInventoryPage })));
+const LaboratoryQueuePage = lazy(() => import('./LaboratoryQueuePage').then((m) => ({ default: m.LaboratoryQueuePage })));
+const ImagingQueuePage = lazy(() => import('./ImagingQueuePage').then((m) => ({ default: m.ImagingQueuePage })));
+const PhaseTwoReportsPage = lazy(() => import('./PhaseTwoReportsPage').then((m) => ({ default: m.PhaseTwoReportsPage })));
+
+function DashboardSuspenseFallback({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={`Loading ${label}`}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '280px',
+        padding: '2rem',
+      }}
+    >
+      <MedicalLoader text={`Loading ${label}…`} subtext="Retrieving workspace telemetry" />
+    </div>
+  );
+}
+
+const withSuspense = (label: string, component: ReactNode) => (
+  <Suspense fallback={<DashboardSuspenseFallback label={label} />}>
+    {component}
+  </Suspense>
+);
 
 
 import { useBranchesList } from '../hooks/branches/useBranches';
@@ -99,11 +126,11 @@ function ExecutiveOverviewTab() {
       {loadError ? <div className="um-state-cell" role="alert" style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '0.75rem', borderRadius: '6px' }}>{loadError}</div> : null}
 
       <div className="stat-cards-container stat-cards-container--five" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-        <StatCard icon="ph-users" label="Registered Patients" note="Active patient directory" tone="blue" value={loading ? '...' : data.kpis.registeredPatients} />
-        <StatCard icon="ph-stethoscope" label="Active Doctors" note="On-duty clinical staff" tone="green" value={loading ? '...' : data.kpis.activeDoctors} />
-        <StatCard icon="ph-calendar-check" label="Today's Appointments" note="Bookings for today" tone="orange" value={loading ? '...' : data.kpis.todayAppointments} />
-        <StatCard icon="ph-first-aid" label="OPD Visits Today" note="Checked-in patient visits" tone="purple" value={loading ? '...' : data.kpis.todayOpdVisits} />
-        <StatCard icon="ph-receipt" label="Today's Billed Revenue" note="Live billing summary" tone="green" value={loading ? '...' : (data.kpis.todayBilledRevenue === null ? 'Restricted' : formatMoney(data.kpis.todayBilledRevenue))} />
+        <StatCard icon="ph-users" label="Registered Patients" note="Active patient directory" tone="blue" value={loading || !data ? '...' : (data.kpis?.registeredPatients ?? 0)} />
+        <StatCard icon="ph-stethoscope" label="Active Doctors" note="On-duty clinical staff" tone="green" value={loading || !data ? '...' : (data.kpis?.activeDoctors ?? 0)} />
+        <StatCard icon="ph-calendar-check" label="Today's Appointments" note="Bookings for today" tone="orange" value={loading || !data ? '...' : (data.kpis?.todayAppointments ?? 0)} />
+        <StatCard icon="ph-first-aid" label="OPD Visits Today" note="Checked-in patient visits" tone="purple" value={loading || !data ? '...' : (data.kpis?.todayOpdVisits ?? 0)} />
+        <StatCard icon="ph-receipt" label="Today's Billed Revenue" note="Live billing summary" tone="green" value={loading || !data ? '...' : (data.kpis?.todayBilledRevenue === null || data.kpis?.todayBilledRevenue === undefined ? 'Restricted' : formatMoney(data.kpis.todayBilledRevenue))} />
       </div>
 
       {/* Operational Highlights */}
@@ -378,11 +405,11 @@ function ModuleWorkspaceOverview({ user, moduleKey }: { user: AuthUser; moduleKe
 
 const buildSuperAdministratorTabs = (): DashboardTabDefinition[] => [
   { key: 'overview', label: 'Overview', icon: 'ph-squares-four', content: <ExecutiveOverviewTab /> },
-  { key: 'doctors', label: 'Doctors', icon: 'ph-stethoscope', content: <DoctorDashboardPage /> },
-  { key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: <AppointmentDashboardPage /> },
-  { key: 'opd', label: 'OPD', icon: 'ph-first-aid', content: <OpdDashboardPage /> },
-  { key: 'billing', label: 'Billing', icon: 'ph-receipt', content: <BillingDashboardPage /> },
-  { key: 'admin', label: 'Administration', icon: 'ph-gear', content: <AdministrationDashboardPage /> },
+  { key: 'doctors', label: 'Doctors', icon: 'ph-stethoscope', content: withSuspense('Doctors', <DoctorDashboardPage />) },
+  { key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: withSuspense('Appointments', <AppointmentDashboardPage />) },
+  { key: 'opd', label: 'OPD', icon: 'ph-first-aid', content: withSuspense('OPD', <OpdDashboardPage />) },
+  { key: 'billing', label: 'Billing', icon: 'ph-receipt', content: withSuspense('Billing', <BillingDashboardPage />) },
+  { key: 'admin', label: 'Administration', icon: 'ph-gear', content: withSuspense('Administration', <AdministrationDashboardPage />) },
 ];
 
 const buildPermissionTabs = (user: AuthUser): DashboardTabDefinition[] => {
@@ -394,33 +421,33 @@ const buildPermissionTabs = (user: AuthUser): DashboardTabDefinition[] => {
     canView(user, 'Doctors', 'Doctor Directory') &&
     canView(user, 'Appointments', 'Appointment Records')
   ) {
-    tabs.push({ key: 'clinical', label: 'My Clinical Day', icon: 'ph-stethoscope', content: <DoctorDashboardPage /> });
+    tabs.push({ key: 'clinical', label: 'My Clinical Day', icon: 'ph-stethoscope', content: withSuspense('Clinical Day', <DoctorDashboardPage />) });
   }
 
   if (canView(user, 'Administration', 'Dashboard')) {
-    tabs.push({ key: 'admin', label: 'Administration', icon: 'ph-gear', content: <AdministrationDashboardPage /> });
+    tabs.push({ key: 'admin', label: 'Administration', icon: 'ph-gear', content: withSuspense('Administration', <AdministrationDashboardPage />) });
   }
 
   if (canView(user, 'Pharmacy', 'Dispensing')) {
-    tabs.push({ key: 'pharmacy', label: 'Pharmacy Queue', icon: 'ph-pill', content: <PrescriptionQueuePage /> });
+    tabs.push({ key: 'pharmacy', label: 'Pharmacy Queue', icon: 'ph-pill', content: withSuspense('Pharmacy Queue', <PrescriptionQueuePage />) });
   }
   if (canView(user, 'Pharmacy', 'Medicine Inventory')) {
-    tabs.push({ key: 'pharmacy-inventory', label: 'Pharmacy Inventory', icon: 'ph-package', content: <PharmacyMedicineInventoryPage /> });
+    tabs.push({ key: 'pharmacy-inventory', label: 'Pharmacy Inventory', icon: 'ph-package', content: withSuspense('Pharmacy Inventory', <PharmacyMedicineInventoryPage />) });
   }
   if (canView(user, 'Laboratory', 'Orders')) {
-    tabs.push({ key: 'laboratory', label: 'Laboratory', icon: 'ph-flask', content: <LaboratoryQueuePage /> });
+    tabs.push({ key: 'laboratory', label: 'Laboratory', icon: 'ph-flask', content: withSuspense('Laboratory', <LaboratoryQueuePage />) });
   }
   if (canView(user, 'Imaging', 'Orders')) {
-    tabs.push({ key: 'imaging', label: 'Imaging', icon: 'ph-image-square', content: <ImagingQueuePage /> });
+    tabs.push({ key: 'imaging', label: 'Imaging', icon: 'ph-image-square', content: withSuspense('Imaging', <ImagingQueuePage />) });
   }
   if (canView(user, 'Billing', 'Invoices')) {
-    tabs.push({ key: 'billing', label: 'Billing', icon: 'ph-receipt', content: <BillingDashboardPage /> });
+    tabs.push({ key: 'billing', label: 'Billing', icon: 'ph-receipt', content: withSuspense('Billing', <BillingDashboardPage />) });
   }
   if (!doctorUser && canView(user, 'Appointments', 'Appointment Records')) {
-    tabs.push({ key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: <AppointmentDashboardPage /> });
+    tabs.push({ key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: withSuspense('Appointments', <AppointmentDashboardPage />) });
   }
   if (canView(user, 'OPD', 'OPD Visits')) {
-    tabs.push({ key: 'opd', label: 'OPD', icon: 'ph-first-aid', content: <OpdDashboardPage /> });
+    tabs.push({ key: 'opd', label: 'OPD', icon: 'ph-first-aid', content: withSuspense('OPD', <OpdDashboardPage />) });
   }
   if (canView(user, 'Emergency', 'Encounters')) {
     tabs.push({ key: 'emergency', label: 'Emergency', icon: 'ph-warning-circle', content: <ModuleWorkspaceOverview moduleKey="emergency" user={user} /> });
@@ -435,7 +462,7 @@ const buildPermissionTabs = (user: AuthUser): DashboardTabDefinition[] => {
     tabs.push({ key: 'surgery', label: 'Surgery', icon: 'ph-scissors', content: <ModuleWorkspaceOverview moduleKey="surgery" user={user} /> });
   }
   if (canView(user, 'Reports', 'Phase 2 Reports')) {
-    tabs.push({ key: 'reports', label: 'Reports', icon: 'ph-chart-bar', content: <PhaseTwoReportsPage /> });
+    tabs.push({ key: 'reports', label: 'Reports', icon: 'ph-chart-bar', content: withSuspense('Reports', <PhaseTwoReportsPage />) });
   }
 
   return tabs.length > 0

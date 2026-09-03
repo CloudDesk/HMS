@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const testState = vi.hoisted(() => ({
   loading: false,
@@ -123,7 +124,8 @@ describe('PatientProfilePage feature-hook rendering', () => {
   });
 
   it('renders the patient identity and branch-bound profile context from the feature hook', async () => {
-    await act(async () => root.render(<PatientProfilePage />));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><PatientProfilePage /></QueryClientProvider>));
 
     expect(testState.useFeature).toHaveBeenCalledWith('patient-1', 'Overview');
     expect(container.textContent).toContain('Patient Workspace');
@@ -133,13 +135,14 @@ describe('PatientProfilePage feature-hook rendering', () => {
   });
 
   it('preserves patient-profile loading and error states', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     testState.loading = true;
-    await act(async () => root.render(<PatientProfilePage />));
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><PatientProfilePage /></QueryClientProvider>));
     expect(container.textContent).toContain('Loading patient workspace');
 
     testState.loading = false;
     testState.error = new Error('Patient profile unavailable.');
-    await act(async () => root.render(<PatientProfilePage />));
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><PatientProfilePage /></QueryClientProvider>));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('Patient profile unavailable.');
   });
 });

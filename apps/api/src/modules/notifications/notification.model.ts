@@ -35,7 +35,6 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
 notificationSchema.index({ recipientRole: 1, isRead: 1 });
 notificationSchema.index({ recipientRole: 1, recipientBranchId: 1, isRead: 1 });
 notificationSchema.index({ recipientUserId: 1, isRead: 1, createdAt: -1 });
-notificationSchema.index({ recipientUserId: 1, isRead: 1 });
 notificationSchema.index({ createdAt: -1 });
 
 export const NotificationModel = mongoose.model<NotificationDocumentFields>('Notification', notificationSchema);

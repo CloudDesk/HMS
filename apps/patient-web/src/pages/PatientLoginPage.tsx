@@ -34,10 +34,10 @@ export function PatientLoginPage() {
   }, [safeReturnPath, status, user]);
 
   const continueToRegistration = (mode: 'new' | 'guardian') => {
-    sessionStorage.setItem(VERIFIED_MOBILE_KEY, JSON.stringify({ phone: phone.trim(), otp, mode, verifiedAt: Date.now() }));
+    sessionStorage.setItem(VERIFIED_MOBILE_KEY, JSON.stringify({ phone: phone.trim(), mode, verifiedAt: Date.now() }));
     const params = new URLSearchParams({ mode, verified: '1' });
     if (safeReturnPath) params.set('return', safeReturnPath);
-    navigate(`/signup?${params.toString()}`);
+    navigate(`/signup?${params.toString()}`, { state: { phone: phone.trim(), otp, mode } });
   };
 
   const handleResend = async () => {

@@ -1,6 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { requirePermission } from '../../middleware/require-permission.js';
-import { getAdvancePaymentQuerySchema, syncAdvancePaymentSchema } from './advance-payment.schemas.js';
+import {
+  advancePaymentRecordSchema,
+  getAdvancePaymentQuerySchema,
+  syncAdvancePaymentSchema,
+} from './advance-payment.schemas.js';
 import type { SyncAdvancePaymentDTO } from './advance-payment.types.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 
@@ -12,6 +16,7 @@ export const registerAdvancePaymentRoutes = async (app: FastifyInstance, service
     {
       schema: {
         querystring: getAdvancePaymentQuerySchema,
+        response: { 200: advancePaymentRecordSchema },
       },
       preHandler: requirePermission(services, 'Billing', 'Invoices', 'View')
     },
@@ -29,6 +34,7 @@ export const registerAdvancePaymentRoutes = async (app: FastifyInstance, service
     {
       schema: {
         body: syncAdvancePaymentSchema,
+        response: { 200: advancePaymentRecordSchema },
       },
       preHandler: requirePermission(services, 'Billing', 'Invoices', 'Edit')
     },

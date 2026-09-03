@@ -151,6 +151,7 @@ export class UserService {
     });
     await this.validateReferences(normalized.branches, normalized.departments, normalized.roleIds);
     await this.permissions.assertCanAssignRoles(actorUserId, normalized.roleIds);
+    await this.assertCanAssignBranches(actorUserId, normalized.branches);
 
     const user = await this.repository.create({
       ...normalized,
@@ -565,6 +566,23 @@ export class UserService {
       allowEqualAuthority: true,
       errorCode: 'PRIVILEGED_USER_MODIFICATION_FORBIDDEN',
     });
+  }
+
+  private async assertCanAssignBranches(actorUserId: string, requestedBranches: AssignmentInput[]) {
+    if (!requestedBranches || requestedBranches.length === 0) return;
+    try {
+      const actor = await this.getById(actorUserId);
+      const isSuperAdmin = actor.roles.some((role) => role.code === 'SUPER_ADMIN');
+      if (isSuperAdmin || actor.branches.length === 0) return;
+
+      const actorBranchIds = new Set(actor.branches.map((b) => b.id));
+      const hasUnauthorizedBranch = requestedBranches.some((b) => !actorBranchIds.has(b.id));
+      if (hasUnauthorizedBranch) {
+        throw new AppError('Cannot assign a user to a branch outside your authorized branch scope', 403, 'BRANCH_SCOPE_VIOLATION');
+      }
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+    }
   }
 
   private async attachAssignments(users: UserRecord[]): Promise<UserResponse[]> {

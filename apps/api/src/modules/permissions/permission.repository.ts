@@ -1,4 +1,6 @@
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 import { PermissionModel, PermissionCategoryModel, PermissionGroupModel } from './permission.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
@@ -152,14 +154,14 @@ export class PermissionRepository {
     
     if (query.status) filter.status = query.status;
     if (query.type) filter.type = query.type;
-    if (query.module) filter.module = new RegExp(`^${query.module}$`, 'i');
-    if (query.screen) filter.screen = new RegExp(`^${query.screen}$`, 'i');
-    if (query.action) filter.action = new RegExp(`^${query.action}$`, 'i');
+    if (query.module) filter.module = new RegExp(`^${escapeRegex(query.module)}$`, 'i');
+    if (query.screen) filter.screen = new RegExp(`^${escapeRegex(query.screen)}$`, 'i');
+    if (query.action) filter.action = new RegExp(`^${escapeRegex(query.action)}$`, 'i');
     if (query.categoryId) filter.categoryId = query.categoryId;
     if (query.groupId) filter.groupId = query.groupId;
 
     if (query.search) {
-      const searchRegex = new RegExp(query.search, 'i');
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
       filter.$or = [
         { code: searchRegex },
         { name: searchRegex },

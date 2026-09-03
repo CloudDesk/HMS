@@ -7,6 +7,8 @@ import {
   createPermissionBodySchema,
   listPermissionsQuerySchema,
   permissionIdParamsSchema,
+  permissionListResponseSchema,
+  permissionResponseSchema,
   replaceRolePermissionsBodySchema,
   rolePermissionParamsSchema,
   updatePermissionBodySchema,
@@ -61,6 +63,7 @@ const metadataFromRequest = (request: FastifyRequest) => ({
   userAgent: request.headers['user-agent'],
 });
 
+
 export const registerPermissionRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
   app.get<{ Querystring: ListPermissionsQuery }>(
     '/api/permissions',
@@ -68,6 +71,7 @@ export const registerPermissionRoutes = async (app: FastifyInstance, services: S
       preHandler: requirePermission(services, 'Administration', 'Permissions', 'View'),
       schema: {
         querystring: listPermissionsQuerySchema,
+        response: { 200: permissionListResponseSchema },
       },
     },
     async (request) => ok(await services.permissions.list(request.query)),
@@ -79,6 +83,7 @@ export const registerPermissionRoutes = async (app: FastifyInstance, services: S
       preHandler: requirePermission(services, 'Administration', 'Permissions', 'View'),
       schema: {
         params: permissionIdParamsSchema,
+        response: { 200: permissionResponseSchema },
       },
     },
     async (request) => ok(await services.permissions.getById(request.params.id)),

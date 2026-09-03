@@ -84,6 +84,8 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
     }).filter(([, value]) => value !== undefined),
   );
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export class ServiceRepository {
   async getActiveBillingServices(ids: string[]) {
     return ServiceModel.find({
@@ -137,6 +139,7 @@ export class ServiceRepository {
     if (query.status) {
       filter.status = query.status;
     }
+
     if (query.department_id) {
       filter.departmentId = query.department_id;
     }
@@ -144,7 +147,7 @@ export class ServiceRepository {
       filter.serviceType = query.service_type;
     }
     if (query.search) {
-      const searchRegex = new RegExp(query.search, 'i');
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
       filter.$or = [{ name: searchRegex }, { code: searchRegex }];
     }
 
@@ -197,7 +200,7 @@ export class ServiceRepository {
 
   async getByCode(code: string): Promise<Service | undefined> {
     const service = await ServiceModel.findOne({
-      code: new RegExp(`^${code}$`, 'i'),
+      code: new RegExp(`^${escapeRegex(code)}$`, 'i'),
       deletedAt: null,
     }).lean();
     return service ? toService(service) : undefined;
