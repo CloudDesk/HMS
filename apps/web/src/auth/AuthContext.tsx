@@ -7,6 +7,7 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { ApiError, getFriendlyAuthMessage } from '../api/api-error';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { isPublicRoute, navigate } from '../routing/navigation';
 import { authApi } from './auth-api';
@@ -31,6 +32,7 @@ const redirectToLogin = (reason?: string) => {
 };
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -38,9 +40,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const clearSession = useCallback((nextStatus: Extract<AuthStatus, 'unauthenticated' | 'session-expired'>) => {
     tokenStorage.clear();
+    queryClient.clear();
     setUser(null);
     setStatus(nextStatus);
-  }, []);
+  }, [queryClient]);
 
   const handleInvalidSession = useCallback(() => {
     clearSession('session-expired');

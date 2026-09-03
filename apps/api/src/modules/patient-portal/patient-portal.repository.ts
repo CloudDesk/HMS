@@ -11,11 +11,13 @@ import { OpdVisitModel } from '../opd/opd-visit.model.js';
 import { PatientModel, PatientTimelineEventModel } from '../patients/patient.model.js';
 import { allocatePatientNumber } from '../patients/patient-number.service.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { RefreshTokenModel } from '../auth/refresh-token.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { UserModel } from '../users/user.model.js';
 import { PatientAccessGrantModel, type PatientAccessRelationship } from './patient-access-grant.model.js';
 import { GuardianProfileModel, type GuardianRelationship } from './guardian-profile.model.js';
+import { buildPhoneMongoFilter } from '../../utils/phone.js';
 
 const objectId = (value?: string | null) => (value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined);
 const validObjectIds = (values: unknown[]) =>
@@ -115,6 +117,8 @@ export class PatientPortalRepository {
     const nonClinicalRegex = /administration|admin|billing|finance|reception|nursing|pharmacy|imaging|laboratory|lab/i;
     const baseFilter: Record<string, unknown> = {
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+      status: { $ne: 'INACTIVE' },
+      isClinical: { $ne: false },
       name: { $not: nonClinicalRegex },
       code: { $not: nonClinicalRegex },
     };
@@ -130,23 +134,29 @@ export class PatientPortalRepository {
       andConditions.push({ name: new RegExp(escapeRegex(query.search), 'i') });
     }
     const filter = andConditions.length > 1 ? { $and: andConditions } : baseFilter;
-    const [departments, total] = await Promise.all([
-      DepartmentModel.find(filter)
-        .select('code name description branchId')
-        .sort({ name: 1 })
-        .skip((query.page - 1) * query.limit)
-        .limit(query.limit)
-        .lean(),
-      DepartmentModel.countDocuments(filter),
-    ]);
+    const departments = await DepartmentModel.find(filter)
+      .select('code name description branchId')
+      .sort({ name: 1 })
+      .lean();
 
-    const branchIds = validObjectIds(departments.map((item) => (item as any).branchId ?? (item as any).branchIds?.[0]));
+    const seenNames = new Set<string>();
+    const uniqueDepartments = departments.filter((dept) => {
+      const key = dept.name.trim().toLowerCase();
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    });
+
+    const total = uniqueDepartments.length;
+    const pagedDepartments = uniqueDepartments.slice((query.page - 1) * query.limit, query.page * query.limit);
+
+    const branchIds = validObjectIds(pagedDepartments.map((item) => (item as any).branchId ?? (item as any).branchIds?.[0]));
     const branches = branchIds.length
       ? await BranchModel.find({ _id: { $in: branchIds }, deletedAt: null }).select('name city').lean()
       : [];
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
     return {
-      data: departments.map((department) => {
+      data: pagedDepartments.map((department) => {
         const deptBranchId = (department as any).branchId ?? (department as any).branchIds?.[0];
         const branch = branchById.get(String(deptBranchId));
         return {
@@ -165,7 +175,16 @@ export class PatientPortalRepository {
     const filter: Record<string, unknown> = {
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     };
-    if (query.departmentId) filter.departmentId = objectId(query.departmentId);
+    if (query.departmentId) {
+      const validObjId = objectId(query.departmentId);
+      const targetDept = validObjId ? await DepartmentModel.findById(validObjId).lean() : null;
+      if (targetDept) {
+        const sameNameDepts = await DepartmentModel.find({ name: targetDept.name, deletedAt: null, status: { $ne: 'INACTIVE' } }).select('_id').lean();
+        filter.departmentId = { $in: sameNameDepts.map((d) => d._id) };
+      } else {
+        filter.departmentId = objectId(query.departmentId);
+      }
+    }
     if (query.branchId) {
       const departmentIds = await DepartmentModel.distinct('_id', {
         branchIds: objectId(query.branchId),
@@ -229,8 +248,16 @@ export class PatientPortalRepository {
     if (query.departmentId) {
       const dId = query.departmentId;
       const validObjId = objectId(dId);
-      const deptConds: Record<string, unknown>[] = [{ departmentId: String(dId) }];
-      if (validObjId) deptConds.push({ departmentId: validObjId });
+      const targetDept = validObjId ? await DepartmentModel.findById(validObjId).lean() : null;
+      let matchingDeptIds: (Types.ObjectId | string)[] = validObjId ? [validObjId] : [dId];
+      if (targetDept) {
+        const sameNameDepts = await DepartmentModel.find({ name: targetDept.name, deletedAt: null, status: { $ne: 'INACTIVE' } }).select('_id').lean();
+        matchingDeptIds = sameNameDepts.map((d) => d._id);
+      }
+      const deptConds: Record<string, unknown>[] = [
+        { departmentId: { $in: matchingDeptIds } },
+        { departmentId: { $in: matchingDeptIds.map((id) => String(id)) } },
+      ];
       andConditions.push({ $or: deptConds });
     }
     if (query.branchId && !query.departmentId) {
@@ -390,45 +417,51 @@ export class PatientPortalRepository {
   }
 
   async hasPatientMatchingContact(email: string, phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
+    const phoneFilter = buildPhoneMongoFilter(phone);
     return Boolean(await PatientModel.exists({
       deletedAt: null,
       $or: [
         { email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-        { phone: { $in: [phone, normalizedPhone, `+${normalizedPhone}`] } },
+        phoneFilter,
       ],
     }));
   }
 
   async getUnlinkedPatientLoginStatus(phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const phoneCandidates = [phone.trim(), normalizedPhone, `+${normalizedPhone}`];
+    const phoneFilter = buildPhoneMongoFilter(phone);
     const portalAccountExists = await UserModel.exists({
       deletedAt: null,
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     });
     if (portalAccountExists) return null;
 
     const patients = await PatientModel.find({
       deletedAt: null,
       status: 'ACTIVE',
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     }).select('dateOfBirth').limit(2).lean();
     if (patients.length === 0) return 'NEW_PATIENT_REQUIRES_REGISTRATION' as const;
     if (patients.length > 1) return 'MULTIPLE_PATIENT_MATCHES' as const;
 
-    const adultDate = new Date(patients[0]!.dateOfBirth);
+    const patient = patients[0]!;
+    const linkedPortalOwnerExists = Boolean(await UserModel.exists({
+      patientId: patient._id,
+      status: 'active',
+      deletedAt: null,
+    }));
+    if (linkedPortalOwnerExists) return null;
+
+    const adultDate = new Date(patient.dateOfBirth);
     adultDate.setFullYear(adultDate.getFullYear() + 18);
     return adultDate > new Date() ? 'MINOR_REQUIRES_GUARDIAN' as const : 'ACCOUNT_NOT_LINKED' as const;
   }
 
   async getUniqueUnlinkedAdultPatientByPhone(phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const phoneCandidates = [phone.trim(), normalizedPhone, `+${normalizedPhone}`];
+    const phoneFilter = buildPhoneMongoFilter(phone);
     const patients = await PatientModel.find({
       deletedAt: null,
       status: 'ACTIVE',
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     }).select('firstName middleName lastName dateOfBirth email patientNumber').limit(2).lean();
     if (patients.length !== 1) return null;
 
@@ -456,14 +489,13 @@ export class PatientPortalRepository {
   }
 
   async getUnlinkedMinorByPhone(phone: string) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const phoneCandidates = [phone.trim(), normalizedPhone, `+${normalizedPhone}`];
-    if (await UserModel.exists({ deletedAt: null, phone: { $in: phoneCandidates } })) return null;
+    const phoneFilter = buildPhoneMongoFilter(phone);
+    if (await UserModel.exists({ deletedAt: null, ...phoneFilter })) return null;
 
     const patients = await PatientModel.find({
       deletedAt: null,
       status: 'ACTIVE',
-      phone: { $in: phoneCandidates },
+      ...phoneFilter,
     }).select('firstName lastName dateOfBirth').limit(2).lean();
     if (patients.length !== 1) return null;
 
@@ -797,7 +829,29 @@ export class PatientPortalRepository {
       { returnDocument: 'after' },
     ).select('_id patientNumber').lean();
     if (!patient) return null;
+    const portalOwner = await UserModel.findOne({
+      patientId: patient._id,
+      deletedAt: null,
+    }).select('_id').lean();
+    if (portalOwner) {
+      const ownerIsEditingSelf = String(portalOwner._id) === userId;
+      await UserModel.updateOne(
+        { _id: portalOwner._id, deletedAt: null },
+        {
+          $set: {
+            phone: ownerIsEditingSelf ? input.phone?.trim() || null : null,
+            updatedBy: objectId(userId),
+          },
+        },
+      );
+    }
     await Promise.all([
+      portalOwner
+        ? RefreshTokenModel.updateMany(
+            { userId: portalOwner._id, revokedAt: null },
+            { $set: { revokedAt: new Date() } },
+          )
+        : Promise.resolve(),
       PatientTimelineEventModel.create({
         patientId: patient._id,
         eventType: 'PROFILE_UPDATED',

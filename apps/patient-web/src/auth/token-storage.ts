@@ -11,9 +11,9 @@ const removeLegacyRefreshStorage = () => {
 };
 
 export const tokenStorage = {
-  setTokens(tokens: AuthTokens) { accessToken = tokens.accessToken; accessExpiresAt = Date.now() + tokens.expiresIn * 1000; },
+  setTokens(tokens: Pick<AuthTokens, 'accessToken' | 'expiresIn'>) { accessToken = tokens.accessToken; accessExpiresAt = Date.now() + tokens.expiresIn * 1000; },
   getAccessToken: () => accessToken,
-  isAccessTokenExpired: () => !accessToken || accessExpiresAt - 15_000 <= Date.now(),
+  isAccessTokenExpired: (thresholdMs = 15_000) => !accessToken || accessExpiresAt - thresholdMs <= Date.now(),
   clearLegacyRefreshStorage: removeLegacyRefreshStorage,
   clear() { accessToken = null; accessExpiresAt = 0; removeLegacyRefreshStorage(); },
 };

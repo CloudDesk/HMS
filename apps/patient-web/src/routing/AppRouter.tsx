@@ -1,51 +1,51 @@
-import { lazy, Suspense, useEffect } from 'react';
-import { useAuth } from '../auth/useAuth';
+import { lazy, Suspense } from 'react';
+import { PatientWebsitePage } from '../pages/PatientWebsitePage';
+import { ProtectedRoute } from './ProtectedRoute';
 import { navigate, useAppLocation } from './navigation';
 
-const PatientWebsitePage = lazy(() => import('../pages/PatientWebsitePage').then((m) => ({ default: m.PatientWebsitePage })));
-const PatientLoginPage = lazy(() => import('../pages/PatientLoginPage').then((m) => ({ default: m.PatientLoginPage })));
-const PatientSignupPage = lazy(() => import('../pages/PatientSignupPage').then((m) => ({ default: m.PatientSignupPage })));
-const PatientPortalPage = lazy(() => import('../pages/PatientPortalPage').then((m) => ({ default: m.PatientPortalPage })));
+const PatientLoginPage = lazy(() =>
+  import('../pages/PatientLoginPage').then((m) => ({ default: m.PatientLoginPage }))
+);
+const PatientSignupPage = lazy(() =>
+  import('../pages/PatientSignupPage').then((m) => ({ default: m.PatientSignupPage }))
+);
+const PatientPortalPage = lazy(() =>
+  import('../pages/PatientPortalPage').then((m) => ({ default: m.PatientPortalPage }))
+);
 
-function RouteFallback({ label = 'page' }: { label?: string }) {
+function RouteLoadingFallback() {
   return (
-    <main className="patient-portal-state" role="status" aria-busy="true" aria-label={`Loading ${label}`}>
+    <main className="patient-portal-state">
       <div className="portal-spinner" />
-      <strong>Loading {label}…</strong>
+      <strong>Loading…</strong>
     </main>
   );
 }
 
 export function AppRouter() {
-  const { pathname, search } = useAppLocation();
-  const { status } = useAuth();
+  const { pathname } = useAppLocation();
 
-  useEffect(() => {
-    if (pathname === '/portal' && status === 'unauthenticated') {
-      navigate(`/login?return=${encodeURIComponent(`${pathname}${search}`)}`, { replace: true });
-    }
-  }, [pathname, search, status]);
+  if (pathname === '/') {
+    return <PatientWebsitePage />;
+  }
 
   return (
-    <Suspense fallback={<RouteFallback label="view" />}>
-      {pathname === '/' && <PatientWebsitePage />}
-      {pathname === '/login' && <PatientLoginPage />}
-      {pathname === '/signup' && <PatientSignupPage />}
-      {pathname === '/portal' && (
-        status === 'loading' ? (
-          <main className="patient-portal-state" role="status" aria-busy="true">
-            <div className="portal-spinner" />
-            <strong>Opening your portal…</strong>
-          </main>
-        ) : status === 'authenticated' ? (
+    <Suspense fallback={<RouteLoadingFallback />}>
+      {pathname === '/login' ? (
+        <PatientLoginPage />
+      ) : pathname === '/signup' ? (
+        <PatientSignupPage />
+      ) : pathname === '/portal' ? (
+        <ProtectedRoute>
           <PatientPortalPage />
-        ) : null
-      )}
-      {pathname !== '/' && pathname !== '/login' && pathname !== '/signup' && pathname !== '/portal' && (
+        </ProtectedRoute>
+      ) : (
         <main className="patient-portal-state">
           <i className="ph ph-compass" />
           <strong>Page not found</strong>
-          <button onClick={() => navigate('/')} type="button">Return home</button>
+          <button onClick={() => navigate('/')} type="button">
+            Return home
+          </button>
         </main>
       )}
     </Suspense>

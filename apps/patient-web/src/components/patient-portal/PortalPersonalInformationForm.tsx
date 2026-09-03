@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ApiError } from '../../api/api-error';
 import { patientPortalApi, type PatientPortalOverview, type PortalGuardianUpdateInput, type PortalPatientUpdateInput } from '../../api/patient-portal';
+import { portalQueryKeys } from '../../api/query-keys';
 
 const optionalPhone = z.string().trim().refine((value) => !value || value.replace(/\D/g, '').length >= 7, 'Enter a valid mobile number.');
 const schema = z.object({
@@ -70,7 +71,10 @@ export function PortalPersonalInformationForm({
   onSaved: () => void;
   onCancel: () => void;
 }) {
-  const branches = useQuery({ queryKey: ['public-branches'], queryFn: () => patientPortalApi.publicBranches({ limit: 24 }) });
+  const branches = useQuery({
+    queryKey: portalQueryKeys.branches({ limit: 24 }),
+    queryFn: () => patientPortalApi.publicBranches({ limit: 24 }),
+  });
   const address = patient.address ?? {};
   const emergency = patient.emergency_contact ?? {};
   const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -168,7 +172,45 @@ export function PortalPersonalInformationForm({
       <label><span>Blood group</span><select {...register('blood_group')}><option value="">Not known</option>{['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label><span>{guardian ? 'Child email (optional)' : 'Patient email'}</span><input autoComplete="email" type="email" {...register('email')} />{errors.email ? <small>{errors.email.message}</small> : null}</label>
       <label><span>{guardian ? 'Child mobile number (optional)' : 'Patient mobile number'}</span><input autoComplete="tel" inputMode="tel" {...register('phone')} />{errors.phone ? <small>{errors.phone.message}</small> : null}</label>
-      <label className="wide"><span>Preferred hospital branch <b>*</b></span><select disabled={branches.isLoading} {...register('preferred_branch_id')}><option value="">{branches.isLoading ? 'Loading branches…' : 'Select a branch'}</option>{branches.data?.data.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.city ? ` · ${branch.city}` : ''}</option>)}</select>{errors.preferred_branch_id ? <small>{errors.preferred_branch_id.message}</small> : null}</label>
+      <label className="wide">
+        <span>Preferred hospital branch <b>*</b></span>
+        <select disabled={branches.isLoading || branches.isError} {...register('preferred_branch_id')}>
+          <option value="">
+            {branches.isLoading
+              ? 'Loading branches…'
+              : branches.isError
+                ? 'Failed to load branches'
+                : 'Select a branch'}
+          </option>
+          {branches.data?.data.map((branch) => (
+            <option key={branch.id} value={branch.id}>
+              {branch.name}
+              {branch.city ? ` · ${branch.city}` : ''}
+            </option>
+          ))}
+        </select>
+        {branches.isError ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
+            <small className="portal-field-error">Could not load branches.</small>
+            <button
+              onClick={() => void branches.refetch()}
+              style={{
+                fontSize: '0.72rem',
+                padding: '0.15rem 0.5rem',
+                background: 'transparent',
+                border: '1px solid var(--portal-border, #cbd5e1)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+              type="button"
+            >
+              <i className="ph ph-arrows-clockwise" /> Retry
+            </button>
+          </div>
+        ) : errors.preferred_branch_id ? (
+          <small>{errors.preferred_branch_id.message}</small>
+        ) : null}
+      </label>
     </div><p className="portal-form-note"><i className="ph ph-info" /> {guardian ? 'Leave child contact fields empty when the child does not have their own phone or email. Guardian contacts are maintained separately below.' : 'Patient contact details do not change the mobile number or email used to sign in.'}</p></div>
     <div className="portal-form-section"><div className="portal-form-section-title"><span>2</span><div><strong>Address</strong><small>Residential and postal information.</small></div></div><div className="portal-form-grid">
       <label className="wide"><span>Address line</span><input {...register('line1')} /></label><label><span>City</span><input {...register('city')} /></label><label><span>State</span><input {...register('state')} /></label><label><span>Country</span><input {...register('country')} /></label><label><span>Postal code</span><input {...register('postal_code')} /></label>

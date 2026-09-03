@@ -26,6 +26,7 @@ type RegisterInput = {
   email: string;
   phone: string;
   guardianProfile?: GuardianProfileInput;
+  initialDependent?: PatientProfileInput & { relationship: 'PARENT' | 'LEGAL_GUARDIAN' };
 };
 
 type GuardianProfileInput = {
@@ -222,6 +223,17 @@ export class PatientPortalService {
       await this.repository.upsertGuardianProfile(account.id, {
         fullName: input.fullName, email: input.email, phone: input.phone, ...input.guardianProfile,
       });
+    }
+    if (input.accountType === 'GUARDIAN' && input.initialDependent) {
+      await this.requireActiveBranch(input.initialDependent.preferredBranchId);
+      const patientId = await this.repository.createPortalPatient({
+        userId: account.id,
+        ...input.initialDependent,
+        relationship: input.initialDependent.relationship,
+      });
+      if (!patientId) {
+        throw new AppError('A possible existing patient record was found. Hospital staff must verify and link that patient.', 409, 'DUPLICATE_PATIENT');
+      }
     }
     return account;
   }
@@ -472,7 +484,7 @@ export class PatientPortalService {
   }
 
   async verifyOtp(phone: string, otp: string, metadata?: RequestMetadata) {
-    return this.otp.assertValidForPendingFlow(phone, otp, metadata);
+    return this.otp.verifyAndIssueRegistrationToken(phone, otp, metadata);
   }
 
   async verifyAndConsumeOtp(phone: string, otp: string, metadata?: RequestMetadata) {
@@ -481,6 +493,10 @@ export class PatientPortalService {
 
   async assertOtpValidForPendingFlow(phone: string, otp: string, metadata?: RequestMetadata) {
     return this.otp.assertValidForPendingFlow(phone, otp, metadata);
+  }
+
+  async verifyAndConsumeRegistrationToken(phone: string, token: string) {
+    return this.otp.consumeRegistrationToken(phone, token);
   }
 
   private validateOptionalId(value: string | undefined, message: string) {

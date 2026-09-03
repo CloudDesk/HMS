@@ -1,10 +1,3 @@
-import { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  patientPortalApi,
-  type PatientPortalOverview,
-  type PortalAppointment,
-} from '../api/patient-portal';
 import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { PortalPatientForm } from '../components/patient-portal/PortalPatientForm';
@@ -12,148 +5,55 @@ import { PortalAppointmentBooking } from '../components/patient-portal/PortalApp
 import { PortalAppointmentRescheduling } from '../components/patient-portal/PortalAppointmentRescheduling';
 import { PortalPersonalInformationForm } from '../components/patient-portal/PortalPersonalInformationForm';
 import { PortalDocuments } from '../components/patient-portal/PortalDocuments';
-import { PortalOverviewTab } from '../components/patient-portal/PortalOverviewTab';
-import { PortalAppointmentsTab } from '../components/patient-portal/PortalAppointmentsTab';
-import { PortalResultsTab } from '../components/patient-portal/PortalResultsTab';
-import { PortalMedicinesTab } from '../components/patient-portal/PortalMedicinesTab';
-import { PortalBillingTab } from '../components/patient-portal/PortalBillingTab';
-import { PortalProfileTab } from '../components/patient-portal/PortalProfileTab';
-import { PortalInvoiceDetailModal } from '../components/patient-portal/PortalInvoiceDetailModal';
-import { PortalPatientCardModal } from '../components/patient-portal/PortalPatientCardModal';
-import { label } from '../utils/portal-invoice-pdf';
-import { navigate, useAppLocation } from '../routing/navigation';
-
-type PortalTab =
-  | 'overview'
-  | 'appointments'
-  | 'results'
-  | 'medicines'
-  | 'documents'
-  | 'billing'
-  | 'profile';
-
-const tabs: Array<{ key: PortalTab; label: string; icon: string }> = [
-  { key: 'overview', label: 'Overview', icon: 'ph-house' },
-  { key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank' },
-  { key: 'results', label: 'Reports & results', icon: 'ph-file-text' },
-  { key: 'medicines', label: 'Prescriptions', icon: 'ph-prescription' },
-  { key: 'documents', label: 'Documents', icon: 'ph-files' },
-  { key: 'billing', label: 'Billing', icon: 'ph-receipt' },
-  { key: 'profile', label: 'My profile', icon: 'ph-user-circle' },
-];
-
-const relationshipTag = (relationship: string) => {
-  if (relationship === 'SELF') return 'Self';
-  if (relationship === 'PARENT') return 'My child';
-  if (relationship === 'LEGAL_GUARDIAN') return 'Dependent';
-  return label(relationship);
-};
-
-const ageOnDate = (dateOfBirth: string) => {
-  const birth = new Date(dateOfBirth);
-  const now = new Date();
-  let years = now.getFullYear() - birth.getFullYear();
-  const months = now.getMonth() - birth.getMonth();
-  if (months < 0 || (months === 0 && now.getDate() < birth.getDate())) {
-    years -= 1;
-  }
-  return Math.max(0, years);
-};
+import { tabs, usePatientPortal } from '../hooks/usePatientPortal';
+import { ageOnDate, label, relationshipTag } from '../utils/formatters';
+import { OverviewTab } from '../components/patient-portal/tabs/OverviewTab';
+import { AppointmentsTab } from '../components/patient-portal/tabs/AppointmentsTab';
+import { ResultsTab } from '../components/patient-portal/tabs/ResultsTab';
+import { MedicinesTab } from '../components/patient-portal/tabs/MedicinesTab';
+import { BillingTab } from '../components/patient-portal/tabs/BillingTab';
+import { ProfileTab } from '../components/patient-portal/tabs/ProfileTab';
+import { PatientCardModal } from '../components/patient-portal/modals/PatientCardModal';
+import { InvoiceDetailModal } from '../components/patient-portal/modals/InvoiceDetailModal';
 
 export function PatientPortalPage() {
   const { logout } = useAuth();
-  const { search } = useAppLocation();
-  const queryClient = useQueryClient();
-  const [tab, setTab] = useState<PortalTab>('overview');
-  const [selectedPatientId, setSelectedPatientId] = useState('');
-  const [addDependentOpen, setAddDependentOpen] = useState(false);
-  const [addSelfOpen, setAddSelfOpen] = useState(false);
-  const [editPersonalInformationOpen, setEditPersonalInformationOpen] = useState(false);
-  const [patientCardOpen, setPatientCardOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<
-    PatientPortalOverview['invoices'][number] | null
-  >(null);
-  const bookingParams = new URLSearchParams(search);
-  const requestedDoctorId = bookingParams.get('book') ?? undefined;
-  const requestedBranchId = bookingParams.get('branch') ?? undefined;
-  const requestedDepartmentId = bookingParams.get('department') ?? undefined;
-  const [bookingOpen, setBookingOpen] = useState(Boolean(requestedDoctorId));
-  const [appointmentScope, setAppointmentScope] = useState<'upcoming' | 'past'>('upcoming');
-  const [appointmentStatus, setAppointmentStatus] = useState<PortalAppointment['status'] | ''>('');
-  const [appointmentPage, setAppointmentPage] = useState(1);
-  const [rescheduleAppointment, setRescheduleAppointment] = useState<PortalAppointment | null>(
-    null,
-  );
-
-  const contextQuery = useQuery({
-    queryKey: ['patient-portal-context'],
-    queryFn: patientPortalApi.context,
-  });
-
-  useEffect(() => {
-    if (!selectedPatientId && contextQuery.data?.patients[0]) {
-      setSelectedPatientId(contextQuery.data.patients[0].id);
-    }
-  }, [contextQuery.data, selectedPatientId]);
-
-  const query = useQuery({
-    queryKey: ['patient-portal-overview', selectedPatientId],
-    queryFn: () => patientPortalApi.overview(selectedPatientId),
-    enabled: Boolean(selectedPatientId),
-  });
-
-  const invoiceQuery = useQuery({
-    queryKey: ['patient-portal-invoice', selectedPatientId, selectedInvoice?.id],
-    queryFn: () => patientPortalApi.invoice(selectedPatientId, selectedInvoice!.id),
-    enabled: Boolean(selectedPatientId && selectedInvoice?.id),
-  });
-
-  const appointmentsQuery = useQuery({
-    queryKey: [
-      'patient-portal-appointments',
-      selectedPatientId,
-      appointmentScope,
-      appointmentStatus,
-      appointmentPage,
-    ],
-    queryFn: () =>
-      patientPortalApi.appointments({
-        patientId: selectedPatientId,
-        scope: appointmentScope,
-        status: appointmentStatus || undefined,
-        page: appointmentPage,
-        limit: 10,
-      }),
-    enabled: Boolean(selectedPatientId && tab === 'appointments'),
-  });
-
-  useEffect(
-    () => setAppointmentPage(1),
-    [appointmentScope, appointmentStatus, selectedPatientId],
-  );
-
-  const patientSaved = async (patientId: string) => {
-    setSelectedPatientId(patientId);
-    setAddDependentOpen(false);
-    setAddSelfOpen(false);
-    await queryClient.invalidateQueries({ queryKey: ['patient-portal-context'] });
-    await queryClient.invalidateQueries({ queryKey: ['patient-portal-overview'] });
-  };
-
-  const closeBooking = () => {
-    setBookingOpen(false);
-    if (requestedDoctorId) navigate('/portal', { replace: true });
-  };
-
-  const personalInformationSaved = async () => {
-    setEditPersonalInformationOpen(false);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['patient-portal-context'] }),
-      queryClient.invalidateQueries({
-        queryKey: ['patient-portal-overview', selectedPatientId],
-      }),
-    ]);
-  };
+  const {
+    tab,
+    setTab,
+    selectedPatientId,
+    setSelectedPatientId,
+    contextQuery,
+    overviewQuery,
+    invoiceQuery,
+    appointmentsQuery,
+    appointmentScope,
+    setAppointmentScope,
+    appointmentStatus,
+    setAppointmentStatus,
+    appointmentPage,
+    setAppointmentPage,
+    addDependentOpen,
+    setAddDependentOpen,
+    addSelfOpen,
+    setAddSelfOpen,
+    editPersonalInformationOpen,
+    setEditPersonalInformationOpen,
+    patientCardOpen,
+    setPatientCardOpen,
+    selectedInvoice,
+    setSelectedInvoice,
+    bookingOpen,
+    setBookingOpen,
+    closeBooking,
+    requestedDoctorId,
+    requestedBranchId,
+    requestedDepartmentId,
+    rescheduleAppointment,
+    setRescheduleAppointment,
+    patientSaved,
+    personalInformationSaved,
+  } = usePatientPortal();
 
   if (contextQuery.isLoading) {
     return (
@@ -163,9 +63,8 @@ export function PatientPortalPage() {
         <span>This may take a moment.</span>
       </main>
     );
-  }
 
-  if (contextQuery.isError || !contextQuery.data) {
+  if (contextQuery.isError || !contextQuery.data)
     return (
       <main className="patient-portal-state patient-portal-state--error">
         <i className="ph ph-warning-circle" />
@@ -179,6 +78,7 @@ export function PatientPortalPage() {
   }
 
   const portalContext = contextQuery.data;
+
   if (portalContext.patients.length === 0) {
     const accountInitials = portalContext.account.full_name
       .split(/\s+/)
@@ -218,7 +118,11 @@ export function PatientPortalPage() {
           <div className="portal-onboarding-intro">
             <span>
               <i
-                className={`ph ${portalContext.account.type === 'GUARDIAN' ? 'ph-users-three' : 'ph-user-circle-plus'}`}
+                className={`ph ${
+                  portalContext.account.type === 'GUARDIAN'
+                    ? 'ph-users-three'
+                    : 'ph-user-circle-plus'
+                }`}
               />
             </span>
             <div>
@@ -251,7 +155,7 @@ export function PatientPortalPage() {
     );
   }
 
-  if (query.isLoading || !selectedPatientId) {
+  if (overviewQuery.isLoading || !selectedPatientId)
     return (
       <main className="patient-portal-state">
         <div className="portal-spinner" />
@@ -259,22 +163,21 @@ export function PatientPortalPage() {
         <span>This may take a moment.</span>
       </main>
     );
-  }
 
-  if (query.isError || !query.data) {
+  if (overviewQuery.isError || !overviewQuery.data)
     return (
       <main className="patient-portal-state patient-portal-state--error">
         <i className="ph ph-warning-circle" />
         <strong>We could not load your portal</strong>
         <span>Your information remains secure. Please try again.</span>
-        <button onClick={() => void query.refetch()} type="button">
+        <button onClick={() => void overviewQuery.refetch()} type="button">
           Try again
         </button>
       </main>
     );
   }
 
-  const data = query.data;
+  const data = overviewQuery.data;
   const hasSelfProfile = portalContext.patients.some((item) => item.relationship === 'SELF');
   const patient = data.patient;
   const initials = `${patient.first_name[0] ?? ''}${patient.last_name[0] ?? ''}`.toUpperCase();
@@ -325,20 +228,20 @@ export function PatientPortalPage() {
           <div
             className="patient-portal-profile-trigger"
             onClick={() => setTab('profile')}
-            role="button"
-            tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 setTab('profile');
               }
             }}
+            role="button"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.65rem',
               cursor: 'pointer',
             }}
+            tabIndex={0}
           >
             <div className="patient-avatar">{initials}</div>
             <div style={{ display: 'grid', maxWidth: '180px' }}>
@@ -393,6 +296,7 @@ export function PatientPortalPage() {
           </button>
         </div>
       </header>
+
       <main className="patient-portal-main">
         {portalContext.account.type === 'GUARDIAN' ? (
           <section className="portal-dependent-toolbar">
@@ -431,61 +335,59 @@ export function PatientPortalPage() {
         ) : null}
 
         {tab === 'overview' ? (
-          <PortalOverviewTab
+          <OverviewTab
             data={data}
-            onNavigateTab={(targetTab, options) => {
-              setTab(targetTab);
-              if (options?.scope) {
-                setAppointmentScope(options.scope);
-                setAppointmentStatus('');
-              }
-            }}
+            patientAge={patientAge}
+            setAppointmentScope={setAppointmentScope}
+            setTab={setTab}
+            upcomingAppointments={upcomingAppointments}
           />
         ) : null}
 
         {tab === 'appointments' ? (
-          <PortalAppointmentsTab
-            appointmentsQuery={appointmentsQuery}
-            appointmentScope={appointmentScope}
-            setAppointmentScope={setAppointmentScope}
-            appointmentStatus={appointmentStatus}
-            setAppointmentStatus={setAppointmentStatus}
+          <AppointmentsTab
             appointmentPage={appointmentPage}
+            appointmentScope={appointmentScope}
+            appointmentStatus={appointmentStatus}
+            appointmentsQuery={appointmentsQuery}
             setAppointmentPage={setAppointmentPage}
-            onOpenBooking={() => setBookingOpen(true)}
-            onReschedule={(appt) => setRescheduleAppointment(appt)}
+            setAppointmentScope={setAppointmentScope}
+            setAppointmentStatus={setAppointmentStatus}
+            setBookingOpen={setBookingOpen}
+            setRescheduleAppointment={setRescheduleAppointment}
           />
         ) : null}
 
-        {tab === 'results' ? <PortalResultsTab data={data} /> : null}
+        {tab === 'results' ? <ResultsTab data={data} /> : null}
 
-        {tab === 'medicines' ? <PortalMedicinesTab data={data} /> : null}
+        {tab === 'medicines' ? <MedicinesTab data={data} /> : null}
 
         {tab === 'documents' ? <PortalDocuments patientId={selectedPatientId} /> : null}
 
         {tab === 'billing' ? (
-          <PortalBillingTab
-            invoices={data.invoices}
-            onSelectInvoice={(inv) => setSelectedInvoice(inv)}
-          />
+          <BillingTab data={data} setSelectedInvoice={setSelectedInvoice} />
         ) : null}
 
         {tab === 'profile' ? (
-          <PortalProfileTab
-            patient={patient}
+          <ProfileTab
+            data={data}
+            initials={initials}
+            patientAge={patientAge}
             portalContext={portalContext}
             selectedPatientContext={selectedPatientContext}
-            onViewPatientCard={() => setPatientCardOpen(true)}
-            onNavigateToDocuments={() => setTab('documents')}
-            onEditPersonalInformation={() => setEditPersonalInformationOpen(true)}
+            setEditPersonalInformationOpen={setEditPersonalInformationOpen}
+            setPatientCardOpen={setPatientCardOpen}
+            setTab={setTab}
           />
         ) : null}
       </main>
 
-      <PortalPatientCardModal
-        open={patientCardOpen}
+      <PatientCardModal
+        initials={initials}
         onClose={() => setPatientCardOpen(false)}
+        open={patientCardOpen}
         patient={patient}
+        patientAge={patientAge}
         patientPhoneDisplay={patientPhoneDisplay}
       />
 
@@ -562,14 +464,15 @@ export function PatientPortalPage() {
       >
         <PortalAppointmentBooking
           context={portalContext}
+          initialPatientId={selectedPatientId}
           initialBranchId={requestedBranchId}
           initialDepartmentId={requestedDepartmentId}
           initialDoctorId={requestedDoctorId}
-          onCancel={closeBooking}
           onBooked={() => {
             closeBooking();
             setTab('appointments');
           }}
+          onCancel={closeBooking}
         />
       </Modal>
 
@@ -594,11 +497,25 @@ export function PatientPortalPage() {
         ) : null}
       </Modal>
 
-      <PortalInvoiceDetailModal
-        open={Boolean(selectedInvoice)}
-        onClose={() => setSelectedInvoice(null)}
+      <InvoiceDetailModal
         invoiceQuery={invoiceQuery}
+        onClose={() => setSelectedInvoice(null)}
+        selectedInvoice={selectedInvoice}
       />
+
+      <nav className="patient-portal-mobile-nav" aria-label="Mobile patient portal">
+        {tabs.slice(0, 4).map((item) => (
+          <button
+            className={tab === item.key ? 'active' : ''}
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            type="button"
+          >
+            <i className={`ph ${item.icon}`} />
+            <span>{item.key === 'results' ? 'Results' : item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

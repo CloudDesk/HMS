@@ -106,6 +106,10 @@ export class PatientService {
       throw new AppError('Patient not found', 404, 'NOT_FOUND');
     }
 
+    if (data.phone !== undefined) {
+      await this.repository.syncPortalOwnerPhone(id, data.phone);
+    }
+
     await this.repository.addTimelineEvent(
       id,
       {
