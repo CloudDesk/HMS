@@ -59,6 +59,14 @@ export type OpdVisitListQuery = {
   sortOrder?: 'asc' | 'desc';
 };
 
+export type OpdDashboardSummary = {
+  total: number;
+  by_status: Record<OpdVisitStatus, number>;
+  follow_ups: number;
+  walk_ins: number;
+  urgent: number;
+};
+
 export type CreateOpdVisitDTO = {
   appointment_id?: string | null;
   patient_id?: string;

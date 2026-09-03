@@ -27,6 +27,8 @@ export const opdKeys = {
   vitals: () => [...opdKeys.all, 'vitals'] as const,
   latestVitals: (visitId: string) => [...opdKeys.vitals(), visitId] as const,
   visitList: (params: OpdVisitListParams) => [...opdKeys.visits(), params] as const,
+  dashboardSummaries: () => [...opdKeys.all, 'dashboard-summaries'] as const,
+  dashboardSummary: (params: OpdVisitListParams) => [...opdKeys.dashboardSummaries(), params] as const,
   consultations: () => [...opdKeys.all, 'consultations'] as const,
   consultation: (visitId: string) => [...opdKeys.consultations(), visitId] as const,
   clinicalOrders: () => [...opdKeys.all, 'clinicalOrders'] as const,
@@ -38,6 +40,10 @@ export const opdKeys = {
   referrals: () => [...opdKeys.all, 'referrals'] as const,
   referral: (visitId: string) => [...opdKeys.referrals(), visitId] as const,
 };
+
+export function useOpdDashboardSummary(params: OpdVisitListParams, enabled = true) {
+  return useQuery({ queryKey: opdKeys.dashboardSummary(params), queryFn: () => opdApi.dashboardSummary(params), enabled });
+}
 
 export function useOpdVisit(visitId: string | null, enabled = true) {
   return useQuery({
@@ -111,6 +117,7 @@ export function useCreateOpdVisit() {
     mutationFn: (payload: CreateOpdVisitPayload) => opdApi.createVisit(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
+      await queryClient.invalidateQueries({ queryKey: opdKeys.dashboardSummaries() });
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)),
   });
@@ -124,6 +131,7 @@ export function useUpdateOpdVisitStatus(options: OpdMutationNotificationOptions 
       opdApi.updateVisitStatus(id, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
+      await queryClient.invalidateQueries({ queryKey: opdKeys.dashboardSummaries() });
     },
     onError: (error) => {
       if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
@@ -137,6 +145,7 @@ export function useCallNextOpdPatient(options: OpdMutationNotificationOptions = 
     mutationFn: (visitId: string) => opdApi.callNextPatient(visitId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
+      await queryClient.invalidateQueries({ queryKey: opdKeys.dashboardSummaries() });
     },
     onError: (error) => {
       if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));

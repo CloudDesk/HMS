@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAppLocation, navigate } from '../../routing/navigation';
-import { useAppointmentsList, useUpdateAppointmentStatus } from './useAppointments';
+import { useAppointmentDashboardSummary, useAppointmentsList, useUpdateAppointmentStatus } from './useAppointments';
 import { type ApiAppointmentStatus, isApiAppointmentStatus } from '../../api/appointments';
 import { todayInputValue } from '../../pages/appointment-utils';
+import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
+import { useAuth } from '../../auth/useAuth';
+import { useActiveBranch } from '../../context/BranchContext';
 
 export type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
 export type SortDirection = 'asc' | 'desc';
@@ -12,6 +15,8 @@ export const isSortColumn = (value: unknown): value is SortColumn => {
 };
 
 export function useAppointmentDashboardFeature() {
+  const { user } = useAuth();
+  const { activeBranchId } = useActiveBranch();
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
   
@@ -35,9 +40,23 @@ export function useAppointmentDashboardFeature() {
     initialParams.get('sortOrder') === 'desc' ? 'desc' : 'asc'
   );
 
+  const can = (module: string, screen: string, action = 'View') => {
+    if (!user) return false;
+    return isSuperAdministrator(user.roles) ||
+      hasPermission(user.permissions, { module, screen, action });
+  };
+
+  const capabilities = {
+    canBook: can('Appointments', 'Appointment Booking', 'Create'),
+    canEditStatus: can('Appointments', 'Appointment Records', 'Edit'),
+    canSearchPatients: can('Patients', 'Patient Records', 'View'),
+    canViewQueue: can('Appointments', 'Appointment Records', 'View'),
+  };
+
   const { data, isLoading: loading, isError, error, refetch } = useAppointmentsList({
     search: search.trim() || undefined,
     status: statusFilter || undefined,
+    branch_id: activeBranchId || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     page: currentPage,
@@ -45,6 +64,13 @@ export function useAppointmentDashboardFeature() {
     sortBy: sortColumn,
     sortOrder: sortDirection,
   });
+  const summaryQuery = useAppointmentDashboardSummary({
+    search: search.trim() || undefined,
+    status: statusFilter || undefined,
+    branch_id: activeBranchId || undefined,
+    date_from: dateFrom || undefined,
+    date_to: dateTo || undefined,
+  }, capabilities.canViewQueue);
 
   const updateStatus = useUpdateAppointmentStatus();
 
@@ -54,6 +80,8 @@ export function useAppointmentDashboardFeature() {
 
   // Sync state to URL when filters change
   useEffect(() => {
+    if (location.pathname !== '/appointments') return;
+
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
@@ -67,7 +95,7 @@ export function useAppointmentDashboardFeature() {
     if (window.location.pathname + window.location.search !== nextUrl) {
       navigate(nextUrl, { replace: true });
     }
-  }, [search, statusFilter, dateFrom, dateTo, currentPage, sortColumn, sortDirection]);
+  }, [location.pathname, search, statusFilter, dateFrom, dateTo, currentPage, sortColumn, sortDirection]);
 
   const handleSort = (column: SortColumn) => {
     setSortColumn((current) => {
@@ -92,6 +120,7 @@ export function useAppointmentDashboardFeature() {
   };
 
   const handleUpdateStatus = async (id: string, status: ApiAppointmentStatus) => {
+    if (!capabilities.canEditStatus) return;
     return updateStatus.mutateAsync({ id, payload: { status } });
   };
 
@@ -109,7 +138,12 @@ export function useAppointmentDashboardFeature() {
       loading,
       loadError,
       isUpdatingStatus: updateStatus.isPending,
+      summary: summaryQuery.data,
+      summaryLoading: summaryQuery.isLoading,
+      summaryError: summaryQuery.error,
+      branchScope: activeBranchId || 'ALL_AUTHORIZED',
     },
+    capabilities,
     actions: {
       setSearch,
       setStatusFilter,
@@ -119,7 +153,7 @@ export function useAppointmentDashboardFeature() {
       handleSort,
       resetFilters,
       handleUpdateStatus,
-      refetch,
+      refetch: async () => { await Promise.all([refetch(), summaryQuery.refetch()]); },
     }
   };
 }

@@ -15,9 +15,6 @@ import {
 import { useAppointmentDashboardFeature } from '../hooks/appointments/useAppointmentDashboardFeature';
 import { useTimezone } from '../api/useSettings';
 
-const countByStatus = (appointments: AppointmentResponse[], status: ApiAppointmentStatus) =>
-  appointments.filter((appointment) => appointment.status === status).length;
-
 const buildTrend = (appointments: AppointmentResponse[], anchorDate: string) => {
   const anchor = new Date(`${anchorDate || todayInputValue()}T00:00:00`);
   return Array.from({ length: 7 }).map((_, index) => {
@@ -43,6 +40,15 @@ export function AppointmentDashboardPage() {
       loading,
       loadError,
       isUpdatingStatus,
+      summary,
+      summaryLoading,
+      branchScope,
+    },
+    capabilities: {
+      canBook,
+      canEditStatus,
+      canSearchPatients,
+      canViewQueue,
     },
     actions: {
       setSearch,
@@ -58,44 +64,50 @@ export function AppointmentDashboardPage() {
   } = useAppointmentDashboardFeature();
   
   const timezone = useTimezone();
+  const aggregateCount = (statuses: ApiAppointmentStatus[]) => {
+    if (!summary) return '—';
+    return statuses.reduce((total, status) => total + summary.by_status[status], 0);
+  };
 
   const kpis = useMemo(
     () => [
       {
         icon: 'ph-calendar-check',
+        tone: 'blue',
         label: "Today's Appointments",
-        value: meta.total,
+        value: summary?.total ?? '—',
         copy: 'Across all departments',
       },
       {
         icon: 'ph-check-circle',
+        tone: 'green',
         label: 'Completed',
-        value: countByStatus(appointments, 'COMPLETED'),
-        copy: 'Consultations closed',
+        value: aggregateCount(['COMPLETED']),
+        copy: summary ? 'Consultations closed' : 'Summary unavailable',
       },
       {
         icon: 'ph-stethoscope',
+        tone: 'cyan',
         label: 'In Progress',
-        value: countByStatus(appointments, 'CHECKED_IN'),
-        copy: 'Currently consulting',
+        value: aggregateCount(['CHECKED_IN']),
+        copy: summary ? 'Currently consulting' : 'Summary unavailable',
       },
       {
         icon: 'ph-x-circle',
+        tone: 'red',
         label: 'Cancelled / No Show',
-        value: countByStatus(appointments, 'CANCELLED') + countByStatus(appointments, 'NO_SHOW'),
-        copy: 'Requires follow-up',
+        value: aggregateCount(['CANCELLED', 'NO_SHOW']),
+        copy: summary ? 'Requires follow-up' : 'Summary unavailable',
       },
       {
         icon: 'ph-calendar-plus',
+        tone: 'purple',
         label: 'Upcoming',
-        value:
-          countByStatus(appointments, 'SCHEDULED') +
-          countByStatus(appointments, 'CONFIRMED') +
-          countByStatus(appointments, 'SKIPPED'),
-        copy: 'Today and selected range',
+        value: aggregateCount(['SCHEDULED', 'CONFIRMED', 'SKIPPED']),
+        copy: summary ? 'Today and selected range' : 'Summary unavailable',
       },
     ],
-    [appointments, meta.total],
+    [summary],
   );
   const trend = useMemo(() => buildTrend(appointments, dateTo || todayInputValue()), [appointments, dateTo]);
   const maxTrend = Math.max(1, ...trend.map((point) => point.value));
@@ -109,22 +121,25 @@ export function AppointmentDashboardPage() {
         <div className="appointment-page-title">
           <h2>Appointment Dashboard</h2>
           <p>Monitor booking records, arrival readiness, and the front-desk schedule.</p>
+          <small>Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}</small>
         </div>
-        <div className="doctor-page-actions">
+        {canBook ? <div className="doctor-page-actions">
           <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
             <i className="ph ph-calendar-plus" aria-hidden="true" />
             Book Appointment
           </button>
-        </div>
+        </div> : null}
       </section>
 
       <section className="doc-kpi-grid appointment-kpi-grid">
         {kpis.map((kpi) => (
-          <article className="doc-kpi-card" key={kpi.label}>
-            <i className={`ph ${kpi.icon}`} aria-hidden="true" />
-            <div>
+          <article className="doc-kpi" key={kpi.label}>
+            <span className={`doc-kpi-icon ${kpi.tone}`}>
+              <i className={`ph ${kpi.icon}`} aria-hidden="true" />
+            </span>
+            <div className="doc-kpi-copy">
               <span>{kpi.label}</span>
-              <strong>{loading ? '-' : kpi.value}</strong>
+              <strong>{loading || summaryLoading ? '-' : kpi.value}</strong>
               <small>{kpi.copy}</small>
             </div>
           </article>
@@ -139,7 +154,7 @@ export function AppointmentDashboardPage() {
               <p>Daily appointments for the current week</p>
             </div>
           </div>
-          <div className="doc-chart">
+          {meta.total <= appointments.length ? <div className="doc-chart">
             <svg className="doc-line-chart" viewBox="0 0 700 220" role="img" aria-label="Appointment trend chart">
               {[0, 1, 2, 3, 4].map((line) => (
                 <line key={line} x1="30" x2="680" y1={30 + line * 38} y2={30 + line * 38} />
@@ -158,7 +173,7 @@ export function AppointmentDashboardPage() {
                 <span key={point.label}>{point.label}</span>
               ))}
             </div>
-          </div>
+          </div> : <div className="um-state-cell">Complete trend data is unavailable for paginated appointment results.</div>}
         </article>
 
         <article className="doc-card">
@@ -169,41 +184,41 @@ export function AppointmentDashboardPage() {
             </div>
           </div>
           <div className="appointment-quick-grid">
-            <button className="appointment-quick-action" onClick={() => navigate('/appointments/book')} type="button">
+            {canBook ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book')} type="button">
               <i className="ph ph-calendar-plus" aria-hidden="true" />
               <span>
                 <strong>Book Appointment</strong>
                 <span>Reserve a consultation time</span>
               </span>
-            </button>
-            <button className="appointment-quick-action" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
+            </button> : null}
+            {canBook ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
               <i className="ph ph-person-simple-walk" aria-hidden="true" />
               <span>
                 <strong>Walk-in Registration</strong>
                 <span>Check in an unscheduled patient</span>
               </span>
-            </button>
-            <button className="appointment-quick-action" onClick={() => navigate('/appointments/calendar')} type="button">
+            </button> : null}
+            {canViewQueue ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/calendar')} type="button">
               <i className="ph ph-calendar-blank" aria-hidden="true" />
               <span>
                 <strong>Calendar View</strong>
                 <span>Review all schedules</span>
               </span>
-            </button>
-            <button className="appointment-quick-action" onClick={() => navigate('/appointments/queue')} type="button">
+            </button> : null}
+            {canViewQueue ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/queue')} type="button">
               <i className="ph ph-queue" aria-hidden="true" />
               <span>
                 <strong>Queue Management</strong>
                 <span>Coordinate waiting patients</span>
               </span>
-            </button>
-            <button className="appointment-quick-action" onClick={() => navigate('/patients')} type="button">
+            </button> : null}
+            {canSearchPatients ? <button className="appointment-quick-action" onClick={() => navigate('/patients/search')} type="button">
               <i className="ph ph-magnifying-glass" aria-hidden="true" />
               <span>
                 <strong>Search Patient</strong>
                 <span>Open the patient directory</span>
               </span>
-            </button>
+            </button> : null}
           </div>
         </article>
       </section>
@@ -215,9 +230,9 @@ export function AppointmentDashboardPage() {
               <h3>Upcoming Appointments</h3>
               <p>Next confirmed bookings</p>
             </div>
-            <button className="doc-btn" onClick={() => navigate('/appointments/calendar')} type="button">
+            {canViewQueue ? <button className="doc-btn" onClick={() => navigate('/appointments/calendar')} type="button">
               View Calendar
-            </button>
+            </button> : null}
           </div>
           <div className="doc-appointment-list">
             {upcomingAppointments.length === 0 ? (
@@ -254,13 +269,13 @@ export function AppointmentDashboardPage() {
               <i className="ph ph-queue" aria-hidden="true" />
               <div>
                 <strong>Queue ready for calling</strong>
-                <span>{upcomingAppointments.length} appointments are waiting or scheduled.</span>
+                <span>{summary ? `${summary.by_status.SCHEDULED + summary.by_status.CONFIRMED + summary.by_status.SKIPPED} appointments are waiting or scheduled.` : 'Queue summary unavailable.'}</span>
               </div>
             </div>
             <div className="appointment-notice warning">
               <i className="ph ph-clock-countdown" aria-hidden="true" />
               <div>
-                <strong>{countByStatus(appointments, 'SKIPPED')} skipped tokens</strong>
+                <strong>{summary ? `${summary.by_status.SKIPPED} skipped tokens` : 'Skipped-token total unavailable'}</strong>
                 <span>Skipped patients remain after regular waiting tokens.</span>
               </div>
             </div>
@@ -412,15 +427,15 @@ export function AppointmentDashboardPage() {
                     <td>{formatAppointmentDate(appointment.created_at, timezone)}</td>
                     <td>
                       <div className="doc-actions">
-                        <button
+                        {canSearchPatients ? <button
                           className="doc-action"
                           onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
                           title="Open patient"
                           type="button"
                         >
                           <i className="ph ph-user" aria-hidden="true" />
-                        </button>
-                        <button
+                        </button> : null}
+                        {canEditStatus ? <button
                           className="doc-action"
                           disabled={isUpdatingStatus || appointment.status === 'CONFIRMED'}
                           onClick={() => handleUpdateStatus(appointment.id, 'CONFIRMED')}
@@ -428,8 +443,8 @@ export function AppointmentDashboardPage() {
                           type="button"
                         >
                           <i className="ph ph-check-circle" aria-hidden="true" />
-                        </button>
-                        <button
+                        </button> : null}
+                        {canEditStatus ? <button
                           className="doc-action"
                           disabled={isUpdatingStatus || appointment.status === 'CHECKED_IN'}
                           onClick={() => handleUpdateStatus(appointment.id, 'CHECKED_IN')}
@@ -437,8 +452,8 @@ export function AppointmentDashboardPage() {
                           type="button"
                         >
                           <i className="ph ph-user-focus" aria-hidden="true" />
-                        </button>
-                        <button
+                        </button> : null}
+                        {canEditStatus ? <button
                           className="doc-action danger"
                           disabled={isUpdatingStatus || appointment.status === 'CANCELLED'}
                           onClick={() => handleUpdateStatus(appointment.id, 'CANCELLED')}
@@ -446,7 +461,7 @@ export function AppointmentDashboardPage() {
                           type="button"
                         >
                           <i className="ph ph-x" aria-hidden="true" />
-                        </button>
+                        </button> : null}
                       </div>
                     </td>
                   </tr>

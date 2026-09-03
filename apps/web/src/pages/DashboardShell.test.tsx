@@ -53,11 +53,10 @@ vi.mock('./AdministrationDashboardPage', () => ({ AdministrationDashboardPage: (
 vi.mock('./EmergencyDashboardPage', () => ({ EmergencyDashboardPage: () => 'Emergency dashboard content' }));
 vi.mock('./InpatientAdmissionPage', () => ({ InpatientAdmissionPage: () => 'Admissions dashboard content' }));
 vi.mock('./SurgeryWorkspacePage', () => ({ SurgeryWorkspacePage: () => 'Surgery dashboard content' }));
-vi.mock('./PrescriptionQueuePage', () => ({ PrescriptionQueuePage: () => 'Pharmacy queue content' }));
-vi.mock('./PharmacyMedicineInventoryPage', () => ({ PharmacyMedicineInventoryPage: () => 'Pharmacy inventory content' }));
-vi.mock('./LaboratoryQueuePage', () => ({ LaboratoryQueuePage: () => 'Laboratory queue content' }));
-vi.mock('./ImagingQueuePage', () => ({ ImagingQueuePage: () => 'Imaging queue content' }));
-vi.mock('./PhaseTwoReportsPage', () => ({ PhaseTwoReportsPage: () => 'Reports content' }));
+vi.mock('./PharmacyQueueDashboardPage', () => ({ PharmacyQueueDashboardPage: () => 'Pharmacy queue content' }));
+vi.mock('./PharmacyInventoryDashboardPage', () => ({ PharmacyInventoryDashboardPage: () => 'Pharmacy inventory content' }));
+vi.mock('./LaboratoryDashboardPage', () => ({ LaboratoryDashboardPage: () => 'Laboratory queue content' }));
+vi.mock('./ImagingDashboardPage', () => ({ ImagingDashboardPage: () => 'Imaging queue content' }));
 
 import { DashboardShell } from './DashboardShell';
 
@@ -127,7 +126,7 @@ describe('permission-driven dashboard shell', () => {
     await act(async () => root.render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>));
   };
 
-  it('preserves the six-tab Super Admin executive dashboard', async () => {
+  it('keeps Billing out of the Super Admin dashboard', async () => {
     testState.user = user('SUPER_ADMIN', []);
     await render();
 
@@ -135,10 +134,33 @@ describe('permission-driven dashboard shell', () => {
     expect(container.textContent).toContain('Doctors');
     expect(container.textContent).toContain('Appointments');
     expect(container.textContent).toContain('OPD');
-    expect(container.textContent).toContain('Billing');
     expect(container.textContent).toContain('Administration');
     expect(container.textContent).toContain('Hospital Executive Overview');
+    expect(container.textContent).not.toContain('Billing');
+    expect(container.textContent).not.toContain('Billed Revenue');
+    expect(container.textContent).not.toContain('Financial Settlement');
     expect(testState.executiveHook).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches dashboard components without navigation', async () => {
+    testState.user = user('SUPER_ADMIN', []);
+    await render();
+
+    const appointmentsTab = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Appointments'));
+    await act(async () => appointmentsTab?.click());
+
+    expect(container.textContent).toContain('Appointment dashboard content');
+    expect(testState.navigate).not.toHaveBeenCalled();
+  });
+
+  it('does not mount Billing for a Super Admin stale billing tab URL', async () => {
+    testState.search = '?tab=billing';
+    testState.user = user('SUPER_ADMIN', [authPermission('Billing', 'Invoices')]);
+    await render();
+
+    expect(container.textContent).toContain('Hospital Executive Overview');
+    expect(container.textContent).not.toContain('Billing dashboard content');
   });
 
   it('renders a doctor-focused dashboard without executive, billing, or administration work', async () => {
@@ -171,7 +193,7 @@ describe('permission-driven dashboard shell', () => {
     expect(testState.executiveHook).not.toHaveBeenCalled();
   });
 
-  it('uses a request-free module overview for cross-domain operational tabs', async () => {
+  it('does not expose an Emergency shortcut dashboard', async () => {
     testState.search = '?tab=emergency';
     testState.user = user('CLINICIAN_NURSE', [
       authPermission('OPD', 'OPD Visits'),
@@ -179,9 +201,24 @@ describe('permission-driven dashboard shell', () => {
     ]);
     await render();
 
-    expect(container.textContent).toContain('Emergency');
-    expect(container.textContent).toContain('Emergency Queue');
+    expect(container.textContent).toContain('OPD dashboard content');
+    expect(container.textContent).not.toContain('Emergency');
     expect(container.textContent).not.toContain('Emergency dashboard content');
+    expect(testState.executiveHook).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['emergency', authPermission('Emergency', 'Encounters')],
+    ['admissions', authPermission('Admissions', 'Inpatient Admissions')],
+    ['surgery', authPermission('Surgery', 'Recommendations')],
+  ])('shows no dashboard shortcut when %s is the only permitted module', async (tab, permission) => {
+    testState.search = `?tab=${tab}`;
+    testState.user = user('CUSTOM_OPERATIONAL', [permission]);
+    await render();
+
+    expect(container.textContent).toContain('No dashboard summary is available');
+    expect(container.textContent).not.toContain('Open permitted workspace');
+    expect(testState.navigate).not.toHaveBeenCalled();
     expect(testState.executiveHook).not.toHaveBeenCalled();
   });
 
@@ -213,6 +250,22 @@ describe('permission-driven dashboard shell', () => {
     expect(container.textContent).toContain(expectedContent);
     expect(container.textContent).not.toContain('Hospital Executive Overview');
     expect(testState.executiveHook).not.toHaveBeenCalled();
+  });
+
+  it('requires the Billing User role as well as Billing view permission', async () => {
+    testState.user = user('CUSTOM_FINANCE_VIEWER', [authPermission('Billing', 'Invoices')]);
+    await render();
+
+    expect(container.textContent).toContain('My Access');
+    expect(container.textContent).not.toContain('Billing dashboard content');
+  });
+
+  it('does not show Billing to a Billing User without Billing view permission', async () => {
+    testState.user = user('BILLING_AUTHORIZED', [authPermission('Patients', 'Patient Records')]);
+    await render();
+
+    expect(container.textContent).toContain('My Access');
+    expect(container.textContent).not.toContain('Billing dashboard content');
   });
 
   it('uses a safe permission-based fallback for custom roles', async () => {

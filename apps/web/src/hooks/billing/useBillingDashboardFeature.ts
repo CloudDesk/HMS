@@ -5,7 +5,7 @@ import { useBillingCapabilities } from './useBillingFeature';
 import { useBranchesList } from '../branches/useBranches';
 import { useBillingInvoices, useBillingSummary } from './useBilling';
 
-export function useBillingDashboardFeature() {
+export function useBillingDashboardFeature({ includeRecent = true }: { includeRecent?: boolean } = {}) {
   const { user } = useAuth();
   const capabilities = useBillingCapabilities();
   const { isSuperAdmin } = capabilities;
@@ -37,7 +37,7 @@ export function useBillingDashboardFeature() {
     limit: 8, 
     sortBy: 'created_at', 
     sortOrder: 'desc' 
-  });
+  }, includeRecent);
 
   const summary = summaryQuery.data ?? {
     total_invoices: 0,

@@ -27,6 +27,7 @@ export type PharmacyDispensingFilters = {
   status: DispensingQueueStatus | '';
   page: number;
   limit: number;
+  initialPrescriptionId?: string;
 };
 
 export type DispensingDraftLine = {
@@ -80,16 +81,9 @@ const dispensingErrorMessage = (error: unknown) => {
   return 'The dispensing request could not be completed. Please try again.';
 };
 
-const isToday = (value: string | null) => {
-  if (!value) return false;
-  const date = new Date(value);
-  const today = new Date();
-  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
-};
-
 export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters) {
   const { user } = useAuth();
-  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState('');
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState(filters.initialPrescriptionId ?? '');
   const [draftLines, setDraftLines] = useState<DispensingDraftLine[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -124,6 +118,22 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
     status: filters.status || undefined,
     page: filters.page,
     limit: filters.limit,
+    enabled: permissions.canView,
+  });
+  const pendingSummaryDomain = usePharmacyDispensing({
+    branchId: activeBranchId,
+    search: '',
+    status: 'PENDING',
+    page: 1,
+    limit: 1,
+    enabled: permissions.canView,
+  });
+  const confirmedSummaryDomain = usePharmacyDispensing({
+    branchId: activeBranchId,
+    search: '',
+    status: 'CONFIRMED',
+    page: 1,
+    limit: 1,
     enabled: permissions.canView,
   });
   const detailQuery = usePharmacyDispensingDetail(selectedPrescriptionId, permissions.canView);
@@ -323,8 +333,10 @@ export function usePharmacyDispensingFeature(filters: PharmacyDispensingFilters)
     permissions,
     dispensings,
     meta: dispensingDomain.listQuery.data?.meta,
-    pendingCount: dispensings.filter((item) => item.status === 'DRAFT').length,
-    dispensedTodayCount: dispensings.filter((item) => item.status === 'CONFIRMED' && isToday(item.confirmed_at)).length,
+    pendingCount: pendingSummaryDomain.listQuery.data?.meta.total ?? null,
+    confirmedCount: confirmedSummaryDomain.listQuery.data?.meta.total ?? null,
+    summaryLoading: pendingSummaryDomain.listQuery.isLoading || confirmedSummaryDomain.listQuery.isLoading,
+    summaryError: pendingSummaryDomain.listQuery.isError || confirmedSummaryDomain.listQuery.isError,
     listLoading: dispensingDomain.listQuery.isLoading || branchesQuery.isLoading,
     listError: dispensingDomain.listQuery.error ? dispensingErrorMessage(dispensingDomain.listQuery.error) : '',
     refetch: dispensingDomain.listQuery.refetch,

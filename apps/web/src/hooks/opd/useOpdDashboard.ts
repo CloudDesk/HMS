@@ -1,5 +1,8 @@
 import { useMemo } from 'react';
-import { useOpdVisits } from './useOpd';
+import { useOpdDashboardSummary, useOpdVisits } from './useOpd';
+import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
+import { useAuth } from '../../auth/useAuth';
+import { useActiveBranch } from '../../context/BranchContext';
 
 const todayInputValue = () => {
   const date = new Date();
@@ -10,6 +13,18 @@ const toInputDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export function useOpdDashboard() {
+  const { user } = useAuth();
+  const { activeBranchId } = useActiveBranch();
+  const can = (module: string, screen: string, action = 'View') => {
+    if (!user) return false;
+    return isSuperAdministrator(user.roles) ||
+      hasPermission(user.permissions, { module, screen, action });
+  };
+  const capabilities = {
+    canCheckIn: can('OPD', 'OPD Visits', 'Create'),
+    canSearchPatients: can('Patients', 'Patient Records', 'View'),
+    canViewQueue: can('OPD', 'OPD Visits', 'View'),
+  };
   const today = todayInputValue();
   const now = new Date(`${today}T00:00:00`);
   const start = new Date(now);
@@ -19,12 +34,17 @@ export function useOpdDashboard() {
   const { data: weekResponse, isLoading: weekLoading, error: weekError } = useOpdVisits({
     date_from: weekStart,
     date_to: today,
+    branch_id: activeBranchId || undefined,
     limit: 500,
     sortBy: 'check_in_time',
     sortOrder: 'asc',
-  });
+  }, capabilities.canViewQueue);
+  const summaryQuery = useOpdDashboardSummary({ date_from: today, date_to: today, branch_id: activeBranchId || undefined }, capabilities.canViewQueue);
 
   const weekVisits = weekResponse?.data ?? [];
+  const hasCompleteDataset = Boolean(
+    weekResponse && weekResponse.meta.total <= weekVisits.length,
+  );
   const visits = useMemo(() => weekVisits.filter(v => v.visit_date.startsWith(today)), [weekVisits, today]);
   const loading = weekLoading;
   const loadError = weekError;
@@ -59,5 +79,11 @@ export function useOpdDashboard() {
     inConsultationVisits,
     completedVisits,
     urgentVisits,
+    hasCompleteDataset,
+    capabilities,
+    summary: summaryQuery.data,
+    summaryLoading: summaryQuery.isLoading,
+    summaryError: summaryQuery.error,
+    branchScope: activeBranchId || 'ALL_AUTHORIZED',
   };
 }

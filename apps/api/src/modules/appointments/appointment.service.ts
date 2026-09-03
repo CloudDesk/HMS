@@ -117,6 +117,23 @@ export class AppointmentService {
     return this.repository.list(this.normalizeListDates(query), scope);
   }
 
+  async dashboardSummary(query: AppointmentListQuery, userId: string) {
+    this.validateListQuery(query);
+    const scope = await this.repository.resolveBranchScope(userId, query.branch_id);
+    const departmentScope = await this.repository.resolveDashboardDepartmentScope(userId);
+    if (departmentScope && query.department_id && !departmentScope.includes(query.department_id)) {
+      throw new AppError('Dashboard department access denied', 403, 'DEPARTMENT_SCOPE_DENIED');
+    }
+    const currentDoctor = await this.doctorRepository.getByUserId(userId);
+    if (currentDoctor && query.doctor_id && query.doctor_id !== currentDoctor.id) {
+      throw new AppError('Doctor dashboard access is limited to the linked doctor record', 403, 'DOCTOR_SCOPE_DENIED');
+    }
+    return this.repository.dashboardSummary(this.normalizeListDates({
+      ...query,
+      ...(currentDoctor ? { doctor_id: currentDoctor.id } : {}),
+    }), scope, departmentScope);
+  }
+
   async getById(id: string, userId?: string) {
     this.validateId(id, 'Appointment id is invalid');
     const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;

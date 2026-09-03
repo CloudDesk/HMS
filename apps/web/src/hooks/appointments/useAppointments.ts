@@ -13,9 +13,15 @@ export const appointmentsKeys = {
   all: ['appointments'] as const,
   lists: () => [...appointmentsKeys.all, 'lists'] as const,
   list: (params: AppointmentListParams) => [...appointmentsKeys.lists(), params] as const,
+  summaries: () => [...appointmentsKeys.all, 'dashboard-summaries'] as const,
+  summary: (params: AppointmentListParams) => [...appointmentsKeys.summaries(), params] as const,
   details: () => [...appointmentsKeys.all, 'details'] as const,
   detail: (id: string) => [...appointmentsKeys.details(), id] as const,
 };
+
+export function useAppointmentDashboardSummary(params: AppointmentListParams = {}, enabled = true) {
+  return useQuery({ queryKey: appointmentsKeys.summary(params), queryFn: () => appointmentsApi.dashboardSummary(params), enabled });
+}
 
 export function useAppointmentsList(params: AppointmentListParams = {}, enabled = true) {
   return useQuery({
@@ -41,6 +47,7 @@ export function useCreateAppointment() {
     onSuccess: async () => {
       toast.success('Appointment booked successfully.');
       await queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: appointmentsKeys.summaries() });
     },
     onError: (error) => toast.error(getAppointmentErrorMessage(error)),
   });
@@ -56,6 +63,7 @@ export function useUpdateAppointment() {
       toast.success('Appointment updated successfully.');
       await queryClient.invalidateQueries({ queryKey: appointmentsKeys.detail(result.id) });
       await queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: appointmentsKeys.summaries() });
     },
     onError: (error) => toast.error(getAppointmentErrorMessage(error)),
   });
@@ -71,6 +79,7 @@ export function useUpdateAppointmentStatus() {
       toast.success(`Appointment status updated to ${result.status.toLowerCase()}.`);
       await queryClient.invalidateQueries({ queryKey: appointmentsKeys.detail(result.id) });
       await queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: appointmentsKeys.summaries() });
     },
     onError: (error) => toast.error(getAppointmentErrorMessage(error)),
   });

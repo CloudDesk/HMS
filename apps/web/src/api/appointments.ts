@@ -62,6 +62,13 @@ export type AppointmentListResponse = {
   };
 };
 
+export type AppointmentDashboardSummary = {
+  total: number;
+  by_status: Record<ApiAppointmentStatus, number>;
+  follow_ups: number;
+  urgent: number;
+};
+
 export type AppointmentListParams = Partial<{
   search: string;
   status: ApiAppointmentStatus;
@@ -110,6 +117,9 @@ const toQueryString = (params: AppointmentListParams) => {
 };
 
 export const appointmentsApi = {
+  dashboardSummary(params: AppointmentListParams = {}) {
+    return apiClient.request<AppointmentDashboardSummary>(`/appointments/dashboard-summary${toQueryString(params)}`);
+  },
   list(params: AppointmentListParams = {}) {
     return apiClient.request<AppointmentListResponse>(`/appointments${toQueryString(params)}`);
   },

@@ -15,6 +15,11 @@ type OpdVisitIdParams = {
 };
 
 export const registerOpdVisitRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.get<{ Querystring: OpdVisitListQuery }>('/api/opd/dashboard-summary', {
+    preHandler: requirePermission(services, 'OPD', 'OPD Visits', 'View'),
+    schema: { querystring: listOpdVisitsQuerySchema },
+  }, async (request) => ok(await services.opdVisits.dashboardSummary(request.query, request.user!.id)));
+
   app.get<{ Querystring: OpdVisitListQuery }>(
     '/api/opd/visits',
     {

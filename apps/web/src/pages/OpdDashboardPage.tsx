@@ -19,11 +19,11 @@ export function OpdDashboardPage() {
     loading,
     loadError,
     trend,
-    waitingVisits,
-    readyVisits,
-    inConsultationVisits,
-    completedVisits,
-    urgentVisits,
+    hasCompleteDataset,
+    capabilities,
+    summary,
+    summaryLoading,
+    branchScope,
   } = useOpdDashboard();
 
   const maxTrend = Math.max(1, ...trend.map((point) => point.value));
@@ -34,20 +34,20 @@ export function OpdDashboardPage() {
         <div className="opd-page-title">
           <h2>OPD Dashboard</h2>
           <p>Monitor outpatient activity, queues and visit flow</p>
+          <small>Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}</small>
         </div>
         <div className="opd-page-actions">
-          <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
-            <i className="ph ph-magnifying-glass" aria-hidden="true" />
-            Search Patient
-          </button>
-          <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
+          {capabilities.canSearchPatients ? <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
+            Patients
+          </button> : null}
+          {capabilities.canViewQueue ? <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
             <i className="ph ph-queue" aria-hidden="true" />
             Open Queue
-          </button>
-          <button className="doc-btn primary" onClick={() => navigate('/opd/queue')} type="button">
+          </button> : null}
+          {capabilities.canCheckIn ? <button className="doc-btn primary" onClick={() => navigate('/opd/queue')} type="button">
             <i className="ph ph-sign-in" aria-hidden="true" />
             Check-in Patient
-          </button>
+          </button> : null}
         </div>
       </section>
 
@@ -55,11 +55,12 @@ export function OpdDashboardPage() {
 
       <section className="doc-kpi-grid opd-kpi-grid">
         {([
-          ['ph-users', 'blue', "Today's OPD Patients", visits.length, 'Checked in today'],
-          ['ph-hourglass', 'orange', 'Waiting Queue', waitingVisits.length, 'Vitals/triage pending'],
-          ['ph-stethoscope', 'cyan', 'Ready/In Consultation', readyVisits.length + inConsultationVisits.length, 'Doctor workflow'],
-          ['ph-check-circle', 'green', 'Completed Visits', completedVisits.length, 'Closed today'],
-          ['ph-warning-circle', 'red', 'Urgent / Emergency', urgentVisits.length, 'Active priority visits'],
+          ['ph-users', 'blue', "Today's OPD Patients", summary?.total ?? '—', summary ? 'Checked in today' : 'Summary unavailable'],
+          ['ph-hourglass', 'orange', 'Awaiting Nursing Action', summary ? summary.by_status.CHECKED_IN + summary.by_status.WAITING_FOR_VITALS : '—', summary ? 'Vitals/triage pending' : 'Summary unavailable'],
+          ['ph-stethoscope', 'cyan', 'Ready/In Consultation', summary ? summary.by_status.READY_FOR_CONSULTATION + summary.by_status.IN_CONSULTATION : '—', summary ? 'Doctor workflow' : 'Summary unavailable'],
+          ['ph-check-circle', 'green', 'Completed Visits', summary?.by_status.COMPLETED ?? '—', summary ? 'Closed today' : 'Summary unavailable'],
+          ['ph-warning-circle', 'red', 'Urgent / Emergency', summary?.urgent ?? '—', summary ? 'Active priority visits' : 'Summary unavailable'],
+          ['ph-person-simple-walk', 'purple', 'Walk-ins', summary?.walk_ins ?? '—', summary ? 'Registered without appointment' : 'Summary unavailable'],
         ] as const).map(([icon, tone, label, value, copy]) => (
           <article className="doc-kpi" key={label}>
             <span className={`doc-kpi-icon ${tone}`}>
@@ -67,7 +68,7 @@ export function OpdDashboardPage() {
             </span>
             <div className="doc-kpi-copy">
               <span>{label}</span>
-              <strong>{loading ? '-' : value}</strong>
+              <strong>{loading || summaryLoading ? '-' : value}</strong>
               <small>{copy}</small>
             </div>
           </article>
@@ -82,7 +83,7 @@ export function OpdDashboardPage() {
               <p>Outpatient visits over the last seven days</p>
             </div>
           </div>
-          <div className="doc-chart">
+          {hasCompleteDataset ? <div className="doc-chart">
             <svg className="doc-line-chart" viewBox="0 0 700 220" role="img" aria-label="OPD visit trend chart">
               {[0, 1, 2, 3, 4].map((line) => (
                 <line key={line} x1="30" x2="680" y1={30 + line * 38} y2={30 + line * 38} />
@@ -99,7 +100,7 @@ export function OpdDashboardPage() {
                 <span key={point.label}>{point.label}</span>
               ))}
             </div>
-          </div>
+          </div> : <div className="um-state-cell">Complete trend data is unavailable for this dashboard scope.</div>}
         </article>
 
         <article className="doc-card">
@@ -113,21 +114,21 @@ export function OpdDashboardPage() {
             <div className="opd-alert warning">
               <i className="ph ph-clock-countdown" aria-hidden="true" />
               <div className="copy">
-                <strong>{waitingVisits.length} patients waiting</strong>
+                <strong>{summary ? `${summary.by_status.CHECKED_IN + summary.by_status.WAITING_FOR_VITALS} patients awaiting nursing action` : 'Waiting total unavailable'}</strong>
                 <span>Move checked-in patients to vitals in the next phase.</span>
               </div>
             </div>
             <div className="opd-alert">
               <i className="ph ph-stethoscope" aria-hidden="true" />
               <div className="copy">
-                <strong>{readyVisits.length} ready for doctor</strong>
+                <strong>{summary ? `${summary.by_status.READY_FOR_CONSULTATION} ready for doctor` : 'Ready-for-doctor total unavailable'}</strong>
                 <span>Consultation workspace is intentionally held for the next phase.</span>
               </div>
             </div>
             <div className="opd-alert danger">
               <i className="ph ph-warning-circle" aria-hidden="true" />
               <div className="copy">
-                <strong>{urgentVisits.length} urgent active visits</strong>
+                <strong>{summary ? `${summary.urgent} urgent active visits` : 'Urgent total unavailable'}</strong>
                 <span>Urgent and emergency priorities are highlighted in queue views.</span>
               </div>
             </div>
@@ -142,9 +143,9 @@ export function OpdDashboardPage() {
               <h3>Active OPD Queue</h3>
               <p>Patients currently in outpatient flow</p>
             </div>
-            <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
+            {capabilities.canViewQueue ? <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
               View Queue
-            </button>
+            </button> : null}
           </div>
           <div className="doc-appointment-list">
             {visits.filter(isActiveVisit).length === 0 ? (

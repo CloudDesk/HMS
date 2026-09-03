@@ -5,7 +5,7 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
-import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
+import type { CreateOpdVisitDTO, OpdDashboardSummary, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
 
 type OpdVisitLean = OpdVisitFields & { _id: Types.ObjectId };
 
@@ -190,6 +190,50 @@ export class OpdVisitRepository {
         totalPages: Math.ceil(count / limit) || 1,
       },
     };
+  }
+
+  async resolveDashboardDepartmentScope(userId: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('departmentIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isNurse = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'CLINICIAN_NURSE', status: 'active', deletedAt: null,
+    }));
+    return isNurse ? (user.departmentIds ?? []).map(String) : undefined;
+  }
+
+  async dashboardSummary(query: OpdVisitListQuery, branchIds?: string[], departmentIds?: string[]): Promise<OpdDashboardSummary> {
+    const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.branchId = { $in: branchIds.map(requiredObjectId) };
+    if (query.branch_id) filter.branchId = requiredObjectId(query.branch_id);
+    if (query.department_id) filter.departmentId = requiredObjectId(query.department_id);
+    else if (departmentIds) filter.departmentId = { $in: departmentIds.map(requiredObjectId) };
+    if (query.doctor_id) filter.doctorId = requiredObjectId(query.doctor_id);
+    if (query.date_from || query.date_to) filter.visitDate = {
+      ...(query.date_from ? { $gte: new Date(query.date_from) } : {}),
+      ...(query.date_to ? { $lte: new Date(query.date_to) } : {}),
+    };
+    const [row] = await OpdVisitModel.aggregate<{
+      total: number; statuses: Array<{ _id: OpdVisit['status']; count: number }>;
+      followUps: number; walkIns: number; urgent: number;
+    }>([{ $match: filter }, { $facet: {
+      total: [{ $count: 'count' }], statuses: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+      followUps: [{ $match: { visitType: { $in: ['FOLLOW_UP', 'REVIEW'] } } }, { $count: 'count' }],
+      walkIns: [{ $match: { visitType: 'WALK_IN' } }, { $count: 'count' }],
+      urgent: [{ $match: { priority: { $in: ['URGENT', 'EMERGENCY'] }, status: { $nin: ['COMPLETED', 'CANCELLED', 'NO_SHOW'] } } }, { $count: 'count' }],
+    } }, { $project: {
+      total: { $ifNull: [{ $arrayElemAt: ['$total.count', 0] }, 0] }, statuses: 1,
+      followUps: { $ifNull: [{ $arrayElemAt: ['$followUps.count', 0] }, 0] },
+      walkIns: { $ifNull: [{ $arrayElemAt: ['$walkIns.count', 0] }, 0] },
+      urgent: { $ifNull: [{ $arrayElemAt: ['$urgent.count', 0] }, 0] },
+    } }]);
+    const counts = new Map((row?.statuses ?? []).map((item) => [item._id, item.count]));
+    return { total: row?.total ?? 0, by_status: {
+      CHECKED_IN: counts.get('CHECKED_IN') ?? 0, WAITING_FOR_VITALS: counts.get('WAITING_FOR_VITALS') ?? 0,
+      READY_FOR_CONSULTATION: counts.get('READY_FOR_CONSULTATION') ?? 0, IN_CONSULTATION: counts.get('IN_CONSULTATION') ?? 0,
+      SKIPPED: counts.get('SKIPPED') ?? 0, COMPLETED: counts.get('COMPLETED') ?? 0,
+      CANCELLED: counts.get('CANCELLED') ?? 0, NO_SHOW: counts.get('NO_SHOW') ?? 0,
+    }, follow_ups: row?.followUps ?? 0, walk_ins: row?.walkIns ?? 0, urgent: row?.urgent ?? 0 };
   }
 
   async getById(id: string, branchIds?: string[]): Promise<OpdVisit | undefined> {

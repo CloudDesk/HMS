@@ -1,8 +1,5 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { Modal } from '../components/ui/Modal';
+import { useMemo } from 'react';
+import type { AppointmentDashboardSummary } from '../api/appointments';
 import {
   type DoctorDashboardAppointment as AppointmentResponse,
   useDoctorDashboard,
@@ -20,13 +17,6 @@ type ChartPoint = {
   label: string;
   value: number;
 };
-
-const consultationSchema = z.object({
-  appointmentId: z.string().min(1, 'Select an appointment.'),
-  clinicalNotes: z.string(),
-});
-
-type ConsultationFormValues = z.infer<typeof consultationSchema>;
 
 const buildTrend = (appointments: AppointmentResponse[]): ChartPoint[] => {
   const today = new Date(`${todayInputValue()}T00:00:00`);
@@ -68,12 +58,12 @@ function LineChart({ points }: { points: ChartPoint[] }) {
   );
 }
 
-function DonutChart({ appointments }: { appointments: AppointmentResponse[] }) {
+function DonutChart({ summary }: { summary: AppointmentDashboardSummary }) {
   const counts = [
-    appointments.filter((appointment) => appointment.status === 'CHECKED_IN').length,
-    appointments.filter((appointment) => appointment.status === 'CONFIRMED').length,
-    appointments.filter((appointment) => appointment.status === 'SCHEDULED').length,
-    appointments.filter((appointment) => appointment.status === 'CANCELLED').length,
+    summary.by_status.CHECKED_IN,
+    summary.by_status.CONFIRMED,
+    summary.by_status.SCHEDULED,
+    summary.by_status.CANCELLED,
   ];
   const totalCount = counts.reduce((sum, count) => sum + count, 0);
   const total = Math.max(totalCount, 1);
@@ -108,76 +98,30 @@ function DonutChart({ appointments }: { appointments: AppointmentResponse[] }) {
 
 export function DoctorDashboardPage() {
   const dashboard = useDoctorDashboard();
-  const [modalOpen, setModalOpen] = useState(false);
-  const consultationForm = useForm<ConsultationFormValues>({
-    resolver: zodResolver(consultationSchema),
-    defaultValues: { appointmentId: '', clinicalNotes: '' },
-  });
-  const consultationAppointmentId = consultationForm.watch('appointmentId');
-  const startableAppointments = dashboard.todayAppointments.filter((appointment) =>
-    ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(appointment.status),
-  );
-  const selectedAppointment =
-    dashboard.todayAppointments.find(
-      (appointment) => appointment.id === consultationAppointmentId,
-    ) ?? null;
   const trend = useMemo(
     () => buildTrend(dashboard.weekAppointments),
     [dashboard.weekAppointments],
   );
 
-  const openStartConsultation = () => {
-    if (!dashboard.canEditAppointments || startableAppointments.length === 0) {
-      return;
-    }
-    consultationForm.reset({
-      appointmentId: startableAppointments[0]?.id ?? '',
-      clinicalNotes: '',
-    });
-    setModalOpen(true);
-  };
-
-  const startConsultation = async (values: ConsultationFormValues) => {
-    const appointment = startableAppointments.find(
-      (candidate) => candidate.id === values.appointmentId,
-    );
-    if (!appointment) return;
-
-    const succeeded = await dashboard.startConsultation(
-      appointment,
-      values.clinicalNotes,
-    );
-    if (succeeded) {
-      setModalOpen(false);
-      consultationForm.reset();
-    }
-  };
-
+  const metricsAvailable = Boolean(dashboard.appointmentSummary) && !dashboard.errorMessage;
   const kpis = [
-    ['ph-calendar-check', 'blue', "Today's Appointments", dashboard.todayAppointments.length, `${startableAppointments.length} active`],
-    [
-      'ph-check-circle',
-      'green',
-      'Completed Consultations',
-      0,
-      'Pending OPD integration',
-    ],
+    ['ph-calendar-check', 'blue', "Today's Appointments", dashboard.appointmentSummary?.total ?? '—', metricsAvailable ? 'Scheduled today' : 'Summary unavailable'],
     [
       'ph-hourglass-medium',
       'orange',
       'Waiting Patients',
-      dashboard.todayAppointments.filter((appointment) => ['SCHEDULED', 'CONFIRMED'].includes(appointment.status)).length,
-      'Requires attention',
+      dashboard.opdSummary ? dashboard.opdSummary.by_status.READY_FOR_CONSULTATION : '—',
+      dashboard.opdSummary ? 'Ready for consultation' : 'Summary unavailable',
     ],
     [
       'ph-arrow-counter-clockwise',
       'purple',
       'Follow-up Patients',
-      dashboard.todayAppointments.filter((appointment) => appointment.visit_type === 'FOLLOW_UP').length,
-      'Scheduled today',
+      dashboard.appointmentSummary?.follow_ups ?? '—',
+      metricsAvailable ? 'Scheduled today' : 'Summary unavailable',
     ],
-    ['ph-file-text', 'red', 'Pending Reports', 0, 'Pending OPD integration'],
-    ['ph-timer', 'cyan', 'Average Consultation Time', '0 min', 'Target: 30 min'],
+    ['ph-warning-circle', 'red', 'Urgent Cases', dashboard.opdSummary?.urgent ?? '—', dashboard.opdSummary ? 'Active priority visits' : 'Summary unavailable'],
+    ['ph-list-checks', 'cyan', 'Pending Clinical Work', dashboard.opdSummary ? dashboard.opdSummary.by_status.READY_FOR_CONSULTATION + dashboard.opdSummary.by_status.IN_CONSULTATION : '—', dashboard.opdSummary ? 'Ready or in consultation' : 'Summary unavailable'],
   ] as const;
 
   return (
@@ -193,15 +137,14 @@ export function DoctorDashboardPage() {
               <i className="ph ph-calendar-check" aria-hidden="true" />
               Today's Appointments
             </button>
-            <button
+            {dashboard.canViewOpdQueue ? <button
               className="doc-btn primary"
-              disabled={!dashboard.canEditAppointments || startableAppointments.length === 0}
-              onClick={openStartConsultation}
+              onClick={() => navigate('/opd/queue')}
               type="button"
             >
               <i className="ph ph-stethoscope" aria-hidden="true" />
-              Start Consultation
-            </button>
+              Open Clinical Queue
+            </button> : null}
           </div>
         </section>
 
@@ -236,7 +179,7 @@ export function DoctorDashboardPage() {
                     <p>Appointment volume over the last seven days</p>
                   </div>
                 </div>
-                <LineChart points={trend} />
+                {dashboard.hasCompleteAppointmentDataset && !dashboard.errorMessage ? <LineChart points={trend} /> : <div className="um-state-cell">Complete trend data is unavailable for this dashboard scope.</div>}
               </article>
               <article className="doc-card">
                 <div className="doc-card-header">
@@ -245,7 +188,7 @@ export function DoctorDashboardPage() {
                     <p>Today's active appointment mix</p>
                   </div>
                 </div>
-                <DonutChart appointments={dashboard.todayAppointments} />
+                {dashboard.appointmentSummary ? <DonutChart summary={dashboard.appointmentSummary} /> : <div className="um-state-cell">Complete status totals are unavailable for this dashboard scope.</div>}
               </article>
             </section>
 
@@ -292,18 +235,17 @@ export function DoctorDashboardPage() {
                   </div>
                 </div>
                 <div className="doc-quick-actions">
-                  <button
+                  {dashboard.canViewOpdQueue ? <button
                     className="doc-quick-action"
-                    disabled={!dashboard.canEditAppointments || startableAppointments.length === 0}
-                    onClick={openStartConsultation}
+                    onClick={() => navigate('/opd/queue')}
                     type="button"
                   >
                     <i className="ph ph-stethoscope" aria-hidden="true" />
                     <span>
-                      <strong>Start Consultation</strong>
-                      <span>Begin the next patient encounter</span>
+                      <strong>Open Clinical Queue</strong>
+                      <span>Start the correct persisted OPD encounter</span>
                     </span>
-                  </button>
+                  </button> : null}
                   <button className="doc-quick-action" onClick={() => navigate('/doctors/schedule')} type="button">
                     <i className="ph ph-calendar-check" aria-hidden="true" />
                     <span>
@@ -311,63 +253,18 @@ export function DoctorDashboardPage() {
                       <span>Review appointments and time slots</span>
                     </span>
                   </button>
-                  <button className="doc-quick-action" style={{ cursor: 'default' }} type="button">
+                  {dashboard.canSearchPatients ? <button className="doc-quick-action" onClick={() => navigate('/patients/search')} type="button">
                     <i className="ph ph-magnifying-glass" aria-hidden="true" />
                     <span>
                       <strong>Patient Search</strong>
                       <span>Find and open a patient record</span>
                     </span>
-                  </button>
+                  </button> : null}
                 </div>
               </article>
             </section>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Start Consultation">
-        <form className="modal-form patient-form" onSubmit={consultationForm.handleSubmit(startConsultation)}>
-          <div className="form-grid">
-            <div className="form-group full-width">
-              <label htmlFor="consultation-appointment">Patient Appointment</label>
-              <select
-                id="consultation-appointment"
-                {...consultationForm.register('appointmentId')}
-              >
-                {startableAppointments.map((appointment) => (
-                  <option key={appointment.id} value={appointment.id}>
-                    {appointment.start_time} · {appointment.patient_name} · {visitTypeText(appointment.visit_type)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="consultation-room">Consultation Room</label>
-              <input id="consultation-room" readOnly value={dashboard.selectedDoctor?.consultation_room ?? 'Not assigned'} />
-            </div>
-            <div className="form-group">
-              <label htmlFor="consultation-visit">Visit Type</label>
-              <input id="consultation-visit" readOnly value={selectedAppointment ? visitTypeText(selectedAppointment.visit_type) : '-'} />
-            </div>
-            <div className="form-group full-width">
-              <label htmlFor="consultation-notes">Initial Clinical Notes</label>
-              <textarea
-                id="consultation-notes"
-                {...consultationForm.register('clinicalNotes')}
-                placeholder="Document presenting complaint and initial observations..."
-                rows={4}
-              />
-            </div>
-          </div>
-          <p className="doc-muted-note">OPD consultation workspace integration will be handled in the OPD phase.</p>
-          <div className="modal-actions">
-            <button className="secondary-action" disabled={dashboard.isUpdatingStatus} onClick={() => setModalOpen(false)} type="button">
-              Cancel
-            </button>
-            <button className="primary-action" disabled={dashboard.isUpdatingStatus || !selectedAppointment} type="submit">
-              {dashboard.isUpdatingStatus ? 'Starting...' : 'Start Consultation'}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </>
   );
 }

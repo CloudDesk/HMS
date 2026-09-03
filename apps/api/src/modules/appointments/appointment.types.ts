@@ -69,6 +69,13 @@ export type AppointmentListQuery = {
   sortOrder?: 'asc' | 'desc';
 };
 
+export type AppointmentDashboardSummary = {
+  total: number;
+  by_status: Record<AppointmentStatus, number>;
+  follow_ups: number;
+  urgent: number;
+};
+
 export type CreateAppointmentDTO = {
   patient_id: string;
   doctor_id: string;

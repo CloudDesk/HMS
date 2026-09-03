@@ -3,10 +3,8 @@ import { ApiError } from '../../api/api-error';
 import type { AppointmentResponse } from '../../api/appointments';
 import { hasPermission } from '../../auth/access-control';
 import { useAuth } from '../../auth/useAuth';
-import {
-  useAppointmentsList,
-  useUpdateAppointmentStatus,
-} from '../appointments/useAppointments';
+import { useAppointmentDashboardSummary, useAppointmentsList } from '../appointments/useAppointments';
+import { useOpdDashboardSummary } from '../opd/useOpd';
 import { useCurrentDoctor, useDoctorsList } from './useDoctors';
 
 export type DoctorDashboardAppointment = AppointmentResponse;
@@ -47,6 +45,20 @@ export function useDoctorDashboard() {
       module: 'Appointments',
       screen: 'Appointment Records',
       action: 'Edit',
+    });
+  const canViewOpdQueue =
+    isSuperAdministrator ||
+    hasPermission(user?.permissions ?? [], {
+      module: 'OPD',
+      screen: 'OPD Visits',
+      action: 'View',
+    });
+  const canSearchPatients =
+    isSuperAdministrator ||
+    hasPermission(user?.permissions ?? [], {
+      module: 'Patients',
+      screen: 'Patient Records',
+      action: 'View',
     });
   const [selectedDoctorIdState, setSelectedDoctorIdState] = useState('');
 
@@ -98,6 +110,20 @@ export function useDoctorDashboard() {
     () => appointmentsQuery.data?.data ?? [],
     [appointmentsQuery.data?.data],
   );
+  const appointmentSummaryQuery = useAppointmentDashboardSummary({
+    doctor_id: selectedDoctorId || undefined,
+    date_from: dateRange.today,
+    date_to: dateRange.today,
+  }, canViewAppointments && Boolean(selectedDoctorId));
+  const opdSummaryQuery = useOpdDashboardSummary({
+    doctor_id: selectedDoctorId || undefined,
+    date_from: dateRange.today,
+    date_to: dateRange.today,
+  }, canViewOpdQueue && Boolean(selectedDoctorId));
+  const hasCompleteAppointmentDataset = Boolean(
+    appointmentsQuery.data &&
+    appointmentsQuery.data.meta.total <= weekAppointments.length,
+  );
   const todayAppointments = useMemo(
     () =>
       weekAppointments
@@ -110,27 +136,6 @@ export function useDoctorDashboard() {
     [dateRange.today, weekAppointments],
   );
 
-  const updateStatusMutation = useUpdateAppointmentStatus();
-  const startConsultation = async (
-    appointment: AppointmentResponse,
-    clinicalNotes: string,
-  ): Promise<boolean> => {
-    updateStatusMutation.reset();
-    if (!canEditAppointments) return false;
-    try {
-      await updateStatusMutation.mutateAsync({
-        id: appointment.id,
-        payload: {
-          status: 'CHECKED_IN',
-          notes: clinicalNotes.trim() || appointment.notes,
-        },
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const sourceQuery = isDoctorUser ? currentDoctorQuery : doctorsQuery;
   const queryError = sourceQuery.error ?? appointmentsQuery.error;
 
@@ -141,20 +146,21 @@ export function useDoctorDashboard() {
     setSelectedDoctorId: setSelectedDoctorIdState,
     todayAppointments,
     weekAppointments,
+    hasCompleteAppointmentDataset,
+    appointmentSummary: appointmentSummaryQuery.data,
+    opdSummary: opdSummaryQuery.data,
     isDoctorUser,
     canViewAppointments,
     canEditAppointments,
+    canViewOpdQueue,
+    canSearchPatients,
     isLoading:
       sourceQuery.isLoading ||
-      (Boolean(selectedDoctorId) && appointmentsQuery.isLoading),
-    isUpdatingStatus: updateStatusMutation.isPending,
+      (Boolean(selectedDoctorId) && (appointmentsQuery.isLoading || appointmentSummaryQuery.isLoading || opdSummaryQuery.isLoading)),
     errorMessage: !canViewAppointments
       ? 'Appointment Records View permission is required to load doctor dashboard data.'
       : queryError
         ? getDashboardErrorMessage(queryError)
-        : updateStatusMutation.error
-          ? getDashboardErrorMessage(updateStatusMutation.error)
-          : '',
-    startConsultation,
+        : '',
   };
 }

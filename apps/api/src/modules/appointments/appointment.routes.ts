@@ -21,6 +21,11 @@ type AppointmentIdParams = {
 };
 
 export const registerAppointmentRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.get<{ Querystring: AppointmentListQuery }>('/api/appointments/dashboard-summary', {
+    preHandler: requirePermission(services, 'Appointments', 'Appointment Records', 'View'),
+    schema: { querystring: listAppointmentsQuerySchema },
+  }, async (request) => ok(await services.appointments.dashboardSummary(request.query, request.user!.id)));
+
   app.get<{ Querystring: AppointmentListQuery }>(
     '/api/appointments',
     {

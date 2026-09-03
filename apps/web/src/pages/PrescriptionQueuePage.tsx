@@ -26,11 +26,17 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('en', {
 }).format(new Date(value));
 
 const statusLabel = (status: DispensingStatus) => status === 'DRAFT' ? 'PENDING' : status;
-export function PrescriptionQueuePage() {
+
+type PrescriptionQueuePageProps = {
+  embedded?: boolean;
+};
+
+export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePageProps) {
   const formatMoney = useCurrencyFormatter();
-  const { search } = useAppLocation();
+  const { pathname, search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
   const initialStatus = initialParams.get('status');
+  const initialPrescriptionId = initialParams.get('prescription') ?? '';
   const [branchId, setBranchId] = useState(initialParams.get('branch') ?? '');
   const [searchTerm, setSearchTerm] = useState(initialParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState<DispensingQueueStatus>(
@@ -45,6 +51,7 @@ export function PrescriptionQueuePage() {
     status: statusFilter,
     page,
     limit,
+    initialPrescriptionId,
   });
 
   useEffect(() => {
@@ -53,16 +60,19 @@ export function PrescriptionQueuePage() {
 
 
   useEffect(() => {
+    if (embedded || pathname !== '/pharmacy/queue') return;
+
     const params = new URLSearchParams();
     if (queue.activeBranchId) params.set('branch', queue.activeBranchId);
     if (searchTerm.trim()) params.set('search', searchTerm.trim());
     params.set('status', statusFilter);
     if (page > 1) params.set('page', String(page));
     if (limit !== 20) params.set('limit', String(limit));
+    if (queue.selectedPrescriptionId) params.set('prescription', queue.selectedPrescriptionId);
     const query = params.toString();
     const nextUrl = `/pharmacy/queue${query ? `?${query}` : ''}`;
     if (window.location.pathname + window.location.search !== nextUrl) navigate(nextUrl, { replace: true });
-  }, [limit, page, queue.activeBranchId, searchTerm, statusFilter]);
+  }, [embedded, limit, page, pathname, queue.activeBranchId, queue.selectedPrescriptionId, searchTerm, statusFilter]);
 
   useEffect(() => setActionReason(''), [queue.selectedPrescriptionId, queue.detail?.status]);
 
@@ -77,8 +87,8 @@ export function PrescriptionQueuePage() {
         <div className="um-kpi-row dispensing-kpi-row">
           <div className="kpi-card">
             <div className="kpi-icon blue"><i className="ph ph-pill" aria-hidden="true" /></div>
-            <div className="kpi-info"><span className="kpi-label">Pending on this page</span><span className="kpi-value">{queue.listLoading ? '—' : queue.pendingCount}</span></div>
-            <div className="kpi-info"><span className="kpi-label">Dispensed today on this page</span><span className="kpi-value">{queue.listLoading ? '—' : queue.dispensedTodayCount}</span></div>
+            <div className="kpi-info"><span className="kpi-label">Pending prescriptions</span><span className="kpi-value">{queue.summaryLoading || queue.summaryError ? '—' : queue.pendingCount}</span></div>
+            <div className="kpi-info"><span className="kpi-label">Dispensed prescriptions</span><span className="kpi-value">{queue.summaryLoading || queue.summaryError ? '—' : queue.confirmedCount}</span></div>
           </div>
         </div>
 

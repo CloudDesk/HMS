@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { DiagnosticListParams, DiagnosticOrder } from '../../api/laboratory';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
@@ -6,10 +6,12 @@ import { useBranchesList } from '../branches/useBranches';
 import { useImagingOrders, useImagingSummary } from './useImaging';
 import { navigate, useAppLocation } from '../../routing/navigation';
 
-export function useImagingQueueFeature() {
+export function useImagingQueueFeature({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const location = useAppLocation();
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const [embeddedSearch, setEmbeddedSearch] = useState('');
+  const activeSearch = embedded ? embeddedSearch : location.search;
+  const query = useMemo(() => new URLSearchParams(activeSearch), [activeSearch]);
 
   const superAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
 
@@ -28,17 +30,25 @@ export function useImagingQueueFeature() {
   const limit = Math.min(100, Math.max(10, Number(query.get('limit') ?? 20) || 20));
 
   const updateFilters = useCallback((changes: Record<string, string | number | null>) => {
-    const next = new URLSearchParams(location.search);
+    const next = new URLSearchParams(activeSearch);
     Object.entries(changes).forEach(([key, value]) => {
       if (value === '' || value === null) next.delete(key);
       else next.set(key, String(value));
     });
+    if (embedded) {
+      setEmbeddedSearch(next.size ? `?${next.toString()}` : '');
+      return;
+    }
     navigate(`/imaging/queue${next.size ? `?${next.toString()}` : ''}`, { replace: true });
-  }, [location.search]);
+  }, [activeSearch, embedded]);
 
   const clearFilters = useCallback(() => {
+    if (embedded) {
+      setEmbeddedSearch('');
+      return;
+    }
     navigate('/imaging/queue', { replace: true });
-  }, []);
+  }, [embedded]);
 
   const listParams = useMemo<DiagnosticListParams>(() => ({
     branch_id: selectedBranch || undefined,

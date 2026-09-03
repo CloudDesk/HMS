@@ -56,6 +56,14 @@ export type OpdVisitListResponse = {
   };
 };
 
+export type OpdDashboardSummary = {
+  total: number;
+  by_status: Record<ApiOpdVisitStatus, number>;
+  follow_ups: number;
+  walk_ins: number;
+  urgent: number;
+};
+
 export type OpdVisitListParams = Partial<{
   search: string;
   status: ApiOpdVisitStatus;
@@ -385,6 +393,9 @@ const toQueryString = (params: Record<string, unknown>) => {
 };
 
 export const opdApi = {
+  dashboardSummary(params: OpdVisitListParams = {}) {
+    return apiClient.request<OpdDashboardSummary>(`/opd/dashboard-summary${toQueryString(params)}`);
+  },
   listReferrals(params: { booked?: boolean; page?: number; limit?: number } = {}) {
     return apiClient.request<OpdReferralListResponse>(`/opd/referrals${toQueryString(params)}`);
   },

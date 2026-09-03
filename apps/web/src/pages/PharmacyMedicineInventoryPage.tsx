@@ -74,10 +74,16 @@ const movementLabel: Record<StockMovementType, string> = {
   ADJUSTMENT_IN: 'Adjustment In', ADJUSTMENT_OUT: 'Adjustment Out',
 };
 
-export function PharmacyMedicineInventoryPage() {
+type PharmacyMedicineInventoryPageProps = {
+  embedded?: boolean;
+};
+
+export function PharmacyMedicineInventoryPage({ embedded = false }: PharmacyMedicineInventoryPageProps) {
   const formatMoney = useCurrencyFormatter();
   const location = useAppLocation();
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const [embeddedSearch, setEmbeddedSearch] = useState('');
+  const activeSearch = embedded ? embeddedSearch : location.search;
+  const query = useMemo(() => new URLSearchParams(activeSearch), [activeSearch]);
 
   const requestedBranch = query.get('branch_id') ?? '';
   const search = query.get('search') ?? '';
@@ -123,14 +129,26 @@ export function PharmacyMedicineInventoryPage() {
   } = feature;
 
   const updateQuery = useCallback((updates: Record<string, string | number | null>) => {
-    const next = new URLSearchParams(location.search);
+    const next = new URLSearchParams(activeSearch);
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === '') next.delete(key);
       else next.set(key, String(value));
     });
     const suffix = next.toString();
+    if (embedded) {
+      setEmbeddedSearch(suffix ? `?${suffix}` : '');
+      return;
+    }
     navigate(`/pharmacy/inventory${suffix ? `?${suffix}` : ''}`, { replace: true });
-  }, [location.search]);
+  }, [activeSearch, embedded]);
+
+  const clearFilters = useCallback(() => {
+    if (embedded) {
+      setEmbeddedSearch('');
+      return;
+    }
+    navigate('/pharmacy/inventory', { replace: true });
+  }, [embedded]);
 
   useEffect(() => {
     if (activeBranchId && requestedBranch !== activeBranchId) updateQuery({ branch_id: activeBranchId, page: 1 });
@@ -301,7 +319,7 @@ export function PharmacyMedicineInventoryPage() {
               <option value="EXPIRING_SOON">Expiring Soon</option>
               <option value="EXPIRED">Expired</option>
             </select>
-            <button className="um-clear-btn" onClick={() => navigate('/pharmacy/inventory', { replace: true })} type="button">
+            <button className="um-clear-btn" onClick={clearFilters} type="button">
               <i className="ph ph-x" aria-hidden="true" /> Clear Filters
             </button>
           </div>

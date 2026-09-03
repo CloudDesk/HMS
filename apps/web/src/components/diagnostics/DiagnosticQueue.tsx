@@ -59,14 +59,14 @@ export function DiagnosticQueue({
       <div className="kpi-card">
         <div className="kpi-info">
           <span className="kpi-label">Total Orders</span>
-          <span className="kpi-value">{isSummaryLoading ? '---' : summary?.total ?? 0}</span>
+          <span className="kpi-value">{isSummaryLoading || !summary ? '---' : summary.total}</span>
         </div>
       </div>
       {statuses.slice(0, 5).map((item) => (
         <div className="kpi-card" key={item}>
           <div className="kpi-info">
             <span className="kpi-label">{label(item)}</span>
-            <span className="kpi-value">{isSummaryLoading ? '---' : summary?.by_status[item] ?? 0}</span>
+            <span className="kpi-value">{isSummaryLoading || !summary ? '---' : summary.by_status[item] ?? 0}</span>
           </div>
         </div>
       ))}

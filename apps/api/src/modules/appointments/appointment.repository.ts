@@ -7,6 +7,7 @@ import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
 import type {
   Appointment,
+  AppointmentDashboardSummary,
   AppointmentListQuery,
   CreateAppointmentDTO,
   UpdateAppointmentDTO,
@@ -226,6 +227,57 @@ export class AppointmentRepository {
         totalPages: Math.ceil(count / limit) || 1,
       },
     };
+  }
+
+  async resolveDashboardDepartmentScope(userId: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('departmentIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isNurse = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'CLINICIAN_NURSE', status: 'active', deletedAt: null,
+    }));
+    return isNurse ? (user.departmentIds ?? []).map(String) : undefined;
+  }
+
+  async dashboardSummary(query: AppointmentListQuery, branchIds?: string[], departmentIds?: string[]): Promise<AppointmentDashboardSummary> {
+    const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.branchId = { $in: branchIds.map(toObjectId) };
+    if (query.branch_id) filter.branchId = toObjectId(query.branch_id);
+    if (query.department_id) filter.departmentId = toObjectId(query.department_id);
+    else if (departmentIds) filter.departmentId = { $in: departmentIds.map(toObjectId) };
+    if (query.doctor_id) filter.doctorId = toObjectId(query.doctor_id);
+    if (query.status) filter.status = query.status;
+    if (query.search) {
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
+      filter.$or = [
+        { appointmentNumber: searchRegex }, { patientNumber: searchRegex },
+        { patientName: searchRegex }, { doctorName: searchRegex }, { doctorSpecialization: searchRegex },
+      ];
+    }
+    if (query.date_from || query.date_to) filter.appointmentDate = {
+      ...(query.date_from ? { $gte: new Date(query.date_from) } : {}),
+      ...(query.date_to ? { $lte: new Date(query.date_to) } : {}),
+    };
+    const [row] = await AppointmentModel.aggregate<{
+      total: number; statuses: Array<{ _id: Appointment['status']; count: number }>;
+      followUps: number; urgent: number;
+    }>([{ $match: filter }, { $facet: {
+      total: [{ $count: 'count' }],
+      statuses: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+      followUps: [{ $match: { visitType: 'FOLLOW_UP' } }, { $count: 'count' }],
+      urgent: [{ $match: { priority: { $in: ['URGENT', 'EMERGENCY'] }, status: { $nin: ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'] } } }, { $count: 'count' }],
+    } }, { $project: {
+      total: { $ifNull: [{ $arrayElemAt: ['$total.count', 0] }, 0] }, statuses: 1,
+      followUps: { $ifNull: [{ $arrayElemAt: ['$followUps.count', 0] }, 0] },
+      urgent: { $ifNull: [{ $arrayElemAt: ['$urgent.count', 0] }, 0] },
+    } }]);
+    const counts = new Map((row?.statuses ?? []).map((item) => [item._id, item.count]));
+    return { total: row?.total ?? 0, by_status: {
+      SCHEDULED: counts.get('SCHEDULED') ?? 0, CONFIRMED: counts.get('CONFIRMED') ?? 0,
+      CHECKED_IN: counts.get('CHECKED_IN') ?? 0, CANCELLED: counts.get('CANCELLED') ?? 0,
+      RESCHEDULED: counts.get('RESCHEDULED') ?? 0, NO_SHOW: counts.get('NO_SHOW') ?? 0,
+      SKIPPED: counts.get('SKIPPED') ?? 0, COMPLETED: counts.get('COMPLETED') ?? 0,
+    }, follow_ups: row?.followUps ?? 0, urgent: row?.urgent ?? 0 };
   }
 
   async getById(id: string, branchIds?: string[]): Promise<Appointment | undefined> {

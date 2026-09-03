@@ -404,6 +404,7 @@ The release is complete only when all approved Developer 1 requirements pass aut
 | P3-6 End-to-end hardening | Completed | 24 August 2026 | `HMS_SCOPE2_PHASE3_RELEASE_VERIFICATION.md` |
 | Final cross-developer integration | Completed | 24 August 2026 | `HMS_SCOPE2_PHASE3_FINAL_INTEGRATION_GAP_NOTE.md`, `HMS_SCOPE2_PHASE3_FINAL_INTEGRATION_VERIFICATION.md` |
 | Post-release role-based dashboard hardening | Completed | 30 August 2026 | `HMS_ROLE_BASED_DASHBOARD_GAP_NOTE.md`, `HMS_ROLE_BASED_DASHBOARD_VERIFICATION.md` |
+| Dashboard-focused visibility correction | Completed | 3 September 2026 | `HMS_DASHBOARD_FOCUSED_HARDENING_GAP_NOTE.md`, `HMS_DASHBOARD_FOCUSED_HARDENING_VERIFICATION.md` |
 
 ## Release Completion Criteria
 
