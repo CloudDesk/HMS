@@ -6,10 +6,8 @@ import { z } from 'zod';
 import type { EmergencyWorkspaceProps, WorkspaceTab } from './types';
 import { formatTime, message } from './utils';
 
-const id = z.string().min(1, 'Required');
-
 const consultationSchema = z.object({
-  doctor_id: id,
+  doctor_id: z.string().optional(),
   chief_complaint: z.string().min(3),
   history: z.string().min(1),
   examination: z.string().min(1),
@@ -49,7 +47,7 @@ export function EmergencyConsultationSection({ state, mutations, setActiveTab }:
   useEffect(() => {
     if (selected) {
       consultation.reset({
-        doctor_id: selected.assigned_doctor_id ?? '',
+        doctor_id: selected.assigned_doctor_id ?? state.currentDoctor?.id ?? '',
         chief_complaint: selected.consultation?.chiefComplaint ?? selected.chief_complaint,
         history: selected.consultation?.history ?? '',
         examination: selected.consultation?.examination ?? '',
@@ -60,14 +58,19 @@ export function EmergencyConsultationSection({ state, mutations, setActiveTab }:
         ready_for_disposition: selected.status === 'READY_FOR_DISPOSITION',
       });
     }
-  }, [selected, consultation]);
+  }, [selected, consultation, state.currentDoctor?.id]);
 
   const saveConsultation = consultation.handleSubmit(async (value) => {
     if (!selected) return;
     try {
       await mutations.consultation.mutateAsync({
         id: selected.id,
-        body: { ...value, treatment: value.treatment || null, notes: value.notes || null },
+        body: {
+          ...value,
+          doctor_id: value.doctor_id || selected.assigned_doctor_id || state.currentDoctor?.id || undefined,
+          treatment: value.treatment || null,
+          notes: value.notes || null,
+        },
       });
       toast.success('Doctor evaluation saved.');
       if (value.ready_for_disposition) setActiveTab('Disposition');
@@ -190,15 +193,28 @@ export function EmergencyConsultationSection({ state, mutations, setActiveTab }:
             </select>
           </div>
           <div className="doc-field">
-            <label>Attending Doctor <span style={{ color: '#dc2626' }}>*</span></label>
-            <select {...consultation.register('doctor_id')}>
-              <option value="">Select Doctor</option>
-              {state.doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.display_name}
-                </option>
-              ))}
-            </select>
+            <label>Attending Doctor</label>
+            <div
+              className="emergency-attending-doctor-card"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                padding: '0.45rem 0.75rem',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                minHeight: '42px',
+              }}
+            >
+              <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <i className="ph ph-stethoscope" style={{ color: '#0284c7' }} />
+                {selected.assigned_doctor_name || state.currentDoctor?.display_name || 'Dr. Attending Physician'}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Current treating physician
+              </span>
+            </div>
           </div>
         </div>
       </section>

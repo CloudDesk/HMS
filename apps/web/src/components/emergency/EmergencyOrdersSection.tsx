@@ -13,8 +13,8 @@ const orderSchema = z
     order_type: z.enum(['PHARMACY', 'LABORATORY', 'IMAGING']),
     priority: z.enum(['ROUTINE', 'URGENT', 'STAT']),
     service_id: z.string(),
-    name: z.string().min(1),
-    category: z.string().min(1),
+    name: z.string().trim().min(1, 'Medicine / order name is required'),
+    category: z.string(),
     dosage: z.string(),
     route: z.string(),
     frequency: z.string(),
@@ -60,49 +60,58 @@ export function EmergencyOrdersSection({ state, mutations, orderType }: Emergenc
     },
   });
 
-  const submitOrder = order.handleSubmit(async (value) => {
-    if (!selected) return;
-    try {
-      await mutations.order.mutateAsync({
-        id: selected.id,
-        body: {
-          order_type: value.order_type,
-          priority: value.priority,
-          items: [
-            {
-              service_id: value.service_id || undefined,
-              medicine_name: value.order_type === 'PHARMACY' ? value.name : undefined,
-              name: value.name,
-              category: value.category,
-              dosage: value.dosage || undefined,
-              route: value.route || undefined,
-              frequency: value.frequency || undefined,
-              duration: value.duration || undefined,
-              quantity: value.quantity ?? null,
-            },
-          ],
-          destination: value.destination || null,
-          specimen_type: value.specimen_type || null,
-          clinical_notes: value.clinical_notes || null,
-          instructions: value.instructions || null,
-        },
-      });
-      toast.success(`${value.order_type.toLowerCase()} request submitted.`);
-      order.reset({
-        ...order.getValues(),
-        service_id: '',
-        name: '',
-        dosage: '',
-        route: '',
-        frequency: '',
-        duration: '',
-        clinical_notes: '',
-        instructions: '',
-      });
-    } catch (error) {
-      toast.error(message(error));
-    }
-  });
+  const submitOrder = order.handleSubmit(
+    async (value) => {
+      if (!selected) return;
+      try {
+        await mutations.order.mutateAsync({
+          id: selected.id,
+          branchId: selected.branch_id || state.branchId,
+          body: {
+            order_type: value.order_type,
+            priority: value.priority,
+            items: [
+              {
+                service_id: value.service_id || undefined,
+                medicine_name: value.order_type === 'PHARMACY' ? value.name : undefined,
+                name: value.name,
+                category: value.category || 'Emergency',
+                dosage: value.dosage || undefined,
+                route: value.route || undefined,
+                frequency: value.frequency || undefined,
+                duration: value.duration || undefined,
+                quantity: value.quantity ?? null,
+              },
+            ],
+            destination: value.destination || null,
+            specimen_type: value.specimen_type || null,
+            clinical_notes: value.clinical_notes || null,
+            instructions: value.instructions || null,
+          },
+        });
+        toast.success(`${value.order_type === 'PHARMACY' ? 'Medication' : value.order_type.toLowerCase()} order submitted.`);
+        order.reset({
+          ...order.getValues(),
+          service_id: '',
+          name: '',
+          dosage: '',
+          route: '',
+          frequency: '',
+          duration: '',
+          clinical_notes: '',
+          instructions: '',
+        });
+      } catch (error) {
+        toast.error(message(error));
+      }
+    },
+    (errors) => {
+      const firstError = Object.values(errors)[0];
+      if (firstError?.message) {
+        toast.error(String(firstError.message));
+      }
+    },
+  );
 
   if (!selected) return null;
 
@@ -202,7 +211,18 @@ export function EmergencyOrdersSection({ state, mutations, orderType }: Emergenc
             <>
               <div className="doc-field">
                 <label>Medicine Name</label>
-                <input {...order.register('name')} placeholder="e.g. Paracetamol 1g IV" />
+                <input
+                  list="emergency-med-list"
+                  {...order.register('name')}
+                  placeholder="e.g. Paracetamol 1g IV"
+                />
+                <datalist id="emergency-med-list">
+                  {state.availableMedicines?.map((m) => (
+                    <option key={m.id} value={m.name}>
+                      {m.generic_name ? `${m.name} (${m.generic_name})` : m.name}
+                    </option>
+                  ))}
+                </datalist>
               </div>
               <div className="doc-field">
                 <label>Dosage</label>

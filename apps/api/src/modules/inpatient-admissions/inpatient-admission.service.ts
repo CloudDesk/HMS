@@ -62,7 +62,17 @@ async function executeWithOptionalTransaction<T>(
 export class InpatientAdmissionService {
   constructor(private readonly repository: InpatientAdmissionRepository, private readonly beds: AdmissionsConfigurationService, private readonly patients: PatientService, private readonly billing: BillingService, private readonly opdVisits: OpdVisitRepository, private readonly emergencies: EmergencyRepository, private readonly advancePayment: AdvancePaymentService, private readonly prescriptions: OpdPrescriptionService, private readonly clinicalOrders: OpdClinicalOrderService) {}
 
-  async list(query: InpatientAdmissionListQuery, actor: string) { await this.authorize(actor, query.branch_id); const scope = await this.repository.departmentScope(actor); return this.repository.list(query, scope); }
+  async list(query: InpatientAdmissionListQuery, actor: string) {
+    await this.authorize(actor, query.branch_id);
+    const isDoctor = await this.repository.actorIsDoctor(actor);
+    let doctorId: string | undefined;
+    if (isDoctor) {
+      const doc = await this.repository.doctorByUserId(actor);
+      if (doc) doctorId = doc._id.toString();
+    }
+    const scope = await this.repository.departmentScope(actor);
+    return this.repository.list(query, scope, doctorId);
+  }
   async get(id: string, branchId: string, actor: string) { await this.authorize(actor, branchId); const item = await this.repository.getById(id, branchId); if (!item) throw new AppError('Inpatient admission not found', 404, 'ADMISSION_NOT_FOUND'); await this.authorizeDepartment(actor, item.department_id); return item; }
 
   async getRequestStatusCounts(actor: string, branchId: string) {

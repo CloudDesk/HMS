@@ -102,16 +102,44 @@ async departmentScope(userId: string) {
 
   if (!user) return [];
 
-  const superAdmin = await RoleModel.exists({
+  const unrestricted = await RoleModel.exists({
     _id: { $in: user.roleIds ?? [] },
-    code: 'SUPER_ADMIN',
+    code: { $in: ['SUPER_ADMIN', 'ADMINISTRATOR', 'RECEPTIONIST', 'DOCTOR', 'CLINICIAN_DOCTOR'] },
     status: 'active',
     deletedAt: null,
   });
 
-  return superAdmin
-    ? undefined
-    : (user.departmentIds ?? []).map((id) => id.toString());
+  if (unrestricted) return undefined;
+
+  const departmentIds = (user.departmentIds ?? []).map((id) => id.toString());
+  if (departmentIds.length === 0) return undefined;
+
+  // If assigned to general nursing department, they have branch-wide ward/department coverage
+  const isGeneralNursing = await DepartmentModel.exists({
+    _id: { $in: user.departmentIds ?? [] },
+    $or: [
+      { name: { $regex: /nursing/i } },
+      { code: { $regex: /^nurs/i } },
+    ],
+    status: 'ACTIVE',
+    deletedAt: null,
+  });
+
+  if (isGeneralNursing) return undefined;
+
+  return departmentIds;
+}
+
+async actorIsDoctor(userId: string) {
+  const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null }).select('roleIds').lean();
+  if (!user) return false;
+  return Boolean(await RoleModel.exists({ _id: { $in: user.roleIds ?? [] }, code: { $in: ['DOCTOR', 'CLINICIAN_DOCTOR'] }, status: 'active', deletedAt: null }));
+}
+
+async doctorByUserId(userId: string, session?: ClientSession) {
+  const q = DoctorModel.findOne({ userId: oid(userId), deletedAt: null });
+  if (session) q.session(session);
+  return q.lean();
 }
 
 async hasActiveAdmission(
@@ -537,7 +565,7 @@ async createRequest(
     if (session) q.session(session);
     return q.lean<InpatientAdmissionFields & { _id: Types.ObjectId }>();
   }
-  async list(query: InpatientAdmissionListQuery, departmentIds?: string[]) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id) }; if (departmentIds) filter.departmentId = { $in: departmentIds.map(oid) }; if (query.status) filter.status = query.status; const [items, total] = await Promise.all([InpatientAdmissionModel.aggregate<InpatientAdmissionFields & { _id: Types.ObjectId; wardName?: string; bedNumber?: string }>([{ $match: filter }, { $lookup: { from: 'hmswards', localField: 'wardId', foreignField: '_id', as: 'ward' } }, { $lookup: { from: 'hmsbeds', localField: 'bedId', foreignField: '_id', as: 'bed' } }, { $set: { wardName: { $ifNull: [{ $arrayElemAt: ['$ward.name', 0] }, ''] }, bedNumber: { $ifNull: [{ $arrayElemAt: ['$bed.bedNumber', 0] }, ''] } } }, { $sort: { admissionDate: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit }]), InpatientAdmissionModel.countDocuments(filter)]); return { data: items.map(toDto), meta: meta(total, page, limit) }; }
+  async list(query: InpatientAdmissionListQuery, departmentIds?: string[], doctorId?: string) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id) }; if (departmentIds) filter.departmentId = { $in: departmentIds.map(oid) }; if (doctorId) { filter.admittingDoctorId = oid(doctorId); } else if (query.admitting_doctor_id) { filter.admittingDoctorId = oid(query.admitting_doctor_id); } if (query.status) filter.status = query.status; const [items, total] = await Promise.all([InpatientAdmissionModel.aggregate<InpatientAdmissionFields & { _id: Types.ObjectId; wardName?: string; bedNumber?: string }>([{ $match: filter }, { $lookup: { from: 'hmswards', localField: 'wardId', foreignField: '_id', as: 'ward' } }, { $lookup: { from: 'hmsbeds', localField: 'bedId', foreignField: '_id', as: 'bed' } }, { $set: { wardName: { $ifNull: [{ $arrayElemAt: ['$ward.name', 0] }, ''] }, bedNumber: { $ifNull: [{ $arrayElemAt: ['$bed.bedNumber', 0] }, ''] } } }, { $sort: { admissionDate: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit }]), InpatientAdmissionModel.countDocuments(filter)]); return { data: items.map(toDto), meta: meta(total, page, limit) }; }
   async getById(id: string, branchId: string) { const item = await InpatientAdmissionModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean(); return item ? toDto(item as InpatientAdmissionFields & { _id: Types.ObjectId }) : null; }
   async actorName(actor: string) {
     const user = await UserModel.findOne({ _id: oid(actor), status: 'active', deletedAt: null }).select('fullName').lean();

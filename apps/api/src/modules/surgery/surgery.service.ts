@@ -63,8 +63,26 @@ export class SurgeryService {
   constructor(private readonly repository: SurgeryRepository, private readonly doctors: DoctorRepository, private readonly patients: PatientService, private readonly billing: BillingService, private readonly beds: AdmissionsConfigurationService, private readonly advancePayment: AdvancePaymentService, private readonly prescriptions: OpdPrescriptionService, private readonly clinicalOrders: OpdClinicalOrderService, private readonly settingsRepository: SettingsRepository) {}
   private async authorize(actor: string, branchId: string) { if (!await this.repository.hasBranchAccess(actor, branchId)) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED'); }
   private async authorizeDepartment(actor: string, departmentId: string) { const scope = await this.repository.departmentScope(actor); if (scope && !scope.includes(departmentId)) throw new AppError('Department access denied', 403, 'DEPARTMENT_ACCESS_DENIED'); }
-  async listRecommendations(query: SurgeryListQuery, actor: string) { await this.authorize(actor, query.branch_id); return this.repository.listRecommendations(query, await this.repository.departmentScope(actor)); }
-  async listBookings(query: SurgeryListQuery, actor: string) { await this.authorize(actor, query.branch_id); return this.repository.listBookings(query, await this.repository.departmentScope(actor)); }
+  async listRecommendations(query: SurgeryListQuery, actor: string) {
+    await this.authorize(actor, query.branch_id);
+    const isDoctor = await this.repository.actorIsDoctor(actor);
+    let doctorId: string | undefined;
+    if (isDoctor) {
+      const doc = await this.repository.doctorByUserId(actor);
+      if (doc) doctorId = doc._id.toString();
+    }
+    return this.repository.listRecommendations(query, await this.repository.departmentScope(actor), doctorId);
+  }
+  async listBookings(query: SurgeryListQuery, actor: string) {
+    await this.authorize(actor, query.branch_id);
+    const isDoctor = await this.repository.actorIsDoctor(actor);
+    let doctorId: string | undefined;
+    if (isDoctor) {
+      const doc = await this.repository.doctorByUserId(actor);
+      if (doc) doctorId = doc._id.toString();
+    }
+    return this.repository.listBookings(query, await this.repository.departmentScope(actor), doctorId);
+  }
   async getBooking(id: string, branchId: string, actor: string) { await this.authorize(actor, branchId); const row = await this.repository.getBooking(id, branchId); if (!row) throw new AppError('Procedure booking not found', 404, 'PROCEDURE_BOOKING_NOT_FOUND'); await this.authorizeDepartment(actor, row.department_id); return row; }
 
   async getPrescription(id: string, branchId: string, actor: string) { await this.requireActiveBookingContext(id, branchId, actor); return this.prescriptions.getForContext({ source_type: 'PROCEDURE_BOOKING', source_id: id }); }
@@ -76,8 +94,33 @@ export class SurgeryService {
   async submitClinicalOrder(id: string, branchId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, actor: string, metadata: SurgeryMetadata) { return this.submitDownstream(id, branchId, actor, metadata, async (context, session) => { const existing = await this.clinicalOrders.getForContext(context, orderType, session); const result = await this.clinicalOrders.submitForContext(context, orderType, data, actor, session); return { result, existing: Boolean(existing), kind: orderType === 'LABORATORY' ? 'laboratory' as const : 'imaging' as const }; }); }
 
   async createRecommendation(data: CreateProcedureRecommendationDTO, actor: string, metadata: SurgeryMetadata) {
-    await this.authorize(actor, data.branch_id); await this.authorizeDepartment(actor, data.department_id); const session = await this.repository.session();
-    try { let result; await session.withTransaction(async () => { const refs = await this.repository.recommendationReferences(data, session); if (!refs.patient) throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND'); if (!refs.doctor) throw new AppError('Active recommending doctor not found in the selected department', 404, 'DOCTOR_NOT_FOUND'); if (!refs.department) throw new AppError('Active department not found in the selected branch', 404, 'DEPARTMENT_NOT_FOUND'); if (!refs.service) throw new AppError('Active procedure service not found in the selected department', 404, 'PROCEDURE_SERVICE_NOT_FOUND'); if (data.encounter_id && !refs.encounter) throw new AppError('Clinical encounter does not match the selected patient and doctor', 409, 'ENCOUNTER_CONTEXT_MISMATCH'); result = await this.repository.createRecommendation(data, { patientNumber: refs.patient.patientNumber, patientName: [refs.patient.firstName, refs.patient.middleName, refs.patient.lastName].filter(Boolean).join(' '), doctorName: refs.doctor.displayName, departmentName: refs.department.name, serviceName: refs.service.name }, actor, session); await this.patients.addProcedureTimeline(data.patient_id, 'PROCEDURE_RECOMMENDATION_CREATED', 'Procedure recommended', `${result.recommendation_number} recommends ${result.service_name}.`, actor, session); await this.repository.audit('surgery.recommendation.created', actor, metadata, { recommendationId: result.id, patientId: data.patient_id, encounterId: data.encounter_id, serviceId: data.service_id, branchId: data.branch_id }, session); }); if (!result) throw new AppError('Procedure recommendation could not be created', 500, 'PROCEDURE_RECOMMENDATION_CREATE_FAILED'); return result; } catch (error) { return duplicate(error); } finally { await session.endSession(); }
+    await this.authorize(actor, data.branch_id);
+    await this.authorizeDepartment(actor, data.department_id);
+    const session = await this.repository.session();
+    try {
+      let result;
+      await session.withTransaction(async () => {
+        const actorDoctor = await this.repository.doctorByUserId(actor, session);
+        const recommendingDoctorId = actorDoctor ? actorDoctor._id.toString() : data.recommending_doctor_id;
+        if (!recommendingDoctorId) throw new AppError('Active recommending doctor is required', 400, 'DOCTOR_REQUIRED');
+        const resolvedData: CreateProcedureRecommendationDTO = { ...data, recommending_doctor_id: recommendingDoctorId };
+        const refs = await this.repository.recommendationReferences(resolvedData, session);
+        if (!refs.patient) throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
+        if (!refs.doctor) throw new AppError('Active recommending doctor not found in the selected branch', 404, 'DOCTOR_NOT_FOUND');
+        if (!refs.department) throw new AppError('Active department not found in the selected branch', 404, 'DEPARTMENT_NOT_FOUND');
+        if (!refs.service) throw new AppError('Active procedure service not found in the selected department', 404, 'PROCEDURE_SERVICE_NOT_FOUND');
+        if (resolvedData.encounter_id && !refs.encounter) throw new AppError('Clinical encounter does not match the selected patient and doctor', 409, 'ENCOUNTER_CONTEXT_MISMATCH');
+        result = await this.repository.createRecommendation(resolvedData, { patientNumber: refs.patient.patientNumber, patientName: [refs.patient.firstName, refs.patient.middleName, refs.patient.lastName].filter(Boolean).join(' '), doctorName: refs.doctor.displayName, departmentName: refs.department.name, serviceName: refs.service.name }, actor, session);
+        await this.patients.addProcedureTimeline(resolvedData.patient_id, 'PROCEDURE_RECOMMENDATION_CREATED', 'Procedure recommended', `${result.recommendation_number} recommends ${result.service_name}.`, actor, session);
+        await this.repository.audit('surgery.recommendation.created', actor, metadata, { recommendationId: result.id, patientId: resolvedData.patient_id, encounterId: resolvedData.encounter_id, serviceId: resolvedData.service_id, branchId: resolvedData.branch_id, recommendingDoctorId }, session);
+      });
+      if (!result) throw new AppError('Procedure recommendation could not be created', 500, 'PROCEDURE_RECOMMENDATION_CREATE_FAILED');
+      return result;
+    } catch (error) {
+      return duplicate(error);
+    } finally {
+      await session.endSession();
+    }
   }
 
   async cancelRecommendation(id: string, branchId: string, data: ReasonDTO, actor: string, metadata: SurgeryMetadata) { await this.authorize(actor, branchId); const session = await this.repository.session(); try { let result; await session.withTransaction(async () => { const current = await this.repository.getRecommendation(id, branchId, session); if (!current) throw new AppError('Procedure recommendation not found', 404, 'PROCEDURE_RECOMMENDATION_NOT_FOUND'); await this.authorizeDepartment(actor, current.department_id); result = await this.repository.cancelRecommendation(id, branchId, data.reason, actor, session); if (!result) throw new AppError('Only an unbooked active recommendation can be cancelled', 409, 'PROCEDURE_RECOMMENDATION_STATE_CONFLICT'); await this.patients.addProcedureTimeline(current.patient_id, 'PROCEDURE_RECOMMENDATION_CANCELLED', 'Procedure recommendation cancelled', `${current.recommendation_number} was cancelled: ${data.reason}`, actor, session); await this.repository.audit('surgery.recommendation.cancelled', actor, metadata, { recommendationId: id, patientId: current.patient_id, branchId, reason: data.reason }, session); }); return result; } finally { await session.endSession(); } }

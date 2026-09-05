@@ -177,7 +177,7 @@ export interface AdmissionRequestStats {
   cancelled: number;
 }
 
-export type InpatientAdmissionListQuery = { branch_id: string; status?: AdmissionStatus; page?: number; limit?: number };
+export type InpatientAdmissionListQuery = { branch_id: string; status?: AdmissionStatus; page?: number; limit?: number; admitting_doctor_id?: string };
 export type AdmissionRequestMetadata = { ipAddress?: string; userAgent?: string };
 
 export type CreateInpatientRoundNoteDTO = {

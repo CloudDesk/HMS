@@ -130,8 +130,8 @@ export function useEmergency(
       onSuccess: updateEncounter,
     }),
     order: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: EmergencyOrderPayload }) =>
-        emergencyService.order(id, params.branch_id, body),
+      mutationFn: ({ id, branchId, body }: { id: string; branchId?: string; body: EmergencyOrderPayload }) =>
+        emergencyService.order(id, branchId || params.branch_id, body),
       onSuccess: updateEncounter,
     }),
     referral: useMutation({

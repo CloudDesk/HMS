@@ -257,8 +257,10 @@ export class EmergencyRepository {
       .session(session)
       .lean();
   }
-  async doctorByUserId(userId: string) {
-    return DoctorModel.findOne({ userId: oid(userId), deletedAt: null }).lean();
+  async doctorByUserId(userId: string, session?: ClientSession) {
+    const query = DoctorModel.findOne({ userId: oid(userId), deletedAt: null });
+    if (session) query.session(session);
+    return query.lean();
   }
   async doctor(id: string, branchId?: string, departmentId?: string, session?: ClientSession) {
     const query = DoctorModel.findOne({
@@ -489,7 +491,7 @@ export class EmergencyRepository {
 
     const [rows, total] = await Promise.all([
       EmergencyEncounterModel.find(filter)
-        .sort({ 'triage.effectiveLevel': 1, arrivalAt: 1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean<EmergencyLean[]>(),
@@ -526,32 +528,39 @@ export class EmergencyRepository {
     targetDoctorName: string | null,
     actor: string,
     session: ClientSession,
+    assignedDoctorId?: Types.ObjectId | null,
+    assignedDoctorName?: string | null,
   ) {
+    const updateSet: Record<string, unknown> = {
+      referral: {
+        sourceType: 'EMERGENCY_ENCOUNTER',
+        targetDepartmentId: oid(data.target_department_id),
+        targetDepartmentName,
+        targetDoctorId: data.target_doctor_id ? oid(data.target_doctor_id) : null,
+        targetDoctorName,
+        priority: data.priority,
+        reason: data.reason.trim(),
+        clinicalNotes: data.clinical_notes?.trim() || 'Emergency clinical referral dispatched.',
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+        submittedBy: oid(actor),
+        appointmentId: null,
+        appointmentNumber: null,
+        appointmentDate: null,
+        appointmentStartTime: null,
+        appointmentDurationMinutes: null,
+      },
+      updatedBy: oid(actor),
+    };
+    if (assignedDoctorId) {
+      updateSet.assignedDoctorId = assignedDoctorId;
+    }
+    if (assignedDoctorName) {
+      updateSet.assignedDoctorName = assignedDoctorName;
+    }
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       { _id: oid(id), branchId: oid(branchId), referral: null },
-      {
-        $set: {
-          referral: {
-            sourceType: 'EMERGENCY_ENCOUNTER',
-            targetDepartmentId: oid(data.target_department_id),
-            targetDepartmentName,
-            targetDoctorId: data.target_doctor_id ? oid(data.target_doctor_id) : null,
-            targetDoctorName,
-            priority: data.priority,
-            reason: data.reason.trim(),
-            clinicalNotes: data.clinical_notes.trim(),
-            status: 'SUBMITTED',
-            submittedAt: new Date(),
-            submittedBy: oid(actor),
-            appointmentId: null,
-            appointmentNumber: null,
-            appointmentDate: null,
-            appointmentStartTime: null,
-            appointmentDurationMinutes: null,
-          },
-          updatedBy: oid(actor),
-        },
-      },
+      { $set: updateSet },
       { returnDocument: 'after', session },
     ).lean<EmergencyLean>();
     return row ? emergencyReferralDto(row) : null;

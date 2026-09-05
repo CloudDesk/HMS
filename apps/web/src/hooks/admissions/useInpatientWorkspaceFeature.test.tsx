@@ -94,7 +94,7 @@ describe('useInpatientWorkspaceFeature orchestration', () => {
   }
 
   beforeEach(async () => {
-    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     testState.branches = [{ id: 'branch-1', name: 'Main Branch' }];
     testState.admissions = [admission];
     testState.admissionLoading = false;

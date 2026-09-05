@@ -32,13 +32,18 @@ const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
   try {
     return schema.parse(value);
   } catch (error) {
-    if (error instanceof ZodError)
+    if (error instanceof ZodError) {
+      const fieldMessages = error.issues.map((issue) => {
+        const field = issue.path.join('.');
+        return field ? `${field}: ${issue.message}` : issue.message;
+      });
       throw new AppError(
-        'Request validation failed',
+        fieldMessages.join('; ') || 'Request validation failed',
         400,
         'VALIDATION_ERROR',
         error.flatten(),
       );
+    }
     throw error;
   }
 };

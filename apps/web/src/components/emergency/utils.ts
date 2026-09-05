@@ -1,4 +1,5 @@
 import type { EmergencyStatus, EmergencyTriageLevel } from '../../api/emergency';
+import { ApiError } from '../../api/api-error';
 
 export const triageLabel = (value?: EmergencyTriageLevel | null) => {
   if (!value) return 'Not triaged';
@@ -61,5 +62,21 @@ export const formatTime = (timeStr?: string) => {
   return timeStr.slice(11, 16) || timeStr;
 };
 
-export const message = (error: unknown) =>
-  error instanceof Error ? error.message : 'Action could not be completed.';
+export const message = (error: unknown) => {
+  if (error instanceof ApiError) {
+    if (error.details && typeof error.details === 'object') {
+      const details = error.details as { fieldErrors?: Record<string, string[]>; formErrors?: string[] };
+      if (details.fieldErrors && Object.keys(details.fieldErrors).length > 0) {
+        const firstField = Object.entries(details.fieldErrors)[0];
+        if (firstField && firstField[1]?.length) {
+          return `${firstField[0]}: ${firstField[1][0]}`;
+        }
+      }
+      if (details.formErrors && details.formErrors.length > 0) {
+        return details.formErrors[0];
+      }
+    }
+    return error.message;
+  }
+  return error instanceof Error ? error.message : 'Action could not be completed.';
+};

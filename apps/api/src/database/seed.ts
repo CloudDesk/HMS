@@ -206,7 +206,6 @@ const roleDefinitions: RoleDefinition[] = [
       ...['View', 'Edit'].map((action) => code('OPD', 'OPD Visits', action)),
       ...['View', 'Create', 'Edit'].map((action) => code('OPD', 'OPD Vitals', action)),
       ...['Wards', 'Beds'].map((screen) => code('Admissions', screen, 'View')),
-      code('Admissions', 'Admission Requests', 'View'),
       ...['View', 'Create', 'Edit'].map((action) => code('Admissions', 'Inpatient Admissions', action)),
       code('Admissions', 'Bed Transfers', 'View'),
       code('Emergency', 'Encounters', 'View'),
@@ -231,7 +230,7 @@ const roleDefinitions: RoleDefinition[] = [
       code('OPD', 'OPD Vitals', 'View'),
       ...['OPD Consultation', 'OPD Prescription', 'OPD Clinical Orders', 'OPD Follow-up', 'OPD Referral'].flatMap((screen) =>
         ['View', 'Edit'].map((action) => code('OPD', screen, action))),
-      ...['Wards', 'Beds'].map((screen) => code('Admissions', screen, 'View')),
+      code('Admissions', 'Wards', 'View'),
       ...['View', 'Create', 'Edit', 'Discharge'].map((action) => code('Admissions', 'Inpatient Admissions', action)),
       ...['View', 'Create', 'Cancel'].map((action) => code('Admissions', 'Admission Recommendations', action)),
       ...['View', 'Create', 'Cancel'].map((action) => code('Surgery', 'Recommendations', action)),

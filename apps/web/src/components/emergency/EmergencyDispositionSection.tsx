@@ -89,19 +89,8 @@ export function EmergencyDispositionSection({ state, mutations }: EmergencyDispo
           toast.warning('Link a registered patient before Reception can create the admission request.');
           return;
         }
-        const params = new URLSearchParams({
-          branch_id: state.branchId,
-          source_type: 'EMERGENCY_ENCOUNTER',
-          source_id: selected.id,
-          patient_id: selected.patient_id,
-          patient_search: selected.patient_number ?? selected.patient_name,
-          department_id: selected.department_id,
-          doctor_id: selected.assigned_doctor_id,
-          reason: value.summary || selected.chief_complaint,
-          notes: value.instructions || '',
-        });
-        toast.success('Emergency admission handoff is ready for Reception.');
-        navigate(`/admissions/inpatients?${params.toString()}`);
+        toast.success('Emergency disposition confirmed. Patient handed off for admission.');
+        navigate(`/emergency?branch_id=${state.branchId}`);
         return;
       }
       toast.success('Emergency disposition confirmed.');
