@@ -28,7 +28,7 @@ vi.mock('../hooks/admissions/useInpatientWorkspaceFeature', () => ({
         branches: [{ id: 'branch-1', name: 'Main Branch' }], wards: [{ id: 'ward-1', name: 'Medical Ward' }],
         doctors: [], procedureServices: [], admittedList: [admission], filteredInpatients: [admission],
         recommendations: [], bookings: [], roundNotes: [], vitals: [], diagnosticOrders: [],
-        laboratoryServices: [], imagingServices: [],
+        laboratoryServices: [], imagingServices: [], capabilities: { orderDiagnostics: true, addRoundNote: true, recordVitals: true, recommendSurgery: true, saveDischargeSummary: true, finalizeDischarge: true },
         loading: {
           admissions: testState.admissionsLoading, recommendations: false, bookings: false,
           roundNotes: false, vitals: false, diagnosticOrders: false,

@@ -54,6 +54,18 @@ vi.mock('../hooks/surgery/useSurgeryWorkspaceFeature', () => ({
       alternatives: [],
       recommendedSlots: [],
       alternativesLoading: false,
+      capabilities: {
+        viewRecommendations: true,
+        viewBookings: true,
+        viewSchedule: true,
+        createRecommendations: true,
+        createBookings: true,
+        confirmBooking: true,
+        rescheduleBooking: true,
+        cancelBooking: true,
+        cancelRecommendations: true,
+        completeBooking: true,
+      },
       pending: { createRecommendation: false, createBooking: false, workflowAction: false },
     },
     actions: {
@@ -88,7 +100,7 @@ describe('SurgeryWorkspacePage feature-hook rendering', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await act(async () => root.render(<QueryClientProvider client={queryClient}><SurgeryWorkspacePage /></QueryClientProvider>));
 
-    expect(container.textContent).toContain('Surgery & Procedures');
+    expect(container.textContent).toContain('Surgery & Procedure Workspace');
     expect(container.textContent).toContain('Surgery Patient');
     expect(container.textContent).toContain('MRN-001');
     expect(container.textContent).toContain('Appendectomy');

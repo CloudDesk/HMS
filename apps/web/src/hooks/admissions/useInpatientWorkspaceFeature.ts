@@ -11,6 +11,9 @@ import { useWardsList } from '../useAdmissionsConfiguration';
 import { useInpatientDownstreamFeature } from './useInpatientDownstreamFeature';
 import { useInpatientAdmissionsList, useRefreshInpatientAdmissions } from './useInpatientAdmissionsList';
 
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
+
 type InpatientWorkspaceFilters = {
   selectedWard: string;
   selectedCareLevel: string;
@@ -28,6 +31,39 @@ export type InpatientWorkspaceOrder = {
 };
 
 export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters) {
+  const { user } = useAuth();
+  const permissions = user?.permissions ?? [];
+  const roles = user?.roles ?? [];
+
+  const canOrderDiagnostics =
+    hasPermission(permissions, { module: 'OPD', screen: 'OPD Clinical Orders', action: 'Edit' }, roles) ||
+    hasPermission(permissions, { module: 'OPD', screen: 'OPD Clinical Orders', action: 'Create' }, roles);
+  const canAddRoundNote = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Create',
+  }, roles);
+  const canRecordVitals = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Create',
+  }, roles);
+  const canRecommendSurgery = hasPermission(permissions, {
+    module: 'Surgery',
+    screen: 'Recommendations',
+    action: 'Create',
+  }, roles);
+  const canSaveDischargeSummary = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Edit',
+  }, roles);
+  const canFinalizeDischarge = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Discharge',
+  }, roles);
+
   const location = useAppLocation();
   const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const [branchId, setBranchIdState] = useState(handoff.get('branch_id') ?? '');
@@ -158,6 +194,14 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
       laboratoryServices: clinical.laboratoryServices,
       imagingServices: clinical.imagingServices,
       isDischarging,
+      capabilities: {
+        orderDiagnostics: canOrderDiagnostics,
+        addRoundNote: canAddRoundNote,
+        recordVitals: canRecordVitals,
+        recommendSurgery: canRecommendSurgery,
+        saveDischargeSummary: canSaveDischargeSummary,
+        finalizeDischarge: canFinalizeDischarge,
+      },
       loading: {
         admissions: admissionsQuery.isLoading,
         recommendations: surgery.recommendations.isLoading,

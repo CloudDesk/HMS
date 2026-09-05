@@ -94,6 +94,9 @@ type AdmissionRequestDetailModalProps = {
   onConfirm: () => void;
   onCancel: () => void;
   onConsent: () => void;
+  canValidate?: boolean;
+  canConfirm?: boolean;
+  canCancel?: boolean;
 };
 
 const formatDateTime = (value: string | null | undefined) => {
@@ -133,6 +136,9 @@ export function AdmissionRequestDetailModal({
   onConfirm,
   onCancel,
   onConsent,
+  canValidate = true,
+  canConfirm = true,
+  canCancel = true,
 }: AdmissionRequestDetailModalProps) {
   const [confirmAdmissionOpen, setConfirmAdmissionOpen] = useState(false);
 
@@ -230,52 +236,62 @@ export function AdmissionRequestDetailModal({
 
         {isPending ? (
           <>
-            <button
-              className="adm-btn danger"
-              disabled={pending.cancelRequest}
-              onClick={onCancel}
-              type="button"
-            >
-              <i className="ph ph-x" /> Reject / Cancel
-            </button>
-            <button
-              className="adm-btn primary"
-              disabled={pending.validateRequest}
-              onClick={onValidate}
-              type="button"
-            >
-              <i className="ph ph-check-circle" /> Validate Request
-            </button>
+            {canCancel && (
+              <button
+                className="adm-btn danger"
+                disabled={pending.cancelRequest}
+                onClick={onCancel}
+                type="button"
+              >
+                <i className="ph ph-x" /> Reject / Cancel
+              </button>
+            )}
+            {canValidate && (
+              <button
+                className="adm-btn primary"
+                disabled={pending.validateRequest}
+                onClick={onValidate}
+                type="button"
+              >
+                <i className="ph ph-check-circle" /> Validate Request
+              </button>
+            )}
           </>
         ) : null}
 
         {isReady ? (
           <>
-            <button
-              className="adm-btn danger"
-              disabled={pending.cancelRequest}
-              onClick={onCancel}
-              type="button"
-            >
-              <i className="ph ph-x" /> Reject / Cancel
-            </button>
-            <button
-              className="adm-btn"
-              disabled={pending.validateRequest}
-              onClick={onValidate}
-              title="Update bed or prerequisite selection"
-              type="button"
-            >
-              <i className="ph ph-pencil-simple" /> Re-validate Selection
-            </button>
-            <button
-              className="adm-btn success"
-              disabled={pending.confirmRequest}
-              onClick={handleConfirmAdmissionClick}
-              type="button"
-            >
-              <i className="ph ph-check-fat" /> Confirm & Admit Patient
-            </button>
+            {canCancel && (
+              <button
+                className="adm-btn danger"
+                disabled={pending.cancelRequest}
+                onClick={onCancel}
+                type="button"
+              >
+                <i className="ph ph-x" /> Reject / Cancel
+              </button>
+            )}
+            {canValidate && (
+              <button
+                className="adm-btn"
+                disabled={pending.validateRequest}
+                onClick={onValidate}
+                title="Update bed or prerequisite selection"
+                type="button"
+              >
+                <i className="ph ph-pencil-simple" /> Re-validate Selection
+              </button>
+            )}
+            {canConfirm && (
+              <button
+                className="adm-btn success"
+                disabled={pending.confirmRequest}
+                onClick={handleConfirmAdmissionClick}
+                type="button"
+              >
+                <i className="ph ph-check-fat" /> Confirm & Admit Patient
+              </button>
+            )}
           </>
         ) : null}
       </div>

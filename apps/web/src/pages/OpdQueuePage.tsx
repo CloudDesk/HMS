@@ -54,7 +54,7 @@ export function OpdQueuePage() {
   });
 
 
-  const { visits, doctors, departments, isLoading, error, isUpdating, updateVisitStatus, canEditVisit } = useOpdQueue(filters);
+  const { visits, doctors, departments, isLoading, error, isUpdating, updateVisitStatus, canEditVisit, canViewConsultation, canEditConsultation } = useOpdQueue(filters);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -154,8 +154,8 @@ export function OpdQueuePage() {
                   <td><span className={`doc-status ${visitPriorityClass(visit.priority)}`}>{opdVisitPriorityLabels[visit.priority]}</span></td>
                   <td><span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span></td>
                   <td><div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
-                    {visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED' ? <button className="doc-btn primary compact" disabled={isUpdating || !canEditVisit || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> Start Consultation</button> : null}
-                    {visit.status === 'IN_CONSULTATION' ? <button className="doc-btn primary compact" onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)} type="button">Consultation</button> : null}
+                    {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED') && canEditConsultation && canEditVisit ? <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> Start Consultation</button> : null}
+                    {visit.status === 'IN_CONSULTATION' && canViewConsultation ? <button className="doc-btn primary compact" onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)} type="button">Consultation</button> : null}
                     <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button"><i className="ph ph-arrow-square-out" aria-hidden="true" /></button>
                   </div></td>
                 </tr>

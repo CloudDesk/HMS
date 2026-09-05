@@ -78,13 +78,14 @@ export const updatePermissionBodySchema = {
 
 export const replaceRolePermissionsBodySchema = {
   type: 'object',
-  required: ['permissionIds'],
+  required: ['permissionIds', 'expectedRoleUpdatedAt'],
   additionalProperties: false,
   properties: {
     permissionIds: {
       type: 'array',
       items: { type: 'string', minLength: 1 },
     },
+    expectedRoleUpdatedAt: { type: 'string', format: 'date-time' },
   },
 } as const;
 

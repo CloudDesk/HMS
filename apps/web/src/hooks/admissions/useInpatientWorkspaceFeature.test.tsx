@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +27,15 @@ const testState = vi.hoisted(() => ({
   createRoundNote: vi.fn(async (payload: unknown) => payload),
   createVital: vi.fn(async (payload: unknown) => payload),
   submitClinicalOrder: vi.fn(async (payload: unknown) => payload),
+}));
+
+vi.mock('../../auth/useAuth', () => ({
+  useAuth: () => ({
+    user: {
+      roles: [{ id: 'sa', code: 'SUPER_ADMIN', name: 'Super Admin' }],
+      permissions: [],
+    },
+  }),
 }));
 
 vi.mock('../../routing/navigation', () => ({
@@ -83,6 +94,7 @@ describe('useInpatientWorkspaceFeature orchestration', () => {
   }
 
   beforeEach(async () => {
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     testState.branches = [{ id: 'branch-1', name: 'Main Branch' }];
     testState.admissions = [admission];
     testState.admissionLoading = false;

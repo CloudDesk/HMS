@@ -3,6 +3,7 @@ import { UserModel } from './user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
 import { RoleModel } from '../roles/role.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import type {
   AssignmentInput,
   RequestMetadata,
@@ -69,6 +70,49 @@ const mapUser = (user: UserDoc): UserRecord => ({
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export class UserRepository {
+  async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds')
+      .lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] },
+      code: 'SUPER_ADMIN',
+      status: 'active',
+      deletedAt: null,
+    }));
+    if (requestedBranchId) {
+      const branchExists = Boolean(await BranchModel.exists({
+        _id: requestedBranchId,
+        status: 'ACTIVE',
+        deletedAt: null,
+      }));
+      if (!branchExists) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      const assigned = (user.branchIds ?? []).some((id) => String(id) === requestedBranchId);
+      if (!isSuperAdmin && !assigned) {
+        throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+      }
+      return [requestedBranchId];
+    }
+    if (isSuperAdmin) return undefined;
+
+    const activeBranches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] },
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).select('_id').lean();
+    return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async isUserInBranchScope(userId: string, branchIds: string[]) {
+    return Boolean(await UserModel.exists({
+      _id: userId,
+      branchIds: { $in: branchIds },
+      deletedAt: null,
+    }));
+  }
+
   async findById(id: string) {
     const user = await UserModel.findOne({ _id: id, deletedAt: null }).lean();
     return user ? mapUser(user as unknown as UserDoc) : null;
@@ -124,12 +168,13 @@ export class UserRepository {
     return user ? mapUser(user as unknown as UserDoc) : null;
   }
 
-  async list(query: UserListQuery) {
+  async list(query: UserListQuery, branchIds?: string[]) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
     const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.branchIds = { $in: branchIds };
     
     if (query.status) {
       filter.status = query.status;
@@ -408,6 +453,16 @@ export class UserRepository {
     return { branches, departments, roles };
   }
 
+  async countDepartmentsInBranches(departmentIds: string[], branchIds: string[], session?: ClientSession) {
+    const query = DepartmentModel.countDocuments({
+      _id: { $in: departmentIds },
+      branchIds: { $in: branchIds },
+      status: 'ACTIVE',
+      deletedAt: null,
+    });
+    return session ? query.session(session) : query;
+  }
+
   async isSuperAdmin(userId: string) {
     const superAdminRole = await RoleModel.findOne({ code: 'SUPER_ADMIN', deletedAt: null }).select('_id').lean();
     if (!superAdminRole) return false;
@@ -424,14 +479,15 @@ export class UserRepository {
     return UserModel.countDocuments({ roleIds: superAdminRole._id, status: 'active', deletedAt: null });
   }
 
-  async summary() {
+  async summary(branchIds?: string[]) {
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const scope = branchIds ? { branchIds: { $in: branchIds } } : {};
     const [total, active, inactive, locked, addedThisMonth] = await Promise.all([
-      UserModel.countDocuments({ deletedAt: null }),
-      UserModel.countDocuments({ deletedAt: null, status: 'active' }),
-      UserModel.countDocuments({ deletedAt: null, status: 'inactive' }),
-      UserModel.countDocuments({ deletedAt: null, status: 'locked' }),
-      UserModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth } }),
+      UserModel.countDocuments({ deletedAt: null, ...scope }),
+      UserModel.countDocuments({ deletedAt: null, status: 'active', ...scope }),
+      UserModel.countDocuments({ deletedAt: null, status: 'inactive', ...scope }),
+      UserModel.countDocuments({ deletedAt: null, status: 'locked', ...scope }),
+      UserModel.countDocuments({ deletedAt: null, createdAt: { $gte: startOfMonth }, ...scope }),
     ]);
     return { total, active, inactive, locked, addedThisMonth };
   }

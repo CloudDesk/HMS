@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import type { EmergencyWorkspaceProps, WorkspaceTab } from './types';
-import { message } from './utils';
+import { formatTime, message } from './utils';
 
 const id = z.string().min(1, 'Required');
 
@@ -79,8 +79,90 @@ export function EmergencyConsultationSection({ state, mutations, setActiveTab }:
 
   if (!selected) return null;
 
+  const canEdit = state.capabilities.editConsultation;
+
+  if (!canEdit) {
+    return (
+      <div className="emergency-form-section">
+        <div className="emergency-section-context-header">
+          <div className="emergency-context-badge">
+            <i className="ph ph-lock-key" /> Physician Clinical Evaluation (Read-Only)
+          </div>
+          <p className="emergency-context-desc">
+            Recorded by the attending emergency physician. Review clinical diagnosis, exam findings, and treatment directives.
+          </p>
+        </div>
+
+        <div className="emergency-readonly-grid">
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-stethoscope" /> Physician &amp; Encounter Context</h4>
+            <div className="emergency-readonly-field">
+              <label>Attending Physician</label>
+              <span>{selected.assigned_doctor_name || 'Unassigned'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Encounter Status</label>
+              <span>{selected.status}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Evaluation Updated</label>
+              <span>{selected.consultation?.updatedAt ? formatTime(selected.consultation.updatedAt) : 'In Progress'}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-first-aid-kit" /> Working Diagnosis</h4>
+            <div className="emergency-readonly-field">
+              <label>Clinical Diagnosis</label>
+              <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.95rem' }}>
+                {selected.consultation?.diagnosis || 'Pending physician diagnosis'}
+              </span>
+            </div>
+            <div className="emergency-readonly-field" style={{ marginTop: '0.5rem' }}>
+              <label>Chief Complaint</label>
+              <span>{selected.consultation?.chiefComplaint || selected.chief_complaint || '—'}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-clipboard-text" /> Clinical History &amp; Examination</h4>
+            <div className="emergency-readonly-field">
+              <label>History of Present Illness</label>
+              <span>{selected.consultation?.history || 'Pending physician entry'}</span>
+            </div>
+            <div className="emergency-readonly-field" style={{ marginTop: '0.5rem' }}>
+              <label>Physical Examination</label>
+              <span>{selected.consultation?.examination || 'Pending physician entry'}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-prescription" /> Treatment Directives &amp; Plan</h4>
+            <div className="emergency-readonly-field">
+              <label>Treatment Plan</label>
+              <span>{selected.consultation?.plan || 'Pending treatment plan'}</span>
+            </div>
+            <div className="emergency-readonly-field" style={{ marginTop: '0.5rem' }}>
+              <label>Additional Clinical Notes</label>
+              <span>{selected.consultation?.notes || '—'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={saveConsultation}>
+      <div className="emergency-section-active-header">
+        <div className="emergency-active-badge">
+          <i className="ph ph-stethoscope" /> Primary Physician Duty – Clinical Consultation
+        </div>
+        <p className="emergency-active-desc">
+          Record history of present illness, examination findings, working diagnosis, and treatment plan.
+        </p>
+      </div>
+
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
@@ -124,7 +206,7 @@ export function EmergencyConsultationSection({ state, mutations, setActiveTab }:
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
-            <h3>Clinical History & Examination</h3>
+            <h3>Clinical History &amp; Examination</h3>
             <p>Document the emergency presentation</p>
           </div>
         </div>

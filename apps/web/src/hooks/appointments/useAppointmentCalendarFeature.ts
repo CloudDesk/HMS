@@ -9,6 +9,7 @@ import { type ApiAppointmentStatus, isApiAppointmentStatus } from '../../api/app
 import { todayInputValue, toInputDate, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from '../../pages/appointment-utils';
 import { useTimezone } from '../../api/useSettings';
 import { fromZonedTime } from 'date-fns-tz';
+import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
 
 export type CalendarMode = 'day' | 'week' | 'month';
 
@@ -30,6 +31,20 @@ const buildDateRange = (mode: CalendarMode, selectedDate: string) => {
 
 export function useAppointmentCalendarFeature() {
   const { user } = useAuth();
+  const superAdmin = isSuperAdministrator(user?.roles ?? []);
+  const can = (module: string, screen: string, action: string) => superAdmin || hasPermission(
+    user?.permissions ?? [], { module, screen, action },
+  );
+  const canBook = can('Appointments', 'Appointment Booking', 'View') &&
+    can('Appointments', 'Appointment Booking', 'Create') &&
+    can('Patients', 'Patient Records', 'View') &&
+    can('Doctors', 'Doctor Directory', 'View') &&
+    can('Doctors', 'Doctor Availability', 'View');
+  const canEditBooking = can('Appointments', 'Appointment Booking', 'Edit');
+  const canEditStatus = can('Appointments', 'Appointment Records', 'Edit');
+  const canViewPatient = can('Patients', 'Patient Records', 'View');
+  const canViewBranches = can('Administration', 'Branches', 'View');
+  const canViewDepartments = can('Administration', 'Departments', 'View');
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
 
@@ -47,13 +62,13 @@ export function useAppointmentCalendarFeature() {
 
   const range = useMemo(() => buildDateRange(mode, calendarDate), [calendarDate, mode]);
 
-  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 });
+  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, canViewDepartments);
   const { data: docData } = useDoctorsList({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100 });
+  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100 }, canViewBranches);
 
   const departments = deptData?.data || [];
   const allDoctors = docData?.data || [];
-  const branches = branchData?.data || [];
+  const branches = branchData?.data ?? user?.branches ?? [];
 
   const { data: apptData, isLoading: loading, isError, error } = useAppointmentsList({
     date_from: range.from,
@@ -108,6 +123,7 @@ export function useAppointmentCalendarFeature() {
   }, [calendarDate, departmentFilter, doctorFilter, mode, statusFilter]);
 
   const handleUpdateAppointment = async (id: string, payload: { appointment_date: string; start_time: string; reschedule_reason: string }) => {
+    if (!canEditBooking) throw new Error('You do not have permission to reschedule appointments.');
     let utc_datetime: string | undefined;
     if (payload.appointment_date && payload.start_time) {
       const localDateTimeString = `${payload.appointment_date}T${payload.start_time}:00`;
@@ -117,6 +133,7 @@ export function useAppointmentCalendarFeature() {
   };
 
   const handleUpdateStatus = async (id: string, payload: { status: ApiAppointmentStatus; notes?: string }) => {
+    if (!canEditStatus) throw new Error('You do not have permission to update appointment status.');
     return updateStatus.mutateAsync({ id, payload });
   };
 
@@ -137,6 +154,10 @@ export function useAppointmentCalendarFeature() {
       loggedInDoctor,
       isUpdatingAppointment: updateAppointment.isPending,
       isUpdatingStatus: updateStatus.isPending,
+      canBook,
+      canEditBooking,
+      canEditStatus,
+      canViewPatient,
     },
     actions: {
       setMode,

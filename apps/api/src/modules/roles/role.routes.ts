@@ -69,7 +69,7 @@ export const registerRoleRoutes = async (app: FastifyInstance, services: Service
         response: { 200: roleListResponseSchema },
       },
     },
-    async (request) => ok(await services.roles.list(request.query)),
+    async (request) => ok(await services.roles.list(request.query, request.user!.id)),
   );
 
   app.get<{ Params: RoleIdParams }>(
@@ -81,7 +81,7 @@ export const registerRoleRoutes = async (app: FastifyInstance, services: Service
         response: { 200: roleResponseSchema },
       },
     },
-    async (request) => ok(await services.roles.getById(request.params.id)),
+    async (request) => ok(await services.roles.getById(request.params.id, request.user!.id)),
   );
 
   app.get<{ Params: RoleIdParams; Querystring: { page?: number; limit?: number } }>(

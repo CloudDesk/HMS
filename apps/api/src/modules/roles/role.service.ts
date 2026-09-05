@@ -63,7 +63,7 @@ export class RoleService {
     }
   }
 
-  async list(query: Partial<RoleListQuery>) {
+  async list(query: Partial<RoleListQuery>, actorUserId: string) {
     const normalizedQuery: RoleListQuery = {
       search: normalizeOptionalText(query.search) ?? undefined,
       status: query.status,
@@ -73,7 +73,8 @@ export class RoleService {
       sortBy: query.sortBy ?? 'createdAt',
       sortOrder: query.sortOrder ?? 'desc',
     };
-    const { roles, total } = await this.repository.list(normalizedQuery);
+    const branchIds = await this.repository.resolveBranchScope(actorUserId);
+    const { roles, total } = await this.repository.list(normalizedQuery, branchIds);
 
     return {
       items: roles.map((role) => this.toResponse(role)),
@@ -86,9 +87,10 @@ export class RoleService {
     };
   }
 
-  async getById(id: string) {
+  async getById(id: string, actorUserId: string) {
     const role = await this.requireRole(id);
-    const users = await this.repository.getAssignedUsers(id);
+    const branchIds = await this.repository.resolveBranchScope(actorUserId);
+    const users = await this.repository.getAssignedUsers(id, branchIds);
     return this.toResponse(role, users);
   }
 
@@ -126,7 +128,7 @@ export class RoleService {
       name: role.name,
     });
 
-    return this.getById(role.id);
+    return this.getById(role.id, actorUserId);
   }
 
   async update(id: string, input: UpdateRoleInput, actorUserId: string, metadata: RequestMetadata) {
@@ -134,8 +136,8 @@ export class RoleService {
     await this.permissions.assertCanManageRoles(actorUserId, [id]);
     const normalized = this.normalizeUpdateInput(input);
 
-    if (existing.type === 'system' && (normalized.code || normalized.type)) {
-      throw new AppError('System role code and type cannot be changed', 400, 'SYSTEM_ROLE_RESTRICTED');
+    if (existing.type === 'system') {
+      throw new AppError('System role details are managed by the platform', 400, 'SYSTEM_ROLE_RESTRICTED');
     }
 
     if (existing.type === 'custom' && normalized.type === 'system') {
@@ -169,15 +171,15 @@ export class RoleService {
       name: role.name,
     });
 
-    return this.getById(id);
+    return this.getById(id, actorUserId);
   }
 
   async updateStatus(id: string, input: StatusInput, actorUserId: string, metadata: RequestMetadata) {
     const existing = await this.requireRole(id);
     await this.permissions.assertCanManageRoles(actorUserId, [id]);
 
-    if (input.status === 'inactive' && protectedSystemRoleCodes.includes(existing.code)) {
-      throw new AppError('Protected system role cannot be deactivated', 400, 'SYSTEM_ROLE_RESTRICTED');
+    if (existing.type === 'system') {
+      throw new AppError('System role status is managed by the platform', 400, 'SYSTEM_ROLE_RESTRICTED');
     }
 
     const role = await this.repository.updateStatus(id, input.status, actorUserId);
@@ -192,7 +194,7 @@ export class RoleService {
       status: input.status,
     });
 
-    return this.getById(id);
+    return this.getById(id, actorUserId);
   }
 
   async assignUser(id: string, input: AssignUserInput, actorUserId: string, metadata: RequestMetadata) {
@@ -228,7 +230,7 @@ export class RoleService {
       code: role.code,
     });
 
-    return this.getById(id);
+    return this.getById(id, actorUserId);
   }
 
   async removeUser(id: string, userId: string, actorUserId: string, metadata: RequestMetadata) {
@@ -248,7 +250,7 @@ export class RoleService {
       code: role.code,
     });
 
-    return this.getById(id);
+    return this.getById(id, actorUserId);
   }
 
   async delete(id: string, actorUserId: string, metadata: RequestMetadata) {

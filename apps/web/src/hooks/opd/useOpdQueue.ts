@@ -25,6 +25,8 @@ export function useOpdQueue(filters: OpdQueueFilters) {
 
   // Capability flags — owned here so pages never need to traverse permissions
   const canEditVisit = canAction('OPD', 'OPD Visits', 'Edit');
+  const canViewConsultation = canAccess('OPD', 'OPD Consultation');
+  const canEditConsultation = canAction('OPD', 'OPD Consultation', 'Edit');
 
   // Queries
   const { data: visitsData, isLoading: visitsLoading, error: visitsError } = useOpdVisits({
@@ -76,5 +78,7 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     updateVisitStatus,
     // Capability flags
     canEditVisit,
+    canViewConsultation,
+    canEditConsultation,
   };
 }

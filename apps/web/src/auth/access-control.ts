@@ -18,6 +18,7 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/administration/services': [{ module: 'Administration', screen: 'Services' }],
   '/administration/medicines': [{ module: 'Administration', screen: 'Medicines' }],
   '/pharmacy': [{ module: 'Pharmacy', screen: 'Dispensing' }],
+  '/pharmacy/orders': [{ module: 'Pharmacy', screen: 'Dispensing' }],
   '/pharmacy/inventory': [{ module: 'Pharmacy', screen: 'Medicine Inventory' }],
   '/pharmacy/queue': [{ module: 'Pharmacy', screen: 'Dispensing' }],
   '/pharmacy/dispensing': [{ module: 'Pharmacy', screen: 'Dispensing' }],
@@ -42,9 +43,18 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/patients/profile': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/history': [{ module: 'Patients', screen: 'Patient Records' }],
   '/patients/emr': [{ module: 'Patients', screen: 'Patient Records' }],
-  '/patients/documents': [{ module: 'Patients', screen: 'Patient Documents' }],
-  '/patients/consent': [{ module: 'Patients', screen: 'Consent' }],
-  '/patients/consents': [{ module: 'Patients', screen: 'Consent' }],
+  '/patients/documents': [
+    { module: 'Patients', screen: 'Patient Records' },
+    { module: 'Patients', screen: 'Patient Documents' },
+  ],
+  '/patients/consent': [
+    { module: 'Patients', screen: 'Patient Records' },
+    { module: 'Patients', screen: 'Consent' },
+  ],
+  '/patients/consents': [
+    { module: 'Patients', screen: 'Patient Records' },
+    { module: 'Patients', screen: 'Consent' },
+  ],
   '/doctors': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/directory': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/doctors/profile': [{ module: 'Doctors', screen: 'Doctor Directory' }],
@@ -59,11 +69,21 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   ],
   '/doctors/performance': [{ module: 'Doctors', screen: 'Doctor Directory' }],
   '/appointments': [{ module: 'Appointments', screen: 'Appointment Records' }],
-  '/appointments/book': [{ module: 'Appointments', screen: 'Appointment Booking' }],
+  '/appointments/book': [
+    { module: 'Appointments', screen: 'Appointment Booking' },
+    { module: 'Appointments', screen: 'Appointment Booking', action: 'Create' },
+    { module: 'Patients', screen: 'Patient Records' },
+    { module: 'Doctors', screen: 'Doctor Directory' },
+    { module: 'Doctors', screen: 'Doctor Availability' },
+  ],
   '/appointments/calendar': [{ module: 'Appointments', screen: 'Appointment Records' }],
-  '/appointments/queue': [{ module: 'Appointments', screen: 'Appointment Records' }],
+  '/appointments/queue': [
+    { module: 'Appointments', screen: 'Appointment Records' },
+    { module: 'OPD', screen: 'OPD Visits' },
+  ],
   '/appointments/referrals': [
     { module: 'Appointments', screen: 'Appointment Booking' },
+    { module: 'Appointments', screen: 'Appointment Booking', action: 'Create' },
     { module: 'OPD', screen: 'OPD Referral' },
   ],
   '/opd': [{ module: 'OPD', screen: 'OPD Visits' }],
@@ -90,7 +110,9 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/emergency/workspace': [{ module: 'Emergency', screen: 'Encounters' }],
 };
 
-const normalize = (value: string) => value.trim().toLowerCase();
+const anyPermissionRoutes = new Set(['/surgery']);
+
+const normalize = (value: string) => value.trim().toLowerCase().replaceAll(/[_\s-]+/g, ' ');
 const pathnameOnly = (value: string) => {
   const delimiterIndex = value.search(/[?#]/);
   const pathname = delimiterIndex >= 0 ? value.slice(0, delimiterIndex) : value;
@@ -101,13 +123,26 @@ const pathnameOnly = (value: string) => {
 export const isSuperAdministrator = (roles: AuthRole[]) =>
   roles.some((role) => role.code === 'SUPER_ADMIN');
 
-export const hasPermission = (permissions: AuthPermission[], requirement: PermissionRequirement) =>
-  permissions.some(
+export const hasPermission = (
+  permissions: AuthPermission[],
+  requirement: PermissionRequirement,
+  roles: AuthRole[] = [],
+) => {
+  if (isSuperAdministrator(roles)) return true;
+
+  const reqModule = normalize(requirement.module);
+  const reqScreen = normalize(requirement.screen);
+  const reqAction = normalize(requirement.action ?? 'View');
+
+  return permissions.some(
     (permission) =>
-      normalize(permission.module) === normalize(requirement.module) &&
-      normalize(permission.screen) === normalize(requirement.screen) &&
-      normalize(permission.action) === normalize(requirement.action ?? 'View'),
+      (normalize(permission.module) === reqModule &&
+        normalize(permission.screen) === reqScreen &&
+        normalize(permission.action) === reqAction) ||
+      (permission.code &&
+        normalize(permission.code) === normalize(requirement.module + '_' + requirement.screen + '_' + (requirement.action ?? 'View'))),
   );
+};
 
 export const isPermissionControlledRoute = (pathname: string) =>
   pathnameOnly(pathname) in routeRequirements;
@@ -124,7 +159,8 @@ export const canAccessRoute = (
   const requirements = routeRequirements[normalizedPathname];
   if (!requirements) return false;
 
-  return requirements.every((requirement) => hasPermission(permissions, requirement));
+  const matches = anyPermissionRoutes.has(normalizedPathname) ? 'some' : 'every';
+  return requirements[matches]((requirement) => hasPermission(permissions, requirement));
 };
 
 export const getAccessibleSidebarModules = (

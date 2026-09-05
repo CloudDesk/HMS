@@ -43,6 +43,10 @@ export function AppointmentDashboardPage() {
       loading,
       loadError,
       isUpdatingStatus,
+      canCreateBooking,
+      canEditStatus,
+      canViewPatients,
+      canViewQueue,
     },
     actions: {
       setSearch,
@@ -111,10 +115,10 @@ export function AppointmentDashboardPage() {
           <p>Monitor booking records, arrival readiness, and the front-desk schedule.</p>
         </div>
         <div className="doctor-page-actions">
-          <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
+          {canCreateBooking ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
             <i className="ph ph-calendar-plus" aria-hidden="true" />
             Book Appointment
-          </button>
+          </button> : null}
         </div>
       </section>
 
@@ -169,20 +173,20 @@ export function AppointmentDashboardPage() {
             </div>
           </div>
           <div className="appointment-quick-grid">
-            <button className="appointment-quick-action" onClick={() => navigate('/appointments/book')} type="button">
+            {canCreateBooking ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book')} type="button">
               <i className="ph ph-calendar-plus" aria-hidden="true" />
               <span>
                 <strong>Book Appointment</strong>
                 <span>Reserve a consultation time</span>
               </span>
-            </button>
-            <button className="appointment-quick-action" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
+            </button> : null}
+            {canCreateBooking ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
               <i className="ph ph-person-simple-walk" aria-hidden="true" />
               <span>
                 <strong>Walk-in Registration</strong>
                 <span>Check in an unscheduled patient</span>
               </span>
-            </button>
+            </button> : null}
             <button className="appointment-quick-action" onClick={() => navigate('/appointments/calendar')} type="button">
               <i className="ph ph-calendar-blank" aria-hidden="true" />
               <span>
@@ -190,20 +194,20 @@ export function AppointmentDashboardPage() {
                 <span>Review all schedules</span>
               </span>
             </button>
-            <button className="appointment-quick-action" onClick={() => navigate('/appointments/queue')} type="button">
+            {canViewQueue ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/queue')} type="button">
               <i className="ph ph-queue" aria-hidden="true" />
               <span>
                 <strong>Queue Management</strong>
                 <span>Coordinate waiting patients</span>
               </span>
-            </button>
-            <button className="appointment-quick-action" onClick={() => navigate('/patients')} type="button">
+            </button> : null}
+            {canViewPatients ? <button className="appointment-quick-action" onClick={() => navigate('/patients')} type="button">
               <i className="ph ph-magnifying-glass" aria-hidden="true" />
               <span>
                 <strong>Search Patient</strong>
                 <span>Open the patient directory</span>
               </span>
-            </button>
+            </button> : null}
           </div>
         </article>
       </section>
@@ -412,15 +416,15 @@ export function AppointmentDashboardPage() {
                     <td>{formatAppointmentDate(appointment.created_at, timezone)}</td>
                     <td>
                       <div className="doc-actions">
-                        <button
+                        {canViewPatients ? <button
                           className="doc-action"
                           onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
                           title="Open patient"
                           type="button"
                         >
                           <i className="ph ph-user" aria-hidden="true" />
-                        </button>
-                        <button
+                        </button> : null}
+                        {canEditStatus ? <button
                           className="doc-action"
                           disabled={isUpdatingStatus || appointment.status === 'CONFIRMED'}
                           onClick={() => handleUpdateStatus(appointment.id, 'CONFIRMED')}
@@ -428,17 +432,8 @@ export function AppointmentDashboardPage() {
                           type="button"
                         >
                           <i className="ph ph-check-circle" aria-hidden="true" />
-                        </button>
-                        <button
-                          className="doc-action"
-                          disabled={isUpdatingStatus || appointment.status === 'CHECKED_IN'}
-                          onClick={() => handleUpdateStatus(appointment.id, 'CHECKED_IN')}
-                          title="Mark checked in"
-                          type="button"
-                        >
-                          <i className="ph ph-user-focus" aria-hidden="true" />
-                        </button>
-                        <button
+                        </button> : null}
+                        {canEditStatus ? <button
                           className="doc-action danger"
                           disabled={isUpdatingStatus || appointment.status === 'CANCELLED'}
                           onClick={() => handleUpdateStatus(appointment.id, 'CANCELLED')}
@@ -446,7 +441,7 @@ export function AppointmentDashboardPage() {
                           type="button"
                         >
                           <i className="ph ph-x" aria-hidden="true" />
-                        </button>
+                        </button> : null}
                       </div>
                     </td>
                   </tr>

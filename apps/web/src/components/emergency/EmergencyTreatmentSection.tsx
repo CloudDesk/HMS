@@ -8,70 +8,49 @@ export type EmergencyTreatmentSectionProps = {
 export function EmergencyTreatmentSection({ setActiveTab }: EmergencyTreatmentSectionProps) {
   return (
     <form onSubmit={(e) => { e.preventDefault(); setActiveTab('Medication'); }}>
-      <section className="emergency-form-section">
-        <div className="emergency-form-head">
-          <div>
-            <h3>Medication Administration</h3>
-            <p>Record emergency medicines administered immediately</p>
-          </div>
+      <div className="emergency-section-active-header">
+        <div className="emergency-active-badge">
+          <i className="ph ph-first-aid" /> Primary Physician Duty – Immediate Treatment &amp; Procedures
         </div>
-        <div className="doc-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
-          <div className="doc-field">
-            <label>Medication</label>
-            <input defaultValue="Aspirin 300 mg" />
-          </div>
-          <div className="doc-field">
-            <label>Dose</label>
-            <input defaultValue="300 mg" />
-          </div>
-          <div className="doc-field">
-            <label>Route</label>
-            <select defaultValue="Oral">
-              <option>Oral</option>
-              <option>IV</option>
-              <option>IM</option>
-              <option>SC</option>
-              <option>Nebulization</option>
-            </select>
-          </div>
-          <div className="doc-field">
-            <label>Administration Time</label>
-            <input defaultValue="10:45" type="time" />
-          </div>
-        </div>
-      </section>
+        <p className="emergency-active-desc">
+          Document bedside interventions, emergency resuscitation, and continuous clinical monitoring.
+        </p>
+      </div>
 
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
-            <h3>Procedures & Interventions</h3>
-            <p>Emergency procedures and continuous monitoring plan</p>
+            <h3>Emergency Interventions &amp; Procedures</h3>
+            <p>Bedside clinical procedures and monitoring plan</p>
           </div>
         </div>
         <div className="doc-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
           <div className="doc-field">
-            <label>Procedure</label>
+            <label>Emergency Procedure</label>
             <select defaultValue="IV Cannulation">
-              <option>IV Cannulation</option>
-              <option>ECG</option>
-              <option>Oxygen Therapy</option>
-              <option>Blood Sampling</option>
-              <option>CPR</option>
-              <option>Defibrillation</option>
+              <option>IV Cannulation &amp; Fluid Access</option>
+              <option>12-Lead ECG</option>
+              <option>High-Flow Oxygen Therapy</option>
+              <option>Wound Debridement &amp; Suturing</option>
+              <option>Endotracheal Intubation</option>
+              <option>Cardiopulmonary Resuscitation (CPR)</option>
+              <option>Defibrillation / Cardioversion</option>
+              <option>Chest Tube Insertion</option>
+              <option>Nasogastric Tube Placement</option>
             </select>
           </div>
           <div className="doc-field">
             <label>Monitoring Frequency</label>
             <select defaultValue="Every 15 Minutes">
-              <option>Continuous</option>
+              <option>Continuous ECG &amp; SpO₂ Monitoring</option>
               <option>Every 15 Minutes</option>
               <option>Every 30 Minutes</option>
               <option>Hourly</option>
             </select>
           </div>
           <div className="doc-field">
-            <label>Procedure Outcome</label>
-            <input defaultValue="Successful 18G IV cannula in right ACF" />
+            <label>Intervention Notes / Findings</label>
+            <input placeholder="e.g. 18G IV cannula inserted in right ACF, 0.9% Normal Saline started" />
           </div>
         </div>
       </section>
@@ -81,11 +60,11 @@ export function EmergencyTreatmentSection({ setActiveTab }: EmergencyTreatmentSe
           <i className="ph ph-check-circle" /> Auto-save enabled
         </span>
         <div>
-          <button className="btn-emergency-secondary" onClick={() => toast.success('Draft saved.')} type="button">
+          <button className="btn-emergency-secondary" onClick={() => toast.success('Treatment notes saved.')} type="button">
             Save Draft
           </button>
           <button className="btn-emergency-primary" type="submit">
-            Next → Medication <i className="ph ph-arrow-right" />
+            Next → Medication Orders <i className="ph ph-arrow-right" />
           </button>
         </div>
       </div>

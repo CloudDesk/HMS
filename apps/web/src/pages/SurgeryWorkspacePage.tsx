@@ -89,22 +89,24 @@ export function SurgeryWorkspacePage() {
               ))}
             </select>
           ) : null}
-          <button
-            className="btn-primary"
-            onClick={() => setRecommendationOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              height: '38px',
-              padding: '0 16px',
-              borderRadius: '8px',
-              fontWeight: 600,
-            }}
-            type="button"
-          >
-            <i className="ph ph-plus" /> New Recommendation
-          </button>
+          {state.capabilities.createRecommendations ? (
+            <button
+              className="btn-primary"
+              onClick={() => setRecommendationOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                height: '38px',
+                padding: '0 16px',
+                borderRadius: '8px',
+                fontWeight: 600,
+              }}
+              type="button"
+            >
+              <i className="ph ph-plus" /> New Recommendation
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -157,27 +159,33 @@ export function SurgeryWorkspacePage() {
       {/* Toolbar & Filters */}
       <div className="surgery-toolbar">
         <div className="segmented-control">
-          <button
-            className={state.tab === 'recommendations' ? 'active' : ''}
-            onClick={() => actions.setTab('recommendations')}
-            type="button"
-          >
-            Recommendations
-          </button>
-          <button
-            className={state.tab === 'bookings' ? 'active' : ''}
-            onClick={() => actions.setTab('bookings')}
-            type="button"
-          >
-            Bookings
-          </button>
-          <button
-            className={state.tab === 'schedule' ? 'active' : ''}
-            onClick={() => actions.setTab('schedule')}
-            type="button"
-          >
-            Schedule
-          </button>
+          {state.capabilities.viewRecommendations && (
+            <button
+              className={state.tab === 'recommendations' ? 'active' : ''}
+              onClick={() => actions.setTab('recommendations')}
+              type="button"
+            >
+              Recommendations
+            </button>
+          )}
+          {state.capabilities.viewBookings && (
+            <button
+              className={state.tab === 'bookings' ? 'active' : ''}
+              onClick={() => actions.setTab('bookings')}
+              type="button"
+            >
+              Bookings
+            </button>
+          )}
+          {state.capabilities.viewSchedule && (
+            <button
+              className={state.tab === 'schedule' ? 'active' : ''}
+              onClick={() => actions.setTab('schedule')}
+              type="button"
+            >
+              Schedule
+            </button>
+          )}
         </div>
 
         <div className="surgery-toolbar-controls">
@@ -249,8 +257,11 @@ export function SurgeryWorkspacePage() {
       </div>
 
       {/* Main Tab Views */}
-      {state.tab === 'recommendations' ? (
+      {state.tab === 'recommendations' && state.capabilities.viewRecommendations ? (
         <SurgeryRecommendationsTab
+          canBook={state.capabilities.createBookings}
+          canCancel={state.capabilities.cancelRecommendations}
+          canViewBooking={state.capabilities.viewBookings}
           isError={state.recommendationsQuery.isError}
           isLoading={state.recommendationsQuery.isLoading}
           onBook={(item) => setBookingFor(item)}
@@ -264,7 +275,7 @@ export function SurgeryWorkspacePage() {
         />
       ) : null}
 
-      {state.tab === 'bookings' ? (
+      {state.tab === 'bookings' && state.capabilities.viewBookings ? (
         <SurgeryBookingsTab
           bookings={state.bookings}
           displayDate={displayDate}
@@ -276,7 +287,7 @@ export function SurgeryWorkspacePage() {
         />
       ) : null}
 
-      {state.tab === 'schedule' ? (
+      {state.tab === 'schedule' && state.capabilities.viewSchedule ? (
         <SurgeryScheduleTab
           date={state.date}
           isError={state.bookingsQuery.isError}
@@ -323,6 +334,10 @@ export function SurgeryWorkspacePage() {
       {/* Modal 3 & 5: Procedure Booking Detail */}
       <SurgeryBookingDetailModal
         booking={viewBookingDetail ?? (actionMode ? null : selected)}
+        canCancel={state.capabilities.cancelBookings}
+        canComplete={state.capabilities.completeBookings}
+        canConfirm={state.capabilities.confirmBookings}
+        canReschedule={state.capabilities.rescheduleBookings}
         displayDate={displayDate}
         onCancel={(b) => {
           setSelected(b);

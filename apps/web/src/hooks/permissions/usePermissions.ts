@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ApiError } from '../../api/api-error';
 import { permissionsApi } from '../../api/permissions';
+import { rolesKeys } from '../roles/useRoles';
 
 export const getPermissionErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -41,12 +42,14 @@ export function useReplaceRolePermissions() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ roleId, permissionIds }: { roleId: string; permissionIds: string[] }) =>
-      permissionsApi.replaceForRole(roleId, permissionIds),
+    mutationFn: ({ roleId, permissionIds, expectedRoleUpdatedAt }: { roleId: string; permissionIds: string[]; expectedRoleUpdatedAt: string }) =>
+      permissionsApi.replaceForRole(roleId, permissionIds, expectedRoleUpdatedAt),
     onSuccess: async (data, { roleId }) => {
       // toast will be handled by the caller or we can do it here. 
       // The old page does: showToast('Role permissions saved successfully.')
       await queryClient.invalidateQueries({ queryKey: permissionsKeys.byRole(roleId) });
+      await queryClient.invalidateQueries({ queryKey: rolesKeys.detail(roleId) });
+      await queryClient.invalidateQueries({ queryKey: rolesKeys.lists() });
     },
     onError: (error) => toast.error(getPermissionErrorMessage(error)),
   });

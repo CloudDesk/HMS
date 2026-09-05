@@ -443,7 +443,7 @@ const buildPermissionTabs = (user: AuthUser): DashboardTabDefinition[] => {
   if (canView(user, 'Billing', 'Invoices')) {
     tabs.push({ key: 'billing', label: 'Billing', icon: 'ph-receipt', content: withSuspense('Billing', <BillingDashboardPage />) });
   }
-  if (!doctorUser && canView(user, 'Appointments', 'Appointment Records')) {
+  if (canView(user, 'Appointments', 'Appointment Records')) {
     tabs.push({ key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: withSuspense('Appointments', <AppointmentDashboardPage />) });
   }
   if (canView(user, 'OPD', 'OPD Visits')) {

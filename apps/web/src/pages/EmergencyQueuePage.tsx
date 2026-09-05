@@ -74,6 +74,22 @@ export function EmergencyQueuePage() {
   const [callingId, setCallingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const { capabilities, dashboardProfile, currentUserId, currentDoctorId } = state;
+
+  const canFilterOtherDoctors =
+    capabilities.register ||
+    capabilities.linkPatient ||
+    capabilities.assessTriage ||
+    capabilities.overridePriority;
+
+  const isAssignedToMe = useMemo(() => {
+    return (docId: string | null) =>
+      Boolean(
+        docId &&
+          ((currentDoctorId && docId === currentDoctorId) ||
+            (currentUserId && docId === currentUserId)),
+      );
+  }, [currentDoctorId, currentUserId]);
 
   const allEncounters = state.encounters;
 
@@ -85,7 +101,6 @@ export function EmergencyQueuePage() {
   );
   const consultationList = allEncounters.filter((item) => item.status === 'IN_CONSULTATION');
   const treatmentList = allEncounters.filter((item) => item.status === 'IN_TREATMENT');
-  const admissionList = allEncounters.filter((item) => item.status === 'READY_FOR_DISPOSITION');
 
   // Active serving patient
   const currentlyServing =
@@ -94,13 +109,24 @@ export function EmergencyQueuePage() {
     treatmentList[0] ||
     null;
 
-  // Filtered queue items
+  // Doctor scope: normal doctor sees ONLY their assigned cases + unassigned cases.
+  // Doctors cannot browse other doctors' cases unless they have administrative/triage oversight permissions.
   const filteredQueue = useMemo(() => {
     return allEncounters.filter((item) => {
-      if (selectedDoctorFilter && item.assigned_doctor_id !== selectedDoctorFilter) return false;
+      if (dashboardProfile === 'doctor' && !canFilterOtherDoctors) {
+        if (item.assigned_doctor_id !== null && !isAssignedToMe(item.assigned_doctor_id)) {
+          return false;
+        }
+        return true;
+      }
+
+      if (selectedDoctorFilter && item.assigned_doctor_id !== selectedDoctorFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [allEncounters, selectedDoctorFilter]);
+  }, [allEncounters, selectedDoctorFilter, dashboardProfile, canFilterOtherDoctors, isAssignedToMe]);
 
   const totalPages = Math.max(1, Math.ceil(filteredQueue.length / pageSize));
   const paginatedQueue = useMemo(() => {
@@ -165,89 +191,24 @@ export function EmergencyQueuePage() {
     }
   };
 
+  const canCall = capabilities.editConsultation || capabilities.assessTriage;
+
   return (
     <div className="emergency-page emergency-theme">
-      {/* Page Header */}
-      <div className="emergency-page-header">
-        <div className="emergency-page-title">
-          <h2>Emergency Queue</h2>
-          <p>Prioritize, call and coordinate waiting emergency patients</p>
-        </div>
-        <div className="emergency-page-actions">
-          <button
-            className="btn-emergency-secondary"
-            onClick={() => void state.listQuery.refetch()}
-            type="button"
-          >
-            <i className="ph ph-arrows-clockwise" /> Refresh
-          </button>
-          <button
-            className="btn-emergency-primary"
-            disabled={waitingList.length === 0}
-            onClick={() => void handleCallNext()}
-            type="button"
-          >
-            <i className="ph ph-megaphone" /> Call Next
-          </button>
-        </div>
-      </div>
-
-      {/* 5 Top KPI Cards */}
-      <section className="emergency-queue-kpis">
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon orange">
-            <i className="ph ph-users" style={{ fontSize: '1.4rem' }} />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Waiting</span>
-            <strong>{waitingList.length}</strong>
-          </div>
+      {/* Filter Toolbar - Search First + Refresh Button */}
+      <div className="emergency-queue-toolbar">
+        <div className="doc-field doc-field--search">
+          <label htmlFor="er-search-input">Search Patient</label>
+          <i className="ph ph-magnifying-glass" />
+          <input
+            id="er-search-input"
+            onChange={(e) => actions.setSearch(e.target.value)}
+            placeholder="Patient, MRN or token"
+            value={state.search}
+          />
         </div>
 
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon red">
-            <i className="ph ph-warning-circle" style={{ fontSize: '1.4rem' }} />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Critical</span>
-            <strong>{criticalList.length}</strong>
-          </div>
-        </div>
-
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon blue">
-            <i className="ph ph-stethoscope" style={{ fontSize: '1.4rem' }} />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>In Consultation</span>
-            <strong>{consultationList.length}</strong>
-          </div>
-        </div>
-
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon cyan">
-            <i className="ph ph-heartbeat" style={{ fontSize: '1.4rem' }} />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>In Treatment</span>
-            <strong>{treatmentList.length}</strong>
-          </div>
-        </div>
-
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon purple">
-            <i className="ph ph-bed" style={{ fontSize: '1.4rem' }} />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Ready for Admission</span>
-            <strong>{admissionList.length}</strong>
-          </div>
-        </div>
-      </section>
-
-      {/* Filter Toolbar */}
-      <div className="doc-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end' }}>
-        <div className="doc-field">
+        <div className="doc-field doc-field--dept">
           <label htmlFor="er-dept-filter">Department</label>
           <select
             id="er-dept-filter"
@@ -263,23 +224,50 @@ export function EmergencyQueuePage() {
           </select>
         </div>
 
-        <div className="doc-field">
-          <label htmlFor="er-doc-filter">Doctor</label>
-          <select
-            id="er-doc-filter"
-            onChange={(e) => setSelectedDoctorFilter(e.target.value)}
-            value={selectedDoctorFilter}
-          >
-            <option value="">All Doctors</option>
-            {state.doctors.map((doc) => (
-              <option key={doc.id} value={doc.id}>
-                {doc.display_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {dashboardProfile === 'doctor' && !canFilterOtherDoctors ? (
+          <div className="doc-field doc-field--doctor">
+            <label htmlFor="er-doc-filter">Doctor Scope</label>
+            <div
+              id="er-doc-filter"
+              style={{
+                height: '38px',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 10px',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                color: '#334155',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title="My Assigned Cases + Unassigned"
+            >
+              My Assigned Cases + Unassigned
+            </div>
+          </div>
+        ) : (
+          <div className="doc-field doc-field--doctor">
+            <label htmlFor="er-doc-filter">Doctor</label>
+            <select
+              id="er-doc-filter"
+              onChange={(e) => setSelectedDoctorFilter(e.target.value)}
+              value={selectedDoctorFilter}
+            >
+              <option value="">All Doctors</option>
+              {state.doctors.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.display_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        <div className="doc-field">
+        <div className="doc-field doc-field--priority">
           <label htmlFor="er-priority-filter">Priority</label>
           <select
             id="er-priority-filter"
@@ -295,7 +283,7 @@ export function EmergencyQueuePage() {
           </select>
         </div>
 
-        <div className="doc-field">
+        <div className="doc-field doc-field--status">
           <label htmlFor="er-status-filter">Status</label>
           <select
             id="er-status-filter"
@@ -311,122 +299,233 @@ export function EmergencyQueuePage() {
           </select>
         </div>
 
-        <div className="doc-field grow doc-search">
-          <label htmlFor="er-search-input">Search Patient</label>
-          <i className="ph ph-magnifying-glass" />
-          <input
-            id="er-search-input"
-            onChange={(e) => actions.setSearch(e.target.value)}
-            placeholder="Patient, MRN or token"
-            value={state.search}
-          />
+        <div className="doc-field doc-field--refresh">
+          <label style={{ visibility: 'hidden' }}>Refresh</label>
+          <button
+            aria-label="Refresh"
+            className="btn-emergency-secondary emergency-refresh-btn"
+            onClick={() => void state.listQuery.refetch()}
+            title="Refresh"
+            type="button"
+          >
+            <i className="ph ph-arrows-clockwise" />
+          </button>
         </div>
       </div>
 
-      {/* 2-Column Queue Layout */}
-      <div className="emergency-queue-layout">
-        {/* Left Column: Emergency Queue Table */}
-        <div className="doc-card">
-          <div className="doc-card-header">
-            <div>
-              <h3>Emergency Queue</h3>
-              <p>{filteredQueue.length} emergency patients</p>
-            </div>
+      {/* Compact Horizontal Operational Banner */}
+      <section className="emergency-token-bar">
+        {/* Left: Now Serving Badge & Patient Info */}
+        <div className="emergency-token-bar__left">
+          <span className="emergency-token-bar__now-serving">
+            <i className="ph ph-broadcast" /> NOW SERVING
+          </span>
+          <div className="emergency-token-bar__serving-info">
+            <strong
+              className="emergency-token-bar__token-id"
+              title={
+                currentlyServing
+                  ? currentlyServing.emergency_identifier || currentlyServing.encounter_number
+                  : undefined
+              }
+            >
+              {currentlyServing
+                ? currentlyServing.emergency_identifier || currentlyServing.encounter_number
+                : '—'}
+            </strong>
+            <span
+              className="emergency-token-bar__patient-name"
+              title={
+                currentlyServing
+                  ? currentlyServing.patient_name || currentlyServing.provisional_identity?.display_name
+                  : undefined
+              }
+            >
+              {currentlyServing
+                ? currentlyServing.patient_name || currentlyServing.provisional_identity?.display_name
+                : 'No active call'}
+            </span>
           </div>
+        </div>
 
-          <div className="doc-table-wrap">
-            <table className="doc-table">
-              <thead>
+        {/* Center: Operational Metrics */}
+        <div className="emergency-token-bar__center">
+          <div className="emergency-token-bar__metric">
+            <span className="emergency-token-bar__metric-label">Next</span>
+            <strong
+              className="emergency-token-bar__metric-val"
+              title={
+                waitingList[0]
+                  ? waitingList[0].emergency_identifier || waitingList[0].encounter_number
+                  : undefined
+              }
+            >
+              {waitingList[0]
+                ? waitingList[0].emergency_identifier || waitingList[0].encounter_number
+                : '—'}
+            </strong>
+          </div>
+          <div className="emergency-token-bar__metric">
+            <span className="emergency-token-bar__metric-label">Waiting</span>
+            <strong className="emergency-token-bar__metric-val">{waitingList.length}</strong>
+          </div>
+          <div className="emergency-token-bar__metric">
+            <span className="emergency-token-bar__metric-label">Critical</span>
+            <strong className="emergency-token-bar__metric-val text-danger">{criticalList.length}</strong>
+          </div>
+          <div className="emergency-token-bar__metric">
+            <span className="emergency-token-bar__metric-label">In Treatment</span>
+            <strong className="emergency-token-bar__metric-val">{treatmentList.length}</strong>
+          </div>
+        </div>
+
+        {/* Right: Calling Controls */}
+        <div className="emergency-token-bar__right">
+          {canCall && (
+            <>
+              <button
+                className="btn-emergency-primary compact"
+                disabled={waitingList.length === 0}
+                onClick={() => void handleCallNext()}
+                type="button"
+              >
+                <i className="ph ph-megaphone" /> Call Next
+              </button>
+              <button
+                className="btn-emergency-secondary compact"
+                disabled={!currentlyServing}
+                onClick={() => void handleRecall()}
+                type="button"
+              >
+                <i className="ph ph-arrow-counter-clockwise" /> Recall
+              </button>
+              <button
+                className="btn-emergency-secondary compact"
+                disabled={!currentlyServing}
+                onClick={() => void handleSkip()}
+                type="button"
+              >
+                <i className="ph ph-skip-forward" /> Skip
+              </button>
+            </>
+          )}
+          {capabilities.markNoShow && (
+            <button
+              className="doc-btn danger compact"
+              disabled={!currentlyServing}
+              onClick={() => void handleMarkNoShow()}
+              type="button"
+            >
+              <i className="ph ph-user-minus" /> Mark No Show
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* Unified Emergency Queue Table Component with Attached Pagination */}
+      <div className="emergency-queue-table-card">
+        <div className="emergency-table-container">
+          <table className="emergency-queue-table">
+            <colgroup>
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '8%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Patient</th>
+                <th>Priority</th>
+                <th>Doctor</th>
+                <th>Wait Time</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.listQuery.isLoading ? (
                 <tr>
-                  <th>Token</th>
-                  <th>Patient</th>
-                  <th>Priority</th>
-                  <th>Doctor</th>
-                  <th>Wait Time</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
+                    <MedicalLoader
+                      text="Loading emergency queue..."
+                      subtext="Prioritizing critical triage and acute emergency patients"
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {state.listQuery.isLoading ? (
-                  <tr>
-                    <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
-                      <MedicalLoader
-                        text="Loading emergency queue..."
-                        subtext="Prioritizing critical triage and acute emergency patients"
-                      />
-                    </td>
-                  </tr>
-                ) : filteredQueue.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-                      No emergency patients match the filters.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedQueue.map((item: EmergencyEncounter) => {
-                    const level = item.triage?.effective_level ?? item.triage?.level;
-                    const initials = (item.patient_name || 'ER')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase();
-                    const waitMins = getWaitMinutes(item.arrival_at, item.created_at);
+              ) : filteredQueue.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+                    No emergency patients match the filters.
+                  </td>
+                </tr>
+              ) : (
+                paginatedQueue.map((item: EmergencyEncounter) => {
+                  const level = item.triage?.effective_level ?? item.triage?.level;
+                  const token = item.emergency_identifier || item.encounter_number;
+                  const patName = item.patient_name || item.provisional_identity?.display_name || 'Unknown Patient';
+                  const docName = item.assigned_doctor_name || 'Unassigned';
+                  const initials = patName
+                    .split(' ')
+                    .map((n) => n[0])
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase();
+                  const waitMins = getWaitMinutes(item.arrival_at, item.created_at);
+                  const isCallable =
+                    canCall &&
+                    ['REGISTERED', 'WAITING_FOR_TRIAGE', 'TRIAGED', 'WAITING_FOR_DOCTOR'].includes(
+                      item.status,
+                    );
 
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <strong className="patient-mrn">
-                            {item.emergency_identifier || item.encounter_number}
-                          </strong>
-                        </td>
-                        <td>
-                          <div className="doc-person" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div
-                              style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '8px',
-                                background: '#2563eb',
-                                color: '#ffffff',
-                                display: 'grid',
-                                placeItems: 'center',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {initials}
-                            </div>
-                            <div>
-                              <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.84rem' }}>
-                                {item.patient_name || item.provisional_identity?.display_name || 'Unknown Patient'}
-                              </strong>
-                              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                                {item.patient_number || 'Provisional Identity'}
-                              </span>
-                            </div>
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        <strong className="cell-token" title={token}>
+                          {token}
+                        </strong>
+                      </td>
+                      <td>
+                        <div className="cell-patient">
+                          <div className="cell-patient-avatar">
+                            {initials}
                           </div>
-                        </td>
-                        <td>
-                          <span className={`emergency-triage ${triageSlug(level)}`}>
-                            {triageLabel(level)}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '0.82rem', color: '#334155' }}>
-                          {item.assigned_doctor_name || 'Unassigned'}
-                        </td>
-                        <td style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>
+                          <div className="cell-patient-info">
+                            <strong className="cell-patient-name" title={patName}>
+                              {patName}
+                            </strong>
+                            <span className="cell-patient-meta" title={item.patient_number || 'Provisional Identity'}>
+                              {item.patient_number || 'Provisional Identity'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`emergency-triage ${triageSlug(level)}`}>
+                          {triageLabel(level)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="cell-doctor" title={docName}>
+                          {docName}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="cell-wait">
                           {waitMins} min
-                        </td>
-                        <td>
-                          <span className={`doc-status ${statusSlug(item.status)}`}>
-                            {statusLabel(item.status)}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div className="doc-actions" style={{ justifyContent: 'flex-end' }}>
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`doc-status ${statusSlug(item.status)}`}>
+                          {statusLabel(item.status)}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="cell-actions">
+                          {isCallable && (
                             <button
                               className="doc-action"
                               onClick={() => void handleCallPatient(item)}
@@ -435,157 +534,62 @@ export function EmergencyQueuePage() {
                             >
                               <i className="ph ph-megaphone" />
                             </button>
-                            <button
-                              className="doc-action"
-                              onClick={() =>
-                                navigate(
-                                  `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}`,
-                                )
-                              }
-                              title="Open Workspace"
-                              type="button"
-                            >
-                              <i className="ph ph-arrow-square-out" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          {filteredQueue.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 16px',
-                borderTop: '1px solid #f1f5f9',
-                fontSize: '0.82rem',
-                color: '#64748b',
-                background: '#ffffff',
-                borderBottomLeftRadius: '12px',
-                borderBottomRightRadius: '12px',
-              }}
-            >
-              <div>
-                Showing <strong>{Math.min((page - 1) * pageSize + 1, filteredQueue.length)}</strong> to{' '}
-                <strong>{Math.min(page * pageSize, filteredQueue.length)}</strong> of{' '}
-                <strong>{filteredQueue.length}</strong> emergency patients
-              </div>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  className="btn-secondary compact"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                >
-                  <i className="ph ph-caret-left" /> Previous
-                </button>
-                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="btn-secondary compact"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                >
-                  Next <i className="ph ph-caret-right" />
-                </button>
-              </div>
-            </div>
-          )}
+                          )}
+                          <button
+                            className="doc-action"
+                            onClick={() =>
+                              navigate(
+                                `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}`,
+                              )
+                            }
+                            title="Open Workspace"
+                            type="button"
+                          >
+                            <i className="ph ph-arrow-square-out" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {/* Right Column: Current Token & Emergency Calling Controls */}
-        <aside className="emergency-panel-card">
-          <div className="doc-card-header" style={{ marginBottom: '0.75rem' }}>
+        {/* Pagination Controls attached directly to table bottom */}
+        {filteredQueue.length > 0 && (
+          <div className="emergency-table-pagination">
             <div>
-              <h3>Current Token</h3>
-              <p>Emergency calling controls</p>
+              Showing <strong>{Math.min((page - 1) * pageSize + 1, filteredQueue.length)}</strong> to{' '}
+              <strong>{Math.min(page * pageSize, filteredQueue.length)}</strong> of{' '}
+              <strong>{filteredQueue.length}</strong> emergency patients
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-secondary compact"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+              >
+                <i className="ph ph-caret-left" /> Previous
+              </button>
+              <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn-secondary compact"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+              >
+                Next <i className="ph ph-caret-right" />
+              </button>
             </div>
           </div>
-
-          <div className="emergency-current-token">
-            <span>Now Serving</span>
-            <strong>
-              {currentlyServing
-                ? currentlyServing.emergency_identifier || currentlyServing.encounter_number
-                : '—'}
-            </strong>
-            <p>
-              {currentlyServing
-                ? currentlyServing.patient_name || currentlyServing.provisional_identity?.display_name
-                : 'No active call'}
-            </p>
-          </div>
-
-          <div className="emergency-queue-stats">
-            <div className="emergency-queue-stat">
-              <span>Next Token</span>
-              <strong>{waitingList[0] ? waitingList[0].emergency_identifier || waitingList[0].encounter_number : '—'}</strong>
-            </div>
-            <div className="emergency-queue-stat">
-              <span>Waiting</span>
-              <strong>{waitingList.length}</strong>
-            </div>
-            <div className="emergency-queue-stat">
-              <span>Critical</span>
-              <strong>{criticalList.length}</strong>
-            </div>
-            <div className="emergency-queue-stat">
-              <span>In Treatment</span>
-              <strong>{treatmentList.length}</strong>
-            </div>
-          </div>
-
-          <div className="emergency-call-controls">
-            <button
-              className="btn-emergency-primary"
-              disabled={waitingList.length === 0}
-              onClick={() => void handleCallNext()}
-              style={{ justifyContent: 'center' }}
-              type="button"
-            >
-              <i className="ph ph-megaphone" /> Call Next
-            </button>
-            <button
-              className="btn-emergency-secondary"
-              disabled={!currentlyServing}
-              onClick={() => void handleRecall()}
-              style={{ justifyContent: 'center' }}
-              type="button"
-            >
-              <i className="ph ph-arrow-counter-clockwise" /> Recall
-            </button>
-            <button
-              className="btn-emergency-secondary"
-              disabled={!currentlyServing}
-              onClick={() => void handleSkip()}
-              style={{ justifyContent: 'center' }}
-              type="button"
-            >
-              <i className="ph ph-skip-forward" /> Skip
-            </button>
-            <button
-              className="doc-btn danger"
-              disabled={!currentlyServing}
-              onClick={() => void handleMarkNoShow()}
-              style={{ justifyContent: 'center' }}
-              type="button"
-            >
-              <i className="ph ph-user-minus" /> Mark No Show
-            </button>
-          </div>
-        </aside>
+        )}
       </div>
     </div>
   );

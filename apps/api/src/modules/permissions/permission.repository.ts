@@ -43,6 +43,10 @@ export type EffectiveAuthority = {
   permissionIds: string[];
 };
 
+export type EffectiveUserAuthority = EffectiveAuthority & {
+  branchIds: string[];
+};
+
 const mapPermission = (
   permission: PermissionDoc,
   roleCount: number
@@ -423,11 +427,12 @@ export class PermissionRepository {
     }));
   }
 
-  async replaceRolePermissions(roleId: string, permissionIds: string[], actorUserId: string) {
-    await RoleModel.updateOne(
-      { _id: roleId },
+  async replaceRolePermissions(roleId: string, permissionIds: string[], actorUserId: string, expectedUpdatedAt: Date) {
+    const result = await RoleModel.updateOne(
+      { _id: roleId, updatedAt: expectedUpdatedAt },
       { $set: { permissionIds, updatedBy: actorUserId, updatedAt: new Date() } }
     );
+    return result.matchedCount === 1;
   }
 
   async userHasPermission(userId: string, moduleName: string, screen: string, action: string) {
@@ -468,15 +473,19 @@ export class PermissionRepository {
     return !!role;
   }
 
-  async getUserEffectiveAuthority(userId: string, requireActiveUser: boolean) {
+  async getUserEffectiveAuthority(userId: string, requireActiveUser: boolean): Promise<EffectiveUserAuthority | null> {
     const user = await UserModel.findOne({
       _id: userId,
       ...(requireActiveUser ? { status: 'active' } : {}),
       deletedAt: null,
-    }).select('roleIds').lean();
+    }).select('roleIds branchIds').lean();
 
     if (!user) return null;
-    return this.getRolesEffectiveAuthority((user.roleIds ?? []).map((roleId) => roleId.toString()));
+    const authority = await this.getRolesEffectiveAuthority((user.roleIds ?? []).map((roleId) => roleId.toString()));
+    return {
+      ...authority,
+      branchIds: (user.branchIds ?? []).map((branchId) => branchId.toString()),
+    };
   }
 
   async getRolesEffectiveAuthority(roleIds: string[]): Promise<EffectiveAuthority> {

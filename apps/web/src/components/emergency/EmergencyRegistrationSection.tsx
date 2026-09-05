@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { formatTime } from './utils';
 import type { EmergencyWorkspaceProps, WorkspaceTab } from './types';
 
 export type EmergencyRegistrationSectionProps = {
@@ -10,8 +11,110 @@ export function EmergencyRegistrationSection({ state, setActiveTab }: EmergencyR
   const selected = state.selected || state.encounters[0] || null;
   if (!selected) return null;
 
+  const canEditRegistration =
+    state.capabilities.register &&
+    !state.capabilities.editConsultation &&
+    !state.capabilities.assessTriage;
+
+  if (!canEditRegistration) {
+    return (
+      <div className="emergency-form-section">
+        <div className="emergency-section-context-header">
+          <div className="emergency-context-badge">
+            <i className="ph ph-lock-key" /> Patient &amp; Registration Details (Read-Only Context)
+          </div>
+          <p className="emergency-context-desc">
+            Completed by intake staff upon emergency arrival. Clinical and nursing staff can review demographic and arrival details.
+          </p>
+        </div>
+
+        <div className="emergency-readonly-grid">
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-user" /> Patient Demographics</h4>
+            <div className="emergency-readonly-field">
+              <label>Patient Name</label>
+              <span>{selected.patient_name || selected.provisional_identity?.display_name || 'Emergency Patient'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>MRN / Identifier</label>
+              <span>{selected.patient_number || selected.emergency_identifier || selected.encounter_number}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Age &amp; Gender</label>
+              <span>
+                {selected.provisional_identity?.estimated_age ? `${selected.provisional_identity.estimated_age} yrs` : '—'} • {selected.provisional_identity?.gender || '—'}
+              </span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Contact Phone</label>
+              <span>{selected.provisional_identity?.contact || '—'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Patient Record Status</label>
+              <span>{selected.patient_id ? 'Registered Patient' : 'Provisional / Unidentified Record'}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-ambulance" /> Arrival &amp; Intake Details</h4>
+            <div className="emergency-readonly-field">
+              <label>Mode of Arrival</label>
+              <span>{selected.arrival_mode || 'Walk-in'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Arrival Time</label>
+              <span>{formatTime(selected.arrival_at || selected.created_at)}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Assigned Physician</label>
+              <span>{selected.assigned_doctor_name || 'Unassigned'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Encounter Status</label>
+              <span>{selected.status}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card" style={{ gridColumn: 'span 2' }}>
+            <h4><i className="ph ph-heartbeat" /> Chief Complaint &amp; Arrival Notes</h4>
+            <div className="emergency-readonly-field">
+              <label>Presenting Chief Complaint</label>
+              <span style={{ fontSize: '0.92rem', color: '#0f172a' }}>{selected.chief_complaint || '—'}</span>
+            </div>
+            <div className="emergency-readonly-field" style={{ marginTop: '0.5rem' }}>
+              <label>Paramedic / Arrival Notes</label>
+              <span>{selected.arrival_notes || 'No arrival notes recorded.'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+          {state.capabilities.assessTriage && (
+            <button className="btn-emergency-primary" onClick={() => setActiveTab('Triage')} type="button">
+              Proceed to Triage <i className="ph ph-arrow-right" />
+            </button>
+          )}
+          {state.capabilities.editConsultation && (
+            <button className="btn-emergency-primary" onClick={() => setActiveTab('Consultation')} type="button">
+              Proceed to Consultation <i className="ph ph-arrow-right" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); setActiveTab('Triage'); }}>
+    <form onSubmit={(e) => { e.preventDefault(); toast.success('Registration details verified.'); }}>
+      <div className="emergency-section-active-header">
+        <div className="emergency-active-badge">
+          <i className="ph ph-user-plus" /> Primary Intake Duty – Emergency Registration
+        </div>
+        <p className="emergency-active-desc">
+          Capture patient identification, arrival mode, chief complaint, and intake notes.
+        </p>
+      </div>
+
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
@@ -25,29 +128,20 @@ export function EmergencyRegistrationSection({ state, setActiveTab }: EmergencyR
             <input readOnly value={selected.patient_name || selected.provisional_identity?.display_name || ''} />
           </div>
           <div className="doc-field">
-            <label>MRN</label>
+            <label>MRN / Identifier</label>
             <input readOnly value={selected.patient_number || selected.emergency_identifier || selected.encounter_number} />
           </div>
           <div className="doc-field">
-            <label>Date of Birth</label>
-            <input defaultValue="1981-05-14" type="date" />
-          </div>
-          <div className="doc-field">
             <label>Gender</label>
-            <select defaultValue={selected.provisional_identity?.gender || 'Male'}>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
-              <option>Unknown</option>
-            </select>
+            <input readOnly value={selected.provisional_identity?.gender || '—'} />
           </div>
           <div className="doc-field">
             <label>Phone</label>
-            <input defaultValue={selected.provisional_identity?.contact || '+254 700 000 000'} />
+            <input readOnly value={selected.provisional_identity?.contact || '—'} />
           </div>
           <div className="doc-field">
-            <label>National ID / Passport</label>
-            <input defaultValue="ID-98765432" />
+            <label>Patient Type</label>
+            <input readOnly value={selected.patient_id ? 'Registered Patient' : 'Provisional Record'} />
           </div>
         </div>
       </section>
@@ -55,77 +149,22 @@ export function EmergencyRegistrationSection({ state, setActiveTab }: EmergencyR
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
-            <h3>Visit Information</h3>
-            <p>Capture emergency arrival details</p>
-          </div>
-        </div>
-        <div className="doc-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
-          <div className="doc-field">
-            <label>Mode of Arrival</label>
-            <select defaultValue={selected.arrival_mode || 'Ambulance'}>
-              <option>Ambulance</option>
-              <option>Walk-in</option>
-              <option>Police</option>
-              <option>Referral</option>
-              <option>Air Ambulance</option>
-            </select>
-          </div>
-          <div className="doc-field">
-            <label>Reason for Visit</label>
-            <select defaultValue="Trauma">
-              <option>Chest Pain</option>
-              <option>Trauma</option>
-              <option>Stroke</option>
-              <option>Burns</option>
-              <option>Bleeding</option>
-              <option>Cardiac Arrest</option>
-              <option>Poisoning</option>
-            </select>
-          </div>
-          <div className="doc-field">
-            <label>Arrival Time</label>
-            <input defaultValue="10:30" type="time" />
-          </div>
-          <div className="doc-field">
-            <label>Assigned Doctor</label>
-            <select defaultValue={selected.assigned_doctor_id || ''}>
-              <option value="">Select Doctor</option>
-              {state.doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.display_name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
-
-      <section className="emergency-form-section">
-        <div className="emergency-form-head">
-          <div>
-            <h3>Emergency Contact</h3>
-            <p>Record the immediate contact person</p>
+            <h3>Arrival Information</h3>
+            <p>Emergency arrival details</p>
           </div>
         </div>
         <div className="doc-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
           <div className="doc-field">
-            <label>Contact Name</label>
-            <input defaultValue="Jane Wanjiku" />
+            <label>Mode of Arrival</label>
+            <input readOnly value={selected.arrival_mode || 'Walk-in'} />
           </div>
           <div className="doc-field">
-            <label>Relationship</label>
-            <select defaultValue="Spouse">
-              <option>Spouse</option>
-              <option>Parent</option>
-              <option>Child</option>
-              <option>Guardian</option>
-              <option>Relative</option>
-              <option>Friend</option>
-            </select>
+            <label>Arrival Time</label>
+            <input readOnly value={formatTime(selected.arrival_at || selected.created_at)} />
           </div>
           <div className="doc-field">
-            <label>Phone Number</label>
-            <input defaultValue="+254 711 223 344" />
+            <label>Assigned Doctor</label>
+            <input readOnly value={selected.assigned_doctor_name || 'Unassigned'} />
           </div>
         </div>
       </section>
@@ -133,32 +172,29 @@ export function EmergencyRegistrationSection({ state, setActiveTab }: EmergencyR
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
-            <h3>Chief Complaint</h3>
-            <p>Document the presenting emergency</p>
+            <h3>Chief Complaint &amp; Intake Notes</h3>
+            <p>Presenting emergency condition</p>
           </div>
         </div>
         <div className="doc-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
           <div className="doc-field">
             <label>Chief Complaint</label>
-            <textarea defaultValue={selected.chief_complaint} rows={3} />
+            <textarea readOnly rows={3} value={selected.chief_complaint || ''} />
           </div>
           <div className="doc-field">
             <label>Arrival Notes</label>
-            <textarea defaultValue={selected.arrival_notes || ''} placeholder="Paramedic observations..." rows={3} />
+            <textarea readOnly placeholder="No arrival notes recorded." rows={3} value={selected.arrival_notes || ''} />
           </div>
         </div>
       </section>
 
       <div className="emergency-form-actions">
         <span className="emergency-autosave">
-          <i className="ph ph-check-circle" /> Auto-save enabled
+          <i className="ph ph-check-circle" /> Registration complete
         </span>
         <div>
-          <button className="btn-emergency-secondary" onClick={() => toast.success('Draft saved.')} type="button">
-            <i className="ph ph-floppy-disk" /> Save Draft
-          </button>
-          <button className="btn-emergency-primary" type="submit">
-            Next → Triage <i className="ph ph-arrow-right" />
+          <button className="btn-emergency-secondary" onClick={() => toast.success('Registration details verified.')} type="button">
+            <i className="ph ph-check" /> Verified
           </button>
         </div>
       </div>

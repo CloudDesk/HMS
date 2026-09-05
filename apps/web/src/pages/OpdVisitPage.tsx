@@ -1151,7 +1151,7 @@ export function OpdVisitPage() {
                 {/* TAB 1: CONSULTATION */}
                 {activeTab === 'Consultation' ? (
                   <OpdConsultationSection
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditConsultation}
                     consultationForm={consultationForm}
                     handleNextStep={handleNextStep}
                     saveConsultationDraft={saveConsultationDraft}
@@ -1163,7 +1163,7 @@ export function OpdVisitPage() {
                 {activeTab === 'Diagnosis' ? (
                   <OpdDiagnosisTab
                     assessment={consultationForm.assessment}
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditConsultation}
                     dxSearchTerm={dxSearchTerm}
                     filteredIcd10={filteredIcd10}
                     handleAddDiagnosis={handleAddDiagnosis}
@@ -1180,7 +1180,7 @@ export function OpdVisitPage() {
                 {/* TAB 3: PRESCRIPTION */}
                 {activeTab === 'Prescription' ? (
                   <OpdPrescriptionSection
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditPrescription}
                     emptyMedicationForm={emptyMedicationForm}
                     handleNextStep={handleNextStep}
                     handleSendToPharmacy={handleSendToPharmacy}
@@ -1201,7 +1201,7 @@ export function OpdVisitPage() {
                 {activeTab === 'Lab Orders' ? (
                   <OpdLabSection
                     availableLabTests={availableLabTests}
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditClinicalOrders}
                     handleNextStep={handleNextStep}
                     handleToggleLabTest={handleToggleLabTest}
                     labCategory={labCategory}
@@ -1231,7 +1231,7 @@ export function OpdVisitPage() {
                 {activeTab === 'Imaging Orders' ? (
                   <OpdImagingSection
                     availableImagingTests={availableImagingTests}
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditClinicalOrders}
                     handleNextStep={handleNextStep}
                     handleToggleImagingTest={handleToggleImagingTest}
                     imagingCategory={imagingCategory}
@@ -1254,7 +1254,7 @@ export function OpdVisitPage() {
                 {/* TAB 6: REFERRAL */}
                 {activeTab === 'Referral' ? (
                   <OpdReferralSection
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditReferral}
                     filteredReferralDoctors={filteredReferralDoctors}
                     handleNextStep={handleNextStep}
                     handleSubmitReferral={handleSubmitReferral}
@@ -1280,7 +1280,7 @@ export function OpdVisitPage() {
                     followUpDoctorId={followUpDoctorId}
                     followUpDurationMinutes={followUpDurationMinutes}
                     followUpStartTime={followUpStartTime}
-                    isVisitCompleted={isVisitCompleted}
+                    isVisitCompleted={isVisitCompleted || !feature.state.canEditFollowUp}
                     saveConsultationDraft={saveConsultationDraft}
                     scheduleFollowUp={scheduleFollowUp}
                     setFollowUpDate={setFollowUpDate}
@@ -1294,7 +1294,7 @@ export function OpdVisitPage() {
                 {/* TAB 8: NOTES */}
                 {activeTab === 'Notes' ? (
                   <OpdNotesTab
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditConsultation}
                     doctorNotes={consultationForm.doctor_notes}
                     handleNextStep={handleNextStep}
                     onDoctorNotesChange={(val) =>
@@ -1307,7 +1307,7 @@ export function OpdVisitPage() {
                 {/* TAB 9: DOCUMENTS */}
                 {activeTab === 'Documents' ? (
                   <OpdDocumentsTab
-                    canEdit={!isVisitCompleted}
+                    canEdit={!isVisitCompleted && feature.state.canEditConsultation}
                     deleteDocument={deleteDocument}
                     documents={documents}
                     downloadDocument={downloadDocument}
