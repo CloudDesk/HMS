@@ -5,6 +5,7 @@ import { type ApiAppointmentStatus, isApiAppointmentStatus } from '../../api/app
 import { todayInputValue } from '../../pages/appointment-utils';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
+import { useActiveBranch } from '../../context/BranchContext';
 
 export type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
 export type SortDirection = 'asc' | 'desc';
@@ -15,6 +16,7 @@ export const isSortColumn = (value: unknown): value is SortColumn => {
 
 export function useAppointmentDashboardFeature() {
   const { user } = useAuth();
+  const { activeBranchId } = useActiveBranch();
   const superAdmin = isSuperAdministrator(user?.roles ?? []);
   const can = (module: string, screen: string, action: string) => superAdmin || hasPermission(
     user?.permissions ?? [], { module, screen, action },
@@ -50,17 +52,11 @@ export function useAppointmentDashboardFeature() {
     initialParams.get('sortOrder') === 'desc' ? 'desc' : 'asc'
   );
 
-  const can = (module: string, screen: string, action = 'View') => {
-    if (!user) return false;
-    return isSuperAdministrator(user.roles) ||
-      hasPermission(user.permissions, { module, screen, action });
-  };
-
   const capabilities = {
-    canBook: can('Appointments', 'Appointment Booking', 'Create'),
-    canEditStatus: can('Appointments', 'Appointment Records', 'Edit'),
-    canSearchPatients: can('Patients', 'Patient Records', 'View'),
-    canViewQueue: can('Appointments', 'Appointment Records', 'View'),
+    canBook: canCreateBooking,
+    canEditStatus,
+    canSearchPatients: canViewPatients,
+    canViewQueue,
   };
 
   const { data, isLoading: loading, isError, error, refetch } = useAppointmentsList({
@@ -148,10 +144,11 @@ export function useAppointmentDashboardFeature() {
       loading,
       loadError,
       isUpdatingStatus: updateStatus.isPending,
-      canCreateBooking,
-      canEditStatus,
-      canViewPatients,
-      canViewQueue,
+      summary: summaryQuery.data,
+      summaryLoading: summaryQuery.isLoading,
+      summaryError: summaryQuery.error,
+      activeBranchId,
+      branchScope: activeBranchId || 'ALL_AUTHORIZED',
     },
     capabilities,
     actions: {

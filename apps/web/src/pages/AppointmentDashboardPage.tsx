@@ -40,9 +40,14 @@ export function AppointmentDashboardPage() {
       loading,
       loadError,
       isUpdatingStatus,
-      canCreateBooking,
+      summary,
+      summaryLoading,
+      branchScope,
+    },
+    capabilities: {
+      canBook: canCreateBooking,
       canEditStatus,
-      canViewPatients,
+      canSearchPatients: canViewPatients,
       canViewQueue,
     },
     actions: {
