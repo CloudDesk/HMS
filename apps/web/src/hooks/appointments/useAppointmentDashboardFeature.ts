@@ -3,9 +3,8 @@ import { useAppLocation, navigate } from '../../routing/navigation';
 import { useAppointmentDashboardSummary, useAppointmentsList, useUpdateAppointmentStatus } from './useAppointments';
 import { type ApiAppointmentStatus, isApiAppointmentStatus } from '../../api/appointments';
 import { todayInputValue } from '../../pages/appointment-utils';
-import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
 import { useAuth } from '../../auth/useAuth';
-import { useActiveBranch } from '../../context/BranchContext';
+import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
 
 export type SortColumn = 'appointment_date' | 'start_time' | 'created_at';
 export type SortDirection = 'asc' | 'desc';
@@ -16,7 +15,18 @@ export const isSortColumn = (value: unknown): value is SortColumn => {
 
 export function useAppointmentDashboardFeature() {
   const { user } = useAuth();
-  const { activeBranchId } = useActiveBranch();
+  const superAdmin = isSuperAdministrator(user?.roles ?? []);
+  const can = (module: string, screen: string, action: string) => superAdmin || hasPermission(
+    user?.permissions ?? [], { module, screen, action },
+  );
+  const canCreateBooking = can('Appointments', 'Appointment Booking', 'View') &&
+    can('Appointments', 'Appointment Booking', 'Create') &&
+    can('Patients', 'Patient Records', 'View') &&
+    can('Doctors', 'Doctor Directory', 'View') &&
+    can('Doctors', 'Doctor Availability', 'View');
+  const canEditStatus = can('Appointments', 'Appointment Records', 'Edit');
+  const canViewPatients = can('Patients', 'Patient Records', 'View');
+  const canViewQueue = can('Appointments', 'Appointment Records', 'View') && can('OPD', 'OPD Visits', 'View');
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
   
@@ -120,7 +130,7 @@ export function useAppointmentDashboardFeature() {
   };
 
   const handleUpdateStatus = async (id: string, status: ApiAppointmentStatus) => {
-    if (!capabilities.canEditStatus) return;
+    if (!canEditStatus) throw new Error('You do not have permission to update appointment status.');
     return updateStatus.mutateAsync({ id, payload: { status } });
   };
 
@@ -138,10 +148,10 @@ export function useAppointmentDashboardFeature() {
       loading,
       loadError,
       isUpdatingStatus: updateStatus.isPending,
-      summary: summaryQuery.data,
-      summaryLoading: summaryQuery.isLoading,
-      summaryError: summaryQuery.error,
-      branchScope: activeBranchId || 'ALL_AUTHORIZED',
+      canCreateBooking,
+      canEditStatus,
+      canViewPatients,
+      canViewQueue,
     },
     capabilities,
     actions: {

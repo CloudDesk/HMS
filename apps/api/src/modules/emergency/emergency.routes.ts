@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import { requirePermission } from '../../middleware/require-permission.js';
+import { requirePermission, requireAnyPermission } from '../../middleware/require-permission.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
@@ -21,6 +21,13 @@ import {
   reasonSchema,
   triageSchema,
 } from './emergency.schemas.js';
+
+export const emergencyTriageCompletionPermissions = [
+  { moduleName: 'Emergency', screen: 'Triage', action: 'Assess' },
+  { moduleName: 'Emergency', screen: 'Consultation', action: 'Edit' },
+  { moduleName: 'Emergency', screen: 'Encounters', action: 'Edit' },
+];
+
 const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
   try {
     return schema.parse(value);
@@ -171,6 +178,7 @@ export const registerEmergencyRoutes = async (app: FastifyInstance, services: Se
     { preHandler: requirePermission(services, 'Emergency', 'Encounters', 'View') },
     async (request) => {
       const params = parse(emergencyIdSchema, request.params),
+
         query = parse(emergencyBranchSchema, request.query);
       const detail = await services.emergency.get(params.id, query.branch_id, request.user!.id);
       return ok(await redactEmergencyDetail(services, request, detail));
@@ -234,7 +242,9 @@ export const registerEmergencyRoutes = async (app: FastifyInstance, services: Se
   );
   app.post(
     '/api/emergency/encounters/:id/triage',
-    { preHandler: requirePermission(services, 'Emergency', 'Triage', 'Assess') },
+    {
+      preHandler: requireAnyPermission(services, emergencyTriageCompletionPermissions),
+    },
     async (request) => {
       const params = parse(emergencyIdSchema, request.params),
         query = parse(emergencyBranchSchema, request.query);
@@ -270,7 +280,13 @@ export const registerEmergencyRoutes = async (app: FastifyInstance, services: Se
   );
   app.post(
     '/api/emergency/encounters/:id/call',
-    { preHandler: requirePermission(services, 'Emergency', 'Consultation', 'Edit') },
+    {
+      preHandler: requireAnyPermission(services, [
+        { moduleName: 'Emergency', screen: 'Consultation', action: 'Edit' },
+        { moduleName: 'Emergency', screen: 'Triage', action: 'Assess' },
+        { moduleName: 'Emergency', screen: 'Encounters', action: 'Edit' },
+      ]),
+    },
     async (request) => {
       const params = parse(emergencyIdSchema, request.params),
         query = parse(emergencyBranchSchema, request.query);
@@ -281,7 +297,13 @@ export const registerEmergencyRoutes = async (app: FastifyInstance, services: Se
   );
   app.post(
     '/api/emergency/encounters/:id/skip',
-    { preHandler: requirePermission(services, 'Emergency', 'Consultation', 'Edit') },
+    {
+      preHandler: requireAnyPermission(services, [
+        { moduleName: 'Emergency', screen: 'Consultation', action: 'Edit' },
+        { moduleName: 'Emergency', screen: 'Triage', action: 'Assess' },
+        { moduleName: 'Emergency', screen: 'Encounters', action: 'Edit' },
+      ]),
+    },
     async (request) => {
       const params = parse(emergencyIdSchema, request.params),
         query = parse(emergencyBranchSchema, request.query);

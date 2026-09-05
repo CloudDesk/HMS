@@ -102,6 +102,10 @@ export function AppointmentCalendarPage() {
       loggedInDoctor,
       isUpdatingAppointment,
       isUpdatingStatus,
+      canBook,
+      canEditBooking,
+      canEditStatus,
+      canViewPatient,
     },
     actions: {
       setMode,
@@ -220,10 +224,10 @@ export function AppointmentCalendarPage() {
             <button className="doc-btn" onClick={() => setCalendarDate(todayInputValue())} type="button">
               Today
             </button>
-            <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
+            {canBook ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
               <i className="ph ph-plus" aria-hidden="true" />
               New Appointment
-            </button>
+            </button> : null}
             <button className="doc-btn" onClick={() => window.print()} type="button">
               <i className="ph ph-printer" aria-hidden="true" />
               Print Calendar
@@ -351,15 +355,16 @@ export function AppointmentCalendarPage() {
                             const now = new Date();
                             const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                             if (day < todayInputValue() || (day === todayInputValue() && slot < currentTime)) return;
+                            if (!canEditBooking) return;
                             e.preventDefault();
                             setDragOverCellKey(cellKey);
                           }}
-                          onDrop={() => void handleDrop(day, slot)}
+                          onDrop={() => { if (canEditBooking) void handleDrop(day, slot); }}
                         >
                           {appointmentsFor(day, slot).map((appointment) => (
                             <button
                               className={`appointment-calendar-event ${eventClass(appointment)}`}
-                              draggable
+                              draggable={canEditBooking}
                               key={appointment.id}
                               onClick={() => setSelectedAppointmentId(appointment.id)}
                               onDragStart={(e) => {
@@ -398,16 +403,17 @@ export function AppointmentCalendarPage() {
                       onDragLeave={() => setDragOverCellKey(null)}
                       onDragOver={(e) => {
                         if (day < todayInputValue()) return;
+                        if (!canEditBooking) return;
                         e.preventDefault();
                         setDragOverCellKey(day);
                       }}
-                      onDrop={() => void handleDrop(day)}
+                      onDrop={() => { if (canEditBooking) void handleDrop(day); }}
                     >
                       <strong>{getMobileDayHeader(day)}</strong>
                       {appointmentsFor(day).slice(0, 4).map((appointment) => (
                         <button
                           className={`appointment-calendar-event ${eventClass(appointment)}`}
-                          draggable
+                          draggable={canEditBooking}
                           key={appointment.id}
                           onClick={() => setSelectedAppointmentId(appointment.id)}
                           onDragStart={(e) => {
@@ -545,22 +551,22 @@ export function AppointmentCalendarPage() {
             </div>
 
             <div className="modal-footer apt-modal-footer">
-              <button
+              {canViewPatient ? <button
                 className="doc-btn"
                 onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(selectedAppointment.patient_id)}`)}
                 type="button"
               >
                 Open Patient Profile
-              </button>
-              <button
+              </button> : null}
+              {canEditStatus ? <button
                 className="doc-btn danger-outline"
                 disabled={selectedAppointment.status === 'CANCELLED' || isUpdatingStatus}
                 onClick={() => { setIsCancelling(true); setIsRescheduling(false); }}
                 type="button"
               >
                 Cancel Appointment
-              </button>
-              <button
+              </button> : null}
+              {canEditBooking ? <button
                 className="doc-btn primary"
                 onClick={() => {
                   setRescheduleDate(selectedAppointment.appointment_date.slice(0, 10));
@@ -572,7 +578,7 @@ export function AppointmentCalendarPage() {
                 type="button"
               >
                 Reschedule
-              </button>
+              </button> : null}
             </div>
           </div>
         </div>

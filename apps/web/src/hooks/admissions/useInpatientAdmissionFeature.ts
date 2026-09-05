@@ -14,6 +14,9 @@ import { useReceptionReferrals } from '../reception/useReception';
 import { useInpatientAdmissions } from '../useInpatientAdmissions';
 import { useInpatientDownstreamFeature } from './useInpatientDownstreamFeature';
 
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
+
 export type AdmissionPatientOption = {
   patientId: string;
   label: string;
@@ -38,6 +41,16 @@ export type InpatientAdmissionFeatureOptions = {
 };
 
 export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureOptions) {
+  const { user } = useAuth();
+  const permissions = user?.permissions ?? [];
+  const roles = user?.roles ?? [];
+
+  const canViewRequests = hasPermission(permissions, { module: 'Admissions', screen: 'Admission Requests', action: 'View' }, roles);
+  const canCreateRequest = hasPermission(permissions, { module: 'Admissions', screen: 'Admission Requests', action: 'Create' }, roles);
+  const canValidateRequest = hasPermission(permissions, { module: 'Admissions', screen: 'Admission Requests', action: 'Validate' }, roles);
+  const canConfirmRequest = hasPermission(permissions, { module: 'Admissions', screen: 'Admission Requests', action: 'Confirm' }, roles);
+  const canCancelRequest = hasPermission(permissions, { module: 'Admissions', screen: 'Admission Requests', action: 'Cancel' }, roles);
+
   const location = useAppLocation();
   const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const [branchId, setBranchId] = useState(handoff.get('branch_id') ?? '');
@@ -164,6 +177,13 @@ export function useInpatientAdmissionFeature(options: InpatientAdmissionFeatureO
       departmentOptions,
       doctorOptions,
       availablePatients,
+      capabilities: {
+        viewRequests: canViewRequests,
+        createRequest: canCreateRequest,
+        validateRequest: canValidateRequest,
+        confirmRequest: canConfirmRequest,
+        cancelRequest: canCancelRequest,
+      },
       advancePayment: advancePayment.advancePayment,
       downstream,
       loading: {

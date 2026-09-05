@@ -40,14 +40,9 @@ export function AppointmentDashboardPage() {
       loading,
       loadError,
       isUpdatingStatus,
-      summary,
-      summaryLoading,
-      branchScope,
-    },
-    capabilities: {
-      canBook,
+      canCreateBooking,
       canEditStatus,
-      canSearchPatients,
+      canViewPatients,
       canViewQueue,
     },
     actions: {
@@ -123,12 +118,12 @@ export function AppointmentDashboardPage() {
           <p>Monitor booking records, arrival readiness, and the front-desk schedule.</p>
           <small>Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}</small>
         </div>
-        {canBook ? <div className="doctor-page-actions">
-          <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
+        <div className="doctor-page-actions">
+          {canCreateBooking ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
             <i className="ph ph-calendar-plus" aria-hidden="true" />
             Book Appointment
-          </button>
-        </div> : null}
+          </button> : null}
+        </div>
       </section>
 
       <section className="doc-kpi-grid appointment-kpi-grid">
@@ -184,27 +179,27 @@ export function AppointmentDashboardPage() {
             </div>
           </div>
           <div className="appointment-quick-grid">
-            {canBook ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book')} type="button">
+            {canCreateBooking ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book')} type="button">
               <i className="ph ph-calendar-plus" aria-hidden="true" />
               <span>
                 <strong>Book Appointment</strong>
                 <span>Reserve a consultation time</span>
               </span>
             </button> : null}
-            {canBook ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
+            {canCreateBooking ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
               <i className="ph ph-person-simple-walk" aria-hidden="true" />
               <span>
                 <strong>Walk-in Registration</strong>
                 <span>Check in an unscheduled patient</span>
               </span>
             </button> : null}
-            {canViewQueue ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/calendar')} type="button">
+            <button className="appointment-quick-action" onClick={() => navigate('/appointments/calendar')} type="button">
               <i className="ph ph-calendar-blank" aria-hidden="true" />
               <span>
                 <strong>Calendar View</strong>
                 <span>Review all schedules</span>
               </span>
-            </button> : null}
+            </button>
             {canViewQueue ? <button className="appointment-quick-action" onClick={() => navigate('/appointments/queue')} type="button">
               <i className="ph ph-queue" aria-hidden="true" />
               <span>
@@ -212,7 +207,7 @@ export function AppointmentDashboardPage() {
                 <span>Coordinate waiting patients</span>
               </span>
             </button> : null}
-            {canSearchPatients ? <button className="appointment-quick-action" onClick={() => navigate('/patients/search')} type="button">
+            {canViewPatients ? <button className="appointment-quick-action" onClick={() => navigate('/patients')} type="button">
               <i className="ph ph-magnifying-glass" aria-hidden="true" />
               <span>
                 <strong>Search Patient</strong>
@@ -427,7 +422,7 @@ export function AppointmentDashboardPage() {
                     <td>{formatAppointmentDate(appointment.created_at, timezone)}</td>
                     <td>
                       <div className="doc-actions">
-                        {canSearchPatients ? <button
+                        {canViewPatients ? <button
                           className="doc-action"
                           onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
                           title="Open patient"
@@ -443,15 +438,6 @@ export function AppointmentDashboardPage() {
                           type="button"
                         >
                           <i className="ph ph-check-circle" aria-hidden="true" />
-                        </button> : null}
-                        {canEditStatus ? <button
-                          className="doc-action"
-                          disabled={isUpdatingStatus || appointment.status === 'CHECKED_IN'}
-                          onClick={() => handleUpdateStatus(appointment.id, 'CHECKED_IN')}
-                          title="Mark checked in"
-                          type="button"
-                        >
-                          <i className="ph ph-user-focus" aria-hidden="true" />
                         </button> : null}
                         {canEditStatus ? <button
                           className="doc-action danger"

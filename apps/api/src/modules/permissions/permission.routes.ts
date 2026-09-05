@@ -56,6 +56,7 @@ type UpdatePermissionBody = Partial<PermissionBody>;
 
 type ReplaceRolePermissionsBody = {
   permissionIds: string[];
+  expectedRoleUpdatedAt: string;
 };
 
 const metadataFromRequest = (request: FastifyRequest) => ({

@@ -44,10 +44,26 @@ export type EmergencyDispositionSectionProps = {
 export function EmergencyDispositionSection({ state, mutations }: EmergencyDispositionSectionProps) {
   const selected = state.selected || state.encounters[0] || null;
 
+  const canAdmit = state.capabilities.admit;
+  const canDischarge = state.capabilities.discharge;
+  const canTransfer = state.capabilities.transfer;
+  const canMarkLeft = state.capabilities.markLeft;
+  const canPerformDisposition = canAdmit || canDischarge || canTransfer || canMarkLeft;
+
+  const defaultDecision = canAdmit
+    ? 'ADMIT'
+    : canDischarge
+    ? 'DISCHARGE'
+    : canTransfer
+    ? 'TRANSFER'
+    : canMarkLeft
+    ? 'LEFT'
+    : 'ADMIT';
+
   const disposition = useForm<DispositionForm>({
     resolver: zodResolver(dispositionSchema),
     defaultValues: {
-      decision: 'ADMIT',
+      decision: defaultDecision,
       reason: '',
       summary: '',
       instructions: '',
@@ -97,8 +113,66 @@ export function EmergencyDispositionSection({ state, mutations }: EmergencyDispo
 
   if (!selected) return null;
 
+  if (!canPerformDisposition) {
+    return (
+      <div className="emergency-form-section">
+        <div className="emergency-section-context-header">
+          <div className="emergency-context-badge">
+            <i className="ph ph-lock-key" /> Emergency Disposition &amp; Handoff (Read-Only)
+          </div>
+          <p className="emergency-context-desc">
+            Final disposition must be executed by the attending physician. Current encounter status and instructions are shown below.
+          </p>
+        </div>
+
+        <div className="emergency-readonly-grid">
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-door-open" /> Disposition Status</h4>
+            <div className="emergency-readonly-field">
+              <label>Current Encounter Status</label>
+              <span>{selected.status}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Disposition Decision</label>
+              <span style={{ fontWeight: 700, color: selected.disposition?.decision ? '#15803d' : '#64748b' }}>
+                {selected.disposition?.decision || 'Pending physician confirmation'}
+              </span>
+            </div>
+            {selected.disposition?.transferDestination && (
+              <div className="emergency-readonly-field">
+                <label>Transfer Destination</label>
+                <span>{selected.disposition.transferDestination}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-article" /> Clinical Summary &amp; Instructions</h4>
+            <div className="emergency-readonly-field">
+              <label>Clinical Summary</label>
+              <span>{selected.disposition?.summary || 'Pending disposition summary'}</span>
+            </div>
+            <div className="emergency-readonly-field" style={{ marginTop: '0.5rem' }}>
+              <label>Discharge / Admission Instructions</label>
+              <span>{selected.disposition?.instructions || '—'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={confirmDisposition}>
+      <div className="emergency-section-active-header">
+        <div className="emergency-active-badge">
+          <i className="ph ph-door-open" /> Primary Physician Duty – Final Emergency Disposition
+        </div>
+        <p className="emergency-active-desc">
+          Confirm safe transition to inpatient admission handoff, discharge home, inter-facility transfer, or left AMA.
+        </p>
+      </div>
+
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
@@ -110,10 +184,10 @@ export function EmergencyDispositionSection({ state, mutations }: EmergencyDispo
           <div className="doc-field">
             <label>Decision <span style={{ color: '#dc2626' }}>*</span></label>
             <select {...disposition.register('decision')}>
-              <option value="ADMIT">Admit to Inpatient Unit</option>
-              <option value="DISCHARGE">Discharge Home</option>
-              <option value="TRANSFER">Transfer to External Facility</option>
-              <option value="LEFT">Patient Left against Medical Advice</option>
+              {canAdmit && <option value="ADMIT">Admit to Inpatient Unit</option>}
+              {canDischarge && <option value="DISCHARGE">Discharge Home</option>}
+              {canTransfer && <option value="TRANSFER">Transfer to External Facility</option>}
+              {canMarkLeft && <option value="LEFT">Patient Left against Medical Advice</option>}
             </select>
           </div>
           <div className="doc-field">
@@ -131,7 +205,7 @@ export function EmergencyDispositionSection({ state, mutations }: EmergencyDispo
             <input {...disposition.register('transfer_destination')} placeholder="e.g. National Referral Hospital" />
           </div>
           <div className="doc-field" style={{ gridColumn: 'span 3' }}>
-            <label>Clinical Summary & Discharge / Admission Instructions</label>
+            <label>Clinical Summary &amp; Discharge / Admission Instructions</label>
             <textarea {...disposition.register('summary')} placeholder="Key clinical findings, treatments administered, handover summary..." rows={4} />
           </div>
         </div>

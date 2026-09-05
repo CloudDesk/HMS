@@ -228,7 +228,6 @@ export class EmergencyRepository {
       _id: oid(data.department_id),
       branchIds: oid(data.branch_id),
       status: 'ACTIVE',
-      isClinical: true,
       deletedAt: null,
     })
       .session(session)
@@ -237,7 +236,6 @@ export class EmergencyRepository {
       department = await DepartmentModel.findOne({
         _id: oid(data.department_id),
         status: 'ACTIVE',
-        isClinical: true,
         deletedAt: null,
       })
         .session(session)
@@ -259,6 +257,9 @@ export class EmergencyRepository {
       .session(session)
       .lean();
   }
+  async doctorByUserId(userId: string) {
+    return DoctorModel.findOne({ userId: oid(userId), deletedAt: null }).lean();
+  }
   async doctor(id: string, branchId?: string, departmentId?: string, session?: ClientSession) {
     const query = DoctorModel.findOne({
       _id: oid(id),
@@ -275,7 +276,6 @@ export class EmergencyRepository {
       _id: oid(id),
       branchIds: oid(branchId),
       status: 'ACTIVE',
-      isClinical: true,
       deletedAt: null,
     });
     if (session) query.session(session);
@@ -446,6 +446,78 @@ export class EmergencyRepository {
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
+  async list(query: EmergencyListQuery, departments?: string[], doctorId?: string) {
+    const page = query.page ?? 1,
+      limit = query.limit ?? 20;
+    const filter: Record<string, unknown> = {
+      branchId: oid(query.branch_id),
+      ...(departments ? { departmentId: { $in: departments.map(oid) } } : {}),
+    };
+    if (query.department_id) filter.departmentId = oid(query.department_id);
+    if (query.status) filter.status = query.status;
+    if (query.triage_level) filter['triage.effectiveLevel'] = query.triage_level;
+
+    const andConditions: Array<Record<string, unknown>> = [];
+
+    if (doctorId) {
+      andConditions.push({
+        $or: [
+          { assignedDoctorId: null },
+          { assignedDoctorId: { $exists: false } },
+          { assignedDoctorId: oid(doctorId) },
+        ],
+      });
+    }
+
+    if (query.search) {
+      const expression = new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      andConditions.push({
+        $or: [
+          { encounterNumber: expression },
+          { emergencyIdentifier: expression },
+          { patientNumber: expression },
+          { patientName: expression },
+        ],
+      });
+    }
+
+    if (andConditions.length === 1) {
+      Object.assign(filter, andConditions[0]);
+    } else if (andConditions.length > 1) {
+      filter.$and = andConditions;
+    }
+
+    const [rows, total] = await Promise.all([
+      EmergencyEncounterModel.find(filter)
+        .sort({ 'triage.effectiveLevel': 1, arrivalAt: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean<EmergencyLean[]>(),
+      EmergencyEncounterModel.countDocuments(filter),
+    ]);
+    return {
+      data: rows.map(emergencyQueueDto),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+  async summary(branchId: string, departments?: string[], doctorId?: string) {
+    const match: Record<string, unknown> = {
+      branchId: oid(branchId),
+      ...(departments ? { departmentId: { $in: departments.map(oid) } } : {}),
+    };
+    if (doctorId) {
+      match.$or = [
+        { assignedDoctorId: null },
+        { assignedDoctorId: { $exists: false } },
+        { assignedDoctorId: oid(doctorId) },
+      ];
+    }
+    const rows = await EmergencyEncounterModel.aggregate<{ _id: string; count: number }>([
+      { $match: match },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((row) => [row._id, row.count]));
+  }
   async saveReferral(
     id: string,
     branchId: string,
@@ -506,49 +578,6 @@ export class EmergencyRepository {
     ).lean<EmergencyLean>();
     return row ? emergencyReferralDto(row) : null;
   }
-  async list(query: EmergencyListQuery, departments?: string[]) {
-    const page = query.page ?? 1,
-      limit = query.limit ?? 20;
-    const filter: Record<string, unknown> = {
-      branchId: oid(query.branch_id),
-      ...(departments ? { departmentId: { $in: departments.map(oid) } } : {}),
-    };
-    if (query.department_id) filter.departmentId = oid(query.department_id);
-    if (query.status) filter.status = query.status;
-    if (query.triage_level) filter['triage.effectiveLevel'] = query.triage_level;
-    if (query.search) {
-      const expression = new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      filter.$or = [
-        { encounterNumber: expression },
-        { emergencyIdentifier: expression },
-        { patientNumber: expression },
-        { patientName: expression },
-      ];
-    }
-    const [rows, total] = await Promise.all([
-      EmergencyEncounterModel.find(filter)
-        .sort({ 'triage.effectiveLevel': 1, arrivalAt: 1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean<EmergencyLean[]>(),
-      EmergencyEncounterModel.countDocuments(filter),
-    ]);
-    return {
-      data: rows.map(emergencyQueueDto),
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
-    };
-  }
-  async summary(branchId: string, departments?: string[]) {
-    const match: Record<string, unknown> = {
-      branchId: oid(branchId),
-      ...(departments ? { departmentId: { $in: departments.map(oid) } } : {}),
-    };
-    const rows = await EmergencyEncounterModel.aggregate<{ _id: string; count: number }>([
-      { $match: match },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-    ]);
-    return Object.fromEntries(rows.map((row) => [row._id, row.count]));
-  }
   async transition(
     id: string,
     branchId: string,
@@ -559,6 +588,7 @@ export class EmergencyRepository {
     set: Record<string, unknown>,
     reason: string | null,
     session: ClientSession,
+    previousStatus?: EmergencyStatus,
   ) {
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       {
@@ -572,7 +602,7 @@ export class EmergencyRepository {
         $push: {
           queueHistory: {
             action,
-            fromStatus: Array.isArray(from) ? from[0] : from,
+            fromStatus: previousStatus ?? (Array.isArray(from) ? from[0] : from),
             toStatus: to,
             reason,
             actorId: oid(actor),

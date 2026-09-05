@@ -80,6 +80,8 @@ export function AppointmentQueuePage() {
       nextAppointment,
       canCreateVitals,
       canEditVisit,
+      canCheckIn,
+      canViewConsultation,
     },
     actions: {
       setDepartmentFilter,
@@ -309,10 +311,10 @@ export function AppointmentQueuePage() {
                 ) : (
                   paginatedAppointments.map((appointment, index) => {
                     const linkedVisit = visitForAppointment(appointment.id);
-                    const canCheckIn = !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
-                    const canTakeVitals = linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS';
-                    const canStartConsultation = linkedVisit?.status === 'READY_FOR_CONSULTATION' || linkedVisit?.status === 'SKIPPED';
-                    const isInConsultation = linkedVisit?.status === 'IN_CONSULTATION';
+                    const isCheckInAvailable = canCheckIn && !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
+                    const isTakeVitalsAvailable = canCreateVitals && canEditVisit && (linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS');
+                    const isStartConsultationAvailable = canViewConsultation && canEditVisit && (linkedVisit?.status === 'READY_FOR_CONSULTATION' || linkedVisit?.status === 'SKIPPED');
+                    const isInConsultationAvailable = canViewConsultation && linkedVisit?.status === 'IN_CONSULTATION';
                     const globalIndex = (page - 1) * pageSize + index;
                     return (
                     <tr className={appointment.id === currentAppointment?.id ? 'queue-current-row' : ''} key={appointment.id}>
@@ -337,7 +339,7 @@ export function AppointmentQueuePage() {
                       </td>
                       <td>
                         <div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
-                          {canCheckIn ? (
+                          {isCheckInAvailable ? (
                             <button
                               className="doc-btn success compact"
                               disabled={updating}
@@ -350,10 +352,10 @@ export function AppointmentQueuePage() {
                               Check In
                             </button>
                           ) : null}
-                          {canTakeVitals ? (
+                          {isTakeVitalsAvailable ? (
                             <button
                               className="doc-btn primary compact"
-                              disabled={updating || !canCreateVitals || !canEditVisit}
+                              disabled={updating}
                               onClick={() => {
                                 setVitalsError('');
                                 setVitalsVisit(linkedVisit);
@@ -365,10 +367,10 @@ export function AppointmentQueuePage() {
                               Take Vitals
                             </button>
                           ) : null}
-                          {canStartConsultation && linkedVisit ? (
+                          {isStartConsultationAvailable && linkedVisit ? (
                             <button
                               className="doc-btn primary compact"
-                              disabled={updating || !canEditVisit}
+                              disabled={updating}
                               onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}
                               title="Start consultation"
                               type="button"
@@ -377,7 +379,7 @@ export function AppointmentQueuePage() {
                               Start Consultation
                             </button>
                           ) : null}
-                          {isInConsultation && linkedVisit ? (
+                          {isInConsultationAvailable && linkedVisit ? (
                             <button
                               className="doc-btn primary compact"
                               onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}

@@ -11,6 +11,10 @@ export type SurgeryBookingDetailModalProps = {
   onComplete: (booking: ProcedureBooking) => void;
   displayDate: (value: string) => string;
   statusTone: (status: string) => 'green' | 'red' | 'orange' | 'blue';
+  canConfirm?: boolean;
+  canReschedule?: boolean;
+  canCancel?: boolean;
+  canComplete?: boolean;
 };
 
 export function SurgeryBookingDetailModal({
@@ -22,6 +26,10 @@ export function SurgeryBookingDetailModal({
   onComplete,
   displayDate,
   statusTone,
+  canConfirm = true,
+  canReschedule = true,
+  canCancel = true,
+  canComplete = true,
 }: SurgeryBookingDetailModalProps) {
   if (!booking) return null;
 
@@ -40,7 +48,7 @@ export function SurgeryBookingDetailModal({
             Close
           </button>
           <div style={{ display: 'flex', gap: '8px' }}>
-            {booking.status === 'PENDING_CONFIRMATION' && (
+            {booking.status === 'PENDING_CONFIRMATION' && canConfirm && (
               <button
                 className="btn-primary"
                 onClick={() => {
@@ -54,36 +62,42 @@ export function SurgeryBookingDetailModal({
             )}
             {booking.status === 'BOOKED' && (
               <>
-                <button
-                  className="btn-secondary"
-                  onClick={() => {
-                    onReschedule(booking);
-                    onClose();
-                  }}
-                  type="button"
-                >
-                  <i className="ph ph-calendar" /> Reschedule
-                </button>
-                <button
-                  className="btn-danger"
-                  onClick={() => {
-                    onCancel(booking);
-                    onClose();
-                  }}
-                  type="button"
-                >
-                  <i className="ph ph-x" /> Cancel
-                </button>
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    onComplete(booking);
-                    onClose();
-                  }}
-                  type="button"
-                >
-                  <i className="ph ph-check-fat" /> Complete Procedure
-                </button>
+                {canReschedule && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      onReschedule(booking);
+                      onClose();
+                    }}
+                    type="button"
+                  >
+                    <i className="ph ph-calendar" /> Reschedule
+                  </button>
+                )}
+                {canCancel && (
+                  <button
+                    className="btn-danger"
+                    onClick={() => {
+                      onCancel(booking);
+                      onClose();
+                    }}
+                    type="button"
+                  >
+                    <i className="ph ph-x" /> Cancel
+                  </button>
+                )}
+                {canComplete && (
+                  <button
+                    className="btn-primary"
+                    onClick={() => {
+                      onComplete(booking);
+                      onClose();
+                    }}
+                    type="button"
+                  >
+                    <i className="ph ph-check-fat" /> Complete Procedure
+                  </button>
+                )}
               </>
             )}
           </div>

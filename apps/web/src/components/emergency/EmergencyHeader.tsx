@@ -58,22 +58,16 @@ export function EmergencyHeader({ state, setActiveTab, onOpenLinkPatient }: Emer
           </div>
           <div className="emergency-patient-meta">
             <span>
-              <i className="ph ph-cake" /> {selected.provisional_identity?.estimated_age || 45} years
+              <i className="ph ph-cake" /> {selected.provisional_identity?.estimated_age ? `${selected.provisional_identity.estimated_age} yrs` : '—'}
             </span>
             <span>
               <i className="ph ph-gender-intersex" /> {selected.provisional_identity?.gender || 'Unknown'}
             </span>
             <span>
-              <i className="ph ph-drop" /> O+
-            </span>
-            <span>
-              <i className="ph ph-warning" /> No known allergies
-            </span>
-            <span>
               <i className="ph ph-clock" /> {formatTime(selected.arrival_at || selected.created_at)}
             </span>
             <span>
-              <i className="ph ph-stethoscope" /> {selected.assigned_doctor_name || 'Dr. Sarah Johnson'}
+              <i className="ph ph-stethoscope" /> {selected.assigned_doctor_name || 'Unassigned'}
             </span>
           </div>
         </div>
@@ -86,18 +80,23 @@ export function EmergencyHeader({ state, setActiveTab, onOpenLinkPatient }: Emer
             >
               <i className="ph ph-user" /> Patient Profile
             </button>
-          ) : (
+          ) : state.capabilities.linkPatient ? (
             <button className="btn-emergency-secondary" onClick={onOpenLinkPatient} type="button">
               <i className="ph ph-link" /> Link Patient
             </button>
+          ) : null}
+          {(state.capabilities.discharge ||
+            state.capabilities.transfer ||
+            state.capabilities.admit ||
+            state.capabilities.markLeft) && (
+            <button
+              className="btn-emergency-primary"
+              onClick={() => setActiveTab('Disposition')}
+              type="button"
+            >
+              <i className="ph ph-door-open" /> Disposition
+            </button>
           )}
-          <button
-            className="btn-emergency-primary"
-            onClick={() => setActiveTab('Disposition')}
-            type="button"
-          >
-            <i className="ph ph-door-open" /> Disposition
-          </button>
         </div>
       </section>
 

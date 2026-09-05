@@ -29,7 +29,7 @@ import {
 } from '../permissions/usePermissions';
 import { useUsersList } from '../users/useUsers';
 
-const rolePageSize = 5;
+const rolePageSize = 100;
 
 type RoleStats = {
   total: number;
@@ -89,10 +89,14 @@ export function useRolesPermissionsFeature(modalMode: string | null) {
   const canPermission = useCallback((action: string) => isSuperAdmin || hasPermission(
     user?.permissions ?? [], { module: 'Administration', screen: 'Permissions', action },
   ), [isSuperAdmin, user?.permissions]);
+  const canViewUsers = isSuperAdmin || hasPermission(
+    user?.permissions ?? [], { module: 'Administration', screen: 'Users', action: 'View' },
+  );
 
   const canCreateRole = canRole('Create');
   const canEditRole = canRole('Edit');
   const canAssignRole = canRole('Assign');
+  const canAssignUser = canAssignRole && canViewUsers;
   const canDeleteRole = canRole('Delete');
 
   const [search, setSearch] = useState('');
@@ -124,7 +128,7 @@ export function useRolesPermissionsFeature(modalMode: string | null) {
     sortBy: 'fullName',
     sortOrder: 'asc',
     status: 'active',
-  }, modalMode === 'assign-user');
+  }, modalMode === 'assign-user' && canAssignUser);
 
   const createRoleMutation = useCreateRole();
   const updateRoleMutation = useUpdateRole();
@@ -242,6 +246,7 @@ export function useRolesPermissionsFeature(modalMode: string | null) {
       canCreateRole,
       canEditRole,
       canAssignRole,
+      canAssignUser,
       canDeleteRole,
       canEditPermissions,
     },

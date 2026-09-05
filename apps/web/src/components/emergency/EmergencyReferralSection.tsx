@@ -62,6 +62,15 @@ export function EmergencyReferralSection({ state, mutations }: EmergencyReferral
         border: '1px solid #e2e8f0',
       }}
     >
+      <div className="emergency-section-active-header" style={{ margin: '-6px -6px 14px -6px' }}>
+        <div className="emergency-active-badge">
+          <i className="ph ph-share-network" /> Primary Physician Duty – Clinical Specialist Referral
+        </div>
+        <p className="emergency-active-desc">
+          Coordinate emergency specialist consults, ICU/HDU step-up, and inter-departmental referrals.
+        </p>
+      </div>
+
       <div className="emergency-form-head" style={{ marginBottom: '14px' }}>
         <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
           Emergency Clinical Referral &amp; Coordination
