@@ -1,5 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import type { OpdClinicalOrderRepository } from '../opd/opd-clinical-order.repository.js';
 import type { ClinicalOrderRequestMetadata, OpdClinicalOrder } from '../opd/opd-clinical-order.types.js';
 import type { ImagingRepository } from './imaging.repository.js';
@@ -46,81 +47,67 @@ export class ImagingService {
 
   async updateStatus(id: string, data: UpdateImagingStatusDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    const session = await mongoose.startSession();
-    try {
-      let updated: OpdClinicalOrder | null = null;
-      await session.withTransaction(async () => {
-        const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
-        if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
-        this.assertMutable(order);
-        if (transitions[order.status] !== data.status) {
-          throw new AppError(`Cannot transition imaging order from ${order.status} to ${data.status}`, 409, 'INVALID_STATUS_TRANSITION');
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
+      if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+      this.assertMutable(order);
+      if (transitions[order.status] !== data.status) {
+        throw new AppError(`Cannot transition imaging order from ${order.status} to ${data.status}`, 409, 'INVALID_STATUS_TRANSITION');
+      }
+      if (data.status === 'VERIFIED') {
+        if (!(await this.repository.getReport(id, session))) throw new AppError('Enter an imaging report before verification', 409, 'REPORT_REQUIRED');
+        if (!(await this.repository.verifyReport(id, actorUserId, session))) {
+          throw new AppError('Imaging report was already verified', 409, 'REPORT_ALREADY_VERIFIED');
         }
-        if (data.status === 'VERIFIED') {
-          if (!(await this.repository.getReport(id, session))) throw new AppError('Enter an imaging report before verification', 409, 'REPORT_REQUIRED');
-          if (!(await this.repository.verifyReport(id, actorUserId, session))) {
-            throw new AppError('Imaging report was already verified', 409, 'REPORT_ALREADY_VERIFIED');
-          }
-        }
-        updated = await this.orderRepository.updateOperationalStatus(id, 'IMAGING', order.status, data.status, actorUserId, session);
-        if (!updated) throw new AppError('Imaging order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
-        await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
-          orderId: id, patientId: order.patient_id, visitId: order.visit_id,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
-          previousStatus: order.status, status: data.status,
-        }, session);
-      });
-      if (!updated) throw new AppError('Imaging status update failed', 500, 'IMAGING_STATUS_UPDATE_FAILED');
+      }
+      const updated = await this.orderRepository.updateOperationalStatus(id, 'IMAGING', order.status, data.status, actorUserId, session);
+      if (!updated) throw new AppError('Imaging order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
+      await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
+        orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+        sourceType: order.source_type, encounterId: order.encounter_id,
+        admissionId: order.admission_id, procedureId: order.procedure_id,
+        previousStatus: order.status, status: data.status,
+      }, session);
       return updated;
-    } finally { await session.endSession(); }
+    });
   }
 
   async enterReport(id: string, data: SaveImagingReportDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    const session = await mongoose.startSession();
-    try {
-      let saved: Awaited<ReturnType<ImagingRepository['createReport']>> | undefined;
-      await session.withTransaction(async () => {
-        const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
-        if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
-        this.assertMutable(order);
-        if (order.status !== 'IN_PROGRESS') throw new AppError('Reports can only be entered for an in-progress order', 409, 'REPORT_ENTRY_NOT_ALLOWED');
-        if (await this.repository.getReport(id, session)) throw new AppError('Imaging report already exists', 409, 'IMAGING_REPORT_EXISTS');
-        saved = await this.repository.createReport(downstreamContext(order), data, actorUserId, session);
-        const updated = await this.orderRepository.updateOperationalStatus(id, 'IMAGING', 'IN_PROGRESS', 'REPORT_ENTERED', actorUserId, session);
-        if (!updated) throw new AppError('Imaging order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
-        await this.orderRepository.audit('imaging.report.entered', actorUserId, metadata, {
-          orderId: id, patientId: order.patient_id, visitId: order.visit_id,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
-        }, session);
-      });
-      if (!saved) throw new AppError('Imaging report entry failed', 500, 'IMAGING_REPORT_SAVE_FAILED');
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
+      if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+      this.assertMutable(order);
+      if (order.status !== 'IN_PROGRESS') throw new AppError('Reports can only be entered for an in-progress order', 409, 'REPORT_ENTRY_NOT_ALLOWED');
+      if (await this.repository.getReport(id, session)) throw new AppError('Imaging report already exists', 409, 'IMAGING_REPORT_EXISTS');
+      const saved = await this.repository.createReport(downstreamContext(order), data, actorUserId, session);
+      const updated = await this.orderRepository.updateOperationalStatus(id, 'IMAGING', 'IN_PROGRESS', 'REPORT_ENTERED', actorUserId, session);
+      if (!updated) throw new AppError('Imaging order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
+      await this.orderRepository.audit('imaging.report.entered', actorUserId, metadata, {
+        orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+        sourceType: order.source_type, encounterId: order.encounter_id,
+        admissionId: order.admission_id, procedureId: order.procedure_id,
+      }, session);
       return saved;
-    } finally { await session.endSession(); }
+    });
   }
 
   async updateReport(id: string, data: SaveImagingReportDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    const session = await mongoose.startSession();
-    try {
-      let saved: Awaited<ReturnType<ImagingRepository['updateReport']>> | null = null;
-      await session.withTransaction(async () => {
-        const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
-        if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
-        this.assertMutable(order);
-        if (order.status !== 'REPORT_ENTERED') throw new AppError('Only unverified reports can be updated', 409, 'REPORT_UPDATE_NOT_ALLOWED');
-        saved = await this.repository.updateReport(downstreamContext(order), data, actorUserId, session);
-        if (!saved) throw new AppError('Imaging report not found or already verified', 409, 'REPORT_UPDATE_NOT_ALLOWED');
-        await this.orderRepository.audit('imaging.report.updated', actorUserId, metadata, {
-          orderId: id, patientId: order.patient_id, visitId: order.visit_id,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
-        }, session);
-      });
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
+      if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+      this.assertMutable(order);
+      if (order.status !== 'REPORT_ENTERED') throw new AppError('Only unverified reports can be updated', 409, 'REPORT_UPDATE_NOT_ALLOWED');
+      const saved = await this.repository.updateReport(downstreamContext(order), data, actorUserId, session);
+      if (!saved) throw new AppError('Imaging report not found or already verified', 409, 'REPORT_UPDATE_NOT_ALLOWED');
+      await this.orderRepository.audit('imaging.report.updated', actorUserId, metadata, {
+        orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+        sourceType: order.source_type, encounterId: order.encounter_id,
+        admissionId: order.admission_id, procedureId: order.procedure_id,
+      }, session);
       return saved;
-    } finally { await session.endSession(); }
+    });
   }
 
   private async requireOrder(id: string, actorUserId: string) {

@@ -1,5 +1,4 @@
-import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { createObjectId } from './factories.js';
 import { AdmissionsConfigurationService } from '../src/modules/admissions-configuration/admissions-configuration.service.js';
@@ -7,28 +6,32 @@ import { AdmissionsConfigurationRepository } from '../src/modules/admissions-con
 import { BedHoldModel, BedModel, WardModel } from '../src/modules/admissions-configuration/admissions-configuration.model.js';
 import { BranchModel } from '../src/modules/branches/branch.model.js';
 
-test('Finding 8 — Expired Bed-Hold Cleanup', async (t) => {
-  await setupTestDatabase();
-
-  const repository = new AdmissionsConfigurationRepository();
-  const service = new AdmissionsConfigurationService(repository);
+describe('Finding 8 — Expired Bed-Hold Cleanup', () => {
+  let repository: AdmissionsConfigurationRepository;
+  let service: AdmissionsConfigurationService;
   
   const branchId = createObjectId();
   const actorId = createObjectId();
 
-  t.beforeEach(async () => {
-    mock.method(repository, 'hasBranchAccess', async () => true);
-    mock.method(repository, 'audit', async () => {});
+  beforeAll(async () => {
+    await setupTestDatabase();
+    repository = new AdmissionsConfigurationRepository();
+    service = new AdmissionsConfigurationService(repository);
+  }, 30000);
+
+  beforeEach(async () => {
+    vi.spyOn(repository, 'hasBranchAccess').mockImplementation(async () => true);
+    vi.spyOn(repository, 'audit').mockImplementation(async () => {});
 
     await BranchModel.create({ _id: branchId, name: 'Test Branch', code: 'TEST', status: 'ACTIVE' });
   });
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
@@ -95,28 +98,28 @@ test('Finding 8 — Expired Bed-Hold Cleanup', async (t) => {
     await BedHoldModel.insertMany(holds);
   };
 
-  await t.test('Test 1 — Future hold remains ACTIVE', async () => {
+  it('Test 1 — Future hold remains ACTIVE', async () => {
     await seedHolds(1, false); // 1 future hold
 
     // trigger cleanup via summary()
     await service.summary(branchId, actorId, {});
 
     const activeHolds = await BedHoldModel.countDocuments({ status: 'ACTIVE' });
-    assert.equal(activeHolds, 1, 'Future hold should remain ACTIVE');
+    expect(activeHolds).toBe(1);
   });
 
-  await t.test('Test 2 — Expired hold becomes EXPIRED', async () => {
+  it('Test 2 — Expired hold becomes EXPIRED', async () => {
     await seedHolds(1, true); // 1 expired hold
 
     await service.summary(branchId, actorId, {});
 
     const activeHolds = await BedHoldModel.countDocuments({ status: 'ACTIVE' });
     const expiredHolds = await BedHoldModel.countDocuments({ status: 'EXPIRED' });
-    assert.equal(activeHolds, 0, 'Expired hold should no longer be ACTIVE');
-    assert.equal(expiredHolds, 1, 'Expired hold should become EXPIRED');
+    expect(activeHolds).toBe(0);
+    expect(expiredHolds).toBe(1);
   });
 
-  await t.test('Test 3 — 101+ expired holds are all eventually processed', async () => {
+  it('Test 3 — 101+ expired holds are all eventually processed', async () => {
     await seedHolds(101, true);
 
     await service.summary(branchId, actorId, {});
@@ -124,13 +127,11 @@ test('Finding 8 — Expired Bed-Hold Cleanup', async (t) => {
     const activeHolds = await BedHoldModel.countDocuments({ status: 'ACTIVE' });
     const expiredHolds = await BedHoldModel.countDocuments({ status: 'EXPIRED' });
     
-    assert.equal(activeHolds, 0, 'All 101 expired holds should be processed');
-    assert.equal(expiredHolds, 101, 'All 101 expired holds should become EXPIRED');
+    expect(activeHolds).toBe(0);
+    expect(expiredHolds).toBe(101);
   });
 
-  await t.test('Test 4 & 5 — 1,001+ backlog is bounded per invocation and clears on repeat', async () => {
-    // 1001 holds is too many to insert quickly without slowing tests down, let's just insert 1001.
-    // Actually, mongo memory server is fast, inserting 1001 records is trivial.
+  it('Test 4 & 5 — 1,001+ backlog is bounded per invocation and clears on repeat', async () => {
     await seedHolds(1005, true);
 
     // Call it once
@@ -140,8 +141,8 @@ test('Finding 8 — Expired Bed-Hold Cleanup', async (t) => {
     let expiredHolds = await BedHoldModel.countDocuments({ status: 'EXPIRED' });
     
     // MAX_BATCHES = 10, batch_size = 100 => processes exactly 1000
-    assert.equal(expiredHolds, 1000, 'Exactly 1000 holds should be processed in the first bounded invocation');
-    assert.equal(activeHolds, 5, '5 holds should remain ACTIVE to prove the boundary');
+    expect(expiredHolds).toBe(1000);
+    expect(activeHolds).toBe(5);
 
     // Call it again (Test 5)
     await service.summary(branchId, actorId, {});
@@ -149,11 +150,11 @@ test('Finding 8 — Expired Bed-Hold Cleanup', async (t) => {
     activeHolds = await BedHoldModel.countDocuments({ status: 'ACTIVE' });
     expiredHolds = await BedHoldModel.countDocuments({ status: 'EXPIRED' });
 
-    assert.equal(activeHolds, 0, 'Remaining 5 holds should be processed on the next invocation');
-    assert.equal(expiredHolds, 1005, 'All holds should eventually be EXPIRED');
-  });
+    expect(activeHolds).toBe(0);
+    expect(expiredHolds).toBe(1005);
+  }, 60000);
 
-  await t.test('Test 6 — Concurrent cleanup is safe', async () => {
+  it('Test 6 — Concurrent cleanup is safe', async () => {
     await seedHolds(50, true);
 
     // Run two cleanups concurrently
@@ -165,20 +166,20 @@ test('Finding 8 — Expired Bed-Hold Cleanup', async (t) => {
     const activeHolds = await BedHoldModel.countDocuments({ status: 'ACTIVE' });
     const expiredHolds = await BedHoldModel.countDocuments({ status: 'EXPIRED' });
     
-    assert.equal(activeHolds, 0);
-    assert.equal(expiredHolds, 50, 'Exactly 50 holds should be EXPIRED without double processing or corruption');
+    expect(activeHolds).toBe(0);
+    expect(expiredHolds).toBe(50);
   });
 
-  await t.test('Test 7 — Expired hold releases bed availability', async () => {
+  it('Test 7 — Expired hold releases bed availability', async () => {
     await seedHolds(1, true);
 
     const bedBefore = await BedModel.findOne({});
-    assert.equal(bedBefore?.status, 'RESERVED');
+    expect(bedBefore?.status).toBe('RESERVED');
 
     await service.summary(branchId, actorId, {});
 
     const bedAfter = await BedModel.findOne({});
-    assert.equal(bedAfter?.status, 'AVAILABLE', 'Bed should be AVAILABLE after hold expires');
-    assert.equal(bedAfter?.currentHoldId, null, 'currentHoldId should be null');
+    expect(bedAfter?.status).toBe('AVAILABLE');
+    expect(bedAfter?.currentHoldId).toBeNull();
   });
 });

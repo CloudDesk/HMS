@@ -166,7 +166,7 @@ export class OpdClinicalOrderRepository {
     encounterId: string; patientId: string; patientNumber: string; patientName: string; doctorId: string; doctorName: string;
     branchId: string; orderType: ClinicalOrderType; priority: import('./opd-clinical-order.types.js').ClinicalOrderPriority;
     destination?: string | null; specimenType?: string | null; items: SaveClinicalOrderItemDTO[]; clinicalNotes?: string | null; instructions?: string | null;
-  }, userId: string, session: ClientSession) {
+  }, userId: string, session?: ClientSession) {
     return this.submitForContext({
       source_type: 'EMERGENCY_ENCOUNTER', source_id: data.encounterId, encounter_id: data.encounterId,
       admission_id: null, procedure_id: null, patient_id: data.patientId, patient_number: data.patientNumber,
@@ -182,7 +182,7 @@ export class OpdClinicalOrderRepository {
     orderType: ClinicalOrderType,
     data: SaveOpdClinicalOrderDTO,
     userId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const visitContext = context.source_type === 'OPD_VISIT'
       ? { visitId: objectId(context.source_id) }
@@ -204,7 +204,7 @@ export class OpdClinicalOrderRepository {
         doctorId: objectId(context.doctor_id), doctorName: context.doctor_name, branchId: objectId(context.branch_id),
         orderType, createdBy: objectId(userId),
       } },
-      { new: true, upsert: true, runValidators: true, session },
+      { returnDocument: 'after', upsert: true, runValidators: true, session },
     ).lean<OpdClinicalOrderLean>();
     if (!record) throw new AppError('Context clinical order could not be submitted', 500, 'CLINICAL_ORDER_SAVE_FAILED');
     return toClinicalOrder(record);

@@ -1,5 +1,4 @@
-﻿import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import mongoose, { Types } from 'mongoose';
 import { EmergencyService } from '../src/modules/emergency/emergency.service.js';
 import { createObjectId } from './factories.js';
@@ -7,9 +6,7 @@ import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './se
 import type { EmergencyMetadata, EmergencyReferralDTO } from '../src/modules/emergency/emergency.types.js';
 import { emergencyReferralSchema } from '../src/modules/emergency/emergency.schemas.js';
 
-test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
-  await setupTestDatabase();
-
+describe('Emergency Referral Doctor Derivation & Schema Tests', () => {
   const branchId = createObjectId();
   const doctorUserId = createObjectId();
   const doctorId = createObjectId();
@@ -23,16 +20,20 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
     userAgent: 'test-agent',
   };
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  beforeAll(async () => {
+    await setupTestDatabase();
+  }, 30000);
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
-  await t.test('emergencyReferralSchema accepts empty target doctor and empty clinical notes', () => {
+  it('emergencyReferralSchema accepts empty target doctor and empty clinical notes', () => {
     const parsed1 = emergencyReferralSchema.parse({
       target_department_id: targetDeptId,
       target_doctor_id: '',
@@ -40,9 +41,9 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
       reason: 'Specialist Emergency Consultation',
       clinical_notes: '',
     });
-    assert.equal(parsed1.target_department_id, targetDeptId);
-    assert.equal(parsed1.target_doctor_id, undefined);
-    assert.equal(parsed1.clinical_notes, 'Emergency clinical referral dispatched.');
+    expect(parsed1.target_department_id).toBe(targetDeptId);
+    expect(parsed1.target_doctor_id).toBeUndefined();
+    expect(parsed1.clinical_notes).toBe('Emergency clinical referral dispatched.');
 
     const parsed2 = emergencyReferralSchema.parse({
       target_department_id: targetDeptId,
@@ -51,12 +52,12 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
       reason: 'Cardiology Bedside Consult',
       clinical_notes: 'Urgent bedside ECG and review needed',
     });
-    assert.equal(parsed2.target_department_id, targetDeptId);
-    assert.equal(parsed2.target_doctor_id, targetDoctorId);
-    assert.equal(parsed2.clinical_notes, 'Urgent bedside ECG and review needed');
+    expect(parsed2.target_department_id).toBe(targetDeptId);
+    expect(parsed2.target_doctor_id).toBe(targetDoctorId);
+    expect(parsed2.clinical_notes).toBe('Urgent bedside ECG and review needed');
   });
 
-  await t.test('submitReferral derives referring doctor from authenticated actor doctor when encounter doctor was not set', async () => {
+  it('submitReferral derives referring doctor from authenticated actor doctor when encounter doctor was not set', async () => {
     const mockSession = await mongoose.startSession();
     let capturedSave: unknown;
 
@@ -72,13 +73,13 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
     };
 
     const mockRepo = {
-      session: mock.fn(async () => mockSession),
-      hasBranchAccess: mock.fn(async () => true),
-      getRecord: mock.fn(async () => mockEncounter),
-      doctorByUserId: mock.fn(async () => ({ _id: doctorId, userId: doctorUserId, displayName: 'Dr. Anderson James' })),
-      department: mock.fn(async () => ({ _id: targetDeptId, name: 'Cardiology' })),
-      doctor: mock.fn(async () => null),
-      saveReferral: mock.fn(async (id: string, bId: string, data: EmergencyReferralDTO, deptName: string, docName: string | null, actor: string, _session: unknown, assignedDoctorId?: Types.ObjectId, assignedDoctorName?: string) => {
+      session: vi.fn(async () => mockSession),
+      hasBranchAccess: vi.fn(async () => true),
+      getRecord: vi.fn(async () => mockEncounter),
+      doctorByUserId: vi.fn(async () => ({ _id: doctorId, userId: doctorUserId, displayName: 'Dr. Anderson James' })),
+      department: vi.fn(async () => ({ _id: targetDeptId, name: 'Cardiology' })),
+      doctor: vi.fn(async () => null),
+      saveReferral: vi.fn(async (id: string, bId: string, data: EmergencyReferralDTO, deptName: string, docName: string | null, actor: string, _session: unknown, assignedDoctorId?: Types.ObjectId, assignedDoctorName?: string) => {
         capturedSave = { id, bId, data, deptName, docName, actor, assignedDoctorId, assignedDoctorName };
         return {
           id,
@@ -103,7 +104,7 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
           appointment_number: null,
         };
       }),
-      audit: mock.fn(async () => ({})),
+      audit: vi.fn(async () => ({})),
     };
 
     const service = new EmergencyService(
@@ -127,14 +128,14 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
       metadata,
     );
 
-    assert.ok(result);
-    assert.equal(result.target_department_name, 'Cardiology');
-    assert.equal(result.referring_doctor_id, doctorId.toString());
-    assert.equal(result.referring_doctor_name, 'Dr. Anderson James');
-    assert.ok(capturedSave);
+    expect(result).toBeDefined();
+    expect(result.target_department_name).toBe('Cardiology');
+    expect(result.referring_doctor_id).toBe(doctorId.toString());
+    expect(result.referring_doctor_name).toBe('Dr. Anderson James');
+    expect(capturedSave).toBeDefined();
   });
 
-  await t.test('submitReferral succeeds with valid target doctor', async () => {
+  it('submitReferral succeeds with valid target doctor', async () => {
     const mockSession = await mongoose.startSession();
 
     const mockEncounter = {
@@ -149,13 +150,13 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
     };
 
     const mockRepo = {
-      session: mock.fn(async () => mockSession),
-      hasBranchAccess: mock.fn(async () => true),
-      getRecord: mock.fn(async () => mockEncounter),
-      doctorByUserId: mock.fn(async () => ({ _id: doctorId, userId: doctorUserId, displayName: 'Dr. Anderson James' })),
-      department: mock.fn(async () => ({ _id: targetDeptId, name: 'Cardiology' })),
-      doctor: mock.fn(async () => ({ _id: targetDoctorId, displayName: 'Dr. Heart Specialist' })),
-      saveReferral: mock.fn(async () => ({
+      session: vi.fn(async () => mockSession),
+      hasBranchAccess: vi.fn(async () => true),
+      getRecord: vi.fn(async () => mockEncounter),
+      doctorByUserId: vi.fn(async () => ({ _id: doctorId, userId: doctorUserId, displayName: 'Dr. Anderson James' })),
+      department: vi.fn(async () => ({ _id: targetDeptId, name: 'Cardiology' })),
+      doctor: vi.fn(async () => ({ _id: targetDoctorId, displayName: 'Dr. Heart Specialist' })),
+      saveReferral: vi.fn(async () => ({
         id: encounterId,
         source_type: 'EMERGENCY_ENCOUNTER',
         source_id: encounterId,
@@ -177,7 +178,7 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
         appointment_id: null,
         appointment_number: null,
       })),
-      audit: mock.fn(async () => ({})),
+      audit: vi.fn(async () => ({})),
     };
 
     const service = new EmergencyService(
@@ -203,7 +204,7 @@ test('Emergency Referral Doctor Derivation & Schema Tests', async (t) => {
       metadata,
     );
 
-    assert.ok(result);
-    assert.equal(result.target_doctor_name, 'Dr. Heart Specialist');
+    expect(result).toBeDefined();
+    expect(result.target_doctor_name).toBe('Dr. Heart Specialist');
   });
 });

@@ -545,17 +545,17 @@ async createRequest(
   }
   async getRequest(id: string, branchId: string, session?: ClientSession) { const query = AdmissionRequestModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean<AdmissionRequestFields & { _id: Types.ObjectId }>(); if (session) query.session(session); const item = await query; return item ? toRequest(item) : null; }
   async validateRequest(id: string, branchId: string, data: ValidateAdmissionRequestDTO, actor: string, session?: ClientSession) {
-    const opts = session ? { new: true, session, runValidators: true } : { new: true, runValidators: true };
+    const opts = session ? { returnDocument: 'after' as const, session, runValidators: true } : { returnDocument: 'after' as const, runValidators: true };
     const item = await AdmissionRequestModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: { $in: ['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'] } }, { $set: { wardId: oid(data.ward_id), bedId: oid(data.bed_id), holdId: safeOid(data.hold_id), consentDocumentId: safeOid(data.consent_document_id), depositInvoiceId: safeOid(data.deposit_invoice_id), status: 'READY_FOR_CONFIRMATION', updatedBy: oid(actor) } }, opts).lean<AdmissionRequestFields & { _id: Types.ObjectId }>();
     return item ? toRequest(item) : null;
   }
   async confirmRequest(id: string, admissionId: string, snapshot: AdmissionPrerequisiteSnapshot, actor: string, session?: ClientSession) {
-    const opts = session ? { new: true, session } : { new: true };
+    const opts = session ? { returnDocument: 'after' as const, session } : { returnDocument: 'after' as const };
     const item = await AdmissionRequestModel.findOneAndUpdate({ _id: oid(id), status: 'READY_FOR_CONFIRMATION', admissionId: null }, { $set: { status: 'CONFIRMED', admissionId: oid(admissionId), prerequisiteSnapshot: snapshot, updatedBy: oid(actor) } }, opts).lean<AdmissionRequestFields & { _id: Types.ObjectId }>();
     return item ? toRequest(item) : null;
   }
   async cancelRequest(id: string, branchId: string, reason: string, actor: string, session?: ClientSession) {
-    const opts = session ? { new: true, session } : { new: true };
+    const opts = session ? { returnDocument: 'after' as const, session } : { returnDocument: 'after' as const };
     const item = await AdmissionRequestModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: { $in: ['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'] } }, { $set: { status: 'CANCELLED', activeSourceKey: null, cancellationReason: reason, cancelledAt: new Date(), cancelledBy: oid(actor), updatedBy: oid(actor) } }, opts).lean<AdmissionRequestFields & { _id: Types.ObjectId }>();
     return item ? toRequest(item) : null;
   }
@@ -590,7 +590,7 @@ async createRequest(
     return toVital(item.toObject() as InpatientVitalFields & { _id: Types.ObjectId });
   }
   async saveDischargeSummary(id: string, branchId: string, summary: { hemodynamicStability24h: boolean; postOpRecoveryCleared: boolean; homeOralMedConverted: boolean; summaryFinalized: boolean; notes?: string | null }, actor: string, actorName: string, session?: ClientSession) {
-    const opts = session ? { new: true, session } : { new: true };
+    const opts = session ? { returnDocument: 'after' as const, session } : { returnDocument: 'after' as const };
     const item = await InpatientAdmissionModel.findOneAndUpdate(
       { _id: oid(id), branchId: oid(branchId) },
       {
@@ -614,7 +614,7 @@ async createRequest(
   }
 
   async markDischarged(id: string, branchId: string, actor: string, actorName: string, session?: ClientSession) {
-    const opts = session ? { new: true, session } : { new: true };
+    const opts = session ? { returnDocument: 'after' as const, session } : { returnDocument: 'after' as const };
     const item = await InpatientAdmissionModel.findOneAndUpdate(
       { _id: oid(id), branchId: oid(branchId), status: 'ADMITTED' },
       {

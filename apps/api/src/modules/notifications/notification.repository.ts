@@ -187,7 +187,7 @@ export class NotificationRepository {
     const doc = await NotificationModel.findByIdAndUpdate(
       id,
       { $set: { isRead: true } },
-      { new: true, lean: true }
+      { returnDocument: 'after', lean: true }
     ).lean<NotificationLean>();
     return doc ? toNotification(doc) : undefined;
   }
@@ -196,7 +196,7 @@ export class NotificationRepository {
     const doc = await NotificationModel.findOneAndUpdate(
       { _id: id, ...await this.recipientFilter(userId) },
       { $set: { isRead: true } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<NotificationLean>();
     return doc ? toNotification(doc) : undefined;
   }

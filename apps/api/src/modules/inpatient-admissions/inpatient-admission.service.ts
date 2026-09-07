@@ -10,7 +10,7 @@ import type { ClinicalOrderType, SaveOpdClinicalOrderDTO } from '../opd/opd-clin
 import type { OpdPrescriptionService } from '../opd/opd-prescription.service.js';
 import type { SaveOpdPrescriptionDTO } from '../opd/opd-prescription.types.js';
 import type { InpatientAdmissionRepository } from './inpatient-admission.repository.js';
-import type { AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, CancelAdmissionRequestDTO, ConfirmAdmissionRequestDTO, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, CreateInpatientRoundNoteDTO, CreateInpatientVitalDTO, InpatientAdmission, InpatientAdmissionListQuery, SaveDischargeSummaryDTO, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
+import type { AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, CancelAdmissionRequestDTO, ConfirmAdmissionRequestDTO, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, CreateInpatientRoundNoteDTO, CreateInpatientVitalDTO, InpatientAdmissionListQuery, SaveDischargeSummaryDTO, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
 import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
 
 const rethrowDuplicate = (error: unknown): never => {
@@ -18,46 +18,7 @@ const rethrowDuplicate = (error: unknown): never => {
   throw error;
 };
 
-async function executeWithOptionalTransaction<T>(
-  repository: InpatientAdmissionRepository,
-  operation: (session: ClientSession) => Promise<T>,
-): Promise<T> {
-  let session: ClientSession | null = null;
-  try {
-    const activeSession = await repository.session();
-    session = activeSession;
-    let result: T | undefined;
-    await activeSession.withTransaction(async () => {
-      result = await operation(activeSession);
-    });
-    if (result === undefined) {
-      throw new Error('Operation completed without a result');
-    }
-    return result;
-  } catch (error: unknown) {
-    if (error instanceof AppError) {
-      throw error;
-    }
-    const msg = error instanceof Error ? error.message.toLowerCase() : '';
-    if (
-      msg.includes('transaction') ||
-      msg.includes('replica set') ||
-      msg.includes('sharded cluster') ||
-      msg.includes('standalone')
-    ) {
-      throw new AppError(
-        'Database transaction required for atomic admission operation',
-        500,
-        'TRANSACTION_REQUIRED',
-      );
-    }
-    throw error;
-  } finally {
-    if (session) {
-      await session.endSession().catch(() => {});
-    }
-  }
-}
+import { executeTransaction } from '../../shared/database/transaction.js';
 
 export class InpatientAdmissionService {
   constructor(private readonly repository: InpatientAdmissionRepository, private readonly beds: AdmissionsConfigurationService, private readonly patients: PatientService, private readonly billing: BillingService, private readonly opdVisits: OpdVisitRepository, private readonly emergencies: EmergencyRepository, private readonly advancePayment: AdvancePaymentService, private readonly prescriptions: OpdPrescriptionService, private readonly clinicalOrders: OpdClinicalOrderService) {}
@@ -90,15 +51,16 @@ export class InpatientAdmissionService {
   }
 
   async submitPrescription(id: string, branchId: string, data: SaveOpdPrescriptionDTO, actor: string, metadata: AdmissionRequestMetadata) {
-    await this.authorize(actor, branchId); const session = await this.repository.session();
-    try { let result; await session.withTransaction(async () => {
+    await this.authorize(actor, branchId);
+    return executeTransaction(this.repository, async (session) => {
       const admission = await this.repository.getRecord(id, branchId, session);
       if (!admission || admission.status !== 'ADMITTED') throw new AppError('Inpatient admission is not active', 409, 'INPATIENT_CONTEXT_NOT_ACTIVE');
       const context = { source_type: 'INPATIENT_ADMISSION' as const, source_id: id, encounter_id: admission.sourceId?.toString() ?? null, admission_id: id, procedure_id: null, patient_id: admission.patientId.toString(), patient_number: admission.patientNumber, patient_name: admission.patientName, doctor_id: admission.admittingDoctorId.toString(), doctor_name: admission.admittingDoctorName, branch_id: branchId };
       const existing = await this.prescriptions.getForContext(context, session);
-      result = await this.prescriptions.submitForContext(context, data, actor, session);
+      const result = await this.prescriptions.submitForContext(context, data, actor, session);
       if (!existing) { await this.patients.addDownstreamTimeline(context.patient_id, 'INPATIENT_PRESCRIPTION_SUBMITTED', 'Inpatient prescription submitted', `Prescription submitted for ${admission.admissionNumber}.`, actor, session); await this.repository.audit('admissions.downstream.prescription_submitted', actor, metadata, { admissionId: id, patientId: context.patient_id, branchId, prescriptionId: result.id }, session); }
-    }); return result; } finally { await session.endSession(); }
+      return result;
+    });
   }
 
   async getClinicalOrder(id: string, branchId: string, orderType: ClinicalOrderType, actor: string) {
@@ -107,15 +69,16 @@ export class InpatientAdmissionService {
   }
 
   async submitClinicalOrder(id: string, branchId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, actor: string, metadata: AdmissionRequestMetadata) {
-    await this.authorize(actor, branchId); const session = await this.repository.session();
-    try { let result; await session.withTransaction(async () => {
+    await this.authorize(actor, branchId);
+    return executeTransaction(this.repository, async (session) => {
       const admission = await this.repository.getRecord(id, branchId, session);
       if (!admission || admission.status !== 'ADMITTED') throw new AppError('Inpatient admission is not active', 409, 'INPATIENT_CONTEXT_NOT_ACTIVE');
       const context = { source_type: 'INPATIENT_ADMISSION' as const, source_id: id, encounter_id: admission.sourceId?.toString() ?? null, admission_id: id, procedure_id: null, patient_id: admission.patientId.toString(), patient_number: admission.patientNumber, patient_name: admission.patientName, doctor_id: admission.admittingDoctorId.toString(), doctor_name: admission.admittingDoctorName, branch_id: branchId };
       const existing = await this.clinicalOrders.getForContext(context, orderType, session);
-      result = await this.clinicalOrders.submitForContext(context, orderType, data, actor, session);
+      const result = await this.clinicalOrders.submitForContext(context, orderType, data, actor, session);
       if (!existing) { const label = orderType === 'LABORATORY' ? 'laboratory' : 'imaging'; const event = orderType === 'LABORATORY' ? 'INPATIENT_LAB_ORDER_SUBMITTED' : 'INPATIENT_IMAGING_ORDER_SUBMITTED'; await this.patients.addDownstreamTimeline(context.patient_id, event, `Inpatient ${label} order submitted`, `${label} order submitted for ${admission.admissionNumber}.`, actor, session); await this.repository.audit(`admissions.downstream.${label}_order_submitted`, actor, metadata, { admissionId: id, patientId: context.patient_id, branchId, orderId: result.id }, session); }
-    }); return result; } finally { await session.endSession(); }
+      return result;
+    });
   }
 
   async listRoundNotes(id: string, branchId: string, actor: string) {
@@ -126,7 +89,7 @@ export class InpatientAdmissionService {
   async createRoundNote(id: string, branchId: string, data: CreateInpatientRoundNoteDTO, actor: string, metadata: AdmissionRequestMetadata) {
     const admission = await this.requireActiveAdmission(id, branchId, actor);
     const actorName = await this.repository.actorName(actor);
-    return executeWithOptionalTransaction(this.repository, async (session) => {
+    return executeTransaction(this.repository, async (session) => {
       const result = await this.repository.createRoundNote(admission, data, actor, actorName, session);
       await this.repository.audit('admissions.clinical.round_note_created', actor, metadata, { admissionId: id, patientId: admission.patient_id, branchId, encounterId: admission.source_id, roundNoteId: result.id }, session);
       return result;
@@ -141,7 +104,7 @@ export class InpatientAdmissionService {
   async createVital(id: string, branchId: string, data: CreateInpatientVitalDTO, actor: string, metadata: AdmissionRequestMetadata) {
     const admission = await this.requireActiveAdmission(id, branchId, actor);
     const actorName = await this.repository.actorName(actor);
-    return executeWithOptionalTransaction(this.repository, async (session) => {
+    return executeTransaction(this.repository, async (session) => {
       const result = await this.repository.createVital(admission, data, actor, actorName, session);
       await this.repository.audit('admissions.clinical.vital_created', actor, metadata, { admissionId: id, patientId: admission.patient_id, branchId, encounterId: admission.source_id, vitalId: result.id }, session);
       return result;
@@ -156,7 +119,7 @@ export class InpatientAdmissionService {
     if (admission.status === 'CANCELLED') throw new AppError('Cancelled admission cannot record a discharge summary', 409, 'ADMISSION_STATE_CONFLICT');
     const actorName = await this.repository.actorName(actor);
 
-    return executeWithOptionalTransaction(this.repository, async (session) => {
+    return executeTransaction(this.repository, async (session) => {
       const updated = await this.repository.saveDischargeSummary(id, branchId, {
         hemodynamicStability24h: data.hemodynamic_stability_24h,
         postOpRecoveryCleared: data.post_op_recovery_cleared,
@@ -176,71 +139,60 @@ export class InpatientAdmissionService {
     await this.authorize(actor, branchId);
     const actorName = await this.repository.actorName(actor);
 
-    const session = await this.repository.session();
-    try {
-      let result: InpatientAdmission | null = null;
-      await session.withTransaction(async () => {
-        const admissionRecord = await this.repository.getRecord(id, branchId, session);
-        if (!admissionRecord) throw new AppError('Inpatient admission not found', 404, 'ADMISSION_NOT_FOUND');
-        await this.authorizeDepartment(actor, admissionRecord.departmentId.toString());
+    return executeTransaction(this.repository, async (session) => {
+      const admissionRecord = await this.repository.getRecord(id, branchId, session);
+      if (!admissionRecord) throw new AppError('Inpatient admission not found', 404, 'ADMISSION_NOT_FOUND');
+      await this.authorizeDepartment(actor, admissionRecord.departmentId.toString());
 
-        // Idempotency: If already DISCHARGED, return existing state safely without duplicate bed release or audit
-        if (admissionRecord.status === 'DISCHARGED') {
-          const existing = await this.repository.getById(id, branchId);
-          result = existing;
-          return;
-        }
+      // Idempotency: If already DISCHARGED, return existing state safely without duplicate bed release or audit
+      if (admissionRecord.status === 'DISCHARGED') {
+        const existing = await this.repository.getById(id, branchId);
+        return existing!;
+      }
 
-        if (admissionRecord.status !== 'ADMITTED') {
-          throw new AppError('Only an active ADMITTED inpatient admission can be discharged', 409, 'ADMISSION_STATE_CONFLICT');
-        }
+      if (admissionRecord.status !== 'ADMITTED') {
+        throw new AppError('Only an active ADMITTED inpatient admission can be discharged', 409, 'ADMISSION_STATE_CONFLICT');
+      }
 
-        // 1. Clinical Readiness Validation
-        const summary = admissionRecord.dischargeSummary;
-        if (!summary || !summary.hemodynamicStability24h || !summary.postOpRecoveryCleared || !summary.homeOralMedConverted || !summary.summaryFinalized) {
-          throw new AppError('Clinical discharge readiness checklist must be fully completed and finalized by the attending doctor before final discharge', 409, 'DISCHARGE_CHECKLIST_INCOMPLETE');
-        }
+      // 1. Clinical Readiness Validation
+      const summary = admissionRecord.dischargeSummary;
+      if (!summary || !summary.hemodynamicStability24h || !summary.postOpRecoveryCleared || !summary.homeOralMedConverted || !summary.summaryFinalized) {
+        throw new AppError('Clinical discharge readiness checklist must be fully completed and finalized by the attending doctor before final discharge', 409, 'DISCHARGE_CHECKLIST_INCOMPLETE');
+      }
 
-        // 2. Financial Clearance Validation
-        // Existing billing policy: verify if invoice exists for this inpatient admission context or if there are unpaid charges
-        const invoices = await this.billing.list({ admission_id: admissionRecord._id.toString(), branch_id: branchId, page: 1, limit: 100 }, actor, session);
-        const activeInvoices = invoices.data.filter((inv) => inv.status !== 'CANCELLED');
-        const totalOutstanding = activeInvoices.reduce((acc, inv) => acc + inv.balance_amount, 0);
+      // 2. Financial Clearance Validation
+      // Existing billing policy: verify if invoice exists for this inpatient admission context or if there are unpaid charges
+      const invoices = await this.billing.list({ admission_id: admissionRecord._id.toString(), branch_id: branchId, page: 1, limit: 100 }, actor, session);
+      const activeInvoices = invoices.data.filter((inv) => inv.status !== 'CANCELLED');
+      const totalOutstanding = activeInvoices.reduce((acc, inv) => acc + inv.balance_amount, 0);
 
-        const policy = await this.beds.getPolicyForConfirmation(branchId, session);
-        // If policy requires advance deposit or full clearance before discharge
-        if (policy.admission_advance_deposit_required && totalOutstanding > 0) {
-          throw new AppError(`Financial clearance failed. Patient has an outstanding balance of KES ${totalOutstanding.toLocaleString()} that must be settled before discharge.`, 409, 'FINANCIAL_CLEARANCE_REQUIRED');
-        }
+      const policy = await this.beds.getPolicyForConfirmation(branchId, session);
+      // If policy requires advance deposit or full clearance before discharge
+      if (policy.admission_advance_deposit_required && totalOutstanding > 0) {
+        throw new AppError(`Financial clearance failed. Patient has an outstanding balance of KES ${totalOutstanding.toLocaleString()} that must be settled before discharge.`, 409, 'FINANCIAL_CLEARANCE_REQUIRED');
+      }
 
-        // 3. Mark Admission as DISCHARGED
-        const discharged = await this.repository.markDischarged(id, branchId, actor, actorName, session);
-        if (!discharged) throw new AppError('Admission status changed concurrently before discharge finalization', 409, 'ADMISSION_STATE_CONFLICT');
+      // 3. Mark Admission as DISCHARGED
+      const discharged = await this.repository.markDischarged(id, branchId, actor, actorName, session);
+      if (!discharged) throw new AppError('Admission status changed concurrently before discharge finalization', 409, 'ADMISSION_STATE_CONFLICT');
 
-        // 4. Release Allocated Bed (if allocated) - MUST NOT swallow errors to ensure transaction safety
-        await this.beds.releaseAdmissionBed(admissionRecord, false, 'Patient discharged from inpatient care', actor, metadata, session);
+      // 4. Release Allocated Bed (if allocated) - MUST NOT swallow errors to ensure transaction safety
+      await this.beds.releaseAdmissionBed(admissionRecord, false, 'Patient discharged from inpatient care', actor, metadata, session);
 
-        // 5. Patient EHR Timeline & Audit Logging
-        await this.patients.addAdmissionTimeline(admissionRecord.patientId.toString(), 'INPATIENT_DISCHARGED', 'Inpatient discharged', `Patient successfully discharged under ${admissionRecord.admissionNumber}. Bed ${discharged.bed_number} released.`, actor, session);
-        await this.repository.audit('admissions.lifecycle.discharged', actor, metadata, { admissionId: id, patientId: admissionRecord.patientId.toString(), branchId, wardId: admissionRecord.wardId.toString(), bedId: admissionRecord.bedId.toString(), dischargedAt: discharged.discharged_at }, session);
+      // 5. Patient EHR Timeline & Audit Logging
+      await this.patients.addAdmissionTimeline(admissionRecord.patientId.toString(), 'INPATIENT_DISCHARGED', 'Inpatient discharged', `Patient successfully discharged under ${admissionRecord.admissionNumber}. Bed ${discharged.bed_number} released.`, actor, session);
+      await this.repository.audit('admissions.lifecycle.discharged', actor, metadata, { admissionId: id, patientId: admissionRecord.patientId.toString(), branchId, wardId: admissionRecord.wardId.toString(), bedId: admissionRecord.bedId.toString(), dischargedAt: discharged.discharged_at }, session);
 
-        result = discharged;
-      });
-
-      if (!result) throw new AppError('Discharge finalization could not be completed', 500, 'DISCHARGE_FAILED');
-      return result;
-    } finally {
-      await session.endSession();
-    }
+      return discharged;
+    });
   }
 
   async createRequest(data: CreateAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
     await this.authorize(actor, data.branch_id);
-    await this.authorizeDepartment(actor, data.department_id);
     if (data.source_type !== 'DIRECT' && !data.source_id) throw new AppError('Source id is required', 400, 'VALIDATION_ERROR');
     if (data.source_type === 'DIRECT' && data.source_id) throw new AppError('Direct requests cannot include a source id', 400, 'VALIDATION_ERROR');
     try {
-      return await executeWithOptionalTransaction(this.repository, async (session) => {
+      return await executeTransaction(this.repository, async (session) => {
         const refs = await this.repository.requestReferences(data, session);
         if (!refs.patient) throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
         if (!refs.doctor) throw new AppError('Active recommending doctor is not available in this branch', 404, 'DOCTOR_NOT_FOUND');
@@ -275,9 +227,10 @@ export class InpatientAdmissionService {
 
   async validateRequest(id: string, branchId: string, data: ValidateAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
     await this.authorize(actor, branchId);
-    return executeWithOptionalTransaction(this.repository, async (session) => {
+    return executeTransaction(this.repository, async (session) => {
       const request = await this.repository.getRequest(id, branchId, session);
       if (!request || !['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'].includes(request.status)) throw new AppError('Admission request cannot be validated in its current state', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
+      await this.authorizeDepartment(actor, request.department_id);
       if (await this.repository.hasActiveAdmission(request.patient_id, session)) throw new AppError('Patient already has an active inpatient admission', 409, 'ACTIVE_ADMISSION_EXISTS');
       const result = await this.repository.validateRequest(id, branchId, data, actor, session);
       if (!result) throw new AppError('Admission request changed before validation', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
@@ -289,7 +242,7 @@ export class InpatientAdmissionService {
   async confirmRequest(id: string, branchId: string, data: ConfirmAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
     await this.authorize(actor, branchId);
     try {
-      return await executeWithOptionalTransaction(this.repository, async (session) => {
+      return await executeTransaction(this.repository, async (session) => {
         const request = await this.repository.getRequest(id, branchId, session);
         if (!request) throw new AppError('Admission request not found', 404, 'ADMISSION_REQUEST_NOT_FOUND');
         await this.authorizeDepartment(actor, request.department_id);
@@ -326,7 +279,7 @@ export class InpatientAdmissionService {
 
   async cancelRequest(id: string, branchId: string, data: CancelAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
     await this.authorize(actor, branchId);
-    return executeWithOptionalTransaction(this.repository, async (session) => {
+    return executeTransaction(this.repository, async (session) => {
       const request = await this.repository.getRequest(id, branchId, session);
       if (!request || !['PENDING_VALIDATION', 'READY_FOR_CONFIRMATION'].includes(request.status)) throw new AppError('Only a draft admission request can be cancelled', 409, 'ADMISSION_REQUEST_STATE_CONFLICT');
       if (request.hold_id) await this.beds.cancelAdmissionRequestHold(request.hold_id, branchId, data.reason, actor, metadata, session);
@@ -349,7 +302,7 @@ export class InpatientAdmissionService {
 
   private async requireActiveAdmission(id: string, branchId: string, actor: string) { await this.authorize(actor, branchId); const admission = await this.repository.getById(id, branchId); if (!admission) throw new AppError('Inpatient admission not found', 404, 'ADMISSION_NOT_FOUND'); await this.authorizeDepartment(actor, admission.department_id); if (admission.status !== 'ADMITTED') throw new AppError('Inpatient admission is not active', 409, 'INPATIENT_CONTEXT_NOT_ACTIVE'); return admission; }
 
-  private async validateEmergencySource(data: CreateAdmissionRequestDTO, session: ClientSession) {
+  private async validateEmergencySource(data: CreateAdmissionRequestDTO, session?: ClientSession) {
     const encounter = data.source_id ? await this.emergencies.getRecord(data.source_id, data.branch_id, session) : null;
     if (!encounter) throw new AppError('Emergency source encounter was not found in this branch', 404, 'ADMISSION_SOURCE_NOT_FOUND');
     if (encounter.inpatientAdmissionId || encounter.status === 'CONVERTED_TO_IP') throw new AppError('This Emergency encounter has already been converted', 409, 'ADMISSION_SOURCE_ALREADY_CONVERTED');

@@ -153,7 +153,7 @@ export class PatientOtpService {
         expiresAt: { $gt: now },
       },
       { $set: { consumedAt: now } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!registrationToken) {
       throw new AppError(

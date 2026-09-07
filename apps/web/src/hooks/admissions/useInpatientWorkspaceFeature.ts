@@ -64,10 +64,25 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
     action: 'Discharge',
   }, roles);
 
+  const isSuperAdmin = user?.roles.some((role) => role.code === 'SUPER_ADMIN' || role.code === 'ADMINISTRATOR') ?? false;
+  const isDoctor = roles.some((role) => role.code === 'DOCTOR' || role.code === 'CLINICIAN_DOCTOR');
+  const isReceptionist = roles.some((role) => role.code === 'RECEPTIONIST');
+  const isNurse = roles.some((role) => role.code === 'CLINICIAN_NURSE');
+
+  const showDischargeChecklist =
+    isSuperAdmin ||
+    isDoctor ||
+    isNurse ||
+    (!isReceptionist && canSaveDischargeSummary);
+
+  const showOperationalClearance =
+    isSuperAdmin ||
+    isReceptionist ||
+    (!isDoctor && canFinalizeDischarge);
+
   const location = useAppLocation();
   const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
-  const isSuperAdmin = user?.roles.some((role) => role.code === 'SUPER_ADMIN') ?? false;
   const branchesQuery = useBranchesList(
     { status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' },
     isSuperAdmin,
@@ -215,6 +230,8 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
         recommendSurgery: canRecommendSurgery,
         saveDischargeSummary: canSaveDischargeSummary,
         finalizeDischarge: canFinalizeDischarge,
+        showDischargeChecklist,
+        showOperationalClearance,
       },
       loading: {
         admissions: admissionsQuery.isLoading,

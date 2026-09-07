@@ -1,5 +1,6 @@
 import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import type { PharmacyInventoryRepository } from './pharmacy-inventory.repository.js';
 import type {
   PharmacyBatchListQuery,
@@ -59,7 +60,7 @@ export class PharmacyInventoryService {
     branchId: string,
     actorUserId: string,
     metadata: PharmacyInventoryRequestMetadata,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     if (previousState === nextState) return;
     if (nextState === 'LOW_STOCK') {
@@ -86,46 +87,41 @@ export class PharmacyInventoryService {
   ) {
     const candidates = await this.repository.findExpiredActiveBatches(branchId);
     if (candidates.length === 0) return;
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const medicineIds = new Set<string>();
-        const previousStates = new Map<string, string>();
-        for (const candidate of candidates) {
-          const medicineId = String(candidate.medicineId);
-          const previous = await this.repository.getInventory(medicineId, branchId, session);
-          if (previous) previousStates.set(medicineId, previous.stockState);
-          const expired = await this.repository.expireBatch(String(candidate._id), session);
-          if (!expired) continue;
-          medicineIds.add(medicineId);
-          await this.repository.audit('medicine_inventory.batch_expired', actorUserId, metadata, {
+    await executeTransaction(() => mongoose.startSession(), async (session) => {
+      const medicineIds = new Set<string>();
+      const previousStates = new Map<string, string>();
+      for (const candidate of candidates) {
+        const medicineId = String(candidate.medicineId);
+        const previous = await this.repository.getInventory(medicineId, branchId, session);
+        if (previous) previousStates.set(medicineId, previous.stockState);
+        const expired = await this.repository.expireBatch(String(candidate._id), session);
+        if (!expired) continue;
+        medicineIds.add(medicineId);
+        await this.repository.audit('medicine_inventory.batch_expired', actorUserId, metadata, {
+          medicineId,
+          branchId,
+          batchId: String(candidate._id),
+          batchNumber: candidate.batchNumber,
+          expiryDate: candidate.expiryDate,
+          quantityOnHand: candidate.quantityOnHand,
+          source: 'automatic_expiry_reconciliation',
+        }, session);
+      }
+      for (const medicineId of medicineIds) {
+        const refreshed = await this.repository.refreshInventorySnapshot(medicineId, branchId, actorUserId, session);
+        if (refreshed) {
+          await this.auditStockStateTransition(
+            previousStates.get(medicineId),
+            refreshed.stockState,
             medicineId,
             branchId,
-            batchId: String(candidate._id),
-            batchNumber: candidate.batchNumber,
-            expiryDate: candidate.expiryDate,
-            quantityOnHand: candidate.quantityOnHand,
-            source: 'automatic_expiry_reconciliation',
-          }, session);
+            actorUserId,
+            metadata,
+            session,
+          );
         }
-        for (const medicineId of medicineIds) {
-          const refreshed = await this.repository.refreshInventorySnapshot(medicineId, branchId, actorUserId, session);
-          if (refreshed) {
-            await this.auditStockStateTransition(
-              previousStates.get(medicineId),
-              refreshed.stockState,
-              medicineId,
-              branchId,
-              actorUserId,
-              metadata,
-              session,
-            );
-          }
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+      }
+    });
   }
 
   async list(query: PharmacyInventoryListQuery, actorUserId: string, metadata: PharmacyInventoryRequestMetadata) {
@@ -198,10 +194,9 @@ export class PharmacyInventoryService {
     if (expiryDate < startOfUtcDay()) {
       throw new AppError('An expired batch cannot be registered', 400, 'BATCH_ALREADY_EXPIRED');
     }
-    const session = await mongoose.startSession();
     try {
       let batchId: string | undefined;
-      await session.withTransaction(async () => {
+      await executeTransaction(() => mongoose.startSession(), async (session) => {
         await this.requireActiveMedicine(medicineId, session);
         const previous = await this.repository.ensureInventory(medicineId, data.branch_id, actorUserId, session);
         const batch = await this.repository.createBatch(medicineId, data, expiryDate, actorUserId, session);
@@ -272,8 +267,6 @@ export class PharmacyInventoryService {
         throw new AppError('Batch number already exists for this medicine and branch', 409, 'DUPLICATE_BATCH_NUMBER');
       }
       throw error;
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -288,34 +281,28 @@ export class PharmacyInventoryService {
     if (expiryDate && expiryDate < startOfUtcDay()) {
       throw new AppError('Batch expiry cannot be changed to a past date', 400, 'BATCH_ALREADY_EXPIRED');
     }
-    const session = await mongoose.startSession();
-    try {
-      let medicineId: string | undefined;
-      await session.withTransaction(async () => {
-        const existing = await this.repository.getBatch(batchId, data.branch_id, session);
-        if (!existing) throw new AppError('Medicine batch not found', 404, 'BATCH_NOT_FOUND');
-        if (existing.status === 'EXPIRED') {
-          throw new AppError('Expired batch metadata cannot be changed', 409, 'EXPIRED_BATCH_IMMUTABLE');
-        }
-        medicineId = String(existing.medicineId);
-        const updated = await this.repository.updateBatchMetadata(batchId, data, expiryDate, actorUserId, session);
-        if (!updated) throw new AppError('Medicine batch not found', 404, 'BATCH_NOT_FOUND');
-        await this.repository.refreshInventorySnapshot(medicineId, data.branch_id, actorUserId, session);
-        await this.repository.audit('medicine_inventory.batch_corrected', actorUserId, metadata, {
-          medicineId,
-          branchId: data.branch_id,
-          batchId,
-          previousExpiryDate: existing.expiryDate,
-          expiryDate: updated.expiryDate,
-          previousBarcode: existing.barcode ?? null,
-          barcode: updated.barcode ?? null,
-          reason: data.reason,
-        }, session);
-      });
-      return this.repository.getBatch(batchId, data.branch_id);
-    } finally {
-      await session.endSession();
-    }
+    await executeTransaction(() => mongoose.startSession(), async (session) => {
+      const existing = await this.repository.getBatch(batchId, data.branch_id, session);
+      if (!existing) throw new AppError('Medicine batch not found', 404, 'BATCH_NOT_FOUND');
+      if (existing.status === 'EXPIRED') {
+        throw new AppError('Expired batch metadata cannot be changed', 409, 'EXPIRED_BATCH_IMMUTABLE');
+      }
+      const medicineId = String(existing.medicineId);
+      const updated = await this.repository.updateBatchMetadata(batchId, data, expiryDate, actorUserId, session);
+      if (!updated) throw new AppError('Medicine batch not found', 404, 'BATCH_NOT_FOUND');
+      await this.repository.refreshInventorySnapshot(medicineId, data.branch_id, actorUserId, session);
+      await this.repository.audit('medicine_inventory.batch_corrected', actorUserId, metadata, {
+        medicineId,
+        branchId: data.branch_id,
+        batchId,
+        previousExpiryDate: existing.expiryDate,
+        expiryDate: updated.expiryDate,
+        previousBarcode: existing.barcode ?? null,
+        barcode: updated.barcode ?? null,
+        reason: data.reason,
+      }, session);
+    });
+    return this.repository.getBatch(batchId, data.branch_id);
   }
 
   async recordMovement(
@@ -327,10 +314,9 @@ export class PharmacyInventoryService {
     const existingMovement = await this.repository.findMovementByIdempotencyKey(data.branch_id, data.idempotency_key);
     if (existingMovement) return { movement: existingMovement, replayed: true };
     await this.reconcileExpiry(data.branch_id, actorUserId, metadata);
-    const session = await mongoose.startSession();
     try {
       let result: { movement: Awaited<ReturnType<PharmacyInventoryRepository['createMovement']>>; replayed: boolean } | undefined;
-      await session.withTransaction(async () => {
+      await executeTransaction(() => mongoose.startSession(), async (session) => {
         const replay = await this.repository.findMovementByIdempotencyKey(data.branch_id, data.idempotency_key, session);
         if (replay) {
           result = { movement: replay, replayed: true };
@@ -407,8 +393,6 @@ export class PharmacyInventoryService {
         if (replay) return { movement: replay, replayed: true };
       }
       throw error;
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -419,39 +403,34 @@ export class PharmacyInventoryService {
     metadata: PharmacyInventoryRequestMetadata,
   ) {
     await this.requireBranchAccess(actorUserId, data.branch_id);
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        await this.requireMedicine(medicineId, session);
-        const previous = await this.repository.ensureInventory(medicineId, data.branch_id, actorUserId, session);
-        const updated = await this.repository.updateThreshold(
-          medicineId,
-          data.branch_id,
-          data.low_stock_threshold,
-          actorUserId,
-          session,
-        );
-        if (!updated) throw new AppError('Inventory could not be updated', 500, 'INVENTORY_UPDATE_FAILED');
-        await this.repository.audit('medicine_inventory.low_stock_threshold_changed', actorUserId, metadata, {
-          medicineId,
-          branchId: data.branch_id,
-          previousThreshold: previous.lowStockThreshold,
-          lowStockThreshold: data.low_stock_threshold,
-          reason: data.reason,
-        }, session);
-        await this.auditStockStateTransition(
-          previous.stockState,
-          updated.stockState,
-          medicineId,
-          data.branch_id,
-          actorUserId,
-          metadata,
-          session,
-        );
-      });
-      return this.repository.getDetail(medicineId, data.branch_id);
-    } finally {
-      await session.endSession();
-    }
+    await executeTransaction(() => mongoose.startSession(), async (session) => {
+      await this.requireMedicine(medicineId, session);
+      const previous = await this.repository.ensureInventory(medicineId, data.branch_id, actorUserId, session);
+      const updated = await this.repository.updateThreshold(
+        medicineId,
+        data.branch_id,
+        data.low_stock_threshold,
+        actorUserId,
+        session,
+      );
+      if (!updated) throw new AppError('Inventory could not be updated', 500, 'INVENTORY_UPDATE_FAILED');
+      await this.repository.audit('medicine_inventory.low_stock_threshold_changed', actorUserId, metadata, {
+        medicineId,
+        branchId: data.branch_id,
+        previousThreshold: previous.lowStockThreshold,
+        lowStockThreshold: data.low_stock_threshold,
+        reason: data.reason,
+      }, session);
+      await this.auditStockStateTransition(
+        previous.stockState,
+        updated.stockState,
+        medicineId,
+        data.branch_id,
+        actorUserId,
+        metadata,
+        session,
+      );
+    });
+    return this.repository.getDetail(medicineId, data.branch_id);
   }
 }

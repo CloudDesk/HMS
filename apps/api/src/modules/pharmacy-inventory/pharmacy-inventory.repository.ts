@@ -314,7 +314,7 @@ export class PharmacyInventoryRepository {
     return record ? toInventory(record) : undefined;
   }
 
-  async ensureInventory(medicineId: string, branchId: string, actorUserId: string, session: ClientSession) {
+  async ensureInventory(medicineId: string, branchId: string, actorUserId: string, session?: ClientSession) {
     return PharmacyMedicineInventoryModel.findOneAndUpdate(
       { medicineId: objectId(medicineId), branchId: objectId(branchId) },
       {
@@ -329,7 +329,7 @@ export class PharmacyInventoryRepository {
         },
         $set: { updatedBy: objectId(actorUserId) },
       },
-      { upsert: true, returnDocument: 'after', session, runValidators: true },
+      { upsert: true, returnDocument: 'after', session: session ?? undefined, runValidators: true },
     ).lean();
   }
 
@@ -338,7 +338,7 @@ export class PharmacyInventoryRepository {
     data: RegisterMedicineBatchDTO,
     expiryDate: Date,
     actorUserId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const record = new PharmacyMedicineBatchModel({
       medicineId: objectId(medicineId),
@@ -352,7 +352,7 @@ export class PharmacyInventoryRepository {
       createdBy: objectId(actorUserId),
       updatedBy: objectId(actorUserId),
     });
-    await record.save({ session });
+    await record.save({ session: session ?? undefined });
     return record.toObject();
   }
 
@@ -380,7 +380,7 @@ export class PharmacyInventoryRepository {
     data: UpdateMedicineBatchDTO,
     expiryDate: Date | undefined,
     actorUserId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const set: Record<string, unknown> = { updatedBy: objectId(actorUserId) };
     if (expiryDate) set.expiryDate = expiryDate;
@@ -389,7 +389,7 @@ export class PharmacyInventoryRepository {
     return PharmacyMedicineBatchModel.findOneAndUpdate(
       { _id: id, branchId: data.branch_id },
       { $set: set },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     );
   }
 
@@ -470,7 +470,7 @@ export class PharmacyInventoryRepository {
     branchId: string,
     delta: number,
     actorUserId: string,
-    session: ClientSession,
+    session?: ClientSession,
     allowExpired = false,
   ) {
     const filter: Record<string, unknown> = { _id: batchId, branchId };
@@ -493,7 +493,7 @@ export class PharmacyInventoryRepository {
     const query = PharmacyMedicineBatchModel.findOneAndUpdate(filter).setOptions({
       returnDocument: 'after',
       lean: true,
-      session,
+      session: session ?? undefined,
       updatePipeline: true,
     });
     query.setUpdate(updatePipeline);
@@ -517,7 +517,7 @@ export class PharmacyInventoryRepository {
       idempotencyKey?: string | null;
     },
     actorUserId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const record = new PharmacyMedicineStockMovementModel({
       medicineId: objectId(data.medicineId),
@@ -534,7 +534,7 @@ export class PharmacyInventoryRepository {
       idempotencyKey: data.idempotencyKey ?? null,
       createdBy: objectId(actorUserId),
     });
-    await record.save({ session });
+    await record.save({ session: session ?? undefined });
     return toMovement(record.toObject());
   }
 
@@ -576,14 +576,14 @@ export class PharmacyInventoryRepository {
     branchId: string,
     threshold: number,
     actorUserId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const inventory = await this.ensureInventory(medicineId, branchId, actorUserId, session);
     const stockState = stockStateFor(inventory.availableQuantity, threshold);
     return PharmacyMedicineInventoryModel.findOneAndUpdate(
       { medicineId, branchId },
       { $set: { lowStockThreshold: threshold, stockState, updatedBy: objectId(actorUserId) } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     );
   }
 
@@ -591,11 +591,11 @@ export class PharmacyInventoryRepository {
     medicineId: string,
     branchId: string,
     actorUserId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const today = startOfUtcDay();
     const farFuture = new Date('9999-12-31T00:00:00.000Z');
-    const [totals] = await PharmacyMedicineBatchModel.aggregate([
+    const agg = PharmacyMedicineBatchModel.aggregate([
       { $match: { medicineId: objectId(medicineId), branchId: objectId(branchId) } },
       {
         $group: {
@@ -626,7 +626,9 @@ export class PharmacyInventoryRepository {
           },
         },
       },
-    ]).session(session);
+    ]);
+    if (session) agg.session(session);
+    const [totals] = await agg;
     const inventory = await this.ensureInventory(medicineId, branchId, actorUserId, session);
     const availableQuantity = totals?.availableQuantity ?? 0;
     const nextExpiryDate = totals?.nextExpiryDate && totals.nextExpiryDate < farFuture
@@ -644,7 +646,7 @@ export class PharmacyInventoryRepository {
           updatedBy: objectId(actorUserId),
         },
       },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     );
     return updated;
   }
@@ -658,11 +660,11 @@ export class PharmacyInventoryRepository {
     }).sort({ expiryDate: 1, _id: 1 }).limit(limit).lean();
   }
 
-  async expireBatch(batchId: string, session: ClientSession) {
+  async expireBatch(batchId: string, session?: ClientSession) {
     return PharmacyMedicineBatchModel.findOneAndUpdate(
       { _id: batchId, status: 'ACTIVE', expiryDate: { $lt: startOfUtcDay() } },
       { $set: { status: 'EXPIRED' } },
-      { returnDocument: 'after', lean: true, session },
+      { returnDocument: 'after', lean: true, session: session ?? undefined },
     );
   }
 

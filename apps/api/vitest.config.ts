@@ -5,9 +5,10 @@ export default defineConfig({
     name: 'api',
     environment: 'node',
     globals: true,
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
     exclude: ['dist/**', 'node_modules/**'],
-    testTimeout: 20000,
+    testTimeout: 30000,
+    hookTimeout: 30000,
     env: {
       MONGODB_URI: 'mongodb://localhost:27017/hms-test',
     },

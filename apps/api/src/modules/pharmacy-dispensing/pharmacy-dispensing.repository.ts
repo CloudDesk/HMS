@@ -57,30 +57,31 @@ export class PharmacyDispensingRepository {
     patientId: string,
     branchId: string,
     encounterId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
-    const booking = await ProcedureBookingModel.findOne({
+    const bookingQuery = ProcedureBookingModel.findOne({
       _id: objectId(bookingId),
       patientId: objectId(patientId),
       branchId: objectId(branchId),
       status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
     })
       .select('recommendationId')
-      .session(session)
       .lean();
+    if (session) bookingQuery.session(session);
+    const booking = await bookingQuery;
 
     if (!booking) return false;
 
-    return Boolean(
-      await ProcedureRecommendationModel.exists({
-        _id: booking.recommendationId,
-        patientId: objectId(patientId),
-        branchId: objectId(branchId),
-        encounterId: objectId(encounterId),
-        status: 'BOOKED',
-        bookingId: objectId(bookingId),
-      }).session(session),
-    );
+    const existsQuery = ProcedureRecommendationModel.exists({
+      _id: booking.recommendationId,
+      patientId: objectId(patientId),
+      branchId: objectId(branchId),
+      encounterId: objectId(encounterId),
+      status: 'BOOKED',
+      bookingId: objectId(bookingId),
+    });
+    if (session) existsQuery.session(session);
+    return Boolean(await existsQuery);
   }
 
   private toDispensing(
@@ -173,27 +174,27 @@ export class PharmacyDispensingRepository {
     return updated;
   }
 
-  async saveInSession(recordId: string, version: number, items: DispensingItemInput[], userId: string, session: ClientSession) {
+  async saveInSession(recordId: string, version: number, items: DispensingItemInput[], userId: string, session?: ClientSession) {
     return PharmacyDispensingModel.findOneAndUpdate(
       { _id: objectId(recordId), status: 'DRAFT', version },
       { $set: { items, updatedBy: objectId(userId) }, $inc: { version: 1 } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<DispensingRecord>();
   }
 
-  async confirm(recordId: string, version: number, userId: string, invoiceId: string, key: string, session: ClientSession) {
+  async confirm(recordId: string, version: number, userId: string, invoiceId: string, key: string, session?: ClientSession) {
     return PharmacyDispensingModel.findOneAndUpdate(
       { _id: objectId(recordId), status: 'DRAFT', version },
       { $set: { status: 'CONFIRMED', invoiceId: objectId(invoiceId), confirmIdempotencyKey: key, confirmedAt: new Date(), confirmedBy: objectId(userId), updatedBy: objectId(userId) }, $inc: { version: 1 } },
-      { returnDocument: 'after', lean: true, session },
+      { returnDocument: 'after', lean: true, session: session ?? undefined },
     ).lean<DispensingRecord>();
   }
 
-  async reverse(recordId: string, version: number, userId: string, key: string, reason: string, session: ClientSession) {
+  async reverse(recordId: string, version: number, userId: string, key: string, reason: string, session?: ClientSession) {
     return PharmacyDispensingModel.findOneAndUpdate(
       { _id: objectId(recordId), status: 'CONFIRMED', version },
       { $set: { status: 'REVERSED', reverseIdempotencyKey: key, reversedAt: new Date(), reversedBy: objectId(userId), reversalReason: reason, updatedBy: objectId(userId) }, $inc: { version: 1 } },
-      { returnDocument: 'after', lean: true, session },
+      { returnDocument: 'after', lean: true, session: session ?? undefined },
     ).lean<DispensingRecord>();
   }
 
@@ -296,16 +297,16 @@ export class PharmacyDispensingRepository {
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 } };
   }
 
-  async cancel(id: string, version: number, userId: string, reason: string, session: ClientSession) {
+  async cancel(id: string, version: number, userId: string, reason: string, session?: ClientSession) {
     return PharmacyDispensingModel.findOneAndUpdate(
       { _id: objectId(id), status: 'DRAFT', version },
       { $set: { status: 'CANCELLED', updatedBy: objectId(userId), cancelledAt: new Date(), cancelledBy: objectId(userId), cancellationReason: reason }, $inc: { version: 1 } },
-      { returnDocument: 'after', lean: true, session },
+      { returnDocument: 'after', lean: true, session: session ?? undefined },
     ).lean<DispensingRecord>();
   }
 
-  async audit(eventType: string, actor: string, metadata: { ipAddress?: string; userAgent?: string }, details: Record<string, unknown>, session: ClientSession) {
-    await AuditLogModel.create([{ eventType, actorUserId: actor, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details }], { session });
+  async audit(eventType: string, actor: string, metadata: { ipAddress?: string; userAgent?: string }, details: Record<string, unknown>, session?: ClientSession) {
+    await AuditLogModel.create([{ eventType, actorUserId: actor, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details }], { session: session ?? undefined });
   }
 
   getInventoryRepository() { return this.inventory; }

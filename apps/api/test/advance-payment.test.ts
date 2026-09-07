@@ -1,25 +1,28 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { AdvancePaymentService } from '../src/modules/advance-payment/advance-payment.service.js';
 import { AdvancePaymentRepository } from '../src/modules/advance-payment/advance-payment.repository.js';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { createObjectId } from './factories.js';
 
-test('AdvancePaymentService', async (t) => {
-  await setupTestDatabase();
-  
-  const repository = new AdvancePaymentRepository();
-  const service = new AdvancePaymentService(repository);
+describe('AdvancePaymentService', () => {
+  let repository: AdvancePaymentRepository;
+  let service: AdvancePaymentService;
 
-  t.afterEach(async () => {
+  beforeAll(async () => {
+    await setupTestDatabase();
+    repository = new AdvancePaymentRepository();
+    service = new AdvancePaymentService(repository);
+  }, 30000);
+
+  afterEach(async () => {
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
-  await t.test('syncRequirement - NOT_REQUIRED', async () => {
+  it('syncRequirement - NOT_REQUIRED', async () => {
     const patientId = createObjectId();
     const branchId = createObjectId();
     const sourceId = createObjectId();
@@ -33,14 +36,14 @@ test('AdvancePaymentService', async (t) => {
       requirement_status: 'NOT_REQUIRED'
     }, createObjectId());
     
-    assert.equal(doc.requirement_status, 'NOT_REQUIRED');
-    assert.equal(doc.required_amount, 0);
-    assert.equal(doc.paid_amount, 0);
-    assert.equal(doc.balance_amount, 0);
-    assert.equal(doc.payment_status, 'PENDING'); // Or irrelevant
+    expect(doc.requirement_status).toBe('NOT_REQUIRED');
+    expect(doc.required_amount).toBe(0);
+    expect(doc.paid_amount).toBe(0);
+    expect(doc.balance_amount).toBe(0);
+    expect(doc.payment_status).toBe('PENDING');
   });
 
-  await t.test('syncRequirement - REQUIRED', async () => {
+  it('syncRequirement - REQUIRED', async () => {
     const patientId = createObjectId();
     const branchId = createObjectId();
     const sourceId = createObjectId();
@@ -54,14 +57,14 @@ test('AdvancePaymentService', async (t) => {
       requirement_status: 'REQUIRED'
     }, createObjectId());
     
-    assert.equal(doc.requirement_status, 'REQUIRED');
-    assert.equal(doc.required_amount, 10000);
-    assert.equal(doc.paid_amount, 0);
-    assert.equal(doc.balance_amount, 10000);
-    assert.equal(doc.payment_status, 'PENDING');
+    expect(doc.requirement_status).toBe('REQUIRED');
+    expect(doc.required_amount).toBe(10000);
+    expect(doc.paid_amount).toBe(0);
+    expect(doc.balance_amount).toBe(10000);
+    expect(doc.payment_status).toBe('PENDING');
   });
 
-  await t.test('Payment states and calculations', async () => {
+  it('Payment states and calculations', async () => {
     const sourceId = createObjectId();
     const userId = createObjectId();
     
@@ -77,27 +80,27 @@ test('AdvancePaymentService', async (t) => {
 
     // 2. Partial Payment
     let updated = await service.processPayment('PROCEDURE_BOOKING', sourceId, 5000, userId);
-    assert.ok(updated);
-    assert.equal(updated.paid_amount, 5000);
-    assert.equal(updated.balance_amount, 5000);
-    assert.equal(updated.payment_status, 'PARTIALLY_PAID');
+    expect(updated).toBeDefined();
+    expect(updated.paid_amount).toBe(5000);
+    expect(updated.balance_amount).toBe(5000);
+    expect(updated.payment_status).toBe('PARTIALLY_PAID');
 
     // 3. Full Payment
     updated = await service.processPayment('PROCEDURE_BOOKING', sourceId, 5000, userId);
-    assert.ok(updated);
-    assert.equal(updated.paid_amount, 10000);
-    assert.equal(updated.balance_amount, 0);
-    assert.equal(updated.payment_status, 'PAID');
+    expect(updated).toBeDefined();
+    expect(updated.paid_amount).toBe(10000);
+    expect(updated.balance_amount).toBe(0);
+    expect(updated.payment_status).toBe('PAID');
     
     // 4. Overpayment (no negative balance)
     updated = await service.processPayment('PROCEDURE_BOOKING', sourceId, 2000, userId);
-    assert.ok(updated);
-    assert.equal(updated.paid_amount, 12000);
-    assert.equal(updated.balance_amount, 0);
-    assert.equal(updated.payment_status, 'PAID');
+    expect(updated).toBeDefined();
+    expect(updated.paid_amount).toBe(12000);
+    expect(updated.balance_amount).toBe(0);
+    expect(updated.payment_status).toBe('PAID');
   });
 
-  await t.test('Requirement Changes and Idempotency', async () => {
+  it('Requirement Changes and Idempotency', async () => {
     const sourceId = createObjectId();
     const userId = createObjectId();
     
@@ -123,11 +126,11 @@ test('AdvancePaymentService', async (t) => {
       requirement_status: 'REQUIRED'
     }, userId);
 
-    assert.equal(req2.required_amount, 15000);
-    assert.equal(req2.paid_amount, 5000);
-    assert.equal(req2.balance_amount, 10000);
-    assert.equal(req2.payment_status, 'PARTIALLY_PAID');
-    assert.equal(req2.id, req1.id); // Same document, no duplicates
+    expect(req2.required_amount).toBe(15000);
+    expect(req2.paid_amount).toBe(5000);
+    expect(req2.balance_amount).toBe(10000);
+    expect(req2.payment_status).toBe('PARTIALLY_PAID');
+    expect(req2.id).toBe(req1.id); // Same document, no duplicates
     
     // Sync 3: Decrease Requirement
     const req3 = await service.syncRequirement({
@@ -139,9 +142,9 @@ test('AdvancePaymentService', async (t) => {
       requirement_status: 'REQUIRED'
     }, userId);
 
-    assert.equal(req3.required_amount, 4000);
-    assert.equal(req3.paid_amount, 5000);
-    assert.equal(req3.balance_amount, 0);
-    assert.equal(req3.payment_status, 'PAID');
+    expect(req3.required_amount).toBe(4000);
+    expect(req3.paid_amount).toBe(5000);
+    expect(req3.balance_amount).toBe(0);
+    expect(req3.payment_status).toBe('PAID');
   });
 });

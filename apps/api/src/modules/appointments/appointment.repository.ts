@@ -2,6 +2,7 @@ import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
@@ -302,7 +303,7 @@ export class AppointmentRepository {
     const appointment = await AppointmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}) },
       { $set: buildUpdatePayload(data, userId) },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<AppointmentLean>();
 
     return appointment ? toAppointment(appointment) : undefined;
@@ -327,7 +328,7 @@ export class AppointmentRepository {
           updatedBy: toObjectId(userId),
         },
       },
-      { new: true, lean: true, session },
+      { returnDocument: 'after', lean: true, session },
     ).lean<AppointmentLean>();
 
     return appointment ? toAppointment(appointment) : undefined;
@@ -499,7 +500,7 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
     const appointment = await AppointmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] } },
       { $set: { status, activeSlotKey: null } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<AppointmentLean>();
     return appointment ? toAppointment(appointment) : undefined;
   }
@@ -523,15 +524,14 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
     replacement: AppointmentCreateRecord,
     userId: string,
   ) {
-    const session = await mongoose.startSession();
     let created: Appointment | undefined;
     try {
-      await session.withTransaction(async () => {
+      await executeTransaction(() => mongoose.startSession(), async (session) => {
         const current = await AppointmentModel.findOne({
           _id: toObjectId(original.id),
           status: original.status,
           deletedAt: null,
-        }).session(session).lean<AppointmentLean>();
+        }).session(session ?? null).lean<AppointmentLean>();
         if (!current) {
           throw new AppError('Appointment changed while rescheduling. Refresh and try again.', 409, 'APPOINTMENT_CHANGED');
         }
@@ -549,7 +549,7 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
               updatedBy: toObjectId(userId),
             },
           },
-          { new: true, session },
+          { returnDocument: 'after', session: session ?? undefined },
         ).lean<AppointmentLean>();
         if (!updated) {
           throw new AppError('Appointment changed while rescheduling. Refresh and try again.', 409, 'APPOINTMENT_CHANGED');
@@ -557,7 +557,7 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
         await AppointmentModel.updateOne(
           { _id: toObjectId(created.id) },
           { $set: { rescheduledFromId: current._id, rescheduledAt: changedAt } },
-          { session },
+          { session: session ?? undefined },
         );
         await AuditLogModel.create([{
           actorUserId: userId,
@@ -581,7 +581,7 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
               endTime: created.end_time,
             },
           },
-        }], { session });
+        }], { session: session ?? undefined });
       });
     } catch (error) {
       const databaseError = error as { code?: unknown; keyPattern?: Record<string, unknown> };
@@ -589,8 +589,6 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
         throw new AppError('This slot is no longer available. Select another time.', 409, 'APPOINTMENT_SLOT_CONFLICT');
       }
       throw error;
-    } finally {
-      await session.endSession();
     }
     if (!created) throw new AppError('Appointment could not be rescheduled', 500, 'RESCHEDULE_FAILED');
     return created;

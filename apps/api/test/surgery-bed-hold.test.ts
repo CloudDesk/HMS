@@ -1,5 +1,4 @@
-import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { createObjectId } from './factories.js';
 import { SurgeryService } from '../src/modules/surgery/surgery.service.js';
@@ -13,11 +12,10 @@ import { ServiceModel } from '../src/modules/services/service.model.js';
 import { Types } from 'mongoose';
 import { AppError } from '../src/shared/errors/app-error.js';
 
-test('Surgery Bed-Hold Lifecycle', async (t) => {
-  await setupTestDatabase();
+describe('Surgery Bed-Hold Lifecycle', () => {
+  let repository: SurgeryRepository;
+  let service: SurgeryService;
 
-  const sequenceService = new SequenceService();
-  const repository = new SurgeryRepository(sequenceService);
   const branchId = createObjectId();
   const departmentId = createObjectId();
   const doctorId = createObjectId();
@@ -26,13 +24,13 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
   const patientId = createObjectId();
 
   const mockBeds = {
-    releaseHoldSafe: mock.fn(async () => true),
-    cancelAdmissionRequestHold: mock.fn(async () => { throw new AppError('Active bed hold not found', 409, 'BED_HOLD_CONFLICT') }),
-    validateHold: mock.fn(async () => true),
+    releaseHoldSafe: vi.fn(async () => true),
+    cancelAdmissionRequestHold: vi.fn(async () => { throw new AppError('Active bed hold not found', 409, 'BED_HOLD_CONFLICT') }),
+    validateHold: vi.fn(async () => true),
   } as unknown as ConstructorParameters<typeof SurgeryService>[4];
 
   const mockDoctors = {
-    getById: mock.fn(async (id) => ({
+    getById: vi.fn(async (id) => ({
       id: id.toString(),
       status: 'ACTIVE',
       availability: [
@@ -45,24 +43,30 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
         { day_of_week: 'SATURDAY', is_available: true, working_blocks: [{ start_time: '00:00', end_time: '23:59', slot_duration_minutes: 60 }] }
       ]
     })),
-    hasActiveLeave: mock.fn(async () => false),
-    getExceptionByDate: mock.fn(async () => null),
+    hasActiveLeave: vi.fn(async () => false),
+    getExceptionByDate: vi.fn(async () => null),
   } as unknown as ConstructorParameters<typeof SurgeryService>[1];
-  const mockPatients = { addProcedureTimeline: mock.fn(async () => {}), verifyContextConsent: mock.fn(async () => null) } as unknown as ConstructorParameters<typeof SurgeryService>[2];
-  const mockAdvancePayment = { syncRequirement: mock.fn(async () => ({ requirement_status: 'NOT_REQUIRED', paid_amount: 0 })) } as unknown as ConstructorParameters<typeof SurgeryService>[5];
+  const mockPatients = { addProcedureTimeline: vi.fn(async () => {}), verifyContextConsent: vi.fn(async () => null) } as unknown as ConstructorParameters<typeof SurgeryService>[2];
+  const mockAdvancePayment = { syncRequirement: vi.fn(async () => ({ requirement_status: 'NOT_REQUIRED', paid_amount: 0 })) } as unknown as ConstructorParameters<typeof SurgeryService>[5];
 
   const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as unknown as ConstructorParameters<typeof SurgeryService>[8];
-  const service = new SurgeryService(
-    repository, mockDoctors, mockPatients, {} as unknown as ConstructorParameters<typeof SurgeryService>[3], mockBeds, mockAdvancePayment, {} as unknown as ConstructorParameters<typeof SurgeryService>[6], {} as unknown as ConstructorParameters<typeof SurgeryService>[7], mockSettingsRepo
-  );
 
-  t.beforeEach(async () => {
-    mock.method(repository, 'hasBranchAccess', async () => true);
-    mock.method(repository, 'departmentScope', async () => undefined);
-    mock.method(repository, 'audit', async () => {});
-    mock.method(repository, 'acquireConcurrencyLock', async () => {});
-    mock.method(repository, 'validateHold', async () => true);
-    mockBeds.releaseHoldSafe.mock.resetCalls();
+  beforeAll(async () => {
+    await setupTestDatabase();
+    const sequenceService = new SequenceService();
+    repository = new SurgeryRepository(sequenceService);
+    service = new SurgeryService(
+      repository, mockDoctors, mockPatients, {} as unknown as ConstructorParameters<typeof SurgeryService>[3], mockBeds, mockAdvancePayment, {} as unknown as ConstructorParameters<typeof SurgeryService>[6], {} as unknown as ConstructorParameters<typeof SurgeryService>[7], mockSettingsRepo
+    );
+  }, 30000);
+
+  beforeEach(async () => {
+    vi.spyOn(repository, 'hasBranchAccess').mockImplementation(async () => true);
+    vi.spyOn(repository, 'departmentScope').mockImplementation(async () => undefined);
+    vi.spyOn(repository, 'audit').mockImplementation(async () => {});
+    vi.spyOn(repository, 'acquireConcurrencyLock').mockImplementation(async () => {});
+    vi.spyOn(repository, 'validateHold').mockImplementation(async () => true);
+    (mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe.mockClear();
 
     await BranchModel.create({ _id: branchId, name: 'Main', code: 'MAIN', status: 'ACTIVE' });
     await DepartmentModel.create({ _id: departmentId, name: 'Surgery', code: 'SURG', branchIds: [branchId], status: 'ACTIVE' });
@@ -76,12 +80,12 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     });
   });
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
@@ -95,7 +99,7 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
     return booking;
   };
 
-  await t.test('Rescheduling drops the old hold when a new hold is provided', async () => {
+  it('Rescheduling drops the old hold when a new hold is provided', async () => {
     const oldHoldId = createObjectId();
     const booking = await setupBooking('BOOKED', oldHoldId);
     
@@ -106,11 +110,11 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
       hold_id: newHoldId
     }, actorId, {} as unknown as import('mongoose').ClientSession);
 
-    assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 1);
-    assert.equal(mockBeds.releaseHoldSafe.mock.calls[0].arguments[0], oldHoldId);
+    expect((mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe).toHaveBeenCalledTimes(1);
+    expect((mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe).toHaveBeenCalledWith(oldHoldId, branchId, expect.any(String), actorId, expect.anything(), expect.anything());
   });
 
-  await t.test('Rescheduling keeps the old hold if hold_id is unchanged/omitted', async () => {
+  it('Rescheduling keeps the old hold if hold_id is unchanged/omitted', async () => {
     const oldHoldId = createObjectId();
     const booking = await setupBooking('BOOKED', oldHoldId);
     
@@ -119,38 +123,36 @@ test('Surgery Bed-Hold Lifecycle', async (t) => {
       reason: 'Patient requested',
     }, actorId, {} as unknown as import('mongoose').ClientSession);
 
-    assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 0, 'Should not release the old hold if new hold is not provided (re-using old hold)');
+    expect((mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe).not.toHaveBeenCalled();
   });
 
-  await t.test('Complete Booking releases the hold safely', async () => {
+  it('Complete Booking releases the hold safely', async () => {
     const holdId = createObjectId();
     const booking = await setupBooking('BOOKED', holdId);
     
     await service.completeBooking(booking._id.toString(), branchId, actorId, {} as unknown as import('mongoose').ClientSession);
 
-    assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 1);
-    assert.equal(mockBeds.releaseHoldSafe.mock.calls[0].arguments[0], holdId);
+    expect((mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe).toHaveBeenCalledTimes(1);
+    expect((mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe).toHaveBeenCalledWith(holdId, branchId, expect.any(String), actorId, expect.anything(), expect.anything());
   });
 
-  await t.test('Cancel Booking uses releaseHoldSafe instead of cancelAdmissionRequestHold', async () => {
+  it('Cancel Booking uses releaseHoldSafe instead of cancelAdmissionRequestHold', async () => {
     const holdId = createObjectId();
     const booking = await setupBooking('PENDING_CONFIRMATION', holdId);
     
     await service.cancelBooking(booking._id.toString(), branchId, { reason: 'No longer needed' }, actorId, {} as unknown as import('mongoose').ClientSession);
 
-    assert.equal(mockBeds.releaseHoldSafe.mock.calls.length, 1, 'releaseHoldSafe should have been called');
-    assert.equal(mockBeds.releaseHoldSafe.mock.calls[0].arguments[0], holdId);
-    assert.equal(mockBeds.cancelAdmissionRequestHold.mock.calls.length, 0, 'Old cancel method should not have been called');
+    expect((mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe).toHaveBeenCalledTimes(1);
+    expect((mockBeds as { releaseHoldSafe: ReturnType<typeof vi.fn> }).releaseHoldSafe).toHaveBeenCalledWith(holdId, branchId, expect.any(String), actorId, expect.anything(), expect.anything());
+    expect((mockBeds as { cancelAdmissionRequestHold: ReturnType<typeof vi.fn> }).cancelAdmissionRequestHold).not.toHaveBeenCalled();
   });
 
-  await t.test('Cancel Booking succeeds even if releaseHoldSafe naturally returns true on an expired hold', async () => {
-    // We already mocked releaseHoldSafe to just return true without throwing.
-    // If it was still using cancelAdmissionRequestHold, it would have thrown BED_HOLD_CONFLICT.
+  it('Cancel Booking succeeds even if releaseHoldSafe naturally returns true on an expired hold', async () => {
     const holdId = createObjectId();
     const booking = await setupBooking('PENDING_CONFIRMATION', holdId);
     
-    await assert.doesNotReject(async () => {
-      await service.cancelBooking(booking._id.toString(), branchId, { reason: 'No longer needed' }, actorId, {} as unknown as import('mongoose').ClientSession);
-    });
+    await expect(
+      service.cancelBooking(booking._id.toString(), branchId, { reason: 'No longer needed' }, actorId, {} as unknown as import('mongoose').ClientSession)
+    ).resolves.toBeDefined();
   });
 });

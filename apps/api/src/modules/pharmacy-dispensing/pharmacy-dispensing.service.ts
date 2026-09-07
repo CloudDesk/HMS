@@ -1,5 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { createBillingNumber } from '../billing/billing-number.js';
 import type { BillingSourceType } from '../billing/billing.types.js';
 import type { PharmacyDispensingFields, PharmacyDispensingItemFields } from './pharmacy-dispensing.model.js';
@@ -110,55 +111,49 @@ export class PharmacyDispensingService {
     actor: string,
     metadata: PharmacyRequestMetadata,
   ) {
-    const session = await mongoose.startSession();
-    try {
-      return await session.withTransaction(async () => {
-        const { prescription, visit } = await this.context(prescriptionId, actor, session);
-        const draft = await this.repository.ensureDraft(prescription, visit, actor, session);
-        if (!draft.id) throw new AppError('Dispensing draft is unavailable', 409, 'DISPENSING_NOT_FOUND');
-        const sourceItems = new Map(prescription.items.map((item) => [item._id.toString(), item]));
-        const submittedItemIds = new Set(data.items.map((item) => item.prescription_item_id));
-        if (data.items.length !== prescription.items.length || submittedItemIds.size !== data.items.length || data.items.some((item) => !sourceItems.has(item.prescription_item_id))) {
-          throw new AppError('All prescribed medicines must be mapped before saving', 422, 'DISPENSING_ITEMS_INVALID');
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const { prescription, visit } = await this.context(prescriptionId, actor, session);
+      const draft = await this.repository.ensureDraft(prescription, visit, actor, session);
+      if (!draft.id) throw new AppError('Dispensing draft is unavailable', 409, 'DISPENSING_NOT_FOUND');
+      const sourceItems = new Map(prescription.items.map((item) => [item._id.toString(), item]));
+      const submittedItemIds = new Set(data.items.map((item) => item.prescription_item_id));
+      if (data.items.length !== prescription.items.length || submittedItemIds.size !== data.items.length || data.items.some((item) => !sourceItems.has(item.prescription_item_id))) {
+        throw new AppError('All prescribed medicines must be mapped before saving', 422, 'DISPENSING_ITEMS_INVALID');
+      }
+      const fields = [];
+      for (const item of data.items) {
+        const source = sourceItems.get(item.prescription_item_id);
+        if (!source) throw new AppError('Prescription item not found', 422, 'DISPENSING_ITEMS_INVALID');
+        const medicine = await this.repository.getInventoryRepository().getMedicine(item.medicine_id, session);
+        const batch = await this.repository.getInventoryRepository().getAvailableBatch(item.batch_id, visit.branchId.toString(), session);
+        if (!medicine || medicine.status !== 'ACTIVE' || !batch || batch.medicineId.toString() !== item.medicine_id) {
+          throw new AppError('Selected medicine batch is invalid', 422, 'BATCH_NOT_AVAILABLE');
         }
-        const fields = [];
-        for (const item of data.items) {
-          const source = sourceItems.get(item.prescription_item_id);
-          if (!source) throw new AppError('Prescription item not found', 422, 'DISPENSING_ITEMS_INVALID');
-          const medicine = await this.repository.getInventoryRepository().getMedicine(item.medicine_id, session);
-          const batch = await this.repository.getInventoryRepository().getAvailableBatch(item.batch_id, visit.branchId.toString(), session);
-          if (!medicine || medicine.status !== 'ACTIVE' || !batch || batch.medicineId.toString() !== item.medicine_id) {
-            throw new AppError('Selected medicine batch is invalid', 422, 'BATCH_NOT_AVAILABLE');
-          }
-          if (batch.quantityOnHand < item.confirmed_quantity) throw new AppError(`Insufficient stock for ${source.medicineName}`, 409, 'INSUFFICIENT_STOCK');
-          fields.push({ prescriptionItemId: source._id, medicineId: new Types.ObjectId(item.medicine_id), batchId: new Types.ObjectId(item.batch_id), medicineName: medicine.name, batchNumber: batch.batchNumber, requestedQuantity: source.quantity ?? null, confirmedQuantity: item.confirmed_quantity, availableQuantity: batch.quantityOnHand, unitPrice: batch.unitPrice, lineTotal: money(batch.unitPrice * item.confirmed_quantity), pharmacistInstructions: item.pharmacist_instructions?.trim() || null });
-        }
-        const updated = await this.repository.saveInSession(draft.id, data.version, fields, actor, session);
-        if (!updated) throw new AppError('Dispensing changed; refresh and retry', 409, 'STALE_VERSION');
-        await this.repository.audit('pharmacy.dispensing.draft_saved', actor, metadata, {
-          dispensingId: draft.id,
-          prescriptionId,
-          previousVersion: data.version,
-          version: updated.version,
-          items: fields.map((item) => ({
-            prescriptionItemId: item.prescriptionItemId.toString(),
-            requestedQuantity: item.requestedQuantity,
-            confirmedQuantity: item.confirmedQuantity,
-            medicineId: item.medicineId.toString(),
-            batchId: item.batchId.toString(),
-          })),
-        }, session);
-        return this.repository.getByPrescription(prescriptionId, session);
-      });
-    } finally {
-      await session.endSession();
-    }
+        if (batch.quantityOnHand < item.confirmed_quantity) throw new AppError(`Insufficient stock for ${source.medicineName}`, 409, 'INSUFFICIENT_STOCK');
+        fields.push({ prescriptionItemId: source._id, medicineId: new Types.ObjectId(item.medicine_id), batchId: new Types.ObjectId(item.batch_id), medicineName: medicine.name, batchNumber: batch.batchNumber, requestedQuantity: source.quantity ?? null, confirmedQuantity: item.confirmed_quantity, availableQuantity: batch.quantityOnHand, unitPrice: batch.unitPrice, lineTotal: money(batch.unitPrice * item.confirmed_quantity), pharmacistInstructions: item.pharmacist_instructions?.trim() || null });
+      }
+      const updated = await this.repository.saveInSession(draft.id, data.version, fields, actor, session);
+      if (!updated) throw new AppError('Dispensing changed; refresh and retry', 409, 'STALE_VERSION');
+      await this.repository.audit('pharmacy.dispensing.draft_saved', actor, metadata, {
+        dispensingId: draft.id,
+        prescriptionId,
+        previousVersion: data.version,
+        version: updated.version,
+        items: fields.map((item) => ({
+          prescriptionItemId: item.prescriptionItemId.toString(),
+          requestedQuantity: item.requestedQuantity,
+          confirmedQuantity: item.confirmedQuantity,
+          medicineId: item.medicineId.toString(),
+          batchId: item.batchId.toString(),
+        })),
+      }, session);
+      return this.repository.getByPrescription(prescriptionId, session);
+    });
   }
 
   async confirm(prescriptionId: string, version: number, key: string, actor: string, metadata: PharmacyRequestMetadata) {
-    const session = await mongoose.startSession();
     try {
-      return await session.withTransaction(async () => {
+      return await executeTransaction(() => mongoose.startSession(), async (session) => {
         const { prescription, visit, billingVisit } = await this.context(prescriptionId, actor, session);
         if (prescription.status !== 'SUBMITTED') throw new AppError('Prescription is not actionable', 409, 'PRESCRIPTION_NOT_ACTIONABLE');
         if (prescription.sourceType === 'PROCEDURE_BOOKING' && (!prescription.procedureId || !prescription.encounterId || !await this.repository.hasActiveProcedureContext(prescription.procedureId.toString(), prescription.patientId.toString(), prescription.branchId.toString(), prescription.encounterId.toString(), session))) throw new AppError('Procedure booking is no longer active for dispensing', 409, 'PROCEDURE_CONTEXT_NOT_ACTIVE');
@@ -211,12 +206,11 @@ export class PharmacyDispensingService {
         );
       }
       throw error;
-    } finally { await session.endSession(); }
+    }
   }
 
   async cancel(prescriptionId: string, version: number, reason: string, actor: string, metadata: PharmacyRequestMetadata) {
-    const session = await mongoose.startSession();
-    try { return await session.withTransaction(async () => {
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
       const { visit } = await this.context(prescriptionId, actor, session);
       const dispensing = await this.repository.getRawByPrescription(prescriptionId, session);
       if (!dispensing || dispensing.status !== 'DRAFT' || dispensing.version !== version) throw new AppError('Dispensing is not cancellable', 409, 'INVALID_STATE_TRANSITION');
@@ -226,12 +220,11 @@ export class PharmacyDispensingService {
       if (!prescriptionStatus) throw new AppError('Prescription changed; retry', 409, 'INVALID_STATE_TRANSITION');
       await this.repository.audit('pharmacy.dispensing.cancelled', actor, metadata, { dispensingId: dispensing._id.toString(), prescriptionId, reason, branchId: visit.branchId.toString() }, session);
       return this.repository.getByPrescription(prescriptionId, session);
-    }); } finally { await session.endSession(); }
+    });
   }
 
   async reverse(prescriptionId: string, version: number, reason: string, key: string, actor: string, metadata: PharmacyRequestMetadata) {
-    const session = await mongoose.startSession();
-    try { return await session.withTransaction(async () => {
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
       const { visit } = await this.context(prescriptionId, actor, session);
       const dispensing = await this.repository.getRawByPrescription(prescriptionId, session);
       if (!dispensing || dispensing.status !== 'CONFIRMED' || dispensing.version !== version) throw new AppError('Dispensing is not reversible', 409, 'DISPENSING_REVERSAL_NOT_ALLOWED');
@@ -258,6 +251,6 @@ export class PharmacyDispensingService {
       if (!prescriptionStatus) throw new AppError('Prescription changed; retry', 409, 'INVALID_STATE_TRANSITION');
       await this.repository.audit('pharmacy.dispensing.reversed', actor, metadata, { dispensingId: dispensing._id.toString(), prescriptionId, invoiceId: invoice.id, reason }, session);
       return this.repository.getByPrescription(prescriptionId, session);
-    }); } finally { await session.endSession(); }
+    });
   }
 }

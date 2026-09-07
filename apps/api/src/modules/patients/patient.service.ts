@@ -462,7 +462,7 @@ export class PatientService {
     }
   }
 
-  async verifyContextConsent(patientId: string, documentId: string | null, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, required: boolean, session: import('mongoose').ClientSession) {
+  async verifyContextConsent(patientId: string, documentId: string | null, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, required: boolean, session?: import('mongoose').ClientSession) {
     if (!required && !documentId) return null;
     if (!documentId) throw new AppError('A signed admission consent is required', 409, 'CONSENT_REQUIRED');
     const document = await this.repository.getValidContextConsent(patientId, documentId, contextType, contextId, session);
@@ -470,19 +470,19 @@ export class PatientService {
     return document;
   }
 
-  async addAdmissionTimeline(patientId: string, eventType: 'ADMISSION_REQUEST_CREATED' | 'INPATIENT_ADMISSION_CONFIRMED' | 'ADMISSION_REQUEST_CANCELLED' | 'INPATIENT_DISCHARGE_SUMMARY_SAVED' | 'INPATIENT_DISCHARGED', title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+  async addAdmissionTimeline(patientId: string, eventType: 'ADMISSION_REQUEST_CREATED' | 'INPATIENT_ADMISSION_CONFIRMED' | 'ADMISSION_REQUEST_CANCELLED' | 'INPATIENT_DISCHARGE_SUMMARY_SAVED' | 'INPATIENT_DISCHARGED', title: string, description: string, actor: string, session?: import('mongoose').ClientSession) {
     return this.repository.addTimelineEvent(patientId, { event_type: eventType as import('./patient.types.js').PatientTimelineEventType, title, description }, actor, session);
   }
 
-  async addProcedureTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `PROCEDURE_${string}`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+  async addProcedureTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `PROCEDURE_${string}`>, title: string, description: string, actor: string, session?: import('mongoose').ClientSession) {
     return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
   }
 
-  async addEmergencyTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `EMERGENCY_${string}`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+  async addEmergencyTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `EMERGENCY_${string}`>, title: string, description: string, actor: string, session?: import('mongoose').ClientSession) {
     return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
   }
 
-  async addDownstreamTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `INPATIENT_${string}` | `PROCEDURE_${'PRESCRIPTION' | 'LAB_ORDER' | 'IMAGING_ORDER'}_SUBMITTED`>, title: string, description: string, actor: string, session: import('mongoose').ClientSession) {
+  async addDownstreamTimeline(patientId: string, eventType: Extract<import('./patient.types.js').PatientTimelineEventType, `INPATIENT_${string}` | `PROCEDURE_${'PRESCRIPTION' | 'LAB_ORDER' | 'IMAGING_ORDER'}_SUBMITTED`>, title: string, description: string, actor: string, session?: import('mongoose').ClientSession) {
     return this.repository.addTimelineEvent(patientId, { event_type: eventType, title, description }, actor, session);
   }
 

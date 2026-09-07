@@ -56,7 +56,7 @@ export class AdvancePaymentRepository {
           created_by: userId,
         },
       },
-      { new: true, upsert: true, session },
+      { returnDocument: 'after', upsert: true, session },
     ).lean<AdvancePaymentLean>();
 
     if (!doc) {
@@ -82,7 +82,7 @@ export class AdvancePaymentRepository {
     const updatedDoc = await AdvancePaymentModel.findOneAndUpdate(
       { _id: doc._id },
       { $set: { balance_amount: balance, payment_status } },
-      { new: true, session },
+      { returnDocument: 'after', session },
     ).lean<AdvancePaymentLean>();
 
     return toRecord(updatedDoc!);

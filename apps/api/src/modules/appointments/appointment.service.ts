@@ -1,5 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { env } from '../../config/env.js';
 import type { Doctor, DoctorAvailabilityDay } from '../doctors/doctor.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
@@ -363,60 +364,48 @@ export class AppointmentService {
       utcEndTime,
     );
 
-    const session = await mongoose.startSession();
-    let appointment: Appointment | undefined;
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const appointmentSequence = await this.sequenceService.getNextSequence(
+        'appointment',
+        session,
+      );
+      const createdAppointment = await this.repository.create(
+        {
+          ...data,
+          appointmentNumber: this.sequenceService.formatStandardSequence(
+            'APT',
+            appointmentSequence,
+          ),
+          patientNumber: patient.patient_number,
+          patientName: patientName(patient),
+          doctorName: doctor.display_name,
+          doctorSpecialization: doctor.specialization,
+          branchId: doctor.branch_id,
+          departmentId: doctor.department_id,
+          utcDateTime: appointmentUtc,
+          utcEndTime,
+          appointmentDate,
+          startTime: startTimeStr,
+          endTime,
+          priority: data.priority ?? 'ROUTINE',
+        },
+        userId,
+        session,
+      );
 
-    try {
-      await session.withTransaction(async () => {
-        const appointmentSequence = await this.sequenceService.getNextSequence(
-          'appointment',
-          session,
-        );
-        const createdAppointment = await this.repository.create(
-          {
-            ...data,
-            appointmentNumber: this.sequenceService.formatStandardSequence(
-              'APT',
-              appointmentSequence,
-            ),
-            patientNumber: patient.patient_number,
-            patientName: patientName(patient),
-            doctorName: doctor.display_name,
-            doctorSpecialization: doctor.specialization,
-            branchId: doctor.branch_id,
-            departmentId: doctor.department_id,
-            utcDateTime: appointmentUtc,
-            utcEndTime,
-            appointmentDate,
-            startTime: startTimeStr,
-            endTime,
-            priority: data.priority ?? 'ROUTINE',
-          },
-          userId,
-          session,
-        );
-        appointment = createdAppointment;
-
-        await this.repository.auditCreated(createdAppointment, userId, session);
-        await this.patientRepository.addTimelineEvent(
-          createdAppointment.patient_id,
-          {
-            event_type: 'APPOINTMENT_CREATED',
-            title: 'Appointment scheduled',
-            description: `Appointment ${createdAppointment.appointment_number} scheduled with ${createdAppointment.doctor_name} for ${appointmentDateStr} at ${startTimeStr}.`,
-          },
-          userId,
-          session,
-        );
-      });
-    } finally {
-      await session.endSession();
-    }
-
-    if (!appointment) {
-      throw new AppError('Appointment could not be created', 500, 'APPOINTMENT_CREATE_FAILED');
-    }
-    return appointment;
+      await this.repository.auditCreated(createdAppointment, userId, session);
+      await this.patientRepository.addTimelineEvent(
+        createdAppointment.patient_id,
+        {
+          event_type: 'APPOINTMENT_CREATED',
+          title: 'Appointment scheduled',
+          description: `Appointment ${createdAppointment.appointment_number} scheduled with ${createdAppointment.doctor_name} for ${appointmentDateStr} at ${startTimeStr}.`,
+        },
+        userId,
+        session,
+      );
+      return createdAppointment;
+    });
   }
 
   async update(id: string, data: UpdateAppointmentDTO, userId: string) {

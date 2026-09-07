@@ -266,14 +266,6 @@ export class PatientRepository {
     return patient ? toPatient(patient) : undefined;
   }
 
-  async getByPatientNumber(patientNumber: string): Promise<Patient | undefined> {
-    const patient = await PatientModel.findOne({
-      patientNumber: new RegExp(`^${escapeRegex(patientNumber)}$`, 'i'),
-      deletedAt: null,
-    }).lean<PatientLean>();
-    return patient ? toPatient(patient) : undefined;
-  }
-
   async findLatestPatientNumber(year: number): Promise<string | undefined> {
     const latest = await PatientModel.findOne({ patientNumber: new RegExp(`^HMS-${year}-\\d+$`) })
       .select('patientNumber')
@@ -286,7 +278,7 @@ export class PatientRepository {
     const counter = await PatientNumberSequenceModel.findOneAndUpdate(
       { key },
       [{ $set: { value: { $add: [{ $ifNull: ['$value', existingMaximum] }, 1] } } }],
-      { upsert: true, new: true, updatePipeline: true },
+      { upsert: true, returnDocument: 'after', updatePipeline: true },
     ).lean();
     return counter!.value;
   }
@@ -332,7 +324,7 @@ export class PatientRepository {
     const patient = await PatientModel.findOneAndUpdate(
       { _id: id, deletedAt: null, ...(branchIds ? { registrationBranchId: { $in: branchIds.map(toObjectId) } } : {}) },
       { $set: updatePayload },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<PatientLean>();
 
     return patient ? toPatient(patient) : undefined;
@@ -555,7 +547,7 @@ export class PatientRepository {
           verifiedAt: null,
         },
       },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<PatientDocumentLean>();
 
     return document ? toPatientDocument(document) : undefined;
@@ -584,7 +576,7 @@ export class PatientRepository {
           reviewedAt: new Date(),
         },
       },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<PatientDocumentLean>();
 
     if (!document) return undefined;
@@ -602,7 +594,7 @@ export class PatientRepository {
           deletedBy: new Types.ObjectId(userId),
         },
       },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<PatientDocumentLean>();
 
     return document ? toPatientDocument(document) : undefined;
@@ -612,7 +604,7 @@ export class PatientRepository {
     const document = await PatientDocumentModel.findOneAndUpdate(
       { _id: documentId, patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', status: 'ACTIVE', consentStatus: 'ATTACHED' },
       { $set: { consentStatus: 'VERIFIED', verifiedBy: new Types.ObjectId(userId), verifiedAt: new Date() } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<PatientDocumentLean>();
     return document ? toPatientDocument(document) : undefined;
   }
@@ -630,19 +622,21 @@ export class PatientRepository {
     return statuses;
   }
 
-  async getValidContextConsent(patientId: string, documentId: string, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, session: ClientSession) {
+  async getValidContextConsent(patientId: string, documentId: string, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, session?: ClientSession) {
     const now = new Date();
     const isDocOid = /^[a-f\d]{24}$/i.test(documentId);
     const isPatientOid = /^[a-f\d]{24}$/i.test(patientId);
     if (!isDocOid || !isPatientOid) return null;
-    const document = await PatientDocumentModel.findOne({
+    const query = PatientDocumentModel.findOne({
       _id: new Types.ObjectId(documentId),
       patientId: new Types.ObjectId(patientId),
       documentType: 'CONSENT',
       consentStatus: { $in: ['SIGNED', 'ATTACHED', 'VERIFIED'] },
       status: 'ACTIVE',
       $or: [{ validUntil: null }, { validUntil: { $gte: now } }],
-    }).session(session).lean<PatientDocumentLean>();
+    });
+    if (session) query.session(session);
+    const document = await query.lean<PatientDocumentLean>();
     return document ? toPatientDocument(document) : null;
   }
 }

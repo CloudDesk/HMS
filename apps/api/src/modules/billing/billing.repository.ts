@@ -330,7 +330,7 @@ export class BillingRepository {
   }
 
   async linkContext(id: string, patientId: string, branchId: string, contextType: 'ADMISSION_REQUEST' | 'PROCEDURE_BOOKING', contextId: string, userId: string) {
-    const invoice = await BillingInvoiceModel.findOneAndUpdate({ _id: objectId(id), patientId: objectId(patientId), branchId: objectId(branchId), status: { $ne: 'CANCELLED' }, deletedAt: null, $or: [{ contextId: null }, { contextType, contextId: objectId(contextId) }] }, { $set: { contextType, contextId: objectId(contextId), updatedBy: objectId(userId) } }, { new: true, lean: true, runValidators: true }).lean<InvoiceLean>();
+    const invoice = await BillingInvoiceModel.findOneAndUpdate({ _id: objectId(id), patientId: objectId(patientId), branchId: objectId(branchId), status: { $ne: 'CANCELLED' }, deletedAt: null, $or: [{ contextId: null }, { contextType, contextId: objectId(contextId) }] }, { $set: { contextType, contextId: objectId(contextId), updatedBy: objectId(userId) } }, { returnDocument: 'after', lean: true, runValidators: true }).lean<InvoiceLean>();
     return invoice ? toInvoice(invoice) : null;
   }
 
@@ -342,7 +342,7 @@ export class BillingRepository {
     return (await query).map(toItem);
   }
 
-  async createInvoice(data: CreateInvoiceRecord, items: ResolvedBillingItem[], userId: string, session: ClientSession) {
+  async createInvoice(data: CreateInvoiceRecord, items: ResolvedBillingItem[], userId: string, session?: ClientSession) {
     const invoices = await BillingInvoiceModel.create([{
       invoiceNumber: data.invoiceNumber,
       patientId: objectId(data.patientId),
@@ -363,7 +363,7 @@ export class BillingRepository {
       balanceAmount: data.balanceAmount,
       createdBy: objectId(userId),
       updatedBy: objectId(userId),
-    }], { session, ordered: true });
+    }], { session: session ?? undefined, ordered: true });
 
     const invoice = invoices[0];
     if (!invoice) throw new AppError('Invoice creation failed', 500, 'BILLING_INVOICE_CREATE_FAILED');
@@ -371,25 +371,25 @@ export class BillingRepository {
     return toInvoice(invoice.toObject<InvoiceLean>());
   }
 
-  async updateInvoice(id: string, data: UpdateInvoiceRecord, userId: string, session: ClientSession) {
+  async updateInvoice(id: string, data: UpdateInvoiceRecord, userId: string, session?: ClientSession) {
     const invoice = await BillingInvoiceModel.findOneAndUpdate(
       { _id: objectId(id), status: { $in: ['DRAFT', 'PENDING'] }, paidAmount: 0, deletedAt: null },
       { $set: { ...data, updatedBy: objectId(userId) } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<InvoiceLean>();
     return invoice ? toInvoice(invoice) : null;
   }
 
-  async replaceItems(invoiceId: string, items: ResolvedBillingItem[], userId: string, session: ClientSession) {
+  async replaceItems(invoiceId: string, items: ResolvedBillingItem[], userId: string, session?: ClientSession) {
     await BillingInvoiceItemModel.updateMany(
       { invoiceId: objectId(invoiceId), deletedAt: null },
       { $set: { deletedAt: new Date(), deletedBy: objectId(userId), updatedBy: objectId(userId) } },
-      { session },
+      { session: session ?? undefined },
     );
     await this.createItems(invoiceId, items, userId, session);
   }
 
-  async cancelInvoice(id: string, userId: string, session: ClientSession) {
+  async cancelInvoice(id: string, userId: string, session?: ClientSession) {
     const invoice = await BillingInvoiceModel.findOneAndUpdate(
       {
         _id: objectId(id),
@@ -398,7 +398,7 @@ export class BillingRepository {
         deletedAt: null,
       },
       { $set: { status: 'CANCELLED', updatedBy: objectId(userId) } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<InvoiceLean>();
     return invoice ? toInvoice(invoice) : null;
   }
@@ -408,7 +408,7 @@ export class BillingRepository {
     paymentNumber: string,
     data: CollectBillingPaymentDTO,
     userId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const payments = await BillingPaymentModel.create([{
       invoiceId: objectId(invoice.id),
@@ -421,13 +421,13 @@ export class BillingRepository {
       referenceNumber: data.reference_number?.trim() || null,
       createdBy: objectId(userId),
       updatedBy: objectId(userId),
-    }], { session, ordered: true });
+    }], { session: session ?? undefined, ordered: true });
     const payment = payments[0];
     if (!payment) throw new AppError('Payment creation failed', 500, 'PAYMENT_COLLECTION_FAILED');
     return toPayment(payment.toObject<PaymentLean>());
   }
 
-  async applyPayment(invoice: BillingInvoice, amount: number, userId: string, session: ClientSession) {
+  async applyPayment(invoice: BillingInvoice, amount: number, userId: string, session?: ClientSession) {
     const paidAmount = roundMoney(invoice.paid_amount + amount);
     const balanceAmount = roundMoney(invoice.total_amount - paidAmount);
     const status: BillingInvoiceStatus = balanceAmount === 0 ? 'PAID' : 'PARTIALLY_PAID';
@@ -438,8 +438,15 @@ export class BillingRepository {
         balanceAmount: { $gte: amount },
         deletedAt: null,
       },
-      { $set: { paidAmount, balanceAmount, status, updatedBy: objectId(userId) } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      {
+        $set: {
+          paidAmount,
+          balanceAmount,
+          status,
+          updatedBy: objectId(userId),
+        },
+      },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<InvoiceLean>();
     return updated ? toInvoice(updated) : null;
   }
@@ -535,7 +542,7 @@ export class BillingRepository {
     return AuditLogModel.create(auditEntry);
   }
 
-  private async createItems(invoiceId: string, items: ResolvedBillingItem[], userId: string, session: ClientSession) {
+  private async createItems(invoiceId: string, items: ResolvedBillingItem[], userId: string, session?: ClientSession) {
     await BillingInvoiceItemModel.create(items.map((item) => ({
       invoiceId: objectId(invoiceId),
       serviceId: objectId(item.serviceId),
@@ -547,6 +554,6 @@ export class BillingRepository {
       lineTotal: item.lineTotal,
       createdBy: objectId(userId),
       updatedBy: objectId(userId),
-    })), { session, ordered: true });
+    })), { session: session ?? undefined, ordered: true });
   }
 }

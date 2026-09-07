@@ -83,7 +83,7 @@ export class OpdConsultationRepository {
           createdBy: requiredObjectId(userId),
         },
       },
-      { lean: true, new: true, upsert: true },
+      { lean: true, returnDocument: 'after', upsert: true },
     ).lean<OpdConsultationLean>();
 
     if (!consultation) {

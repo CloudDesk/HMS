@@ -172,7 +172,7 @@ export class UserService {
     input: ProvisionDoctorAccountInput,
     actorUserId: string,
     metadata: RequestMetadata,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const doctorRole = await this.roleRepository.findActiveByCode('DOCTOR', session);
     if (!doctorRole) {

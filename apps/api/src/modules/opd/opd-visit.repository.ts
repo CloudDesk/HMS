@@ -78,15 +78,17 @@ export class OpdVisitRepository {
     return mongoose.startSession();
   }
 
-  async getAdmissionSource(id: string, session: ClientSession) {
-    return OpdVisitModel.findOne({ _id: requiredObjectId(id), deletedAt: null }).session(session).lean<OpdVisitLean>();
+  async getAdmissionSource(id: string, session?: ClientSession) {
+    const query = OpdVisitModel.findOne({ _id: requiredObjectId(id), deletedAt: null });
+    if (session) query.session(session);
+    return query.lean<OpdVisitLean>();
   }
 
-  async markAdmissionConverted(id: string, admissionId: string, userId: string, session: ClientSession) {
+  async markAdmissionConverted(id: string, admissionId: string, userId: string, session?: ClientSession) {
     return OpdVisitModel.findOneAndUpdate(
       { _id: requiredObjectId(id), inpatientAdmissionId: null, deletedAt: null },
       { $set: { inpatientAdmissionId: requiredObjectId(admissionId), admissionConvertedAt: new Date(), updatedBy: requiredObjectId(userId) } },
-      { new: true, session }
+      { returnDocument: 'after', session }
     ).lean<OpdVisitLean>();
   }
 
@@ -304,7 +306,7 @@ export class OpdVisitRepository {
           updatedBy: optionalObjectId(userId),
         },
       },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<OpdVisitLean>();
 
     return visit ? toVisit(visit) : undefined;
@@ -318,7 +320,7 @@ export class OpdVisitRepository {
         status: { $in: ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION'] },
       },
       { $set: { status: 'SKIPPED' } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<OpdVisitLean>();
     if (!visit) return undefined;
     const result = toVisit(visit);
@@ -336,7 +338,7 @@ export class OpdVisitRepository {
     return result;
   }
 
-  async startNextReadyVisit(current: OpdVisit, userId: string, session: ClientSession): Promise<OpdVisit | undefined> {
+  async startNextReadyVisit(current: OpdVisit, userId: string, session?: ClientSession): Promise<OpdVisit | undefined> {
     const visit = await OpdVisitModel.findOneAndUpdate(
       {
         branchId: requiredObjectId(current.branch_id),
@@ -347,15 +349,15 @@ export class OpdVisitRepository {
       },
       { $set: { status: 'IN_CONSULTATION', updatedBy: requiredObjectId(userId) } },
       {
-        new: true,
-        session,
+        returnDocument: 'after',
+        session: session ?? undefined,
         sort: { queueTokenNumber: 1, checkInTime: 1, _id: 1 },
       },
     ).lean<OpdVisitLean>();
     return visit ? toVisit(visit) : undefined;
   }
 
-  async claimNextPatientCall(currentVisitId: string, nextVisitId: string, userId: string, session: ClientSession) {
+  async claimNextPatientCall(currentVisitId: string, nextVisitId: string, userId: string, session?: ClientSession) {
     return OpdVisitModel.findOneAndUpdate(
       {
         _id: requiredObjectId(currentVisitId),
@@ -370,7 +372,7 @@ export class OpdVisitRepository {
           updatedBy: requiredObjectId(userId),
         },
       },
-      { new: true, session },
+      { returnDocument: 'after', session: session ?? undefined },
     ).lean<OpdVisitLean>();
   }
 

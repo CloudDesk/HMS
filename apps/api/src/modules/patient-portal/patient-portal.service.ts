@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { ClientSession } from 'mongoose';
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import type { AppointmentService } from '../appointments/appointment.service.js';
 import type { CreateAppointmentDTO, PortalRescheduleAppointmentDTO } from '../appointments/appointment.types.js';
 import type { DoctorService } from '../doctors/doctor.service.js';
@@ -264,28 +265,7 @@ export class PatientPortalService {
   private async executePortalTransaction<T>(
     callback: (session?: ClientSession) => Promise<T>,
   ): Promise<T> {
-    const session = await this.repository.session();
-    try {
-      let result: T | undefined;
-      try {
-        await session.withTransaction(async () => {
-          result = await callback(session);
-        });
-        return result!;
-      } catch (err: unknown) {
-        if (
-          err instanceof Error &&
-          (err.message.includes('Transaction numbers are only allowed') ||
-           err.message.includes('retryable writes') ||
-           err.message.includes('standalone'))
-        ) {
-          return await callback(undefined);
-        }
-        throw err;
-      }
-    } finally {
-      await session.endSession().catch(() => {});
-    }
+    return executeTransaction(this.repository, callback);
   }
 
   async activateExistingPatientByPhone(phone: string, metadata: RequestMetadata) {

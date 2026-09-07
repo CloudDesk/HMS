@@ -187,6 +187,7 @@ it('Emergency referral is encounter-owned, idempotent, and books through Appoint
     getRecord: async () => current,
     department: async () => ({ name: 'Cardiology' }),
     doctor: async () => ({ displayName: 'Dr Specialist' }),
+    doctorByUserId: async () => ({ _id: new Types.ObjectId(referringDoctorId), displayName: 'Dr Referrer' }),
     saveReferral: async () => {
       saves += 1;
       current.referral = {

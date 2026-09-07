@@ -118,16 +118,24 @@ const admissionErrorMessage = (error: unknown) => {
     return 'Your session has expired. Please sign in again.';
   }
   if (error.status === 403) return 'You are not authorized to perform this admission action.';
-  if (error.code === 'VALIDATION_ERROR') return 'Check the highlighted fields and try again.';
+  if (error.code === 'VALIDATION_ERROR' || error.status === 400 || error.status === 422) {
+    return error.message || 'Please correct the admission request details and try again.';
+  }
   if (error.code === 'ACTIVE_ADMISSION_EXISTS' || error.code === 'ACTIVE_ADMISSION_CONFLICT' || error.code === 'PATIENT_ALREADY_ADMITTED') return 'This patient already has an active inpatient admission.';
   if (error.code === 'DUPLICATE_ADMISSION_REQUEST') return 'This patient already has a pending admission request.';
   if (error.code === 'ADMISSION_SOURCE_MISMATCH') return 'The selected source does not match this patient, branch, department, or requester.';
-  if (error.code === 'ADMISSION_SOURCE_NOT_FOUND') return 'The selected OPD, referral, or emergency source could not be found.';
+  if (error.code === 'ADMISSION_SOURCE_NOT_FOUND' || error.status === 404) return error.message || 'The selected admission resource could not be found.';
   if (error.code === 'SOURCE_ALREADY_CONVERTED' || error.code === 'ADMISSION_SOURCE_ALREADY_CONVERTED') return 'This source has already been converted to an inpatient admission.';
   if (error.code === 'BED_NOT_AVAILABLE') return 'The selected bed is no longer available. Refresh the bed list and choose another bed.';
   if (error.code === 'CONSENT_REQUIRED') return 'Signed admission consent is required before confirmation.';
   if (error.code === 'ADVANCE_DEPOSIT_REQUIRED') return error.message;
-  if (error.status >= 500) return 'The admission service is temporarily unavailable. Please try again shortly.';
+  if (error.status === 409) return error.message || 'The admission request conflicts with an existing record.';
+  if (error.status === 0 || error.status === 502 || error.status === 503 || error.status === 504) {
+    return 'The admission service is temporarily unavailable. Please try again shortly.';
+  }
+  if (error.status >= 500) {
+    return error.message || 'An error occurred on the admission server. Please try again.';
+  }
   return error.message;
 };
 

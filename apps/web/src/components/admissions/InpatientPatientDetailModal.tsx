@@ -38,6 +38,8 @@ type InpatientPatientDetailModalProps = {
   canRecommendSurgery?: boolean;
   canSaveDischargeSummary?: boolean;
   canFinalizeDischarge?: boolean;
+  showDischargeChecklist?: boolean;
+  showOperationalClearance?: boolean;
 };
 
 export function InpatientPatientDetailModal({
@@ -67,6 +69,8 @@ export function InpatientPatientDetailModal({
   canRecommendSurgery = true,
   canSaveDischargeSummary = true,
   canFinalizeDischarge = true,
+  showDischargeChecklist = true,
+  showOperationalClearance = true,
 }: InpatientPatientDetailModalProps) {
   if (!admission) return null;
 
@@ -80,14 +84,26 @@ export function InpatientPatientDetailModal({
   const los = calculateLOS(admission.admission_date);
 
   const headerTitle = (
-    <div className="inpatient-detail-modal-header">
+    <div
+      className="inpatient-detail-modal-header"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', width: '100%', margin: '0 auto' }}
+    >
       <div className="inpatient-detail-avatar">{initials}</div>
-      <div className="inpatient-detail-head-info">
-        <div className="inpatient-detail-head-top">
+      <div
+        className="inpatient-detail-head-info"
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
+      >
+        <div
+          className="inpatient-detail-head-top"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+        >
           <h2 className="inpatient-detail-name">{admission.patient_name}</h2>
           <span className="admission-status-pill CONFIRMED">● ADMITTED</span>
         </div>
-        <div className="inpatient-detail-head-meta">
+        <div
+          className="inpatient-detail-head-meta"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '6px' }}
+        >
           <span className="meta-mrn">{admission.patient_number}</span>
           <span className="meta-dot">·</span>
           <span>
@@ -618,6 +634,8 @@ export function InpatientPatientDetailModal({
               onSaveDischargeSummary={onSaveDischargeSummary}
               onFinalizeDischarge={onFinalizeDischarge}
               isDischarging={isDischarging}
+              showDischargeChecklist={showDischargeChecklist}
+              showOperationalClearance={showOperationalClearance}
               canSaveDischargeSummary={canSaveDischargeSummary}
               canFinalizeDischarge={canFinalizeDischarge}
             />
@@ -633,6 +651,8 @@ function DischargePlanningTab({
   onSaveDischargeSummary,
   onFinalizeDischarge,
   isDischarging,
+  showDischargeChecklist = true,
+  showOperationalClearance = true,
   canSaveDischargeSummary = true,
   canFinalizeDischarge = true,
 }: {
@@ -640,6 +660,8 @@ function DischargePlanningTab({
   onSaveDischargeSummary?: (data: { hemodynamic_stability_24h: boolean; post_op_recovery_cleared: boolean; home_oral_med_converted: boolean; summary_finalized: boolean; notes?: string | null }) => Promise<void>;
   onFinalizeDischarge?: () => Promise<void>;
   isDischarging?: boolean;
+  showDischargeChecklist?: boolean;
+  showOperationalClearance?: boolean;
   canSaveDischargeSummary?: boolean;
   canFinalizeDischarge?: boolean;
 }) {
@@ -750,119 +772,142 @@ function DischargePlanningTab({
     );
   }
 
+  if (!showDischargeChecklist && !showOperationalClearance) {
+    return (
+      <div className="inpatient-tab-pane" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+        <p>You do not have permission to view or manage discharge planning for this inpatient stay.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="inpatient-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div className="inpatient-tab-pane-header">
         <div>
           <h3 className="pane-title">Discharge Planning & Operational Clearance</h3>
           <p className="pane-sub">
-            Evaluate clinical readiness, persist attending doctor documentation, and finalize bed release
+            {showDischargeChecklist && !showOperationalClearance
+              ? 'Evaluate clinical readiness and persist attending doctor documentation'
+              : !showDischargeChecklist && showOperationalClearance
+                ? 'Review readiness status, verify financial clearance, and finalize patient discharge'
+                : 'Evaluate clinical readiness, persist attending doctor documentation, and finalize bed release'}
           </p>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            showDischargeChecklist && showOperationalClearance ? '1fr 1fr' : '1fr',
+          gap: '1.25rem',
+        }}
+      >
         {/* Card 1: Clinical Readiness Checklist */}
-        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>Discharge Readiness Checklist</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
-              <input type="checkbox" checked={hemo} disabled={!canSaveDischargeSummary} onChange={(e) => setHemo(e.target.checked)} />
-              <span>Clinical hemodynamic stability (24h afebrility)</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
-              <input type="checkbox" checked={postOp} disabled={!canSaveDischargeSummary} onChange={(e) => setPostOp(e.target.checked)} />
-              <span>Post-op / procedure recovery cleared</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
-              <input type="checkbox" checked={homeMed} disabled={!canSaveDischargeSummary} onChange={(e) => setHomeMed(e.target.checked)} />
-              <span>Home oral medication converted</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem', color: '#2563eb', fontWeight: 600 }}>
-              <input type="checkbox" checked={docFinal} disabled={!canSaveDischargeSummary} onChange={(e) => setDocFinal(e.target.checked)} />
-              <span>Discharge summary finalized by attending doctor</span>
-            </label>
-          </div>
-          <div style={{ marginTop: '0.5rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>Attending Doctor Notes / Summary</span>
-            <textarea
-              value={summaryNotes}
-              disabled={!canSaveDischargeSummary}
-              onChange={(e) => setSummaryNotes(e.target.value)}
-              placeholder="Clinical summary findings, instructions upon discharge..."
-              rows={2}
-              style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: '0.8rem' }}
-            />
-          </div>
-          {canSaveDischargeSummary && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-              <button
-                type="button"
-                className="adm-btn success"
-                onClick={handleSave}
-                disabled={isSaving}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <i className="ph ph-floppy-disk" /> {isSaving ? 'Saving...' : 'Save Discharge Summary'}
-              </button>
+        {showDischargeChecklist && (
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>Discharge Readiness Checklist</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
+                <input type="checkbox" checked={hemo} disabled={!canSaveDischargeSummary} onChange={(e) => setHemo(e.target.checked)} />
+                <span>Clinical hemodynamic stability (24h afebrility)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
+                <input type="checkbox" checked={postOp} disabled={!canSaveDischargeSummary} onChange={(e) => setPostOp(e.target.checked)} />
+                <span>Post-op / procedure recovery cleared</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
+                <input type="checkbox" checked={homeMed} disabled={!canSaveDischargeSummary} onChange={(e) => setHomeMed(e.target.checked)} />
+                <span>Home oral medication converted</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem', color: '#2563eb', fontWeight: 600 }}>
+                <input type="checkbox" checked={docFinal} disabled={!canSaveDischargeSummary} onChange={(e) => setDocFinal(e.target.checked)} />
+                <span>Discharge summary finalized by attending doctor</span>
+              </label>
             </div>
-          )}
-        </div>
+            <div style={{ marginTop: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>Attending Doctor Notes / Summary</span>
+              <textarea
+                value={summaryNotes}
+                disabled={!canSaveDischargeSummary}
+                onChange={(e) => setSummaryNotes(e.target.value)}
+                placeholder="Clinical summary findings, instructions upon discharge..."
+                rows={3}
+                style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: '0.8rem' }}
+              />
+            </div>
+            {canSaveDischargeSummary && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="adm-btn success"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <i className="ph ph-floppy-disk" /> {isSaving ? 'Saving...' : 'Save Discharge Summary'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Card 2: Live Discharge Clearance Summary & Finalize Action */}
-        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>Operational Discharge Clearance</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem', background: '#ffffff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Clinical Readiness</span>
-              <strong style={{ color: clinicalReady ? '#16a34a' : '#dc2626' }}>{clinicalReady ? '✓ Cleared' : '✕ Pending'}</strong>
+        {showOperationalClearance && (
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>Operational Discharge Clearance</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem', background: '#ffffff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Clinical Readiness</span>
+                <strong style={{ color: clinicalReady ? '#16a34a' : '#dc2626' }}>{clinicalReady ? '✓ Cleared' : '✕ Pending'}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Doctor Summary Finalized</span>
+                <strong style={{ color: docFinalized ? '#16a34a' : '#dc2626' }}>{docFinalized ? '✓ Finalized' : '✕ Required'}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Financial Clearance</span>
+                {billingLoading ? (
+                  <span style={{ color: '#64748b' }}>Checking...</span>
+                ) : isFinanciallyCleared ? (
+                  <strong style={{ color: '#16a34a' }}>✓ Cleared ({activeInvoices.length > 0 ? `KES ${totalBilled.toLocaleString()}` : 'No billing'})</strong>
+                ) : (
+                  <strong style={{ color: '#d97706' }}>⚠ Outstanding: KES {totalBalance.toLocaleString()}</strong>
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Bed Allocation ({admission.bed_number})</span>
+                <strong style={{ color: '#2563eb' }}>✓ Will be released</strong>
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Doctor Summary Finalized</span>
-              <strong style={{ color: docFinalized ? '#16a34a' : '#dc2626' }}>{docFinalized ? '✓ Finalized' : '✕ Required'}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Financial Clearance</span>
-              {billingLoading ? (
-                <span style={{ color: '#64748b' }}>Checking...</span>
-              ) : isFinanciallyCleared ? (
-                <strong style={{ color: '#16a34a' }}>✓ Cleared ({activeInvoices.length > 0 ? `KES ${totalBilled.toLocaleString()}` : 'No billing'})</strong>
-              ) : (
-                <strong style={{ color: '#d97706' }}>⚠ Outstanding: KES {totalBalance.toLocaleString()}</strong>
-              )}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Bed Allocation ({admission.bed_number})</span>
-              <strong style={{ color: '#2563eb' }}>✓ Will be released</strong>
-            </div>
+
+            {!canFinalize && (
+              <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', padding: '8px 12px', borderRadius: '6px', fontSize: '0.78rem', color: '#d48806', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <i className="ph ph-warning" />
+                <span>
+                  Discharge cannot be finalized. {!clinicalReady ? 'Complete the readiness checklist.' : !docFinalized ? 'Doctor must check "Discharge summary finalized by attending doctor" and save.' : 'Please clear all outstanding bills first.'}
+                </span>
+              </div>
+            )}
+
+            {canFinalizeDischarge && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'auto' }}>
+                <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b' }}>
+                  Finalizing discharge marks the patient as DISCHARGED and automatically frees Bed <strong>{admission.bed_number}</strong> for future allotments.
+                </p>
+                <button
+                  type="button"
+                  className="adm-btn primary"
+                  onClick={handleFinalize}
+                  disabled={!canFinalize || isDischarging}
+                  style={{ width: '100%', height: '38px', fontSize: '0.88rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: canFinalize ? '#2563eb' : '#94a3b8' }}
+                >
+                  <i className="ph ph-sign-out" /> {isDischarging ? 'Finalizing Discharge...' : 'Finalize Discharge'}
+                </button>
+              </div>
+            )}
           </div>
-
-          {!canFinalize && (
-            <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', padding: '8px 12px', borderRadius: '6px', fontSize: '0.78rem', color: '#d48806', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <i className="ph ph-warning" />
-              <span>
-                Discharge cannot be finalized. {!clinicalReady ? 'Complete the readiness checklist.' : !docFinalized ? 'Check "Discharge summary finalized by attending doctor" and click Save.' : 'Please clear all outstanding bills first.'}
-              </span>
-            </div>
-          )}
-
-          {canFinalizeDischarge && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'auto' }}>
-              <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b' }}>
-                Finalizing discharge marks the patient as DISCHARGED and automatically frees Bed <strong>{admission.bed_number}</strong> for future allotments.
-              </p>
-              <button
-                type="button"
-                className="adm-btn primary"
-                onClick={handleFinalize}
-                disabled={!canFinalize || isDischarging}
-                style={{ width: '100%', height: '38px', fontSize: '0.88rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: canFinalize ? '#2563eb' : '#94a3b8' }}
-              >
-                <i className="ph ph-sign-out" /> {isDischarging ? 'Finalizing Discharge...' : 'Finalize Discharge'}
-              </button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

@@ -88,7 +88,7 @@ export class OpdPrescriptionService {
     return this.repository.getBySource(context.source_type, context.source_id, session);
   }
 
-  async submitForContext(context: ClinicalSourceContext, data: SaveOpdPrescriptionDTO, actor: string, session: ClientSession) {
+  async submitForContext(context: ClinicalSourceContext, data: SaveOpdPrescriptionDTO, actor: string, session?: ClientSession) {
     if (data.items.length === 0) throw new AppError('Add at least one medication before submitting', 400, 'MEDICATION_REQUIRED');
     this.validateFollowUpDate(data.follow_up_date);
     const current = await this.repository.getBySource(context.source_type, context.source_id, session);

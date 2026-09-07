@@ -1,5 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { OpdClinicalOrderRepository } from '../opd/opd-clinical-order.repository.js';
 import type { OpdConsultationRepository } from '../opd/opd-consultation.repository.js';
@@ -71,7 +72,7 @@ export class BillingService {
     return !hasUnresolved;
   }
 
-  async verifyAdmissionDeposit(patientId: string, branchId: string, requestId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session: import('mongoose').ClientSession) {
+  async verifyAdmissionDeposit(patientId: string, branchId: string, requestId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session?: import('mongoose').ClientSession) {
     const scope = await this.repository.resolveBranchScope(actorUserId, branchId);
     if (requiredAmount === 0) return { required_amount: 0, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: null, payment_ids: [], verified_at: new Date() };
     if (!invoiceId) return { required_amount: requiredAmount, paid_amount: 0, remaining_amount: requiredAmount, satisfied: false, invoice_id: null, payment_ids: [], verified_at: new Date() };
@@ -82,7 +83,7 @@ export class BillingService {
     return { required_amount: requiredAmount, paid_amount: paidAmount, remaining_amount: Math.max(0, requiredAmount - paidAmount), satisfied: paidAmount >= requiredAmount, invoice_id: invoice.id, payment_ids: payments.map((item) => item.id), verified_at: new Date() };
   }
 
-  async verifyProcedureDeposit(patientId: string, branchId: string, bookingId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session: import('mongoose').ClientSession) {
+  async verifyProcedureDeposit(patientId: string, branchId: string, bookingId: string, invoiceId: string | null, requiredAmount: number, actorUserId: string, session?: import('mongoose').ClientSession) {
     const scope = await this.repository.resolveBranchScope(actorUserId, branchId);
     if (requiredAmount === 0) return { required_amount: 0, paid_amount: 0, remaining_amount: 0, satisfied: true, invoice_id: null, payment_ids: [], verified_at: new Date() };
     if (!invoiceId) return { required_amount: requiredAmount, paid_amount: 0, remaining_amount: requiredAmount, satisfied: false, invoice_id: null, payment_ids: [], verified_at: new Date() };
@@ -121,7 +122,7 @@ export class BillingService {
     },
     actorUserId: string,
     metadata: BillingRequestMetadata,
-    session: import('mongoose').ClientSession,
+    session?: import('mongoose').ClientSession,
   ) {
     const unitPrice = roundMoney(data.service.standardPrice);
     const subtotal = unitPrice;
@@ -174,40 +175,34 @@ export class BillingService {
     const context = await this.validateInvoiceContext(data, actorUserId);
     const items = await this.resolveItems(data.visit_id, data.items);
     const totals = this.calculateTotals(items, data.discount_amount ?? 0, data.tax_amount ?? 0, 0);
-    const session = await mongoose.startSession();
-    try {
-      const createdId = await session.withTransaction(async () => {
-        const created = await this.repository.createInvoice({
-          invoiceNumber: createBillingNumber('INV'),
-          patientId: data.patient_id,
-          visitId: data.visit_id,
-          sourceType: context.sourceType,
-          encounterId: data.visit_id,
-          admissionId: null,
-          procedureId: null,
-          appointmentId: context.appointmentId,
-          branchId: data.branch_id,
-          invoiceDate: data.invoice_date ? new Date(data.invoice_date) : new Date(),
-          ...totals,
-        }, items, actorUserId, session);
-        await this.repository.audit('billing.invoice.created', actorUserId, metadata, {
-          invoiceId: created.id,
-          invoiceNumber: created.invoice_number,
-          patientId: data.patient_id,
-          visitId: data.visit_id,
-          sourceType: context.sourceType,
-          encounterId: data.visit_id,
-          branchId: data.branch_id,
-          totalAmount: totals.totalAmount,
-          itemCount: items.length,
-        }, session);
-        return created.id;
-      });
-      if (!createdId) throw new AppError('Invoice creation failed', 500, 'BILLING_INVOICE_CREATE_FAILED');
-      return this.getById(createdId, actorUserId);
-    } finally {
-      await session.endSession();
-    }
+    const createdId = await executeTransaction(() => mongoose.startSession(), async (session) => {
+      const created = await this.repository.createInvoice({
+        invoiceNumber: createBillingNumber('INV'),
+        patientId: data.patient_id,
+        visitId: data.visit_id,
+        sourceType: context.sourceType,
+        encounterId: data.visit_id,
+        admissionId: null,
+        procedureId: null,
+        appointmentId: context.appointmentId,
+        branchId: data.branch_id,
+        invoiceDate: data.invoice_date ? new Date(data.invoice_date) : new Date(),
+        ...totals,
+      }, items, actorUserId, session);
+      await this.repository.audit('billing.invoice.created', actorUserId, metadata, {
+        invoiceId: created.id,
+        invoiceNumber: created.invoice_number,
+        patientId: data.patient_id,
+        visitId: data.visit_id,
+        sourceType: context.sourceType,
+        encounterId: data.visit_id,
+        branchId: data.branch_id,
+        totalAmount: totals.totalAmount,
+        itemCount: items.length,
+      }, session);
+      return created.id;
+    });
+    return this.getById(createdId, actorUserId);
   }
 
   async update(
@@ -238,31 +233,26 @@ export class BillingService {
       throw new AppError('A pending invoice must have a positive total', 409, 'INVOICE_TOTAL_REQUIRED');
     }
 
-    const session = await mongoose.startSession();
-    let updated: BillingInvoice | null = null;
-    try {
-      await session.withTransaction(async () => {
-        updated = await this.repository.updateInvoice(id, {
-          ...(data.invoice_date ? { invoiceDate: new Date(data.invoice_date) } : {}),
-          ...(data.status ? { status: data.status } : {}),
-          ...totals,
-        }, actorUserId, session);
-        if (!updated) {
-          throw new AppError('Invoice changed or is no longer editable', 409, 'BILLING_INVOICE_UPDATE_CONFLICT');
-        }
-        if (data.items) await this.repository.replaceItems(id, items, actorUserId, session);
-        await this.repository.audit('billing.invoice.updated', actorUserId, metadata, {
-          invoiceId: id,
-          invoiceNumber: existing.invoice_number,
-          previousStatus: existing.status,
-          status: updated.status,
-          totalAmount: totals.totalAmount,
-          itemCount: items.length,
-        }, session);
-      });
-    } finally {
-      await session.endSession();
-    }
+    await executeTransaction(() => mongoose.startSession(), async (session) => {
+      const updated = await this.repository.updateInvoice(id, {
+        ...(data.invoice_date ? { invoiceDate: new Date(data.invoice_date) } : {}),
+        ...(data.status ? { status: data.status } : {}),
+        ...totals,
+      }, actorUserId, session);
+      if (!updated) {
+        throw new AppError('Invoice changed or is no longer editable', 409, 'BILLING_INVOICE_UPDATE_CONFLICT');
+      }
+      if (data.items) await this.repository.replaceItems(id, items, actorUserId, session);
+      await this.repository.audit('billing.invoice.updated', actorUserId, metadata, {
+        invoiceId: id,
+        invoiceNumber: existing.invoice_number,
+        previousStatus: existing.status,
+        status: updated.status,
+        totalAmount: totals.totalAmount,
+        itemCount: items.length,
+      }, session);
+      return updated;
+    });
     return this.getById(id, actorUserId);
   }
 
@@ -273,22 +263,18 @@ export class BillingService {
     if (existing.status === 'PAID' || existing.paid_amount > 0) {
       throw new AppError('Invoices with collected payments cannot be cancelled because refunds are out of scope', 409, 'PAID_INVOICE_CANNOT_CANCEL');
     }
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const cancelled = await this.repository.cancelInvoice(id, actorUserId, session);
-        if (!cancelled) throw new AppError('Invoice is no longer cancellable', 409, 'INVOICE_CANCEL_CONFLICT');
-        await this.repository.audit('billing.invoice.cancelled', actorUserId, metadata, {
-          invoiceId: id,
-          invoiceNumber: existing.invoice_number,
-          patientId: existing.patient_id,
-          visitId: existing.visit_id,
-          previousStatus: existing.status,
-        }, session);
-      });
-    } finally {
-      await session.endSession();
-    }
+    await executeTransaction(() => mongoose.startSession(), async (session) => {
+      const cancelled = await this.repository.cancelInvoice(id, actorUserId, session);
+      if (!cancelled) throw new AppError('Invoice is no longer cancellable', 409, 'INVOICE_CANCEL_CONFLICT');
+      await this.repository.audit('billing.invoice.cancelled', actorUserId, metadata, {
+        invoiceId: id,
+        invoiceNumber: existing.invoice_number,
+        patientId: existing.patient_id,
+        visitId: existing.visit_id,
+        previousStatus: existing.status,
+      }, session);
+      return cancelled;
+    });
     return this.getById(id, actorUserId);
   }
 
@@ -300,58 +286,51 @@ export class BillingService {
   ) {
     this.requireObjectId(id, 'Invoice id is invalid');
     const scope = await this.repository.resolveBranchScope(actorUserId);
-    const session = await mongoose.startSession();
-    let paymentId: string | null = null;
-    try {
-      await session.withTransaction(async () => {
-        const invoice = await this.repository.getById(id, scope, session);
-        if (!invoice) throw new AppError('Invoice not found', 404, 'BILLING_INVOICE_NOT_FOUND');
-        if (invoice.status === 'DRAFT') throw new AppError('Finalize the invoice before collecting payment', 409, 'INVOICE_NOT_PENDING');
-        if (invoice.status === 'CANCELLED') throw new AppError('Cannot pay a cancelled invoice', 409, 'INVOICE_CANCELLED');
-        if (invoice.status === 'PAID' || invoice.balance_amount === 0) throw new AppError('Invoice is already paid', 409, 'INVOICE_PAID');
-        const amount = roundMoney(data.amount);
-        if (amount <= 0) {
-          throw new AppError('Payment amount must be greater than zero', 400, 'INVALID_PAYMENT_AMOUNT');
-        }
-        const currentBalance = roundMoney(invoice.balance_amount);
-        if (amount > currentBalance) {
-          const formattedBalance = currentBalance.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
-          throw new AppError(
-            `Payment amount cannot exceed the outstanding balance of KES ${formattedBalance}.`,
-            400,
-            'PAYMENT_EXCEEDS_BALANCE',
-            { balance_amount: currentBalance },
-          );
-        }
-        const payment = await this.repository.createPayment(invoice, createBillingNumber('PAY'), { ...data, amount }, actorUserId, session);
-        const updated = await this.repository.applyPayment(invoice, amount, actorUserId, session);
-        if (!updated) throw new AppError('Invoice balance changed; refresh and retry', 409, 'PAYMENT_CONFLICT');
+    const paymentId = await executeTransaction(() => mongoose.startSession(), async (session) => {
+      const invoice = await this.repository.getById(id, scope, session);
+      if (!invoice) throw new AppError('Invoice not found', 404, 'BILLING_INVOICE_NOT_FOUND');
+      if (invoice.status === 'DRAFT') throw new AppError('Finalize the invoice before collecting payment', 409, 'INVOICE_NOT_PENDING');
+      if (invoice.status === 'CANCELLED') throw new AppError('Cannot pay a cancelled invoice', 409, 'INVOICE_CANCELLED');
+      if (invoice.status === 'PAID' || invoice.balance_amount === 0) throw new AppError('Invoice is already paid', 409, 'INVOICE_PAID');
+      const amount = roundMoney(data.amount);
+      if (amount <= 0) {
+        throw new AppError('Payment amount must be greater than zero', 400, 'INVALID_PAYMENT_AMOUNT');
+      }
+      const currentBalance = roundMoney(invoice.balance_amount);
+      if (amount > currentBalance) {
+        const formattedBalance = currentBalance.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        throw new AppError(
+          `Payment amount cannot exceed the outstanding balance of KES ${formattedBalance}.`,
+          400,
+          'PAYMENT_EXCEEDS_BALANCE',
+          { balance_amount: currentBalance },
+        );
+      }
+      const payment = await this.repository.createPayment(invoice, createBillingNumber('PAY'), { ...data, amount }, actorUserId, session);
+      const updated = await this.repository.applyPayment(invoice, amount, actorUserId, session);
+      if (!updated) throw new AppError('Invoice balance changed; refresh and retry', 409, 'PAYMENT_CONFLICT');
 
-        if (updated.context_type === 'ADMISSION_REQUEST' || updated.context_type === 'PROCEDURE_BOOKING') {
-          if (updated.context_id) {
-            await this.advancePaymentService.processPayment(updated.context_type, updated.context_id, amount, actorUserId, session);
-          }
+      if (updated.context_type === 'ADMISSION_REQUEST' || updated.context_type === 'PROCEDURE_BOOKING') {
+        if (updated.context_id) {
+          await this.advancePaymentService.processPayment(updated.context_type, updated.context_id, amount, actorUserId, session);
         }
+      }
 
-        paymentId = payment.id;
-        await this.repository.audit('billing.payment.collected', actorUserId, metadata, {
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoice_number,
-          paymentId: payment.id,
-          paymentNumber: payment.payment_number,
-          amount: payment.amount,
-          paymentMethod: payment.payment_method,
-          status: updated.status,
-          balanceAmount: updated.balance_amount,
-        }, session);
-      });
-    } finally {
-      await session.endSession();
-    }
-    if (!paymentId) throw new AppError('Payment collection failed', 500, 'PAYMENT_COLLECTION_FAILED');
+      await this.repository.audit('billing.payment.collected', actorUserId, metadata, {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoice_number,
+        paymentId: payment.id,
+        paymentNumber: payment.payment_number,
+        amount: payment.amount,
+        paymentMethod: payment.payment_method,
+        status: updated.status,
+        balanceAmount: updated.balance_amount,
+      }, session);
+      return payment.id;
+    });
     const payment = await this.repository.getPaymentById(paymentId, scope);
     if (!payment) throw new AppError('Payment not found', 404, 'BILLING_PAYMENT_NOT_FOUND');
     return { payment, invoice: await this.getById(id, actorUserId) };

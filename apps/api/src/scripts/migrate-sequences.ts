@@ -51,7 +51,7 @@ async function migrateStandardSequence<T extends Record<string, unknown>>(key: s
     await SequenceModel.findOneAndUpdate(
       { _id: key },
       { $max: { sequence: maxSeq } },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
     console.log(`Updated ${key} to max: ${maxSeq}`);
   } else {
@@ -88,7 +88,7 @@ async function migrateTimestampSequence<T extends Record<string, unknown>>(key: 
     await SequenceModel.findOneAndUpdate(
       { _id: key },
       { $max: { sequence: maxSeq } },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
     console.log(`Updated ${key} to max: ${maxSeq}`);
   } else {

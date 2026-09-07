@@ -18,6 +18,15 @@ const testState = vi.hoisted(() => ({
   useFeature: vi.fn(),
 }));
 
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({
+    user: {
+      roles: [{ id: 'sa', code: 'SUPER_ADMIN', name: 'Super Admin' }],
+      permissions: [],
+    },
+  }),
+}));
+
 vi.mock('../utils/inpatient-clinical-storage', () => ({ removeLegacyInpatientClinicalStorage: vi.fn() }));
 vi.mock('../hooks/admissions/useInpatientWorkspaceFeature', () => ({
   useInpatientWorkspaceFeature: (filters: unknown) => {
@@ -28,7 +37,7 @@ vi.mock('../hooks/admissions/useInpatientWorkspaceFeature', () => ({
         branches: [{ id: 'branch-1', name: 'Main Branch' }], wards: [{ id: 'ward-1', name: 'Medical Ward' }],
         doctors: [], procedureServices: [], admittedList: [admission], filteredInpatients: [admission],
         recommendations: [], bookings: [], roundNotes: [], vitals: [], diagnosticOrders: [],
-        laboratoryServices: [], imagingServices: [], capabilities: { orderDiagnostics: true, addRoundNote: true, recordVitals: true, recommendSurgery: true, saveDischargeSummary: true, finalizeDischarge: true },
+        laboratoryServices: [], imagingServices: [], capabilities: { orderDiagnostics: true, addRoundNote: true, recordVitals: true, recommendSurgery: true, saveDischargeSummary: true, finalizeDischarge: true, showDischargeChecklist: true, showOperationalClearance: true },
         loading: {
           admissions: testState.admissionsLoading, recommendations: false, bookings: false,
           roundNotes: false, vitals: false, diagnosticOrders: false,

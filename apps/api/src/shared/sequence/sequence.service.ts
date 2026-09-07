@@ -6,7 +6,7 @@ export class SequenceService {
     const query = SequenceModel.findOneAndUpdate(
       { _id: sequenceKey },
       { $inc: { sequence: 1 } },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
     if (session) {
       query.session(session);

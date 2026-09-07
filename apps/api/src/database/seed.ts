@@ -183,7 +183,7 @@ const roleDefinitions: RoleDefinition[] = [
       ...['Wards', 'Beds'].map((screen) => code('Admissions', screen, 'View')),
       code('Admissions', 'Admission Policy', 'View'),
       ...['View', 'Create', 'Release', 'Cancel'].map((action) => code('Admissions', 'Bed Holds', action)),
-      code('Admissions', 'Inpatient Admissions', 'View'),
+      ...['View', 'Discharge'].map((action) => code('Admissions', 'Inpatient Admissions', action)),
       ...['View', 'Create', 'Confirm', 'Reschedule', 'Cancel'].map((action) => code('Surgery', 'Bookings', action)),
       code('Surgery', 'Recommendations', 'View'),
       code('Surgery', 'Schedule', 'View'),

@@ -1,5 +1,4 @@
-import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { createObjectId } from './factories.js';
 import { SequenceService } from '../src/shared/sequence/sequence.service.js';
@@ -12,15 +11,12 @@ import { DepartmentModel } from '../src/modules/departments/department.model.js'
 import { BranchModel } from '../src/modules/branches/branch.model.js';
 import { ProcedureRecommendationModel, ProcedureBookingModel } from '../src/modules/surgery/surgery.model.js';
 
-test('Surgery Concurrency Double-Booking Prevention', async (t) => {
-  await setupTestDatabase();
+describe('Surgery Concurrency Double-Booking Prevention', () => {
+  let repository: SurgeryRepository;
+  let service: SurgeryService;
 
-  const sequenceService = new SequenceService();
-  const repository = new SurgeryRepository(sequenceService);
-  
-  // Use a minimal mock for services that aren't the database
   const mockDoctors = {
-    getById: mock.fn(async (id) => ({
+    getById: vi.fn(async (id) => ({
       id: id.toString(),
       status: 'ACTIVE',
       availability: [
@@ -33,24 +29,28 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
         { day_of_week: 'SATURDAY', is_available: true, working_blocks: [{ start_time: '00:00', end_time: '23:59', slot_duration_minutes: 60 }] }
       ]
     })),
-    hasActiveLeave: mock.fn(async () => false),
-    getExceptionByDate: mock.fn(async () => null),
+    hasActiveLeave: vi.fn(async () => false),
+    getExceptionByDate: vi.fn(async () => null),
   } as unknown as ConstructorParameters<typeof SurgeryService>[1];
 
   const mockPatients = {
-    addProcedureTimeline: mock.fn(async () => {})
+    addProcedureTimeline: vi.fn(async () => {}),
+    verifyContextConsent: vi.fn(async () => null)
   } as unknown as ConstructorParameters<typeof SurgeryService>[2];
   
-  const mockBeds = {} as unknown as ConstructorParameters<typeof SurgeryService>[4];
+  const mockBeds = {
+    validateHold: vi.fn(async () => true),
+    releaseHoldSafe: vi.fn(async () => true)
+  } as unknown as ConstructorParameters<typeof SurgeryService>[4];
   const mockAdvancePayment = {} as unknown as ConstructorParameters<typeof SurgeryService>[5];
-  const mockBilling = {} as unknown as ConstructorParameters<typeof SurgeryService>[3];
+  const mockBilling = {
+    createProcedureBookingInvoice: vi.fn(async () => null),
+    verifyProcedureDeposit: vi.fn(async () => ({ satisfied: true }))
+  } as unknown as ConstructorParameters<typeof SurgeryService>[3];
   const mockClinicalOrders = {} as unknown as ConstructorParameters<typeof SurgeryService>[7];
   const mockPrescriptions = {} as unknown as ConstructorParameters<typeof SurgeryService>[6];
 
   const mockSettingsRepo = { get: async () => ({ localization: { timezone: 'UTC' } }) } as unknown as ConstructorParameters<typeof SurgeryService>[8];
-  const service = new SurgeryService(
-    repository, mockDoctors, mockPatients, mockBilling, mockBeds, mockAdvancePayment, mockPrescriptions, mockClinicalOrders, mockSettingsRepo
-  );
 
   let branchId: string;
   let departmentId: string;
@@ -59,11 +59,19 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
   let actorId: string;
   let serviceId: string;
 
-  t.beforeEach(async () => {
-    // We must mock authorization so the test can run
-    mock.method(repository, 'hasBranchAccess', async () => true);
-    mock.method(repository, 'departmentScope', async () => undefined);
-    mock.method(repository, 'audit', async () => {});
+  beforeAll(async () => {
+    await setupTestDatabase();
+    const sequenceService = new SequenceService();
+    repository = new SurgeryRepository(sequenceService);
+    service = new SurgeryService(
+      repository, mockDoctors, mockPatients, mockBilling, mockBeds, mockAdvancePayment, mockPrescriptions, mockClinicalOrders, mockSettingsRepo
+    );
+  }, 30000);
+
+  beforeEach(async () => {
+    vi.spyOn(repository, 'hasBranchAccess').mockImplementation(async () => true);
+    vi.spyOn(repository, 'departmentScope').mockImplementation(async () => undefined);
+    vi.spyOn(repository, 'audit').mockImplementation(async () => {});
 
     branchId = createObjectId();
     departmentId = createObjectId();
@@ -71,7 +79,6 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
     actorId = createObjectId();
     serviceId = createObjectId();
     
-    // Seed required master data for actual database lookups
     await BranchModel.create({ _id: branchId, name: 'Main', code: 'MAIN', status: 'ACTIVE' });
     await DepartmentModel.create({ _id: departmentId, name: 'Surgery', code: 'SURG', branchIds: [branchId], status: 'ACTIVE' });
     
@@ -88,17 +95,16 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
     });
   });
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
-  await t.test('Concurrent bookings for the same doctor and exact overlapping time result in exactly one success and one conflict', async () => {
-    // 1. Setup a single doctor and procedure service with capacity 1
+  it('Concurrent bookings for the same doctor and exact overlapping time result in exactly one success and one conflict', async () => {
     await ServiceModel.create({
       _id: serviceId,
       name: 'Appendectomy',
@@ -111,7 +117,6 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
       status: 'ACTIVE'
     });
 
-    // 2. We need TWO different recommendations (from two different patients) for the same doctor/service
     const patient1Id = createObjectId();
     const patient2Id = createObjectId();
     
@@ -157,7 +162,6 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
 
     const startTime = new Date(Date.now() + 86400000).toISOString(); // tomorrow
 
-    // 3. Fire genuine concurrent requests!
     const results = await Promise.allSettled([
       service.createBooking({
         recommendation_id: rec1._id.toString(),
@@ -175,28 +179,21 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
       }, actorId, {} as unknown as import('mongoose').ClientSession)
     ]);
 
-    // 4. Validate one success and one conflict
     const successes = results.filter(r => r.status === 'fulfilled');
     const failures = results.filter(r => r.status === 'rejected');
 
-    assert.equal(successes.length, 1, 'Exactly one concurrent booking should succeed');
-    assert.equal(failures.length, 1, 'Exactly one concurrent booking should fail due to conflict');
+    expect(successes.length).toBe(1);
+    expect(failures.length).toBe(1);
 
     const failure = failures[0] as PromiseRejectedResult;
-    assert.ok(failure.reason instanceof AppError, 'Failure should be an AppError');
-    assert.equal(
-      ['DOCTOR_PROCEDURE_CONFLICT', 'PROCEDURE_CAPACITY_CONFLICT'].includes(failure.reason.code), 
-      true, 
-      `Conflict code should be overlap or capacity conflict, got ${failure.reason.code}`
-    );
+    expect(failure.reason).toBeInstanceOf(AppError);
+    expect(['DOCTOR_PROCEDURE_CONFLICT', 'PROCEDURE_CAPACITY_CONFLICT']).toContain(failure.reason.code);
 
-    // 5. Verify database state
     const bookings = await ProcedureBookingModel.find({ doctorId: doctorId, status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] } });
-    assert.equal(bookings.length, 1, 'Database should contain exactly one booking for the slot');
+    expect(bookings.length).toBe(1);
   });
   
-  await t.test('Genuine Concurrent Service Capacity Test: capacity = 2, 3 requests -> 2 success, 1 conflict', async () => {
-    // 1. Service with capacity = 2 (e.g. 2 Operating Rooms)
+  it('Genuine Concurrent Service Capacity Test: capacity = 2, 3 requests -> 2 success, 1 conflict', async () => {
     await ServiceModel.create({
       _id: serviceId,
       name: 'MRI',
@@ -209,14 +206,12 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
       status: 'ACTIVE'
     });
     
-    // We need 3 DIFFERENT doctors, so there's no doctor overlap, only service overlap
     const doc2 = createObjectId();
     const doc3 = createObjectId();
     
     await DoctorModel.create({ _id: doc2, branchId: branchId, departmentId: departmentId, doctorNumber: 'DOC-2', firstName: 'A', lastName: 'B', displayName: 'Doc2', specialization: 'Gen', status: 'ACTIVE' });
     await DoctorModel.create({ _id: doc3, branchId: branchId, departmentId: departmentId, doctorNumber: 'DOC-3', firstName: 'C', lastName: 'D', displayName: 'Doc3', specialization: 'Gen', status: 'ACTIVE' });
 
-    // We need 3 recommendations
     const recs = [];
     for(let i=0; i<3; i++) {
        recs.push(await ProcedureRecommendationModel.create({
@@ -242,7 +237,6 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
 
     const startTime = new Date(Date.now() + 86400000).toISOString(); // tomorrow
 
-    // 2. Fire 3 genuine concurrent requests
     const results = await Promise.allSettled([
       service.createBooking({
         recommendation_id: recs[0]._id.toString(),
@@ -267,23 +261,17 @@ test('Surgery Concurrency Double-Booking Prevention', async (t) => {
       }, actorId, {} as unknown as import('mongoose').ClientSession)
     ]);
 
-    // 3. Validate two successes and one conflict
     const successes = results.filter(r => r.status === 'fulfilled');
     const failures = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
 
-    if (successes.length !== 2) {
-      console.log('Capacity test failed. Failure reasons:', failures.map(f => (f.reason as Error).message ?? f.reason));
-    }
-
-    assert.equal(successes.length, 2, 'Exactly 2 bookings should succeed because capacity is 2');
-    assert.equal(failures.length, 1, 'Exactly 1 booking should fail because capacity is exceeded');
+    expect(successes.length).toBe(2);
+    expect(failures.length).toBe(1);
 
     const failure = failures[0] as PromiseRejectedResult;
-    assert.ok(failure.reason instanceof AppError);
-    assert.equal(failure.reason.code, 'PROCEDURE_CAPACITY_CONFLICT');
+    expect(failure.reason).toBeInstanceOf(AppError);
+    expect(failure.reason.code).toBe('PROCEDURE_CAPACITY_CONFLICT');
 
-    // 4. Verify database state
     const bookings = await ProcedureBookingModel.find({ serviceId: serviceId, status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] } });
-    assert.equal(bookings.length, 2, 'Database should contain exactly two bookings for the service');
+    expect(bookings.length).toBe(2);
   });
 });

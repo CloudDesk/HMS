@@ -1,5 +1,4 @@
-﻿import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import mongoose from 'mongoose';
 import { SurgeryService } from '../src/modules/surgery/surgery.service.js';
 import { SurgeryRepository } from '../src/modules/surgery/surgery.repository.js';
@@ -10,9 +9,7 @@ import type { CreateProcedureRecommendationDTO, SurgeryMetadata } from '../src/m
 import { UserModel } from '../src/modules/users/user.model.js';
 import { RoleModel } from '../src/modules/roles/role.model.js';
 
-test('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', async (t) => {
-  await setupTestDatabase();
-
+describe('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', () => {
   const branchId = createObjectId();
   const doctorUserId = createObjectId();
   const doctorId = createObjectId();
@@ -26,16 +23,20 @@ test('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', asyn
     userAgent: 'test-agent',
   };
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  beforeAll(async () => {
+    await setupTestDatabase();
+  }, 30000);
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
-  await t.test('createRecommendationSchema allows optional recommending_doctor_id', () => {
+  it('createRecommendationSchema allows optional recommending_doctor_id', () => {
     const parsed = createRecommendationSchema.parse({
       branch_id: branchId,
       patient_id: patientId,
@@ -43,12 +44,12 @@ test('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', asyn
       service_id: cardioServiceId,
       clinical_reason: 'Coronary artery disease evaluation',
     });
-    assert.equal(parsed.department_id, cardioDeptId);
-    assert.equal(parsed.recommending_doctor_id, undefined);
-    assert.equal(parsed.clinical_reason, 'Coronary artery disease evaluation');
+    expect(parsed.department_id).toBe(cardioDeptId);
+    expect(parsed.recommending_doctor_id).toBeUndefined();
+    expect(parsed.clinical_reason).toBe('Coronary artery disease evaluation');
   });
 
-  await t.test('SurgeryRepository.departmentScope returns undefined for DOCTOR / CLINICIAN_DOCTOR roles', async () => {
+  it('SurgeryRepository.departmentScope returns undefined for DOCTOR / CLINICIAN_DOCTOR roles', async () => {
     const repo = new SurgeryRepository();
     
     const doctorRole = await RoleModel.create({
@@ -74,10 +75,10 @@ test('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', asyn
     });
 
     const scope = await repo.departmentScope(doctorUserId);
-    assert.equal(scope, undefined, 'Doctors should have unrestricted department scope within authorized branches');
+    expect(scope).toBeUndefined();
   });
 
-  await t.test('SurgeryRepository.departmentScope returns department list for non-doctor scoped roles', async () => {
+  it('SurgeryRepository.departmentScope returns department list for non-doctor scoped roles', async () => {
     const repo = new SurgeryRepository();
     const nurseUserId = createObjectId();
     
@@ -104,27 +105,27 @@ test('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', asyn
     });
 
     const scope = await repo.departmentScope(nurseUserId);
-    assert.ok(scope);
-    assert.deepEqual(scope, [dentalDeptId]);
+    expect(scope).toBeDefined();
+    expect(scope).toEqual([dentalDeptId]);
   });
 
-  await t.test('createRecommendation derives recommending doctor and allows doctor in Dental to recommend Cardiology procedure', async () => {
+  it('createRecommendation derives recommending doctor and allows doctor in Dental to recommend Cardiology procedure', async () => {
     const mockSession = await mongoose.startSession();
     let capturedRecommendation: unknown;
 
     const mockRepo = {
-      session: mock.fn(async () => mockSession),
-      hasBranchAccess: mock.fn(async () => true),
-      departmentScope: mock.fn(async () => undefined), // Doctor is unrestricted across departments in branch
-      doctorByUserId: mock.fn(async () => ({ _id: doctorId, userId: doctorUserId, displayName: 'Dr. Anderson James' })),
-      recommendationReferences: mock.fn(async () => ({
+      session: vi.fn(async () => mockSession),
+      hasBranchAccess: vi.fn(async () => true),
+      departmentScope: vi.fn(async () => undefined), // Doctor is unrestricted across departments in branch
+      doctorByUserId: vi.fn(async () => ({ _id: doctorId, userId: doctorUserId, displayName: 'Dr. Anderson James' })),
+      recommendationReferences: vi.fn(async () => ({
         patient: { patientNumber: 'PAT-100', firstName: 'John', lastName: 'Doe' },
         doctor: { displayName: 'Dr. Anderson James' },
         department: { name: 'Cardiology' },
         service: { name: 'Coronary Angioplasty' },
         encounter: null,
       })),
-      createRecommendation: mock.fn(async (data: CreateProcedureRecommendationDTO, resolved: { patientNumber: string; patientName: string; doctorName: string; departmentName: string; serviceName: string }, actor: string) => {
+      createRecommendation: vi.fn(async (data: CreateProcedureRecommendationDTO, resolved: { patientNumber: string; patientName: string; doctorName: string; departmentName: string; serviceName: string }, actor: string) => {
         capturedRecommendation = { data, resolved, actor };
         return {
           id: createObjectId(),
@@ -150,11 +151,11 @@ test('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', asyn
           booking_id: null,
         };
       }),
-      audit: mock.fn(async () => ({})),
+      audit: vi.fn(async () => ({})),
     };
 
     const mockPatients = {
-      addProcedureTimeline: mock.fn(async () => ({})),
+      addProcedureTimeline: vi.fn(async () => ({})),
     };
 
     const service = new SurgeryService(
@@ -181,11 +182,11 @@ test('Surgery Recommendation - Cross-Department & Doctor Derivation Tests', asyn
       metadata,
     );
 
-    assert.ok(result);
-    assert.equal(result.recommending_doctor_name, 'Dr. Anderson James');
-    assert.equal(result.recommending_doctor_id, doctorId);
-    assert.equal(result.department_name, 'Cardiology');
-    assert.equal(result.service_name, 'Coronary Angioplasty');
-    assert.ok(capturedRecommendation);
+    expect(result).toBeDefined();
+    expect(result.recommending_doctor_name).toBe('Dr. Anderson James');
+    expect(result.recommending_doctor_id).toBe(doctorId);
+    expect(result.department_name).toBe('Cardiology');
+    expect(result.service_name).toBe('Coronary Angioplasty');
+    expect(capturedRecommendation).toBeDefined();
   });
 });

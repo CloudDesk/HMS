@@ -1,6 +1,4 @@
-import { test, describe, before, after } from 'node:test';
-import * as assert from 'node:assert/strict';
-import { connect, disconnect } from 'mongoose';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { BranchModel } from '../src/modules/branches/branch.model.js';
 import { DepartmentModel } from '../src/modules/departments/department.model.js';
 import { RoleModel } from '../src/modules/roles/role.model.js';
@@ -9,10 +7,10 @@ import { AdmissionRequestModel } from '../src/modules/inpatient-admissions/inpat
 import { InpatientAdmissionRepository } from '../src/modules/inpatient-admissions/inpatient-admission.repository.js';
 import { InpatientAdmissionService } from '../src/modules/inpatient-admissions/inpatient-admission.service.js';
 import { SequenceService } from '../src/shared/sequence/sequence.service.js';
-import { env } from '../src/config/env.js';
+import { setupTestDatabase, teardownTestDatabase } from './setup.js';
 import { Types } from 'mongoose';
 
-describe('Inpatient Admission Stats', async () => {
+describe('Inpatient Admission Stats', () => {
   let repo: InpatientAdmissionRepository;
   let service: InpatientAdmissionService;
   
@@ -26,8 +24,8 @@ describe('Inpatient Admission Stats', async () => {
   const branch1UserId = new Types.ObjectId();
   const branch1Dept1UserId = new Types.ObjectId();
   
-  before(async () => {
-    await connect(env.DATABASE_URL);
+  beforeAll(async () => {
+    await setupTestDatabase();
     const seqService = new SequenceService();
     repo = new InpatientAdmissionRepository(seqService);
     // @ts-expect-error This focused repository test intentionally supplies service stubs.
@@ -48,9 +46,9 @@ describe('Inpatient Admission Stats', async () => {
     ]);
     
     await UserModel.create([
-      { _id: superAdminId, email: 'admin@test.com', firstName: 'Admin', lastName: 'User', status: 'active', roleIds: [adminRoleId] },
-      { _id: branch1UserId, email: 'b1@test.com', firstName: 'B1', lastName: 'User', status: 'active', branchIds: [branch1Id] },
-      { _id: branch1Dept1UserId, email: 'b1d1@test.com', firstName: 'B1D1', lastName: 'User', status: 'active', branchIds: [branch1Id], departmentIds: [dept1Id] }
+      { _id: superAdminId, email: 'admin@test.com', username: 'admin', fullName: 'Admin User', passwordHash: 'hash', firstName: 'Admin', lastName: 'User', status: 'active', roleIds: [adminRoleId] },
+      { _id: branch1UserId, email: 'b1@test.com', username: 'b1user', fullName: 'B1 User', passwordHash: 'hash', firstName: 'B1', lastName: 'User', status: 'active', branchIds: [branch1Id] },
+      { _id: branch1Dept1UserId, email: 'b1d1@test.com', username: 'b1d1user', fullName: 'B1D1 User', passwordHash: 'hash', firstName: 'B1D1', lastName: 'User', status: 'active', branchIds: [branch1Id], departmentIds: [dept1Id] }
     ]);
     
     // Create requests
@@ -85,46 +83,46 @@ describe('Inpatient Admission Stats', async () => {
       // Branch 2 noise
       ...createReq(branch2Id, dept1Id, 'PENDING_VALIDATION', 100),
     ]);
-  });
+  }, 30000);
 
-  after(async () => {
+  afterAll(async () => {
     await BranchModel.deleteMany({});
     await DepartmentModel.deleteMany({});
     await RoleModel.deleteMany({});
     await UserModel.deleteMany({});
     await AdmissionRequestModel.deleteMany({});
-    await disconnect();
+    await teardownTestDatabase();
   });
 
-  test('Aggregation correctness for Super Admin (all departments in branch)', async () => {
+  it('Aggregation correctness for Super Admin (all departments in branch)', async () => {
     const stats = await service.getRequestStatusCounts(superAdminId.toString(), branch1Id.toString());
-    assert.equal(stats.pendingValidation, 80);
-    assert.equal(stats.readyForConfirmation, 20);
-    assert.equal(stats.confirmed, 40);
-    assert.equal(stats.cancelled, 10);
+    expect(stats.pendingValidation).toBe(80);
+    expect(stats.readyForConfirmation).toBe(20);
+    expect(stats.confirmed).toBe(40);
+    expect(stats.cancelled).toBe(10);
   });
 
-  test('Department isolation (only Cardiology)', async () => {
+  it('Department isolation (only Cardiology)', async () => {
     const stats = await service.getRequestStatusCounts(branch1Dept1UserId.toString(), branch1Id.toString());
-    assert.equal(stats.pendingValidation, 40); // Only dept1
-    assert.equal(stats.readyForConfirmation, 10);
-    assert.equal(stats.confirmed, 40);
-    assert.equal(stats.cancelled, 10);
+    expect(stats.pendingValidation).toBe(40); // Only dept1
+    expect(stats.readyForConfirmation).toBe(10);
+    expect(stats.confirmed).toBe(40);
+    expect(stats.cancelled).toBe(10);
   });
 
-  test('Branch isolation', async () => {
+  it('Branch isolation', async () => {
     const stats = await service.getRequestStatusCounts(superAdminId.toString(), branch2Id.toString());
-    assert.equal(stats.pendingValidation, 100);
-    assert.equal(stats.readyForConfirmation, 0);
+    expect(stats.pendingValidation).toBe(100);
+    expect(stats.readyForConfirmation).toBe(0);
   });
   
-  test('Empty result', async () => {
+  it('Empty result', async () => {
     // Delete all
     await AdmissionRequestModel.deleteMany({});
     const stats = await service.getRequestStatusCounts(superAdminId.toString(), branch1Id.toString());
-    assert.equal(stats.pendingValidation, 0);
-    assert.equal(stats.readyForConfirmation, 0);
-    assert.equal(stats.confirmed, 0);
-    assert.equal(stats.cancelled, 0);
+    expect(stats.pendingValidation).toBe(0);
+    expect(stats.readyForConfirmation).toBe(0);
+    expect(stats.confirmed).toBe(0);
+    expect(stats.cancelled).toBe(0);
   });
 });

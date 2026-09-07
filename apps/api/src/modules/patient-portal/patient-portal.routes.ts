@@ -346,15 +346,10 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
 
     const status = await services.patientPortal.getUnlinkedPatientLoginStatus(parsed.data.phone);
     if (status === 'MINOR_REQUIRES_GUARDIAN') {
-      const { registrationToken } = await services.patientPortal.verifyOtp(
-        parsed.data.phone,
-        parsed.data.otp,
-      );
       throw new AppError(
         'This patient is a minor. A parent or guardian account must be linked before signing in.',
         409,
         'MINOR_GUARDIAN_ACCOUNT_REQUIRED',
-        { registrationToken },
       );
     }
     if (status === 'MULTIPLE_PATIENT_MATCHES') {
@@ -365,15 +360,10 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       );
     }
     if (status === 'NEW_PATIENT_REQUIRES_REGISTRATION') {
-      const { registrationToken } = await services.patientPortal.verifyOtp(
-        parsed.data.phone,
-        parsed.data.otp,
-      );
       throw new AppError(
         'No portal account or patient record matches this number. Register as a new patient first.',
         409,
         'NEW_PATIENT_REQUIRES_REGISTRATION',
-        { registrationToken },
       );
     }
 

@@ -1,5 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import type { OpdClinicalOrderRepository } from '../opd/opd-clinical-order.repository.js';
 import type { ClinicalOrderRequestMetadata, OpdClinicalOrder } from '../opd/opd-clinical-order.types.js';
 import type { ServiceRepository } from '../services/service.repository.js';
@@ -57,85 +58,69 @@ export class LaboratoryService {
     metadata: ClinicalOrderRequestMetadata,
   ) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    const session = await mongoose.startSession();
-    try {
-      let updated: OpdClinicalOrder | null = null;
-      await session.withTransaction(async () => {
-        const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
-        if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
-        this.assertMutable(order);
-        if (transitions[order.status] !== data.status) {
-          throw new AppError(`Cannot transition laboratory order from ${order.status} to ${data.status}`, 409, 'INVALID_STATUS_TRANSITION');
-        }
-        if (data.status === 'VERIFIED') {
-          const result = await this.repository.getResult(id, session);
-          if (!result) throw new AppError('Enter laboratory results before verification', 409, 'RESULT_REQUIRED');
-          const verified = await this.repository.verifyResult(id, actorUserId, session);
-          if (!verified) throw new AppError('Laboratory result was already verified', 409, 'RESULT_ALREADY_VERIFIED');
-        }
-        updated = await this.orderRepository.updateOperationalStatus(id, 'LABORATORY', order.status, data.status, actorUserId, session);
-        if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
-        await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
-          orderId: id, patientId: order.patient_id, visitId: order.visit_id,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
-          previousStatus: order.status, status: data.status,
-        }, session);
-      });
-      if (!updated) throw new AppError('Laboratory status update failed', 500, 'LABORATORY_STATUS_UPDATE_FAILED');
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
+      if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
+      this.assertMutable(order);
+      if (transitions[order.status] !== data.status) {
+        throw new AppError(`Cannot transition laboratory order from ${order.status} to ${data.status}`, 409, 'INVALID_STATUS_TRANSITION');
+      }
+      if (data.status === 'VERIFIED') {
+        const result = await this.repository.getResult(id, session);
+        if (!result) throw new AppError('Enter laboratory results before verification', 409, 'RESULT_REQUIRED');
+        const verified = await this.repository.verifyResult(id, actorUserId, session);
+        if (!verified) throw new AppError('Laboratory result was already verified', 409, 'RESULT_ALREADY_VERIFIED');
+      }
+      const updated = await this.orderRepository.updateOperationalStatus(id, 'LABORATORY', order.status, data.status, actorUserId, session);
+      if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
+      await this.orderRepository.audit(auditEvents[data.status], actorUserId, metadata, {
+        orderId: id, patientId: order.patient_id, visitId: order.visit_id,
+        sourceType: order.source_type, encounterId: order.encounter_id,
+        admissionId: order.admission_id, procedureId: order.procedure_id,
+        previousStatus: order.status, status: data.status,
+      }, session);
       return updated;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   async enterResult(id: string, data: SaveLaboratoryResultDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    const session = await mongoose.startSession();
-    try {
-      let saved: Awaited<ReturnType<LaboratoryRepository['createResult']>> | undefined;
-      await session.withTransaction(async () => {
-        const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
-        if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
-        this.assertMutable(order);
-        if (order.status !== 'IN_PROGRESS') throw new AppError('Results can only be entered for an in-progress order', 409, 'RESULT_ENTRY_NOT_ALLOWED');
-        const normalized = await this.validateAndNormalizeResults(order, data);
-        if (await this.repository.getResult(id, session)) throw new AppError('Laboratory result already exists', 409, 'LABORATORY_RESULT_EXISTS');
-        saved = await this.repository.createResult(downstreamContext(order), normalized, actorUserId, session);
-        const updated = await this.orderRepository.updateOperationalStatus(id, 'LABORATORY', 'IN_PROGRESS', 'RESULT_ENTERED', actorUserId, session);
-        if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
-        await this.orderRepository.audit('laboratory.result.entered', actorUserId, metadata, {
-          orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
-        }, session);
-      });
-      if (!saved) throw new AppError('Laboratory result entry failed', 500, 'LABORATORY_RESULT_SAVE_FAILED');
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
+      if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
+      this.assertMutable(order);
+      if (order.status !== 'IN_PROGRESS') throw new AppError('Results can only be entered for an in-progress order', 409, 'RESULT_ENTRY_NOT_ALLOWED');
+      const normalized = await this.validateAndNormalizeResults(order, data);
+      if (await this.repository.getResult(id, session)) throw new AppError('Laboratory result already exists', 409, 'LABORATORY_RESULT_EXISTS');
+      const saved = await this.repository.createResult(downstreamContext(order), normalized, actorUserId, session);
+      const updated = await this.orderRepository.updateOperationalStatus(id, 'LABORATORY', 'IN_PROGRESS', 'RESULT_ENTERED', actorUserId, session);
+      if (!updated) throw new AppError('Laboratory order changed; refresh and retry', 409, 'ORDER_STATUS_CONFLICT');
+      await this.orderRepository.audit('laboratory.result.entered', actorUserId, metadata, {
+        orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
+        sourceType: order.source_type, encounterId: order.encounter_id,
+        admissionId: order.admission_id, procedureId: order.procedure_id,
+      }, session);
       return saved;
-    } finally { await session.endSession(); }
+    });
   }
 
   async updateResult(id: string, data: SaveLaboratoryResultDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    const session = await mongoose.startSession();
-    try {
-      let saved: Awaited<ReturnType<LaboratoryRepository['updateResult']>> | null = null;
-      await session.withTransaction(async () => {
-        const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
-        if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
-        this.assertMutable(order);
-        if (order.status !== 'RESULT_ENTERED') throw new AppError('Only unverified results can be updated', 409, 'RESULT_UPDATE_NOT_ALLOWED');
-        const normalized = await this.validateAndNormalizeResults(order, data);
-        saved = await this.repository.updateResult(downstreamContext(order), normalized, actorUserId, session);
-        if (!saved) throw new AppError('Laboratory result not found or already verified', 409, 'RESULT_UPDATE_NOT_ALLOWED');
-        await this.orderRepository.audit('laboratory.result.updated', actorUserId, metadata, {
-          orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
-          sourceType: order.source_type, encounterId: order.encounter_id,
-          admissionId: order.admission_id, procedureId: order.procedure_id,
-        }, session);
-      });
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
+      if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
+      this.assertMutable(order);
+      if (order.status !== 'RESULT_ENTERED') throw new AppError('Only unverified results can be updated', 409, 'RESULT_UPDATE_NOT_ALLOWED');
+      const normalized = await this.validateAndNormalizeResults(order, data);
+      const saved = await this.repository.updateResult(downstreamContext(order), normalized, actorUserId, session);
+      if (!saved) throw new AppError('Laboratory result not found or already verified', 409, 'RESULT_UPDATE_NOT_ALLOWED');
+      await this.orderRepository.audit('laboratory.result.updated', actorUserId, metadata, {
+        orderId: id, patientId: order.patient_id, visitId: order.visit_id, resultItemCount: normalized.result_items.length,
+        sourceType: order.source_type, encounterId: order.encounter_id,
+        admissionId: order.admission_id, procedureId: order.procedure_id,
+      }, session);
       return saved;
-    } finally { await session.endSession(); }
+    });
   }
 
   private async requireOrder(id: string, actorUserId: string) {

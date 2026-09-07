@@ -57,7 +57,7 @@ export class LaboratoryRepository {
     order: LaboratoryOrderContext,
     data: SaveLaboratoryResultDTO,
     actorUserId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const now = new Date();
     const record = new LaboratoryResultModel({
@@ -69,11 +69,11 @@ export class LaboratoryRepository {
       resultItems: resultItems(data), remarks: nullable(data.remarks), enteredBy: objectId(actorUserId), enteredAt: now,
       createdBy: objectId(actorUserId), updatedBy: objectId(actorUserId),
     });
-    await record.save({ session });
+    await record.save({ session: session ?? undefined });
     return toResult(record.toObject() as LaboratoryResultLean);
   }
 
-  async updateResult(order: LaboratoryOrderContext, data: SaveLaboratoryResultDTO, actorUserId: string, session: ClientSession) {
+  async updateResult(order: LaboratoryOrderContext, data: SaveLaboratoryResultDTO, actorUserId: string, session?: ClientSession) {
     const record = await LaboratoryResultModel.findOneAndUpdate(
       { orderId: objectId(order.id), deletedAt: null, verifiedAt: null },
       { $set: {
@@ -83,16 +83,16 @@ export class LaboratoryRepository {
         procedureId: order.procedure_id ? objectId(order.procedure_id) : null,
         resultItems: resultItems(data), remarks: nullable(data.remarks), updatedBy: objectId(actorUserId),
       } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<LaboratoryResultLean>();
     return record ? toResult(record) : null;
   }
 
-  async verifyResult(orderId: string, actorUserId: string, session: ClientSession) {
+  async verifyResult(orderId: string, actorUserId: string, session?: ClientSession) {
     const record = await LaboratoryResultModel.findOneAndUpdate(
       { orderId: objectId(orderId), deletedAt: null, verifiedAt: null },
       { $set: { verifiedBy: objectId(actorUserId), verifiedAt: new Date(), updatedBy: objectId(actorUserId) } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<LaboratoryResultLean>();
     return record ? toResult(record) : null;
   }

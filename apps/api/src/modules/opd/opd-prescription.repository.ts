@@ -156,7 +156,7 @@ export class OpdPrescriptionRepository {
   async submitForEmergency(data: {
     encounterId: string; patientId: string; patientNumber: string; patientName: string; doctorId: string; doctorName: string; branchId: string;
     items: SaveOpdPrescriptionItemDTO[]; doctorInstructions?: string | null; patientInstructions?: string | null;
-  }, userId: string, session: ClientSession) {
+  }, userId: string, session?: ClientSession) {
     return this.submitForContext({
       source_type: 'EMERGENCY_ENCOUNTER', source_id: data.encounterId, encounter_id: data.encounterId,
       admission_id: null, procedure_id: null, patient_id: data.patientId, patient_number: data.patientNumber,
@@ -170,7 +170,7 @@ export class OpdPrescriptionRepository {
     context: ClinicalSourceContext,
     data: SaveOpdPrescriptionDTO,
     userId: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const visitContext = context.source_type === 'OPD_VISIT'
       ? { visitId: objectId(context.source_id) }
@@ -189,7 +189,7 @@ export class OpdPrescriptionRepository {
         patientNumber: context.patient_number, patientName: context.patient_name, doctorId: objectId(context.doctor_id),
         doctorName: context.doctor_name, createdBy: objectId(userId),
       } },
-      { new: true, upsert: true, runValidators: true, session },
+      { returnDocument: 'after', upsert: true, runValidators: true, session },
     ).lean<OpdPrescriptionLean>();
     if (!record) throw new AppError('Context prescription could not be submitted', 500, 'PRESCRIPTION_SAVE_FAILED');
     return toPrescription(record);

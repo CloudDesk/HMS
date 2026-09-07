@@ -382,6 +382,8 @@ export function InpatientWorkspacePage() {
         canRecommendSurgery={feature.state.capabilities.recommendSurgery}
         canSaveDischargeSummary={feature.state.capabilities.saveDischargeSummary}
         canFinalizeDischarge={feature.state.capabilities.finalizeDischarge}
+        showDischargeChecklist={feature.state.capabilities.showDischargeChecklist}
+        showOperationalClearance={feature.state.capabilities.showOperationalClearance}
       />
 
       {/* Modal: New Procedure Recommendation (Shared Surgery Modal) */}

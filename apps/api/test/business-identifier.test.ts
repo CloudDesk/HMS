@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll as before, afterAll as after } from 'vitest';
 import assert from 'node:assert/strict';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { SequenceService } from '../src/shared/sequence/sequence.service.js';
@@ -62,7 +62,7 @@ describe('Business Identifier Concurrency', () => {
         date_of_birth: '1990-01-01',
         gender: 'MALE',
         registration_branch_id: branch._id.toString(),
-        contact_number: `55512345${i.toString().padStart(2, '0')}`
+        phone: `+2547000000${i.toString().padStart(2, '0')}`,
       }, user._id.toString())
     );
     

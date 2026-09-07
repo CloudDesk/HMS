@@ -112,7 +112,7 @@ export class OpdClinicalOrderService {
     orderType: ClinicalOrderType,
     data: SaveOpdClinicalOrderDTO,
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     if (data.items.length === 0) throw new AppError('Add at least one investigation before submitting', 400, 'INVESTIGATION_REQUIRED');
     this.validateLaboratoryFields(orderType, data);

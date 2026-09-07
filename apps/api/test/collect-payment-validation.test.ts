@@ -1,5 +1,4 @@
-import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { BillingService } from '../src/modules/billing/billing.service.js';
 import { AdvancePaymentService } from '../src/modules/advance-payment/advance-payment.service.js';
 import { AdvancePaymentRepository } from '../src/modules/advance-payment/advance-payment.repository.js';
@@ -7,31 +6,35 @@ import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './se
 import { createObjectId } from './factories.js';
 import { AppError } from '../src/shared/errors/app-error.js';
 
-test('Collect Payment Amount Validation Suite', async (t) => {
-  await setupTestDatabase();
+describe('Collect Payment Amount Validation Suite', () => {
+  let advancePaymentRepository: AdvancePaymentRepository;
+  let advancePaymentService: AdvancePaymentService;
 
-  const advancePaymentRepository = new AdvancePaymentRepository();
-  const advancePaymentService = new AdvancePaymentService(advancePaymentRepository);
+  beforeAll(async () => {
+    await setupTestDatabase();
+    advancePaymentRepository = new AdvancePaymentRepository();
+    advancePaymentService = new AdvancePaymentService(advancePaymentRepository);
+  }, 30000);
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
   const metadata = { ipAddress: '127.0.0.1', userAgent: 'test-agent' };
 
-  await t.test('1 & 9. Payment exactly equal to outstanding balance succeeds and sets status to PAID', async () => {
+  it('1 & 9. Payment exactly equal to outstanding balance succeeds and sets status to PAID', async () => {
     let currentBalance = 4300;
     let currentPaid = 0;
     let currentStatus = 'PENDING';
 
     const mockRepo: Record<string, unknown> = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         patient_id: createObjectId(),
@@ -41,7 +44,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
         paid_amount: currentPaid,
         balance_amount: currentBalance,
       })),
-      getHydratedById: mock.fn(async () => ({
+      getHydratedById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         patient_id: createObjectId(),
@@ -52,14 +55,14 @@ test('Collect Payment Amount Validation Suite', async (t) => {
         balance_amount: currentBalance,
         items: [],
       })),
-      createPayment: mock.fn(async () => ({
+      createPayment: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439022',
         payment_number: 'PAY-001',
         amount: 4300,
         payment_method: 'CASH',
         payment_date: new Date(),
       })),
-      applyPayment: mock.fn(async () => {
+      applyPayment: vi.fn(async () => {
         currentPaid = 4300;
         currentBalance = 0;
         currentStatus = 'PAID';
@@ -70,7 +73,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
           balance_amount: 0,
         };
       }),
-      getPaymentById: mock.fn(async () => ({
+      getPaymentById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439022',
         invoice_id: '507f1f77bcf86cd799439011',
         payment_number: 'PAY-001',
@@ -78,7 +81,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
         payment_method: 'CASH',
         payment_date: new Date(),
       })),
-      audit: mock.fn(async () => {}),
+      audit: vi.fn(async () => {}),
     };
 
     const service = new BillingService(
@@ -99,19 +102,19 @@ test('Collect Payment Amount Validation Suite', async (t) => {
       metadata,
     );
 
-    assert.equal(result.payment.amount, 4300);
-    assert.equal(result.invoice.status, 'PAID');
-    assert.equal(result.invoice.balance_amount, 0);
+    expect(result.payment.amount).toBe(4300);
+    expect(result.invoice.status).toBe('PAID');
+    expect(result.invoice.balance_amount).toBe(0);
   });
 
-  await t.test('2 & 10. Payment less than outstanding balance succeeds and updates remaining balance', async () => {
+  it('2 & 10. Payment less than outstanding balance succeeds and updates remaining balance', async () => {
     let currentBalance = 4300;
     let currentPaid = 0;
     let currentStatus = 'PENDING';
 
     const mockRepo: Record<string, unknown> = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         patient_id: createObjectId(),
@@ -121,7 +124,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
         paid_amount: currentPaid,
         balance_amount: currentBalance,
       })),
-      getHydratedById: mock.fn(async () => ({
+      getHydratedById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         patient_id: createObjectId(),
@@ -132,14 +135,14 @@ test('Collect Payment Amount Validation Suite', async (t) => {
         balance_amount: currentBalance,
         items: [],
       })),
-      createPayment: mock.fn(async () => ({
+      createPayment: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439022',
         payment_number: 'PAY-001',
         amount: 2000,
         payment_method: 'CASH',
         payment_date: new Date(),
       })),
-      applyPayment: mock.fn(async () => {
+      applyPayment: vi.fn(async () => {
         currentPaid = 2000;
         currentBalance = 2300;
         currentStatus = 'PARTIALLY_PAID';
@@ -150,7 +153,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
           balance_amount: 2300,
         };
       }),
-      getPaymentById: mock.fn(async () => ({
+      getPaymentById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439022',
         invoice_id: '507f1f77bcf86cd799439011',
         payment_number: 'PAY-001',
@@ -158,7 +161,7 @@ test('Collect Payment Amount Validation Suite', async (t) => {
         payment_method: 'CASH',
         payment_date: new Date(),
       })),
-      audit: mock.fn(async () => {}),
+      audit: vi.fn(async () => {}),
     };
 
     const service = new BillingService(
@@ -179,15 +182,15 @@ test('Collect Payment Amount Validation Suite', async (t) => {
       metadata,
     );
 
-    assert.equal(result.payment.amount, 2000);
-    assert.equal(result.invoice.status, 'PARTIALLY_PAID');
-    assert.equal(result.invoice.balance_amount, 2300);
+    expect(result.payment.amount).toBe(2000);
+    expect(result.invoice.status).toBe('PARTIALLY_PAID');
+    expect(result.invoice.balance_amount).toBe(2300);
   });
 
-  await t.test('3. Payment greater than outstanding balance is rejected with 400 PAYMENT_EXCEEDS_BALANCE', async () => {
+  it('3. Payment greater than outstanding balance is rejected with 400 PAYMENT_EXCEEDS_BALANCE', async () => {
     const mockRepo: Record<string, unknown> = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         status: 'PENDING',
@@ -208,29 +211,27 @@ test('Collect Payment Amount Validation Suite', async (t) => {
       advancePaymentService,
     );
 
-    await assert.rejects(
-      async () => {
-        await service.collectPayment(
-          '507f1f77bcf86cd799439011',
-          { amount: 40000, payment_method: 'CASH' },
-          createObjectId(),
-          metadata,
-        );
-      },
-      (err: unknown) => {
-        assert.ok(err instanceof AppError);
-        assert.equal(err.statusCode, 400);
-        assert.equal(err.code, 'PAYMENT_EXCEEDS_BALANCE');
-        assert.match(err.message, /Payment amount cannot exceed the outstanding balance/);
-        return true;
-      },
-    );
+    await expect(
+      service.collectPayment(
+        '507f1f77bcf86cd799439011',
+        { amount: 40000, payment_method: 'CASH' },
+        createObjectId(),
+        metadata,
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      return (
+        err instanceof AppError &&
+        err.statusCode === 400 &&
+        err.code === 'PAYMENT_EXCEEDS_BALANCE' &&
+        /Payment amount cannot exceed the outstanding balance/.test(err.message)
+      );
+    });
   });
 
-  await t.test('4. Zero payment is rejected with 400 INVALID_PAYMENT_AMOUNT', async () => {
+  it('4. Zero payment is rejected with 400 INVALID_PAYMENT_AMOUNT', async () => {
     const mockRepo: Record<string, unknown> = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         status: 'PENDING',
@@ -249,28 +250,22 @@ test('Collect Payment Amount Validation Suite', async (t) => {
       advancePaymentService,
     );
 
-    await assert.rejects(
-      async () => {
-        await service.collectPayment(
-          '507f1f77bcf86cd799439011',
-          { amount: 0, payment_method: 'CASH' },
-          createObjectId(),
-          metadata,
-        );
-      },
-      (err: unknown) => {
-        assert.ok(err instanceof AppError);
-        assert.equal(err.statusCode, 400);
-        assert.equal(err.code, 'INVALID_PAYMENT_AMOUNT');
-        return true;
-      },
-    );
+    await expect(
+      service.collectPayment(
+        '507f1f77bcf86cd799439011',
+        { amount: 0, payment_method: 'CASH' },
+        createObjectId(),
+        metadata,
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      return err instanceof AppError && err.statusCode === 400 && err.code === 'INVALID_PAYMENT_AMOUNT';
+    });
   });
 
-  await t.test('5. Negative payment is rejected with 400 INVALID_PAYMENT_AMOUNT', async () => {
+  it('5. Negative payment is rejected with 400 INVALID_PAYMENT_AMOUNT', async () => {
     const mockRepo: Record<string, unknown> = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         status: 'PENDING',
@@ -289,28 +284,22 @@ test('Collect Payment Amount Validation Suite', async (t) => {
       advancePaymentService,
     );
 
-    await assert.rejects(
-      async () => {
-        await service.collectPayment(
-          '507f1f77bcf86cd799439011',
-          { amount: -500, payment_method: 'CASH' },
-          createObjectId(),
-          metadata,
-        );
-      },
-      (err: unknown) => {
-        assert.ok(err instanceof AppError);
-        assert.equal(err.statusCode, 400);
-        assert.equal(err.code, 'INVALID_PAYMENT_AMOUNT');
-        return true;
-      },
-    );
+    await expect(
+      service.collectPayment(
+        '507f1f77bcf86cd799439011',
+        { amount: -500, payment_method: 'CASH' },
+        createObjectId(),
+        metadata,
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      return err instanceof AppError && err.statusCode === 400 && err.code === 'INVALID_PAYMENT_AMOUNT';
+    });
   });
 
-  await t.test('6. Invoice with zero balance (PAID) rejects payment', async () => {
+  it('6. Invoice with zero balance (PAID) rejects payment', async () => {
     const mockRepo: Record<string, unknown> = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         status: 'PAID',
@@ -331,30 +320,24 @@ test('Collect Payment Amount Validation Suite', async (t) => {
       advancePaymentService,
     );
 
-    await assert.rejects(
-      async () => {
-        await service.collectPayment(
-          '507f1f77bcf86cd799439011',
-          { amount: 100, payment_method: 'CASH' },
-          createObjectId(),
-          metadata,
-        );
-      },
-      (err: unknown) => {
-        assert.ok(err instanceof AppError);
-        assert.equal(err.statusCode, 409);
-        assert.equal(err.code, 'INVOICE_PAID');
-        return true;
-      },
-    );
+    await expect(
+      service.collectPayment(
+        '507f1f77bcf86cd799439011',
+        { amount: 100, payment_method: 'CASH' },
+        createObjectId(),
+        metadata,
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      return err instanceof AppError && err.statusCode === 409 && err.code === 'INVOICE_PAID';
+    });
   });
 
-  await t.test('7 & 8. Stale frontend balance / concurrent payment prevents total payments from exceeding total', async () => {
+  it('7 & 8. Stale frontend balance / concurrent payment prevents total payments from exceeding total', async () => {
     // Database balance is actually 2,300 because KES 2,000 was collected previously.
     // Client attempts to submit 4,300 based on old UI state.
     const mockRepo: Record<string, unknown> = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: '507f1f77bcf86cd799439011',
         invoice_number: 'INV-001',
         status: 'PARTIALLY_PAID',
@@ -375,22 +358,20 @@ test('Collect Payment Amount Validation Suite', async (t) => {
       advancePaymentService,
     );
 
-    await assert.rejects(
-      async () => {
-        await service.collectPayment(
-          '507f1f77bcf86cd799439011',
-          { amount: 4300, payment_method: 'CASH' },
-          createObjectId(),
-          metadata,
-        );
-      },
-      (err: unknown) => {
-        assert.ok(err instanceof AppError);
-        assert.equal(err.statusCode, 400);
-        assert.equal(err.code, 'PAYMENT_EXCEEDS_BALANCE');
-        assert.match(err.message, /Payment amount cannot exceed the outstanding balance of KES 2,300.00/);
-        return true;
-      },
-    );
+    await expect(
+      service.collectPayment(
+        '507f1f77bcf86cd799439011',
+        { amount: 4300, payment_method: 'CASH' },
+        createObjectId(),
+        metadata,
+      ),
+    ).rejects.toSatisfy((err: unknown) => {
+      return (
+        err instanceof AppError &&
+        err.statusCode === 400 &&
+        err.code === 'PAYMENT_EXCEEDS_BALANCE' &&
+        /Payment amount cannot exceed the outstanding balance of KES 2,300.00/.test(err.message)
+      );
+    });
   });
 });

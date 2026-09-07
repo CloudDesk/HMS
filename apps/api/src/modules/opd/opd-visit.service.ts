@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import type { ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { Appointment } from '../appointments/appointment.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
@@ -174,51 +175,46 @@ export class OpdVisitService {
       throw new AppError('Complete the current consultation before calling the next patient', 409, 'CURRENT_VISIT_NOT_COMPLETED');
     }
 
-    const session = await this.repository.session();
     let nextVisit: OpdVisit | undefined;
-    try {
-      await session.withTransaction(async () => {
-        nextVisit = await this.repository.startNextReadyVisit(current, userId, session);
-        if (!nextVisit) {
-          throw new AppError('No patient is ready for consultation in this doctor queue', 404, 'NO_READY_PATIENT');
-        }
-        const claimed = await this.repository.claimNextPatientCall(current.id, nextVisit.id, userId, session);
-        if (!claimed) {
-          throw new AppError('The next patient has already been called for this consultation', 409, 'NEXT_PATIENT_ALREADY_CALLED');
-        }
+    await executeTransaction(this.repository, async (session) => {
+      nextVisit = await this.repository.startNextReadyVisit(current, userId, session);
+      if (!nextVisit) {
+        throw new AppError('No patient is ready for consultation in this doctor queue', 404, 'NO_READY_PATIENT');
+      }
+      const claimed = await this.repository.claimNextPatientCall(current.id, nextVisit.id, userId, session);
+      if (!claimed) {
+        throw new AppError('The next patient has already been called for this consultation', 409, 'NEXT_PATIENT_ALREADY_CALLED');
+      }
 
-        await this.repository.auditStatusTransition(nextVisit, 'READY_FOR_CONSULTATION', userId, session);
-        await this.patientRepository.addTimelineEvent(
-          nextVisit.patient_id,
-          {
-            event_type: 'OPD_VISIT_STATUS_UPDATED',
-            title: 'Patient called for consultation',
-            description: `${nextVisit.visit_number} was called for consultation with ${nextVisit.doctor_name}.`,
-          },
-          userId,
-          session,
-        );
-        const message = `${nextVisit.patient_name} (${nextVisit.visit_number}) is called for consultation with ${nextVisit.doctor_name}.`;
-        await this.notificationService.createNotification({
-          recipient_role: 'RECEPTIONIST',
-          recipient_branch_id: nextVisit.branch_id,
-          title: 'Call Next OPD Patient',
-          message,
-          type: 'CALL_NEXT_PATIENT',
-          related_entity_id: nextVisit.id,
-        }, session);
-        await this.notificationService.createNotification({
-          recipient_role: 'NURSE',
-          recipient_branch_id: nextVisit.branch_id,
-          title: 'Call Next OPD Patient',
-          message,
-          type: 'CALL_NEXT_PATIENT',
-          related_entity_id: nextVisit.id,
-        }, session);
-      });
-    } finally {
-      await session.endSession();
-    }
+      await this.repository.auditStatusTransition(nextVisit, 'READY_FOR_CONSULTATION', userId, session);
+      await this.patientRepository.addTimelineEvent(
+        nextVisit.patient_id,
+        {
+          event_type: 'OPD_VISIT_STATUS_UPDATED',
+          title: 'Patient called for consultation',
+          description: `${nextVisit.visit_number} was called for consultation with ${nextVisit.doctor_name}.`,
+        },
+        userId,
+        session,
+      );
+      const message = `${nextVisit.patient_name} (${nextVisit.visit_number}) is called for consultation with ${nextVisit.doctor_name}.`;
+      await this.notificationService.createNotification({
+        recipient_role: 'RECEPTIONIST',
+        recipient_branch_id: nextVisit.branch_id,
+        title: 'Call Next OPD Patient',
+        message,
+        type: 'CALL_NEXT_PATIENT',
+        related_entity_id: nextVisit.id,
+      }, session);
+      await this.notificationService.createNotification({
+        recipient_role: 'NURSE',
+        recipient_branch_id: nextVisit.branch_id,
+        title: 'Call Next OPD Patient',
+        message,
+        type: 'CALL_NEXT_PATIENT',
+        related_entity_id: nextVisit.id,
+      }, session);
+    });
 
     if (!nextVisit) {
       throw new AppError('No patient is ready for consultation in this doctor queue', 404, 'NO_READY_PATIENT');
@@ -248,50 +244,45 @@ export class OpdVisitService {
 
     await this.ensureNoActiveVisit(appointment.patient_id);
     const sequence = await this.sequenceService.getNextSequence('opd_visit');
-    const session = await this.repository.session();
     let visit: OpdVisit | undefined;
-    try {
-      await session.withTransaction(async () => {
-        visit = await this.repository.create(
-          {
-            appointmentId: appointment.id,
-            visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
-            queueTokenNumber: sequence + 1,
-            patientId: appointment.patient_id,
-            patientNumber: appointment.patient_number,
-            patientName: appointment.patient_name,
-            doctorId: appointment.doctor_id,
-            doctorName: appointment.doctor_name,
-            doctorSpecialization: appointment.doctor_specialization,
-            branchId: appointment.branch_id,
-            departmentId: appointment.department_id,
-            visitDate: todayUtc(),
-            checkInTime: new Date(),
-            visit_type: appointmentVisitType(appointment),
-            priority: data.priority ?? appointment.priority,
-            reason: data.reason ?? appointment.reason,
-            notes: data.notes,
-          },
-          userId,
-          session,
-        );
+    await executeTransaction(this.repository, async (session) => {
+      visit = await this.repository.create(
+        {
+          appointmentId: appointment.id,
+          visitNumber: this.sequenceService.formatStandardSequence('OPD', sequence),
+          queueTokenNumber: sequence + 1,
+          patientId: appointment.patient_id,
+          patientNumber: appointment.patient_number,
+          patientName: appointment.patient_name,
+          doctorId: appointment.doctor_id,
+          doctorName: appointment.doctor_name,
+          doctorSpecialization: appointment.doctor_specialization,
+          branchId: appointment.branch_id,
+          departmentId: appointment.department_id,
+          visitDate: todayUtc(),
+          checkInTime: new Date(),
+          visit_type: appointmentVisitType(appointment),
+          priority: data.priority ?? appointment.priority,
+          reason: data.reason ?? appointment.reason,
+          notes: data.notes,
+        },
+        userId,
+        session,
+      );
 
-        const checkedInAppointment = await this.appointmentRepository.updateStatus(
-          appointment.id,
-          { status: 'CHECKED_IN', notes: data.notes },
-          userId,
-          scope,
-          session,
-        );
-        if (checkedInAppointment && appointment.status !== checkedInAppointment.status) {
-          await this.appointmentRepository.auditStatusTransition(checkedInAppointment, appointment.status, userId, session);
-        }
-        await this.addVisitCreatedTimeline(visit, userId, session);
-        await this.repository.auditCreated(visit, userId, session);
-      });
-    } finally {
-      await session.endSession();
-    }
+      const checkedInAppointment = await this.appointmentRepository.updateStatus(
+        appointment.id,
+        { status: 'CHECKED_IN', notes: data.notes },
+        userId,
+        scope,
+        session,
+      );
+      if (checkedInAppointment && appointment.status !== checkedInAppointment.status) {
+        await this.appointmentRepository.auditStatusTransition(checkedInAppointment, appointment.status, userId, session);
+      }
+      await this.addVisitCreatedTimeline(visit, userId, session);
+      await this.repository.auditCreated(visit, userId, session);
+    });
 
     if (!visit) {
       throw new AppError('Failed to check in appointment for OPD visit', 500, 'INTERNAL_SERVER_ERROR');

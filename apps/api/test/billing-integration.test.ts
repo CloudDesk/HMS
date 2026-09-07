@@ -1,27 +1,30 @@
-import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { BillingService } from '../src/modules/billing/billing.service.js';
 import { AdvancePaymentService } from '../src/modules/advance-payment/advance-payment.service.js';
 import { AdvancePaymentRepository } from '../src/modules/advance-payment/advance-payment.repository.js';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 import { createObjectId } from './factories.js';
 
-test('Billing Integration with Advance Payment', async (t) => {
-  await setupTestDatabase();
-  
-  const advancePaymentRepository = new AdvancePaymentRepository();
-  const advancePaymentService = new AdvancePaymentService(advancePaymentRepository);
+describe('Billing Integration with Advance Payment', () => {
+  let advancePaymentRepository: AdvancePaymentRepository;
+  let advancePaymentService: AdvancePaymentService;
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  beforeAll(async () => {
+    await setupTestDatabase();
+    advancePaymentRepository = new AdvancePaymentRepository();
+    advancePaymentService = new AdvancePaymentService(advancePaymentRepository);
+  }, 30000);
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
-  await t.test('collectPayment updates Advance Payment', async () => {
+  it('collectPayment updates Advance Payment', async () => {
     // 1. Pre-seed the Advance Payment requirement in the database
     const patientId = createObjectId();
     const branchId = createObjectId();
@@ -39,8 +42,8 @@ test('Billing Integration with Advance Payment', async (t) => {
 
     // 2. Mock Billing dependencies
     const mockBillingRepo = {
-      resolveBranchScope: mock.fn(async () => null),
-      getById: mock.fn(async () => ({
+      resolveBranchScope: vi.fn(async () => null),
+      getById: vi.fn(async () => ({
         id: createObjectId(),
         invoice_number: 'INV-123',
         status: 'PENDING',
@@ -48,7 +51,7 @@ test('Billing Integration with Advance Payment', async (t) => {
         context_type: 'ADMISSION_REQUEST',
         context_id: sourceId
       })),
-      getHydratedById: mock.fn(async () => ({
+      getHydratedById: vi.fn(async () => ({
         id: createObjectId(),
         invoice_number: 'INV-123',
         status: 'PENDING',
@@ -56,20 +59,20 @@ test('Billing Integration with Advance Payment', async (t) => {
         context_type: 'ADMISSION_REQUEST',
         context_id: sourceId
       })),
-      createPayment: mock.fn(async () => ({
+      createPayment: vi.fn(async () => ({
         id: createObjectId(),
         payment_number: 'PAY-123',
         amount: 5000,
         payment_method: 'CASH'
       })),
-      applyPayment: mock.fn(async () => ({
+      applyPayment: vi.fn(async () => ({
         status: 'PENDING',
         balance_amount: 5000,
         context_type: 'ADMISSION_REQUEST',
         context_id: sourceId
       })),
-      audit: mock.fn(async () => {}),
-      getPaymentById: mock.fn(async (id) => ({ 
+      audit: vi.fn(async () => {}),
+      getPaymentById: vi.fn(async (id: string) => ({ 
         id,
         invoice_id: createObjectId(),
         payment_number: 'PAY-123',
@@ -94,12 +97,9 @@ test('Billing Integration with Advance Payment', async (t) => {
 
     // 4. Verify the Advance Payment was updated properly
     const advancePayment = await advancePaymentService.getBySource('ADMISSION_REQUEST', sourceId);
-    assert.ok(advancePayment);
-    assert.equal(advancePayment.paid_amount, 5000);
-    assert.equal(advancePayment.balance_amount, 5000);
-    assert.equal(advancePayment.payment_status, 'PARTIALLY_PAID');
-    
-    // Check that the same Mongoose session was used by spying on processPayment
-    // Because we passed a mocked repo that uses a real session (mockBillingRepo.createPayment doesn't actually use the session, but billingService.collectPayment starts one and passes it down).
+    expect(advancePayment).toBeDefined();
+    expect(advancePayment?.paid_amount).toBe(5000);
+    expect(advancePayment?.balance_amount).toBe(5000);
+    expect(advancePayment?.payment_status).toBe('PARTIALLY_PAID');
   });
 });

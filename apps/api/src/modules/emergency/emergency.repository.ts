@@ -216,46 +216,51 @@ export class EmergencyRepository {
     });
     return superAdmin ? undefined : (user.branchIds ?? []).map((id) => id.toString());
   }
-  async references(data: CreateEmergencyDTO, session: ClientSession) {
-    const branch = await BranchModel.findOne({
+  async references(data: CreateEmergencyDTO, session?: ClientSession) {
+    const branchQuery = BranchModel.findOne({
       _id: oid(data.branch_id),
       status: 'ACTIVE',
       deletedAt: null,
-    })
-      .session(session)
-      .lean();
-    let department = await DepartmentModel.findOne({
+    }).lean();
+    if (session) branchQuery.session(session);
+    const branch = await branchQuery;
+
+    const deptQuery = DepartmentModel.findOne({
       _id: oid(data.department_id),
       branchIds: oid(data.branch_id),
       status: 'ACTIVE',
       deletedAt: null,
-    })
-      .session(session)
-      .lean();
+    }).lean();
+    if (session) deptQuery.session(session);
+    let department = await deptQuery;
+
     if (!department) {
-      department = await DepartmentModel.findOne({
+      const fallbackQuery = DepartmentModel.findOne({
         _id: oid(data.department_id),
         status: 'ACTIVE',
         deletedAt: null,
-      })
-        .session(session)
-        .lean();
+      }).lean();
+      if (session) fallbackQuery.session(session);
+      department = await fallbackQuery;
     }
-    const patient = data.patient_id
-      ? await PatientModel.findOne({
-          _id: oid(data.patient_id),
-          status: 'ACTIVE',
-          deletedAt: null,
-        })
-          .session(session)
-          .lean()
-      : null;
+
+    let patient = null;
+    if (data.patient_id) {
+      const patQuery = PatientModel.findOne({
+        _id: oid(data.patient_id),
+        status: 'ACTIVE',
+        deletedAt: null,
+      }).lean();
+      if (session) patQuery.session(session);
+      patient = await patQuery;
+    }
+
     return { branch, department, patient };
   }
-  async patient(id: string, session: ClientSession) {
-    return PatientModel.findOne({ _id: oid(id), status: 'ACTIVE', deletedAt: null })
-      .session(session)
-      .lean();
+  async patient(id: string, session?: ClientSession) {
+    const query = PatientModel.findOne({ _id: oid(id), status: 'ACTIVE', deletedAt: null }).lean();
+    if (session) query.session(session);
+    return query;
   }
   async doctorByUserId(userId: string, session?: ClientSession) {
     const query = DoctorModel.findOne({ userId: oid(userId), deletedAt: null });
@@ -293,7 +298,7 @@ export class EmergencyRepository {
     },
     branchId: string,
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const sequence = await this.sequenceService.getNextSequence('patient', session);
     const year = new Date().getFullYear();
@@ -325,7 +330,7 @@ export class EmergencyRepository {
       createdBy: oid(actor),
       updatedBy: oid(actor),
     });
-    await patient.save({ session });
+    await patient.save({ session: session ?? undefined });
     return patient;
   }
   async updatePatientIdentity(
@@ -334,7 +339,7 @@ export class EmergencyRepository {
     patientId: Types.ObjectId,
     patientNumber: string,
     patientName: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     return EmergencyEncounterModel.updateOne(
       { _id: oid(id), branchId: oid(branchId) },
@@ -346,7 +351,7 @@ export class EmergencyRepository {
           updatedAt: new Date(),
         },
       },
-      { session },
+      { session: session ?? undefined },
     );
   }
   async create(
@@ -357,7 +362,7 @@ export class EmergencyRepository {
       patientName: string;
     },
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const sequence = await this.sequenceService.getNextSequence('emergency_encounter', session);
     const ts = this.sequenceService.formatTimestampSequence(null, sequence);
@@ -399,7 +404,7 @@ export class EmergencyRepository {
           updatedBy: oid(actor),
         },
       ],
-      { session },
+      { session: session ?? undefined },
     );
     const row = rows[0];
     if (!row) throw new Error('Emergency encounter create returned no record');
@@ -527,7 +532,7 @@ export class EmergencyRepository {
     targetDepartmentName: string,
     targetDoctorName: string | null,
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
     assignedDoctorId?: Types.ObjectId | null,
     assignedDoctorName?: string | null,
   ) {
@@ -561,7 +566,7 @@ export class EmergencyRepository {
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       { _id: oid(id), branchId: oid(branchId), referral: null },
       { $set: updateSet },
-      { returnDocument: 'after', session },
+      { returnDocument: 'after', session: session ?? undefined },
     ).lean<EmergencyLean>();
     return row ? emergencyReferralDto(row) : null;
   }
@@ -596,7 +601,7 @@ export class EmergencyRepository {
     actor: string,
     set: Record<string, unknown>,
     reason: string | null,
-    session: ClientSession,
+    session?: ClientSession,
     previousStatus?: EmergencyStatus,
   ) {
     const row = await EmergencyEncounterModel.findOneAndUpdate(
@@ -619,7 +624,7 @@ export class EmergencyRepository {
           },
         },
       },
-      { new: true, runValidators: true, session },
+      { returnDocument: 'after', runValidators: true, session: session ?? undefined },
     ).lean<EmergencyLean>();
     return row ? emergencyDto(row) : null;
   }
@@ -635,7 +640,7 @@ export class EmergencyRepository {
     },
     actor: string,
     correction: boolean,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const filter: Record<string, unknown> = { _id: oid(id), branchId: oid(branchId) };
     if (!correction) filter.patientId = null;
@@ -654,7 +659,7 @@ export class EmergencyRepository {
         },
         $inc: { version: 1 },
       },
-      { new: true, session },
+      { returnDocument: 'after', session: session ?? undefined },
     ).lean<EmergencyLean>();
     return row ? emergencyDto(row) : null;
   }
@@ -665,7 +670,7 @@ export class EmergencyRepository {
     level: EmergencyTriageLevel,
     reason: string,
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       {
@@ -689,7 +694,7 @@ export class EmergencyRepository {
           },
         },
       },
-      { new: true, session },
+      { returnDocument: 'after', session: session ?? undefined },
     ).lean<EmergencyLean>();
     return row ? emergencyDto(row) : null;
   }
@@ -699,7 +704,7 @@ export class EmergencyRepository {
     orderType: string,
     downstreamId: string,
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       {
@@ -722,7 +727,7 @@ export class EmergencyRepository {
         $set: { status: 'IN_TREATMENT', updatedBy: oid(actor) },
         $inc: { version: 1 },
       },
-      { new: true, session },
+      { returnDocument: 'after', session: session ?? undefined },
     ).lean<EmergencyLean>();
     return row ? emergencyDto(row) : null;
   }
@@ -731,21 +736,25 @@ export class EmergencyRepository {
     reason: string,
     notes: string | null | undefined,
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     if (!encounter.patientId || !encounter.patientNumber) return null;
 
-    const existing = await AdmissionRequestModel.findOne({
+    const existingQuery = AdmissionRequestModel.findOne({
       sourceType: 'EMERGENCY_ENCOUNTER',
       sourceId: encounter._id,
       status: { $ne: 'CANCELLED' },
-    }).session(session);
+    });
+    if (session) existingQuery.session(session);
+    const existing = await existingQuery;
 
     if (existing) return existing;
 
     const sequence = await this.sequenceService.getNextSequence('admission_request', session);
     const requestNumber = this.sequenceService.formatTimestampSequence('AR', sequence);
-    const department = await DepartmentModel.findById(encounter.departmentId).session(session).lean();
+    const deptQuery = DepartmentModel.findById(encounter.departmentId).lean();
+    if (session) deptQuery.session(session);
+    const department = await deptQuery;
 
     const created = await AdmissionRequestModel.create(
       [
@@ -772,7 +781,7 @@ export class EmergencyRepository {
           updatedBy: oid(actor),
         },
       ],
-      { session },
+      { session: session ?? undefined },
     );
 
     return created[0] ?? null;
@@ -782,7 +791,7 @@ export class EmergencyRepository {
     branchId: string,
     admissionId: string,
     actor: string,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       {
@@ -811,7 +820,7 @@ export class EmergencyRepository {
           },
         },
       },
-      { new: true, runValidators: true, session },
+      { returnDocument: 'after', runValidators: true, session },
     ).lean<EmergencyLean>();
     return row ? emergencyDto(row) : null;
   }
@@ -826,19 +835,19 @@ export class EmergencyRepository {
     actor: string,
     metadata: EmergencyMetadata,
     details: Record<string, unknown>,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
-    await AuditLogModel.create(
-      [
-        {
-          eventType,
-          actorUserId: actor,
-          ipAddress: metadata.ipAddress,
-          userAgent: metadata.userAgent,
-          metadataJson: details,
-        },
-      ],
-      { session },
-    );
+    const entry = {
+      eventType,
+      actorUserId: actor,
+      ipAddress: metadata.ipAddress,
+      userAgent: metadata.userAgent,
+      metadataJson: details,
+    };
+    if (session) {
+      await AuditLogModel.create([entry], { session });
+    } else {
+      await AuditLogModel.create(entry);
+    }
   }
 }

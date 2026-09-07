@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { Types } from 'mongoose';
 import { BranchModel } from '../src/modules/branches/branch.model.js';
 import { UserModel } from '../src/modules/users/user.model.js';
@@ -7,13 +6,22 @@ import { InpatientAdmissionModel } from '../src/modules/inpatient-admissions/inp
 import { InpatientAdmissionRepository } from '../src/modules/inpatient-admissions/inpatient-admission.repository.js';
 import { InpatientAdmissionService } from '../src/modules/inpatient-admissions/inpatient-admission.service.js';
 import { clearTestDatabase, setupTestDatabase, teardownTestDatabase } from './setup.js';
+import { AppError } from '../src/shared/errors/app-error.js';
 
 const oid = () => new Types.ObjectId();
 
-test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempotency', async (t) => {
-  await setupTestDatabase();
-  t.afterEach(clearTestDatabase);
-  t.after(teardownTestDatabase);
+describe('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempotency', () => {
+  beforeAll(async () => {
+    await setupTestDatabase();
+  }, 30000);
+
+  afterEach(async () => {
+    await clearTestDatabase();
+  });
+
+  afterAll(async () => {
+    await teardownTestDatabase();
+  });
 
   const makeContext = async () => {
     const branchId = oid();
@@ -95,7 +103,7 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
     };
   };
 
-  await t.test('saveDischargeSummary persists checklist and summary notes', async () => {
+  it('saveDischargeSummary persists checklist and summary notes', async () => {
     const ctx = await makeContext();
     const saved = await ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
       hemodynamic_stability_24h: true,
@@ -105,16 +113,16 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
       notes: 'Patient recovered well. Home oral meds prescribed.',
     }, ctx.actorId, {});
 
-    assert.equal(saved.discharge_summary?.hemodynamic_stability_24h, true);
-    assert.equal(saved.discharge_summary?.summary_finalized, true);
-    assert.equal(saved.discharge_summary?.notes, 'Patient recovered well. Home oral meds prescribed.');
+    expect(saved.discharge_summary?.hemodynamic_stability_24h).toBe(true);
+    expect(saved.discharge_summary?.summary_finalized).toBe(true);
+    expect(saved.discharge_summary?.notes).toBe('Patient recovered well. Home oral meds prescribed.');
 
     // Verify persistence after re-fetch
     const reloaded = await ctx.service.get(ctx.admissionId, ctx.branchId, ctx.actorId);
-    assert.equal(reloaded.discharge_summary?.summary_finalized, true);
+    expect(reloaded.discharge_summary?.summary_finalized).toBe(true);
   });
 
-  await t.test('finalizeDischarge fails if clinical readiness checklist is incomplete', async () => {
+  it('finalizeDischarge fails if clinical readiness checklist is incomplete', async () => {
     const ctx = await makeContext();
     // Save incomplete summary
     await ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
@@ -124,13 +132,14 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
       summary_finalized: false,
     }, ctx.actorId, {});
 
-    await assert.rejects(
-      async () => ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
-      (err: unknown) => err instanceof Error && 'code' in err && err.code === 'DISCHARGE_CHECKLIST_INCOMPLETE',
+    await expect(
+      ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof AppError && err.code === 'DISCHARGE_CHECKLIST_INCOMPLETE',
     );
   });
 
-  await t.test('finalizeDischarge succeeds when ready, sets status to DISCHARGED and is idempotent', async () => {
+  it('finalizeDischarge succeeds when ready, sets status to DISCHARGED and is idempotent', async () => {
     const ctx = await makeContext();
     await ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
       hemodynamic_stability_24h: true,
@@ -140,16 +149,16 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
     }, ctx.actorId, {});
 
     const discharged = await ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {});
-    assert.equal(discharged.status, 'DISCHARGED');
-    assert.ok(discharged.discharged_at);
+    expect(discharged.status).toBe('DISCHARGED');
+    expect(discharged.discharged_at).toBeDefined();
 
     // Idempotent retry: repeated call should succeed safely and return same discharged object
     const retry = await ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {});
-    assert.equal(retry.status, 'DISCHARGED');
-    assert.equal(retry.id, discharged.id);
+    expect(retry.status).toBe('DISCHARGED');
+    expect(retry.id).toBe(discharged.id);
   });
 
-  await t.test('unauthorized user without department scope cannot save discharge summary or finalize discharge', async () => {
+  it('unauthorized user without department scope cannot save discharge summary or finalize discharge', async () => {
     const ctx = await makeContext();
     const unauthorizedActor = oid();
     await UserModel.create({
@@ -164,18 +173,19 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
       status: 'active',
     });
 
-    await assert.rejects(
-      async () => ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
+    await expect(
+      ctx.service.saveDischargeSummary(ctx.admissionId, ctx.branchId, {
         hemodynamic_stability_24h: true,
         post_op_recovery_cleared: true,
         home_oral_med_converted: true,
         summary_finalized: true,
       }, unauthorizedActor.toString(), {}),
-      (err: unknown) => err instanceof Error && 'code' in err && err.code === 'DEPARTMENT_ACCESS_DENIED',
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof AppError && err.code === 'DEPARTMENT_ACCESS_DENIED',
     );
   });
 
-  await t.test('financial clearance blocks discharge when policy requires advance deposit and balance is outstanding', async () => {
+  it('financial clearance blocks discharge when policy requires advance deposit and balance is outstanding', async () => {
     const ctx = await makeContext();
     (ctx.service as unknown as { beds: unknown }).beds = {
       getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: true }),
@@ -192,16 +202,17 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
       summary_finalized: true,
     }, ctx.actorId, {});
 
-    await assert.rejects(
-      async () => ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
-      (err: unknown) => err instanceof Error && 'code' in err && err.code === 'FINANCIAL_CLEARANCE_REQUIRED',
+    await expect(
+      ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof AppError && err.code === 'FINANCIAL_CLEARANCE_REQUIRED',
     );
 
     const check = await ctx.service.get(ctx.admissionId, ctx.branchId, ctx.actorId);
-    assert.equal(check.status, 'ADMITTED');
+    expect(check.status).toBe('ADMITTED');
   });
 
-  await t.test('unrelated OPD/patient invoice does not block inpatient discharge when inpatient balance is zero', async () => {
+  it('unrelated OPD/patient invoice does not block inpatient discharge when inpatient balance is zero', async () => {
     const ctx = await makeContext();
     (ctx.service as unknown as { beds: unknown }).beds = {
       getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: true }),
@@ -210,7 +221,7 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
     (ctx.service as unknown as { billing: unknown }).billing = {
       list: async (query: Record<string, unknown>) => {
         // Assert that billing query specifically searches by admission_id
-        assert.equal(query.admission_id, ctx.admissionId);
+        expect(query.admission_id).toBe(ctx.admissionId);
         return { data: [] };
       },
     };
@@ -223,10 +234,10 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
     }, ctx.actorId, {});
 
     const result = await ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {});
-    assert.equal(result.status, 'DISCHARGED');
+    expect(result.status).toBe('DISCHARGED');
   });
 
-  await t.test('transaction rolls back completely if releaseAdmissionBed fails', async () => {
+  it('transaction rolls back completely if releaseAdmissionBed fails', async () => {
     const ctx = await makeContext();
     (ctx.service as unknown as { beds: unknown }).beds = {
       getPolicyForConfirmation: async () => ({ admission_advance_deposit_required: false }),
@@ -242,13 +253,14 @@ test('Inpatient Discharge Workflow - Clinical Readiness, Bed Release, and Idempo
       summary_finalized: true,
     }, ctx.actorId, {});
 
-    await assert.rejects(
-      async () => ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
+    await expect(
+      ctx.service.finalizeDischarge(ctx.admissionId, ctx.branchId, ctx.actorId, {}),
+    ).rejects.toSatisfy(
       (err: unknown) => err instanceof Error && err.message === 'Bed release DB failure',
     );
 
     const reloaded = await ctx.service.get(ctx.admissionId, ctx.branchId, ctx.actorId);
-    assert.equal(reloaded.status, 'ADMITTED');
-    assert.equal(reloaded.discharged_at, null);
+    expect(reloaded.status).toBe('ADMITTED');
+    expect(reloaded.discharged_at).toBeNull();
   });
 });

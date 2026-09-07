@@ -27,7 +27,7 @@ export class SurgeryRepository {
   constructor(private readonly sequenceService: SequenceService) {}
   session() { return mongoose.startSession(); }
 
-  async acquireConcurrencyLock(doctorId: string, serviceId: string, session: ClientSession) {
+  async acquireConcurrencyLock(doctorId: string, serviceId: string, session?: ClientSession) {
     const locks = [
       { type: 'Doctor', id: doctorId },
       { type: 'Service', id: serviceId }
@@ -35,9 +35,13 @@ export class SurgeryRepository {
 
     for (const lock of locks) {
       if (lock.type === 'Doctor') {
-        await DoctorModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } }, { session });
+        const q = DoctorModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } });
+        if (session) q.session(session);
+        await q;
       } else {
-        await ServiceModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } }, { session });
+        const q = ServiceModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } });
+        if (session) q.session(session);
+        await q;
       }
     }
   }
@@ -64,25 +68,35 @@ export class SurgeryRepository {
     if (session) q.session(session);
     return q.lean();
   }
-  async recommendationReferences(data: CreateProcedureRecommendationDTO, session: ClientSession) {
-    const patient = await PatientModel.findOne({ _id: oid(data.patient_id), status: 'ACTIVE', deletedAt: null }).session(session).lean();
-    const doctor = data.recommending_doctor_id
-      ? await DoctorModel.findOne({ _id: oid(data.recommending_doctor_id), branchId: oid(data.branch_id), status: 'ACTIVE', deletedAt: null }).session(session).lean()
+  async recommendationReferences(data: CreateProcedureRecommendationDTO, session?: ClientSession) {
+    const qPat = PatientModel.findOne({ _id: oid(data.patient_id), status: 'ACTIVE', deletedAt: null });
+    if (session) qPat.session(session);
+    const patient = await qPat.lean();
+    const qDoc = data.recommending_doctor_id
+      ? DoctorModel.findOne({ _id: oid(data.recommending_doctor_id), branchId: oid(data.branch_id), status: 'ACTIVE', deletedAt: null })
       : null;
-    const department = await DepartmentModel.findOne({ _id: oid(data.department_id), branchIds: oid(data.branch_id), status: 'ACTIVE', deletedAt: null }).session(session).lean();
-    const service = await ServiceModel.findOne({ _id: oid(data.service_id), departmentId: oid(data.department_id), serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null }).session(session).lean();
-    const encounter = data.encounter_id ? await OpdVisitModel.findOne({ _id: oid(data.encounter_id), patientId: oid(data.patient_id), deletedAt: null }).session(session).lean() : null;
+    if (qDoc && session) qDoc.session(session);
+    const doctor = qDoc ? await qDoc.lean() : null;
+    const qDept = DepartmentModel.findOne({ _id: oid(data.department_id), branchIds: oid(data.branch_id), status: 'ACTIVE', deletedAt: null });
+    if (session) qDept.session(session);
+    const department = await qDept.lean();
+    const qServ = ServiceModel.findOne({ _id: oid(data.service_id), departmentId: oid(data.department_id), serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null });
+    if (session) qServ.session(session);
+    const service = await qServ.lean();
+    const qEnc = data.encounter_id ? OpdVisitModel.findOne({ _id: oid(data.encounter_id), patientId: oid(data.patient_id), deletedAt: null }) : null;
+    if (qEnc && session) qEnc.session(session);
+    const encounter = qEnc ? await qEnc.lean() : null;
     return { patient, doctor, department, service, encounter };
   }
-  async createRecommendation(data: CreateProcedureRecommendationDTO, refs: { patientNumber: string; patientName: string; doctorName: string; departmentName: string; serviceName: string }, actor: string, session: ClientSession) { const rows = await ProcedureRecommendationModel.create([{ recommendationNumber: `PR-${Date.now()}-${Math.floor(Math.random() * 1000)}`, patientId: oid(data.patient_id), patientNumber: refs.patientNumber, patientName: refs.patientName, branchId: oid(data.branch_id), departmentId: oid(data.department_id), departmentName: refs.departmentName, recommendingDoctorId: oid(data.recommending_doctor_id!), recommendingDoctorName: refs.doctorName, serviceId: oid(data.service_id), serviceName: refs.serviceName, encounterType: data.encounter_type ?? (data.encounter_id ? 'OPD_VISIT' : 'DIRECT'), encounterId: data.encounter_id ? oid(data.encounter_id) : null, clinicalReason: data.clinical_reason, notes: data.notes ?? null, status: 'ACTIVE', createdBy: oid(actor), updatedBy: oid(actor) }], { session }); const row = rows[0]; if (!row) throw new Error('Recommendation create returned no record'); return recommendationDto(row.toObject() as RecommendationLean); }
+  async createRecommendation(data: CreateProcedureRecommendationDTO, refs: { patientNumber: string; patientName: string; doctorName: string; departmentName: string; serviceName: string }, actor: string, session?: ClientSession) { const rows = await ProcedureRecommendationModel.create([{ recommendationNumber: `PR-${Date.now()}-${Math.floor(Math.random() * 1000)}`, patientId: oid(data.patient_id), patientNumber: refs.patientNumber, patientName: refs.patientName, branchId: oid(data.branch_id), departmentId: oid(data.department_id), departmentName: refs.departmentName, recommendingDoctorId: oid(data.recommending_doctor_id!), recommendingDoctorName: refs.doctorName, serviceId: oid(data.service_id), serviceName: refs.serviceName, encounterType: data.encounter_type ?? (data.encounter_id ? 'OPD_VISIT' : 'DIRECT'), encounterId: data.encounter_id ? oid(data.encounter_id) : null, clinicalReason: data.clinical_reason, notes: data.notes ?? null, status: 'ACTIVE', createdBy: oid(actor), updatedBy: oid(actor) }], { session: session ?? undefined }); const row = rows[0]; if (!row) throw new Error('Recommendation create returned no record'); return recommendationDto(row.toObject() as RecommendationLean); }
   async listRecommendations(query: SurgeryListQuery, departmentIds?: string[], doctorId?: string) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id), ...(departmentIds ? { departmentId: { $in: departmentIds.map(oid) } } : {}) }; if (doctorId) filter.recommendingDoctorId = oid(doctorId); if (query.status) filter.status = query.status; if (query.patient_id) filter.patientId = oid(query.patient_id); if (query.service_id) filter.serviceId = oid(query.service_id); if (query.search) { const value = new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); filter.$or = [{ recommendationNumber: value }, { patientName: value }, { patientNumber: value }, { serviceName: value }]; } const [rows, total] = await Promise.all([ProcedureRecommendationModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean<RecommendationLean[]>(), ProcedureRecommendationModel.countDocuments(filter)]); return { data: rows.map(recommendationDto), meta: paging(total, page, limit) }; }
   async getRecommendation(id: string, branchId: string, session?: ClientSession) { const q = ProcedureRecommendationModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean<RecommendationLean>(); if (session) q.session(session); const row = await q; return row ? recommendationDto(row) : null; }
-  async cancelRecommendation(id: string, branchId: string, reason: string, actor: string, session: ClientSession) { const row = await ProcedureRecommendationModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'ACTIVE', bookingId: null }, { $set: { status: 'CANCELLED', cancellationReason: reason, cancelledAt: new Date(), cancelledBy: oid(actor), updatedBy: oid(actor) } }, { new: true, session }).lean<RecommendationLean>(); return row ? recommendationDto(row) : null; }
-  async getActiveRecommendationRecord(id: string, branchId: string, session: ClientSession) { return ProcedureRecommendationModel.findOne({ _id: oid(id), branchId: oid(branchId), status: 'ACTIVE', bookingId: null }).session(session).lean<RecommendationLean>(); }
-  async bookingReferences(recommendation: RecommendationLean, doctorId: string, session: ClientSession) { const service = await ServiceModel.findOne({ _id: recommendation.serviceId, serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null }).session(session).lean(); const doctor = await DoctorModel.findOne({ _id: oid(doctorId), branchId: recommendation.branchId, departmentId: recommendation.departmentId, status: 'ACTIVE', deletedAt: null }).session(session).lean(); return { service, doctor }; }
+  async cancelRecommendation(id: string, branchId: string, reason: string, actor: string, session?: ClientSession) { const row = await ProcedureRecommendationModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'ACTIVE', bookingId: null }, { $set: { status: 'CANCELLED', cancellationReason: reason, cancelledAt: new Date(), cancelledBy: oid(actor), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<RecommendationLean>(); return row ? recommendationDto(row) : null; }
+  async getActiveRecommendationRecord(id: string, branchId: string, session?: ClientSession) { const q = ProcedureRecommendationModel.findOne({ _id: oid(id), branchId: oid(branchId), status: 'ACTIVE', bookingId: null }); if (session) q.session(session); return q.lean<RecommendationLean>(); }
+  async bookingReferences(recommendation: RecommendationLean, doctorId: string, session?: ClientSession) { const qServ = ServiceModel.findOne({ _id: recommendation.serviceId, serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null }); if (session) qServ.session(session); const service = await qServ.lean(); const qDoc = DoctorModel.findOne({ _id: oid(doctorId), branchId: recommendation.branchId, departmentId: recommendation.departmentId, status: 'ACTIVE', deletedAt: null }); if (session) qDoc.session(session); const doctor = await qDoc.lean(); return { service, doctor }; }
   async getProcedureService(id: string) { return ServiceModel.findOne({ _id: oid(id), serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null }).lean(); }
-  async createBooking(data: CreateProcedureBookingDTO, recommendation: RecommendationLean, refs: { doctorName: string; duration: number }, actor: string, session: ClientSession) { const start = new Date(data.scheduled_start); const end = new Date(start.getTime() + refs.duration * 60000); const rows = await ProcedureBookingModel.create([{ bookingNumber: `PB-${Date.now()}-${Math.floor(Math.random() * 1000)}`, recommendationId: recommendation._id, patientId: recommendation.patientId, patientNumber: recommendation.patientNumber, patientName: recommendation.patientName, branchId: recommendation.branchId, departmentId: recommendation.departmentId, departmentName: recommendation.departmentName, serviceId: recommendation.serviceId, serviceName: recommendation.serviceName, doctorId: oid(data.doctor_id), doctorName: refs.doctorName, scheduledStart: start, scheduledEnd: end, durationMinutes: refs.duration, status: 'PENDING_CONFIRMATION', holdId: safeOid(data.hold_id), consentDocumentId: safeOid(data.consent_document_id), depositInvoiceId: safeOid(data.deposit_invoice_id), notes: data.notes ?? null, createdBy: oid(actor), updatedBy: oid(actor) }], { session }); const row = rows[0]; if (!row) throw new Error('Booking create returned no record'); return bookingDto(row.toObject() as BookingLean); }
-  async getBookingRecord(id: string, branchId: string, session?: ClientSession) { const q = ProcedureBookingModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean<BookingLean>(); if (session) q.session(session); return session ? q.session(session) : q; }
+  async createBooking(data: CreateProcedureBookingDTO, recommendation: RecommendationLean, refs: { doctorName: string; duration: number }, actor: string, session?: ClientSession) { const start = new Date(data.scheduled_start); const end = new Date(start.getTime() + refs.duration * 60000); const rows = await ProcedureBookingModel.create([{ bookingNumber: `PB-${Date.now()}-${Math.floor(Math.random() * 1000)}`, recommendationId: recommendation._id, patientId: recommendation.patientId, patientNumber: recommendation.patientNumber, patientName: recommendation.patientName, branchId: recommendation.branchId, departmentId: recommendation.departmentId, departmentName: recommendation.departmentName, serviceId: recommendation.serviceId, serviceName: recommendation.serviceName, doctorId: oid(data.doctor_id), doctorName: refs.doctorName, scheduledStart: start, scheduledEnd: end, durationMinutes: refs.duration, status: 'PENDING_CONFIRMATION', holdId: safeOid(data.hold_id), consentDocumentId: safeOid(data.consent_document_id), depositInvoiceId: safeOid(data.deposit_invoice_id), notes: data.notes ?? null, createdBy: oid(actor), updatedBy: oid(actor) }], { session: session ?? undefined }); const row = rows[0]; if (!row) throw new Error('Booking create returned no record'); return bookingDto(row.toObject() as BookingLean); }
+  async getBookingRecord(id: string, branchId: string, session?: ClientSession) { const q = ProcedureBookingModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean<BookingLean>(); if (session) q.session(session); return q; }
   async getBooking(id: string, branchId: string) { const row = await this.getBookingRecord(id, branchId); return row ? bookingDto(row) : null; }
   async listBookings(query: SurgeryListQuery, departmentIds?: string[], doctorId?: string) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id), ...(departmentIds ? { departmentId: { $in: departmentIds.map(oid) } } : {}) }; if (doctorId) { filter.doctorId = oid(doctorId); } else if (query.doctor_id) { filter.doctorId = oid(query.doctor_id); } if (query.status) filter.status = query.status; if (query.patient_id) filter.patientId = oid(query.patient_id); if (query.service_id) filter.serviceId = oid(query.service_id); if (query.from || query.to) filter.scheduledStart = { ...(query.from ? { $gte: new Date(query.from) } : {}), ...(query.to ? { $lte: new Date(query.to) } : {}) }; if (query.search) { const value = new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); filter.$or = [{ bookingNumber: value }, { patientName: value }, { patientNumber: value }, { serviceName: value }, { doctorName: value }]; } const [rows, total] = await Promise.all([ProcedureBookingModel.find(filter).sort({ scheduledStart: 1 }).skip((page - 1) * limit).limit(limit).lean<BookingLean[]>(), ProcedureBookingModel.countDocuments(filter)]); return { data: rows.map(bookingDto), meta: paging(total, page, limit) }; }
   async countServiceOverlap(serviceId: string, start: Date, end: Date, excludeId?: string, session?: ClientSession) { const filter: Record<string, unknown> = { serviceId: oid(serviceId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $lt: end }, scheduledEnd: { $gt: start } }; if (excludeId) filter._id = { $ne: oid(excludeId) }; const q = ProcedureBookingModel.countDocuments(filter); if (session) q.session(session); return q; }
@@ -90,7 +104,7 @@ export class SurgeryRepository {
   async hasAppointmentOverlap(doctorId: string, dateOnly: Date, startTime: string, endTime: string, session?: ClientSession) { const q = AppointmentModel.exists({ doctorId: oid(doctorId), appointmentDate: dateOnly, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] }, startTime: { $lt: endTime }, endTime: { $gt: startTime }, deletedAt: null }); if (session) q.session(session); return Boolean(await q); }
   async listDoctorAppointments(doctorId: string, dateOnly: Date, session?: ClientSession) { const q = AppointmentModel.find({ doctorId: oid(doctorId), appointmentDate: dateOnly, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] }, deletedAt: null }).lean(); if (session) q.session(session); return q; }
   async listDoctorSurgeries(doctorId: string, dateOnly: Date, session?: ClientSession) { const nextDay = new Date(dateOnly.getTime() + 24 * 60 * 60 * 1000); const q = ProcedureBookingModel.find({ doctorId: oid(doctorId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $gte: dateOnly, $lt: nextDay } }).lean(); if (session) q.session(session); return q; }
-  async validateHold(holdId: string, patientId: string, branchId: string, session: ClientSession) {
+  async validateHold(holdId: string, patientId: string, branchId: string, session?: ClientSession) {
     const isOid = /^[a-f\d]{24}$/i.test(holdId);
     const holdFilter: Record<string, unknown> = {
       branchId: oid(branchId),
@@ -103,7 +117,9 @@ export class SurgeryRepository {
     } else {
       holdFilter.holdNumber = holdId;
     }
-    const hold = await BedHoldModel.findOne(holdFilter).session(session).lean();
+    const qHold = BedHoldModel.findOne(holdFilter);
+    if (session) qHold.session(session);
+    const hold = await qHold.lean();
     if (hold) return hold;
 
     const admissionFilter: Record<string, unknown> = {
@@ -116,7 +132,9 @@ export class SurgeryRepository {
     } else {
       admissionFilter.admissionNumber = holdId;
     }
-    const admission = await InpatientAdmissionModel.findOne(admissionFilter).session(session).lean();
+    const qAdm = InpatientAdmissionModel.findOne(admissionFilter);
+    if (session) qAdm.session(session);
+    const admission = await qAdm.lean();
     if (admission) return admission;
 
     const reqFilter: Record<string, unknown> = {
@@ -129,16 +147,18 @@ export class SurgeryRepository {
     } else {
       reqFilter.requestNumber = holdId;
     }
-    const req = await AdmissionRequestModel.findOne(reqFilter).session(session).lean();
+    const qReq = AdmissionRequestModel.findOne(reqFilter);
+    if (session) qReq.session(session);
+    const req = await qReq.lean();
     if (req) return req;
 
     return null;
   }
-  async markRecommendationBooked(id: string, bookingId: string, actor: string, session: ClientSession) { return ProcedureRecommendationModel.findOneAndUpdate({ _id: oid(id), status: 'ACTIVE', bookingId: null }, { $set: { status: 'BOOKED', bookingId: oid(bookingId), updatedBy: oid(actor) } }, { new: true, session }); }
-  async confirmBooking(id: string, branchId: string, data: { holdId: string | null; consentId: string | null; invoiceId: string | null; snapshot: Record<string, unknown> }, actor: string, session: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'PENDING_CONFIRMATION' }, { $set: { status: 'BOOKED', holdId: safeOid(data.holdId), consentDocumentId: safeOid(data.consentId), depositInvoiceId: safeOid(data.invoiceId), prerequisiteSnapshot: data.snapshot, updatedBy: oid(actor) } }, { new: true, session }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
-  async rescheduleBooking(record: BookingLean, start: Date, end: Date, doctorId: string, doctorName: string, reason: string, holdId: string | null, actor: string, session: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: record._id, status: 'BOOKED', scheduledStart: record.scheduledStart, scheduledEnd: record.scheduledEnd }, { $set: { scheduledStart: start, scheduledEnd: end, doctorId: oid(doctorId), doctorName, holdId: safeOid(holdId), updatedBy: oid(actor) }, $push: { scheduleHistory: { previousStart: record.scheduledStart, previousEnd: record.scheduledEnd, newStart: start, newEnd: end, previousDoctorId: record.doctorId, newDoctorId: oid(doctorId), reason, changedBy: oid(actor), changedAt: new Date() } } }, { new: true, session }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
-  async cancelBooking(id: string, branchId: string, reason: string, actor: string, session: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] } }, { $set: { status: 'CANCELLED', cancellationReason: reason, cancelledAt: new Date(), cancelledBy: oid(actor), updatedBy: oid(actor) } }, { new: true, session }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
-  async completeBooking(id: string, branchId: string, actor: string, session: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'BOOKED', scheduledStart: { $lte: new Date() } }, { $set: { status: 'COMPLETED', completedAt: new Date(), completedBy: oid(actor), updatedBy: oid(actor) } }, { new: true, session }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
-  async audit(eventType: string, actor: string, metadata: SurgeryMetadata, details: Record<string, unknown>, session: ClientSession) { await AuditLogModel.create([{ eventType, actorUserId: actor, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details }], { session }); }
+  async markRecommendationBooked(id: string, bookingId: string, actor: string, session?: ClientSession) { return ProcedureRecommendationModel.findOneAndUpdate({ _id: oid(id), status: 'ACTIVE', bookingId: null }, { $set: { status: 'BOOKED', bookingId: oid(bookingId), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }); }
+  async confirmBooking(id: string, branchId: string, data: { holdId: string | null; consentId: string | null; invoiceId: string | null; snapshot: Record<string, unknown> }, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'PENDING_CONFIRMATION' }, { $set: { status: 'BOOKED', holdId: safeOid(data.holdId), consentDocumentId: safeOid(data.consentId), depositInvoiceId: safeOid(data.invoiceId), prerequisiteSnapshot: data.snapshot, updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async rescheduleBooking(record: BookingLean, start: Date, end: Date, doctorId: string, doctorName: string, reason: string, holdId: string | null, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: record._id, status: 'BOOKED', scheduledStart: record.scheduledStart, scheduledEnd: record.scheduledEnd }, { $set: { scheduledStart: start, scheduledEnd: end, doctorId: oid(doctorId), doctorName, holdId: safeOid(holdId), updatedBy: oid(actor) }, $push: { scheduleHistory: { previousStart: record.scheduledStart, previousEnd: record.scheduledEnd, newStart: start, newEnd: end, previousDoctorId: record.doctorId, newDoctorId: oid(doctorId), reason, changedBy: oid(actor), changedAt: new Date() } } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async cancelBooking(id: string, branchId: string, reason: string, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] } }, { $set: { status: 'CANCELLED', cancellationReason: reason, cancelledAt: new Date(), cancelledBy: oid(actor), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async completeBooking(id: string, branchId: string, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'BOOKED', scheduledStart: { $lte: new Date() } }, { $set: { status: 'COMPLETED', completedAt: new Date(), completedBy: oid(actor), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async audit(eventType: string, actor: string, metadata: SurgeryMetadata, details: Record<string, unknown>, session?: ClientSession) { await AuditLogModel.create([{ eventType, actorUserId: actor, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details }], { session: session ?? undefined }); }
 }
 

@@ -1,39 +1,40 @@
-import test, { mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { EmergencyService } from '../src/modules/emergency/emergency.service.js';
 import { createObjectId } from './factories.js';
 import { setupTestDatabase, teardownTestDatabase, clearTestDatabase } from './setup.js';
 
-test('Emergency Doctor Queue Filtering Tests', async (t) => {
-  await setupTestDatabase();
-
+describe('Emergency Doctor Queue Filtering Tests', () => {
   const branchId = createObjectId();
   const doctorUserId = createObjectId();
   const doctorId = createObjectId();
   const receptionistUserId = createObjectId();
   const otherDoctorId = createObjectId();
 
-  t.afterEach(async () => {
-    mock.restoreAll();
+  beforeAll(async () => {
+    await setupTestDatabase();
+  }, 30000);
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
     await clearTestDatabase();
   });
 
-  t.after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
-  await t.test('Doctor user queue query filters by logged-in doctor + unassigned cases', async () => {
+  it('Doctor user queue query filters by logged-in doctor + unassigned cases', async () => {
     let capturedDoctorId: string | undefined;
 
     const mockRepo = {
-      hasBranchAccess: mock.fn(async () => true),
-      doctorByUserId: mock.fn(async (userId: string) => {
+      hasBranchAccess: vi.fn(async () => true),
+      doctorByUserId: vi.fn(async (userId: string) => {
         if (userId === doctorUserId) {
           return { _id: doctorId, userId: doctorUserId, displayName: 'Dr. Anderson' };
         }
         return null;
       }),
-      list: mock.fn(async (query: unknown, departments?: string[], passedDoctorId?: string) => {
+      list: vi.fn(async (query: unknown, departments?: string[], passedDoctorId?: string) => {
         capturedDoctorId = passedDoctorId;
         return {
           data: [
@@ -57,19 +58,19 @@ test('Emergency Doctor Queue Filtering Tests', async (t) => {
 
     const result = await service.list({ branch_id: branchId }, doctorUserId);
 
-    assert.equal(capturedDoctorId, doctorId);
-    assert.equal(result.data.length, 2);
-    assert.equal(result.data[0]?.assigned_doctor_id, doctorId);
-    assert.equal(result.data[1]?.assigned_doctor_id, null);
+    expect(capturedDoctorId).toBe(doctorId);
+    expect(result.data.length).toBe(2);
+    expect(result.data[0]?.assigned_doctor_id).toBe(doctorId);
+    expect(result.data[1]?.assigned_doctor_id).toBeNull();
   });
 
-  await t.test('Non-doctor user (Receptionist/Nurse) queue query does not restrict to any doctor', async () => {
+  it('Non-doctor user (Receptionist/Nurse) queue query does not restrict to any doctor', async () => {
     let capturedDoctorId: string | undefined;
 
     const mockRepo = {
-      hasBranchAccess: mock.fn(async () => true),
-      doctorByUserId: mock.fn(async () => null),
-      list: mock.fn(async (query: unknown, departments?: string[], passedDoctorId?: string) => {
+      hasBranchAccess: vi.fn(async () => true),
+      doctorByUserId: vi.fn(async () => null),
+      list: vi.fn(async (query: unknown, departments?: string[], passedDoctorId?: string) => {
         capturedDoctorId = passedDoctorId;
         return {
           data: [
@@ -94,7 +95,7 @@ test('Emergency Doctor Queue Filtering Tests', async (t) => {
 
     const result = await service.list({ branch_id: branchId }, receptionistUserId);
 
-    assert.equal(capturedDoctorId, undefined);
-    assert.equal(result.data.length, 3);
+    expect(capturedDoctorId).toBeUndefined();
+    expect(result.data.length).toBe(3);
   });
 });

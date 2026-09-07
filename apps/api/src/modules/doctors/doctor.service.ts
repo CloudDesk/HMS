@@ -1,5 +1,6 @@
 import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { createCsvStream } from '../../shared/http/csv.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { BranchRepository } from '../branches/branch.repository.js';
@@ -109,17 +110,14 @@ export class DoctorService {
     this.validateAvailability(data);
     await this.repository.ensureDoctorNumberSequence();
 
-    const session = await mongoose.startSession();
     try {
-      let onboardingResult: Awaited<ReturnType<DoctorService['createOnboardingRecords']>> | undefined;
-      await session.withTransaction(async () => {
-        onboardingResult = await this.createOnboardingRecords(data, userId, metadata, session);
+      return await executeTransaction(() => mongoose.startSession(), async (session) => {
+        const onboardingResult = await this.createOnboardingRecords(data, userId, metadata, session);
+        if (!onboardingResult) {
+          throw new AppError('Doctor onboarding transaction did not complete', 500, 'DOCTOR_ONBOARDING_FAILED');
+        }
+        return onboardingResult;
       });
-
-      if (!onboardingResult) {
-        throw new AppError('Doctor onboarding transaction did not complete', 500, 'DOCTOR_ONBOARDING_FAILED');
-      }
-      return onboardingResult;
     } catch (error) {
       if (isDuplicateKeyError(error)) {
         if (error.keyPattern?.username) throw new AppError('Username already exists', 409, 'DUPLICATE_USERNAME');
@@ -135,8 +133,6 @@ export class DoctorService {
         }
       }
       throw error;
-    } finally {
-      await session.endSession();
     }
   }
 
@@ -144,7 +140,7 @@ export class DoctorService {
     data: CreateDoctorDTO,
     actorUserId: string,
     metadata: DoctorRequestMetadata,
-    session: ClientSession,
+    session?: ClientSession,
   ) {
     await this.validateRegistrationNumber(data.registration_number, undefined, session);
 

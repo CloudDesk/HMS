@@ -298,13 +298,13 @@ export class DoctorRepository {
     }
   }
 
-  async nextDoctorNumber(session: ClientSession) {
+  async nextDoctorNumber(session?: ClientSession) {
     const year = new Date().getFullYear();
     const sequenceId = `doctor:${year}`;
     const sequence = await DoctorSequenceModel.findOneAndUpdate(
       { _id: sequenceId },
       { $inc: { value: 1 } },
-      { new: true, session },
+      { returnDocument: 'after', session: session ?? undefined },
     ).lean();
     if (!sequence) throw new Error('Doctor number sequence could not be allocated');
     return `DR-${year}-${String(sequence.value).padStart(5, '0')}`;
@@ -315,7 +315,7 @@ export class DoctorRepository {
     data: CreateDoctorDTO,
     createdBy: string,
     linkedUserId: string | null,
-    session: ClientSession,
+    session?: ClientSession,
   ): Promise<Doctor> {
     const [created] = await DoctorModel.create([{
       doctorNumber,
@@ -326,7 +326,7 @@ export class DoctorRepository {
       availability: buildAvailabilityPayload(data),
       createdBy: requiredObjectId(createdBy),
       updatedBy: requiredObjectId(createdBy),
-    }], { session });
+    }], { session: session ?? undefined });
     if (!created) throw new Error('Doctor record could not be created');
     return toDoctor(created.toObject<DoctorLean>());
   }
@@ -345,7 +345,7 @@ export class DoctorRepository {
           updatedBy: requiredObjectId(updatedBy),
         },
       },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<DoctorLean>();
     return doctor ? toDoctor(doctor) : undefined;
   }
@@ -354,7 +354,7 @@ export class DoctorRepository {
     const doctor = await DoctorModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { status, updatedBy: requiredObjectId(updatedBy) } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<DoctorLean>();
     return doctor ? toDoctor(doctor) : undefined;
   }
@@ -363,7 +363,7 @@ export class DoctorRepository {
     const doctor = await DoctorModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { userId: toObjectId(userId), updatedBy: requiredObjectId(updatedBy) } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<DoctorLean>();
     return doctor ? toDoctor(doctor) : undefined;
   }
@@ -393,7 +393,7 @@ export class DoctorRepository {
     const doctor = await DoctorModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { availability: buildAvailabilityPayload(data), updatedBy: requiredObjectId(updatedBy) } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<DoctorLean>();
     return doctor ? toDoctor(doctor) : undefined;
   }
@@ -446,7 +446,7 @@ export class DoctorRepository {
     const leave = await DoctorLeaveModel.findOneAndUpdate(
       { _id: leaveId, doctorId: requiredObjectId(doctorId), status: 'ACTIVE' },
       { $set: { status: 'CANCELLED', cancelledBy: requiredObjectId(userId), cancelledAt: new Date() } },
-      { new: true, lean: true },
+      { returnDocument: 'after', lean: true },
     ).lean<DoctorLeaveLean>();
     return leave ? toLeave(leave) : undefined;
   }
@@ -503,7 +503,7 @@ export class DoctorRepository {
         },
         $setOnInsert: { createdBy: requiredObjectId(userId) },
       },
-      { new: true, upsert: true, lean: true },
+      { returnDocument: 'after', upsert: true, lean: true },
     ).lean<DoctorExceptionLean>();
     if (!exception) throw new Error('Doctor availability exception upsert failed');
     return toException(exception);

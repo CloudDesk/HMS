@@ -1,7 +1,4 @@
-process.env.MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/hms_test';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/hms_test';
-import { test, describe, before, after } from 'node:test';
-import * as assert from 'node:assert/strict';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Types } from 'mongoose';
 import { setupTestDatabase, teardownTestDatabase } from './setup.js';
 import { AdministrationDashboardRepository } from '../src/modules/administration-dashboard/administration-dashboard.repository.js';
@@ -14,7 +11,7 @@ import { PatientModel } from '../src/modules/patients/patient.model.js';
 import { RoleModel } from '../src/modules/roles/role.model.js';
 import { UserModel } from '../src/modules/users/user.model.js';
 
-describe('Executive Dashboard Aggregation Suite', async () => {
+describe('Executive Dashboard Aggregation Suite', () => {
   let repo: AdministrationDashboardRepository;
 
   const branch1Id = new Types.ObjectId();
@@ -28,7 +25,7 @@ describe('Executive Dashboard Aggregation Suite', async () => {
   const now = new Date();
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 10, 0, 0));
 
-  before(async () => {
+  beforeAll(async () => {
     await setupTestDatabase();
     repo = new AdministrationDashboardRepository();
 
@@ -96,67 +93,67 @@ describe('Executive Dashboard Aggregation Suite', async () => {
       { invoiceNumber: 'INV003', patientId: new Types.ObjectId(), visitId: new Types.ObjectId(), branchId: branch1Id, invoiceDate: todayUtc, status: 'CANCELLED', subtotal: 9999, discountAmount: 0, taxAmount: 0, totalAmount: 9999, paidAmount: 0, balanceAmount: 9999 },
       { invoiceNumber: 'INV004', patientId: new Types.ObjectId(), visitId: new Types.ObjectId(), branchId: branch2Id, invoiceDate: todayUtc, status: 'PAID', subtotal: 3000, discountAmount: 0, taxAmount: 0, totalAmount: 3000, paidAmount: 3000, balanceAmount: 0 },
     ]);
-  });
+  }, 30000);
 
-  after(async () => {
+  afterAll(async () => {
     await teardownTestDatabase();
   });
 
-  test('1 & 11. Correct registered patient count (excluding soft deleted)', async () => {
+  it('1 & 11. Correct registered patient count (excluding soft deleted)', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.kpis.registeredPatients, 3);
+    expect(overview.kpis.registeredPatients).toBe(3);
   });
 
-  test('2. Correct active doctor count (excluding inactive)', async () => {
+  it('2. Correct active doctor count (excluding inactive)', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.kpis.activeDoctors, 3);
+    expect(overview.kpis.activeDoctors).toBe(3);
   });
 
-  test('3 & 10. Correct today appointment count (excluding cancelled)', async () => {
+  it('3 & 10. Correct today appointment count (excluding cancelled)', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.kpis.todayAppointments, 3);
+    expect(overview.kpis.todayAppointments).toBe(3);
   });
 
-  test('4. Correct today OPD visit count', async () => {
+  it('4. Correct today OPD visit count', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.kpis.todayOpdVisits, 3);
+    expect(overview.kpis.todayOpdVisits).toBe(3);
   });
 
-  test('5 & 10. Correct today billed revenue (excluding cancelled invoices)', async () => {
+  it('5 & 10. Correct today billed revenue (excluding cancelled invoices)', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.kpis.todayBilledRevenue, 10000); // 2000 + 5000 + 3000
+    expect(overview.kpis.todayBilledRevenue).toBe(10000); // 2000 + 5000 + 3000
   });
 
-  test('6 & 7. 7-Day Revenue & Encounter Trend has 7 items', async () => {
+  it('6 & 7. 7-Day Revenue & Encounter Trend has 7 items', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.trend.length, 7);
+    expect(overview.trend.length).toBe(7);
     const todayItem = overview.trend[overview.trend.length - 1];
-    assert.equal(todayItem.revenue, 10000);
-    assert.equal(todayItem.encounters, 3);
+    expect(todayItem.revenue).toBe(10000);
+    expect(todayItem.encounters).toBe(3);
   });
 
-  test('8. Correct collected funds across active invoices', async () => {
+  it('8. Correct collected funds across active invoices', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.financialSummary?.collectedFunds, 6000); // 2000 + 1000 + 3000
+    expect(overview.financialSummary?.collectedFunds).toBe(6000); // 2000 + 1000 + 3000
   });
 
-  test('9. Correct pending outstanding (totalBilled - collectedFunds >= 0)', async () => {
+  it('9. Correct pending outstanding (totalBilled - collectedFunds >= 0)', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString());
-    assert.equal(overview.financialSummary?.pendingOutstanding, 4000); // 10000 - 6000
+    expect(overview.financialSummary?.pendingOutstanding).toBe(4000); // 10000 - 6000
   });
 
-  test('12 & 13. Branch filtering restricts metrics to requested branch', async () => {
+  it('12 & 13. Branch filtering restricts metrics to requested branch', async () => {
     const b1Overview = await repo.getExecutiveOverview(superAdminUserId.toString(), branch1Id.toString());
-    assert.equal(b1Overview.kpis.registeredPatients, 2);
-    assert.equal(b1Overview.kpis.activeDoctors, 2);
-    assert.equal(b1Overview.kpis.todayAppointments, 2);
-    assert.equal(b1Overview.kpis.todayOpdVisits, 2);
-    assert.equal(b1Overview.kpis.todayBilledRevenue, 7000); // 2000 + 5000
+    expect(b1Overview.kpis.registeredPatients).toBe(2);
+    expect(b1Overview.kpis.activeDoctors).toBe(2);
+    expect(b1Overview.kpis.todayAppointments).toBe(2);
+    expect(b1Overview.kpis.todayOpdVisits).toBe(2);
+    expect(b1Overview.kpis.todayBilledRevenue).toBe(7000); // 2000 + 5000
   });
 
-  test('14. Financial access restriction hides financialSummary', async () => {
+  it('14. Financial access restriction hides financialSummary', async () => {
     const overview = await repo.getExecutiveOverview(superAdminUserId.toString(), undefined, false);
-    assert.equal(overview.kpis.todayBilledRevenue, null);
-    assert.equal(overview.financialSummary, null);
+    expect(overview.kpis.todayBilledRevenue).toBeNull();
+    expect(overview.financialSummary).toBeNull();
   });
 });

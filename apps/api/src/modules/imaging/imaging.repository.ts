@@ -31,7 +31,7 @@ export class ImagingRepository {
 
   async createReport(
     order: ImagingOrderContext, data: SaveImagingReportDTO,
-    actorUserId: string, session: ClientSession,
+    actorUserId: string, session?: ClientSession,
   ) {
     const now = new Date();
     const record = new ImagingReportModel({
@@ -42,11 +42,11 @@ export class ImagingRepository {
       findings: data.findings.trim(), impression: data.impression.trim(), recommendations: nullable(data.recommendations),
       enteredBy: objectId(actorUserId), enteredAt: now, createdBy: objectId(actorUserId), updatedBy: objectId(actorUserId),
     });
-    await record.save({ session });
+    await record.save({ session: session ?? undefined });
     return toReport(record.toObject() as ImagingReportLean);
   }
 
-  async updateReport(order: ImagingOrderContext, data: SaveImagingReportDTO, actorUserId: string, session: ClientSession) {
+  async updateReport(order: ImagingOrderContext, data: SaveImagingReportDTO, actorUserId: string, session?: ClientSession) {
     const record = await ImagingReportModel.findOneAndUpdate(
       { orderId: objectId(order.id), deletedAt: null, verifiedAt: null },
       { $set: {
@@ -56,17 +56,18 @@ export class ImagingRepository {
         findings: data.findings.trim(), impression: data.impression.trim(), recommendations: nullable(data.recommendations),
         updatedBy: objectId(actorUserId),
       } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<ImagingReportLean>();
     return record ? toReport(record) : null;
   }
 
-  async verifyReport(orderId: string, actorUserId: string, session: ClientSession) {
+  async verifyReport(orderId: string, actorUserId: string, session?: ClientSession) {
     const record = await ImagingReportModel.findOneAndUpdate(
       { orderId: objectId(orderId), deletedAt: null, verifiedAt: null },
       { $set: { verifiedBy: objectId(actorUserId), verifiedAt: new Date(), updatedBy: objectId(actorUserId) } },
-      { returnDocument: 'after', lean: true, runValidators: true, session },
+      { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<ImagingReportLean>();
     return record ? toReport(record) : null;
   }
 }
+
