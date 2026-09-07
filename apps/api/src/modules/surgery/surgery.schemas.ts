@@ -21,7 +21,7 @@ export const createRecommendationSchema = z.object({
   patient_id: id,
   branch_id: id,
   department_id: id,
-  recommending_doctor_id: id,
+  recommending_doctor_id: id.optional(),
   service_id: id,
   encounter_type: z.enum(['OPD_VISIT', 'DIRECT', 'EMERGENCY']).optional().default('DIRECT'),
   encounter_id: id.nullable().optional(),

@@ -12,6 +12,7 @@ import { Modal } from '../components/ui/Modal';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { useAuth } from '../auth/useAuth';
+import { hasPermission, isSuperAdministrator } from '../auth/access-control';
 import { patientInitials } from './opd-utils';
 import { formatDate, patientFullName, calculatePatientAge } from './patient-utils';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
@@ -54,9 +55,18 @@ type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
 
 export function PatientSearchPage() {
   const { user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
-  const canEditAllDetails = isSuperAdmin || isAdmin;
+  const canEditAllDetails = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Patients', screen: 'Patient Records', action: 'Edit' })
+  ));
+  const canCreatePatient = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Patients', screen: 'Patient Records', action: 'Create' })
+  ));
+  const canBookAppointment = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Appointments', screen: 'Appointment Booking', action: 'Create' })
+  ));
 
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
@@ -398,14 +408,16 @@ export function PatientSearchPage() {
           </div>
           {/* Table toolbar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', position: 'relative' }}>
-            <button
-              className="doc-btn primary"
-              onClick={() => navigate('/patients/register')}
-              type="button"
-            >
-              <i className="ph ph-plus" aria-hidden="true" />
-              Register Patient
-            </button>
+            {canCreatePatient ? (
+              <button
+                className="doc-btn primary"
+                onClick={() => navigate('/patients/register')}
+                type="button"
+              >
+                <i className="ph ph-plus" aria-hidden="true" />
+                Register Patient
+              </button>
+            ) : null}
             <button className="doc-btn" onClick={exportCsv} type="button">
               <i className="ph ph-download-simple" aria-hidden="true" />
               Export
@@ -504,24 +516,28 @@ export function PatientSearchPage() {
                       ) : null}
                       <td className="align-right" data-label="Actions">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            className="doc-btn"
-                            onClick={() => openEditModal(patient)}
-                            type="button"
-                            title="Edit Patient"
-                            style={{ padding: '0.3rem 0.5rem' }}
-                          >
-                            <i className="ph ph-pencil-simple" aria-hidden="true" />
-                          </button>
-                          <button
-                            className="doc-btn"
-                            onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)}
-                            type="button"
-                            title="Book Appointment"
-                            style={{ padding: '0.3rem 0.5rem' }}
-                          >
-                            <i className="ph ph-calendar-plus" aria-hidden="true" />
-                          </button>
+                          {canEditAllDetails ? (
+                            <button
+                              className="doc-btn"
+                              onClick={() => openEditModal(patient)}
+                              type="button"
+                              title="Edit Patient"
+                              style={{ padding: '0.3rem 0.5rem' }}
+                            >
+                              <i className="ph ph-pencil-simple" aria-hidden="true" />
+                            </button>
+                          ) : null}
+                          {canBookAppointment ? (
+                            <button
+                              className="doc-btn"
+                              onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)}
+                              type="button"
+                              title="Book Appointment"
+                              style={{ padding: '0.3rem 0.5rem' }}
+                            >
+                              <i className="ph ph-calendar-plus" aria-hidden="true" />
+                            </button>
+                          ) : null}
                           <button
                             className="doc-btn"
                             onClick={() => setCardPatient(patient)}

@@ -32,6 +32,12 @@ type InpatientPatientDetailModalProps = {
   onSaveDischargeSummary?: (data: { hemodynamic_stability_24h: boolean; post_op_recovery_cleared: boolean; home_oral_med_converted: boolean; summary_finalized: boolean; notes?: string | null }) => Promise<void>;
   onFinalizeDischarge?: () => Promise<void>;
   isDischarging?: boolean;
+  canOrderDiagnostics?: boolean;
+  canAddRoundNote?: boolean;
+  canRecordVitals?: boolean;
+  canRecommendSurgery?: boolean;
+  canSaveDischargeSummary?: boolean;
+  canFinalizeDischarge?: boolean;
 };
 
 export function InpatientPatientDetailModal({
@@ -55,6 +61,12 @@ export function InpatientPatientDetailModal({
   onSaveDischargeSummary,
   onFinalizeDischarge,
   isDischarging,
+  canOrderDiagnostics = true,
+  canAddRoundNote = true,
+  canRecordVitals = true,
+  canRecommendSurgery = true,
+  canSaveDischargeSummary = true,
+  canFinalizeDischarge = true,
 }: InpatientPatientDetailModalProps) {
   if (!admission) return null;
 
@@ -200,9 +212,11 @@ export function InpatientPatientDetailModal({
                     Laboratory and radiology investigations from the authoritative clinical-order record
                   </p>
                 </div>
-                <button type="button" className="adm-btn primary" onClick={onOpenAddOrder}>
-                  <i className="ph ph-plus" /> Add Inpatient Order
-                </button>
+                {canOrderDiagnostics && (
+                  <button type="button" className="adm-btn primary" onClick={onOpenAddOrder}>
+                    <i className="ph ph-plus" /> Add Inpatient Order
+                  </button>
+                )}
               </div>
 
               {loading.diagnosticOrders ? (
@@ -210,9 +224,11 @@ export function InpatientPatientDetailModal({
               ) : errors.diagnosticOrders ? (
                 <div className="inpatient-compact-error">
                   <span>Unable to load diagnostic orders.</span>
-                  <button type="button" className="adm-btn" onClick={onOpenAddOrder}>
-                    Retry
-                  </button>
+                  {canOrderDiagnostics && (
+                    <button type="button" className="adm-btn" onClick={onOpenAddOrder}>
+                      Retry
+                    </button>
+                  )}
                 </div>
               ) : diagnosticOrders.length === 0 ? (
                 <div className="inpatient-compact-empty">
@@ -221,9 +237,11 @@ export function InpatientPatientDetailModal({
                     <strong>No diagnostic orders found</strong>
                     <span>No laboratory or radiology orders placed for this stay.</span>
                   </div>
-                  <button type="button" className="adm-btn" onClick={onOpenAddOrder}>
-                    <i className="ph ph-plus" /> Place Diagnostic Order
-                  </button>
+                  {canOrderDiagnostics && (
+                    <button type="button" className="adm-btn" onClick={onOpenAddOrder}>
+                      <i className="ph ph-plus" /> Place Diagnostic Order
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="adm-table-wrap">
@@ -298,9 +316,11 @@ export function InpatientPatientDetailModal({
                     Clinical progress notes recorded by attending physicians during inpatient ward rounds
                   </p>
                 </div>
-                <button type="button" className="adm-btn primary" onClick={onOpenAddRoundNote}>
-                  <i className="ph ph-plus" /> Add Round Note
-                </button>
+                {canAddRoundNote && (
+                  <button type="button" className="adm-btn primary" onClick={onOpenAddRoundNote}>
+                    <i className="ph ph-plus" /> Add Round Note
+                  </button>
+                )}
               </div>
 
               {loading.roundNotes ? (
@@ -308,9 +328,11 @@ export function InpatientPatientDetailModal({
               ) : errors.roundNotes ? (
                 <div className="inpatient-compact-error">
                   <span>Unable to load ward-round notes.</span>
-                  <button type="button" className="adm-btn" onClick={onOpenAddRoundNote}>
-                    Retry
-                  </button>
+                  {canAddRoundNote && (
+                    <button type="button" className="adm-btn" onClick={onOpenAddRoundNote}>
+                      Retry
+                    </button>
+                  )}
                 </div>
               ) : roundNotes.length === 0 ? (
                 <div className="inpatient-compact-empty">
@@ -319,9 +341,11 @@ export function InpatientPatientDetailModal({
                     <strong>No doctor rounds recorded</strong>
                     <span>No ward round progress notes recorded yet for this stay.</span>
                   </div>
-                  <button type="button" className="adm-btn" onClick={onOpenAddRoundNote}>
-                    <i className="ph ph-plus" /> Record First Round Note
-                  </button>
+                  {canAddRoundNote && (
+                    <button type="button" className="adm-btn" onClick={onOpenAddRoundNote}>
+                      <i className="ph ph-plus" /> Record First Round Note
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="round-notes-list">
@@ -374,9 +398,11 @@ export function InpatientPatientDetailModal({
                     Nursing vital charts, temperature, hemodynamics, and oxygenation tracking
                   </p>
                 </div>
-                <button type="button" className="adm-btn primary" onClick={onOpenRecordVitals}>
-                  <i className="ph ph-plus" /> Record Bedside Vitals
-                </button>
+                {canRecordVitals && (
+                  <button type="button" className="adm-btn primary" onClick={onOpenRecordVitals}>
+                    <i className="ph ph-plus" /> Record Bedside Vitals
+                  </button>
+                )}
               </div>
 
               {loading.vitals ? (
@@ -384,9 +410,11 @@ export function InpatientPatientDetailModal({
               ) : errors.vitals ? (
                 <div className="inpatient-compact-error">
                   <span>Unable to load bedside vitals.</span>
-                  <button type="button" className="adm-btn" onClick={onOpenRecordVitals}>
-                    Retry
-                  </button>
+                  {canRecordVitals && (
+                    <button type="button" className="adm-btn" onClick={onOpenRecordVitals}>
+                      Retry
+                    </button>
+                  )}
                 </div>
               ) : vitals.length === 0 ? (
                 <div className="inpatient-compact-empty">
@@ -395,9 +423,11 @@ export function InpatientPatientDetailModal({
                     <strong>No bedside vitals recorded</strong>
                     <span>No nursing vital signs logged yet for this stay.</span>
                   </div>
-                  <button type="button" className="adm-btn" onClick={onOpenRecordVitals}>
-                    <i className="ph ph-plus" /> Take Vitals Now
-                  </button>
+                  {canRecordVitals && (
+                    <button type="button" className="adm-btn" onClick={onOpenRecordVitals}>
+                      <i className="ph ph-plus" /> Take Vitals Now
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="adm-table-wrap">
@@ -465,9 +495,11 @@ export function InpatientPatientDetailModal({
                     Recommended procedures, operating theater bookings, and pre-op clearance
                   </p>
                 </div>
-                <button type="button" className="adm-btn primary" onClick={onOpenScheduleSurgery}>
-                  <i className="ph ph-plus" /> Schedule Surgery / Procedure
-                </button>
+                {canRecommendSurgery && (
+                  <button type="button" className="adm-btn primary" onClick={onOpenScheduleSurgery}>
+                    <i className="ph ph-plus" /> Schedule Surgery / Procedure
+                  </button>
+                )}
               </div>
 
               {/* Procedure Recommendations */}
@@ -586,6 +618,8 @@ export function InpatientPatientDetailModal({
               onSaveDischargeSummary={onSaveDischargeSummary}
               onFinalizeDischarge={onFinalizeDischarge}
               isDischarging={isDischarging}
+              canSaveDischargeSummary={canSaveDischargeSummary}
+              canFinalizeDischarge={canFinalizeDischarge}
             />
           )}
         </div>
@@ -599,11 +633,15 @@ function DischargePlanningTab({
   onSaveDischargeSummary,
   onFinalizeDischarge,
   isDischarging,
+  canSaveDischargeSummary = true,
+  canFinalizeDischarge = true,
 }: {
   admission: InpatientAdmission;
   onSaveDischargeSummary?: (data: { hemodynamic_stability_24h: boolean; post_op_recovery_cleared: boolean; home_oral_med_converted: boolean; summary_finalized: boolean; notes?: string | null }) => Promise<void>;
   onFinalizeDischarge?: () => Promise<void>;
   isDischarging?: boolean;
+  canSaveDischargeSummary?: boolean;
+  canFinalizeDischarge?: boolean;
 }) {
   const existingSummary = admission.discharge_summary;
 
@@ -728,20 +766,20 @@ function DischargePlanningTab({
         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>Discharge Readiness Checklist</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
-              <input type="checkbox" checked={hemo} onChange={(e) => setHemo(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
+              <input type="checkbox" checked={hemo} disabled={!canSaveDischargeSummary} onChange={(e) => setHemo(e.target.checked)} />
               <span>Clinical hemodynamic stability (24h afebrility)</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
-              <input type="checkbox" checked={postOp} onChange={(e) => setPostOp(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
+              <input type="checkbox" checked={postOp} disabled={!canSaveDischargeSummary} onChange={(e) => setPostOp(e.target.checked)} />
               <span>Post-op / procedure recovery cleared</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
-              <input type="checkbox" checked={homeMed} onChange={(e) => setHomeMed(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem' }}>
+              <input type="checkbox" checked={homeMed} disabled={!canSaveDischargeSummary} onChange={(e) => setHomeMed(e.target.checked)} />
               <span>Home oral medication converted</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.84rem', color: '#2563eb', fontWeight: 600 }}>
-              <input type="checkbox" checked={docFinal} onChange={(e) => setDocFinal(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: canSaveDischargeSummary ? 'pointer' : 'default', fontSize: '0.84rem', color: '#2563eb', fontWeight: 600 }}>
+              <input type="checkbox" checked={docFinal} disabled={!canSaveDischargeSummary} onChange={(e) => setDocFinal(e.target.checked)} />
               <span>Discharge summary finalized by attending doctor</span>
             </label>
           </div>
@@ -749,23 +787,26 @@ function DischargePlanningTab({
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>Attending Doctor Notes / Summary</span>
             <textarea
               value={summaryNotes}
+              disabled={!canSaveDischargeSummary}
               onChange={(e) => setSummaryNotes(e.target.value)}
               placeholder="Clinical summary findings, instructions upon discharge..."
               rows={2}
               style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '6px 8px', fontSize: '0.8rem' }}
             />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-            <button
-              type="button"
-              className="adm-btn success"
-              onClick={handleSave}
-              disabled={isSaving}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              <i className="ph ph-floppy-disk" /> {isSaving ? 'Saving...' : 'Save Discharge Summary'}
-            </button>
-          </div>
+          {canSaveDischargeSummary && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className="adm-btn success"
+                onClick={handleSave}
+                disabled={isSaving}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <i className="ph ph-floppy-disk" /> {isSaving ? 'Saving...' : 'Save Discharge Summary'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Card 2: Live Discharge Clearance Summary & Finalize Action */}
@@ -805,20 +846,22 @@ function DischargePlanningTab({
             </div>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'auto' }}>
-            <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b' }}>
-              Finalizing discharge marks the patient as DISCHARGED and automatically frees Bed <strong>{admission.bed_number}</strong> for future allotments.
-            </p>
-            <button
-              type="button"
-              className="adm-btn primary"
-              onClick={handleFinalize}
-              disabled={!canFinalize || isDischarging}
-              style={{ width: '100%', height: '38px', fontSize: '0.88rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: canFinalize ? '#2563eb' : '#94a3b8' }}
-            >
-              <i className="ph ph-sign-out" /> {isDischarging ? 'Finalizing Discharge...' : 'Finalize Discharge'}
-            </button>
-          </div>
+          {canFinalizeDischarge && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'auto' }}>
+              <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b' }}>
+                Finalizing discharge marks the patient as DISCHARGED and automatically frees Bed <strong>{admission.bed_number}</strong> for future allotments.
+              </p>
+              <button
+                type="button"
+                className="adm-btn primary"
+                onClick={handleFinalize}
+                disabled={!canFinalize || isDischarging}
+                style={{ width: '100%', height: '38px', fontSize: '0.88rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: canFinalize ? '#2563eb' : '#94a3b8' }}
+              >
+                <i className="ph ph-sign-out" /> {isDischarging ? 'Finalizing Discharge...' : 'Finalize Discharge'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

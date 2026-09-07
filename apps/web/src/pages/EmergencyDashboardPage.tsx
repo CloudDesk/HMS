@@ -104,12 +104,77 @@ const formatTime = (timeStr?: string) => {
   return timeStr.slice(11, 16) || timeStr;
 };
 
+const getWaitMinutes = (arrivalAt?: string, createdAt?: string) => {
+  const timeStr = arrivalAt || createdAt;
+  if (!timeStr) return '—';
+  try {
+    const d = new Date(timeStr);
+    const diff = Math.max(1, Math.floor((Date.now() - d.getTime()) / (1000 * 60)));
+    return diff > 1000 ? '—' : `${diff} min`;
+  } catch {
+    return '—';
+  }
+};
+
 const message = (error: unknown) =>
   error instanceof Error ? error.message : 'Action could not be completed.';
+
+const TERMINAL_STATUSES = new Set([
+  'DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED',
+]);
+
+// ─── Role-specific page subtitles ────────────────────────────────────────────
+
+const SUBTITLE: Record<string, string> = {
+  receptionist: 'Emergency registration, patient identification and administrative queue',
+  nurse: 'Triage, vitals, nursing assessment and patient monitoring',
+  doctor: 'Clinical consultation, diagnosis, orders and disposition',
+  viewer: 'Live emergency operations, triage and bed readiness',
+};
+
+// ─── Patient avatar initials helper ──────────────────────────────────────────
+
+const initials = (name: string) =>
+  name
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'ER';
+
+const Avatar = ({ name }: { name: string }) => (
+  <div
+    style={{
+      width: '34px',
+      height: '34px',
+      borderRadius: '8px',
+      background: '#2563eb',
+      color: '#ffffff',
+      display: 'grid',
+      placeItems: 'center',
+      fontSize: '0.78rem',
+      fontWeight: 700,
+      flexShrink: 0,
+    }}
+  >
+    {initials(name)}
+  </div>
+);
 
 export function EmergencyDashboardPage() {
   const { state, actions, mutations } = useEmergencyWorkspaceFeature();
   const [registrationOpen, setRegistrationOpen] = useState(false);
+
+  const { capabilities, dashboardProfile, currentUserId, currentDoctorId } = state;
+
+  const isAssignedToMe = useMemo(() => {
+    return (docId: string | null) =>
+      Boolean(
+        docId &&
+          ((currentDoctorId && docId === currentDoctorId) ||
+            (currentUserId && docId === currentUserId)),
+      );
+  }, [currentDoctorId, currentUserId]);
 
   const registration = useForm<RegistrationForm>({
     resolver: zodResolver(registrationSchema),
@@ -181,47 +246,690 @@ export function EmergencyDashboardPage() {
       setRegistrationOpen(false);
       registration.reset();
       toast.success(`Encounter ${created.emergency_identifier || created.encounter_number} registered.`);
-      navigate(`/emergency/workspace?branch_id=${state.branchId}&encounter_id=${created.id}`);
+      navigate(`/emergency/queue?branch_id=${state.branchId}`);
     } catch (error) {
       toast.error(message(error));
     }
   });
 
-  const encounters = state.encounters;
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(encounters.length / pageSize));
-  const paginatedEncounters = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return encounters.slice(start, start + pageSize);
-  }, [encounters, page, pageSize]);
+  // ─── Encounter partitions ─────────────────────────────────────────────────
 
-  const activeEncounters = encounters.filter(
-    (item) =>
-      !['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'].includes(
-        item.status,
-      ),
+  const allEncounters = state.encounters;
+
+  const activeEncounters = useMemo(
+    () => allEncounters.filter((e) => !TERMINAL_STATUSES.has(e.status)),
+    [allEncounters],
   );
 
-  const visitsCount = encounters.length;
+  // Doctor queue: assigned to current doctor OR unassigned — no other doctors' cases.
+  const doctorQueueEncounters = useMemo(
+    () =>
+      activeEncounters.filter(
+        (e) => isAssignedToMe(e.assigned_doctor_id) || e.assigned_doctor_id === null,
+      ),
+    [activeEncounters, isAssignedToMe],
+  );
+
+  const queueEncounters =
+    dashboardProfile === 'doctor' ? doctorQueueEncounters : activeEncounters;
+
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(queueEncounters.length / pageSize));
+  const paginatedEncounters = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return queueEncounters.slice(start, start + pageSize);
+  }, [queueEncounters, page]);
+
+  // ─── KPI derivations ──────────────────────────────────────────────────────
+
+  const visitsCount = allEncounters.length;
+  const newlyRegistered = activeEncounters.filter((e) => e.status === 'REGISTERED').length;
+  const provisionalCount = activeEncounters.filter((e) => e.provisional_identity !== null).length;
+  const awaitingTriageCount = activeEncounters.filter(
+    (e) => e.status === 'WAITING_FOR_TRIAGE' || e.status === 'REGISTERED',
+  ).length;
   const criticalCount = activeEncounters.filter(
-    (item) => item.triage?.effective_level === 'LEVEL_1_CRITICAL',
+    (e) => e.triage?.effective_level === 'LEVEL_1_CRITICAL',
   ).length;
-  const waitingCount = activeEncounters.filter((item) =>
-    ['REGISTERED', 'WAITING_FOR_TRIAGE', 'TRIAGED', 'WAITING_FOR_DOCTOR'].includes(item.status),
+  const waitingCount = activeEncounters.filter((e) =>
+    ['REGISTERED', 'WAITING_FOR_TRIAGE', 'TRIAGED', 'WAITING_FOR_DOCTOR'].includes(e.status),
   ).length;
-  const inTreatmentCount = activeEncounters.filter((item) => item.status === 'IN_TREATMENT').length;
+  const inTreatmentCount = activeEncounters.filter((e) => e.status === 'IN_TREATMENT').length;
   const readyAdmissionCount = activeEncounters.filter(
-    (item) => item.status === 'READY_FOR_DISPOSITION',
+    (e) => e.status === 'READY_FOR_DISPOSITION',
   ).length;
 
+  // Doctor-specific KPIs
+  const myActiveCount = doctorQueueEncounters.filter(
+    (e) => isAssignedToMe(e.assigned_doctor_id),
+  ).length;
+  const myReviewCount = doctorQueueEncounters.filter((e) =>
+    ['TRIAGED', 'WAITING_FOR_DOCTOR'].includes(e.status),
+  ).length;
+  const myTreatmentCount = doctorQueueEncounters.filter(
+    (e) => e.status === 'IN_TREATMENT' && isAssignedToMe(e.assigned_doctor_id),
+  ).length;
+  const pendingResultsCount = doctorQueueEncounters.filter(
+    (e) => e.orders && e.orders.length > 0 && isAssignedToMe(e.assigned_doctor_id),
+  ).length;
+  const myReadyForDispositionCount = doctorQueueEncounters.filter(
+    (e) => e.status === 'READY_FOR_DISPOSITION',
+  ).length;
+
+  // TODO: P3-2 replace bed availability with live IP bed board API once available.
   const beds = [
     { name: 'Resuscitation', available: 2, total: 4 },
     { name: 'Trauma Bay', available: 1, total: 3 },
     { name: 'Observation', available: 5, total: 12 },
     { name: 'Pediatric ER', available: 2, total: 4 },
   ];
-  const totalBedsAvailable = beds.reduce((sum, item) => sum + item.available, 0);
+  const totalBedsAvailable = beds.reduce((sum, b) => sum + b.available, 0);
+
+  // ─── Quick action helpers ─────────────────────────────────────────────────
+
+  const openRegistration = () => {
+    registration.setValue('department_id', state.departments[0]?.id ?? '');
+    setRegistrationOpen(true);
+  };
+
+  const openQueueWithFilter = (params?: string) =>
+    navigate(`/emergency/queue?branch_id=${state.branchId}${params ? `&${params}` : ''}`);
+
+  const firstDispositionReady = activeEncounters.find(
+    (e) => e.status === 'READY_FOR_DISPOSITION',
+  );
+
+  // ─── Render helpers ───────────────────────────────────────────────────────
+
+  /** Single Quick Action button — compact clinical layout */
+  const QuickActionBtn = ({
+    icon,
+    label,
+    sub,
+    color,
+    onClick,
+    'data-testid': testId,
+  }: {
+    icon: string;
+    label: string;
+    sub: string;
+    color: string;
+    onClick: () => void;
+    'data-testid'?: string;
+  }) => (
+    <button
+      className="doc-btn"
+      onClick={onClick}
+      style={{
+        justifyContent: 'flex-start',
+        padding: '0.45rem 0.65rem',
+        width: '100%',
+        borderRadius: '7px',
+        gap: '0.5rem',
+      }}
+      type="button"
+      data-testid={testId}
+    >
+      <i className={`ph ${icon}`} style={{ color, fontSize: '1.05rem', flexShrink: 0 }} />
+      <div style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden' }}>
+        <strong style={{ display: 'block', fontSize: '0.78rem', lineHeight: 1.2 }}>{label}</strong>
+        <span
+          style={{
+            fontSize: '0.66rem',
+            color: '#64748b',
+            display: 'block',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {sub}
+        </span>
+      </div>
+    </button>
+  );
+
+  /** Single KPI card */
+  const KpiCard = ({
+    icon,
+    color,
+    label,
+    value,
+    sub,
+  }: {
+    icon: string;
+    color: string;
+    label: string;
+    value: number;
+    sub: string;
+  }) => (
+    <div className="doc-kpi">
+      <div className={`doc-kpi-icon ${color}`}>
+        <i className={`ph ${icon}`} aria-hidden="true" />
+      </div>
+      <div className="doc-kpi-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{sub}</small>
+      </div>
+    </div>
+  );
+
+  // ─── Receptionist KPIs ────────────────────────────────────────────────────
+
+  const ReceptionistKpis = () => (
+    <section className="emergency-kpi-grid" data-testid="kpi-receptionist">
+      <KpiCard icon="ph-first-aid" color="blue" label="Total ER Arrivals" value={visitsCount} sub="Today's total census" />
+      <KpiCard icon="ph-user-plus" color="green" label="Newly Registered" value={newlyRegistered} sub="Registered, not triaged" />
+      <KpiCard icon="ph-question-mark" color="orange" label="Provisional / Unidentified" value={provisionalCount} sub="Require identification" />
+      <KpiCard icon="ph-hourglass" color="red" label="Awaiting Triage" value={awaitingTriageCount} sub="Waiting for triage" />
+      <KpiCard icon="ph-clock" color="cyan" label="Patients Waiting" value={waitingCount} sub="In queue" />
+    </section>
+  );
+
+  // ─── Nurse KPIs ───────────────────────────────────────────────────────────
+
+  const NurseKpis = () => (
+    <section className="emergency-kpi-grid" data-testid="kpi-nurse">
+      <KpiCard icon="ph-hourglass" color="red" label="Awaiting Triage" value={awaitingTriageCount} sub="Triage workload" />
+      <KpiCard icon="ph-warning-circle" color="orange" label="Critical Patients" value={criticalCount} sub="Immediate attention" />
+      <KpiCard icon="ph-users" color="blue" label="Patients Waiting" value={waitingCount} sub="In queue" />
+      <KpiCard icon="ph-heartbeat" color="cyan" label="In Treatment" value={inTreatmentCount} sub="Active care" />
+      <KpiCard icon="ph-door-open" color="green" label="Available ER Beds" value={totalBedsAvailable} sub="Across ER zones" />
+    </section>
+  );
+
+  // ─── Doctor KPIs ──────────────────────────────────────────────────────────
+
+  const DoctorKpis = () => (
+    <section className="emergency-kpi-grid" data-testid="kpi-doctor">
+      <KpiCard icon="ph-stethoscope" color="blue" label="My Active Cases" value={myActiveCount} sub="Assigned to me" />
+      <KpiCard icon="ph-clock" color="orange" label="Waiting for My Review" value={myReviewCount} sub="Triaged, need consultation" />
+      <KpiCard icon="ph-heartbeat" color="cyan" label="In Treatment" value={myTreatmentCount} sub="My patients in care" />
+      <KpiCard icon="ph-flask" color="purple" label="Pending Results" value={pendingResultsCount} sub="Orders in progress" />
+      <KpiCard icon="ph-bed" color="red" label="Ready for Disposition" value={myReadyForDispositionCount} sub="Awaiting decision" />
+    </section>
+  );
+
+  // ─── Viewer/fallback KPIs (super-admin, viewer-only) ─────────────────────
+
+  const ViewerKpis = () => (
+    <section className="emergency-kpi-grid viewer-kpi-grid" data-testid="kpi-viewer">
+      <KpiCard icon="ph-first-aid" color="blue" label="Today's ER Visits" value={visitsCount} sub="Live emergency census" />
+      <KpiCard icon="ph-warning-circle" color="red" label="Critical Patients" value={criticalCount} sub="Immediate attention" />
+      <KpiCard icon="ph-hourglass-medium" color="orange" label="Waiting Patients" value={waitingCount} sub="Triage completed" />
+      <KpiCard icon="ph-heartbeat" color="cyan" label="Patients In Treatment" value={inTreatmentCount} sub="Active care" />
+      <KpiCard icon="ph-bed" color="purple" label="Ready for Admission" value={readyAdmissionCount} sub="Bed assignment needed" />
+      <KpiCard icon="ph-door-open" color="green" label="Available Emergency Beds" value={totalBedsAvailable} sub="Across ER zones" />
+    </section>
+  );
+
+  // ─── Queue column config per profile ─────────────────────────────────────
+
+  const renderQueueRow = (item: EmergencyEncounter) => {
+    const level = item.triage?.effective_level ?? item.triage?.level;
+    const name = item.patient_name || item.provisional_identity?.display_name || 'Unknown Patient';
+
+    if (dashboardProfile === 'receptionist') {
+      return (
+        <tr key={item.id}>
+          <td>
+            <strong className="patient-mrn">{item.emergency_identifier || item.encounter_number}</strong>
+          </td>
+          <td>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Avatar name={name} />
+              <div>
+                <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.85rem' }}>{name}</strong>
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  {item.patient_number || 'Provisional Identity'}
+                </span>
+              </div>
+            </div>
+          </td>
+          <td style={{ fontSize: '0.82rem', color: '#64748b' }}>
+            {formatTime(item.arrival_at || item.created_at)}
+          </td>
+          <td style={{ fontSize: '0.82rem', maxWidth: '200px', whiteSpace: 'normal' }}>
+            {item.chief_complaint}
+          </td>
+          <td style={{ fontSize: '0.82rem', color: '#334155' }}>{item.arrival_mode}</td>
+          <td>
+            <span className={`doc-status ${statusSlug(item.status)}`}>{statusLabel(item.status)}</span>
+          </td>
+          <td>
+            <span className={`emergency-triage ${triageSlug(level)}`}>{triageLabel(level)}</span>
+          </td>
+          <td style={{ fontSize: '0.82rem', color: '#475569' }}>
+            {getWaitMinutes(item.arrival_at, item.created_at)}
+          </td>
+          <td style={{ textAlign: 'right' }}>
+            <div className="doc-actions" style={{ justifyContent: 'flex-end' }}>
+              <button
+                className="doc-action"
+                onClick={() => navigate(`/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}`)}
+                title="Open Workspace"
+                type="button"
+              >
+                <i className="ph ph-arrow-square-out" />
+              </button>
+            </div>
+          </td>
+        </tr>
+      );
+    }
+
+    if (dashboardProfile === 'nurse') {
+      return (
+        <tr key={item.id}>
+          <td>
+            <strong className="patient-mrn">{item.emergency_identifier || item.encounter_number}</strong>
+          </td>
+          <td>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Avatar name={name} />
+              <div>
+                <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.85rem' }}>{name}</strong>
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  {item.patient_number || 'Provisional Identity'}
+                </span>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span className={`emergency-triage ${triageSlug(level)}`}>{triageLabel(level)}</span>
+          </td>
+          <td>
+            <span className={`doc-status ${statusSlug(item.status)}`}>{statusLabel(item.status)}</span>
+          </td>
+          <td style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>
+            {getWaitMinutes(item.arrival_at, item.created_at)}
+          </td>
+          <td style={{ textAlign: 'right' }}>
+            <div className="doc-actions" style={{ justifyContent: 'flex-end' }}>
+              {capabilities.assessTriage && item.status === 'WAITING_FOR_TRIAGE' && (
+                <button
+                  className="doc-btn compact primary"
+                  onClick={() => navigate(`/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}&tab=Triage`)}
+                  title="Start Triage"
+                  type="button"
+                  style={{ fontSize: '0.74rem', padding: '3px 10px' }}
+                >
+                  <i className="ph ph-stethoscope" /> Triage
+                </button>
+              )}
+              <button
+                className="doc-action"
+                onClick={() => navigate(`/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}`)}
+                title="Open Workspace"
+                type="button"
+              >
+                <i className="ph ph-arrow-square-out" />
+              </button>
+            </div>
+          </td>
+        </tr>
+      );
+    }
+
+    // Doctor and viewer rows
+    return (
+      <tr key={item.id}>
+        <td>
+          <strong className="patient-mrn">{item.emergency_identifier || item.encounter_number}</strong>
+        </td>
+        <td>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Avatar name={name} />
+            <div>
+              <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.85rem' }}>{name}</strong>
+              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                {item.patient_number || 'Provisional Identity'}
+              </span>
+            </div>
+          </div>
+        </td>
+        <td>
+          <span className={`emergency-triage ${triageSlug(level)}`}>{triageLabel(level)}</span>
+        </td>
+        <td style={{ whiteSpace: 'normal', minWidth: '140px', maxWidth: '220px', fontSize: '0.82rem' }}>
+          {item.chief_complaint}
+        </td>
+        <td style={{ fontSize: '0.82rem', color: '#334155' }}>
+          {item.assigned_doctor_name || 'Unassigned'}
+        </td>
+        <td style={{ fontSize: '0.82rem', color: '#64748b' }}>
+          {formatTime(item.arrival_at || item.created_at)}
+        </td>
+        <td>
+          <span className={`doc-status ${statusSlug(item.status)}`}>{statusLabel(item.status)}</span>
+        </td>
+        <td style={{ textAlign: 'right' }}>
+          <div className="doc-actions" style={{ justifyContent: 'flex-end' }}>
+            {capabilities.editConsultation && (
+              <button
+                className="doc-btn compact primary"
+                onClick={() =>
+                  navigate(
+                    `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}&tab=Consultation`,
+                  )
+                }
+                title="Open Consultation"
+                type="button"
+                style={{ fontSize: '0.74rem', padding: '3px 10px' }}
+              >
+                <i className="ph ph-stethoscope" /> Consult
+              </button>
+            )}
+            <button
+              className="doc-action"
+              onClick={() =>
+                navigate(
+                  `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}`,
+                )
+              }
+              title="Open Workspace"
+              type="button"
+            >
+              <i className="ph ph-arrow-square-out" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // Queue table column headers per profile
+  const QueueTableHead = () => {
+    if (dashboardProfile === 'receptionist') {
+      return (
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Patient</th>
+            <th>Arrival Time</th>
+            <th>Chief Complaint</th>
+            <th>Arrival Mode</th>
+            <th>Status</th>
+            <th>Triage</th>
+            <th>Wait Time</th>
+            <th style={{ textAlign: 'right' }}>Actions</th>
+          </tr>
+        </thead>
+      );
+    }
+    if (dashboardProfile === 'nurse') {
+      return (
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Patient</th>
+            <th>Triage Level</th>
+            <th>Status</th>
+            <th>Wait Time</th>
+            <th style={{ textAlign: 'right' }}>Actions</th>
+          </tr>
+        </thead>
+      );
+    }
+    // Doctor + Viewer
+    return (
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Patient</th>
+          <th>Triage Level</th>
+          <th>Chief Complaint</th>
+          <th>Assigned Doctor</th>
+          <th>Arrival Time</th>
+          <th>Current Status</th>
+          <th style={{ textAlign: 'right' }}>Actions</th>
+        </tr>
+      </thead>
+    );
+  };
+
+  const colSpan =
+    dashboardProfile === 'receptionist' ? 9
+    : dashboardProfile === 'nurse' ? 6
+    : 8;
+
+  // ─── Queue title per profile ──────────────────────────────────────────────
+
+  const queueTitle =
+    dashboardProfile === 'doctor'
+      ? 'My Emergency Cases'
+      : dashboardProfile === 'nurse'
+        ? 'Emergency Triage Queue'
+        : dashboardProfile === 'receptionist'
+          ? 'Administrative Emergency Queue'
+          : 'Live Emergency Queue';
+
+  const queueSubtitle =
+    dashboardProfile === 'doctor'
+      ? 'Assigned to me and unassigned cases available for pickup'
+      : dashboardProfile === 'nurse'
+        ? 'Patients awaiting triage, sorted by acuity and arrival time'
+        : dashboardProfile === 'receptionist'
+          ? 'All active emergency patients – administrative view'
+          : 'Prioritized by triage acuity and arrival time';
+
+  // ─── Quick Actions per profile ────────────────────────────────────────────
+
+  const ReceptionistActions = () => (
+    <div style={{ display: 'grid', gap: '0.45rem' }} data-testid="quick-actions-receptionist">
+      {capabilities.register && (
+        <QuickActionBtn
+          data-testid="qa-register"
+          icon="ph-user-plus"
+          label="Register Emergency Encounter"
+          sub="Start emergency intake"
+          color="#dc2626"
+          onClick={openRegistration}
+        />
+      )}
+      {capabilities.linkPatient && (
+        <QuickActionBtn
+          data-testid="qa-link-patient"
+          icon="ph-link"
+          label="Find / Link Patient"
+          sub="Match provisional to registered patient"
+          color="#2563eb"
+          onClick={() => openQueueWithFilter()}
+        />
+      )}
+      <QuickActionBtn
+        data-testid="qa-open-queue"
+        icon="ph-queue"
+        label="Emergency Queue"
+        sub="Manage waiting patients"
+        color="#64748b"
+        onClick={() => openQueueWithFilter()}
+      />
+    </div>
+  );
+
+  const NurseActions = () => (
+    <div style={{ display: 'grid', gap: '0.45rem' }} data-testid="quick-actions-nurse">
+      {capabilities.assessTriage && (
+        <QuickActionBtn
+          data-testid="qa-start-triage"
+          icon="ph-stethoscope"
+          label="Start Triage"
+          sub="Assess next waiting patient"
+          color="#dc2626"
+          onClick={() => {
+            const nextForTriage = activeEncounters.find(
+              (e) => e.status === 'WAITING_FOR_TRIAGE',
+            );
+            if (nextForTriage) {
+              navigate(
+                `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${nextForTriage.id}&tab=Triage`,
+              );
+            } else {
+              toast.info('No patients currently waiting for triage.');
+            }
+          }}
+        />
+      )}
+      <QuickActionBtn
+        data-testid="qa-awaiting-triage"
+        icon="ph-hourglass"
+        label="Patients Awaiting Triage"
+        sub={`${awaitingTriageCount} patient${awaitingTriageCount !== 1 ? 's' : ''} in queue`}
+        color="#f59e0b"
+        onClick={() => openQueueWithFilter('status=WAITING_FOR_TRIAGE')}
+      />
+      <QuickActionBtn
+        data-testid="qa-open-queue"
+        icon="ph-queue"
+        label="Emergency Queue"
+        sub="Full triage and nursing queue"
+        color="#64748b"
+        onClick={() => openQueueWithFilter()}
+      />
+    </div>
+  );
+
+  const DoctorActions = () => (
+    <div style={{ display: 'grid', gap: '0.45rem' }} data-testid="quick-actions-doctor">
+      <QuickActionBtn
+        data-testid="qa-my-cases"
+        icon="ph-person-simple-run"
+        label="My Emergency Cases"
+        sub={`${myActiveCount} active case${myActiveCount !== 1 ? 's' : ''} assigned to me`}
+        color="#2563eb"
+        onClick={() => openQueueWithFilter()}
+      />
+      {capabilities.editConsultation && (
+        <QuickActionBtn
+          data-testid="qa-start-consultation"
+          icon="ph-stethoscope"
+          label="Start Consultation"
+          sub="Open next case for clinical review"
+          color="#dc2626"
+          onClick={() => {
+            const nextCase =
+              doctorQueueEncounters.find(
+                (e) =>
+                  isAssignedToMe(e.assigned_doctor_id) &&
+                  ['TRIAGED', 'WAITING_FOR_DOCTOR'].includes(e.status),
+              ) ||
+              doctorQueueEncounters.find(
+                (e) =>
+                  e.assigned_doctor_id === null &&
+                  ['TRIAGED', 'WAITING_FOR_DOCTOR'].includes(e.status),
+              );
+            if (nextCase) {
+              navigate(
+                `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${nextCase.id}&tab=Consultation`,
+              );
+            } else {
+              toast.info('No patients currently waiting for consultation.');
+            }
+          }}
+        />
+      )}
+      <QuickActionBtn
+        data-testid="qa-review-results"
+        icon="ph-flask"
+        label="Review Results"
+        sub="Check pending lab and imaging"
+        color="#9333ea"
+        onClick={() => openQueueWithFilter()}
+      />
+      {(capabilities.discharge || capabilities.admit || capabilities.transfer) && (
+        <QuickActionBtn
+          data-testid="qa-disposition"
+          icon="ph-door-open"
+          label="Complete Disposition"
+          sub={
+            firstDispositionReady
+              ? 'Patient ready for admission/discharge'
+              : 'No patients currently ready'
+          }
+          color="#16a34a"
+          onClick={() => {
+            if (firstDispositionReady) {
+              navigate(
+                `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${firstDispositionReady.id}&tab=Disposition`,
+              );
+            } else {
+              toast.info('No patients currently ready for disposition.');
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+
+  const ViewerActions = () => (
+    <div style={{ display: 'grid', gap: '0.45rem' }} data-testid="quick-actions-viewer">
+      <QuickActionBtn
+        icon="ph-queue"
+        label="Open Queue"
+        sub="Manage waiting patients"
+        color="#64748b"
+        onClick={() => openQueueWithFilter()}
+      />
+    </div>
+  );
+
+  // ─── ER Alerts (shown to all — operational context) ───────────────────────
+
+  const ERAlerts = () => (
+    <div className="emergency-panel-card">
+      <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.85rem' }}>ER Alerts</h3>
+      <div className="emergency-alert-list" style={{ gap: '0.45rem' }}>
+        <div className="emergency-alert-item" style={{ padding: '0.45rem 0.6rem', gap: '0.5rem' }}>
+          <i className="ph ph-warning-circle" style={{ fontSize: '1rem' }} />
+          <div>
+            <strong style={{ fontSize: '0.78rem' }}>Critical Arrival</strong>
+            <span style={{ fontSize: '0.68rem', display: 'block' }}>Level 1 cardiac patient arriving in 4 min.</span>
+          </div>
+        </div>
+        <div className="emergency-alert-item warning" style={{ padding: '0.45rem 0.6rem', gap: '0.5rem' }}>
+          <i className="ph ph-clock" style={{ fontSize: '1rem' }} />
+          <div>
+            <strong style={{ fontSize: '0.78rem' }}>Extended Wait</strong>
+            <span style={{ fontSize: '0.68rem', display: 'block' }}>ER-005 exceeded target triage time.</span>
+          </div>
+        </div>
+        <div className="emergency-alert-item info" style={{ padding: '0.45rem 0.6rem', gap: '0.5rem' }}>
+          <i className="ph ph-flask" style={{ fontSize: '1rem' }} />
+          <div>
+            <strong style={{ fontSize: '0.78rem' }}>STAT Results Ready</strong>
+            <span style={{ fontSize: '0.68rem', display: 'block' }}>Troponin and ABG results available.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── Bed availability (nurse + doctor only — read-only operational info) ──
+  // TODO: P3-2 replace static placeholder with live IP bed board API.
+
+  const BedAvailability = () => (
+    <div className="emergency-panel-card" data-testid="bed-availability">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+        <h3 style={{ margin: 0, fontSize: '0.85rem' }}>Bed Availability</h3>
+        <span style={{ fontSize: '0.66rem', color: '#94a3b8' }}>Read-only</span>
+      </div>
+      <div className="emergency-bed-grid" style={{ gap: '0.4rem' }}>
+        {beds.map((b) => (
+          <div className={`emergency-bed ${b.available > 0 ? 'available' : 'occupied'}`} key={b.name} style={{ padding: '0.35rem 0.5rem' }}>
+            <span style={{ fontSize: '0.7rem' }}>{b.name}</span>
+            <strong style={{ fontSize: '0.82rem' }}>
+              {b.available}/{b.total}
+            </strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="emergency-page emergency-theme">
@@ -229,7 +937,7 @@ export function EmergencyDashboardPage() {
       <div className="emergency-page-header">
         <div className="emergency-page-title">
           <h2>Emergency Dashboard</h2>
-          <p>Live emergency operations, triage and bed readiness</p>
+          <p>{SUBTITLE[dashboardProfile]}</p>
         </div>
         <div className="emergency-page-actions">
           {state.branches.length > 1 ? (
@@ -254,228 +962,80 @@ export function EmergencyDashboardPage() {
           >
             <i className="ph ph-queue" /> Open Queue
           </button>
-          {state.capabilities.register ? (
+          {/* Register button in header — only for users with registration capability */}
+          {capabilities.register && (
             <button
               className="btn-emergency-primary"
-              onClick={() => {
-                registration.setValue('department_id', state.departments[0]?.id ?? '');
-                setRegistrationOpen(true);
-              }}
+              data-testid="header-register-btn"
+              onClick={openRegistration}
               type="button"
             >
               <i className="ph ph-plus" /> Register Patient
             </button>
-          ) : null}
+          )}
         </div>
       </div>
 
-      {/* Top 6 KPI Metric Cards */}
-      <section className="emergency-kpi-grid">
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon blue">
-            <i className="ph ph-first-aid" aria-hidden="true" />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Today's ER Visits</span>
-            <strong>{visitsCount}</strong>
-            <small>Live emergency census</small>
-          </div>
-        </div>
+      {/* Role-adaptive KPI Grid */}
+      {dashboardProfile === 'receptionist' && <ReceptionistKpis />}
+      {dashboardProfile === 'nurse' && <NurseKpis />}
+      {dashboardProfile === 'doctor' && <DoctorKpis />}
+      {dashboardProfile === 'viewer' && <ViewerKpis />}
 
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon red">
-            <i className="ph ph-warning-circle" aria-hidden="true" />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Critical Patients</span>
-            <strong>{criticalCount}</strong>
-            <small>Immediate attention</small>
-          </div>
-        </div>
-
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon orange">
-            <i className="ph ph-hourglass-medium" aria-hidden="true" />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Waiting Patients</span>
-            <strong>{waitingCount}</strong>
-            <small>Triage completed</small>
-          </div>
-        </div>
-
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon cyan">
-            <i className="ph ph-heartbeat" aria-hidden="true" />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Patients In Treatment</span>
-            <strong>{inTreatmentCount}</strong>
-            <small>Active care</small>
-          </div>
-        </div>
-
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon purple">
-            <i className="ph ph-bed" aria-hidden="true" />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Ready for Admission</span>
-            <strong>{readyAdmissionCount}</strong>
-            <small>Bed assignment needed</small>
-          </div>
-        </div>
-
-        <div className="doc-kpi">
-          <div className="doc-kpi-icon green">
-            <i className="ph ph-door-open" aria-hidden="true" />
-          </div>
-          <div className="doc-kpi-copy">
-            <span>Available Emergency Beds</span>
-            <strong>{totalBedsAvailable}</strong>
-            <small>Across ER zones</small>
-          </div>
-        </div>
-      </section>
-
-      {/* Main 2-Column Operational Grid */}
+      {/* Main 2-Column Layout */}
       <div className="emergency-dashboard-layout">
-        {/* Left Column: Live Emergency Queue Table */}
-        <div className="doc-card">
-          <div className="doc-card-header">
+        {/* Left: Queue Table */}
+        <div className="doc-card" style={{ marginBottom: 0 }}>
+          <div className="doc-card-header" style={{ padding: '0.65rem 0.9rem' }}>
             <div>
-              <h3>Live Emergency Queue</h3>
-              <p>Prioritized by triage acuity and arrival time</p>
+              <h3 style={{ fontSize: '0.92rem', margin: '0 0 2px' }}>{queueTitle}</h3>
+              <p style={{ fontSize: '0.74rem', margin: 0 }}>{queueSubtitle}</p>
             </div>
           </div>
 
           <div className="doc-table-wrap">
             <table className="doc-table">
-              <thead>
-                <tr>
-                  <th>Token</th>
-                  <th>Patient</th>
-                  <th>Triage Level</th>
-                  <th>Chief Complaint</th>
-                  <th>Assigned Doctor</th>
-                  <th>Arrival Time</th>
-                  <th>Current Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
+              <QueueTableHead />
               <tbody>
                 {state.listQuery.isLoading ? (
                   <tr>
-                    <td colSpan={8} style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-                      <i className="ph ph-circle-notch" style={{ animation: 'spin 1s linear infinite', marginRight: '6px' }} />
+                    <td colSpan={colSpan} style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                      <i
+                        className="ph ph-circle-notch"
+                        style={{ animation: 'spin 1s linear infinite', marginRight: '6px' }}
+                      />
                       Loading live emergency queue...
                     </td>
                   </tr>
-                ) : encounters.length === 0 ? (
+                ) : queueEncounters.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-                      <i className="ph ph-first-aid" style={{ fontSize: '2rem', display: 'block', marginBottom: '0.5rem' }} />
-                      No active emergency patients in queue.
+                    <td colSpan={colSpan} style={{ padding: '2.5rem', textAlign: 'center', color: '#94a3b8' }}>
+                      <i
+                        className="ph ph-first-aid"
+                        style={{ fontSize: '1.75rem', display: 'block', marginBottom: '0.4rem' }}
+                      />
+                      {dashboardProfile === 'doctor'
+                        ? 'No cases currently assigned to you or available for pickup.'
+                        : 'No active emergency patients in queue.'}
                     </td>
                   </tr>
                 ) : (
-                  paginatedEncounters.map((item: EmergencyEncounter) => {
-                    const level = item.triage?.effective_level ?? item.triage?.level;
-                    const initials = (item.patient_name || 'ER')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase();
-
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <strong className="patient-mrn">
-                            {item.emergency_identifier || item.encounter_number}
-                          </strong>
-                        </td>
-                        <td>
-                          <div className="doc-person" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div
-                              style={{
-                                width: '34px',
-                                height: '34px',
-                                borderRadius: '8px',
-                                background: '#2563eb',
-                                color: '#ffffff',
-                                display: 'grid',
-                                placeItems: 'center',
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {initials}
-                            </div>
-                            <div>
-                              <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.85rem' }}>
-                                {item.patient_name || item.provisional_identity?.display_name || 'Unknown Patient'}
-                              </strong>
-                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                {item.patient_number || 'Provisional Identity'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`emergency-triage ${triageSlug(level)}`}>
-                            {triageLabel(level)}
-                          </span>
-                        </td>
-                        <td style={{ whiteSpace: 'normal', minWidth: '160px', maxWidth: '240px', fontSize: '0.82rem' }}>
-                          {item.chief_complaint}
-                        </td>
-                        <td style={{ fontSize: '0.82rem', color: '#334155' }}>
-                          {item.assigned_doctor_name || 'Unassigned'}
-                        </td>
-                        <td style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                          {formatTime(item.arrival_at || item.created_at)}
-                        </td>
-                        <td>
-                          <span className={`doc-status ${statusSlug(item.status)}`}>
-                            {statusLabel(item.status)}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div className="doc-actions" style={{ justifyContent: 'flex-end' }}>
-                            <button
-                              className="doc-action"
-                              onClick={() =>
-                                navigate(
-                                  `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${item.id}`,
-                                )
-                              }
-                              title="Open Workspace"
-                              type="button"
-                            >
-                              <i className="ph ph-arrow-square-out" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  paginatedEncounters.map((item) => renderQueueRow(item))
                 )}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination Controls */}
-          {encounters.length > 0 && (
+          {/* Pagination */}
+          {queueEncounters.length > 0 && (
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '12px 16px',
+                padding: '8px 14px',
                 borderTop: '1px solid #f1f5f9',
-                fontSize: '0.82rem',
+                fontSize: '0.78rem',
                 color: '#64748b',
                 background: '#ffffff',
                 borderBottomLeftRadius: '12px',
@@ -483,9 +1043,10 @@ export function EmergencyDashboardPage() {
               }}
             >
               <div>
-                Showing <strong>{Math.min((page - 1) * pageSize + 1, encounters.length)}</strong> to{' '}
-                <strong>{Math.min(page * pageSize, encounters.length)}</strong> of{' '}
-                <strong>{encounters.length}</strong> emergency encounters
+                Showing{' '}
+                <strong>{Math.min((page - 1) * pageSize + 1, queueEncounters.length)}</strong> to{' '}
+                <strong>{Math.min(page * pageSize, queueEncounters.length)}</strong> of{' '}
+                <strong>{queueEncounters.length}</strong> emergency encounters
               </div>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                 <button
@@ -514,110 +1075,27 @@ export function EmergencyDashboardPage() {
           )}
         </div>
 
-        {/* Right Column: ER Alerts, Bed Availability & Quick Actions */}
+        {/* Right: Side Panel */}
         <aside className="emergency-side-panel">
-          {/* ER Alerts Card */}
-          <div className="emergency-panel-card">
-            <h3>ER Alerts</h3>
-            <div className="emergency-alert-list">
-              <div className="emergency-alert-item">
-                <i className="ph ph-warning-circle" />
-                <div>
-                  <strong>Critical Arrival</strong>
-                  <span>Level 1 cardiac patient arriving by ambulance in 4 minutes.</span>
-                </div>
-              </div>
-              <div className="emergency-alert-item warning">
-                <i className="ph ph-clock" />
-                <div>
-                  <strong>Extended Wait</strong>
-                  <span>ER-005 has exceeded the target triage waiting time.</span>
-                </div>
-              </div>
-              <div className="emergency-alert-item info">
-                <i className="ph ph-flask" />
-                <div>
-                  <strong>STAT Results Ready</strong>
-                  <span>Troponin and ABG results are now available.</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ERAlerts />
 
-          {/* Bed Availability Card */}
-          <div className="emergency-panel-card">
-            <h3>Bed Availability</h3>
-            <div className="emergency-bed-grid">
-              {beds.map((b) => (
-                <div className={`emergency-bed ${b.available > 0 ? 'available' : 'occupied'}`} key={b.name}>
-                  <span>{b.name}</span>
-                  <strong>
-                    {b.available}/{b.total}
-                  </strong>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Bed Availability — Nurse and Doctor only (read-only operational context) */}
+          {(dashboardProfile === 'nurse' || dashboardProfile === 'doctor' || dashboardProfile === 'viewer') && (
+            <BedAvailability />
+          )}
 
-          {/* Quick Actions Card */}
-          <div className="emergency-panel-card">
+          {/* Quick Actions — capability-driven per profile */}
+          <div className="emergency-panel-card" data-testid="quick-actions-panel">
             <h3>Quick Actions</h3>
-            <div style={{ display: 'grid', gap: '0.65rem' }}>
-              <button
-                className="doc-btn"
-                onClick={() => {
-                  registration.setValue('department_id', state.departments[0]?.id ?? '');
-                  setRegistrationOpen(true);
-                }}
-                style={{ justifyContent: 'flex-start', padding: '0.75rem 1rem', width: '100%' }}
-                type="button"
-              >
-                <i className="ph ph-user-plus" style={{ color: '#dc2626', fontSize: '1.2rem', marginRight: '8px' }} />
-                <div style={{ textAlign: 'left' }}>
-                  <strong style={{ display: 'block', fontSize: '0.84rem' }}>Register Patient</strong>
-                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Start emergency intake</span>
-                </div>
-              </button>
-
-              <button
-                className="doc-btn"
-                onClick={() => navigate(`/emergency/queue?branch_id=${state.branchId}`)}
-                style={{ justifyContent: 'flex-start', padding: '0.75rem 1rem', width: '100%' }}
-                type="button"
-              >
-                <i className="ph ph-queue" style={{ color: '#2563eb', fontSize: '1.2rem', marginRight: '8px' }} />
-                <div style={{ textAlign: 'left' }}>
-                  <strong style={{ display: 'block', fontSize: '0.84rem' }}>Open Queue</strong>
-                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Manage waiting patients</span>
-                </div>
-              </button>
-
-              <button
-                className="doc-btn"
-                onClick={() => {
-                  if (activeEncounters[0]) {
-                    navigate(
-                      `/emergency/workspace?branch_id=${state.branchId}&encounter_id=${activeEncounters[0].id}&tab=Disposition`,
-                    );
-                  } else {
-                    toast.info('No active emergency patient to admit.');
-                  }
-                }}
-                style={{ justifyContent: 'flex-start', padding: '0.75rem 1rem', width: '100%' }}
-                type="button"
-              >
-                <i className="ph ph-bed" style={{ color: '#9333ea', fontSize: '1.2rem', marginRight: '8px' }} />
-                <div style={{ textAlign: 'left' }}>
-                  <strong style={{ display: 'block', fontSize: '0.84rem' }}>Admit Patient</strong>
-                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Open disposition decision</span>
-                </div>
-              </button>
-            </div>
+            {dashboardProfile === 'receptionist' && <ReceptionistActions />}
+            {dashboardProfile === 'nurse' && <NurseActions />}
+            {dashboardProfile === 'doctor' && <DoctorActions />}
+            {dashboardProfile === 'viewer' && <ViewerActions />}
           </div>
         </aside>
       </div>
 
-      {/* Registration Modal */}
+      {/* Registration Modal — preserved exactly as before */}
       <Modal
         onClose={() => setRegistrationOpen(false)}
         open={registrationOpen}
@@ -788,7 +1266,7 @@ export function EmergencyDashboardPage() {
                     </div>
                   ) : (
                     <div style={{ padding: '8px 12px', background: '#fff', border: '1px dashed #cbd5e1', borderRadius: '6px', fontSize: '0.78rem', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>No registered patient found matching "<strong>{state.patientSearch}</strong>"</span>
+                      <span>No registered patient found matching &ldquo;<strong>{state.patientSearch}</strong>&rdquo;</span>
                       <button
                         type="button"
                         className="doc-btn compact primary"
@@ -961,7 +1439,7 @@ export function EmergencyDashboardPage() {
             />
           </div>
 
-          {/* Modal Footer Actions */}
+          {/* Modal Footer */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
             <button
               className="btn-emergency-secondary"
@@ -976,7 +1454,8 @@ export function EmergencyDashboardPage() {
               type="submit"
               style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', background: '#dc2626', color: '#ffffff', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
-              <i className="ph ph-plus-circle" /> {mutations.create.isPending ? 'Registering...' : 'Register Encounter'}
+              <i className="ph ph-plus-circle" />{' '}
+              {mutations.create.isPending ? 'Registering...' : 'Register Encounter'}
             </button>
           </div>
         </form>

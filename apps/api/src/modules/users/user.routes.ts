@@ -80,13 +80,13 @@ export const registerUserRoutes = async (app: FastifyInstance, services: Service
         response: { 200: userListResponseSchema },
       },
     },
-    async (request) => ok(await services.users.list(request.query)),
+    async (request) => ok(await services.users.list(request.query, request.user!.id)),
   );
 
   app.get(
     '/api/users/summary',
     { preHandler: requirePermission(services, 'Administration', 'Users', 'View') },
-    async () => ok(await services.users.summary()),
+    async (request) => ok(await services.users.summary(request.user!.id)),
   );
 
   app.get<{ Querystring: ListUsersQuery }>(
@@ -111,7 +111,7 @@ export const registerUserRoutes = async (app: FastifyInstance, services: Service
         response: { 200: userResponseSchema },
       },
     },
-    async (request) => ok(await services.users.getById(request.params.id)),
+    async (request) => ok(await services.users.getById(request.params.id, request.user!.id)),
   );
 
   app.post<{ Body: CreateUserBody }>(

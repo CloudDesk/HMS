@@ -5,10 +5,12 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import type { EmergencyTriageLevel } from '../../api/emergency';
 import type { EmergencyWorkspaceProps, WorkspaceTab } from './types';
-import { message, triageLabel } from './utils';
+import { formatTime, message, triageLabel, triageSlug } from './utils';
 
-const optionalNumber = z.number().optional();
-const numericInput = { setValueAs: (value: string) => (value === '' ? undefined : Number(value)) };
+const toOptionalNumber = (value: unknown) =>
+  value === '' || value === null || value === undefined ? undefined : Number(value);
+const optionalNumber = z.coerce.number<number>().optional();
+const numericInput = { setValueAs: toOptionalNumber };
 
 const triageSchema = z.object({
   level: z.enum([
@@ -19,14 +21,38 @@ const triageSchema = z.object({
     'LEVEL_5_NON_URGENT',
   ]),
   area: z.string().min(2),
-  pain_score: optionalNumber,
-  systolic_bp: optionalNumber,
-  diastolic_bp: optionalNumber,
-  pulse: optionalNumber,
-  temperature_c: optionalNumber,
-  spo2: optionalNumber,
-  respiratory_rate: optionalNumber,
-  gcs: optionalNumber,
+  pain_score: optionalNumber.refine(
+    (value) => value === undefined || (Number.isInteger(value) && value >= 0 && value <= 10),
+    'Pain score must be a whole number from 0 to 10.',
+  ),
+  systolic_bp: optionalNumber.refine(
+    (value) => value === undefined || value >= 0,
+    'Systolic blood pressure cannot be negative.',
+  ),
+  diastolic_bp: optionalNumber.refine(
+    (value) => value === undefined || value >= 0,
+    'Diastolic blood pressure cannot be negative.',
+  ),
+  pulse: optionalNumber.refine(
+    (value) => value === undefined || value >= 0,
+    'Pulse cannot be negative.',
+  ),
+  temperature_c: optionalNumber.refine(
+    (value) => value === undefined || (value >= 20 && value <= 50),
+    'Temperature must be between 20 and 50 °C.',
+  ),
+  spo2: optionalNumber.refine(
+    (value) => value === undefined || (value >= 0 && value <= 100),
+    'SpO₂ must be between 0 and 100%.',
+  ),
+  respiratory_rate: optionalNumber.refine(
+    (value) => value === undefined || value >= 0,
+    'Respiratory rate cannot be negative.',
+  ),
+  gcs: optionalNumber.refine(
+    (value) => value === undefined || (value >= 3 && value <= 15),
+    'GCS must be between 3 and 15.',
+  ),
   airway: z.string().min(1),
   breathing: z.string().min(1),
   circulation: z.string().min(1),
@@ -91,7 +117,7 @@ export function EmergencyTriageSection({ state, mutations, setActiveTab }: Emerg
     }
   }, [selected, triage]);
 
-  const saveTriage = triage.handleSubmit(async (value) => {
+  const completeTriage = triage.handleSubmit(async (value) => {
     if (!selected) return;
     try {
       await mutations.triage.mutateAsync({
@@ -119,17 +145,148 @@ export function EmergencyTriageSection({ state, mutations, setActiveTab }: Emerg
           notes: value.notes || null,
         },
       });
-      toast.success('Emergency triage completed.');
+      toast.success('Triage completed. Patient moved to consultation.');
       setActiveTab('Consultation');
     } catch (error) {
       toast.error(message(error));
     }
+  }, (errors) => {
+    const firstError = Object.values(errors).find((error) => error?.message);
+    toast.error(firstError?.message ?? 'Review the triage information and try again.');
   });
 
   if (!selected) return null;
 
+  const canAssess =
+    ['REGISTERED', 'WAITING_FOR_TRIAGE', 'TRIAGED', 'WAITING_FOR_DOCTOR'].includes(selected.status) &&
+    (state.capabilities.assessTriage ||
+      state.capabilities.editConsultation ||
+      state.capabilities.editEncounters);
+  const triageLevel = selected.triage?.effective_level ?? selected.triage?.level ?? 'LEVEL_3_MEDIUM';
+
+  if (!canAssess) {
+    return (
+      <div className="emergency-form-section">
+        <div className="emergency-section-context-header">
+          <div className="emergency-context-badge">
+            <i className="ph ph-lock-key" /> Triage &amp; Vitals Assessment (Read-Only Nursing Context)
+          </div>
+          <p className="emergency-context-desc">
+            Assessed by nursing staff upon arrival. Review acuity priority, vital signs, and primary survey.
+          </p>
+        </div>
+
+        <div className="emergency-readonly-grid">
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-shield-check" /> Acuity &amp; Triage Assignment</h4>
+            <div className="emergency-readonly-field">
+              <label>Acuity Priority</label>
+              <div>
+                <span className={`emergency-triage ${triageSlug(triageLevel)}`}>
+                  {triageLabel(triageLevel)}
+                </span>
+              </div>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Triage Area</label>
+              <span>{selected.triage?.area || 'General ER'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Pain Score (0-10)</label>
+              <span>{selected.triage?.pain_score !== null && selected.triage?.pain_score !== undefined ? `${selected.triage.pain_score} / 10` : '—'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Assessment Time</label>
+              <span>{selected.triage?.assessed_at ? formatTime(selected.triage.assessed_at) : '—'}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-activity" /> Vital Signs Summary</h4>
+            <div className="emergency-readonly-field">
+              <label>Blood Pressure</label>
+              <span>
+                {selected.triage?.vitals?.systolic_bp && selected.triage?.vitals?.diastolic_bp
+                  ? `${selected.triage.vitals.systolic_bp} / ${selected.triage.vitals.diastolic_bp} mmHg`
+                  : '—'}
+              </span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Pulse / Heart Rate</label>
+              <span>{selected.triage?.vitals?.pulse ? `${selected.triage.vitals.pulse} bpm` : '—'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Temperature</label>
+              <span>{selected.triage?.vitals?.temperature_c ? `${selected.triage.vitals.temperature_c} °C` : '—'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>SpO₂ &amp; Respiratory Rate</label>
+              <span>
+                {selected.triage?.vitals?.spo2 ? `${selected.triage.vitals.spo2}%` : '—'} •{' '}
+                {selected.triage?.vitals?.respiratory_rate ? `${selected.triage.vitals.respiratory_rate}/min` : '—'}
+              </span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>GCS Score (3-15)</label>
+              <span>{selected.triage?.vitals?.gcs ? `${selected.triage.vitals.gcs} / 15` : '—'}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-heartbeat" /> Rapid Primary Survey (ABCDE)</h4>
+            <div className="emergency-readonly-field">
+              <label>Airway</label>
+              <span>{selected.triage?.abcde?.airway || 'Patent'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Breathing</label>
+              <span>{selected.triage?.abcde?.breathing || 'Spontaneous'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Circulation</label>
+              <span>{selected.triage?.abcde?.circulation || 'Stable'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Disability (Neurological)</label>
+              <span>{selected.triage?.abcde?.disability || 'Alert'}</span>
+            </div>
+            <div className="emergency-readonly-field">
+              <label>Exposure</label>
+              <span>{selected.triage?.abcde?.exposure || 'No immediate concern'}</span>
+            </div>
+          </div>
+
+          <div className="emergency-readonly-card">
+            <h4><i className="ph ph-note" /> Nursing Triage Notes</h4>
+            <div className="emergency-readonly-field">
+              <label>Observations</label>
+              <span>{selected.triage?.notes || 'No additional nursing triage notes.'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+          {state.capabilities.editConsultation && (
+            <button className="btn-emergency-primary" onClick={() => setActiveTab('Consultation')} type="button">
+              Proceed to Consultation <i className="ph ph-arrow-right" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={saveTriage}>
+    <form onSubmit={completeTriage}>
+      <div className="emergency-section-active-header">
+        <div className="emergency-active-badge">
+          <i className="ph ph-heartbeat" /> Primary Nursing Duty – Emergency Triage &amp; Vitals
+        </div>
+        <p className="emergency-active-desc">
+          Perform rapid primary survey (ABCDE), record vital signs and pain score, and assign acuity priority.
+        </p>
+      </div>
+
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
@@ -160,11 +317,11 @@ export function EmergencyTriageSection({ state, mutations, setActiveTab }: Emerg
           </div>
           <div className="doc-field">
             <label>Triage Nurse</label>
-            <input defaultValue="Mary Wanjiku, RN" />
+            <input readOnly value={state.currentDoctor?.display_name || 'Staff Nurse'} />
           </div>
           <div className="doc-field">
             <label>Assessment Time</label>
-            <input defaultValue="10:35" type="time" />
+            <input readOnly value={formatTime(new Date().toISOString())} />
           </div>
         </div>
 
@@ -271,6 +428,21 @@ export function EmergencyTriageSection({ state, mutations, setActiveTab }: Emerg
               <option>Trauma</option>
               <option>Burns</option>
             </select>
+          </div>
+        </div>
+      </section>
+
+      <section className="emergency-form-section">
+        <div className="emergency-form-head">
+          <div>
+            <h3>Nursing Triage Notes</h3>
+            <p>Record additional clinical observations</p>
+          </div>
+        </div>
+        <div className="doc-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+          <div className="doc-field">
+            <label>Notes</label>
+            <textarea rows={3} {...triage.register('notes')} placeholder="Patient presenting status, immediate nursing interventions..." />
           </div>
         </div>
       </section>

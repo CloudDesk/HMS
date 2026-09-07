@@ -66,7 +66,7 @@ export type EmergencyTriageDTO = {
   notes?: string | null;
 };
 export type EmergencyConsultationDTO = {
-  doctor_id: string;
+  doctor_id?: string;
   chief_complaint: string;
   history: string;
   examination: string;
@@ -108,7 +108,7 @@ export type EmergencyReferralDTO = {
   target_doctor_id?: string | null;
   priority: EmergencyReferralPriority;
   reason: string;
-  clinical_notes: string;
+  clinical_notes?: string;
 };
 export type EmergencyReferralListQuery = {
   booked?: boolean;

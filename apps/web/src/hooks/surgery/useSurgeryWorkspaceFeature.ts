@@ -12,6 +12,7 @@ import { useUploadPatientDocument } from '../patients/usePatients';
 import { useAdvancePaymentFeature } from '../advance-payment/useAdvancePaymentFeature';
 import { fetchSurgeryBooking, useSurgery, useSurgeryAlternatives } from './useSurgery';
 import { useSurgeryDownstreamFeature } from './useSurgeryDownstreamFeature';
+import { hasPermission } from '../../auth/access-control';
 export type SurgeryTab = 'recommendations' | 'bookings' | 'schedule';
 const isTab = (value: string | null): value is SurgeryTab => value === 'recommendations' || value === 'bookings' || value === 'schedule';
 type SurgeryDomain = ReturnType<typeof useSurgery>;
@@ -28,8 +29,31 @@ type SurgeryWorkspaceOptions = {
 };
 export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookingId = null, selectedBookingStatus = null }: SurgeryWorkspaceOptions = {}) {
   const { user } = useAuth(); const { search } = useAppLocation(); const initial = new URLSearchParams(search);
+  const permissions = user?.permissions ?? [];
+
+  const canViewRecommendations = hasPermission(permissions, { module: 'SURGERY', screen: 'RECOMMENDATIONS', action: 'VIEW' });
+  const canCreateRecommendations = hasPermission(permissions, { module: 'SURGERY', screen: 'RECOMMENDATIONS', action: 'CREATE' });
+  const canCancelRecommendations = hasPermission(permissions, { module: 'SURGERY', screen: 'RECOMMENDATIONS', action: 'CANCEL' });
+
+  const canViewBookings = hasPermission(permissions, { module: 'SURGERY', screen: 'BOOKINGS', action: 'VIEW' });
+  const canCreateBookings = hasPermission(permissions, { module: 'SURGERY', screen: 'BOOKINGS', action: 'CREATE' });
+  const canConfirmBookings = hasPermission(permissions, { module: 'SURGERY', screen: 'BOOKINGS', action: 'CONFIRM' });
+  const canRescheduleBookings = hasPermission(permissions, { module: 'SURGERY', screen: 'BOOKINGS', action: 'RESCHEDULE' });
+  const canCancelBookings = hasPermission(permissions, { module: 'SURGERY', screen: 'BOOKINGS', action: 'CANCEL' });
+  const canCompleteBookings = hasPermission(permissions, { module: 'SURGERY', screen: 'BOOKINGS', action: 'COMPLETE' });
+
+  const canViewSchedule = hasPermission(permissions, { module: 'SURGERY', screen: 'SCHEDULE', action: 'VIEW' });
+
+  const defaultTab: SurgeryTab = canViewRecommendations
+    ? 'recommendations'
+    : canViewBookings
+    ? 'bookings'
+    : canViewSchedule
+    ? 'schedule'
+    : 'recommendations';
+
   const initialTab = initial.get('tab');
-  const [tab, setTab] = useState<SurgeryTab>(isTab(initialTab) ? initialTab : 'recommendations');
+  const [tab, setTab] = useState<SurgeryTab>(isTab(initialTab) ? initialTab : defaultTab);
   const [branchId, setBranchId] = useState(initial.get('branch_id') ?? ''); const [status, setStatus] = useState(initial.get('status') ?? ''); const [date, setDate] = useState(initial.get('date') ?? new Date().toISOString().slice(0, 10)); const [searchText, setSearchText] = useState(initial.get('search') ?? ''); const [patientSearch, setPatientSearch] = useState('');
   const [availability, setAvailability] = useState<{ department_id: string; service_id: string; scheduled_start: string; doctor_id?: string }>({ department_id: '', service_id: '', scheduled_start: '', doctor_id: '' });
   const isSuperAdmin = user?.roles.some((role) => role.code === 'SUPER_ADMIN') ?? false;
@@ -94,6 +118,18 @@ export function useSurgeryWorkspaceFeature({ consentOpen = false, selectedBookin
       advancePayment, downstream, consentTemplatesQuery: consentTemplates,
       loading: surgery.recommendations.isLoading || surgery.bookings.isLoading,
       error: surgery.recommendations.error ?? surgery.bookings.error,
+      capabilities: {
+        viewRecommendations: canViewRecommendations,
+        createRecommendations: canCreateRecommendations,
+        cancelRecommendations: canCancelRecommendations,
+        viewBookings: canViewBookings,
+        createBookings: canCreateBookings,
+        confirmBookings: canConfirmBookings,
+        rescheduleBookings: canRescheduleBookings,
+        cancelBookings: canCancelBookings,
+        completeBookings: canCompleteBookings,
+        viewSchedule: canViewSchedule,
+      },
       pending: {
         createRecommendation: surgery.createRecommendation.isPending,
         createBooking: surgery.createBooking.isPending,

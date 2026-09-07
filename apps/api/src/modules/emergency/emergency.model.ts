@@ -272,6 +272,7 @@ const encounterSchema = new Schema<EmergencyEncounterFields>(
   },
   { timestamps: true },
 );
+encounterSchema.index({ branchId: 1, createdAt: -1 });
 encounterSchema.index({ branchId: 1, status: 1, arrivalAt: -1 });
 encounterSchema.index({ branchId: 1, status: 1, 'triage.effectiveLevel': 1, arrivalAt: 1 });
 encounterSchema.index({ departmentId: 1, status: 1, arrivalAt: 1 });

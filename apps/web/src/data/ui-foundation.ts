@@ -136,7 +136,7 @@ export const sidebarModules: SidebarModule[] = [
     label: 'Reports',
     icon: 'ph-chart-bar',
     links: [
-      { href: '/reports/library', label: 'Phase 2 Reports' },
+      { href: '/reports/library', label: 'Reports' },
     ],
   },
   {

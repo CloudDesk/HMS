@@ -10,6 +10,9 @@ export type SurgeryRecommendationsTabProps = {
   onCancel: (item: ProcedureRecommendation) => void;
   onViewBooking: (bookingId: string) => void;
   statusTone: (status: string) => 'green' | 'red' | 'orange' | 'blue';
+  canBook?: boolean;
+  canCancel?: boolean;
+  canViewBooking?: boolean;
 };
 
 export function SurgeryRecommendationsTab({
@@ -20,6 +23,9 @@ export function SurgeryRecommendationsTab({
   onCancel,
   onViewBooking,
   statusTone,
+  canBook = true,
+  canCancel = true,
+  canViewBooking = true,
 }: SurgeryRecommendationsTabProps) {
   return (
     <div className="surgery-table-card">
@@ -100,43 +106,47 @@ export function SurgeryRecommendationsTab({
                   <div className="surgery-table-actions" style={{ justifyContent: 'flex-end' }}>
                     {item.status === 'ACTIVE' ? (
                       <>
-                        <button
-                          className="btn-primary compact"
-                          onClick={() => onBook(item)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            fontSize: '0.78rem',
-                            whiteSpace: 'nowrap',
-                          }}
-                          type="button"
-                        >
-                          <i className="ph ph-calendar-plus" /> Book
-                        </button>
-                        <button
-                          className="btn-danger compact"
-                          onClick={() => onCancel(item)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            fontSize: '0.78rem',
-                            background: '#fee2e2',
-                            color: '#dc2626',
-                            border: '1px solid #fecaca',
-                            whiteSpace: 'nowrap',
-                          }}
-                          type="button"
-                        >
-                          <i className="ph ph-x" /> Cancel
-                        </button>
+                        {canBook && (
+                          <button
+                            className="btn-primary compact"
+                            onClick={() => onBook(item)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              whiteSpace: 'nowrap',
+                            }}
+                            type="button"
+                          >
+                            <i className="ph ph-calendar-plus" /> Book
+                          </button>
+                        )}
+                        {canCancel && (
+                          <button
+                            className="btn-danger compact"
+                            onClick={() => onCancel(item)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              border: '1px solid #fecaca',
+                              whiteSpace: 'nowrap',
+                            }}
+                            type="button"
+                          >
+                            <i className="ph ph-x" /> Cancel
+                          </button>
+                        )}
                       </>
-                    ) : item.booking_id ? (
+                    ) : item.booking_id && canViewBooking ? (
                       <button
                         className="btn-secondary compact"
                         onClick={() => onViewBooking(item.booking_id!)}

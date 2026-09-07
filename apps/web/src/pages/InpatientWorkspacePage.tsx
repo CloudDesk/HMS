@@ -376,6 +376,12 @@ export function InpatientWorkspacePage() {
         onSaveDischargeSummary={saveDischargeSummary}
         onFinalizeDischarge={finalizeDischarge}
         isDischarging={isDischarging}
+        canOrderDiagnostics={feature.state.capabilities.orderDiagnostics}
+        canAddRoundNote={feature.state.capabilities.addRoundNote}
+        canRecordVitals={feature.state.capabilities.recordVitals}
+        canRecommendSurgery={feature.state.capabilities.recommendSurgery}
+        canSaveDischargeSummary={feature.state.capabilities.saveDischargeSummary}
+        canFinalizeDischarge={feature.state.capabilities.finalizeDischarge}
       />
 
       {/* Modal: New Procedure Recommendation (Shared Surgery Modal) */}

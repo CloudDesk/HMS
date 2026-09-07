@@ -136,8 +136,8 @@ describe('user privilege protection', () => {
       fullName: name,
       passwordHash: 'existing-password-hash',
       roleIds,
-      branchIds: [],
-      departmentIds: [],
+      branchIds: branchId ? [branchId] : [],
+      departmentIds: departmentId ? [departmentId] : [],
       status: 'active',
     });
 
@@ -206,7 +206,7 @@ describe('user privilege protection', () => {
     await expect(
       permissionService.replaceRolePermissions(
         higherRoleId,
-        { permissionIds: [] },
+        { permissionIds: [], expectedRoleUpdatedAt: new Date().toISOString() },
         actorId,
         metadata,
       ),
@@ -235,6 +235,24 @@ describe('user privilege protection', () => {
     expect((await UserModel.findById(target._id).lean())?.passwordHash).toBe(originalPasswordHash);
   });
 
+  it('rejects a stale role-permission replacement', async () => {
+    const role = await RoleModel.findById(lowRoleId).lean();
+    const expectedRoleUpdatedAt = role?.updatedAt.toISOString() ?? '';
+
+    await expect(permissionService.replaceRolePermissions(
+      lowRoleId,
+      { permissionIds: [], expectedRoleUpdatedAt },
+      actorId,
+      metadata,
+    )).resolves.toMatchObject({ items: [] });
+    await expect(permissionService.replaceRolePermissions(
+      lowRoleId,
+      { permissionIds: [], expectedRoleUpdatedAt },
+      actorId,
+      metadata,
+    )).rejects.toMatchObject({ code: 'STALE_ROLE_PERMISSIONS', statusCode: 409 });
+  });
+
   it('preserves authorized administrator management of lower-privileged users', async () => {
     const administrator = await createUser('authorized-administrator', [higherRoleId]);
     const administratorId = administrator._id.toString();
@@ -255,5 +273,96 @@ describe('user privilege protection', () => {
         metadata,
       ),
     ).resolves.toEqual({ ok: true });
+  });
+
+  it('limits user reads and mutations to the actor branch scope', async () => {
+    const otherBranch = await BranchModel.create({ code: 'OTHER', name: 'Other Branch', status: 'ACTIVE' });
+    const otherDepartment = await DepartmentModel.create({
+      code: 'OTHER',
+      name: 'Other Department',
+      branchIds: [otherBranch._id],
+      status: 'ACTIVE',
+    });
+    const otherUser = await UserModel.create({
+      employeeCode: 'EMP-other-branch',
+      username: 'other-branch',
+      email: 'other-branch@example.test',
+      fullName: 'Other Branch User',
+      passwordHash: 'existing-password-hash',
+      roleIds: [lowRoleId],
+      branchIds: [otherBranch._id],
+      departmentIds: [otherDepartment._id],
+      status: 'active',
+    });
+
+    const listed = await service.list({ page: 1, limit: 100 }, actorId);
+    expect(listed.items.some((user) => user.id === otherUser._id.toString())).toBe(false);
+    await expect(service.getById(otherUser._id.toString(), actorId)).rejects.toMatchObject({
+      code: 'BRANCH_SCOPE_VIOLATION',
+      statusCode: 403,
+    });
+    await expect(
+      service.update(otherUser._id.toString(), { fullName: 'Unauthorized Change' }, actorId, metadata),
+    ).rejects.toMatchObject({ code: 'BRANCH_SCOPE_VIOLATION', statusCode: 403 });
+  });
+
+  it('scopes role assignees and user counts to the actor branches', async () => {
+    const localUser = await createUser('local-role-assignee', [lowRoleId]);
+    const otherBranch = await BranchModel.create({ code: 'ROLE-OTHER', name: 'Role Other Branch', status: 'ACTIVE' });
+    const otherUser = await UserModel.create({
+      employeeCode: 'EMP-role-other',
+      username: 'role-other',
+      email: 'role-other@example.test',
+      fullName: 'Role Other Branch User',
+      passwordHash: 'existing-password-hash',
+      roleIds: [lowRoleId],
+      branchIds: [otherBranch._id],
+      departmentIds: [],
+      status: 'active',
+    });
+
+    const detail = await roleService.getById(lowRoleId, actorId);
+    expect(detail.users?.map((user) => user.id)).toContain(localUser._id.toString());
+    expect(detail.users?.map((user) => user.id)).not.toContain(otherUser._id.toString());
+
+    const list = await roleService.list({ page: 1, limit: 100 }, actorId);
+    expect(list.items.find((role) => role.id === lowRoleId)?.userCount).toBe(1);
+
+    const superAdmin = await createUser('scope-super-admin', [superAdminRoleId]);
+    const enterpriseDetail = await roleService.getById(lowRoleId, superAdmin._id.toString());
+    expect(enterpriseDetail.users?.map((user) => user.id)).toEqual(expect.arrayContaining([
+      localUser._id.toString(),
+      otherUser._id.toString(),
+    ]));
+  });
+
+  it('keeps system role details and status platform-managed', async () => {
+    const superAdmin = await createUser('system-role-super-admin', [superAdminRoleId]);
+    const superAdminId = superAdmin._id.toString();
+
+    await expect(
+      roleService.update(superAdminRoleId, { name: 'Renamed System Role' }, superAdminId, metadata),
+    ).rejects.toMatchObject({ code: 'SYSTEM_ROLE_RESTRICTED', statusCode: 400 });
+    await expect(
+      roleService.updateStatus(superAdminRoleId, { status: 'inactive' }, superAdminId, metadata),
+    ).rejects.toMatchObject({ code: 'SYSTEM_ROLE_RESTRICTED', statusCode: 400 });
+  });
+
+  it('rejects a department that does not belong to an assigned branch', async () => {
+    const otherBranch = await BranchModel.create({ code: 'DEPT-BR', name: 'Department Branch', status: 'ACTIVE' });
+    const otherDepartment = await DepartmentModel.create({
+      code: 'DEPT-OTHER',
+      name: 'Department Outside Scope',
+      branchIds: [otherBranch._id],
+      status: 'ACTIVE',
+    });
+
+    await expect(service.create({
+      ...createInput('department-mismatch', [lowRoleId]),
+      departments: [{ id: otherDepartment._id.toString(), isPrimary: true }],
+    }, actorId, metadata)).rejects.toMatchObject({
+      code: 'DEPARTMENT_BRANCH_MISMATCH',
+      statusCode: 400,
+    });
   });
 });

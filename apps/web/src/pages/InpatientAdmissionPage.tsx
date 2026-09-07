@@ -394,9 +394,11 @@ export function InpatientAdmissionPage() {
               {branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           ) : null}
-          <button className="adm-btn primary" onClick={() => setCreateOpen(true)} type="button">
-            <i className="ph ph-plus" /> New Admission Request
-          </button>
+          {feature.state.capabilities.createRequest && (
+            <button className="adm-btn primary" onClick={() => setCreateOpen(true)} type="button">
+              <i className="ph ph-plus" /> New Admission Request
+            </button>
+          )}
         </div>
       </div>
 
@@ -534,6 +536,9 @@ export function InpatientAdmissionPage() {
         onConfirm={confirm}
         onCancel={() => setCancelOpen(true)}
         onConsent={() => setConsentOpen(true)}
+        canValidate={feature.state.capabilities.validateRequest}
+        canConfirm={feature.state.capabilities.confirmRequest}
+        canCancel={feature.state.capabilities.cancelRequest}
       />
 
       <NewAdmissionRequestModal

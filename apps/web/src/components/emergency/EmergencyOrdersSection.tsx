@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import type { EmergencyWorkspaceProps } from './types';
-import { message } from './utils';
+import { formatTime, message } from './utils';
 
 const optionalNumber = z.number().optional();
 const numericInput = { setValueAs: (value: string) => (value === '' ? undefined : Number(value)) };
@@ -13,8 +13,8 @@ const orderSchema = z
     order_type: z.enum(['PHARMACY', 'LABORATORY', 'IMAGING']),
     priority: z.enum(['ROUTINE', 'URGENT', 'STAT']),
     service_id: z.string(),
-    name: z.string().min(1),
-    category: z.string().min(1),
+    name: z.string().trim().min(1, 'Medicine / order name is required'),
+    category: z.string(),
     dosage: z.string(),
     route: z.string(),
     frequency: z.string(),
@@ -60,60 +60,129 @@ export function EmergencyOrdersSection({ state, mutations, orderType }: Emergenc
     },
   });
 
-  const submitOrder = order.handleSubmit(async (value) => {
-    if (!selected) return;
-    try {
-      await mutations.order.mutateAsync({
-        id: selected.id,
-        body: {
-          order_type: value.order_type,
-          priority: value.priority,
-          items: [
-            {
-              service_id: value.service_id || undefined,
-              medicine_name: value.order_type === 'PHARMACY' ? value.name : undefined,
-              name: value.name,
-              category: value.category,
-              dosage: value.dosage || undefined,
-              route: value.route || undefined,
-              frequency: value.frequency || undefined,
-              duration: value.duration || undefined,
-              quantity: value.quantity ?? null,
-            },
-          ],
-          destination: value.destination || null,
-          specimen_type: value.specimen_type || null,
-          clinical_notes: value.clinical_notes || null,
-          instructions: value.instructions || null,
-        },
-      });
-      toast.success(`${value.order_type.toLowerCase()} request submitted.`);
-      order.reset({
-        ...order.getValues(),
-        service_id: '',
-        name: '',
-        dosage: '',
-        route: '',
-        frequency: '',
-        duration: '',
-        clinical_notes: '',
-        instructions: '',
-      });
-    } catch (error) {
-      toast.error(message(error));
-    }
-  });
+  const submitOrder = order.handleSubmit(
+    async (value) => {
+      if (!selected) return;
+      try {
+        await mutations.order.mutateAsync({
+          id: selected.id,
+          branchId: selected.branch_id || state.branchId,
+          body: {
+            order_type: value.order_type,
+            priority: value.priority,
+            items: [
+              {
+                service_id: value.service_id || undefined,
+                medicine_name: value.order_type === 'PHARMACY' ? value.name : undefined,
+                name: value.name,
+                category: value.category || 'Emergency',
+                dosage: value.dosage || undefined,
+                route: value.route || undefined,
+                frequency: value.frequency || undefined,
+                duration: value.duration || undefined,
+                quantity: value.quantity ?? null,
+              },
+            ],
+            destination: value.destination || null,
+            specimen_type: value.specimen_type || null,
+            clinical_notes: value.clinical_notes || null,
+            instructions: value.instructions || null,
+          },
+        });
+        toast.success(`${value.order_type === 'PHARMACY' ? 'Medication' : value.order_type.toLowerCase()} order submitted.`);
+        order.reset({
+          ...order.getValues(),
+          service_id: '',
+          name: '',
+          dosage: '',
+          route: '',
+          frequency: '',
+          duration: '',
+          clinical_notes: '',
+          instructions: '',
+        });
+      } catch (error) {
+        toast.error(message(error));
+      }
+    },
+    (errors) => {
+      const firstError = Object.values(errors)[0];
+      if (firstError?.message) {
+        toast.error(String(firstError.message));
+      }
+    },
+  );
 
   if (!selected) return null;
 
+  const canCreateOrders = state.capabilities.createOrders;
+  const existingOrders = (selected.orders || []).filter((o) => o.order_type === orderType);
+
+  if (!canCreateOrders) {
+    return (
+      <div className="emergency-form-section">
+        <div className="emergency-section-context-header">
+          <div className="emergency-context-badge">
+            <i className="ph ph-lock-key" /> {orderType === 'PHARMACY' ? 'Medication Prescriptions' : orderType === 'LABORATORY' ? 'Laboratory Orders' : 'Imaging Orders'} (Read-Only)
+          </div>
+          <p className="emergency-context-desc">
+            Physician-ordered {orderType.toLowerCase()} requests. Nursing staff can review active orders below.
+          </p>
+        </div>
+
+        {existingOrders.length > 0 ? (
+          <div className="emergency-readonly-grid" style={{ gridTemplateColumns: '1fr' }}>
+            {existingOrders.map((ord, idx) => (
+              <div className="emergency-readonly-card" key={idx}>
+                <h4><i className="ph ph-check-circle" /> {orderType} Order #{idx + 1}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                  <div className="emergency-readonly-field">
+                    <label>Status</label>
+                    <span>{ord.status}</span>
+                  </div>
+                  <div className="emergency-readonly-field">
+                    <label>Ordered At</label>
+                    <span>{formatTime(ord.created_at)}</span>
+                  </div>
+                  <div className="emergency-readonly-field">
+                    <label>Order Reference ID</label>
+                    <span>{ord.downstream_id || ord.source_id}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: '1.5rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', textAlign: 'center', fontSize: '0.88rem' }}>
+            <i className="ph ph-clipboard" style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }} />
+            No {orderType.toLowerCase()} orders placed yet by attending physician.
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submitOrder}>
+      <div className="emergency-section-active-header">
+        <div className="emergency-active-badge">
+          <i className="ph ph-prescription" /> Primary Physician Duty – {orderType === 'PHARMACY' ? 'Prescribe Medications' : orderType === 'LABORATORY' ? 'STAT Lab Orders' : 'STAT Imaging Orders'}
+        </div>
+        <p className="emergency-active-desc">
+          {orderType === 'PHARMACY'
+            ? 'Prescribe stat and emergency medications.'
+            : orderType === 'LABORATORY'
+            ? 'Order emergency bloods, cardiac markers, and STAT diagnostic tests.'
+            : 'Order emergency X-Ray, CT, FAST Ultrasound, and MRI.'}
+        </p>
+      </div>
+
       <section className="emergency-form-section">
         <div className="emergency-form-head">
           <div>
             <h3>
               {orderType === 'PHARMACY'
-                ? 'Pharmacy Orders'
+                ? 'Prescribe Emergency Medications'
                 : orderType === 'LABORATORY'
                 ? 'STAT Laboratory Orders'
                 : 'STAT Imaging Orders'}
@@ -142,7 +211,18 @@ export function EmergencyOrdersSection({ state, mutations, orderType }: Emergenc
             <>
               <div className="doc-field">
                 <label>Medicine Name</label>
-                <input {...order.register('name')} placeholder="e.g. Paracetamol 1g IV" />
+                <input
+                  list="emergency-med-list"
+                  {...order.register('name')}
+                  placeholder="e.g. Paracetamol 1g IV"
+                />
+                <datalist id="emergency-med-list">
+                  {state.availableMedicines?.map((m) => (
+                    <option key={m.id} value={m.name}>
+                      {m.generic_name ? `${m.name} (${m.generic_name})` : m.name}
+                    </option>
+                  ))}
+                </datalist>
               </div>
               <div className="doc-field">
                 <label>Dosage</label>
@@ -229,6 +309,38 @@ export function EmergencyOrdersSection({ state, mutations, orderType }: Emergenc
           )}
         </div>
       </section>
+
+      {existingOrders.length > 0 && (
+        <section className="emergency-form-section">
+          <div className="emergency-form-head">
+            <div>
+              <h3>Placed {orderType} Orders</h3>
+              <p>Active and completed orders for this encounter</p>
+            </div>
+          </div>
+          <div className="emergency-readonly-grid" style={{ gridTemplateColumns: '1fr' }}>
+            {existingOrders.map((ord, idx) => (
+              <div className="emergency-readonly-card" key={idx}>
+                <h4><i className="ph ph-check-circle" /> {orderType} Order #{idx + 1}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                  <div className="emergency-readonly-field">
+                    <label>Status</label>
+                    <span>{ord.status}</span>
+                  </div>
+                  <div className="emergency-readonly-field">
+                    <label>Ordered At</label>
+                    <span>{formatTime(ord.created_at)}</span>
+                  </div>
+                  <div className="emergency-readonly-field">
+                    <label>Order Reference ID</label>
+                    <span>{ord.downstream_id || ord.source_id}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="emergency-form-actions">
         <span className="emergency-autosave">

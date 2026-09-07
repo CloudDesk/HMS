@@ -94,7 +94,7 @@ export const triageSchema = z.object({
   notes: nullableText(4000),
 });
 export const consultationSchema = z.object({
-  doctor_id: id,
+  doctor_id: id.optional(),
   chief_complaint: z.string().trim().min(3).max(1000),
   history: z.string().trim().max(4000).optional().default('Emergency clinical history documented.'),
   examination: z.string().trim().max(4000).optional().default('Bedside physical examination performed.'),
@@ -168,10 +168,16 @@ export const emergencyReferralListSchema = z.object({
 });
 export const emergencyReferralSchema = z.object({
   target_department_id: id,
-  target_doctor_id: id.nullable().optional(),
+  target_doctor_id: id.nullable().optional().or(z.literal('').transform(() => undefined)),
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
   reason: z.string().trim().min(3).max(1000),
-  clinical_notes: z.string().trim().min(3).max(4000),
+  clinical_notes: z
+    .string()
+    .trim()
+    .max(4000)
+    .optional()
+    .default('')
+    .transform((val) => val || 'Emergency clinical referral dispatched.'),
 });
 export const bookEmergencyReferralSchema = z.object({
   appointment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

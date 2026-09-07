@@ -4,14 +4,16 @@ import { inpatientAdmissionsService } from '../../services/inpatient-admissions.
 
 export const inpatientAdmissionsKeys = {
   all: ['inpatient-admissions'] as const,
-  list: (branchId: string) => [...inpatientAdmissionsKeys.all, branchId] as const,
+  lists: () => [...inpatientAdmissionsKeys.all, 'list'] as const,
+  list: (params: { branch_id: string; status?: InpatientAdmission['status']; page?: number; limit?: number }) =>
+    [...inpatientAdmissionsKeys.lists(), params] as const,
 };
 
 export const useInpatientAdmissionsList = (
   params: { branch_id: string; status?: InpatientAdmission['status']; page?: number; limit?: number },
   enabled = true,
 ) => useQuery({
-  queryKey: inpatientAdmissionsKeys.list(params.branch_id),
+  queryKey: inpatientAdmissionsKeys.list(params),
   queryFn: () => inpatientAdmissionsService.list(params),
   enabled: enabled && Boolean(params.branch_id),
 });

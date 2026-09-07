@@ -11,6 +11,9 @@ import { useWardsList } from '../useAdmissionsConfiguration';
 import { useInpatientDownstreamFeature } from './useInpatientDownstreamFeature';
 import { useInpatientAdmissionsList, useRefreshInpatientAdmissions } from './useInpatientAdmissionsList';
 
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
+
 type InpatientWorkspaceFilters = {
   selectedWard: string;
   selectedCareLevel: string;
@@ -28,19 +31,66 @@ export type InpatientWorkspaceOrder = {
 };
 
 export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters) {
+  const { user } = useAuth();
+  const permissions = user?.permissions ?? [];
+  const roles = user?.roles ?? [];
+
+  const canOrderDiagnostics =
+    hasPermission(permissions, { module: 'OPD', screen: 'OPD Clinical Orders', action: 'Edit' }, roles) ||
+    hasPermission(permissions, { module: 'OPD', screen: 'OPD Clinical Orders', action: 'Create' }, roles);
+  const canAddRoundNote = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Create',
+  }, roles);
+  const canRecordVitals = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Create',
+  }, roles);
+  const canRecommendSurgery = hasPermission(permissions, {
+    module: 'Surgery',
+    screen: 'Recommendations',
+    action: 'Create',
+  }, roles);
+  const canSaveDischargeSummary = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Edit',
+  }, roles);
+  const canFinalizeDischarge = hasPermission(permissions, {
+    module: 'Admissions',
+    screen: 'Inpatient Admissions',
+    action: 'Discharge',
+  }, roles);
+
   const location = useAppLocation();
   const handoff = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const [branchId, setBranchIdState] = useState(handoff.get('branch_id') ?? '');
+
+  const isSuperAdmin = user?.roles.some((role) => role.code === 'SUPER_ADMIN') ?? false;
+  const branchesQuery = useBranchesList(
+    { status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' },
+    isSuperAdmin,
+  );
+  const branches = isSuperAdmin ? (branchesQuery.data?.data ?? []) : (user?.branches ?? []);
+
+  const defaultBranchId = useMemo(() => {
+    const fromQuery = handoff.get('branch_id');
+    if (fromQuery) return fromQuery;
+    const main = branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'));
+    return main ? main.id : (branches[0]?.id ?? '');
+  }, [handoff, branches]);
+
+  const [branchIdState, setBranchIdState] = useState(handoff.get('branch_id') ?? '');
+  const branchId = branchIdState || defaultBranchId;
   const [selectedAdmission, setSelectedAdmission] = useState<InpatientAdmission | null>(null);
 
-  const branchesQuery = useBranchesList({});
   useEffect(() => {
-    const branches = branchesQuery.data?.data ?? [];
-    if (!branchId && branches.length > 0) {
+    if (!branchIdState && branches.length > 0) {
       const main = branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'));
       setBranchIdState(main ? main.id : (branches[0]?.id ?? ''));
     }
-  }, [branchId, branchesQuery.data]);
+  }, [branchIdState, branches]);
 
   const wardsQuery = useWardsList({ branch_id: branchId }, Boolean(branchId));
   const departmentsQuery = useDepartmentsList({ branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
@@ -143,7 +193,7 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
     state: {
       branchId,
       selectedAdmission,
-      branches: branchesQuery.data?.data ?? [],
+      branches,
       departments: departmentsQuery.data?.data ?? [],
       wards: wardsQuery.data?.data ?? [],
       doctors: doctorsQuery.data?.data ?? [],
@@ -158,6 +208,14 @@ export function useInpatientWorkspaceFeature(filters: InpatientWorkspaceFilters)
       laboratoryServices: clinical.laboratoryServices,
       imagingServices: clinical.imagingServices,
       isDischarging,
+      capabilities: {
+        orderDiagnostics: canOrderDiagnostics,
+        addRoundNote: canAddRoundNote,
+        recordVitals: canRecordVitals,
+        recommendSurgery: canRecommendSurgery,
+        saveDischargeSummary: canSaveDischargeSummary,
+        finalizeDischarge: canFinalizeDischarge,
+      },
       loading: {
         admissions: admissionsQuery.isLoading,
         recommendations: surgery.recommendations.isLoading,

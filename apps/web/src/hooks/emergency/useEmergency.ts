@@ -65,10 +65,12 @@ export function useEmergency(
 ) {
   const client = useQueryClient();
 
-  const updateEncounter = (data: EmergencyEncounter) => {
+  const updateEncounter = async (data: EmergencyEncounter) => {
     client.setQueryData(emergencyKeys.detail(data.id, params.branch_id), data);
-    client.invalidateQueries({ queryKey: ['emergency', 'list'] });
-    client.invalidateQueries({ queryKey: ['emergency', 'summary'] });
+    await Promise.all([
+      client.invalidateQueries({ queryKey: ['emergency', 'list'] }),
+      client.invalidateQueries({ queryKey: ['emergency', 'summary'] }),
+    ]);
   };
   const list = useQuery({
     queryKey: emergencyKeys.list(params),
@@ -128,8 +130,8 @@ export function useEmergency(
       onSuccess: updateEncounter,
     }),
     order: useMutation({
-      mutationFn: ({ id, body }: { id: string; body: EmergencyOrderPayload }) =>
-        emergencyService.order(id, params.branch_id, body),
+      mutationFn: ({ id, branchId, body }: { id: string; branchId?: string; body: EmergencyOrderPayload }) =>
+        emergencyService.order(id, branchId || params.branch_id, body),
       onSuccess: updateEncounter,
     }),
     referral: useMutation({

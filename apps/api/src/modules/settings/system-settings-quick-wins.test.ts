@@ -69,6 +69,8 @@ const createUserHarness = () => {
   let createdRoleIds: string[] = [];
 
   vi.spyOn(users, 'findByUniqueFields').mockResolvedValue(null);
+  vi.spyOn(users, 'resolveBranchScope').mockResolvedValue(['650000000000000000000001']);
+  vi.spyOn(users, 'isUserInBranchScope').mockResolvedValue(true);
   vi.spyOn(users, 'validateReferences').mockImplementation(async (branches, departments, roleIds) => ({
     branches: branches.length,
     departments: departments.length,

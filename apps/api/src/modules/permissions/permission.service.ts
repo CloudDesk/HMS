@@ -8,6 +8,7 @@ import type {
   PermissionType,
   RequestMetadata,
 } from './permission.types.js';
+import { getPermissionDisplayMetadata } from './permission-display.js';
 
 type CreatePermissionInput = {
   code?: string;
@@ -28,6 +29,7 @@ type UpdatePermissionInput = Partial<CreatePermissionInput>;
 
 type ReplaceRolePermissionsInput = {
   permissionIds: string[];
+  expectedRoleUpdatedAt: string;
 };
 
 const codePattern = /^[A-Z][A-Z0-9_]{1,127}$/;
@@ -129,6 +131,14 @@ export class PermissionService {
     if (actorAuthority.isSuperAdmin) return;
     if (targetAuthority.isSuperAdmin) {
       throw new AppError('Cannot modify a higher-privileged user', 403, options.errorCode);
+    }
+
+    const actorBranchIds = new Set(actorAuthority.branchIds);
+    if (
+      actorBranchIds.size === 0 ||
+      !targetAuthority.branchIds.some((branchId) => actorBranchIds.has(branchId))
+    ) {
+      throw new AppError('Cannot modify a user outside your authorized branch scope', 403, 'BRANCH_SCOPE_VIOLATION');
     }
 
     const actorPermissionIds = new Set(actorAuthority.permissionIds);
@@ -387,7 +397,23 @@ export class PermissionService {
       }
     }
 
-    await this.repository.replaceRolePermissions(roleId, uniquePermissionIds, actorUserId);
+    const expectedRoleUpdatedAt = new Date(input.expectedRoleUpdatedAt);
+    if (Number.isNaN(expectedRoleUpdatedAt.getTime())) {
+      throw new AppError('Role version is invalid', 400, 'INVALID_ROLE_VERSION');
+    }
+    const replaced = await this.repository.replaceRolePermissions(
+      roleId,
+      uniquePermissionIds,
+      actorUserId,
+      expectedRoleUpdatedAt,
+    );
+    if (!replaced) {
+      throw new AppError(
+        'This role changed after you opened it. Refresh and review the latest permissions before saving again.',
+        409,
+        'STALE_ROLE_PERMISSIONS',
+      );
+    }
     await this.audit('role.permissions.updated', actorUserId, undefined, metadata, {
       roleId,
       roleCode: role.code,
@@ -422,13 +448,14 @@ export class PermissionService {
     const moduleName = normalizeText(input.module);
     const screen = normalizeText(input.screen);
     const action = normalizeText(input.action);
+    const display = getPermissionDisplayMetadata(moduleName, screen, action);
     const normalized = {
       code: input.code ? normalizeCode(input.code) : permissionCode(moduleName, screen, action),
-      name: input.name ? normalizeText(input.name) : `${screen} ${action}`,
+      name: input.name ? normalizeText(input.name) : display.name,
       module: moduleName,
       screen,
       action,
-      description: normalizeOptionalText(input.description),
+      description: normalizeOptionalText(input.description) ?? display.description,
       type: input.type ?? 'custom',
       status: input.status ?? 'active',
       categoryId: normalizeOptionalText(input.categoryId),

@@ -11,7 +11,11 @@ const parse = <T>(schema: { parse(value: unknown): T }, value: unknown) => {
     return schema.parse(value);
   } catch (error) {
     if (error instanceof ZodError) {
-      throw new AppError('Request validation failed', 400, 'VALIDATION_ERROR', error.flatten());
+      const fieldMessages = error.issues.map((issue) => {
+        const field = issue.path.join('.');
+        return field ? `${field}: ${issue.message}` : issue.message;
+      });
+      throw new AppError(fieldMessages.join('; ') || 'Request validation failed', 400, 'VALIDATION_ERROR', error.flatten());
     }
     throw error;
   }

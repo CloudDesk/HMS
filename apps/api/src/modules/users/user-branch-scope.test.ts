@@ -24,6 +24,7 @@ describe('User Creation Branch Scope Validation', () => {
         ]),
       }),
       findByUniqueFields: vi.fn().mockResolvedValue([]),
+      resolveBranchScope: vi.fn().mockResolvedValue(undefined),
       summary: vi.fn(),
     } as never;
 
@@ -78,6 +79,7 @@ describe('User Creation Branch Scope Validation', () => {
         ]),
       }),
       findByUniqueFields: vi.fn().mockResolvedValue([]),
+      resolveBranchScope: vi.fn().mockResolvedValue(['branch-1']),
     } as never;
 
     const roleRepository = {} as never;

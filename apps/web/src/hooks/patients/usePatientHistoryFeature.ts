@@ -1,9 +1,6 @@
 import { usePatientHistory } from './usePatients';
 import { useAuth } from '../../auth/useAuth';
-import type { AuthRole } from '../../auth/auth-types';
-
-const hasRoleCode = (roles: AuthRole[] | undefined, code: string): boolean =>
-  roles?.some((r) => r.code === code) ?? false;
+import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
 
 export function usePatientHistoryFeature(patientId: string | null) {
   const { user } = useAuth();
@@ -17,11 +14,10 @@ export function usePatientHistoryFeature(patientId: string | null) {
 
   const loadError = error?.message || '';
 
-  const isSuperAdmin = hasRoleCode(user?.roles, 'SUPER_ADMIN');
-  const isDoctor = hasRoleCode(user?.roles, 'DOCTOR');
-  const isNurse = hasRoleCode(user?.roles, 'NURSE');
-  
-  const canViewHistory = isSuperAdmin || isDoctor || isNurse || hasRoleCode(user?.roles, 'RECEPTIONIST');
+  const canViewHistory = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Patients', screen: 'Patient Records', action: 'View' })
+  ));
 
   return {
     state: {

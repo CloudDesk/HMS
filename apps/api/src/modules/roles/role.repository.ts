@@ -2,6 +2,8 @@ import type { ClientSession } from 'mongoose';
 import { RoleModel } from './role.model.js';
 import { UserModel } from '../users/user.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import type {
   RequestMetadata,
   RoleListQuery,
@@ -48,6 +50,28 @@ const mapRole = (role: RoleDoc, userCount: number): RoleRecord => ({
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export class RoleRepository {
+  async resolveBranchScope(userId: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds')
+      .lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] },
+      code: 'SUPER_ADMIN',
+      status: 'active',
+      deletedAt: null,
+    }));
+    if (isSuperAdmin) return undefined;
+
+    const activeBranches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] },
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).select('_id').lean();
+    return activeBranches.map((branch) => String(branch._id));
+  }
+
   async findActiveByCode(code: string, session?: ClientSession) {
     const query = RoleModel.findOne({ code, status: 'active', deletedAt: null }).select('_id code name status');
     if (session) query.session(session);
@@ -100,7 +124,7 @@ export class RoleRepository {
     return mapRole(role as unknown as RoleDoc, userCount);
   }
 
-  async list(query: RoleListQuery) {
+  async list(query: RoleListQuery, branchIds?: string[]) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
@@ -139,7 +163,9 @@ export class RoleRepository {
 
     const rolesWithCounts = await Promise.all(
       data.map(async (role) => {
-        const userCount = await UserModel.countDocuments({ roleIds: role._id, deletedAt: null });
+        const userFilter: Record<string, unknown> = { roleIds: role._id, deletedAt: null };
+        if (branchIds) userFilter.branchIds = { $in: branchIds };
+        const userCount = await UserModel.countDocuments(userFilter);
         return mapRole(role as unknown as RoleDoc, userCount);
       })
     );
@@ -259,8 +285,10 @@ export class RoleRepository {
     return result.modifiedCount > 0;
   }
 
-  async getAssignedUsers(roleId: string) {
-    const users = await UserModel.find({ roleIds: roleId, deletedAt: null })
+  async getAssignedUsers(roleId: string, branchIds?: string[]) {
+    const filter: Record<string, unknown> = { roleIds: roleId, deletedAt: null };
+    if (branchIds) filter.branchIds = { $in: branchIds };
+    const users = await UserModel.find(filter)
       .sort({ fullName: 1 })
       .lean();
       

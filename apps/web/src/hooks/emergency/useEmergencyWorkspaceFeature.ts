@@ -19,9 +19,11 @@ import { usePatientsList } from '../patients/usePatients';
 import { usePharmacyInventoryList } from '../pharmacy/usePharmacy';
 import { useServicesList } from '../services/useServices';
 import { useEmergency } from './useEmergency';
+
 export type EmergencyView = 'dashboard' | 'queue' | 'workspace';
 const viewOf = (path: string): EmergencyView =>
   path.endsWith('/queue') ? 'queue' : path.endsWith('/workspace') ? 'workspace' : 'dashboard';
+
 export function useEmergencyWorkspaceFeature() {
   const { user } = useAuth();
   const location = useAppLocation();
@@ -34,10 +36,14 @@ export function useEmergencyWorkspaceFeature() {
   const [search, setSearch] = useState(query.get('search') ?? '');
   const [selectedId, setSelectedIdState] = useState(query.get('encounter_id'));
   const [patientSearch, setPatientSearch] = useState('');
+
   const isSuperAdmin = user?.roles.some((role) => role.code === 'SUPER_ADMIN') ?? false;
-  const can = (screen: string, action: string) =>
-    isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'Emergency', screen, action });
+  const can = (screen: string, action: string, module = 'Emergency') =>
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
+
   const capabilities = {
+    viewEncounters: can('Encounters', 'View'),
+    editEncounters: can('Encounters', 'Edit'),
     register: can('Encounters', 'Register'),
     linkPatient: can('Patient Linking', 'Link'),
     viewTriage: can('Triage', 'View'),
@@ -54,15 +60,43 @@ export function useEmergencyWorkspaceFeature() {
     discharge: can('Disposition', 'Discharge'),
     transfer: can('Disposition', 'Transfer'),
     admit: can('Disposition', 'ConvertToIP'),
+    viewDocuments: can('Patient Documents', 'View', 'Patients'),
+    createDocuments: can('Patient Documents', 'Create', 'Patients'),
+    viewReferral: can('OPD Referral', 'View', 'OPD'),
   };
+
+  // Derive dashboard profile from capabilities (mirrors EmergencyWorkspacePage logic).
+  // Purely capability-driven — no hardcoded role names.
+  const isDoctor =
+    capabilities.editConsultation ||
+    capabilities.createOrders ||
+    capabilities.discharge ||
+    capabilities.admit;
+  const isNurse = capabilities.assessTriage && !isDoctor;
+  const isReceptionist =
+    (capabilities.register || capabilities.linkPatient) && !isNurse && !isDoctor;
+
+  const dashboardProfile: 'doctor' | 'nurse' | 'receptionist' | 'viewer' = isDoctor
+    ? 'doctor'
+    : isNurse
+      ? 'nurse'
+      : isReceptionist
+        ? 'receptionist'
+        : 'viewer';
+
+  // Current authenticated user ID — used by doctor queue filter without hardcoding names.
+  const currentUserId = user?.id ?? null;
+
   const branchesQuery = useBranchesList({ status: 'ACTIVE', page: 1, limit: 100 }, isSuperAdmin);
   const branches = isSuperAdmin ? (branchesQuery.data?.data ?? []) : (user?.branches ?? []);
+
   useEffect(() => {
     if (!branchId && branches.length > 0) {
       const main = branches.find((b) => b.code?.toUpperCase() === 'MB01' || b.name?.toLowerCase().includes('main'));
       setBranchId(main ? main.id : (branches[0]?.id ?? ''));
     }
   }, [branchId, branches]);
+
   useEffect(() => {
     const params = new URLSearchParams();
     if (branchId) params.set('branch_id', branchId);
@@ -73,6 +107,7 @@ export function useEmergencyWorkspaceFeature() {
     if (selectedId) params.set('encounter_id', selectedId);
     navigate(`${location.pathname}?${params}`, { replace: true });
   }, [branchId, departmentId, location.pathname, search, selectedId, status, triageLevel]);
+
   const emergency = useEmergency(
     {
       branch_id: branchId,
@@ -86,6 +121,7 @@ export function useEmergencyWorkspaceFeature() {
     selectedId,
     Boolean(branchId),
   );
+
   const departments = useDepartmentsList(
     { branch_id: branchId || undefined, status: 'ACTIVE', page: 1, limit: 100 },
     Boolean(branchId),
@@ -144,13 +180,19 @@ export function useEmergencyWorkspaceFeature() {
       page: 1,
       limit: 100,
     },
-    Boolean(branchId) && (view === 'queue' || view === 'workspace'),
+    Boolean(branchId),
   );
   const allDoctors = useDoctorsList({ status: 'ACTIVE', page: 1, limit: 100 }, true);
   const doctorOptions =
     doctors.data?.data && doctors.data.data.length > 0
       ? doctors.data.data
       : allDoctors.data?.data ?? [];
+
+  const currentDoctor = useMemo(() => {
+    return doctorOptions.find((d) => d.user_id === user?.id) || null;
+  }, [doctorOptions, user?.id]);
+
+  const currentDoctorId = currentDoctor?.id ?? null;
 
   const patients = usePatientsList(
     { search: patientSearch, status: 'ACTIVE', page: 1, limit: 20 },
@@ -265,6 +307,7 @@ export function useEmergencyWorkspaceFeature() {
     if (id && view !== 'workspace')
       navigate(`/emergency/workspace?branch_id=${branchId}&encounter_id=${id}`);
   };
+
   return {
     state: {
       view,
@@ -278,6 +321,10 @@ export function useEmergencyWorkspaceFeature() {
       branches,
       departments: departmentOptions,
       doctors: doctorOptions,
+      currentDoctor,
+      currentDoctorId,
+      currentUserId,
+      dashboardProfile,
       patients: patientOptions,
       services: serviceOptions,
       availableMedicines,

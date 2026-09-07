@@ -8,6 +8,12 @@ const metadataFromRequest = (request: FastifyRequest) => ({
   userAgent: request.headers['user-agent'],
 });
 
+export type PermissionCheck = {
+  moduleName: string;
+  screen: string;
+  action: string;
+};
+
 export const requirePermission = (
   services: ServiceRegistry,
   moduleName: string,
@@ -32,3 +38,35 @@ export const requirePermission = (
     }
   },
 ];
+
+export const requireAnyPermission = (
+  services: ServiceRegistry,
+  permissions: PermissionCheck[],
+) => [
+  authenticate(services),
+  async (request: FastifyRequest, _reply: FastifyReply) => {
+    void _reply;
+    const userId = request.user!.id;
+    const results = await Promise.all(
+      permissions.map((p) =>
+        services.permissions.userHasPermission(userId, p.moduleName, p.screen, p.action),
+      ),
+    );
+    const allowed = results.some(Boolean);
+
+    if (!allowed) {
+      if (permissions.length > 0) {
+        const first = permissions[0]!;
+        await services.permissions.auditDeniedAccess(
+          userId,
+          first.moduleName,
+          first.screen,
+          first.action,
+          metadataFromRequest(request),
+        );
+      }
+      throw new AppError('Permission required', 403, 'PERMISSION_REQUIRED');
+    }
+  },
+];
+

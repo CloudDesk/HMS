@@ -8,14 +8,24 @@ export function EmergencyVitalsWidget({ state }: EmergencyVitalsWidgetProps) {
   const selected = state.selected || state.encounters[0] || null;
   if (!selected) return null;
 
-  // Recorded or live vitals values
+  // Recorded vitals values from triage assessment
   const v = selected.triage?.vitals || {};
-  const bp = v.systolic_bp && v.diastolic_bp ? `${v.systolic_bp}/${v.diastolic_bp}` : '118/74';
-  const pulse = v.pulse ? `${v.pulse} bpm` : '104 bpm';
-  const spo2 = v.spo2 ? `${v.spo2}%` : '96%';
-  const temp = v.temperature_c ? `${v.temperature_c} °C` : '37.8 °C';
-  const resp = v.respiratory_rate ? `${v.respiratory_rate}/min` : '22/min';
-  const gcs = v.gcs ? `${v.gcs}/15` : '15/15';
+  const hasVitals = Boolean(
+    v.systolic_bp ||
+    v.diastolic_bp ||
+    v.pulse ||
+    v.spo2 ||
+    v.temperature_c ||
+    v.respiratory_rate ||
+    v.gcs
+  );
+
+  const bp = v.systolic_bp && v.diastolic_bp ? `${v.systolic_bp}/${v.diastolic_bp}` : '—';
+  const pulse = v.pulse ? `${v.pulse} bpm` : '—';
+  const spo2 = v.spo2 ? `${v.spo2}%` : '—';
+  const temp = v.temperature_c ? `${v.temperature_c} °C` : '—';
+  const resp = v.respiratory_rate ? `${v.respiratory_rate}/min` : '—';
+  const gcs = v.gcs ? `${v.gcs}/15` : '—';
 
   return (
     <aside className="emergency-vitals-widget">
@@ -27,7 +37,7 @@ export function EmergencyVitalsWidget({ state }: EmergencyVitalsWidgetProps) {
           <span>BP</span>
           <strong>{bp}</strong>
         </div>
-        <div className="emergency-vital alert">
+        <div className={`emergency-vital ${v.pulse && v.pulse > 100 ? 'alert' : ''}`}>
           <span>Pulse</span>
           <strong>{pulse}</strong>
         </div>
@@ -49,10 +59,8 @@ export function EmergencyVitalsWidget({ state }: EmergencyVitalsWidgetProps) {
         </div>
       </div>
       <div className="emergency-vital-trend">
-        <i className="ph ph-waveform" style={{ marginRight: '4px', color: '#16a34a' }} />
-        Live monitoring active
-        <br />
-        Last updated: just now
+        <i className="ph ph-waveform" style={{ marginRight: '4px', color: hasVitals ? '#16a34a' : '#94a3b8' }} />
+        {hasVitals ? 'Triage vitals recorded' : 'Awaiting vital signs recording'}
       </div>
     </aside>
   );

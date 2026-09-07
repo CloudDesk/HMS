@@ -45,26 +45,97 @@ export class EmergencyService {
     if (!(await this.repository.hasBranchAccess(actor, branchId)))
       throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
   }
-  private async authorizeDepartment(actor: string, departmentId: string) {
-    const scope = await this.repository.departmentScope(actor);
-    if (scope && !scope.includes(departmentId))
-      throw new AppError('Department access denied', 403, 'DEPARTMENT_ACCESS_DENIED');
+  private async simpleTransition(
+    id: string,
+    branchId: string,
+    from:
+      | import('./emergency.types.js').EmergencyStatus
+      | import('./emergency.types.js').EmergencyStatus[],
+    to: import('./emergency.types.js').EmergencyStatus,
+    action: string,
+    reason: string | null,
+    actor: string,
+    metadata: EmergencyMetadata,
+    eventType = 'emergency.queue.updated',
+  ) {
+    await this.authorize(actor, branchId);
+    const session = await this.repository.session();
+    try {
+      let result;
+      await session.withTransaction(async () => {
+        const current = await this.requireRecord(id, branchId, actor, session);
+        const doctor = await this.repository.doctorByUserId(actor, session);
+        const extraPayload: Record<string, unknown> = {};
+        if (action === 'CALLED' && doctor) {
+          extraPayload.assignedDoctorId = doctor._id;
+          extraPayload.assignedDoctorName = doctor.displayName;
+        }
+        result = await this.repository.transition(
+          id,
+          branchId,
+          from,
+          to,
+          action,
+          actor,
+          extraPayload,
+          reason,
+          session,
+          current.status,
+        );
+        if (!result)
+          throw new AppError(
+            'Encounter is not actionable from its current state',
+            409,
+            'EMERGENCY_ENCOUNTER_NOT_ACTIONABLE',
+          );
+        await this.repository.audit(
+          eventType,
+          actor,
+          metadata,
+          {
+            encounterId: id,
+            patientId: current.patientId?.toString() ?? null,
+            branchId,
+            previousStatus: current.status,
+            status: to,
+            reason,
+            calledBy: action === 'CALLED' ? actor : undefined,
+            calledAt: action === 'CALLED' ? new Date() : undefined,
+          },
+          session,
+        );
+      });
+      return result;
+    } finally {
+      await session.endSession();
+    }
+  }
+  private async requireRecord(
+    id: string,
+    branchId: string,
+    _actor: string,
+    session: import('mongoose').ClientSession,
+  ): Promise<EmergencyLean> {
+    const row = await this.repository.getRecord(id, branchId, session);
+    if (!row)
+      throw new AppError('Emergency encounter not found', 404, 'EMERGENCY_ENCOUNTER_NOT_FOUND');
+    return row;
   }
   async list(query: EmergencyListQuery, actor: string) {
     await this.authorize(actor, query.branch_id);
-    if (query.department_id) await this.authorizeDepartment(actor, query.department_id);
-    return this.repository.list(query, await this.repository.departmentScope(actor));
+    const doctor = await this.repository.doctorByUserId(actor);
+    return this.repository.list(query, undefined, doctor ? doctor._id.toString() : undefined);
   }
   async summary(branchId: string, actor: string) {
     await this.authorize(actor, branchId);
-    return this.repository.summary(branchId, await this.repository.departmentScope(actor));
+    const doctor = await this.repository.doctorByUserId(actor);
+    return this.repository.summary(branchId, undefined, doctor ? doctor._id.toString() : undefined);
   }
   async get(id: string, branchId: string, actor: string) {
     await this.authorize(actor, branchId);
     const row = await this.repository.get(id, branchId);
     if (!row)
       throw new AppError('Emergency encounter not found', 404, 'EMERGENCY_ENCOUNTER_NOT_FOUND');
-    await this.authorizeDepartment(actor, row.department_id);
     return row;
   }
   async listReferrals(query: EmergencyReferralListQuery, actor: string) {
@@ -92,15 +163,19 @@ export class EmergencyService {
         const current = await this.requireRecord(id, branchId, actor, session);
         if (terminal.includes(current.status))
           throw new AppError('Terminal Emergency encounters cannot create referrals', 409, 'EMERGENCY_ENCOUNTER_NOT_ACTIONABLE');
-        if (!current.assignedDoctorId || !current.assignedDoctorName)
+        const actorDoctor = await this.repository.doctorByUserId(actor, session);
+        const referringDoctorId = actorDoctor?._id ?? current.assignedDoctorId;
+        const referringDoctorName = actorDoctor?.displayName ?? current.assignedDoctorName;
+        if (!referringDoctorId || !referringDoctorName)
           throw new AppError('Doctor evaluation is required before referral', 409, 'EMERGENCY_DOCTOR_REQUIRED');
+        const clinicalNotes = data.clinical_notes?.trim() || 'Emergency clinical referral dispatched.';
         if (current.referral) {
           const same =
             current.referral.targetDepartmentId.toString() === data.target_department_id &&
             (current.referral.targetDoctorId?.toString() ?? null) === (data.target_doctor_id ?? null) &&
             current.referral.priority === data.priority &&
             current.referral.reason === data.reason.trim() &&
-            current.referral.clinicalNotes === data.clinical_notes.trim();
+            current.referral.clinicalNotes === clinicalNotes;
           if (!same)
             throw new AppError('An Emergency referral is already submitted for this encounter', 409, 'EMERGENCY_REFERRAL_ALREADY_SUBMITTED');
           result = emergencyReferralDto(current);
@@ -117,11 +192,13 @@ export class EmergencyService {
         result = await this.repository.saveReferral(
           id,
           branchId,
-          data,
+          { ...data, clinical_notes: clinicalNotes },
           department.name,
           doctor?.displayName ?? null,
           actor,
           session,
+          !current.assignedDoctorId ? referringDoctorId : undefined,
+          !current.assignedDoctorName ? referringDoctorName : undefined,
         );
         if (!result)
           throw new AppError('Emergency referral was submitted concurrently; refresh and retry', 409, 'EMERGENCY_REFERRAL_CONFLICT');
@@ -129,7 +206,7 @@ export class EmergencyService {
           encounterId: id,
           patientId: current.patientId?.toString() ?? null,
           branchId,
-          referringDoctorId: current.assignedDoctorId.toString(),
+          referringDoctorId: referringDoctorId.toString(),
           targetDoctorId: data.target_doctor_id ?? null,
           targetDepartmentId: data.target_department_id,
           priority: data.priority,
@@ -194,7 +271,6 @@ export class EmergencyService {
   }
   async create(data: CreateEmergencyDTO, actor: string, metadata: EmergencyMetadata) {
     await this.authorize(actor, data.branch_id);
-    await this.authorizeDepartment(actor, data.department_id);
     const session = await this.repository.session();
     try {
       let result;
@@ -374,36 +450,68 @@ export class EmergencyService {
       let result;
       await session.withTransaction(async () => {
         const current = await this.requireRecord(id, branchId, actor, session);
-        result = await this.repository.transition(
-          id,
-          branchId,
-          ['REGISTERED', 'WAITING_FOR_TRIAGE'],
-          'WAITING_FOR_DOCTOR',
-          'TRIAGED',
-          actor,
-          {
-            triage: {
-              level: data.level,
-              effectiveLevel: data.level,
-              area: data.area,
-              nurseUserId: actor,
-              assessedAt: new Date(),
-              painScore: data.pain_score ?? null,
-              vitals: data.vitals,
-              abcde: data.abcde,
-              notes: data.notes ?? null,
-            },
-          },
-          null,
-          session,
-        );
-        if (!result)
+        const isInitialTriage = ['REGISTERED', 'WAITING_FOR_TRIAGE'].includes(current.status);
+        const isWaitingForConsultation = ['TRIAGED', 'WAITING_FOR_DOCTOR'].includes(current.status);
+        if (!isInitialTriage && !isWaitingForConsultation)
           throw new AppError(
             'Encounter is no longer waiting for triage',
             409,
             'EMERGENCY_ENCOUNTER_NOT_ACTIONABLE',
           );
-        if (current.patientId)
+
+        const triageRecord = {
+          level: data.level,
+          effectiveLevel: data.level,
+          area: data.area,
+          nurseUserId: actor,
+          assessedAt: new Date(),
+          painScore: data.pain_score ?? null,
+          vitals: data.vitals,
+          abcde: data.abcde,
+          notes: data.notes ?? null,
+        };
+
+        if (isInitialTriage) {
+          const triaged = await this.repository.transition(
+            id,
+            branchId,
+            ['REGISTERED', 'WAITING_FOR_TRIAGE'],
+            'WAITING_FOR_DOCTOR',
+            'TRIAGED',
+            actor,
+            { triage: triageRecord },
+            null,
+            session,
+            current.status,
+          );
+          if (!triaged)
+            throw new AppError(
+              'Encounter triage state changed before completion',
+              409,
+              'EMERGENCY_STATE_CONFLICT',
+            );
+        }
+
+        const consultationFrom = isInitialTriage ? 'WAITING_FOR_DOCTOR' : current.status;
+        result = await this.repository.transition(
+          id,
+          branchId,
+          consultationFrom,
+          'IN_CONSULTATION',
+          'CALLED',
+          actor,
+          isInitialTriage ? {} : { triage: triageRecord },
+          null,
+          session,
+          consultationFrom,
+        );
+        if (!result)
+          throw new AppError(
+            'Encounter could not enter consultation after triage',
+            409,
+            'EMERGENCY_STATE_CONFLICT',
+          );
+        if (current.patientId && isInitialTriage)
           await this.patients.addEmergencyTimeline(
             current.patientId.toString(),
             'EMERGENCY_TRIAGE_COMPLETED',
@@ -421,8 +529,24 @@ export class EmergencyService {
             patientId: current.patientId?.toString() ?? null,
             branchId,
             previousStatus: current.status,
-            status: 'WAITING_FOR_DOCTOR',
+            status: isInitialTriage ? 'WAITING_FOR_DOCTOR' : current.status,
             triageLevel: data.level,
+            resumedConsultation: isWaitingForConsultation,
+          },
+          session,
+        );
+        await this.repository.audit(
+          'emergency.encounter.called',
+          actor,
+          metadata,
+          {
+            encounterId: id,
+            patientId: current.patientId?.toString() ?? null,
+            branchId,
+            previousStatus: consultationFrom,
+            status: 'IN_CONSULTATION',
+            calledBy: actor,
+            calledAt: new Date(),
           },
           session,
         );
@@ -486,12 +610,13 @@ export class EmergencyService {
     return this.simpleTransition(
       id,
       branchId,
-      'WAITING_FOR_DOCTOR',
+      ['REGISTERED', 'WAITING_FOR_TRIAGE', 'TRIAGED', 'WAITING_FOR_DOCTOR'],
       'IN_CONSULTATION',
       'CALLED',
       null,
       actor,
       metadata,
+      'emergency.encounter.called',
     );
   }
   async skip(
@@ -525,18 +650,38 @@ export class EmergencyService {
       let result;
       await session.withTransaction(async () => {
         let current = await this.requireRecord(id, branchId, actor, session);
-        const doctor = await this.repository.doctor(
-          data.doctor_id,
-          branchId,
-          current.departmentId.toString(),
-          session,
-        );
-        if (!doctor)
-          throw new AppError(
-            'Active doctor not found in encounter department',
-            404,
-            'DOCTOR_NOT_FOUND',
+        const actorDoctor = await this.repository.doctorByUserId(actor, session);
+        let doctorId: import('mongoose').Types.ObjectId;
+        let doctorName: string;
+
+        if (actorDoctor) {
+          doctorId = actorDoctor._id;
+          doctorName = actorDoctor.displayName;
+        } else if (current.assignedDoctorId && current.assignedDoctorName) {
+          doctorId = current.assignedDoctorId;
+          doctorName = current.assignedDoctorName;
+        } else if (data.doctor_id) {
+          const doctor = await this.repository.doctor(
+            data.doctor_id,
+            branchId,
+            undefined,
+            session,
           );
+          if (!doctor)
+            throw new AppError(
+              'Active doctor not found in branch',
+              404,
+              'DOCTOR_NOT_FOUND',
+            );
+          doctorId = doctor._id;
+          doctorName = doctor.displayName;
+        } else {
+          throw new AppError(
+            'Attending doctor could not be established',
+            400,
+            'ATTENDING_DOCTOR_REQUIRED',
+          );
+        }
         const target = data.ready_for_disposition ? 'READY_FOR_DISPOSITION' : 'IN_CONSULTATION';
         result = await this.repository.transition(
           id,
@@ -546,8 +691,8 @@ export class EmergencyService {
           'CONSULTATION_UPDATED',
           actor,
           {
-            assignedDoctorId: doctor._id,
-            assignedDoctorName: doctor.displayName,
+            assignedDoctorId: doctorId,
+            assignedDoctorName: doctorName,
             consultation: {
               startedAt: current.consultation?.startedAt ?? new Date(),
               updatedAt: new Date(),
@@ -612,7 +757,7 @@ export class EmergencyService {
             current.patientId.toString(),
             'EMERGENCY_CONSULTATION_UPDATED',
             'Emergency consultation updated',
-            `${current.encounterNumber} doctor evaluation was updated.`,
+            `${current.encounterNumber} doctor evaluation by ${doctorName} was updated.`,
             actor,
             session,
           );
@@ -623,7 +768,8 @@ export class EmergencyService {
           {
             encounterId: id,
             patientId: current.patientId?.toString() ?? null,
-            doctorId: data.doctor_id,
+            doctorId: doctorId.toString(),
+            doctorName,
             branchId,
             previousStatus: current.status,
             status: target,
@@ -711,10 +857,10 @@ export class EmergencyService {
               items: data.items.map((item) => ({
                 medicine_name: item.medicine_name ?? item.name,
                 strength: null,
-                dosage: item.dosage ?? '',
-                route: item.route ?? '',
-                frequency: item.frequency ?? '',
-                duration: item.duration ?? '',
+                dosage: item.dosage || 'As directed',
+                route: item.route || 'Oral',
+                frequency: item.frequency || 'STAT',
+                duration: item.duration || 'STAT',
                 quantity: item.quantity ?? null,
                 instructions: data.instructions ?? null,
               })),
@@ -1013,73 +1159,5 @@ export class EmergencyService {
       metadata,
       'emergency.encounter.cancelled',
     );
-  }
-  private async simpleTransition(
-    id: string,
-    branchId: string,
-    from:
-      | import('./emergency.types.js').EmergencyStatus
-      | import('./emergency.types.js').EmergencyStatus[],
-    to: import('./emergency.types.js').EmergencyStatus,
-    action: string,
-    reason: string | null,
-    actor: string,
-    metadata: EmergencyMetadata,
-    eventType = 'emergency.queue.updated',
-  ) {
-    await this.authorize(actor, branchId);
-    const session = await this.repository.session();
-    try {
-      let result;
-      await session.withTransaction(async () => {
-        const current = await this.requireRecord(id, branchId, actor, session);
-        result = await this.repository.transition(
-          id,
-          branchId,
-          from,
-          to,
-          action,
-          actor,
-          {},
-          reason,
-          session,
-        );
-        if (!result)
-          throw new AppError(
-            'Encounter is not actionable from its current state',
-            409,
-            'EMERGENCY_ENCOUNTER_NOT_ACTIONABLE',
-          );
-        await this.repository.audit(
-          eventType,
-          actor,
-          metadata,
-          {
-            encounterId: id,
-            patientId: current.patientId?.toString() ?? null,
-            branchId,
-            previousStatus: current.status,
-            status: to,
-            reason,
-          },
-          session,
-        );
-      });
-      return result;
-    } finally {
-      await session.endSession();
-    }
-  }
-  private async requireRecord(
-    id: string,
-    branchId: string,
-    actor: string,
-    session: import('mongoose').ClientSession,
-  ): Promise<EmergencyLean> {
-    const row = await this.repository.getRecord(id, branchId, session);
-    if (!row)
-      throw new AppError('Emergency encounter not found', 404, 'EMERGENCY_ENCOUNTER_NOT_FOUND');
-    await this.authorizeDepartment(actor, row.departmentId.toString());
-    return row;
   }
 }

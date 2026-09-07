@@ -312,8 +312,8 @@ export function AppRouter() {
     breadcrumbs = ['Home', 'Admissions', 'Inpatient Workspace'];
     content = <InpatientWorkspacePage />;
   } else if (pathname === '/reports/library') {
-    title = 'Phase 2 Reports';
-    breadcrumbs = ['Home', 'Reports', 'Phase 2 Reports'];
+    title = 'Reports';
+    breadcrumbs = ['Home', 'Reports'];
     content = <PhaseTwoReportsPage />;
   } else if (pathname === '/surgery' || pathname === '/surgery/recommendations' || pathname === '/surgery/bookings' || pathname === '/surgery/schedule') {
     title = 'Surgery & Procedures';

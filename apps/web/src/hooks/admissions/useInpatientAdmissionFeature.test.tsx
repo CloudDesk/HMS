@@ -3,12 +3,21 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdmissionRequest } from '../../api/inpatient-admissions';
+import type { AuthUser } from '../../auth/auth-types';
 import {
   useInpatientAdmissionFeature,
   type InpatientAdmissionFeatureOptions,
 } from './useInpatientAdmissionFeature';
 
 // @vitest-environment jsdom
+
+let mockUser: AuthUser | null = null;
+
+vi.mock('../../auth/useAuth', () => ({
+  useAuth: () => ({
+    user: mockUser,
+  }),
+}));
 
 const mockDomain = {
   branches: { data: { data: [{ id: 'b-1', name: 'Main Branch' }] } },
@@ -139,5 +148,66 @@ describe('useInpatientAdmissionFeature', () => {
     expect(typeof result.actions.validateRequest).toBe('function');
     expect(typeof result.actions.confirmRequest).toBe('function');
     expect(typeof result.actions.cancelRequest).toBe('function');
+  });
+
+  it('evaluates createRequest capability based on user role and permissions', async () => {
+    mockUser = {
+      id: 'rec-1',
+      username: 'receptionist',
+      email: 'receptionist@example.com',
+      fullName: 'Receptionist User',
+      status: 'active',
+      patientId: null,
+      branches: [],
+      roles: [{ id: 'r-1', code: 'RECEPTIONIST', name: 'Receptionist' }],
+      permissions: [
+        { code: 'ADMISSIONS_ADMISSION_REQUESTS_VIEW', module: 'Admissions', screen: 'Admission Requests', action: 'View' },
+        { code: 'ADMISSIONS_ADMISSION_REQUESTS_CREATE', module: 'Admissions', screen: 'Admission Requests', action: 'Create' },
+      ],
+    };
+
+    const options = {
+      patientSearch: '',
+      requestSearch: '',
+      createOpen: false,
+      selectedRequest: null,
+      selectedSourceType: 'DIRECT' as const,
+      wardId: '',
+    };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <TestComponent options={options} />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(featureResult?.state.capabilities.createRequest).toBe(true);
+
+    // Test nurse (unauthorized to create request)
+    mockUser = {
+      id: 'nurse-1',
+      username: 'nurse',
+      email: 'nurse@example.com',
+      fullName: 'Nurse User',
+      status: 'active',
+      patientId: null,
+      branches: [],
+      roles: [{ id: 'r-2', code: 'CLINICIAN_NURSE', name: 'Clinician / Nurse' }],
+      permissions: [
+        { code: 'ADMISSIONS_ADMISSION_REQUESTS_VIEW', module: 'Admissions', screen: 'Admission Requests', action: 'View' },
+      ],
+    };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <TestComponent options={options} />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(featureResult?.state.capabilities.createRequest).toBe(false);
   });
 });

@@ -262,6 +262,10 @@ The confirmed Phase 3 procedure scope works without full OT, anesthesia, intra-o
 **Depends on:** P3-2  
 **Blocks:** P3-5 and P3-6
 
+### Emergency Triage-to-Consultation Correction
+
+**Implementation status:** Implemented and verified through focused automated tests and the live HTTP API/MongoDB path on 4 September 2026. Interactive browser acceptance remains pending because no controllable browser was available in the verification session. See `HMS_EMERGENCY_TRIAGE_CONSULTATION_GAP_NOTE.md` and `HMS_EMERGENCY_TRIAGE_CONSULTATION_VERIFICATION.md`.
+
 ### Objective
 
 Implement live Emergency registration, queue, assessment, doctor evaluation, downstream order initiation, and disposition using the existing patient and clinical foundations.

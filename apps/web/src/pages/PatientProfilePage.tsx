@@ -7,6 +7,7 @@ import {
   type PatientDocumentResponse,
 } from '../api/patients';
 import { useAuth } from '../auth/useAuth';
+import { hasPermission, isSuperAdministrator } from '../auth/access-control';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PatientCardModal } from '../components/patients/PatientCardModal';
@@ -58,9 +59,14 @@ const detectCategoryFromFileName = (fileName: string): string => {
 
 export function PatientProfilePage() {
   const { user } = useAuth();
-  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
-  const isAdmin = Boolean(user?.roles.some((role) => role.code === 'ADMINISTRATOR' || role.code === 'ADMIN' || role.name.toLowerCase().includes('admin')));
-  const canEditAllDetails = isSuperAdmin || isAdmin;
+  const canEditAllDetails = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Patients', screen: 'Patient Records', action: 'Edit' })
+  ));
+  const canBookAppointment = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Appointments', screen: 'Appointment Booking', action: 'Create' })
+  ));
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
   const searchParams = new URLSearchParams(search);
@@ -310,32 +316,36 @@ export function PatientProfilePage() {
           </div>
 
           <div className="profile-hero-actions">
-            <button className="doc-btn" onClick={() => { 
-                editForm.reset({ 
-                  firstName: patient.first_name ?? '', 
-                  lastName: patient.last_name, 
-                  dateOfBirth: patient.date_of_birth.slice(0, 10), 
-                  phone: patient.phone ?? '', 
-                  email: patient.email ?? '', 
-                  status: patient.status, 
-                  gender: patient.gender, 
-                  bloodGroup: patient.blood_group ?? '', 
-                  addressLine1: patient.address?.line1 ?? '',
-                  city: patient.address?.city ?? '',
-                  postalCode: patient.address?.postal_code ?? '',
-                  notes: patient.notes ?? '' 
-                }); 
-                setEditOpen(true); 
-              }} type="button">
-              <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
-            </button>
+            {canEditAllDetails ? (
+              <button className="doc-btn" onClick={() => { 
+                  editForm.reset({ 
+                    firstName: patient.first_name ?? '', 
+                    lastName: patient.last_name, 
+                    dateOfBirth: patient.date_of_birth.slice(0, 10), 
+                    phone: patient.phone ?? '', 
+                    email: patient.email ?? '', 
+                    status: patient.status, 
+                    gender: patient.gender, 
+                    bloodGroup: patient.blood_group ?? '', 
+                    addressLine1: patient.address?.line1 ?? '',
+                    city: patient.address?.city ?? '',
+                    postalCode: patient.address?.postal_code ?? '',
+                    notes: patient.notes ?? '' 
+                  }); 
+                  setEditOpen(true); 
+                }} type="button">
+                <i className="ph ph-pencil-simple" aria-hidden="true" /> Edit Patient
+              </button>
+            ) : null}
             {/* Register Visit — temporarily disabled */}
             {/* <button className="doc-btn" onClick={() => navigate(`/opd/visit?patient_id=${encodeURIComponent(patient.id)}`)} type="button">
               <i className="ph ph-clipboard-text" aria-hidden="true" /> Register Visit
             </button> */}
-            <button className="doc-btn primary" onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)} type="button">
-              <i className="ph ph-calendar-plus" aria-hidden="true" /> Book Appointment
-            </button>
+            {canBookAppointment ? (
+              <button className="doc-btn primary" onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)} type="button">
+                <i className="ph ph-calendar-plus" aria-hidden="true" /> Book Appointment
+              </button>
+            ) : null}
             <button className="doc-btn" onClick={() => setShowCardModal(true)} type="button">
               <i className="ph ph-identification-card" aria-hidden="true" /> View Card
             </button>

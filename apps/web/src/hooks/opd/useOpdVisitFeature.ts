@@ -55,8 +55,14 @@ export function useOpdVisitFeature() {
     return match?.name ?? 'Consultation';
   });
 
-  const recentVisitsQuery = useOpdVisits({ limit: 10, sortBy: 'created_at', sortOrder: 'desc' });
-  const recentVisits = recentVisitsQuery.data?.data ?? [];
+  const workspace = useOpdWorkspace(activeVisitId || null);
+
+  // In Consultation Workspace, only in-consultation and completed visits are valid for active review/switching
+  const recentVisitsQuery = useOpdVisits({ limit: 20, sortBy: 'created_at', sortOrder: 'desc' });
+  const recentVisits = useMemo(() => {
+    const list = recentVisitsQuery.data?.data ?? [];
+    return list.filter((v) => v.status === 'IN_CONSULTATION' || v.status === 'COMPLETED');
+  }, [recentVisitsQuery.data]);
 
   useEffect(() => {
     if (visitIdParam && visitIdParam !== activeVisitId) setActiveVisitId(visitIdParam);
@@ -67,7 +73,6 @@ export function useOpdVisitFeature() {
     if (!activeVisitId && firstVisit) setActiveVisitId(firstVisit.id);
   }, [activeVisitId, recentVisits]);
 
-  const workspace = useOpdWorkspace(activeVisitId || null);
   const patientQuery = usePatientDetails(workspace.visit?.patient_id ?? null);
   const branchesQuery = useBranchesList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
   const departmentsQuery = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
@@ -178,6 +183,12 @@ export function useOpdVisitFeature() {
       loading: recentVisitsQuery.isLoading || workspace.visitLoading || patientQuery.isLoading,
       loadError: workspace.visitError ? getOpdErrorMessage(workspace.visitError) : '',
       updating: workspace.isUpdating || callNextPatient.isPending,
+      canEditConsultation: workspace.canEditConsultation,
+      canEditPrescription: workspace.canEditPrescription,
+      canEditClinicalOrders: workspace.canEditClinicalOrders,
+      canEditReferral: workspace.canEditReferral,
+      canEditFollowUp: workspace.canEditFollowUp,
+      canCreateVitals: workspace.canCreateVitals,
     },
     actions: {
       setActiveTab,

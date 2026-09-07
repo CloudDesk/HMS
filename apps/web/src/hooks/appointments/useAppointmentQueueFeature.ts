@@ -35,8 +35,13 @@ const queueSort = (left: { status: string; priority: string; start_time: string 
 export function useAppointmentQueueFeature() {
   const { user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
+  const canCheckIn = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'OPD Visits', action: 'Create' });
   const canCreateVitals = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'OPD Vitals', action: 'Create' });
   const canEditVisit = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'OPD Visits', action: 'Edit' });
+  const canEditAppointments = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'Appointments', screen: 'Appointment Records', action: 'Edit' });
+  const canViewConsultation = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'OPD Consultation', action: 'View' });
+  const canViewBranches = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'Administration', screen: 'Branches', action: 'View' });
+  const canViewDepartments = isSuperAdmin || hasPermission(user?.permissions ?? [], { module: 'Administration', screen: 'Departments', action: 'View' });
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
 
@@ -72,13 +77,13 @@ export function useAppointmentQueueFeature() {
     }
   }, [branchFilter, departmentFilter, doctorFilter, priorityFilter, queueDate, statusFilter]);
 
-  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 });
+  const { data: deptData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, canViewDepartments);
   const { data: docData } = useDoctorsList({ status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' });
-  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100, sortBy: 'name', sortOrder: 'asc' });
+  const { data: branchData } = useBranchesList({ status: 'ACTIVE', limit: 100, sortBy: 'name', sortOrder: 'asc' }, canViewBranches);
 
   const departments = deptData?.data || [];
   const doctors = docData?.data || [];
-  const branches = branchData?.data || [];
+  const branches = branchData?.data ?? user?.branches ?? [];
 
   const queryClient = useQueryClient();
   const appointmentsQuery = useAppointmentsList({
@@ -149,12 +154,19 @@ export function useAppointmentQueueFeature() {
 
     const linkedVisit = visitForAppointment(nextAppointment.id);
     if (linkedVisit) {
+      if (!canEditAppointments) {
+        throw new Error('You do not have permission to update appointment queue status.');
+      }
       await updateStatus.mutateAsync({
         id: nextAppointment.id,
         payload: { status: 'CHECKED_IN', notes: 'Patient called from appointment queue.' },
       });
       await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
       return;
+    }
+
+    if (!canCheckIn) {
+      throw new Error('You do not have permission to check in patients.');
     }
 
     try {
@@ -169,6 +181,9 @@ export function useAppointmentQueueFeature() {
   };
 
   const handleSkip = async () => {
+    if (!canEditAppointments) {
+      throw new Error('You do not have permission to update appointment queue status.');
+    }
     if (!currentAppointment) {
       toast.error('Call a patient before skipping the queue token.');
       return;
@@ -187,6 +202,9 @@ export function useAppointmentQueueFeature() {
     }
 
     const linkedVisit = visitForAppointment(currentAppointment.id);
+    if (linkedVisit ? !canEditVisit : !canEditAppointments) {
+      throw new Error('You do not have permission to mark this patient as no-show.');
+    }
     if (!linkedVisit) {
       await updateStatus.mutateAsync({
         id: currentAppointment.id,
@@ -204,6 +222,9 @@ export function useAppointmentQueueFeature() {
   };
 
   const handleComplete = async (notes: string) => {
+    if (!canEditVisit) {
+      throw new Error('You do not have permission to complete OPD visits.');
+    }
     if (!currentAppointment) {
       toast.error('Call a patient before completing the visit.');
       return;
@@ -222,6 +243,9 @@ export function useAppointmentQueueFeature() {
   };
 
   const handleCheckIn = async (appointmentId: string) => {
+    if (!canCheckIn) {
+      throw new Error('You do not have permission to check in patients.');
+    }
     try {
       await createVisit.mutateAsync({
         appointment_id: appointmentId,
@@ -274,6 +298,9 @@ export function useAppointmentQueueFeature() {
       nextAppointment,
       canCreateVitals,
       canEditVisit,
+      canCheckIn,
+      canEditAppointments,
+      canViewConsultation,
     },
     actions: {
       setDepartmentFilter,

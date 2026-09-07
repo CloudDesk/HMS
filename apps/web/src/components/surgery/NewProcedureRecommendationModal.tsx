@@ -4,13 +4,15 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { surgeryApi } from '../../api/surgery';
+import { useAuth } from '../../auth/useAuth';
+import { useCurrentDoctor } from '../../hooks/doctors/useDoctors';
 import { usePatientsList } from '../../hooks/patients/usePatients';
 import { Modal } from '../ui/Modal';
 
 const recommendationSchema = z.object({
   patient_id: z.string().min(1, 'Select a patient'),
   department_id: z.string().min(1, 'Select a department'),
-  recommending_doctor_id: z.string().min(1, 'Select a doctor'),
+  recommending_doctor_id: z.string().optional(),
   service_id: z.string().min(1, 'Select a procedure'),
   encounter_id: z
     .string()
@@ -66,6 +68,13 @@ export function NewProcedureRecommendationModal({
   initialContext,
   onCreateSuccess,
 }: NewProcedureRecommendationModalProps) {
+  const { user } = useAuth();
+  const currentDoctorQuery = useCurrentDoctor(Boolean(user));
+  const currentDoctor =
+    currentDoctorQuery.data ||
+    doctors.find((d) => d.id === user?.id || (d as { user_id?: string; userId?: string }).user_id === user?.id || (d as { user_id?: string; userId?: string }).userId === user?.id);
+  const isDoctorUser = Boolean(currentDoctor) || (user?.roles.some((r) => r.code === 'DOCTOR' || r.code === 'CLINICIAN_DOCTOR') ?? false);
+
   const [patientSearch, setPatientSearch] = useState('');
   const [isManualPatientMode, setIsManualPatientMode] = useState(!initialContext?.patient);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,7 +90,7 @@ export function NewProcedureRecommendationModal({
     defaultValues: {
       patient_id: '',
       department_id: '',
-      recommending_doctor_id: '',
+      recommending_doctor_id: currentDoctor?.id || '',
       service_id: '',
       encounter_id: '',
       clinical_reason: '',
@@ -102,13 +111,14 @@ export function NewProcedureRecommendationModal({
 
   useEffect(() => {
     if (open) {
+      const activeDoctorId = currentDoctor?.id || initialContext?.recommending_doctor_id || '';
       if (initialContext?.patient) {
         setIsManualPatientMode(false);
         setPatientSearch('');
         reset({
           patient_id: initialContext.patient.id,
           department_id: initialContext.department_id || '',
-          recommending_doctor_id: initialContext.recommending_doctor_id || '',
+          recommending_doctor_id: activeDoctorId,
           service_id: '',
           encounter_id: initialContext.encounter_id || '',
           clinical_reason: initialContext.clinical_reason?.trim() || '',
@@ -120,7 +130,7 @@ export function NewProcedureRecommendationModal({
         reset({
           patient_id: '',
           department_id: '',
-          recommending_doctor_id: '',
+          recommending_doctor_id: activeDoctorId,
           service_id: '',
           encounter_id: '',
           clinical_reason: '',
@@ -128,7 +138,7 @@ export function NewProcedureRecommendationModal({
         });
       }
     }
-  }, [open, initialContext, reset]);
+  }, [open, initialContext, currentDoctor?.id, reset]);
 
   const onSubmit = handleSubmit(async (values) => {
     if (!branchId) {
@@ -141,7 +151,7 @@ export function NewProcedureRecommendationModal({
         patient_id: values.patient_id,
         branch_id: branchId,
         department_id: values.department_id,
-        recommending_doctor_id: values.recommending_doctor_id,
+        recommending_doctor_id: currentDoctor?.id || values.recommending_doctor_id || undefined,
         service_id: values.service_id,
         encounter_type: values.encounter_id ? 'OPD_VISIT' : 'DIRECT',
         encounter_id: values.encounter_id || null,
@@ -447,33 +457,49 @@ export function NewProcedureRecommendationModal({
               >
                 Recommending Doctor <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <select
-                {...register('recommending_doctor_id')}
-                style={{
-                  width: '100%',
-                  height: '36px',
-                  borderRadius: '6px',
-                  border: errors.recommending_doctor_id
-                    ? '1px solid #ef4444'
-                    : '1px solid #cbd5e1',
-                  padding: '0 8px',
-                  fontSize: '0.82rem',
-                }}
-              >
-                <option value="">Select Doctor</option>
-                {doctors
-                  .filter(
-                    (item) =>
-                      !watchedDepartmentId ||
-                      !item.department_id ||
-                      item.department_id === watchedDepartmentId
-                  )
-                  .map((item) => (
+              {isDoctorUser && currentDoctor ? (
+                <div
+                  style={{
+                    height: '36px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    padding: '0 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.82rem',
+                    color: '#0f172a',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>{currentDoctor.display_name}</span>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>
+                    Logged-in Recommending Doctor
+                  </span>
+                </div>
+              ) : (
+                <select
+                  {...register('recommending_doctor_id')}
+                  style={{
+                    width: '100%',
+                    height: '36px',
+                    borderRadius: '6px',
+                    border: errors.recommending_doctor_id
+                      ? '1px solid #ef4444'
+                      : '1px solid #cbd5e1',
+                    padding: '0 8px',
+                    fontSize: '0.82rem',
+                  }}
+                >
+                  <option value="">Select Doctor</option>
+                  {doctors.map((item) => (
                     <option value={item.id} key={item.id}>
                       {item.display_name}
                     </option>
                   ))}
-              </select>
+                </select>
+              )}
               <FieldError text={errors.recommending_doctor_id?.message} />
             </div>
 

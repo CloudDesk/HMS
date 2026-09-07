@@ -106,11 +106,11 @@ export const permissionsApi = {
     );
   },
 
-  replaceForRole(roleId: string, permissionIds: string[]) {
+  replaceForRole(roleId: string, permissionIds: string[], expectedRoleUpdatedAt: string) {
     return apiClient.request<RolePermissionsResponse>(
       `/roles/${encodeURIComponent(roleId)}/permissions`,
       {
-        body: { permissionIds },
+        body: { permissionIds, expectedRoleUpdatedAt },
         method: 'PUT',
       },
     );

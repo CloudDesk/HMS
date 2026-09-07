@@ -106,7 +106,7 @@ export class UserService {
     private readonly settings?: Pick<SettingsService, 'getRuntimeUserPreferences'>,
   ) {}
 
-  async list(query: Partial<UserListQuery>) {
+  async list(query: Partial<UserListQuery>, actorUserId: string) {
     const normalizedQuery: UserListQuery = {
       search: normalizeOptionalText(query.search) ?? undefined,
       status: query.status,
@@ -118,7 +118,8 @@ export class UserService {
       sortBy: query.sortBy ?? 'createdAt',
       sortOrder: query.sortOrder ?? 'desc',
     };
-    const { users, total } = await this.repository.list(normalizedQuery);
+    const branchScope = await this.repository.resolveBranchScope(actorUserId, normalizedQuery.branchId);
+    const { users, total } = await this.repository.list(normalizedQuery, branchScope);
     const responses = await this.attachAssignments(users);
 
     return {
@@ -132,13 +133,14 @@ export class UserService {
     };
   }
 
-  async getById(id: string) {
+  async getById(id: string, actorUserId: string) {
+    await this.assertTargetInBranchScope(actorUserId, id);
     const user = await this.requireUser(id);
     return (await this.attachAssignments([user]))[0]!;
   }
 
-  summary() {
-    return this.repository.summary();
+  async summary(actorUserId: string) {
+    return this.repository.summary(await this.repository.resolveBranchScope(actorUserId));
   }
 
   async create(input: CreateUserInput, actorUserId: string, metadata: RequestMetadata) {
@@ -163,7 +165,7 @@ export class UserService {
     await this.repository.replaceAssignments(user.id, normalized.branches, normalized.departments, normalized.roleIds);
     await this.audit('user.created', actorUserId, user.id, metadata);
 
-    return this.getById(user.id);
+    return this.getById(user.id, actorUserId);
   }
 
   async provisionDoctorAccount(
@@ -340,7 +342,7 @@ export class UserService {
     }
 
     if (normalized.branches || normalized.departments || normalized.roleIds) {
-      const current = await this.getById(id);
+      const current = await this.getById(id, actorUserId);
       if (normalized.roleIds && current.roles.some((role) => role.code === 'SUPER_ADMIN')) {
         const keepsSuperAdmin = await Promise.all(normalized.roleIds.map((roleId) => this.repository.isSuperAdminRole(roleId)));
         if (!keepsSuperAdmin.some(Boolean) && await this.repository.countActiveSuperAdmins() <= 1) {
@@ -355,6 +357,7 @@ export class UserService {
       if (normalized.roleIds) {
         await this.permissions.assertCanAssignRoles(actorUserId, normalized.roleIds);
       }
+      await this.assertCanAssignBranches(actorUserId, normalized.branches ?? current.branches);
     }
 
     const user = await this.repository.update(id, {
@@ -367,7 +370,7 @@ export class UserService {
     }
 
     if (normalized.branches || normalized.departments || normalized.roleIds) {
-      const current = await this.getById(id);
+      const current = await this.getById(id, actorUserId);
       await this.repository.replaceAssignments(
         id,
         normalized.branches ?? current.branches.map((branch) => ({ ...branch })),
@@ -377,7 +380,7 @@ export class UserService {
     }
 
     await this.audit('user.updated', actorUserId, id, metadata);
-    return this.getById(id);
+    return this.getById(id, actorUserId);
   }
 
   async updateProfile(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
@@ -423,7 +426,7 @@ export class UserService {
       status: input.status,
     });
 
-    return this.getById(id);
+    return this.getById(id, actorUserId);
   }
 
   async unlock(id: string, actorUserId: string, metadata: RequestMetadata) {
@@ -500,7 +503,7 @@ export class UserService {
       sortOrder: query.sortOrder ?? 'asc',
     };
     await this.audit('user.exported', actorUserId, undefined, metadata, { filters: normalizedQuery });
-    const loadPage = (page: number) => this.list({ ...normalizedQuery, page, limit: 100 });
+    const loadPage = (page: number) => this.list({ ...normalizedQuery, page, limit: 100 }, actorUserId);
     async function* rows() {
       let page = 1;
       while (true) {
@@ -561,27 +564,29 @@ export class UserService {
     return user;
   }
 
-  private assertCanManageUser(actorUserId: string, targetUserId: string) {
-    return this.permissions.assertCanManageUser(actorUserId, targetUserId, {
+  private async assertCanManageUser(actorUserId: string, targetUserId: string) {
+    await this.permissions.assertCanManageUser(actorUserId, targetUserId, {
       allowEqualAuthority: true,
       errorCode: 'PRIVILEGED_USER_MODIFICATION_FORBIDDEN',
     });
+    await this.assertTargetInBranchScope(actorUserId, targetUserId);
+  }
+
+  private async assertTargetInBranchScope(actorUserId: string, targetUserId: string) {
+    const branchScope = await this.repository.resolveBranchScope(actorUserId);
+    if (branchScope === undefined) return;
+    if (!await this.repository.isUserInBranchScope(targetUserId, branchScope)) {
+      throw new AppError('User is outside your authorized branch scope', 403, 'BRANCH_SCOPE_VIOLATION');
+    }
   }
 
   private async assertCanAssignBranches(actorUserId: string, requestedBranches: AssignmentInput[]) {
     if (!requestedBranches || requestedBranches.length === 0) return;
-    try {
-      const actor = await this.getById(actorUserId);
-      const isSuperAdmin = actor.roles.some((role) => role.code === 'SUPER_ADMIN');
-      if (isSuperAdmin || actor.branches.length === 0) return;
-
-      const actorBranchIds = new Set(actor.branches.map((b) => b.id));
-      const hasUnauthorizedBranch = requestedBranches.some((b) => !actorBranchIds.has(b.id));
-      if (hasUnauthorizedBranch) {
-        throw new AppError('Cannot assign a user to a branch outside your authorized branch scope', 403, 'BRANCH_SCOPE_VIOLATION');
-      }
-    } catch (err) {
-      if (err instanceof AppError) throw err;
+    const branchScope = await this.repository.resolveBranchScope(actorUserId);
+    if (branchScope === undefined) return;
+    const actorBranchIds = new Set(branchScope);
+    if (requestedBranches.some((branch) => !actorBranchIds.has(branch.id))) {
+      throw new AppError('Cannot assign a user to a branch outside your authorized branch scope', 403, 'BRANCH_SCOPE_VIOLATION');
     }
   }
 
@@ -733,6 +738,9 @@ export class UserService {
     }
     if (result.departments !== departmentIds.length) {
       throw new AppError('One or more department assignments are invalid or inactive', 400, 'INVALID_DEPARTMENT_ASSIGNMENT');
+    }
+    if (await this.repository.countDepartmentsInBranches(departmentIds, branchIds, session) !== departmentIds.length) {
+      throw new AppError('Every department must belong to an assigned branch', 400, 'DEPARTMENT_BRANCH_MISMATCH');
     }
     if (result.roles !== roleIds.length) {
       throw new AppError('One or more role assignments are invalid or inactive', 400, 'INVALID_ROLE_ASSIGNMENT');
