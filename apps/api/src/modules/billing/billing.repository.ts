@@ -22,6 +22,7 @@ import type {
   BillingSourceType,
   BillingSummaryQuery,
   CollectBillingPaymentDTO,
+  DentalTreatmentBillingState,
   ResolvedBillingItem,
 } from './billing.types.js';
 
@@ -340,6 +341,73 @@ export class BillingRepository {
       .lean<InvoiceItemLean[]>();
     if (session) query.session(session);
     return (await query).map(toItem);
+  }
+
+  async getInvoiceByOriginatingOrderId(
+    originatingOrderId: string,
+    branchIds?: string[],
+    session?: ClientSession,
+  ) {
+    const itemQuery = BillingInvoiceItemModel.findOne({
+      serviceType: 'PROCEDURE',
+      originatingOrderId: objectId(originatingOrderId),
+      deletedAt: null,
+    })
+      .select('invoiceId')
+      .lean<Pick<InvoiceItemLean, 'invoiceId'>>();
+    if (session) itemQuery.session(session);
+    const item = await itemQuery;
+    return item
+      ? this.getById(item.invoiceId.toString(), branchIds, session)
+      : null;
+  }
+
+  async listDentalTreatmentBillingStates(
+    treatmentItemIds: string[],
+    branchIds?: string[],
+    session?: ClientSession,
+  ): Promise<DentalTreatmentBillingState[]> {
+    if (treatmentItemIds.length === 0) return [];
+
+    const itemQuery = BillingInvoiceItemModel.find({
+      serviceType: 'PROCEDURE',
+      originatingOrderId: { $in: treatmentItemIds.map(objectId) },
+      deletedAt: null,
+    }).lean<InvoiceItemLean[]>();
+    if (session) itemQuery.session(session);
+    const items = await itemQuery;
+    if (items.length === 0) return [];
+
+    const invoiceFilter: Record<string, unknown> = {
+      _id: { $in: items.map((item) => item.invoiceId) },
+      deletedAt: null,
+    };
+    if (branchIds) invoiceFilter.branchId = { $in: branchIds.map(objectId) };
+    const invoiceQuery = BillingInvoiceModel.find(invoiceFilter)
+      .select('_id invoiceNumber status')
+      .lean<Array<Pick<InvoiceLean, '_id' | 'invoiceNumber' | 'status'>>>();
+    if (session) invoiceQuery.session(session);
+    const invoices = await invoiceQuery;
+    const invoiceById = new Map(
+      invoices.map((invoice) => [invoice._id.toString(), invoice]),
+    );
+
+    return items.flatMap((item) => {
+      const invoice = invoiceById.get(item.invoiceId.toString());
+      if (!invoice || !item.originatingOrderId) return [];
+      return [
+        {
+          treatment_item_id: item.originatingOrderId.toString(),
+          invoice_item_id: item._id.toString(),
+          invoice_id: invoice._id.toString(),
+          invoice_number: invoice.invoiceNumber,
+          invoice_status: invoice.status,
+          service_id: item.serviceId.toString(),
+          service_name: item.serviceName,
+          unit_price: item.unitPrice,
+        },
+      ];
+    });
   }
 
   async createInvoice(data: CreateInvoiceRecord, items: ResolvedBillingItem[], userId: string, session?: ClientSession) {

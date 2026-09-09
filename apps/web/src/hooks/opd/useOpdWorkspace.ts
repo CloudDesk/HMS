@@ -198,6 +198,7 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
     },
     // Capability flags — pages consume these instead of traversing permissions
     canEditConsultation,
+    canViewConsultation: canAction('OPD', 'OPD Consultation', 'View'),
     canEditPrescription,
     canEditClinicalOrders,
     canEditReferral,

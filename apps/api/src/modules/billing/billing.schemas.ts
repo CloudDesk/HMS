@@ -81,6 +81,11 @@ const paymentSchema = z.object({
 
 const invoiceParamsSchema = z.object({ id: objectId }).strict();
 const paymentParamsSchema = z.object({ id: objectId }).strict();
+const dentalVisitParamsSchema = z.object({ visitId: objectId }).strict();
+const dentalTreatmentInvoiceParamsSchema = z
+  .object({ visitId: objectId, treatmentItemId: objectId })
+  .strict();
+const emptyBillingActionSchema = z.object({}).strict();
 const admissionContextSchema = z.object({ patient_id: objectId, branch_id: objectId, request_id: objectId }).strict();
 const procedureContextSchema = z.object({ patient_id: objectId, branch_id: objectId, booking_id: objectId }).strict();
 
@@ -99,6 +104,12 @@ export const parseUpdateBillingInvoiceBody = (value: unknown) => parse(updateInv
 export const parseCollectBillingPaymentBody = (value: unknown) => parse(paymentSchema, value);
 export const parseBillingInvoiceParams = (value: unknown) => parse(invoiceParamsSchema, value);
 export const parseBillingPaymentParams = (value: unknown) => parse(paymentParamsSchema, value);
+export const parseDentalBillingVisitParams = (value: unknown) =>
+  parse(dentalVisitParamsSchema, value);
+export const parseDentalTreatmentInvoiceParams = (value: unknown) =>
+  parse(dentalTreatmentInvoiceParamsSchema, value);
+export const parseEmptyBillingActionBody = (value: unknown) =>
+  parse(emptyBillingActionSchema, value ?? {});
 export const parseAdmissionContextBody = (value: unknown) => parse(admissionContextSchema, value);
 export const parseProcedureContextBody = (value: unknown) => parse(procedureContextSchema, value);
 

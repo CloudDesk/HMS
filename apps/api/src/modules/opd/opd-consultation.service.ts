@@ -7,10 +7,13 @@ import type { SaveOpdConsultationDTO } from './opd-consultation.types.js';
 import type { OpdVitalsRepository } from './opd-vitals.repository.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
+import { OpdDentalExaminationRepository } from './opd-dental-examination.repository.js';
+import { OpdDentalExaminationService } from './opd-dental-examination.service.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
-const isObjectId = (value: string | null | undefined) => Boolean(value && Types.ObjectId.isValid(value));
+const isObjectId = (value: string | null | undefined) =>
+  Boolean(value && Types.ObjectId.isValid(value));
 
 export class OpdConsultationService {
   constructor(
@@ -19,6 +22,12 @@ export class OpdConsultationService {
     private readonly vitalsRepository: OpdVitalsRepository,
     private readonly patientRepository: PatientRepository,
     private readonly appointmentRepository: AppointmentRepository,
+    private readonly dentalExaminations = new OpdDentalExaminationService(
+      new OpdDentalExaminationRepository(),
+      visitRepository,
+      repository,
+      patientRepository,
+    ),
   ) {}
 
   async getByVisit(visitId: string, userId: string) {
@@ -28,6 +37,7 @@ export class OpdConsultationService {
 
   async saveDraft(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
+    await this.dentalExaminations.validateAssessment(visit, data.assessment, userId);
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
 
@@ -56,6 +66,7 @@ export class OpdConsultationService {
 
   async complete(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
+    await this.dentalExaminations.validateAssessment(visit, data.assessment, userId);
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
     await this.ensureVitalsRecorded(visit.id);
@@ -98,8 +109,6 @@ export class OpdConsultationService {
       );
     }
 
-
-
     await this.patientRepository.addTimelineEvent(
       visit.patient_id,
       {
@@ -134,13 +143,21 @@ export class OpdConsultationService {
 
   private ensureOpenVisit(visit: OpdVisit) {
     if (terminalVisitStatuses.includes(visit.status)) {
-      throw new AppError('Consultation cannot be updated for a closed OPD visit', 400, 'VISIT_CLOSED');
+      throw new AppError(
+        'Consultation cannot be updated for a closed OPD visit',
+        400,
+        'VISIT_CLOSED',
+      );
     }
   }
 
   private ensureConsultationReady(visit: OpdVisit) {
     if (!['READY_FOR_CONSULTATION', 'IN_CONSULTATION'].includes(visit.status)) {
-      throw new AppError('Patient must complete the vitals handoff before consultation', 400, 'VISIT_NOT_READY_FOR_CONSULTATION');
+      throw new AppError(
+        'Patient must complete the vitals handoff before consultation',
+        400,
+        'VISIT_NOT_READY_FOR_CONSULTATION',
+      );
     }
   }
 
@@ -148,7 +165,11 @@ export class OpdConsultationService {
     const latestVitals = await this.vitalsRepository.getLatestByVisit(visitId);
 
     if (!latestVitals) {
-      throw new AppError('Vitals must be recorded before completing consultation', 400, 'VITALS_REQUIRED');
+      throw new AppError(
+        'Vitals must be recorded before completing consultation',
+        400,
+        'VITALS_REQUIRED',
+      );
     }
   }
 

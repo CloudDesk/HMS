@@ -188,13 +188,15 @@ export class ServiceRepository {
     return service ? toService(service) : undefined;
   }
 
-  async getActiveProcedure(id: string) {
+  async getActiveProcedure(id: string, session?: ClientSession) {
     const service = await ServiceModel.findOne({
       _id: id,
       serviceType: 'PROCEDURE',
       status: 'ACTIVE',
       deletedAt: null,
-    }).lean();
+    })
+      .session(session ?? null)
+      .lean();
     return service ? toService(service) : undefined;
   }
 

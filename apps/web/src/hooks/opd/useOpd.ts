@@ -12,6 +12,7 @@ import {
   type CreateOpdVitalsPayload,
   type SaveOpdFollowUpPayload,
   type SaveOpdReferralPayload,
+  type SaveOpdDentalExaminationPayload,
 } from '../../api/opd';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 
@@ -39,6 +40,8 @@ export const opdKeys = {
   followUp: (visitId: string) => [...opdKeys.followUps(), visitId] as const,
   referrals: () => [...opdKeys.all, 'referrals'] as const,
   referral: (visitId: string) => [...opdKeys.referrals(), visitId] as const,
+  dentalExaminations: () => [...opdKeys.all, 'dental-examinations'] as const,
+  dentalExamination: (visitId: string) => [...opdKeys.dentalExaminations(), visitId] as const,
 };
 
 export function useOpdDashboardSummary(params: OpdVisitListParams, enabled = true) {
@@ -106,6 +109,14 @@ export function useOpdReferral(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.referral(visitId) : opdKeys.referrals(),
     queryFn: () => opdApi.getReferral(visitId as string),
+    enabled: enabled && Boolean(visitId),
+  });
+}
+
+export function useOpdDentalExamination(visitId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: visitId ? opdKeys.dentalExamination(visitId) : opdKeys.dentalExaminations(),
+    queryFn: () => opdApi.getDentalExamination(visitId as string),
     enabled: enabled && Boolean(visitId),
   });
 }
@@ -309,6 +320,40 @@ export function useSubmitOpdReferral(options: OpdMutationNotificationOptions = {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: opdKeys.referral(visitId) }),
         queryClient.invalidateQueries({ queryKey: opdKeys.visitDetails(visitId) }),
+      ]);
+    },
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
+  });
+}
+
+export function useSaveOpdDentalExaminationDraft(options: OpdMutationNotificationOptions = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ visitId, payload }: { visitId: string; payload: SaveOpdDentalExaminationPayload }) =>
+      opdApi.saveDentalExaminationDraft(visitId, payload),
+    onSuccess: async (data, { visitId }) => {
+      if (options.notifyOnSuccess !== false) toast.success('Dental examination draft saved.');
+      queryClient.setQueryData(opdKeys.dentalExamination(visitId), data);
+    },
+    onError: (error) => {
+      if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
+    },
+  });
+}
+
+export function useCompleteOpdDentalExamination(options: OpdMutationNotificationOptions = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ visitId, payload }: { visitId: string; payload: SaveOpdDentalExaminationPayload }) =>
+      opdApi.completeDentalExamination(visitId, payload),
+    onSuccess: async (data, { visitId }) => {
+      queryClient.setQueryData(opdKeys.dentalExamination(visitId), data);
+      if (options.notifyOnSuccess !== false) toast.success('Dental examination completed.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.visitDetails(visitId) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.visits() }),
       ]);
     },
     onError: (error) => {

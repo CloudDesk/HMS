@@ -20,6 +20,8 @@ import { DoctorService } from '../../modules/doctors/doctor.service.js';
 import { SequenceService } from '../sequence/sequence.service.js';
 import { OpdConsultationRepository } from '../../modules/opd/opd-consultation.repository.js';
 import { OpdConsultationService } from '../../modules/opd/opd-consultation.service.js';
+import { OpdDentalExaminationRepository } from '../../modules/opd/opd-dental-examination.repository.js';
+import { OpdDentalExaminationService } from '../../modules/opd/opd-dental-examination.service.js';
 import { OpdClinicalOrderRepository } from '../../modules/opd/opd-clinical-order.repository.js';
 import { OpdClinicalOrderService } from '../../modules/opd/opd-clinical-order.service.js';
 import { OpdPrescriptionRepository } from '../../modules/opd/opd-prescription.repository.js';
@@ -89,6 +91,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const opdVisitRepository = new OpdVisitRepository();
   const opdVitalsRepository = new OpdVitalsRepository();
   const opdConsultationRepository = new OpdConsultationRepository();
+  const opdDentalExaminationRepository = new OpdDentalExaminationRepository();
   const opdClinicalOrderRepository = new OpdClinicalOrderRepository();
   const opdPrescriptionRepository = new OpdPrescriptionRepository();
   const opdFollowUpRepository = new OpdFollowUpRepository();
@@ -157,6 +160,12 @@ export const createServiceRegistry = (): ServiceRegistry => {
     opdConsultationRepository,
     patientRepository,
   );
+  const opdDentalExaminationService = new OpdDentalExaminationService(
+    opdDentalExaminationRepository,
+    opdVisitRepository,
+    opdConsultationRepository,
+    patientRepository,
+  );
   const billingService = new BillingService(
     billingRepository,
     patientRepository,
@@ -166,6 +175,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     opdClinicalOrderRepository,
     serviceRepository,
     advancePaymentService,
+    opdDentalExaminationRepository,
+    departmentRepository,
   );
 
 
@@ -203,6 +214,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       patientRepository,
       appointmentRepository,
     ),
+    opdDentalExaminations: opdDentalExaminationService,
     opdClinicalOrders: opdClinicalOrderService,
     opdPrescriptions: opdPrescriptionService,
     opdFollowUps: new OpdFollowUpService(

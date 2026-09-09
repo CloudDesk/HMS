@@ -22,12 +22,14 @@ export const billingServiceLabel: Record<BillingServiceType, string> = {
   LAB_TEST: 'Laboratory Test',
   IMAGING_SERVICE: 'Imaging Service',
   PHARMACY: 'Pharmacy',
+  PROCEDURE: 'Procedure',
 };
 
 export const billingSourceLabel: Record<BillingSourceType, string> = {
   OPD: 'OPD Encounter',
   EMERGENCY: 'Emergency Encounter',
   PROCEDURE: 'Procedure Encounter',
+  IP_ADMISSION: 'IP / Admission',
 };
 
 export const billingErrorMessage = (error: unknown) => {

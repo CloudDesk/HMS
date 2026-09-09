@@ -124,7 +124,7 @@ const invoiceItemSchema = new Schema<BillingInvoiceItemFields>(
     serviceName: { type: String, required: true, trim: true },
     serviceType: {
       type: String,
-      enum: ['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE', 'PHARMACY'],
+      enum: ['CONSULTATION', 'LAB_TEST', 'IMAGING_SERVICE', 'PHARMACY', 'PROCEDURE'],
       required: true,
     },
     originatingOrderId: { type: Schema.Types.ObjectId, default: null },
@@ -138,6 +138,18 @@ const invoiceItemSchema = new Schema<BillingInvoiceItemFields>(
 
 invoiceItemSchema.index({ invoiceId: 1, deletedAt: 1 });
 invoiceItemSchema.index({ serviceId: 1, createdAt: -1 });
+invoiceItemSchema.index(
+  { serviceType: 1, originatingOrderId: 1 },
+  {
+    name: 'procedure_originating_order_unique',
+    unique: true,
+    partialFilterExpression: {
+      serviceType: 'PROCEDURE',
+      originatingOrderId: { $type: 'objectId' },
+      deletedAt: null,
+    },
+  },
+);
 
 const paymentSchema = new Schema<BillingPaymentFields>(
   {

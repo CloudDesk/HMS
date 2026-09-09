@@ -4,7 +4,12 @@ import { executeTransaction } from '../../shared/database/transaction.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { OpdClinicalOrderRepository } from '../opd/opd-clinical-order.repository.js';
 import type { OpdConsultationRepository } from '../opd/opd-consultation.repository.js';
+import type { DepartmentRepository } from '../departments/department.repository.js';
 import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
+import type { OpdDentalExaminationRepository } from '../opd/opd-dental-examination.repository.js';
+import type { DentalTreatmentPlanItem } from '../opd/opd-dental-examination.types.js';
+import { isDentalClinicalContext } from '../opd/opd-dental-examination.service.js';
+import type { OpdVisit } from '../opd/opd-visit.types.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { ServiceRepository } from '../services/service.repository.js';
 import type { BillingRepository, CreateInvoiceRecord } from './billing.repository.js';
@@ -37,6 +42,21 @@ const sourceTypeForVisit = (visitType: string): BillingSourceType => {
   return 'OPD';
 };
 
+const dentalBillingStatuses = new Set([
+  'PROPOSED',
+  'ACCEPTED',
+  'IN_PROGRESS',
+  'COMPLETED',
+]);
+
+const isDuplicateKeyError = (error: unknown) =>
+  Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 11000,
+  );
+
 export class BillingService {
   constructor(
     private readonly repository: BillingRepository,
@@ -47,7 +67,149 @@ export class BillingService {
     private readonly clinicalOrderRepository: OpdClinicalOrderRepository,
     private readonly serviceRepository: ServiceRepository,
     private readonly advancePaymentService: AdvancePaymentService,
+    private readonly dentalExaminationRepository?: OpdDentalExaminationRepository,
+    private readonly departmentRepository?: DepartmentRepository,
   ) {}
+
+  async listDentalTreatmentBillingStates(
+    visitId: string,
+    actorUserId: string,
+  ) {
+    this.requireObjectId(visitId, 'OPD visit id is invalid');
+    const scope = await this.repository.resolveBranchScope(actorUserId);
+    const context = await this.validateDentalTreatmentContext(
+      visitId,
+      null,
+      scope,
+    );
+    const treatmentItemIds = context.examination.treatment_plan_items.flatMap(
+      (item) => (item.id ? [item.id] : []),
+    );
+    return this.repository.listDentalTreatmentBillingStates(
+      treatmentItemIds,
+      scope,
+    );
+  }
+
+  async createDentalTreatmentInvoice(
+    visitId: string,
+    treatmentItemId: string,
+    actorUserId: string,
+    metadata: BillingRequestMetadata,
+  ) {
+    this.requireObjectId(visitId, 'OPD visit id is invalid');
+    this.requireObjectId(treatmentItemId, 'Dental treatment item id is invalid');
+    const scope = await this.repository.resolveBranchScope(actorUserId);
+
+    // Resolve the item through the supplied visit before returning an idempotent
+    // result. This prevents a valid treatment-item id from being paired with a
+    // different same-branch visit to retrieve another patient's invoice.
+    await this.validateDentalTreatmentContext(
+      visitId,
+      treatmentItemId,
+      scope,
+    );
+
+    const existing = await this.repository.getInvoiceByOriginatingOrderId(
+      treatmentItemId,
+      scope,
+    );
+    if (existing) return this.getById(existing.id, actorUserId);
+
+    let invoiceId: string;
+    try {
+      invoiceId = await executeTransaction(
+        () => mongoose.startSession(),
+        async (session) => {
+          const current = await this.repository.getInvoiceByOriginatingOrderId(
+            treatmentItemId,
+            scope,
+            session,
+          );
+          if (current) return current.id;
+
+          const { visit, item, service } =
+            await this.validateDentalTreatmentContext(
+              visitId,
+              treatmentItemId,
+              scope,
+              session,
+            );
+          if (!item || !service) {
+            throw new AppError(
+              'Dental treatment billing context is incomplete',
+              409,
+              'DENTAL_BILLING_CONTEXT_INCOMPLETE',
+            );
+          }
+          const unitPrice = roundMoney(service.standard_price);
+          const created = await this.repository.createInvoice(
+            {
+              invoiceNumber: createBillingNumber('INV'),
+              patientId: visit.patient_id,
+              visitId: visit.id,
+              sourceType: sourceTypeForVisit(visit.visit_type),
+              encounterId: visit.id,
+              admissionId: null,
+              procedureId: null,
+              appointmentId: visit.appointment_id,
+              branchId: visit.branch_id,
+              invoiceDate: new Date(),
+              subtotal: unitPrice,
+              discountAmount: 0,
+              taxAmount: 0,
+              totalAmount: unitPrice,
+              balanceAmount: unitPrice,
+            },
+            [
+              {
+                serviceId: service.id,
+                serviceName: service.name,
+                serviceType: 'PROCEDURE',
+                originatingOrderId: item.id,
+                quantity: 1,
+                unitPrice,
+                lineTotal: unitPrice,
+              },
+            ],
+            actorUserId,
+            session,
+          );
+          await this.repository.audit(
+            'billing.invoice.created',
+            actorUserId,
+            metadata,
+            {
+              invoiceId: created.id,
+              invoiceNumber: created.invoice_number,
+              patientId: visit.patient_id,
+              visitId: visit.id,
+              sourceType: sourceTypeForVisit(visit.visit_type),
+              encounterId: visit.id,
+              branchId: visit.branch_id,
+              serviceId: service.id,
+              dentalTreatmentItemId: item.id,
+              totalAmount: unitPrice,
+              itemCount: 1,
+            },
+            session,
+          );
+          return created.id;
+        },
+      );
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error;
+      const concurrent =
+        await this.repository.getInvoiceByOriginatingOrderId(
+          treatmentItemId,
+          scope,
+        );
+      if (!concurrent) throw error;
+      invoiceId = concurrent.id;
+    }
+
+    return this.getById(invoiceId, actorUserId);
+  }
 
   async list(query: BillingInvoiceListQuery, actorUserId: string, session?: import('mongoose').ClientSession) {
     const scope = await this.repository.resolveBranchScope(actorUserId, query.branch_id);
@@ -388,6 +550,128 @@ export class BillingService {
       appointmentId: appointmentId ?? null,
       sourceType: sourceTypeForVisit(visit.visit_type),
     };
+  }
+
+  private async validateDentalTreatmentContext(
+    visitId: string,
+    treatmentItemId: string | null,
+    branchScope: string[] | undefined,
+    session?: import('mongoose').ClientSession,
+  ) {
+    const visit = await this.visitRepository.getById(
+      visitId,
+      branchScope,
+      session,
+    );
+    if (!visit) {
+      throw new AppError(
+        'Dental OPD visit not found',
+        404,
+        'DENTAL_VISIT_NOT_FOUND',
+      );
+    }
+
+    if (!this.dentalExaminationRepository) {
+      throw new AppError(
+        'Dental billing integration is unavailable',
+        500,
+        'DENTAL_BILLING_UNAVAILABLE',
+      );
+    }
+    if (!this.departmentRepository) {
+      throw new AppError(
+        'Dental billing integration is unavailable',
+        500,
+        'DENTAL_BILLING_UNAVAILABLE',
+      );
+    }
+    const department = await this.departmentRepository.getById(
+      visit.department_id,
+    );
+    if (!isDentalClinicalContext(visit.doctor_specialization, department)) {
+      throw new AppError(
+        'OPD visit is not associated with Dental department or specialization',
+        400,
+        'NOT_DENTAL_VISIT',
+      );
+    }
+    const examination = await this.dentalExaminationRepository.getByVisit(
+      visit.id,
+      session,
+    );
+    if (!examination) {
+      throw new AppError(
+        'Dental examination not found for this visit',
+        404,
+        'DENTAL_EXAMINATION_NOT_FOUND',
+      );
+    }
+    this.assertDentalContextIntegrity(visit, examination);
+
+    if (!treatmentItemId) return { visit, examination };
+    const item = examination.treatment_plan_items.find(
+      (candidate) => candidate.id === treatmentItemId,
+    );
+    if (!item?.id) {
+      throw new AppError(
+        'Dental treatment item not found',
+        404,
+        'DENTAL_TREATMENT_ITEM_NOT_FOUND',
+      );
+    }
+    if (!dentalBillingStatuses.has(item.status ?? 'PROPOSED')) {
+      throw new AppError(
+        'Declined or cancelled dental treatment cannot be billed',
+        409,
+        'DENTAL_TREATMENT_NOT_BILLABLE',
+      );
+    }
+    if (!item.service_id) {
+      throw new AppError(
+        'Custom dental treatment items cannot be billed through the Service Catalogue workflow',
+        409,
+        'DENTAL_SERVICE_REQUIRED',
+      );
+    }
+
+    const service = await this.serviceRepository.getActiveProcedure(
+      item.service_id,
+      session,
+    );
+    if (!service || service.department_id !== visit.department_id) {
+      throw new AppError(
+        'The linked Dental procedure is inactive, unavailable, or belongs to another department',
+        409,
+        'INVALID_DENTAL_SERVICE',
+      );
+    }
+    return { visit, examination, item, service };
+  }
+
+  private assertDentalContextIntegrity(
+    visit: OpdVisit,
+    examination: {
+      visit_id: string;
+      patient_id: string;
+      branch_id: string;
+      department_id: string;
+      doctor_id: string;
+      treatment_plan_items: DentalTreatmentPlanItem[];
+    },
+  ) {
+    if (
+      examination.visit_id !== visit.id ||
+      examination.patient_id !== visit.patient_id ||
+      examination.branch_id !== visit.branch_id ||
+      examination.department_id !== visit.department_id ||
+      examination.doctor_id !== visit.doctor_id
+    ) {
+      throw new AppError(
+        'Dental examination does not match the verified OPD visit context',
+        409,
+        'DENTAL_VISIT_CONTEXT_MISMATCH',
+      );
+    }
   }
 
   private async resolveItems(visitId: string, requestedItems: SaveBillingInvoiceItemDTO[]): Promise<ResolvedBillingItem[]> {

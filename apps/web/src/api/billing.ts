@@ -1,9 +1,21 @@
 import { apiClient } from './client';
 
 export type BillingInvoiceStatus = 'DRAFT' | 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
-export type BillingServiceType = 'CONSULTATION' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PHARMACY';
-export type BillingSourceType = 'OPD' | 'EMERGENCY' | 'PROCEDURE';
-export type ManualBillingServiceType = Exclude<BillingServiceType, 'PHARMACY'>;
+export type BillingServiceType =
+  | 'CONSULTATION'
+  | 'LAB_TEST'
+  | 'IMAGING_SERVICE'
+  | 'PHARMACY'
+  | 'PROCEDURE';
+export type BillingSourceType =
+  | 'OPD'
+  | 'EMERGENCY'
+  | 'PROCEDURE'
+  | 'IP_ADMISSION';
+export type ManualBillingServiceType = Exclude<
+  BillingServiceType,
+  'PHARMACY' | 'PROCEDURE'
+>;
 export type BillingPaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER';
 
 export type BillingInvoiceItem = {
@@ -76,6 +88,17 @@ export type BillingReceipt = {
   generated_at: string;
   payment: BillingPayment;
   invoice: BillingInvoice;
+};
+
+export type DentalTreatmentBillingState = {
+  treatment_item_id: string;
+  invoice_item_id: string;
+  invoice_id: string;
+  invoice_number: string;
+  invoice_status: BillingInvoiceStatus;
+  service_id: string;
+  service_name: string;
+  unit_price: number;
 };
 
 export type BillingInvoiceListParams = Partial<{
@@ -156,6 +179,17 @@ const queryString = (params: Record<string, unknown>) => {
 };
 
 export const billingApi = {
+  dentalTreatmentStates(visitId: string) {
+    return apiClient.request<DentalTreatmentBillingState[]>(
+      `/billing/dental/visits/${encodeURIComponent(visitId)}/treatment-items`,
+    );
+  },
+  createDentalTreatmentInvoice(visitId: string, treatmentItemId: string) {
+    return apiClient.request<BillingInvoice>(
+      `/billing/dental/visits/${encodeURIComponent(visitId)}/treatment-items/${encodeURIComponent(treatmentItemId)}/invoice`,
+      { method: 'POST', body: {} },
+    );
+  },
   list(params: BillingInvoiceListParams = {}) {
     return apiClient.request<BillingInvoiceList>(`/billing/invoices${queryString(params)}`);
   },

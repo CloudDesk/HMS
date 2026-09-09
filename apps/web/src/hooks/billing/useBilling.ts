@@ -39,7 +39,46 @@ export const billingKeys = {
   detail: (id: string) => [...billingKeys.details(), id] as const,
   payments: () => [...billingKeys.all, 'payments'] as const,
   paymentList: (id: string) => [...billingKeys.payments(), id] as const,
+  dentalTreatmentStates: (visitId: string) =>
+    [...billingKeys.all, 'dental-treatment-items', visitId] as const,
 };
+
+export function useDentalTreatmentBillingStates(
+  visitId: string | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: visitId
+      ? billingKeys.dentalTreatmentStates(visitId)
+      : [...billingKeys.all, 'dental-treatment-items'],
+    queryFn: () => billingService.dentalTreatmentStates(visitId!),
+    enabled: enabled && Boolean(visitId),
+  });
+}
+
+export function useCreateDentalTreatmentInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      visitId,
+      treatmentItemId,
+    }: {
+      visitId: string;
+      treatmentItemId: string;
+    }) =>
+      billingService.createDentalTreatmentInvoice(visitId, treatmentItemId),
+    onSuccess: async (invoice, { visitId }) => {
+      toast.success(`Invoice ${invoice.invoice_number} created.`);
+      await queryClient.invalidateQueries({
+        queryKey: billingKeys.dentalTreatmentStates(visitId),
+      });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: billingKeys.summaries() });
+      queryClient.setQueryData(billingKeys.detail(invoice.id), invoice);
+    },
+    onError: (error) => toast.error(getBillingErrorMessage(error)),
+  });
+}
 
 export function useBillingInvoices(params: BillingInvoiceListParams, enabled = true) {
   return useQuery({

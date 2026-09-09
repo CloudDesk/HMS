@@ -25,6 +25,7 @@ import {
   OpdDocumentsTab,
   OpdSummaryPanel,
   OpdClinicalVitalsModal,
+  OpdDentalExaminationTab,
 } from '../components/opd';
 import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
 import { useActiveBranch } from '../context/BranchContext';
@@ -38,6 +39,7 @@ import {
   patientInitials,
   visitStatusClass,
 } from './opd-utils';
+import { isDentalVisit, parseDentalDiagnoses } from './dental-utils';
 
 type VitalsFormState = {
   blood_pressure_systolic: string;
@@ -85,6 +87,17 @@ type PrescriptionFormState = {
 
 const WORKSPACE_TABS = [
   { id: '1', label: '1 Consultation', name: 'Consultation' },
+  { id: '2', label: '2 Diagnosis', name: 'Diagnosis' },
+  { id: '3', label: '3 Prescription', name: 'Prescription' },
+  { id: '4', label: '4 Lab Orders', name: 'Lab Orders' },
+  { id: '5', label: '5 Imaging Orders', name: 'Imaging Orders' },
+  { id: '6', label: '6 Referral', name: 'Referral' },
+  { id: '7', label: '7 Follow-up', name: 'Follow-up' },
+] as const;
+
+const DENTAL_WORKSPACE_TABS = [
+  { id: '1', label: '1 Consultation', name: 'Consultation' },
+  { id: 'dental', label: 'Dental Examination', name: 'Dental Examination' },
   { id: '2', label: '2 Diagnosis', name: 'Diagnosis' },
   { id: '3', label: '3 Prescription', name: 'Prescription' },
   { id: '4', label: '4 Lab Orders', name: 'Lab Orders' },
@@ -162,6 +175,8 @@ export function OpdVisitPage() {
   } = feature.state;
   const { setActiveTab, selectVisit } = feature.actions;
   const [updating, setUpdating] = useState('');
+  const [diagnosisTooth, setDiagnosisTooth] = useState<number | null>(null);
+  const [dentalCompleted, setDentalCompleted] = useState(false);
 
   // Clinical forms & records state
   const [vitalsForm, setVitalsForm] = useState<VitalsFormState>(emptyVitalsForm);
@@ -202,6 +217,12 @@ export function OpdVisitPage() {
     if (!referralSpecialty) return doctors;
     return doctors.filter((d) => d.specialization === referralSpecialty);
   }, [doctors, referralSpecialty]);
+
+  const isDental = useMemo(
+    () => isDentalVisit(visit, departments),
+    [visit, departments],
+  );
+  const activeWorkspaceTabs = isDental && feature.state.canViewConsultation ? DENTAL_WORKSPACE_TABS : WORKSPACE_TABS;
 
 
 
@@ -306,36 +327,93 @@ export function OpdVisitPage() {
     [services],
   );
 
+  const dentalProcedureServices = useMemo(() => {
+    return services.filter(
+      (s) =>
+        s.service_type === 'PROCEDURE' &&
+        s.status === 'ACTIVE' && s.department_id === visit?.department_id,
+    );
+  }, [services, visit?.department_id]);
+
   // Sub-tab 2: Diagnosis State
   const [dxSearchTerm, setDxSearchTerm] = useState('');
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<Icd10Diagnosis[]>([]);
 
   const filteredIcd10 = useMemo(() => {
     if (!dxSearchTerm.trim()) {
-      return ICD10_DIAGNOSES.slice(0, 8);
+      if (isDental) {
+        return ICD10_DIAGNOSES.filter((d) => d.category === 'Dental & Oral Health').slice(0, 10);
+      }
+      return ICD10_DIAGNOSES.filter((d) => d.category !== 'Dental & Oral Health').slice(0, 8);
     }
     const q = dxSearchTerm.toLowerCase();
-    return ICD10_DIAGNOSES.filter(
+    const matches = ICD10_DIAGNOSES.filter(
       (d) =>
         d.code.toLowerCase().includes(q) ||
         d.name.toLowerCase().includes(q) ||
         d.category.toLowerCase().includes(q),
     );
-  }, [dxSearchTerm]);
+    if (isDental) {
+      return matches.sort((a, b) => {
+        const aDental = a.category === 'Dental & Oral Health' ? 0 : 1;
+        const bDental = b.category === 'Dental & Oral Health' ? 0 : 1;
+        return aDental - bDental;
+      });
+    }
+    return matches;
+  }, [dxSearchTerm, isDental]);
 
   const handleAddDiagnosis = (dx: Icd10Diagnosis) => {
-    if (selectedDiagnoses.some((d) => d.code === dx.code)) return;
+    if (
+      selectedDiagnoses.some(
+        (d) =>
+          d.code === dx.code &&
+          (d.tooth_number ?? null) === (dx.tooth_number ?? null),
+      )
+    ) {
+      return;
+    }
     const next = [...selectedDiagnoses, dx];
     setSelectedDiagnoses(next);
+    const toothTag = dx.tooth_number ? ` [Tooth #${dx.tooth_number}]` : '';
+    const newLine = `${dx.code} - ${dx.name}${toothTag}`;
     setConsultationForm((prev) => ({
       ...prev,
-      assessment: prev.assessment ? `${prev.assessment}\n${dx.code} - ${dx.name}` : `${dx.code} - ${dx.name}`,
+      assessment: prev.assessment ? `${prev.assessment}\n${newLine}` : newLine,
     }));
   };
 
-  const handleRemoveDiagnosis = (code: string) => {
-    const next = selectedDiagnoses.filter((d) => d.code !== code);
+  const handleRemoveDiagnosis = (code: string, toothNumber?: number | null) => {
+    const next = selectedDiagnoses.filter(
+      (d) =>
+        !(
+          d.code === code &&
+          (toothNumber === undefined || (d.tooth_number ?? null) === (toothNumber ?? null))
+        ),
+    );
     setSelectedDiagnoses(next);
+
+    setConsultationForm((prev) => {
+      if (!prev.assessment) return prev;
+      const lines = prev.assessment.split('\n');
+      const filtered = lines.filter((line) => {
+        const hasCode = line.toLowerCase().includes(code.toLowerCase());
+        if (!hasCode) return true;
+        if (toothNumber !== undefined && toothNumber !== null) {
+          const toothMatch = line.match(/\[Tooth #(\d+)\]/i);
+          const lineTooth = toothMatch && toothMatch[1] ? parseInt(toothMatch[1], 10) : null;
+          return lineTooth !== toothNumber;
+        } else if (toothNumber === null) {
+          const toothMatch = line.match(/\[Tooth #(\d+)\]/i);
+          return Boolean(toothMatch); // Keep if it has a tooth tag; drop if general
+        }
+        return false;
+      });
+      return {
+        ...prev,
+        assessment: filtered.join('\n').trim(),
+      };
+    });
   };
 
   // Sub-tab 4: Lab Orders State
@@ -505,11 +583,9 @@ export function OpdVisitPage() {
     if (!consultation) return;
     setConsultationForm(consultationFormFromRecord(consultation));
     const assessment = consultation.assessment;
-    if (!assessment) return;
-    const matched = ICD10_DIAGNOSES.filter((diagnosis) =>
-      assessment.toLowerCase().includes(diagnosis.code.toLowerCase()) ||
-      assessment.toLowerCase().includes(diagnosis.name.toLowerCase()));
-    if (matched.length > 0) setSelectedDiagnoses(matched);
+    if (!assessment) { setSelectedDiagnoses([]); return; }
+
+    setSelectedDiagnoses(parseDentalDiagnoses(assessment));
   }, [consultation]);
 
   useEffect(() => {
@@ -953,6 +1029,8 @@ export function OpdVisitPage() {
             consultationForm.assessment.trim() ||
             consultation?.chief_complaint,
         );
+      case 'Dental Examination':
+        return isVisitCompleted;
       case 'Vitals':
         return Boolean(vitalsForm.blood_pressure_systolic.trim() || vitalsForm.pulse_bpm.trim());
       case 'Diagnosis':
@@ -1124,7 +1202,7 @@ export function OpdVisitPage() {
 
               {/* 9 Workspace Tabs Bar */}
               <div className="opd-workspace-tabs" role="tablist" aria-label="Consultation tabs">
-                {WORKSPACE_TABS.map((tab) => {
+                {activeWorkspaceTabs.map((tab) => {
                   const completed = isTabCompleted(tab.name);
                   return (
                     <button
@@ -1147,7 +1225,10 @@ export function OpdVisitPage() {
                 })}
               </div>
 
-              <fieldset disabled={isVisitCompleted} style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}>
+              <fieldset
+                disabled={isVisitCompleted && activeTab !== 'Dental Examination'}
+                style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}
+              >
                 {/* TAB 1: CONSULTATION */}
                 {activeTab === 'Consultation' ? (
                   <OpdConsultationSection
@@ -1159,15 +1240,60 @@ export function OpdVisitPage() {
                   />
                 ) : null}
 
+                {/* TAB DENTAL: DENTAL EXAMINATION */}
+                {isDental && feature.state.canViewConsultation ? (
+                  <div hidden={activeTab !== 'Dental Examination'}>
+                  <OpdDentalExaminationTab
+                    key={visit.id}
+                    visitId={visit.id}
+                    canEdit={!isVisitCompleted && feature.state.canEditConsultation}
+                    showToast={showToast}
+                    consultation={consultation}
+                    departmentServices={dentalProcedureServices}
+                    diagnoses={selectedDiagnoses}
+                    billingStates={feature.state.dentalBillingStates}
+                    billingStateLoading={feature.state.dentalBillingLoading}
+                    billingStateError={feature.state.dentalBillingError}
+                    canCreateInvoice={
+                      feature.state.billingCapabilities.canCreate &&
+                      feature.state.billingCapabilities.canView
+                    }
+                    billingTreatmentItemPending={feature.state.billingTreatmentItemPending}
+                    onCreateInvoice={async (treatmentItemId) => {
+                      const invoice = await feature.actions.createDentalTreatmentInvoice(
+                        treatmentItemId,
+                      );
+                      navigate(`/billing/workspace?id=${invoice.id}`);
+                    }}
+                    onOpenInvoice={(invoiceId) =>
+                      navigate(`/billing/workspace?id=${invoiceId}`)
+                    }
+                    onCompletedChange={setDentalCompleted}
+                    onSaveDiagnosis={async () => {
+                      if (consultationForm.assessment.trim() !== (consultation?.assessment?.trim() ?? '')) {
+                        await feature.actions.saveDentalDiagnosis(consultationForm.assessment);
+                      }
+                    }}
+                    onOpenDiagnosis={(tooth) => {
+                      setDiagnosisTooth(tooth);
+                      setActiveTab('Diagnosis');
+                      navigate(`/opd/consultation?id=${visit.id}&tab=Diagnosis`, { replace: true });
+                    }}
+                  />
+                  </div>
+                ) : null}
+
                 {/* TAB 2: DIAGNOSIS */}
                 {activeTab === 'Diagnosis' ? (
                   <OpdDiagnosisTab
+                    initialTooth={diagnosisTooth}
                     assessment={consultationForm.assessment}
-                    canEdit={!isVisitCompleted && feature.state.canEditConsultation}
+                    canEdit={!isVisitCompleted && !(isDental && dentalCompleted) && feature.state.canEditConsultation}
                     dxSearchTerm={dxSearchTerm}
                     filteredIcd10={filteredIcd10}
                     handleAddDiagnosis={handleAddDiagnosis}
                     handleRemoveDiagnosis={handleRemoveDiagnosis}
+                    isDental={isDental}
                     onAssessmentChange={(val) => setConsultationForm((c) => ({ ...c, assessment: val }))}
                     onNext={() => handleNextStep('Prescription')}
                     onSaveDraft={saveConsultationDraft}

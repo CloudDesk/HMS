@@ -12,7 +12,18 @@ const testState = vi.hoisted(() => {
 
   return {
     calls,
-    search: '?id=visit-1',
+    search: '?id=visit-1&tab=Dental Examination',
+    visit: {
+      id: 'visit-1',
+      patient_id: 'patient-1',
+      branch_id: 'branch-1',
+      department_id: 'dept-cardio',
+      doctor_specialization: 'Cardiology',
+    },
+    departments: [
+      { id: 'dept-cardio', code: 'CARD', name: 'Cardiology' },
+    ],
+    dentalBillingEnabled: [] as boolean[],
     visitError: null as Error | null,
     saveConsultationDraft: track('save-consultation'),
     savePrescriptionDraft: track('save-prescription'),
@@ -52,12 +63,32 @@ vi.mock('../branches/useBranches', () => ({
 }));
 
 vi.mock('../departments/useDepartments', () => ({
-  useDepartmentsList: () => ({ data: { data: [] } }),
+  useDepartmentsList: () => ({ data: { data: testState.departments } }),
+}));
+
+vi.mock('../billing/useBillingFeature', () => ({
+  useBillingCapabilities: () => ({ canView: true, canCreateInvoice: false }),
+}));
+
+vi.mock('../billing/useBilling', () => ({
+  useDentalTreatmentBillingStates: (_visitId: string | null, enabled: boolean) => {
+    testState.dentalBillingEnabled.push(enabled);
+    return ({
+    data: { data: [] },
+    isLoading: false,
+    error: null,
+    });
+  },
+  useCreateDentalTreatmentInvoice: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    variables: undefined,
+  }),
 }));
 
 vi.mock('./useOpdWorkspace', () => ({
   useOpdWorkspace: () => ({
-    visit: { id: 'visit-1', patient_id: 'patient-1', branch_id: 'branch-1' },
+    visit: testState.visit,
     vitals: null,
     consultation: null,
     prescription: null,
@@ -106,6 +137,17 @@ describe('useOpdVisitFeature', () => {
     testState.calls.length = 0;
     testState.visitError = null;
     testState.navigate.mockReset();
+    testState.visit = {
+      id: 'visit-1',
+      patient_id: 'patient-1',
+      branch_id: 'branch-1',
+      department_id: 'dept-cardio',
+      doctor_specialization: 'Cardiology',
+    };
+    testState.departments = [
+      { id: 'dept-cardio', code: 'CARD', name: 'Cardiology' },
+    ];
+    testState.dentalBillingEnabled.length = 0;
     for (const mutation of [
       testState.saveConsultationDraft,
       testState.savePrescriptionDraft,
@@ -133,6 +175,10 @@ describe('useOpdVisitFeature', () => {
     expect(feature?.state.patient?.id).toBe('patient-1');
     expect(feature?.state.loading).toBe(false);
     expect(feature?.state.loadError).toBe('');
+  });
+
+  it('does not query Dental billing state for a non-Dental visit', () => {
+    expect(testState.dentalBillingEnabled.at(-1)).toBe(false);
   });
 
   it('preserves draft payloads and workflow order', async () => {

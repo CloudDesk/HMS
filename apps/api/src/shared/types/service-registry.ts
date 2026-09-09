@@ -8,6 +8,7 @@ import type { DepartmentService } from '../../modules/departments/department.ser
 import type { AppointmentService } from '../../modules/appointments/appointment.service.js';
 import type { DoctorService } from '../../modules/doctors/doctor.service.js';
 import type { OpdConsultationService } from '../../modules/opd/opd-consultation.service.js';
+import type { OpdDentalExaminationService } from '../../modules/opd/opd-dental-examination.service.js';
 import type { OpdClinicalOrderService } from '../../modules/opd/opd-clinical-order.service.js';
 import type { OpdPrescriptionService } from '../../modules/opd/opd-prescription.service.js';
 import type { OpdFollowUpService } from '../../modules/opd/opd-follow-up.service.js';
@@ -52,6 +53,7 @@ export type ServiceRegistry = {
   opdVisits: OpdVisitService;
   opdVitals: OpdVitalsService;
   opdConsultations: OpdConsultationService;
+  opdDentalExaminations: OpdDentalExaminationService;
   opdClinicalOrders: OpdClinicalOrderService;
   opdPrescriptions: OpdPrescriptionService;
   opdFollowUps: OpdFollowUpService;

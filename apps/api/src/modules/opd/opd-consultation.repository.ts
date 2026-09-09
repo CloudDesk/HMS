@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { OpdConsultationModel, type OpdConsultationFields } from './opd-consultation.model.js';
 import type { OpdConsultation, SaveOpdConsultationDTO } from './opd-consultation.types.js';
 import type { OpdVisit } from './opd-visit.types.js';
@@ -44,14 +44,24 @@ const toConsultation = (consultation: OpdConsultationLean): OpdConsultation => (
 });
 
 const buildUpdatePayload = (data: SaveOpdConsultationRecord, userId: string) => ({
-  ...(data.chief_complaint !== undefined ? { chiefComplaint: nullableString(data.chief_complaint) } : {}),
-  ...(data.history_present_illness !== undefined ? { historyPresentIllness: nullableString(data.history_present_illness) } : {}),
+  ...(data.chief_complaint !== undefined
+    ? { chiefComplaint: nullableString(data.chief_complaint) }
+    : {}),
+  ...(data.history_present_illness !== undefined
+    ? { historyPresentIllness: nullableString(data.history_present_illness) }
+    : {}),
   ...(data.past_history !== undefined ? { pastHistory: nullableString(data.past_history) } : {}),
-  ...(data.family_history !== undefined ? { familyHistory: nullableString(data.family_history) } : {}),
+  ...(data.family_history !== undefined
+    ? { familyHistory: nullableString(data.family_history) }
+    : {}),
   ...(data.allergies !== undefined ? { allergies: nullableString(data.allergies) } : {}),
-  ...(data.physical_examination !== undefined ? { physicalExamination: nullableString(data.physical_examination) } : {}),
+  ...(data.physical_examination !== undefined
+    ? { physicalExamination: nullableString(data.physical_examination) }
+    : {}),
   ...(data.assessment !== undefined ? { assessment: nullableString(data.assessment) } : {}),
-  ...(data.treatment_plan !== undefined ? { treatmentPlan: nullableString(data.treatment_plan) } : {}),
+  ...(data.treatment_plan !== undefined
+    ? { treatmentPlan: nullableString(data.treatment_plan) }
+    : {}),
   ...(data.doctor_notes !== undefined ? { doctorNotes: nullableString(data.doctor_notes) } : {}),
   ...(data.status ? { status: data.status } : {}),
   ...(data.completedAt !== undefined ? { completedAt: data.completedAt } : {}),
@@ -59,16 +69,22 @@ const buildUpdatePayload = (data: SaveOpdConsultationRecord, userId: string) => 
 });
 
 export class OpdConsultationRepository {
-  async getByVisit(visitId: string): Promise<OpdConsultation | null> {
+  async getByVisit(visitId: string, session?: ClientSession): Promise<OpdConsultation | null> {
     const consultation = await OpdConsultationModel.findOne({
       visitId: requiredObjectId(visitId),
       deletedAt: null,
-    }).lean<OpdConsultationLean>();
+    })
+      .session(session ?? null)
+      .lean<OpdConsultationLean>();
 
     return consultation ? toConsultation(consultation) : null;
   }
 
-  async saveForVisit(data: SaveOpdConsultationRecord, userId: string): Promise<OpdConsultation> {
+  async saveForVisit(
+    data: SaveOpdConsultationRecord,
+    userId: string,
+    session?: ClientSession,
+  ): Promise<OpdConsultation> {
     const consultation = await OpdConsultationModel.findOneAndUpdate(
       { visitId: requiredObjectId(data.visit.id), deletedAt: null },
       {
@@ -83,7 +99,7 @@ export class OpdConsultationRepository {
           createdBy: requiredObjectId(userId),
         },
       },
-      { lean: true, returnDocument: 'after', upsert: true },
+      { lean: true, returnDocument: 'after', upsert: true, session },
     ).lean<OpdConsultationLean>();
 
     if (!consultation) {

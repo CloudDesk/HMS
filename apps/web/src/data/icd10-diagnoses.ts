@@ -2,9 +2,62 @@ export type Icd10Diagnosis = {
   code: string;
   name: string;
   category: string;
+  tooth_number?: number | null;
+  is_primary?: boolean;
+  notes?: string | null;
 };
 
+export function isDentalIcd10(code: string): boolean {
+  return /^K0[0-8]|^K1[2-4]/i.test(code.trim());
+}
+
 export const ICD10_DIAGNOSES: Icd10Diagnosis[] = [
+  // Dental & Oral Health (ICD-10 K00–K14)
+  { code: 'K02.9', name: 'Dental caries, unspecified', category: 'Dental & Oral Health' },
+  { code: 'K02.51', name: 'Dental caries on pit and fissure surface penetrating into dentin', category: 'Dental & Oral Health' },
+  { code: 'K02.61', name: 'Dental caries on smooth surface penetrating into dentin', category: 'Dental & Oral Health' },
+  { code: 'K02.3', name: 'Arrested dental caries', category: 'Dental & Oral Health' },
+  { code: 'K04.01', name: 'Reversible pulpitis', category: 'Dental & Oral Health' },
+  { code: 'K04.02', name: 'Irreversible pulpitis', category: 'Dental & Oral Health' },
+  { code: 'K04.1', name: 'Necrosis of pulp (Non-vital tooth)', category: 'Dental & Oral Health' },
+  { code: 'K04.4', name: 'Acute apical periodontitis of pulpal origin', category: 'Dental & Oral Health' },
+  { code: 'K04.5', name: 'Chronic apical periodontitis (Periapical granuloma)', category: 'Dental & Oral Health' },
+  { code: 'K04.7', name: 'Periapical abscess without sinus', category: 'Dental & Oral Health' },
+  { code: 'K04.6', name: 'Periapical abscess with sinus', category: 'Dental & Oral Health' },
+  { code: 'K05.00', name: 'Acute gingivitis, plaque induced', category: 'Dental & Oral Health' },
+  { code: 'K05.10', name: 'Chronic gingivitis, plaque induced', category: 'Dental & Oral Health' },
+  { code: 'K05.20', name: 'Aggressive periodontitis, unspecified', category: 'Dental & Oral Health' },
+  { code: 'K05.30', name: 'Chronic periodontitis, unspecified', category: 'Dental & Oral Health' },
+  { code: 'K05.311', name: 'Chronic periodontitis, localized, slight', category: 'Dental & Oral Health' },
+  { code: 'K05.312', name: 'Chronic periodontitis, localized, moderate', category: 'Dental & Oral Health' },
+  { code: 'K05.313', name: 'Chronic periodontitis, localized, severe', category: 'Dental & Oral Health' },
+  { code: 'K05.321', name: 'Chronic periodontitis, generalized, slight', category: 'Dental & Oral Health' },
+  { code: 'K05.322', name: 'Chronic periodontitis, generalized, moderate', category: 'Dental & Oral Health' },
+  { code: 'K05.323', name: 'Chronic periodontitis, generalized, severe', category: 'Dental & Oral Health' },
+  { code: 'K03.0', name: 'Excessive attrition of teeth', category: 'Dental & Oral Health' },
+  { code: 'K03.1', name: 'Abrasion of teeth (Cervical / Wedge defect)', category: 'Dental & Oral Health' },
+  { code: 'K03.2', name: 'Erosion of teeth (Acid erosion)', category: 'Dental & Oral Health' },
+  { code: 'K03.81', name: 'Cracked tooth / Enamel infraction', category: 'Dental & Oral Health' },
+  { code: 'K01.1', name: 'Impacted teeth (Third molar / Canine)', category: 'Dental & Oral Health' },
+  { code: 'K00.6', name: 'Disturbances in tooth eruption (Delayed / Premature)', category: 'Dental & Oral Health' },
+  { code: 'K00.0', name: 'Anodontia / Hypodontia (Congenitally missing teeth)', category: 'Dental & Oral Health' },
+  { code: 'K06.0', name: 'Gingival recession (Localized / Generalized)', category: 'Dental & Oral Health' },
+  { code: 'K06.1', name: 'Gingival enlargement / Hyperplasia', category: 'Dental & Oral Health' },
+  { code: 'K07.20', name: 'Malocclusion, unspecified', category: 'Dental & Oral Health' },
+  { code: 'K07.21', name: "Angle's Class I malocclusion (Crowding / Spacing)", category: 'Dental & Oral Health' },
+  { code: 'K07.22', name: "Angle's Class II malocclusion (Overjet / Distocclusion)", category: 'Dental & Oral Health' },
+  { code: 'K07.23', name: "Angle's Class III malocclusion (Prognathism / Mesiocclusion)", category: 'Dental & Oral Health' },
+  { code: 'K07.60', name: 'Temporomandibular joint disorder (TMJ), unspecified', category: 'Dental & Oral Health' },
+  { code: 'K08.3', name: 'Retained dental root (Gross root piece)', category: 'Dental & Oral Health' },
+  { code: 'K08.10', name: 'Complete loss of teeth, unspecified cause', category: 'Dental & Oral Health' },
+  { code: 'K08.409', name: 'Partial loss of teeth, unspecified cause', category: 'Dental & Oral Health' },
+  { code: 'K12.0', name: 'Recurrent aphthous stomatitis (Canker sores)', category: 'Dental & Oral Health' },
+  { code: 'K12.1', name: 'Other forms of stomatitis / Oral mucositis', category: 'Dental & Oral Health' },
+  { code: 'K13.0', name: 'Diseases of lips (Cheilitis / Angular cheilitis)', category: 'Dental & Oral Health' },
+  { code: 'K13.21', name: 'Leukoplakia of oral mucosa', category: 'Dental & Oral Health' },
+  { code: 'K13.22', name: 'Oral submucous fibrosis (OSMF)', category: 'Dental & Oral Health' },
+  { code: 'K14.0', name: 'Glossitis', category: 'Dental & Oral Health' },
+  { code: 'K14.1', name: 'Geographic tongue', category: 'Dental & Oral Health' },
   // Gastroenterology
   { code: 'K21.9', name: 'Gastro-esophageal reflux disease without esophagitis', category: 'Gastroenterology' },
   { code: 'K21.0', name: 'Gastro-esophageal reflux disease with esophagitis', category: 'Gastroenterology' },

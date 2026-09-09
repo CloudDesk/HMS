@@ -12,6 +12,9 @@ import {
   parseUpdateBillingInvoiceBody,
   parseAdmissionContextBody,
   parseProcedureContextBody,
+  parseDentalBillingVisitParams,
+  parseDentalTreatmentInvoiceParams,
+  parseEmptyBillingActionBody,
 } from './billing.schemas.js';
 
 const metadata = (request: FastifyRequest) => ({
@@ -20,6 +23,39 @@ const metadata = (request: FastifyRequest) => ({
 });
 
 export const registerBillingRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.get(
+    '/api/billing/dental/visits/:visitId/treatment-items',
+    { preHandler: requirePermission(services, 'Billing', 'Invoices', 'View') },
+    async (request) => {
+      const params = parseDentalBillingVisitParams(request.params);
+      return ok(
+        await services.billing.listDentalTreatmentBillingStates(
+          params.visitId,
+          request.user!.id,
+        ),
+      );
+    },
+  );
+
+  app.post(
+    '/api/billing/dental/visits/:visitId/treatment-items/:treatmentItemId/invoice',
+    { preHandler: requirePermission(services, 'Billing', 'Invoices', 'Create') },
+    async (request, reply) => {
+      const params = parseDentalTreatmentInvoiceParams(request.params);
+      parseEmptyBillingActionBody(request.body);
+      return reply.status(201).send(
+        ok(
+          await services.billing.createDentalTreatmentInvoice(
+            params.visitId,
+            params.treatmentItemId,
+            request.user!.id,
+            metadata(request),
+          ),
+        ),
+      );
+    },
+  );
+
   app.get(
     '/api/billing/invoices',
     { preHandler: requirePermission(services, 'Billing', 'Invoices', 'View') },

@@ -13,13 +13,20 @@ import type { UploadPatientDocumentPayload } from '../../api/patients';
 import { navigate, useAppLocation } from '../../routing/navigation';
 import { useBranchesList } from '../branches/useBranches';
 import { useDepartmentsList } from '../departments/useDepartments';
+import { useBillingCapabilities } from '../billing/useBillingFeature';
+import {
+  useCreateDentalTreatmentInvoice,
+  useDentalTreatmentBillingStates,
+} from '../billing/useBilling';
 import { usePatientDetails } from '../patients/usePatients';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
+import { isDentalVisit } from '../../pages/dental-utils';
 import { useCallNextOpdPatient, useOpdVisits } from './useOpd';
 import { useOpdWorkspace } from './useOpdWorkspace';
 
 const WORKSPACE_TABS = [
   { id: '1', label: '1 Consultation', name: 'Consultation' },
+  { id: 'dental', label: 'Dental Examination', name: 'Dental Examination' },
   { id: '2', label: '2 Diagnosis', name: 'Diagnosis' },
   { id: '3', label: '3 Prescription', name: 'Prescription' },
   { id: '4', label: '4 Lab Orders', name: 'Lab Orders' },
@@ -56,6 +63,21 @@ export function useOpdVisitFeature() {
   });
 
   const workspace = useOpdWorkspace(activeVisitId || null);
+  const branchesQuery = useBranchesList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
+  const departmentsQuery = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
+  const dentalVisit = isDentalVisit(
+    workspace.visit,
+    departmentsQuery.data?.data ?? [],
+  );
+  const billingCapabilities = useBillingCapabilities();
+  const dentalBillingQuery = useDentalTreatmentBillingStates(
+    activeVisitId || null,
+    activeTab === 'Dental Examination' &&
+      dentalVisit &&
+      workspace.canViewConsultation &&
+      billingCapabilities.canView,
+  );
+  const createDentalInvoice = useCreateDentalTreatmentInvoice();
 
   // In Consultation Workspace, only in-consultation and completed visits are valid for active review/switching
   const recentVisitsQuery = useOpdVisits({ limit: 20, sortBy: 'created_at', sortOrder: 'desc' });
@@ -74,8 +96,6 @@ export function useOpdVisitFeature() {
   }, [activeVisitId, recentVisits]);
 
   const patientQuery = usePatientDetails(workspace.visit?.patient_id ?? null);
-  const branchesQuery = useBranchesList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
-  const departmentsQuery = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
   const callNextPatient = useCallNextOpdPatient({ notifyOnError: false });
 
   const masterMedicines = useMemo(() => {
@@ -152,8 +172,8 @@ export function useOpdVisitFeature() {
   };
 
   const selectVisit = (visitId: string) => {
+    if (!navigate(`/opd/consultation?id=${encodeURIComponent(visitId)}`)) return;
     setActiveVisitId(visitId);
-    navigate(`/opd/consultation?id=${encodeURIComponent(visitId)}`);
   };
 
   const refetchVisit = async () => {
@@ -184,11 +204,22 @@ export function useOpdVisitFeature() {
       loadError: workspace.visitError ? getOpdErrorMessage(workspace.visitError) : '',
       updating: workspace.isUpdating || callNextPatient.isPending,
       canEditConsultation: workspace.canEditConsultation,
+      canViewConsultation: workspace.canViewConsultation,
       canEditPrescription: workspace.canEditPrescription,
       canEditClinicalOrders: workspace.canEditClinicalOrders,
       canEditReferral: workspace.canEditReferral,
       canEditFollowUp: workspace.canEditFollowUp,
       canCreateVitals: workspace.canCreateVitals,
+      billingCapabilities,
+      dentalBillingStates: dentalBillingQuery.data ?? [],
+      dentalBillingLoading: dentalBillingQuery.isLoading,
+      dentalBillingError: dentalBillingQuery.error
+        ? getOpdErrorMessage(dentalBillingQuery.error)
+        : '',
+      billingTreatmentItemPending:
+        createDentalInvoice.isPending
+          ? createDentalInvoice.variables?.treatmentItemId ?? null
+          : null,
     },
     actions: {
       setActiveTab,
@@ -198,6 +229,10 @@ export function useOpdVisitFeature() {
       submitReferral: workspace.mutations.submitReferral,
       scheduleFollowUp: workspace.mutations.scheduleFollowUp,
       saveWorkspaceDraft,
+      saveDentalDiagnosis: async (assessment: string) => {
+        if (!workspace.visit || !workspace.canEditConsultation) throw new Error('Consultation editing is unavailable');
+        await workspace.mutations.saveConsultationDraft({ visitId: workspace.visit.id, payload: { assessment: assessment.trim() || null } });
+      },
       submitPrescription: workspace.mutations.submitPrescription,
       submitClinicalOrder: (
         type: ApiClinicalOrderType,
@@ -211,6 +246,15 @@ export function useOpdVisitFeature() {
       deleteDocument: (patientId: string, documentId: string) =>
         workspace.mutations.deleteDocument({ id: patientId, documentId }),
       callNextPatient: (visitId: string) => callNextPatient.mutateAsync(visitId),
+      createDentalTreatmentInvoice: (treatmentItemId: string) => {
+        if (!workspace.visit) {
+          throw new Error('Dental OPD visit is unavailable');
+        }
+        return createDentalInvoice.mutateAsync({
+          visitId: workspace.visit.id,
+          treatmentItemId,
+        });
+      },
     },
   };
 }

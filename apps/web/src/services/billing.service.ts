@@ -9,6 +9,9 @@ import {
 } from '../api/billing';
 
 export const billingService = {
+  dentalTreatmentStates: (visitId: string) => billingApi.dentalTreatmentStates(visitId),
+  createDentalTreatmentInvoice: (visitId: string, treatmentItemId: string) =>
+    billingApi.createDentalTreatmentInvoice(visitId, treatmentItemId),
   list: (params: BillingInvoiceListParams = {}) => billingApi.list(params),
   summary: (params: Pick<BillingInvoiceListParams, 'branch_id' | 'date_from' | 'date_to'> = {}) =>
     billingApi.summary(params),

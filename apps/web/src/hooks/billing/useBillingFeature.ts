@@ -15,6 +15,7 @@ import { useBranchesList } from '../branches/useBranches';
 import type { BillingInvoiceListParams } from '../../api/billing';
 
 export type BillingCapabilities = {
+  canView: boolean;
   canCreate: boolean;
   canEdit: boolean;
   canCancel: boolean;
@@ -41,6 +42,7 @@ export function useBillingCapabilities(): BillingCapabilities {
 
   return {
     isSuperAdmin,
+    canView: hasBillingAction('View'),
     canCreate: hasBillingAction('Create'),
     canEdit: hasBillingAction('Edit'),
     canCancel: hasBillingAction('Cancel'),

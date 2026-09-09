@@ -14,8 +14,10 @@ const getLocation = (): AppLocation => ({
 
 export const navigate = (to: string, options: { replace?: boolean } = {}) => {
   if (window.location.pathname + window.location.search === to) {
-    return;
+    return true;
   }
+
+  if (!window.dispatchEvent(new CustomEvent('hms:before-navigation', { cancelable: true, detail: { to } }))) return false;
 
   if (options.replace) {
     window.history.replaceState(null, '', to);
@@ -24,6 +26,7 @@ export const navigate = (to: string, options: { replace?: boolean } = {}) => {
   }
 
   window.dispatchEvent(new Event(navigationEvent));
+  return true;
 };
 
 export const isPublicRoute = (pathname: string) =>

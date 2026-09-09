@@ -238,12 +238,18 @@ export class OpdVisitRepository {
     }, follow_ups: row?.followUps ?? 0, walk_ins: row?.walkIns ?? 0, urgent: row?.urgent ?? 0 };
   }
 
-  async getById(id: string, branchIds?: string[]): Promise<OpdVisit | undefined> {
-    const visit = await OpdVisitModel.findOne({
+  async getById(
+    id: string,
+    branchIds?: string[],
+    session?: ClientSession,
+  ): Promise<OpdVisit | undefined> {
+    const query = OpdVisitModel.findOne({
       _id: id,
       deletedAt: null,
       ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}),
     }).lean<OpdVisitLean>();
+    if (session) query.session(session);
+    const visit = await query;
     return visit ? toVisit(visit) : undefined;
   }
 
@@ -296,7 +302,7 @@ export class OpdVisitRepository {
     return toVisit(created.toObject<OpdVisitLean>());
   }
 
-  async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string, branchIds?: string[]): Promise<OpdVisit | undefined> {
+  async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string, branchIds?: string[], session?: ClientSession): Promise<OpdVisit | undefined> {
     const visit = await OpdVisitModel.findOneAndUpdate(
       { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}) },
       {
@@ -306,7 +312,7 @@ export class OpdVisitRepository {
           updatedBy: optionalObjectId(userId),
         },
       },
-      { returnDocument: 'after', lean: true },
+      { returnDocument: 'after', lean: true, session },
     ).lean<OpdVisitLean>();
 
     return visit ? toVisit(visit) : undefined;

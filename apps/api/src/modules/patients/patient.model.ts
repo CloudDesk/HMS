@@ -208,6 +208,7 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
         'OPD_VISIT_STATUS_UPDATED',
         'VITALS_RECORDED',
         'OPD_CONSULTATION_COMPLETED',
+        'OPD_DENTAL_EXAMINATION_COMPLETED',
         'OPD_PRESCRIPTION_SUBMITTED',
         'OPD_LAB_ORDER_SUBMITTED',
         'OPD_IMAGING_ORDER_SUBMITTED',

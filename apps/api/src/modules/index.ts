@@ -11,6 +11,7 @@ import { registerBranchRoutes } from './branches/branch.routes.js';
 import { registerDepartmentRoutes } from './departments/department.routes.js';
 import { registerDoctorRoutes } from './doctors/doctor.routes.js';
 import { registerOpdConsultationRoutes } from './opd/opd-consultation.routes.js';
+import { registerOpdDentalExaminationRoutes } from './opd/opd-dental-examination.routes.js';
 import { registerOpdClinicalOrderRoutes } from './opd/opd-clinical-order.routes.js';
 import { registerOpdPrescriptionRoutes } from './opd/opd-prescription.routes.js';
 import { registerOpdFollowUpRoutes } from './opd/opd-follow-up.routes.js';
@@ -59,6 +60,7 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerOpdVisitRoutes(app, services);
   await registerOpdVitalsRoutes(app, services);
   await registerOpdConsultationRoutes(app, services);
+  await registerOpdDentalExaminationRoutes(app, services);
   await registerOpdClinicalOrderRoutes(app, services);
   await registerOpdPrescriptionRoutes(app, services);
   await registerOpdFollowUpRoutes(app, services);
