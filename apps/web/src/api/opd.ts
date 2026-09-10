@@ -296,7 +296,7 @@ export type SaveOpdDentalExaminationPayload = {
   treatment_plan_items?: DentalTreatmentPlanItem[];
 };
 
-export type ApiOpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED' | 'DISPENSED';
+export type ApiOpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED' | 'DISPENSED' | 'CANCELLED';
 
 export type OpdPrescriptionItemResponse = {
   id: string;
@@ -307,8 +307,8 @@ export type OpdPrescriptionItemResponse = {
   frequency: string;
   duration: string;
   quantity: number | null;
-  intake_time: string | null;
-  instructions: string | null;
+  intake_time?: string | null;
+  instructions?: string | null;
 };
 
 export type OpdPrescriptionResponse = {
@@ -332,17 +332,24 @@ export type OpdPrescriptionResponse = {
   updated_at: string;
 };
 
-export type SaveOpdPrescriptionItemPayload = Omit<OpdPrescriptionItemResponse, 'id'>;
-
 export type SaveOpdPrescriptionPayload = {
-  items: SaveOpdPrescriptionItemPayload[];
+  items: Omit<OpdPrescriptionItemResponse, 'id'>[];
   follow_up_date?: string | null;
   doctor_instructions?: string | null;
   patient_instructions?: string | null;
 };
 
 export type ApiClinicalOrderType = 'LABORATORY' | 'IMAGING';
-export type ApiClinicalOrderStatus = 'DRAFT' | 'SUBMITTED' | 'RECEIVED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'RESULT_ENTERED' | 'REPORT_ENTERED' | 'VERIFIED' | 'COMPLETED';
+export type ApiClinicalOrderStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RECEIVED'
+  | 'SAMPLE_COLLECTED'
+  | 'IN_PROGRESS'
+  | 'RESULT_ENTERED'
+  | 'REPORT_ENTERED'
+  | 'VERIFIED'
+  | 'COMPLETED';
 export type ApiClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
 
 export type OpdClinicalOrderItemResponse = {
@@ -351,12 +358,14 @@ export type OpdClinicalOrderItemResponse = {
   service_name: string;
   investigation_name: string;
   category: string;
+  tooth_number?: number | null;
 };
 
 export type OpdClinicalOrderResponse = {
   id: string;
-  visit_id: string;
-  consultation_id: string;
+  originating_order_id: string;
+  visit_id: string | null;
+  consultation_id: string | null;
   patient_id: string;
   patient_number: string;
   patient_name: string;
@@ -382,18 +391,13 @@ export type SaveOpdClinicalOrderPayload = {
   priority: ApiClinicalOrderPriority;
   destination?: string | null;
   specimen_type?: string | null;
-  items: Array<{ service_id: string; investigation_name: string; category: string }>;
+  items: Omit<OpdClinicalOrderItemResponse, 'id' | 'service_name'>[];
   clinical_notes?: string | null;
   instructions?: string | null;
 };
 
 export type ApiOpdFollowUpStatus = 'DRAFT' | 'SCHEDULED';
-export type ApiOpdFollowUpType =
-  | 'CLINICAL_REVIEW'
-  | 'MEDICATION_REVIEW'
-  | 'LAB_REVIEW'
-  | 'IMAGING_REVIEW'
-  | 'REFERRAL_REVIEW';
+export type ApiOpdFollowUpType = 'CLINICAL_REVIEW' | 'MEDICATION_REVIEW' | 'LAB_REVIEW' | 'IMAGING_REVIEW' | 'REFERRAL_REVIEW';
 export type ApiOpdFollowUpReminderType = 'SMS' | 'EMAIL' | 'NONE';
 
 export type OpdFollowUpResponse = {

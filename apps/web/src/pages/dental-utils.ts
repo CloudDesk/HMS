@@ -11,6 +11,36 @@ import type {
 export const DENTAL_KEYWORDS_REGEX =
   /dental|dentist|dentistry|orthodont|endodont|periodont|pedodont|prosthodont|oral/i;
 
+export const DENTAL_IMAGING_KEYWORDS_REGEX =
+  /iopa|bitewing|bite[ -]?wing|opg|orthopantomogram|cbct|cone beam|cephalometric|cephalogram|dental|periapical|rvg|radiovisiography|occlusal view/i;
+
+export const DENTAL_LAB_KEYWORDS_REGEX =
+  /cbc|complete blood|hemogram|pt[/ -]?inr|prothrombin|bleeding time|clotting time|bt[/ -]?ct|glucose|rbs|fbs|hba1c|biopsy|histopathol|oral smear|culture/i;
+
+export const DENTAL_MEDICATION_KEYWORDS_REGEX =
+  /amoxicillin|amox|clavulan|metronidazole|ciprofloxacin|doxycycline|azithromycin|paracetamol|acetaminophen|ibuprofen|ketorolac|diclofenac|tramadol|aceclofenac|chlorhexidine|povidone|mouthwash|rinse|clotrimazole|miconazole|nystatin|fluconazole|triamcinolone|orabase|choline salicylate|lignocaine|lidocaine|benzocaine/i;
+
+export function isDentalMedication(med: { name: string; category?: string | null }): boolean {
+  return (
+    DENTAL_MEDICATION_KEYWORDS_REGEX.test(med.name) ||
+    Boolean(med.category && DENTAL_MEDICATION_KEYWORDS_REGEX.test(med.category))
+  );
+}
+
+export function isDentalImagingService(service: { name: string; category?: string | null }): boolean {
+  return (
+    DENTAL_IMAGING_KEYWORDS_REGEX.test(service.name) ||
+    Boolean(service.category && DENTAL_IMAGING_KEYWORDS_REGEX.test(service.category))
+  );
+}
+
+export function isDentalLabService(service: { name: string; category?: string | null }): boolean {
+  return (
+    DENTAL_LAB_KEYWORDS_REGEX.test(service.name) ||
+    Boolean(service.category && DENTAL_LAB_KEYWORDS_REGEX.test(service.category))
+  );
+}
+
 export function isDentalVisit(
   visit: OpdVisitResponse | null | undefined,
   departments: DepartmentResponse[] = [],

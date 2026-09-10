@@ -20,6 +20,7 @@ export type ClinicalOrderItem = {
   service_name: string;
   investigation_name: string;
   category: string;
+  tooth_number?: number | null;
 };
 
 export type OpdClinicalOrder = {

@@ -1080,6 +1080,9 @@ describe('Dental OPD Consultation Foundation - Backend Tests', () => {
       expect(auditLogs).toHaveLength(1);
       expect(auditLogs[0].metadataJson?.patientId).toBe(patientId);
       expect(auditLogs[0].metadataJson?.visitId).toBe(dentalVisitId);
+      expect(auditLogs[0].metadataJson?.branchId).toBe(branchId);
+      expect(auditLogs[0].metadataJson?.departmentId).toBe(dentalDeptId);
+      expect(auditLogs[0].metadataJson?.doctorId).toBe(doctorDocId);
       expect(auditLogs[0].metadataJson?.teeth).toBeUndefined();
 
       const putAfterComplete = await app.inject({
@@ -1256,6 +1259,70 @@ describe('Dental OPD Consultation Foundation - Backend Tests', () => {
 
       expect(putRes.statusCode).toBe(400);
       expect(putRes.json().error?.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('rejects malformed, duplicate, and foreign treatment item identifiers', async () => {
+      const headers = { authorization: `Bearer ${dentistToken}` };
+      const url = `/api/opd/visits/${freshDentalVisitId}/dental-examination`;
+      const malformed = await app.inject({
+        method: 'PUT',
+        url,
+        headers,
+        payload: {
+          treatment_plan_items: [{ id: 'not-an-object-id', procedure_name: 'Filling' }],
+        },
+      });
+      expect(malformed.statusCode).toBe(400);
+      expect(malformed.json().error?.code).toBe('VALIDATION_ERROR');
+
+      const foreign = await dentalService.saveDraft(
+        dentalVisitId,
+        {
+          treatment_plan_items: [
+            {
+              service_id: restorationId,
+              tooth_number: 36,
+              procedure_name: 'Composite Restoration',
+            },
+          ],
+        },
+        doctorUserId,
+      );
+      const foreignId = foreign.treatment_plan_items[0]?.id;
+      expect(foreignId).toBeTruthy();
+
+      const injected = await app.inject({
+        method: 'PUT',
+        url,
+        headers,
+        payload: {
+          treatment_plan_items: [
+            {
+              id: foreignId,
+              service_id: restorationId,
+              tooth_number: 36,
+              procedure_name: 'Composite Restoration',
+            },
+          ],
+        },
+      });
+      expect(injected.statusCode).toBe(409);
+      expect(injected.json().error?.code).toBe('DENTAL_TREATMENT_ITEM_CONTEXT_MISMATCH');
+
+      const duplicateId = createObjectId();
+      const duplicated = await app.inject({
+        method: 'PUT',
+        url,
+        headers,
+        payload: {
+          treatment_plan_items: [
+            { id: duplicateId, procedure_name: 'Filling' },
+            { id: duplicateId, procedure_name: 'Extraction' },
+          ],
+        },
+      });
+      expect(duplicated.statusCode).toBe(400);
+      expect(duplicated.json().error?.code).toBe('VALIDATION_ERROR');
     });
 
     it('persists multiple independent treatment-plan items without collapsing and supports selective update/delete', async () => {
@@ -1848,6 +1915,74 @@ describe('Dental OPD Consultation Foundation - Backend Tests', () => {
       expect(await BillingInvoiceModel.countDocuments()).toBe(1);
     });
 
+    it('preserves the source identity of an invoiced treatment item while allowing clinical status updates', async () => {
+      const itemId = await saveTreatment('ACCEPTED');
+      const billed = await app.inject({
+        method: 'POST',
+        url: billingUrl(itemId),
+        headers: { authorization: `Bearer ${billingToken}` },
+        payload: {},
+      });
+      expect(billed.statusCode).toBe(201);
+
+      const removal = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/dental-examination`,
+        headers: { authorization: `Bearer ${dentistToken}` },
+        payload: { treatment_plan_items: [] },
+      });
+      expect(removal.statusCode).toBe(409);
+      expect(removal.json().error?.code).toBe('BILLED_DENTAL_TREATMENT_IMMUTABLE');
+
+      const reassignment = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/dental-examination`,
+        headers: { authorization: `Bearer ${dentistToken}` },
+        payload: {
+          treatment_plan_items: [
+            {
+              id: itemId,
+              service_id: phase7ProcedureId,
+              tooth_number: 16,
+              procedure_name: 'Composite Restoration',
+              priority: 'ROUTINE',
+              status: 'ACCEPTED',
+            },
+          ],
+        },
+      });
+      expect(reassignment.statusCode).toBe(409);
+      expect(reassignment.json().error?.code).toBe('BILLED_DENTAL_TREATMENT_IMMUTABLE');
+
+      const statusUpdate = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/dental-examination`,
+        headers: { authorization: `Bearer ${dentistToken}` },
+        payload: {
+          treatment_plan_items: [
+            {
+              id: itemId,
+              service_id: phase7ProcedureId,
+              tooth_number: 36,
+              procedure_name: 'Composite Restoration',
+              priority: 'ROUTINE',
+              status: 'IN_PROGRESS',
+              notes: 'Clinical work started',
+            },
+          ],
+        },
+      });
+      expect(statusUpdate.statusCode).toBe(200);
+      expect(statusUpdate.json().data.treatment_plan_items[0]).toMatchObject({
+        id: itemId,
+        tooth_number: 36,
+        service_id: phase7ProcedureId,
+        status: 'IN_PROGRESS',
+        notes: 'Clinical work started',
+      });
+      expect(await BillingInvoiceItemModel.countDocuments({ originatingOrderId: itemId })).toBe(1);
+    });
+
     it('bills a completed examination without mutating its locked clinical state', async () => {
       const itemId = await saveTreatment('PROPOSED');
       const complete = await app.inject({
@@ -1913,6 +2048,700 @@ describe('Dental OPD Consultation Foundation - Backend Tests', () => {
           },
         }),
       ).toBe(2);
+    });
+  });
+
+  describe('13. Comprehensive End-to-End Dental OPD Workflow (Start to Finish: A through Q, Data Integrity, Rollback)', () => {
+    let e2eVisitId: string;
+    let cardioVisitId: string;
+    let dentistToken: string;
+    let billingToken: string;
+    let nurseToken: string;
+    let receptionToken: string;
+    let rctProcedureId: string;
+
+    const accessTokenFor = async (username: string) => {
+      const user = await UserModel.findOne({ username }).lean();
+      if (!user) throw new Error(`Expected seeded user ${username}`);
+      return signJwt(
+        { sub: user._id.toString(), username: user.username },
+        env.auth.accessTokenSecret,
+        env.auth.accessTokenTtlSeconds,
+      );
+    };
+
+    beforeAll(async () => {
+      dentistToken = await accessTokenFor('dentist_user');
+      billingToken = await accessTokenFor('billing_mb01');
+      nurseToken = await accessTokenFor('nurse_user');
+      receptionToken = await accessTokenFor('reception_user');
+
+      const rct = await ServiceModel.create({
+        code: `DENT-E2E-RCT-${Date.now()}`,
+        name: 'Molar Root Canal Treatment',
+        serviceType: 'PROCEDURE',
+        departmentId: new Types.ObjectId(dentalDeptId),
+        standardPrice: 450.0,
+        status: 'ACTIVE',
+      });
+      rctProcedureId = rct._id.toString();
+    });
+
+    beforeEach(async () => {
+      const visit = await OpdVisitModel.create({
+        visitNumber: `OPD-DENT-E2E-${Date.now()}`,
+        patientId: new Types.ObjectId(patientId),
+        patientNumber: 'P-1001',
+        patientName: 'Dental Patient',
+        doctorId: new Types.ObjectId(doctorDocId),
+        doctorName: 'Dr. Dentist',
+        doctorSpecialization: 'Dentistry',
+        branchId: new Types.ObjectId(branchId),
+        departmentId: new Types.ObjectId(dentalDeptId),
+        visitDate: new Date(),
+        checkInTime: new Date(),
+        visitType: 'NEW_CONSULTATION',
+        priority: 'ROUTINE',
+        status: 'READY_FOR_CONSULTATION',
+      });
+      e2eVisitId = visit._id.toString();
+
+      const cardio = await OpdVisitModel.create({
+        visitNumber: `OPD-CARD-E2E-${Date.now()}`,
+        patientId: new Types.ObjectId(patientId),
+        patientNumber: 'P-1001',
+        patientName: 'Dental Patient',
+        doctorId: new Types.ObjectId(cardioDoctorDocId),
+        doctorName: 'Dr. Cardio Doctor',
+        doctorSpecialization: 'Cardiology',
+        branchId: new Types.ObjectId(branchId),
+        departmentId: new Types.ObjectId(cardioDeptId),
+        visitDate: new Date(),
+        checkInTime: new Date(),
+        visitType: 'NEW_CONSULTATION',
+        priority: 'ROUTINE',
+        status: 'READY_FOR_CONSULTATION',
+      });
+      cardioVisitId = cardio._id.toString();
+    });
+
+    it('executes complete Dental OPD consultation lifecycle from visit identification to billing, immutability, and receipt', async () => {
+      const doctorHeaders = { authorization: `Bearer ${dentistToken}` };
+      const billingHeaders = { authorization: `Bearer ${billingToken}` };
+      const nurseHeaders = { authorization: `Bearer ${nurseToken}` };
+      const receptionHeaders = { authorization: `Bearer ${receptionToken}` };
+
+      // ==========================================
+      // A. Dental Visit Identification
+      // ==========================================
+      // Dental visit is allowed to query dental examination
+      const initDentalRes = await app.inject({
+        method: 'GET',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination`,
+        headers: doctorHeaders,
+      });
+      expect(initDentalRes.statusCode).toBe(200);
+      expect(initDentalRes.json().data).toBeNull(); // Empty initial state
+
+      // Non-dental visit rejects dental examination with 400
+      const initCardioRes = await app.inject({
+        method: 'GET',
+        url: `/api/opd/visits/${cardioVisitId}/dental-examination`,
+        headers: doctorHeaders,
+      });
+      expect(initCardioRes.statusCode).toBe(400);
+      expect(initCardioRes.json().error.message).toContain('OPD visit is not associated with Dental department');
+
+      // ==========================================
+      // B. Dental Examination Load & Initial State
+      // ==========================================
+      // Initial load returns 200 with null (no draft created yet)
+      const freshExam = await dentalService.getByVisit(e2eVisitId, doctorUserId);
+      expect(freshExam).toBeNull();
+
+      // ==========================================
+      // C. Dental History & Medical Alerts
+      // ==========================================
+      // Save Draft with Dental History
+      const historyPayload = {
+        chief_complaint: 'Severe throbbing pain in lower left molar and bleeding gums',
+        pain_scale: 7,
+        bleeding_gums: true,
+        sensitivity_hot_cold_sweet: true,
+        bruxism: true,
+        habits: ['SMOKING', 'BRUXISM'],
+        medical_alerts: ['HYPERTENSION', 'DIABETES'],
+      };
+
+      // ==========================================
+      // D. Odontogram / FDI Tooth Findings
+      // ==========================================
+      const teethFindings = [
+        {
+          tooth_number: 36,
+          dentition: 'PERMANENT',
+          status: 'PRESENT',
+          surfaces: ['OCCLUSAL', 'MESIAL'],
+          conditions: ['CARIES', 'PULPITIS'],
+          mobility: 'GRADE_I',
+          pocket_depth_mm: 4,
+          notes: 'Deep occlusal pit caries reaching pulp on #36',
+        },
+        {
+          tooth_number: 16,
+          dentition: 'PERMANENT',
+          status: 'PRESENT',
+          surfaces: ['OCCLUSAL', 'DISTAL'],
+          conditions: ['CARIES'],
+          mobility: 'NONE',
+          pocket_depth_mm: 3,
+          notes: 'Occlusal fissure caries on #16',
+        },
+      ];
+
+      // ==========================================
+      // E. Soft Tissue / Oral Examination
+      // ==========================================
+      const softTissueFindings = {
+        gingiva_condition: 'MODERATE_GINGIVITIS',
+        calculus_plaque: 'MODERATE',
+        oral_mucosa: 'NORMAL',
+        tongue_palate_floor: 'NORMAL',
+        tmj_evaluation: 'NORMAL',
+        occlusion_class: 'CLASS_I',
+      };
+
+      // ==========================================
+      // G. Treatment Plan (Catalogue-backed)
+      // ==========================================
+      const treatmentPlanItems = [
+        {
+          service_id: phase7ProcedureId,
+          tooth_number: 16,
+          procedure_name: 'Composite Restoration',
+          priority: 'ROUTINE',
+          status: 'PROPOSED',
+          estimated_cost: 275.5,
+          notes: 'Restore disto-occlusal cavity with composite',
+        },
+        {
+          service_id: rctProcedureId,
+          tooth_number: 36,
+          procedure_name: 'Molar Root Canal Treatment',
+          priority: 'URGENT',
+          status: 'ACCEPTED',
+          estimated_cost: 450.0,
+          notes: 'Perform 4-canal RCT on lower left first molar',
+        },
+      ];
+
+      // Save complete draft via API
+      const draftRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination`,
+        headers: doctorHeaders,
+        payload: {
+          dental_history: historyPayload,
+          soft_tissue: softTissueFindings,
+          teeth: teethFindings,
+          treatment_plan_items: treatmentPlanItems,
+        },
+      });
+
+      expect(draftRes.statusCode).toBe(200);
+      const draftData = draftRes.json().data;
+      expect(draftData.status).toBe('DRAFT');
+      expect(draftData.dental_history.chief_complaint).toBe(historyPayload.chief_complaint);
+      expect(draftData.dental_history.pain_scale).toBe(7);
+      expect(draftData.dental_history.bleeding_gums).toBe(true);
+      expect(draftData.soft_tissue.gingiva_condition).toBe('MODERATE_GINGIVITIS');
+      expect(draftData.teeth).toHaveLength(2);
+      expect(draftData.treatment_plan_items).toHaveLength(2);
+
+      const rctItemId = draftData.treatment_plan_items.find((item: { tooth_number: number }) => item.tooth_number === 36)?.id;
+      const compositeItemId = draftData.treatment_plan_items.find((item: { tooth_number: number }) => item.tooth_number === 16)?.id;
+      expect(rctItemId).toBeTruthy();
+      expect(compositeItemId).toBeTruthy();
+
+      // ==========================================
+      // F. Dental Diagnosis & Tooth Association
+      // ==========================================
+      const dentalDiagnosisAssessment =
+        'K02.9 - Dental caries, unspecified [Tooth #36]\n' +
+        'K02.9 - Dental caries, unspecified [Tooth #16]\n' +
+        'K05.1 - Chronic gingivitis';
+
+      const diagnosisRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${e2eVisitId}/consultation`,
+        headers: doctorHeaders,
+        payload: { assessment: dentalDiagnosisAssessment },
+      });
+      expect(diagnosisRes.statusCode).toBe(200);
+
+      // Verify reloaded consultation contains exact tooth tags
+      const getConsultationRes = await app.inject({
+        method: 'GET',
+        url: `/api/opd/visits/${e2eVisitId}/consultation`,
+        headers: doctorHeaders,
+      });
+      expect(getConsultationRes.json().data.assessment).toBe(dentalDiagnosisAssessment);
+
+      // ==========================================
+      // Data Integrity Checks
+      // ==========================================
+      // 1. Tooth findings do not overwrite diagnosis
+      // 2. Diagnosis does not overwrite treatment plan
+      // 3. Treatment plan does not modify tooth findings
+      const reloadExamRes = await app.inject({
+        method: 'GET',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination`,
+        headers: doctorHeaders,
+      });
+      const reloadedData = reloadExamRes.json().data;
+      expect(reloadedData.teeth).toHaveLength(2);
+      expect(reloadedData.teeth[0].tooth_number).toBe(36);
+      expect(reloadedData.teeth[1].tooth_number).toBe(16);
+      expect(reloadedData.treatment_plan_items).toHaveLength(2);
+      expect(reloadedData.dental_history.chief_complaint).toBe(historyPayload.chief_complaint);
+      expect(reloadedData.soft_tissue.gingiva_condition).toBe('MODERATE_GINGIVITIS');
+
+      // ==========================================
+      // N & O. RBAC & Access Scoping Checks
+      // ==========================================
+      // Nurse cannot save or complete dental examination
+      const nursePutRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination`,
+        headers: nurseHeaders,
+        payload: { dental_history: { chief_complaint: 'Nurse edit' } },
+      });
+      expect(nursePutRes.statusCode).toBe(403);
+
+      const nurseCompleteRes = await app.inject({
+        method: 'POST',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination/complete`,
+        headers: nurseHeaders,
+        payload: {},
+      });
+      expect(nurseCompleteRes.statusCode).toBe(403);
+
+      // Receptionist cannot save or complete dental examination
+      const recPutRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination`,
+        headers: receptionHeaders,
+        payload: { dental_history: { chief_complaint: 'Reception edit' } },
+      });
+      expect(recPutRes.statusCode).toBe(403);
+
+      // ==========================================
+      // J. Complete Dental Examination & Immutability
+      // ==========================================
+      const completeRes = await app.inject({
+        method: 'POST',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination/complete`,
+        headers: doctorHeaders,
+        payload: {},
+      });
+      expect(completeRes.statusCode).toBe(200);
+      expect(completeRes.json().data.status).toBe('COMPLETED');
+      expect(completeRes.json().data.completed_at).toBeTruthy();
+
+      // Verify patient timeline event recorded
+      const timelineEvent = await PatientTimelineEventModel.findOne({
+        patientId: new Types.ObjectId(patientId),
+        eventType: 'OPD_DENTAL_EXAMINATION_COMPLETED',
+      }).lean();
+      expect(timelineEvent).toBeDefined();
+
+      // Verify audit log recorded
+      const completedAudit = await AuditLogModel.findOne({
+        eventType: 'opd.dental_examination.completed',
+        'metadataJson.visitId': e2eVisitId,
+      }).lean();
+      expect(completedAudit).toBeDefined();
+
+      // Immutability: subsequent clinical edits fail
+      const tamperExamRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${e2eVisitId}/dental-examination`,
+        headers: doctorHeaders,
+        payload: { dental_history: { chief_complaint: 'Tamper after complete' } },
+      });
+      expect(tamperExamRes.statusCode).toBe(400);
+      expect(tamperExamRes.json().error.code).toBe('EXAMINATION_COMPLETED');
+
+      // Diagnosis update on completed visit is locked
+      const tamperDxRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${e2eVisitId}/consultation`,
+        headers: doctorHeaders,
+        payload: { assessment: 'New diagnosis after complete' },
+      });
+      expect(tamperDxRes.statusCode).toBe(400);
+      expect(tamperDxRes.json().error.code).toBe('EXAMINATION_COMPLETED');
+
+      // ==========================================
+      // K. Dental Billing & Invoice Creation
+      // ==========================================
+      // Bill the accepted RCT procedure (Tooth #36)
+      const invoiceRes = await app.inject({
+        method: 'POST',
+        url: `/api/billing/dental/visits/${e2eVisitId}/treatment-items/${rctItemId}/invoice`,
+        headers: billingHeaders,
+        payload: {},
+      });
+      expect(invoiceRes.statusCode).toBe(201);
+      const invoiceData = invoiceRes.json().data;
+      expect(invoiceData.patient_id).toBe(patientId);
+      expect(invoiceData.visit_id).toBe(e2eVisitId);
+      expect(invoiceData.branch_id).toBe(branchId);
+      expect(invoiceData.total_amount).toBe(450.0);
+      expect(invoiceData.status).toBe('DRAFT');
+      expect(invoiceData.items[0].originating_order_id).toBe(rctItemId);
+      expect(invoiceData.items[0].unit_price).toBe(450.0);
+
+      const invoiceId = invoiceData.id as string;
+
+      // ==========================================
+      // L. Duplicate / Idempotency Verification
+      // ==========================================
+      // Repeated request returns the existing invoice without creating a second record
+      const repeatBillingRes = await app.inject({
+        method: 'POST',
+        url: `/api/billing/dental/visits/${e2eVisitId}/treatment-items/${rctItemId}/invoice`,
+        headers: billingHeaders,
+        payload: {},
+      });
+      expect(repeatBillingRes.statusCode).toBe(201);
+      expect(repeatBillingRes.json().data.id).toBe(invoiceId);
+
+      // Verify exactly 1 invoice and 1 invoice item exist for this treatment item
+      expect(await BillingInvoiceItemModel.countDocuments({ originatingOrderId: rctItemId })).toBe(1);
+      expect(
+        await AuditLogModel.countDocuments({
+          eventType: 'billing.invoice.created',
+          'metadataJson.dentalTreatmentItemId': rctItemId,
+        }),
+      ).toBe(1);
+
+      // ==========================================
+      // M. Billing Security Verification
+      // ==========================================
+      // 1. Unauthenticated request rejected
+      const unauthBillingRes = await app.inject({
+        method: 'POST',
+        url: `/api/billing/dental/visits/${e2eVisitId}/treatment-items/${compositeItemId}/invoice`,
+        payload: {},
+      });
+      expect(unauthBillingRes.statusCode).toBe(401);
+
+      // 2. Doctor/Nurse cannot create invoices
+      const doctorBillingRes = await app.inject({
+        method: 'POST',
+        url: `/api/billing/dental/visits/${e2eVisitId}/treatment-items/${compositeItemId}/invoice`,
+        headers: doctorHeaders,
+        payload: {},
+      });
+      expect(doctorBillingRes.statusCode).toBe(403);
+
+      // 3. Fake treatment item rejected
+      const fakeItemRes = await app.inject({
+        method: 'POST',
+        url: `/api/billing/dental/visits/${e2eVisitId}/treatment-items/${createObjectId()}/invoice`,
+        headers: billingHeaders,
+        payload: {},
+      });
+      expect(fakeItemRes.statusCode).toBe(404);
+      expect(fakeItemRes.json().error.code).toBe('DENTAL_TREATMENT_ITEM_NOT_FOUND');
+
+      // ==========================================
+      // Payment & Receipt Workflow Completion
+      // ==========================================
+      // Transition invoice to PENDING and collect payment
+      const pendingRes = await app.inject({
+        method: 'PATCH',
+        url: `/api/billing/invoices/${invoiceId}`,
+        headers: billingHeaders,
+        payload: { status: 'PENDING' },
+      });
+      expect(pendingRes.statusCode).toBe(200);
+
+      const paymentRes = await app.inject({
+        method: 'POST',
+        url: `/api/billing/invoices/${invoiceId}/payments`,
+        headers: billingHeaders,
+        payload: { amount: 450.0, payment_method: 'CASH' },
+      });
+      expect(paymentRes.statusCode).toBe(201);
+      expect(paymentRes.json().data.invoice.status).toBe('PAID');
+
+      // Verify billing state reflects PAID
+      const billingStatesRes = await app.inject({
+        method: 'GET',
+        url: `/api/billing/dental/visits/${e2eVisitId}/treatment-items`,
+        headers: billingHeaders,
+      });
+      expect(billingStatesRes.statusCode).toBe(200);
+      const rctBillingState = billingStatesRes.json().data.find((s: { treatment_item_id: string }) => s.treatment_item_id === rctItemId);
+      expect(rctBillingState.invoice_status).toBe('PAID');
+      expect(rctBillingState.invoice_id).toBe(invoiceId);
+
+      // Generate receipt
+      const receiptRes = await app.inject({
+        method: 'GET',
+        url: `/api/billing/payments/${paymentRes.json().data.payment.id}/receipt`,
+        headers: billingHeaders,
+      });
+      expect(receiptRes.statusCode).toBe(200);
+      expect(receiptRes.json().data.invoice.id).toBe(invoiceId);
+
+      // ==========================================
+      // Q. Non-Dental OPD Regression Check
+      // ==========================================
+      // Cardiology visit operates generic consultation without dental endpoints
+      const cardioConsultationRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${cardioVisitId}/consultation`,
+        headers: { authorization: `Bearer ${await accessTokenFor('cardio_doctor_user')}` },
+        payload: {
+          chief_complaint: 'Chest pain on exertion',
+          assessment: 'I20.9 - Angina pectoris, unspecified',
+        },
+      });
+      expect(cardioConsultationRes.statusCode).toBe(200);
+      expect(cardioConsultationRes.json().data.chief_complaint).toBe('Chest pain on exertion');
+
+      const cardioDentalRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${cardioVisitId}/dental-examination`,
+        headers: { authorization: `Bearer ${await accessTokenFor('cardio_doctor_user')}` },
+        payload: { dental_history: { chief_complaint: 'Dental attempt on cardio' } },
+      });
+      expect(cardioDentalRes.statusCode).toBe(400);
+      expect(cardioDentalRes.json().error.message).toContain('OPD visit is not associated with Dental department');
+    });
+  });
+
+  describe('Phase 8: Dental Clinical Orders & Consultation Refinement', () => {
+    let imagingServiceId: string;
+    let labServiceId: string;
+
+    const accessTokenFor = async (username: string) => {
+      const user = await UserModel.findOne({ username }).lean();
+      if (!user) throw new Error(`Expected seeded user ${username}`);
+      return signJwt(
+        { sub: user._id.toString(), username: user.username },
+        env.auth.accessTokenSecret,
+        env.auth.accessTokenTtlSeconds,
+      );
+    };
+
+    beforeEach(async () => {
+      const dentistToken = await accessTokenFor('dentist_user');
+      await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/consultation`,
+        headers: { authorization: `Bearer ${dentistToken}` },
+        payload: {
+          chief_complaint: 'Severe throbbing toothache in upper right quadrant',
+          assessment: 'K04.0 - Pulpitis [Tooth #16]',
+        },
+      });
+
+      const cardioToken = await accessTokenFor('cardio_doctor_user');
+      await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${cardioVisitId}/consultation`,
+        headers: { authorization: `Bearer ${cardioToken}` },
+        payload: {
+          chief_complaint: 'Chest pain on exertion',
+          assessment: 'I20.9 - Angina pectoris, unspecified',
+        },
+      });
+
+      const imgService = await ServiceModel.findOneAndUpdate(
+        { code: 'DENT-IMG-001' },
+        {
+          code: 'DENT-IMG-001',
+          name: 'IOPA X-Ray',
+          serviceType: 'IMAGING_SERVICE',
+          departmentId: new Types.ObjectId(dentalDeptId),
+          standardPrice: 50.0,
+          status: 'ACTIVE',
+        },
+        { upsert: true, new: true },
+      );
+      imagingServiceId = imgService._id.toString();
+
+      const lService = await ServiceModel.findOneAndUpdate(
+        { code: 'DENT-LAB-001' },
+        {
+          code: 'DENT-LAB-001',
+          name: 'Complete Blood Count',
+          serviceType: 'LAB_TEST',
+          departmentId: new Types.ObjectId(dentalDeptId),
+          standardPrice: 30.0,
+          status: 'ACTIVE',
+        },
+        { upsert: true, new: true },
+      );
+      labServiceId = lService._id.toString();
+    });
+
+    it('should successfully save and submit IMAGING clinical order with valid permanent FDI tooth number on dental visit', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+
+      const saveRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/clinical-orders/IMAGING`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          clinical_notes: 'Periapical radiograph for tooth #16',
+          items: [
+            {
+              service_id: imagingServiceId,
+              investigation_name: 'IOPA X-Ray',
+              category: 'Dental Imaging',
+              tooth_number: 16,
+            },
+          ],
+        },
+      });
+
+      expect(saveRes.statusCode).toBe(200);
+      const data = saveRes.json().data;
+      expect(data.order_type).toBe('IMAGING');
+      expect(data.items).toHaveLength(1);
+      expect(data.items[0].tooth_number).toBe(16);
+      expect(data.items[0].investigation_name).toBe('IOPA X-Ray');
+    });
+
+    it('should successfully save IMAGING clinical order with valid primary FDI tooth number on dental visit', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+
+      const saveRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/clinical-orders/IMAGING`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'URGENT',
+          clinical_notes: 'Pediatric bitewing for primary molar #55',
+          items: [
+            {
+              service_id: imagingServiceId,
+              investigation_name: 'IOPA X-Ray',
+              category: 'Dental Imaging',
+              tooth_number: 55,
+            },
+          ],
+        },
+      });
+
+      expect(saveRes.statusCode).toBe(200);
+      const data = saveRes.json().data;
+      expect(data.items[0].tooth_number).toBe(55);
+    });
+
+    it('should reject IMAGING clinical order with invalid FDI tooth number (e.g. 99 or 19)', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+
+      const invalidToothRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/clinical-orders/IMAGING`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [
+            {
+              service_id: imagingServiceId,
+              investigation_name: 'IOPA X-Ray',
+              tooth_number: 99,
+            },
+          ],
+        },
+      });
+
+      expect(invalidToothRes.statusCode).toBe(400);
+      expect(invalidToothRes.json().error.code).toBe('INVALID_FDI_TOOTH');
+      expect(invalidToothRes.json().error.message).toContain('invalid FDI tooth number');
+    });
+
+    it('should reject tooth association on non-dental (e.g. Cardiology) visit', async () => {
+      const cardioToken = await accessTokenFor('cardio_doctor_user');
+
+      const nonDentalToothRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${cardioVisitId}/clinical-orders/IMAGING`,
+        headers: { authorization: `Bearer ${cardioToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [
+            {
+              service_id: imagingServiceId,
+              investigation_name: 'Chest X-Ray',
+              tooth_number: 11,
+            },
+          ],
+        },
+      });
+
+      expect(nonDentalToothRes.statusCode).toBe(400);
+      expect(nonDentalToothRes.json().error.code).toBe('DENTAL_VISIT_REQUIRED');
+      expect(nonDentalToothRes.json().error.message).toContain('only allowed for dental visits');
+    });
+
+    it('should reject tooth association on LABORATORY orders even for a Dental visit', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+
+      const labToothRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/clinical-orders/LABORATORY`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [
+            {
+              service_id: labServiceId,
+              investigation_name: 'CBC',
+              tooth_number: 21,
+            },
+          ],
+        },
+      });
+
+      expect(labToothRes.statusCode).toBe(400);
+      expect(labToothRes.json().error.code).toBe('VALIDATION_ERROR');
+      expect(labToothRes.json().error.message).toContain('only applicable for imaging orders');
+    });
+
+    it('should allow generic laboratory orders without tooth_number on Dental visit', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+
+      const labRes = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${dentalVisitId}/clinical-orders/LABORATORY`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          specimen_type: 'Blood',
+          clinical_notes: 'Pre-extraction bleeding profile',
+          items: [
+            {
+              service_id: labServiceId,
+              investigation_name: 'Complete Blood Count',
+              category: 'Hematology',
+            },
+          ],
+        },
+      });
+
+      expect(labRes.statusCode).toBe(200);
+      const data = labRes.json().data;
+      expect(data.order_type).toBe('LABORATORY');
+      expect(data.items[0].tooth_number).toBeNull();
     });
   });
 });

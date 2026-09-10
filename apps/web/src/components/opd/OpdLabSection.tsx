@@ -1,5 +1,7 @@
 import type { ApiClinicalOrderPriority } from '../../api/opd';
 import type { ServiceResponse } from '../../api/services';
+import { isDentalLabService } from '../../pages/dental-utils';
+import dentalStyles from './dental/DentalClinicalOrders.module.css';
 
 export type LabOrderItem = {
   id: string;
@@ -33,6 +35,7 @@ export type OpdLabSectionProps = {
   saveConsultationDraft: () => void;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
+  isDental?: boolean;
 };
 
 export function OpdLabSection({
@@ -60,6 +63,7 @@ export function OpdLabSection({
   saveConsultationDraft,
   handleNextStep,
   canEdit,
+  isDental = false,
 }: OpdLabSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -189,6 +193,7 @@ export function OpdLabSection({
           ) : (
             availableLabTests.map((test) => {
               const isSelected = labOrders.some((o) => o.id === test.id);
+              const isDentalTest = isDental && isDentalLabService(test);
               return (
                 <label
                   className={`opd-test-checkbox-label ${isSelected ? 'selected' : ''}`}
@@ -202,9 +207,16 @@ export function OpdLabSection({
                   />
                   <div className="opd-test-label-content">
                     <span className="opd-test-name">{test.name}</span>
-                    <span className="opd-test-badge">
-                      {test.sample_type ? `Sample: ${test.sample_type}` : test.category || 'General Lab'}
-                    </span>
+                    <div className={dentalStyles.contextBadgeRow}>
+                      {isDentalTest && (
+                        <span className={`opd-test-badge ${dentalStyles.contextBadge}`}>
+                          Dental Relevant
+                        </span>
+                      )}
+                      <span className="opd-test-badge">
+                        {test.sample_type ? `Sample: ${test.sample_type}` : test.category || 'General Lab'}
+                      </span>
+                    </div>
                   </div>
                 </label>
               );

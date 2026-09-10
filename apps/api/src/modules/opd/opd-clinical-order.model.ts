@@ -12,6 +12,7 @@ export type ClinicalOrderItemFields = {
   serviceName: string;
   investigationName: string;
   category: string;
+  toothNumber?: number | null;
 };
 
 export type OpdClinicalOrderFields = {
@@ -51,6 +52,7 @@ const clinicalOrderItemSchema = new Schema<ClinicalOrderItemFields>(
     serviceName: { type: String, required: true, trim: true },
     investigationName: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
+    toothNumber: { type: Number, default: null },
   },
   { _id: true },
 );

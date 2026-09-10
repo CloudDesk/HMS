@@ -1,5 +1,6 @@
 import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import type { DepartmentRepository } from '../departments/department.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdClinicalOrderRepository } from './opd-clinical-order.repository.js';
 import type { ClinicalOrderType, SaveOpdClinicalOrderDTO } from './opd-clinical-order.types.js';
@@ -9,6 +10,8 @@ import type { OpdVisit } from './opd-visit.types.js';
 import type { ServiceRepository } from '../services/service.repository.js';
 import type { ClinicalSourceContext } from './clinical-context.types.js';
 import type { OpdClinicalOrder } from './opd-clinical-order.types.js';
+import { isDentalClinicalContext } from './opd-dental-examination.service.js';
+import { isValidFdiTooth } from './opd-dental-examination.schemas.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
@@ -19,6 +22,7 @@ export class OpdClinicalOrderService {
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly patientRepository: PatientRepository,
     private readonly serviceRepository: ServiceRepository,
+    private readonly departmentRepository: DepartmentRepository,
   ) {}
 
   async getByVisitAndType(visitId: string, orderType: ClinicalOrderType, userId: string) {
@@ -37,6 +41,7 @@ export class OpdClinicalOrderService {
     }
 
     this.validateLaboratoryFields(orderType, data);
+    await this.validateToothAssociation(orderType, data, visit);
     const items = await this.normalizeServices(orderType, data);
     return this.repository.saveForVisit({ ...data, items, consultation, orderType, status: 'DRAFT', visit }, userId);
   }
@@ -64,6 +69,7 @@ export class OpdClinicalOrderService {
     }
 
     this.validateLaboratoryFields(orderType, data);
+    await this.validateToothAssociation(orderType, data, visit);
     const items = await this.normalizeServices(orderType, data);
     const order = await this.repository.saveForVisit(
       { ...data, items, consultation, orderType, status: 'SUBMITTED', submittedAt: new Date(), visit },
@@ -116,6 +122,7 @@ export class OpdClinicalOrderService {
   ) {
     if (data.items.length === 0) throw new AppError('Add at least one investigation before submitting', 400, 'INVESTIGATION_REQUIRED');
     this.validateLaboratoryFields(orderType, data);
+    await this.validateToothAssociation(orderType, data);
     const items = await this.normalizeServices(orderType, data);
     const normalized = { ...data, items };
     const current = await this.repository.getBySourceAndType(context.source_type, context.source_id, orderType, session);
@@ -159,6 +166,38 @@ export class OpdClinicalOrderService {
     }
   }
 
+  private async validateToothAssociation(orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, visit?: OpdVisit) {
+    const hasTooth = data.items.some((item) => item.tooth_number !== undefined && item.tooth_number !== null);
+    if (!hasTooth) return;
+
+    if (orderType !== 'IMAGING') {
+      throw new AppError('Tooth number is only applicable for imaging orders', 400, 'VALIDATION_ERROR');
+    }
+
+    if (!visit) {
+      throw new AppError('Tooth number requires a verified dental OPD visit', 400, 'DENTAL_VISIT_REQUIRED');
+    }
+
+    if (visit) {
+      let department: { code: string; name: string } | null = null;
+      if (visit.department_id && Types.ObjectId.isValid(visit.department_id)) {
+        department = (await this.departmentRepository.getById(visit.department_id)) ?? null;
+      }
+      const isDental = isDentalClinicalContext(visit.doctor_specialization || '', department || undefined);
+      if (!isDental) {
+        throw new AppError('Tooth number is only allowed for dental visits', 400, 'DENTAL_VISIT_REQUIRED');
+      }
+    }
+
+    for (const item of data.items) {
+      if (item.tooth_number !== undefined && item.tooth_number !== null) {
+        if (!isValidFdiTooth(Number(item.tooth_number))) {
+          throw new AppError('Imaging order contains an invalid FDI tooth number', 400, 'INVALID_FDI_TOOTH');
+        }
+      }
+    }
+  }
+
   private async normalizeServices(orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO) {
     const ids = [...new Set(data.items.map((item) => item.service_id))];
     if (ids.length !== data.items.length) {
@@ -190,7 +229,8 @@ export class OpdClinicalOrderService {
       const requested = data.items[index];
       return requested != null && item.service_id === requested.service_id
         && item.investigation_name === requested.investigation_name.trim()
-        && item.category === requested.category.trim();
+        && item.category === requested.category.trim()
+        && (item.tooth_number ?? null) === (requested.tooth_number ?? null);
     });
     return itemsMatch && current.priority === data.priority && current.destination === normalize(data.destination)
       && current.specimen_type === normalize(data.specimen_type)

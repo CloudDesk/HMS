@@ -1,5 +1,6 @@
 import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { BillingRepository } from '../billing/billing.repository.js';
 import { DepartmentModel } from '../departments/department.model.js';
 import { DoctorModel } from '../doctors/doctor.model.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
@@ -43,6 +44,7 @@ export class OpdDentalExaminationService {
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly patientRepository: PatientRepository,
     private readonly serviceRepository = new ServiceRepository(),
+    private readonly billingRepository = new BillingRepository(),
   ) {}
 
   async getByVisit(visitId: string, userId: string): Promise<OpdDentalExamination | null> {
@@ -104,6 +106,7 @@ export class OpdDentalExaminationService {
       );
     }
 
+    await this.validateTreatmentItemOwnership(data, existing);
     await this.validateTreatmentServices(data, visit);
     return this.writeClinicalState(async (session) => {
       const consultation = await this.getOrCreateConsultation(visit, userId, session);
@@ -140,6 +143,9 @@ export class OpdDentalExaminationService {
           patientId: visit.patient_id,
           visitId: visit.id,
           visitNumber: visit.visit_number,
+          branchId: visit.branch_id,
+          departmentId: visit.department_id,
+          doctorId: visit.doctor_id,
           status: 'DRAFT',
         },
         session,
@@ -178,6 +184,7 @@ export class OpdDentalExaminationService {
     };
 
     this.validateClinicalCompleteness(effectiveExaminationData);
+    await this.validateTreatmentItemOwnership(effectiveExaminationData, existing);
     await this.validateTreatmentServices(effectiveExaminationData, visit);
 
     return this.writeClinicalState(async (session) => {
@@ -228,6 +235,9 @@ export class OpdDentalExaminationService {
           patientId: visit.patient_id,
           visitId: visit.id,
           visitNumber: visit.visit_number,
+          branchId: visit.branch_id,
+          departmentId: visit.department_id,
+          doctorId: visit.doctor_id,
           status: 'COMPLETED',
         },
         session,
@@ -293,6 +303,52 @@ export class OpdDentalExaminationService {
           'The selected procedure is unavailable or does not belong to this visit department. Review the treatment plan.',
           400,
           'INVALID_DENTAL_SERVICE',
+        );
+      }
+    }
+  }
+
+  private async validateTreatmentItemOwnership(
+    data: SaveOpdDentalExaminationDTO,
+    existing: OpdDentalExamination | null,
+  ) {
+    if (data.treatment_plan_items === undefined) return;
+
+    const existingItemsById = new Map(
+      (existing?.treatment_plan_items ?? []).flatMap((item) =>
+        item.id ? [[item.id, item] as const] : [],
+      ),
+    );
+    for (const item of data.treatment_plan_items) {
+      if (item.id && !existingItemsById.has(item.id)) {
+        throw new AppError(
+          'Dental treatment item does not belong to this examination',
+          409,
+          'DENTAL_TREATMENT_ITEM_CONTEXT_MISMATCH',
+        );
+      }
+    }
+
+    const existingIds = [...existingItemsById.keys()];
+    const billedItems = await this.billingRepository.listDentalTreatmentBillingStates(existingIds);
+    if (billedItems.length === 0) return;
+
+    const submittedItemsById = new Map(
+      data.treatment_plan_items.flatMap((item) => (item.id ? [[item.id, item] as const] : [])),
+    );
+    for (const billingState of billedItems) {
+      const existingItem = existingItemsById.get(billingState.treatment_item_id);
+      const submittedItem = submittedItemsById.get(billingState.treatment_item_id);
+      if (
+        !existingItem ||
+        !submittedItem ||
+        submittedItem.service_id !== existingItem.service_id ||
+        submittedItem.tooth_number !== existingItem.tooth_number
+      ) {
+        throw new AppError(
+          'An invoiced Dental treatment item cannot be removed or reassigned',
+          409,
+          'BILLED_DENTAL_TREATMENT_IMMUTABLE',
         );
       }
     }

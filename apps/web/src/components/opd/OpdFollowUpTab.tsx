@@ -136,8 +136,7 @@ export function OpdFollowUpTab({
               disabled={
                 updating === 'consultation-complete' ||
                 updating === 'follow-up-schedule' ||
-                !followUpDate ||
-                !followUpDoctorId
+                (isVisitCompleted && (!followUpDate || !followUpDoctorId))
               }
               onClick={isVisitCompleted ? scheduleFollowUp : completeConsultation}
               style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', color: '#fff' }}

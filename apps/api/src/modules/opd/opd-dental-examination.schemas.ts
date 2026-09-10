@@ -156,7 +156,7 @@ export const dentalTreatmentStatusSchema = z.enum([
 
 export const dentalTreatmentPlanItemSchema = z
   .object({
-    id: z.string().optional(),
+    id: id.optional(),
     service_id: id.nullable().optional().default(null),
     tooth_number: z
       .number()
@@ -192,6 +192,15 @@ export const saveOpdDentalExaminationSchema = z
       (teeth) => new Set(teeth.map((tooth) => tooth.tooth_number)).size === teeth.length,
       'Each FDI tooth may have only one examination finding',
     ).optional(),
-    treatment_plan_items: z.array(dentalTreatmentPlanItemSchema).optional(),
+    treatment_plan_items: z
+      .array(dentalTreatmentPlanItemSchema)
+      .refine(
+        (items) => {
+          const persistedIds = items.flatMap((item) => (item.id ? [item.id] : []));
+          return new Set(persistedIds).size === persistedIds.length;
+        },
+        'Each persisted Dental treatment item may appear only once',
+      )
+      .optional(),
   })
   .strict();

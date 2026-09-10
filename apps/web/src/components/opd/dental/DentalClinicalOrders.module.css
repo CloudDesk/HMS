@@ -1,0 +1,33 @@
+.contextBadgeRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.contextBadge {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  font-weight: 600;
+}
+
+.toothSelect {
+  max-width: 11.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.toothValue {
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.toothValueMuted {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 400;
+}
