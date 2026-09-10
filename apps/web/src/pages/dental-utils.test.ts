@@ -6,6 +6,9 @@ import {
   parseDentalDiagnoses,
   getToothName,
   isAnteriorTooth,
+  isDentalImagingService,
+  isDentalLabService,
+  isDentalMedication,
   isDentalVisit,
   isPermanentFdiTooth,
   isPrimaryFdiTooth,
@@ -206,5 +209,37 @@ describe('Phase 6 diagnosis persistence', () => {
   it('matches exact ICD codes before overlapping clinical names and preserves general/multiple tooth associations', () => {
     const diagnoses = parseDentalDiagnoses('K04.01 - Reversible pulpitis\nK04.02 - Irreversible pulpitis\nK02.9 - Dental caries, unspecified [Tooth #36]\nK02.9 - Dental caries, unspecified [Tooth #16]');
     expect(diagnoses.map((dx) => [dx.code, dx.tooth_number])).toEqual([['K04.01', null], ['K04.02', null], ['K02.9', 36], ['K02.9', 16]]);
+  });
+});
+
+describe('Phase 8 service and medication prioritization helpers', () => {
+  it('identifies dental imaging services correctly', () => {
+    expect(isDentalImagingService({ name: 'IOPA X-Ray (Periapical)' })).toBe(true);
+    expect(isDentalImagingService({ name: 'Dental OPG Panoramic' })).toBe(true);
+    expect(isDentalImagingService({ name: 'CBCT Maxillofacial' })).toBe(true);
+    expect(isDentalImagingService({ name: 'Bitewing Radiograph' })).toBe(true);
+    expect(isDentalImagingService({ name: 'Chest X-Ray PA View' })).toBe(false);
+    expect(isDentalImagingService({ name: 'MRI Brain' })).toBe(false);
+  });
+
+  it('identifies dental relevant lab services correctly', () => {
+    expect(isDentalLabService({ name: 'Complete Blood Count (CBC)' })).toBe(true);
+    expect(isDentalLabService({ name: 'Prothrombin Time (PT/INR)' })).toBe(true);
+    expect(isDentalLabService({ name: 'Bleeding Time & Clotting Time (BT/CT)' })).toBe(true);
+    expect(isDentalLabService({ name: 'Random Blood Glucose (RBS)' })).toBe(true);
+    expect(isDentalLabService({ name: 'Oral Biopsy Histopathology' })).toBe(true);
+    expect(isDentalLabService({ name: 'Serum Electrolytes' })).toBe(false);
+    expect(isDentalLabService({ name: 'Lipid Profile' })).toBe(false);
+  });
+
+  it('identifies dental relevant medications correctly', () => {
+    expect(isDentalMedication({ name: 'Amoxicillin 500mg' })).toBe(true);
+    expect(isDentalMedication({ name: 'Augmentin (Amoxicillin + Clavulanate)' })).toBe(true);
+    expect(isDentalMedication({ name: 'Metronidazole 400mg' })).toBe(true);
+    expect(isDentalMedication({ name: 'Ibuprofen 400mg' })).toBe(true);
+    expect(isDentalMedication({ name: 'Chlorhexidine 0.2% Mouthwash' })).toBe(true);
+    expect(isDentalMedication({ name: 'Clotrimazole Oral Gel' })).toBe(true);
+    expect(isDentalMedication({ name: 'Atorvastatin 20mg' })).toBe(false);
+    expect(isDentalMedication({ name: 'Metformin 500mg' })).toBe(false);
   });
 });

@@ -51,6 +51,7 @@ const toItem = (item: ClinicalOrderItemFields) => ({
   service_name: item.serviceName ?? '',
   investigation_name: item.investigationName ?? '',
   category: item.category ?? '',
+  tooth_number: item.toothNumber ?? null,
 });
 
 export const toClinicalOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder => ({
@@ -89,6 +90,7 @@ const toItemFields = (item: SaveClinicalOrderItemDTO) => ({
   serviceName: item.investigation_name.trim(),
   investigationName: item.investigation_name.trim(),
   category: item.category.trim(),
+  toothNumber: item.tooth_number ?? null,
 });
 
 export class OpdClinicalOrderRepository {

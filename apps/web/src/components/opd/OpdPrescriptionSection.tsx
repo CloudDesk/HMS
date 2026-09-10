@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import type { Icd10Diagnosis } from '../../data/icd10-diagnoses';
+import { isDentalMedication } from '../../pages/dental-utils';
 import { MedicalSpinner } from '../ui/MedicalLoader';
 
 export type MedicationFormState = {
@@ -42,6 +44,7 @@ export type OpdPrescriptionSectionProps = {
   updating: string;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
+  isDental?: boolean;
 };
 
 export function OpdPrescriptionSection({
@@ -59,7 +62,17 @@ export function OpdPrescriptionSection({
   updating,
   handleNextStep,
   canEdit,
+  isDental = false,
 }: OpdPrescriptionSectionProps) {
+  const displayMedicines = useMemo(() => {
+    if (!isDental) return masterMedicines;
+    return [...masterMedicines].sort((a, b) => {
+      const aDental = isDentalMedication(a) ? 0 : 1;
+      const bDental = isDentalMedication(b) ? 0 : 1;
+      if (aDental !== bDental) return aDental - bDental;
+      return a.name.localeCompare(b.name);
+    });
+  }, [masterMedicines, isDental]);
   return (
     <article className="doc-card opd-tab-card">
       <section className="opd-form-section">
@@ -156,7 +169,7 @@ export function OpdPrescriptionSection({
                 id="medicine-search-sel"
                 onChange={(e) => {
                   const selectedMedName = e.target.value;
-                  const matchedOpt = masterMedicines.find((m) => m.name === selectedMedName);
+                  const matchedOpt = displayMedicines.find((m) => m.name === selectedMedName);
                   setMedicationForm((m) => ({
                     ...m,
                     medicine_name: selectedMedName,
@@ -166,12 +179,16 @@ export function OpdPrescriptionSection({
                 value={medicationForm.medicine_name}
               >
                 <option value="">Search medicine from Pharmacy formulary</option>
-                {masterMedicines.map((med) => (
-                  <option key={med.id} value={med.name}>
-                    {med.name} {med.strength ? `(${med.strength})` : ''} — Stock:{' '}
-                    {med.available_quantity} {med.unit || 'units'}
-                  </option>
-                ))}
+                {displayMedicines.map((med) => {
+                  const isDentalRel = isDental && isDentalMedication(med);
+                  return (
+                    <option key={med.id} value={med.name}>
+                      {isDentalRel ? '⭐ [Dental] ' : ''}
+                      {med.name} {med.strength ? `(${med.strength})` : ''} — Stock:{' '}
+                      {med.available_quantity} {med.unit || 'units'}
+                    </option>
+                  );
+                })}
               </select>
             </label>
             <label className="doc-field" htmlFor="medicine-dosage">

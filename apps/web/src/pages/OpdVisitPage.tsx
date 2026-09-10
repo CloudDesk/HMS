@@ -39,7 +39,12 @@ import {
   patientInitials,
   visitStatusClass,
 } from './opd-utils';
-import { isDentalVisit, parseDentalDiagnoses } from './dental-utils';
+import {
+  isDentalImagingService,
+  isDentalLabService,
+  isDentalVisit,
+  parseDentalDiagnoses,
+} from './dental-utils';
 
 type VitalsFormState = {
   blood_pressure_systolic: string;
@@ -119,20 +124,33 @@ const emptyVitalsForm: VitalsFormState = {
 };
 
 const emptyConsultationForm: ConsultationFormState = {
-  allergies: '', assessment: '', chief_complaint: '', doctor_notes: '', family_history: '',
-  history_present_illness: '', past_history: '', physical_examination: '', treatment_plan: '',
+  allergies: '',
+  assessment: '',
+  chief_complaint: '',
+  doctor_notes: '',
+  family_history: '',
+  history_present_illness: '',
+  past_history: '',
+  physical_examination: '',
+  treatment_plan: '',
 };
 
 const emptyMedicationForm: MedicationFormState = {
   medicine_name: '',
   strength: '',
-  dosage: '', route: '', frequency: '', duration: '', quantity: '', instructions: '',
+  dosage: '',
+  route: '',
+  frequency: '',
+  duration: '',
+  quantity: '',
+  instructions: '',
 };
 
 const emptyPrescriptionForm: PrescriptionFormState = {
   items: [],
   follow_up_date: '',
-  doctor_instructions: '', patient_instructions: '',
+  doctor_instructions: '',
+  patient_instructions: '',
 };
 
 const consultationFormFromRecord = (consultation: OpdConsultationResponse | null): ConsultationFormState => ({
@@ -169,9 +187,26 @@ export function OpdVisitPage() {
   const timezone = useTimezone();
   const feature = useOpdVisitFeature();
   const {
-    activeVisitId, activeTab, recentVisits, visit, patient, vitals, consultation,
-    prescription, followUp, referral, laboratoryOrder, imagingOrder, doctors, masterMedicines, services,
-    branches, departments, documents, loading, loadError,
+    activeVisitId,
+    activeTab,
+    recentVisits,
+    visit,
+    patient,
+    vitals,
+    consultation,
+    prescription,
+    followUp,
+    referral,
+    laboratoryOrder,
+    imagingOrder,
+    doctors,
+    masterMedicines,
+    services,
+    branches,
+    departments,
+    documents,
+    loading,
+    loadError,
   } = feature.state;
   const { setActiveTab, selectVisit } = feature.actions;
   const [updating, setUpdating] = useState('');
@@ -224,8 +259,6 @@ export function OpdVisitPage() {
     [visit, departments],
   );
   const activeWorkspaceTabs = isDental && feature.state.canViewConsultation ? DENTAL_WORKSPACE_TABS : WORKSPACE_TABS;
-
-
 
   const handleSubmitReferral = async () => {
     if (!visit || !referralDoctorId || !referralSpecialty) {
@@ -332,7 +365,8 @@ export function OpdVisitPage() {
     return services.filter(
       (s) =>
         s.service_type === 'PROCEDURE' &&
-        s.status === 'ACTIVE' && s.department_id === visit?.department_id,
+        s.status === 'ACTIVE' &&
+        s.department_id === visit?.department_id,
     );
   }, [services, visit?.department_id]);
 
@@ -406,7 +440,7 @@ export function OpdVisitPage() {
           return lineTooth !== toothNumber;
         } else if (toothNumber === null) {
           const toothMatch = line.match(/\[Tooth #(\d+)\]/i);
-          return Boolean(toothMatch); // Keep if it has a tooth tag; drop if general
+          return Boolean(toothMatch);
         }
         return false;
       });
@@ -494,8 +528,17 @@ export function OpdVisitPage() {
       const q = labSearchQuery.toLowerCase();
       list = list.filter((s) => s.name.toLowerCase().includes(q) || (s.category && s.category.toLowerCase().includes(q)));
     }
+    if (isDental) {
+      return [...list].sort((a, b) => {
+        const aDental = isDentalLabService(a);
+        const bDental = isDentalLabService(b);
+        if (aDental && !bDental) return -1;
+        if (!aDental && bDental) return 1;
+        return 0;
+      });
+    }
     return list;
-  }, [labTestServices, labCategory, labSearchQuery]);
+  }, [labTestServices, labCategory, labSearchQuery, isDental]);
 
   const handleToggleLabTest = (test: ServiceResponse) => {
     if (labOrders.some((o) => o.id === test.id)) {
@@ -517,7 +560,15 @@ export function OpdVisitPage() {
   };
 
   // Sub-tab 5: Imaging Orders State
-  const [imagingOrders, setImagingOrders] = useState<Array<{ id: string; name: string; local_id: string; category?: string }>>([]);
+  const [imagingOrders, setImagingOrders] = useState<
+    Array<{
+      id: string;
+      name: string;
+      local_id: string;
+      category?: string;
+      tooth_number?: number | null;
+    }>
+  >([]);
   const [imagingPriority, setImagingPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
   const [imagingCategory, setImagingCategory] = useState('All');
   const [imagingClinicalInfo, setImagingClinicalInfo] = useState('');
@@ -546,8 +597,17 @@ export function OpdVisitPage() {
       const q = imagingSearchQuery.toLowerCase();
       list = list.filter((s) => s.name.toLowerCase().includes(q) || (s.category && s.category.toLowerCase().includes(q)));
     }
+    if (isDental) {
+      return [...list].sort((a, b) => {
+        const aDental = isDentalImagingService(a);
+        const bDental = isDentalImagingService(b);
+        if (aDental && !bDental) return -1;
+        if (!aDental && bDental) return 1;
+        return 0;
+      });
+    }
     return list;
-  }, [imagingServices, imagingCategory, imagingSearchQuery]);
+  }, [imagingServices, imagingCategory, imagingSearchQuery, isDental]);
 
   const handleToggleImagingTest = (test: ServiceResponse) => {
     if (imagingOrders.some((o) => o.id === test.id)) {
@@ -560,13 +620,17 @@ export function OpdVisitPage() {
           name: test.name,
           local_id: `img-${Date.now()}-${Math.random()}`,
           category: test.category || imagingCategory,
+          tooth_number: null,
         },
       ]);
     }
   };
 
   useEffect(() => {
-    if (!vitals) return;
+    if (!vitals) {
+      setVitalsForm(emptyVitalsForm);
+      return;
+    }
     setVitalsForm({
       blood_pressure_systolic: vitals.blood_pressure_systolic?.toString() ?? '',
       blood_pressure_diastolic: vitals.blood_pressure_diastolic?.toString() ?? '',
@@ -581,27 +645,49 @@ export function OpdVisitPage() {
   }, [vitals]);
 
   useEffect(() => {
-    if (!consultation) return;
+    if (!consultation) {
+      setConsultationForm(emptyConsultationForm);
+      setSelectedDiagnoses([]);
+      return;
+    }
     setConsultationForm(consultationFormFromRecord(consultation));
     const assessment = consultation.assessment;
-    if (!assessment) { setSelectedDiagnoses([]); return; }
+    if (!assessment) {
+      setSelectedDiagnoses([]);
+      return;
+    }
 
     setSelectedDiagnoses(parseDentalDiagnoses(assessment));
   }, [consultation]);
 
   useEffect(() => {
-    if (prescription) setPrescriptionForm(prescriptionFormFromRecord(prescription));
+    setPrescriptionForm(
+      prescription && Array.isArray(prescription.items)
+        ? prescriptionFormFromRecord(prescription)
+        : emptyPrescriptionForm,
+    );
   }, [prescription]);
 
   useEffect(() => {
-    if (!referral) return;
+    if (!referral) {
+      setReferralSpecialty('');
+      setReferralDoctorId('');
+      setReferralReason('');
+      return;
+    }
     setReferralSpecialty(referral.specialty ?? '');
     setReferralDoctorId(referral.referred_doctor_id ?? '');
     setReferralReason(referral.reason ?? '');
   }, [referral]);
 
   useEffect(() => {
-    if (!followUp) return;
+    if (!followUp) {
+      setFollowUpDate('');
+      setFollowUpDoctorId('');
+      setFollowUpStartTime('09:00');
+      setFollowUpDurationMinutes('30');
+      return;
+    }
     setFollowUpDate(followUp.next_visit_date?.slice(0, 10) ?? '');
     setFollowUpDoctorId(followUp.assigned_doctor_id ?? '');
     setFollowUpStartTime(followUp.start_time ?? '09:00');
@@ -609,32 +695,57 @@ export function OpdVisitPage() {
   }, [followUp]);
 
   useEffect(() => {
-    if (!laboratoryOrder?.items?.length) return;
-    setLabOrders(laboratoryOrder.items.map((item) => ({
-      id: item.service_id,
-      name: item.investigation_name,
-      category: item.category,
-      local_id: item.id || `lab-${Date.now()}-${Math.random()}`,
-    })));
+    if (!laboratoryOrder || !Array.isArray(laboratoryOrder.items)) {
+      setLabOrders([]);
+      setLabPriority('ROUTINE');
+      setLabFacility('Main Branch - Laboratory');
+      setLabSampleType('Blood');
+      setLabCategory('All');
+      setLabClinicalNotes('');
+      setLabOrderSummary('');
+      return;
+    }
+    setLabOrders(
+      laboratoryOrder.items.map((item) => ({
+        id: item.service_id,
+        name: item.investigation_name,
+        category: item.category,
+        local_id: item.id || `lab-${Date.now()}-${Math.random()}`,
+      })),
+    );
     setLabPriority(laboratoryOrder.priority);
-    if (laboratoryOrder.destination) setLabFacility(laboratoryOrder.destination);
-    if (laboratoryOrder.specimen_type) setLabSampleType(laboratoryOrder.specimen_type);
-    if (laboratoryOrder.clinical_notes) setLabClinicalNotes(laboratoryOrder.clinical_notes);
-    if (laboratoryOrder.instructions) setLabOrderSummary(laboratoryOrder.instructions);
+    setLabFacility(laboratoryOrder.destination ?? 'Main Branch - Laboratory');
+    setLabSampleType(laboratoryOrder.specimen_type ?? 'Blood');
+    setLabClinicalNotes(laboratoryOrder.clinical_notes ?? '');
+    setLabOrderSummary(laboratoryOrder.instructions ?? '');
   }, [laboratoryOrder]);
 
   useEffect(() => {
-    if (!imagingOrder?.items?.length) return;
-    setImagingOrders(imagingOrder.items.map((item) => ({
-      id: item.service_id,
-      name: item.investigation_name,
-      category: item.category,
-      local_id: item.id || `img-${Date.now()}-${Math.random()}`,
-    })));
+    if (!imagingOrder || !Array.isArray(imagingOrder.items)) {
+      setImagingOrders([]);
+      setImagingPriority('ROUTINE');
+      setImagingCategory('All');
+      setImagingClinicalInfo('');
+      setImagingOrderInstructions('');
+      return;
+    }
+    setImagingOrders(
+      imagingOrder.items.map((item) => ({
+        id: item.service_id,
+        name: item.investigation_name,
+        category: item.category,
+        tooth_number: item.tooth_number ?? null,
+        local_id: item.id || `img-${Date.now()}-${Math.random()}`,
+      })),
+    );
     setImagingPriority(imagingOrder.priority);
-    if (imagingOrder.clinical_notes) setImagingClinicalInfo(imagingOrder.clinical_notes);
-    if (imagingOrder.instructions) setImagingOrderInstructions(imagingOrder.instructions);
+    setImagingClinicalInfo(imagingOrder.clinical_notes ?? '');
+    setImagingOrderInstructions(imagingOrder.instructions ?? '');
   }, [imagingOrder]);
+
+  useEffect(() => {
+    setDentalCompleted(false);
+  }, [visit?.id]);
 
   // Action Handlers
   const saveConsultationDraft = async () => {
@@ -654,44 +765,54 @@ export function OpdVisitPage() {
       };
       await feature.actions.saveWorkspaceDraft({
         consultation: payload,
-        prescription: prescriptionForm.items.length > 0 ? {
-            items: prescriptionForm.items.map((i) => ({
-              medicine_name: i.medicine_name,
-              strength: i.strength || null,
-              dosage: i.dosage,
-              route: i.route || 'ORAL',
-              frequency: i.frequency,
-              duration: i.duration,
-              quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
-              intake_time: null,
-              instructions: i.instructions || null,
-            })),
-            follow_up_date: prescriptionForm.follow_up_date || null,
-            doctor_instructions: prescriptionForm.doctor_instructions || null,
-            patient_instructions: prescriptionForm.patient_instructions || null,
-          } : undefined,
-        laboratory: labOrders.length > 0 ? {
-            priority: labPriority || 'ROUTINE',
-            destination: labFacility,
-            specimen_type: labSampleType,
-            clinical_notes: labClinicalNotes || null,
-            instructions: labOrderSummary || null,
-            items: labOrders.map((o) => ({
-              service_id: o.id,
-              investigation_name: o.name,
-              category: o.category || labCategory || 'Hematology',
-            })),
-          } : undefined,
-        imaging: imagingOrders.length > 0 ? {
-            priority: imagingPriority || 'ROUTINE',
-            clinical_notes: imagingClinicalInfo || null,
-            instructions: imagingOrderInstructions || null,
-            items: imagingOrders.map((o) => ({
-              service_id: o.id,
-              investigation_name: o.name,
-              category: o.category || imagingCategory || 'X-Ray',
-            })),
-          } : undefined,
+        prescription:
+          prescriptionForm.items.length > 0
+            ? {
+                items: prescriptionForm.items.map((i) => ({
+                  medicine_name: i.medicine_name,
+                  strength: i.strength || null,
+                  dosage: i.dosage,
+                  route: i.route || 'ORAL',
+                  frequency: i.frequency,
+                  duration: i.duration,
+                  quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+                  intake_time: null,
+                  instructions: i.instructions || null,
+                })),
+                follow_up_date: prescriptionForm.follow_up_date || null,
+                doctor_instructions: prescriptionForm.doctor_instructions || null,
+                patient_instructions: prescriptionForm.patient_instructions || null,
+              }
+            : undefined,
+        laboratory:
+          labOrders.length > 0
+            ? {
+                priority: labPriority || 'ROUTINE',
+                destination: labFacility,
+                specimen_type: labSampleType,
+                clinical_notes: labClinicalNotes || null,
+                instructions: labOrderSummary || null,
+                items: labOrders.map((o) => ({
+                  service_id: o.id,
+                  investigation_name: o.name,
+                  category: o.category || labCategory || 'Hematology',
+                })),
+              }
+            : undefined,
+        imaging:
+          imagingOrders.length > 0
+            ? {
+                priority: imagingPriority || 'ROUTINE',
+                clinical_notes: imagingClinicalInfo || null,
+                instructions: imagingOrderInstructions || null,
+                items: imagingOrders.map((o) => ({
+                  service_id: o.id,
+                  investigation_name: o.name,
+                  category: o.category || imagingCategory || 'X-Ray',
+                  tooth_number: isDental ? (o.tooth_number ?? null) : null,
+                })),
+              }
+            : undefined,
       });
 
       showToast('Consultation draft and clinical orders saved.');
@@ -786,49 +907,52 @@ export function OpdVisitPage() {
       const prescriptionPayload =
         prescriptionForm.items.length > 0
           ? {
-            items: prescriptionForm.items.map((i) => ({
-              medicine_name: i.medicine_name,
-              strength: i.strength || null,
-              dosage: i.dosage,
-              route: i.route || 'ORAL',
-              frequency: i.frequency,
-              duration: i.duration,
-              quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
-              intake_time: null,
-              instructions: i.instructions || null,
-            })),
-            follow_up_date: prescriptionForm.follow_up_date || null,
-            doctor_instructions: prescriptionForm.doctor_instructions || null,
-            patient_instructions: prescriptionForm.patient_instructions || null,
-          }
+              items: prescriptionForm.items.map((i) => ({
+                medicine_name: i.medicine_name,
+                strength: i.strength || null,
+                dosage: i.dosage,
+                route: i.route || 'ORAL',
+                frequency: i.frequency,
+                duration: i.duration,
+                quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+                intake_time: null,
+                instructions: i.instructions || null,
+              })),
+              follow_up_date: prescriptionForm.follow_up_date || null,
+              doctor_instructions: prescriptionForm.doctor_instructions || null,
+              patient_instructions: prescriptionForm.patient_instructions || null,
+            }
           : undefined;
+
       const laboratoryPayload =
         labOrders.length > 0
           ? {
-            priority: labPriority,
-            destination: labFacility,
-            specimen_type: labSampleType,
-            clinical_notes: labClinicalNotes || null,
-            instructions: labOrderSummary || null,
-            items: labOrders.map((o) => ({
-              service_id: o.id,
-              investigation_name: o.name,
-              category: o.category && o.category !== 'All' ? o.category : 'Hematology',
-            })),
-          }
+              priority: labPriority,
+              destination: labFacility,
+              specimen_type: labSampleType,
+              clinical_notes: labClinicalNotes || null,
+              instructions: labOrderSummary || null,
+              items: labOrders.map((o) => ({
+                service_id: o.id,
+                investigation_name: o.name,
+                category: o.category && o.category !== 'All' ? o.category : 'Hematology',
+              })),
+            }
           : undefined;
+
       const imagingPayload =
         imagingOrders.length > 0
           ? {
-            priority: imagingPriority,
-            clinical_notes: imagingClinicalInfo || null,
-            instructions: imagingOrderInstructions || null,
-            items: imagingOrders.map((o) => ({
-              service_id: o.id,
-              investigation_name: o.name,
-              category: o.category && o.category !== 'All' ? o.category : 'Imaging',
-            })),
-          }
+              priority: imagingPriority,
+              clinical_notes: imagingClinicalInfo || null,
+              instructions: imagingOrderInstructions || null,
+              items: imagingOrders.map((o) => ({
+                service_id: o.id,
+                investigation_name: o.name,
+                category: o.category && o.category !== 'All' ? o.category : 'Imaging',
+                tooth_number: isDental ? (o.tooth_number ?? null) : null,
+              })),
+            }
           : undefined;
 
       // 5. Automatically Create Billing Invoice for Consultation + Lab + Imaging
@@ -869,12 +993,12 @@ export function OpdVisitPage() {
       const referralPayload =
         referralDoctorId && referralSpecialty
           ? {
-            referral_type: 'INTERNAL' as const,
-            specialty: referralSpecialty,
-            referred_doctor_id: referralDoctorId,
-            reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
-            clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
-          }
+              referral_type: 'INTERNAL' as const,
+              specialty: referralSpecialty,
+              referred_doctor_id: referralDoctorId,
+              reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+              clinical_summary: consultationForm.assessment || 'Referred for further evaluation.',
+            }
           : undefined;
 
       const followUpPayload =
@@ -901,15 +1025,14 @@ export function OpdVisitPage() {
         invoice:
           invoiceItems.length > 0
             ? {
-            patient_id: visit.patient_id,
-            visit_id: visit.id,
-            branch_id: visit.branch_id || activeBranchId || '',
-            items: invoiceItems,
-          }
+                patient_id: visit.patient_id,
+                visit_id: visit.id,
+                branch_id: visit.branch_id || activeBranchId || '',
+                items: invoiceItems,
+              }
             : undefined,
       });
       showToast('Consultation completed successfully!');
-
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
     } finally {
@@ -1048,9 +1171,7 @@ export function OpdVisitPage() {
           Boolean(referralReason?.trim())
         );
       case 'Follow-up':
-        return (
-          Boolean(prescriptionForm.follow_up_date)
-        );
+        return Boolean(prescriptionForm.follow_up_date);
       case 'Notes':
         return Boolean(consultationForm.doctor_notes.trim());
       case 'Documents':
@@ -1178,7 +1299,9 @@ export function OpdVisitPage() {
               </button>
               <button
                 className="doc-btn"
-                onClick={() => navigate(`/patients/emr?id=${visit.patient_id}`)}
+                onClick={() =>
+                  navigate(`/patients/profile?id=${visit.patient_id}&tab=${encodeURIComponent('EMR Timeline')}`)
+                }
                 type="button"
               >
                 <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
@@ -1211,7 +1334,7 @@ export function OpdVisitPage() {
                 </div>
               ) : null}
 
-              {/* 9 Workspace Tabs Bar */}
+              {/* Workspace Tabs Bar */}
               <div className="opd-workspace-tabs" role="tablist" aria-label="Consultation tabs">
                 {activeWorkspaceTabs.map((tab) => {
                   const completed = isTabCompleted(tab.name);
@@ -1254,43 +1377,43 @@ export function OpdVisitPage() {
                 {/* TAB DENTAL: DENTAL EXAMINATION */}
                 {isDental && feature.state.canViewConsultation ? (
                   <div hidden={activeTab !== 'Dental Examination'}>
-                  <OpdDentalExaminationTab
-                    key={visit.id}
-                    visitId={visit.id}
-                    canEdit={!isVisitCompleted && feature.state.canEditConsultation}
-                    showToast={showToast}
-                    consultation={consultation}
-                    departmentServices={dentalProcedureServices}
-                    diagnoses={selectedDiagnoses}
-                    billingStates={feature.state.dentalBillingStates}
-                    billingStateLoading={feature.state.dentalBillingLoading}
-                    billingStateError={feature.state.dentalBillingError}
-                    canCreateInvoice={
-                      feature.state.billingCapabilities.canCreate &&
-                      feature.state.billingCapabilities.canView
-                    }
-                    billingTreatmentItemPending={feature.state.billingTreatmentItemPending}
-                    onCreateInvoice={async (treatmentItemId) => {
-                      const invoice = await feature.actions.createDentalTreatmentInvoice(
-                        treatmentItemId,
-                      );
-                      navigate(`/billing/workspace?id=${invoice.id}`);
-                    }}
-                    onOpenInvoice={(invoiceId) =>
-                      navigate(`/billing/workspace?id=${invoiceId}`)
-                    }
-                    onCompletedChange={setDentalCompleted}
-                    onSaveDiagnosis={async () => {
-                      if (consultationForm.assessment.trim() !== (consultation?.assessment?.trim() ?? '')) {
-                        await feature.actions.saveDentalDiagnosis(consultationForm.assessment);
+                    <OpdDentalExaminationTab
+                      key={visit.id}
+                      visitId={visit.id}
+                      canEdit={!isVisitCompleted && feature.state.canEditConsultation}
+                      showToast={showToast}
+                      consultation={consultation}
+                      departmentServices={dentalProcedureServices}
+                      diagnoses={selectedDiagnoses}
+                      billingStates={feature.state.dentalBillingStates}
+                      billingStateLoading={feature.state.dentalBillingLoading}
+                      billingStateError={feature.state.dentalBillingError}
+                      canCreateInvoice={
+                        feature.state.billingCapabilities.canCreate &&
+                        feature.state.billingCapabilities.canView
                       }
-                    }}
-                    onOpenDiagnosis={(tooth) => {
-                      setDiagnosisTooth(tooth);
-                      setActiveTab('Diagnosis');
-                      navigate(`/opd/consultation?id=${visit.id}&tab=Diagnosis`, { replace: true });
-                    }}
-                  />
+                      billingTreatmentItemPending={feature.state.billingTreatmentItemPending}
+                      onCreateInvoice={async (treatmentItemId) => {
+                        const invoice = await feature.actions.createDentalTreatmentInvoice(
+                          treatmentItemId,
+                        );
+                        navigate(`/billing/workspace?id=${invoice.id}`);
+                      }}
+                      onOpenInvoice={(invoiceId) =>
+                        navigate(`/billing/workspace?id=${invoiceId}`)
+                      }
+                      onCompletedChange={setDentalCompleted}
+                      onSaveDiagnosis={async () => {
+                        if (consultationForm.assessment.trim() !== (consultation?.assessment?.trim() ?? '')) {
+                          await feature.actions.saveDentalDiagnosis(consultationForm.assessment);
+                        }
+                      }}
+                      onOpenDiagnosis={(tooth) => {
+                        setDiagnosisTooth(tooth);
+                        setActiveTab('Diagnosis');
+                        navigate(`/opd/consultation?id=${visit.id}&tab=Diagnosis`, { replace: true });
+                      }}
+                    />
                   </div>
                 ) : null}
 
@@ -1321,6 +1444,7 @@ export function OpdVisitPage() {
                     emptyMedicationForm={emptyMedicationForm}
                     handleNextStep={handleNextStep}
                     handleSendToPharmacy={handleSendToPharmacy}
+                    isDental={isDental}
                     masterMedicines={masterMedicines}
                     medicationForm={medicationForm}
                     prescriptionForm={prescriptionForm}
@@ -1341,6 +1465,7 @@ export function OpdVisitPage() {
                     canEdit={!isVisitCompleted && feature.state.canEditClinicalOrders}
                     handleNextStep={handleNextStep}
                     handleToggleLabTest={handleToggleLabTest}
+                    isDental={isDental}
                     labCategory={labCategory}
                     labCategoryOptions={labCategoryOptions}
                     labClinicalNotes={labClinicalNotes}
@@ -1378,6 +1503,7 @@ export function OpdVisitPage() {
                     imagingOrders={imagingOrders}
                     imagingPriority={imagingPriority}
                     imagingSearchQuery={imagingSearchQuery}
+                    isDental={isDental}
                     saveConsultationDraft={saveConsultationDraft}
                     setImagingCategory={setImagingCategory}
                     setImagingClinicalInfo={setImagingClinicalInfo}

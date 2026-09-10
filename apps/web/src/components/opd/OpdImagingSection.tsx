@@ -1,11 +1,14 @@
 import type { ApiClinicalOrderPriority } from '../../api/opd';
 import type { ServiceResponse } from '../../api/services';
+import { getToothName, isDentalImagingService } from '../../pages/dental-utils';
+import dentalStyles from './dental/DentalClinicalOrders.module.css';
 
 export type ImagingOrderItem = {
   id: string;
   name: string;
   local_id: string;
   category?: string;
+  tooth_number?: number | null;
 };
 
 export type OpdImagingSectionProps = {
@@ -27,6 +30,7 @@ export type OpdImagingSectionProps = {
   saveConsultationDraft: () => void;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
+  isDental?: boolean;
 };
 
 export function OpdImagingSection({
@@ -48,6 +52,7 @@ export function OpdImagingSection({
   saveConsultationDraft,
   handleNextStep,
   canEdit,
+  isDental = false,
 }: OpdImagingSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -149,6 +154,7 @@ export function OpdImagingSection({
           ) : (
             availableImagingTests.map((test) => {
               const isSelected = imagingOrders.some((o) => o.id === test.id);
+              const isDentalTest = isDental && isDentalImagingService(test);
               return (
                 <label
                   className={`opd-test-checkbox-label ${isSelected ? 'selected imaging' : ''}`}
@@ -162,9 +168,16 @@ export function OpdImagingSection({
                   />
                   <div className="opd-test-label-content">
                     <span className="opd-test-name">{test.name}</span>
-                    <span className="opd-test-badge">
-                      {test.category || 'Radiology / Scan'}
-                    </span>
+                    <div className={dentalStyles.contextBadgeRow}>
+                      {isDentalTest && (
+                        <span className={`opd-test-badge ${dentalStyles.contextBadge}`}>
+                          Dental Imaging
+                        </span>
+                      )}
+                      <span className="opd-test-badge">
+                        {test.category || 'Radiology / Scan'}
+                      </span>
+                    </div>
                   </div>
                 </label>
               );
@@ -212,6 +225,7 @@ export function OpdImagingSection({
               <tr>
                 <th>TEST</th>
                 <th>CATEGORY</th>
+                {isDental && <th>TOOTH (FDI)</th>}
                 <th>PRIORITY</th>
                 <th>STATUS</th>
                 {canEdit && <th style={{ width: '48px' }} />}
@@ -221,7 +235,7 @@ export function OpdImagingSection({
               {imagingOrders.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={canEdit ? 5 : 4}
+                    colSpan={isDental ? (canEdit ? 6 : 5) : (canEdit ? 5 : 4)}
                     style={{ textAlign: 'center', padding: '1.2rem', color: '#64748b' }}
                   >
                     No tests selected.
@@ -234,6 +248,75 @@ export function OpdImagingSection({
                       <strong>{item.name}</strong>
                     </td>
                     <td>{item.category || imagingCategory}</td>
+                    {isDental && (
+                      <td>
+                        {canEdit ? (
+                          <select
+                            aria-label={`Select FDI Tooth for ${item.name}`}
+                            className={dentalStyles.toothSelect}
+                            value={item.tooth_number ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                              setImagingOrders((prev) =>
+                                prev.map((o) =>
+                                  o.local_id === item.local_id ? { ...o, tooth_number: val } : o,
+                                ),
+                              );
+                            }}
+                          >
+                            <option value="">General / Full Mouth</option>
+                            <optgroup label="Permanent Teeth (Upper Right Q1)">
+                              {[18, 17, 16, 15, 14, 13, 12, 11].map((t) => (
+                                <option key={t} value={t}>
+                                  #{t} &mdash; {getToothName(t)}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Permanent Teeth (Upper Left Q2)">
+                              {[21, 22, 23, 24, 25, 26, 27, 28].map((t) => (
+                                <option key={t} value={t}>
+                                  #{t} &mdash; {getToothName(t)}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Permanent Teeth (Lower Left Q3)">
+                              {[31, 32, 33, 34, 35, 36, 37, 38].map((t) => (
+                                <option key={t} value={t}>
+                                  #{t} &mdash; {getToothName(t)}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Permanent Teeth (Lower Right Q4)">
+                              {[41, 42, 43, 44, 45, 46, 47, 48].map((t) => (
+                                <option key={t} value={t}>
+                                  #{t} &mdash; {getToothName(t)}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Primary Teeth (Upper)">
+                              {[55, 54, 53, 52, 51, 61, 62, 63, 64, 65].map((t) => (
+                                <option key={t} value={t}>
+                                  #{t} &mdash; {getToothName(t)}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Primary Teeth (Lower)">
+                              {[85, 84, 83, 82, 81, 71, 72, 73, 74, 75].map((t) => (
+                                <option key={t} value={t}>
+                                  #{t} &mdash; {getToothName(t)}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        ) : (
+                          <span className={item.tooth_number ? dentalStyles.toothValue : dentalStyles.toothValueMuted}>
+                            {item.tooth_number
+                              ? `#${item.tooth_number} (${getToothName(item.tooth_number)})`
+                              : 'General / Full Mouth'}
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       <span className="doc-status draft">{imagingPriority}</span>
                     </td>

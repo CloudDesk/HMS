@@ -12,6 +12,7 @@ import { OpdVisitRepository } from '../src/modules/opd/opd-visit.repository.js';
 import { PatientRepository } from '../src/modules/patients/patient.repository.js';
 import { ServiceModel } from '../src/modules/services/service.model.js';
 import { ServiceRepository } from '../src/modules/services/service.repository.js';
+import { DepartmentRepository } from '../src/modules/departments/department.repository.js';
 import { clearTestDatabase, setupTestDatabase, teardownTestDatabase } from './setup.js';
 
 const id = () => new Types.ObjectId().toString();
@@ -49,7 +50,14 @@ describe('IP and procedure downstream clinical contexts', () => {
     patientRepository = new PatientRepository();
     serviceRepository = new ServiceRepository();
     prescriptions = new OpdPrescriptionService(prescriptionRepository, visitRepository, consultationRepository, patientRepository);
-    clinicalOrders = new OpdClinicalOrderService(clinicalOrderRepository, visitRepository, consultationRepository, patientRepository, serviceRepository);
+    clinicalOrders = new OpdClinicalOrderService(
+      clinicalOrderRepository,
+      visitRepository,
+      consultationRepository,
+      patientRepository,
+      serviceRepository,
+      new DepartmentRepository(),
+    );
     laboratory = new LaboratoryRepository();
     imaging = new ImagingRepository();
   }, 30000);
@@ -115,6 +123,27 @@ describe('IP and procedure downstream clinical contexts', () => {
       });
     }
   }
+
+  it('rejects Dental tooth metadata without a verified Dental OPD visit context', async () => {
+    const source = context('PROCEDURE_BOOKING');
+
+    await expect(
+      clinicalOrders.submitForContext(
+        source,
+        'IMAGING',
+        {
+          priority: 'ROUTINE',
+          items: [{
+            service_id: id(),
+            investigation_name: 'Dental image',
+            category: 'Imaging',
+            tooth_number: 36,
+          }],
+        },
+        id(),
+      ),
+    ).rejects.toMatchObject({ code: 'DENTAL_VISIT_REQUIRED' });
+  });
 
   it('changed retry is rejected without overwriting the prescription', async () => {
     const source = context('INPATIENT_ADMISSION');

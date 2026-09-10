@@ -32,6 +32,16 @@ const testState = vi.hoisted(() => ({
   error: false,
 }));
 
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({
+    user: {
+      roles: [],
+      permissions: [],
+      branches: [{ id: 'branch-1', name: 'Main Branch', code: 'MAIN' }],
+    },
+  }),
+}));
+
 vi.mock('../hooks/surgery/useSurgeryWorkspaceFeature', () => ({
   useSurgeryWorkspaceFeature: () => ({
     state: {

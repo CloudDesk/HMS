@@ -405,15 +405,19 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     </td>
                     {!disabled && (
                       <td style={{ textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className={styles.btnSecondary}
-                          style={{ padding: '2px 6px', color: '#dc2626', borderColor: '#fecaca' }}
-                          onClick={() => handleRemoveItem(idx)}
-                          title="Remove procedure"
-                        >
-                          <i className="ph ph-trash" />
-                        </button>
+                        {billingState ? (
+                          <span className={styles.billingMuted}>Invoice linked</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.btnSecondary}
+                            style={{ padding: '2px 6px', color: '#dc2626', borderColor: '#fecaca' }}
+                            onClick={() => handleRemoveItem(idx)}
+                            title="Remove procedure"
+                          >
+                            <i className="ph ph-trash" />
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>

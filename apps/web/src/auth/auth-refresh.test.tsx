@@ -1,5 +1,6 @@
 import { act, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // @vitest-environment jsdom
@@ -161,6 +162,7 @@ describe('web auth token refresh and concurrent request handling', () => {
   });
 
   it('restores session via AuthProvider on startup using refresh cookie', async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     vi.mocked(fetch).mockImplementation((url) => {
       const urlStr = String(url);
       if (urlStr.includes('/auth/refresh')) {
@@ -172,6 +174,7 @@ describe('web auth token refresh and concurrent request handling', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     let observedStatus = '';
 
     function Observer() {
@@ -184,9 +187,11 @@ describe('web auth token refresh and concurrent request handling', () => {
 
     await act(async () => {
       root.render(
-        <AuthProvider>
-          <Observer />
-        </AuthProvider>,
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Observer />
+          </AuthProvider>
+        </QueryClientProvider>,
       );
       await Promise.resolve();
       await Promise.resolve();
@@ -196,6 +201,7 @@ describe('web auth token refresh and concurrent request handling', () => {
     expect(tokenStorage.getAccessToken()).toBe('new-access-token');
 
     await act(async () => root.unmount());
+    queryClient.clear();
     container.remove();
   });
 });

@@ -153,6 +153,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     opdConsultationRepository,
     patientRepository,
     serviceRepository,
+    departmentRepository,
   );
   const opdPrescriptionService = new OpdPrescriptionService(
     opdPrescriptionRepository,
@@ -165,6 +166,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     opdVisitRepository,
     opdConsultationRepository,
     patientRepository,
+    serviceRepository,
+    billingRepository,
   );
   const billingService = new BillingService(
     billingRepository,

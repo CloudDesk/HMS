@@ -33,7 +33,19 @@ const patient = {
 };
 
 vi.mock('../auth/useAuth', () => ({
-  useAuth: () => ({ user: { roles: [{ code: 'ADMIN', name: 'Administrator' }], permissions: [] } }),
+  useAuth: () => ({
+    user: {
+      roles: [{ code: 'ADMIN', name: 'Administrator' }],
+      permissions: [
+        {
+          code: 'Appointments_Appointment_Booking_Create',
+          module: 'Appointments',
+          screen: 'Appointment Booking',
+          action: 'Create',
+        },
+      ],
+    },
+  }),
 }));
 vi.mock('../routing/navigation', () => ({
   navigate: vi.fn(),

@@ -28,6 +28,7 @@ export const saveClinicalOrderBodySchema = {
           service_id: { type: ['string', 'null'] },
           investigation_name: { type: ['string', 'null'], maxLength: 200 },
           category: { type: ['string', 'null'], maxLength: 100 },
+          tooth_number: { type: ['integer', 'null'] },
         },
       },
     },

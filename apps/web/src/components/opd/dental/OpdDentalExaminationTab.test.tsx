@@ -870,7 +870,9 @@ describe('OpdDentalExaminationTab Component', () => {
 
     expect(container.textContent).toContain('Paid');
     expect(container.textContent).toContain('INV-DENT-001');
+    expect(container.textContent).toContain('Invoice linked');
     expect(container.textContent).not.toContain('Create Invoice');
+    expect(container.querySelector('button[title="Remove procedure"]')).toBeNull();
     const invoiceButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('INV-DENT-001'),
     );
