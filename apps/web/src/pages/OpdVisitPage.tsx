@@ -191,6 +191,7 @@ export function OpdVisitPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
+  const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
@@ -1158,6 +1159,16 @@ export function OpdVisitPage() {
             </div>
             <div className="opd-patient-banner-actions">
               <button
+                aria-controls="opd-patient-summary-panel"
+                aria-expanded={summaryPanelOpen}
+                className={`doc-btn ${summaryPanelOpen ? 'active' : ''}`}
+                onClick={() => setSummaryPanelOpen((open) => !open)}
+                type="button"
+              >
+                <i className="ph ph-sidebar-simple" aria-hidden="true" />
+                {summaryPanelOpen ? 'Hide Patient Summary' : 'Patient Summary'}
+              </button>
+              <button
                 className="doc-btn"
                 onClick={() => navigate(`/patients/profile?id=${visit.patient_id}`)}
                 type="button"
@@ -1177,7 +1188,7 @@ export function OpdVisitPage() {
           </section>
 
           {/* Main Layout: 9 Workspace Tabs on Left, Patient Summary on Right */}
-          <div className="opd-workspace">
+          <div className={`opd-workspace ${summaryPanelOpen ? '' : 'summary-hidden'}`}>
             <main className="opd-clinical-main">
               {isVisitCompleted ? (
                 <div
@@ -1449,12 +1460,16 @@ export function OpdVisitPage() {
             </main>
 
             {/* Right Summary Side Panel */}
-            <OpdSummaryPanel
-              consultationForm={consultationForm}
-              prescriptionForm={prescriptionForm}
-              visit={visit}
-              vitalsForm={vitalsForm}
-            />
+            {summaryPanelOpen ? (
+              <OpdSummaryPanel
+                consultationForm={consultationForm}
+                id="opd-patient-summary-panel"
+                onClose={() => setSummaryPanelOpen(false)}
+                prescriptionForm={prescriptionForm}
+                visit={visit}
+                vitalsForm={vitalsForm}
+              />
+            ) : null}
           </div>
         </>
       )}

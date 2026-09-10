@@ -21,7 +21,7 @@ import { DentalHistorySection } from './DentalHistorySection';
 import { DentalSoftTissueSection } from './DentalSoftTissueSection';
 import { DentalTreatmentPlanSection } from './DentalTreatmentPlanSection';
 import { OdontogramChart } from './OdontogramChart';
-import { ToothExaminationPanel } from './ToothExaminationPanel';
+import { ToothAffectedSurfaces, ToothExaminationPanel } from './ToothExaminationPanel';
 import styles from './DentalExamination.module.css';
 
 interface OpdDentalExaminationTabProps {
@@ -368,12 +368,20 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
 
       {/* 2. Interactive Odontogram + Tooth Examination Panel */}
       <div className={styles.odontogramLayout}>
-        <OdontogramChart
-          teeth={teeth}
-          selectedToothNumber={selectedToothNumber}
-          onSelectTooth={(num) => setSelectedToothNumber(num)}
-          disabled={isSaving}
-        />
+        <div className={styles.odontogramMainColumn}>
+          <OdontogramChart
+            teeth={teeth}
+            selectedToothNumber={selectedToothNumber}
+            onSelectTooth={(num) => setSelectedToothNumber(num)}
+            disabled={isSaving}
+          />
+          <ToothAffectedSurfaces
+            selectedToothNumber={selectedToothNumber}
+            currentFinding={currentFinding}
+            onUpdateFinding={handleUpdateFinding}
+            disabled={controlsDisabled}
+          />
+        </div>
 
         <ToothExaminationPanel
           selectedToothNumber={selectedToothNumber}
@@ -381,10 +389,11 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           onUpdateFinding={handleUpdateFinding}
           onRemoveFinding={handleRemoveFinding}
           disabled={controlsDisabled}
+          showAffectedSurfaces={false}
         />
       </div>
 
-      <section className={styles.consultationContext} aria-label="Dental clinical relationship">
+      <section className={`${styles.consultationContext} ${styles.clinicalRelationshipCard}`} aria-label="Dental clinical relationship">
         <strong>Examination → Diagnosis → Treatment Plan</strong>
         <p>Linked by FDI tooth number. Diagnoses and procedures are added explicitly.</p>
         {Array.from(new Set([

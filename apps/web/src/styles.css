@@ -6291,9 +6291,69 @@ textarea.has-error {
 /* Consultation Workspace Tabs Full Height Card Alignment */
 .opd-workspace {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 340px !important;
+  grid-template-columns: minmax(0, 1fr) !important;
   gap: 1.25rem !important;
   align-items: stretch !important;
+}
+
+.opd-workspace.summary-hidden {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.opd-patient-banner-actions .doc-btn.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.opd-workspace > .opd-summary-panel {
+  position: fixed !important;
+  top: 5.5rem !important;
+  right: 1rem !important;
+  bottom: 1rem !important;
+  z-index: 80 !important;
+  width: min(360px, calc(100vw - 2rem)) !important;
+  max-height: calc(100vh - 6.5rem) !important;
+  overflow-y: auto !important;
+  padding: 0.15rem !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.22) !important;
+  overscroll-behavior: contain;
+}
+
+.opd-summary-close {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+}
+
+.opd-summary-close:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.opd-summary-close:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .opd-workspace > .opd-summary-panel {
+    top: 4.5rem !important;
+    right: 0.5rem !important;
+    bottom: 0.5rem !important;
+    width: calc(100vw - 1rem) !important;
+    max-height: calc(100vh - 5rem) !important;
+  }
 }
 
 .opd-clinical-main {

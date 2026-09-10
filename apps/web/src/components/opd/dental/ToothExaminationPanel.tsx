@@ -3,7 +3,6 @@ import type {
   ToothFinding,
   ToothMobility,
   ToothStatus,
-  ToothSurface,
 } from '../../../api/opd';
 import {
   getDentition,
@@ -21,7 +20,48 @@ interface ToothExaminationPanelProps {
   onUpdateFinding: (finding: ToothFinding) => void;
   onRemoveFinding: (toothNumber: number) => void;
   disabled?: boolean;
+  showAffectedSurfaces?: boolean;
 }
+
+type ToothAffectedSurfacesProps = Pick<
+  ToothExaminationPanelProps,
+  'selectedToothNumber' | 'currentFinding' | 'onUpdateFinding' | 'disabled'
+>;
+
+export const ToothAffectedSurfaces: React.FC<ToothAffectedSurfacesProps> = ({
+  selectedToothNumber,
+  currentFinding,
+  onUpdateFinding,
+  disabled = false,
+}) => {
+  if (!selectedToothNumber) return null;
+
+  const finding: ToothFinding = currentFinding ?? {
+    tooth_number: selectedToothNumber,
+    dentition: getDentition(selectedToothNumber),
+    status: 'PRESENT',
+    surfaces: [],
+    conditions: ['HEALTHY'],
+    mobility: 'NONE',
+    pocket_depth_mm: null,
+    furcation_involvement: null,
+    notes: null,
+  };
+
+  if (finding.status === 'MISSING' || finding.status === 'EXTRACTED') return null;
+
+  return (
+    <section className={styles.affectedSurfacesPanel} aria-label="Affected Surfaces">
+      <h3 className={styles.affectedSurfacesTitle}>Affected Surfaces</h3>
+      <ToothSurfaceSelector
+        toothNumber={selectedToothNumber}
+        surfaces={finding.surfaces}
+        onChange={(surfaces) => onUpdateFinding({ ...finding, surfaces })}
+        disabled={disabled}
+      />
+    </section>
+  );
+};
 
 export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   selectedToothNumber,
@@ -29,6 +69,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   onUpdateFinding,
   onRemoveFinding,
   disabled = false,
+  showAffectedSurfaces = true,
 }) => {
   if (!selectedToothNumber) {
     return (
@@ -81,10 +122,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
       newConditions.push(conditionId);
     }
     onUpdateFinding({ ...finding, conditions: newConditions });
-  };
-
-  const handleSurfacesChange = (surfaces: ToothSurface[]) => {
-    onUpdateFinding({ ...finding, surfaces });
   };
 
   const handleMobilityChange = (mobility: ToothMobility) => {
@@ -235,17 +272,14 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
       </div>
 
       {/* Affected Surfaces */}
-      {finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (
-        <div className={styles.formGroup}>
-          <label className={styles.label}>Affected Surfaces</label>
-          <ToothSurfaceSelector
-            toothNumber={selectedToothNumber}
-            surfaces={finding.surfaces}
-            onChange={handleSurfacesChange}
-            disabled={disabled}
-          />
-        </div>
-      )}
+      {showAffectedSurfaces ? (
+        <ToothAffectedSurfaces
+          selectedToothNumber={selectedToothNumber}
+          currentFinding={finding}
+          onUpdateFinding={onUpdateFinding}
+          disabled={disabled}
+        />
+      ) : null}
 
       {/* Periodontal Probing & Mobility */}
       {finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (

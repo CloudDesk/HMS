@@ -2,6 +2,8 @@ import type { OpdVisitResponse } from '../../api/opd';
 import type { VitalsFormState } from './OpdClinicalVitalsModal';
 
 export type OpdSummaryPanelProps = {
+  id?: string;
+  onClose?: () => void;
   vitalsForm: VitalsFormState;
   visit: OpdVisitResponse | null;
   consultationForm: { allergies?: string };
@@ -17,19 +19,31 @@ export type OpdSummaryPanelProps = {
 };
 
 export function OpdSummaryPanel({
+  id,
+  onClose,
   vitalsForm,
   visit,
   consultationForm,
   prescriptionForm,
 }: OpdSummaryPanelProps) {
   return (
-    <aside className="opd-summary-panel">
+    <aside aria-label="Patient summary and clinical context" className="opd-summary-panel" id={id}>
       {/* Patient Summary / Vitals Card */}
       <div className="doc-card opd-summary-card">
         <div className="doc-card-header">
           <div>
             <h3>Patient Summary</h3>
           </div>
+          {onClose ? (
+            <button
+              aria-label="Close patient summary"
+              className="opd-summary-close"
+              onClick={onClose}
+              type="button"
+            >
+              <i aria-hidden="true" className="ph ph-x" />
+            </button>
+          ) : null}
         </div>
         <div className="opd-summary-list">
           <div className="opd-summary-row">
