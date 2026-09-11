@@ -167,7 +167,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   };
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${styles.treatmentPlanCard}`}>
       <div className={styles.cardHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <h3 className={styles.cardTitle}>

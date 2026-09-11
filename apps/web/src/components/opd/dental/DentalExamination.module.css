@@ -482,7 +482,9 @@
   display: grid;
   grid-template-columns: 1fr 340px;
   gap: 20px;
-  padding: 20px;
+  width: 100%;
+  padding: 20px 0;
+  box-sizing: border-box;
 }
 
 @media (max-width: 1400px) {
@@ -521,6 +523,89 @@
 
 .clinicalRelationshipCard {
   background: #ffffff;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.softTissueCard {
+  margin-inline: 0;
+}
+
+.treatmentPlanCard {
+  margin-inline: 0;
+}
+
+.clinicalRelationshipHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.clinicalRelationshipHeading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.clinicalRelationshipIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.clinicalRelationshipHeading h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.clinicalRelationshipHeading p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.clinicalRelationshipList {
+  display: grid;
+  gap: 10px;
+  padding: 16px 20px;
+}
+
+.generalDiagnosisRow {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.22fr) 1fr;
+  align-items: center;
+  gap: 18px;
+  padding: 13px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.generalDiagnosisRow span {
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.generalDiagnosisRow strong {
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 @media (max-width: 900px) {
@@ -940,15 +1025,20 @@
   display: none;
 }
 .surfaceCheck {
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 14px;
+  width: 14px;
   height: 14px;
+  padding: 0;
   border: 1px solid #cbd5e1;
   border-radius: 50%;
   color: #64748b;
-  font-size: 0.8rem;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
   font-weight: 600;
+  line-height: 1;
 }
 .surfaceBtnActive {
   background: #eff6ff;
@@ -1171,10 +1261,81 @@
 }
 .clinicalRelationship {
   display: grid;
-  gap: 4px;
-  padding: 10px 0;
-  border-bottom: 1px solid #e2e8f0;
+  grid-template-columns: minmax(110px, 0.16fr) repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #ffffff;
   overflow-wrap: anywhere;
+}
+
+.clinicalRelationshipTooth,
+.clinicalRelationshipDetail {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.clinicalRelationshipTooth span,
+.clinicalRelationshipDetail > span {
+  color: #64748b;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.clinicalRelationshipTooth strong {
+  color: #1d4ed8;
+  font-size: 0.9rem;
+}
+
+.clinicalRelationshipDetail strong {
+  color: #1e293b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.clinicalRelationshipDetail small {
+  color: #64748b;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 900px) {
+  .clinicalRelationshipHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .clinicalRelationshipHeader .btnSecondary {
+    align-self: flex-start;
+  }
+  .clinicalRelationship {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .clinicalRelationshipHeader,
+  .clinicalRelationshipList {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .clinicalRelationship {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .generalDiagnosisRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
 }
 .treatmentFormGrid {
   display: grid;

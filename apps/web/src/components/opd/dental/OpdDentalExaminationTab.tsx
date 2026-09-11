@@ -394,24 +394,55 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       </div>
 
       <section className={`${styles.consultationContext} ${styles.clinicalRelationshipCard}`} aria-label="Dental clinical relationship">
-        <strong>Examination → Diagnosis → Treatment Plan</strong>
-        <p>Linked by FDI tooth number. Diagnoses and procedures are added explicitly.</p>
+        <div className={styles.clinicalRelationshipHeader}>
+          <div className={styles.clinicalRelationshipHeading}>
+            <span className={styles.clinicalRelationshipIcon} aria-hidden="true">↗</span>
+            <div>
+              <h3>Examination → Diagnosis → Treatment Plan</h3>
+              <p>Linked by FDI tooth number. Diagnoses and procedures are added explicitly.</p>
+            </div>
+          </div>
+          {onOpenDiagnosis && !isReadOnly && <button type="button" className={styles.btnSecondary} disabled={isSaving} onClick={() => onOpenDiagnosis(selectedToothNumber)}>
+            <span aria-hidden="true">+</span>
+            {selectedToothNumber ? `Add diagnosis for Tooth #${selectedToothNumber}` : 'Open diagnosis workflow'}
+          </button>}
+        </div>
+        <div className={styles.clinicalRelationshipList}>
         {Array.from(new Set([
           ...teeth.map((tooth) => tooth.tooth_number),
           ...diagnoses.flatMap((dx) => dx.tooth_number ? [dx.tooth_number] : []),
           ...treatmentPlanItems.flatMap((item) => item.tooth_number ? [item.tooth_number] : []),
-        ])).sort((a, b) => a - b).map((number) => (
-          <div key={number} className={styles.clinicalRelationship}>
-            <strong>Tooth #{number}</strong>
-            <span>{teeth.some((tooth) => tooth.tooth_number === number) ? 'Examined' : 'Not examined'}: {teeth.find((tooth) => tooth.tooth_number === number)?.conditions.join(', ') || 'No conditions recorded'}</span>
-            <span>Diagnosis: {diagnoses.filter((dx) => dx.tooth_number === number).map((dx) => `${dx.code} — ${dx.name}`).join('; ') || 'None recorded'}</span>
-            <span>Planned: {treatmentPlanItems.filter((item) => item.tooth_number === number).map((item) => `${item.procedure_name} (${item.status ?? 'PROPOSED'})`).join('; ') || 'None recorded'}</span>
-          </div>
-        ))}
-        <p>General / Full Mouth: {diagnoses.filter((dx) => !dx.tooth_number).map((dx) => `${dx.code} — ${dx.name}`).join('; ') || 'No general diagnosis recorded'}</p>
-        {onOpenDiagnosis && !isReadOnly && <button type="button" className={styles.btnSecondary} disabled={isSaving} onClick={() => onOpenDiagnosis(selectedToothNumber)}>
-          {selectedToothNumber ? `Add diagnosis for Tooth #${selectedToothNumber}` : 'Open diagnosis workflow'}
-        </button>}
+        ])).sort((a, b) => a - b).map((number) => {
+          const finding = teeth.find((tooth) => tooth.tooth_number === number);
+          const toothDiagnoses = diagnoses.filter((dx) => dx.tooth_number === number);
+          const plannedItems = treatmentPlanItems.filter((item) => item.tooth_number === number);
+          return (
+            <article key={number} className={styles.clinicalRelationship}>
+              <div className={styles.clinicalRelationshipTooth}>
+                <span>FDI</span>
+                <strong>Tooth #{number}</strong>
+              </div>
+              <div className={styles.clinicalRelationshipDetail}>
+                <span>Examination</span>
+                <strong>{finding?.conditions.join(', ') || 'No conditions recorded'}</strong>
+                <small>{finding ? 'Examined' : 'Not examined'}</small>
+              </div>
+              <div className={styles.clinicalRelationshipDetail}>
+                <span>Diagnosis</span>
+                <strong>{toothDiagnoses.map((dx) => `${dx.code} — ${dx.name}`).join('; ') || 'None recorded'}</strong>
+              </div>
+              <div className={styles.clinicalRelationshipDetail}>
+                <span>Treatment plan</span>
+                <strong>{plannedItems.map((item) => `${item.procedure_name} (${item.status ?? 'PROPOSED'})`).join('; ') || 'None recorded'}</strong>
+              </div>
+            </article>
+          );
+        })}
+        </div>
+        <div className={styles.generalDiagnosisRow}>
+          <span>General / Full Mouth: </span>
+          <strong>{diagnoses.filter((dx) => !dx.tooth_number).map((dx) => `${dx.code} — ${dx.name}`).join('; ') || 'No general diagnosis recorded'}</strong>
+        </div>
       </section>
 
       {/* 3. General Oral & Soft Tissue Section */}

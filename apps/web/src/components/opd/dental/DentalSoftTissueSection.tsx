@@ -31,7 +31,7 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
   };
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${styles.softTissueCard}`}>
       <div className={styles.cardHeader}>
         <h3 className={styles.cardTitle}>
           <i className="ph ph-mask-happy" style={{ color: '#0d9488' }} />
