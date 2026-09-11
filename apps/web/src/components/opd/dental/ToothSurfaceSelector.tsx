@@ -15,7 +15,7 @@ const SURFACE_COLORS: Record<ToothSurface, { solid: string; tint: string; border
   OCCLUSAL: { solid: '#0ea5e9', tint: '#f0f9ff', border: '#7dd3fc', text: '#0369a1' },
   MESIAL: { solid: '#3b82f6', tint: '#eff6ff', border: '#93c5fd', text: '#1d4ed8' },
   DISTAL: { solid: '#1d4ed8', tint: '#eef2ff', border: '#a5b4fc', text: '#1e3a8a' },
-  BUCCAL: { solid: '#4f46e5', tint: '#eef2ff', border: '#a5b4fc', text: '#3730a3' },
+  BUCCAL: { solid: '#14b8a6', tint: '#f0fdfa', border: '#5eead4', text: '#0f766e' },
   LINGUAL: { solid: '#8b5cf6', tint: '#f5f3ff', border: '#c4b5fd', text: '#6d28d9' },
 };
 
@@ -214,6 +214,7 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
             if (direction) {
               event.preventDefault();
               rendererRef.current?.rotate(...direction);
+              updateSurfaceAnchor();
             }
           }}
         />
@@ -222,13 +223,25 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
         {!modelLoading && available && surfaceOverlays.map(({ surface }, index) => {
           const [short, label] = getLabel(surface);
           const color = SURFACE_COLORS[surface];
-          return <span key={surface} className={styles.surfaceModelLabel} style={{ top: `${8 + index * 36}px`, borderColor: color.border, color: color.text }} aria-label={`${label} selected`}><strong style={{ backgroundColor: color.solid }}>{short}</strong>{label}</span>;
+          return <button
+            key={surface}
+            type="button"
+            className={styles.surfaceModelLabel}
+            style={{ top: `${8 + index * 36}px`, borderColor: color.border, color: color.text }}
+            aria-label={`Show ${label} surface`}
+            onClick={() => {
+              setIdentifiedSurface(surface);
+              rendererRef.current?.face(surface);
+              setSurfaceAnchor(rendererRef.current?.locate(surface) ?? null);
+            }}
+          ><strong style={{ backgroundColor: color.solid }}>{short}</strong>{label}</button>;
         })}
         {!modelLoading && available && surfaceOverlays.length > 0 && <svg className={styles.surfaceModelArrow} aria-hidden="true">
           <defs>{surfaceOverlays.map(({ surface }) => <marker key={surface} id={`${arrowId}-${surface.toLowerCase()}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" style={{ fill: SURFACE_COLORS[surface].solid }} /></marker>)}</defs>
           {surfaceOverlays.map(({ surface, anchor }, index) => {
             const startY = 27 + index * 36;
-            return <path key={surface} d={`M 74 ${startY} Q ${(74 + anchor.x) / 2} ${Math.max(startY + 10, anchor.y - 22)} ${anchor.x} ${anchor.y}`} markerEnd={`url(#${arrowId}-${surface.toLowerCase()})`} style={{ stroke: SURFACE_COLORS[surface].solid }} />;
+            const startX = 120;
+            return <path key={surface} d={`M ${startX} ${startY} Q ${(startX + anchor.x) / 2} ${Math.max(startY + 10, anchor.y - 22)} ${anchor.x} ${anchor.y}`} markerEnd={`url(#${arrowId}-${surface.toLowerCase()})`} style={{ stroke: SURFACE_COLORS[surface].solid }} />;
           })}
         </svg>}
         {!modelLoading && available && <div className={styles.surfaceViewControls} role="group" aria-label="Tooth view">
@@ -261,6 +274,7 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
               style={active ? { backgroundColor: color.tint, borderColor: color.border, color: color.text } : undefined}
               onClick={() => {
                 setIdentifiedSurface(surface.value);
+                rendererRef.current?.face(surface.value);
                 setSurfaceAnchor(rendererRef.current?.locate(surface.value) ?? null);
                 toggleSurface(surface.value);
               }}

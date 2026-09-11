@@ -358,14 +358,13 @@ export function createToothRenderer(canvas: HTMLCanvasElement, toothNumber: numb
         vec3 enamel=mix(vec3(.97,.97,.94),vec3(.88,.83,.69),neck*.32);
         vec3 root=mix(vec3(.90,.80,.61),vec3(.94,.86,.72),smoothstep(-1.7,0.,vPosition.y));
         vec3 material=vSurface<.5 ? root : enamel;
-        // Use one restrained blue family with a distinct tone per clinical
-        // surface. Adjacent selected regions therefore remain identifiable
-        // when several—or all—surfaces are recorded at once.
+        // Use distinct cool tones per clinical surface so adjacent selected
+        // regions remain identifiable when several surfaces are recorded.
         vec3 selectedColor=vec3(.05,.65,.91);
         if(vSurface>.5 && vSurface<1.5) selectedColor=vec3(.05,.65,.91);
         else if(vSurface>1.5 && vSurface<2.5) selectedColor=vec3(.23,.51,.96);
         else if(vSurface>2.5 && vSurface<3.5) selectedColor=vec3(.11,.31,.85);
-        else if(vSurface>3.5 && vSurface<4.5) selectedColor=vec3(.31,.27,.90);
+        else if(vSurface>3.5 && vSurface<4.5) selectedColor=vec3(.08,.72,.65);
         else if(vSurface>4.5) selectedColor=vec3(.64,.25,1.00);
         material=mix(material,selectedColor,selected*.94);
         vec3 halfLight=normalize(light+vec3(0.,0.,1.));
@@ -389,6 +388,7 @@ export function createToothRenderer(canvas: HTMLCanvasElement, toothNumber: numb
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { dispose(); return null; }
   gl.useProgram(program);
+  const usesAnatomicalMesh = Boolean(anatomicalMesh);
   const mesh = anatomicalMesh ?? buildToothMesh(toothNumber);
   const boundaryMesh = buildSurfaceBoundaryMesh(mesh);
   type AttributeBinding = { buffer: WebGLBuffer; location: number; size: number };
@@ -427,9 +427,13 @@ export function createToothRenderer(canvas: HTMLCanvasElement, toothNumber: numb
   const primary = getDentition(toothNumber) === 'PRIMARY';
   const posteriorMolar = primary ? position >= 4 : position >= 6;
   const premolar = !primary && position >= 4 && position <= 5;
-  const defaultYaw = posteriorMolar ? -0.42 : premolar ? -0.3 : -0.12;
+  const facialYaw = usesAnatomicalMesh ? Math.PI : 0;
+  const defaultYaw = facialYaw + (posteriorMolar ? -0.42 : premolar ? -0.3 : -0.12);
   const defaultPitch = posteriorMolar ? 0.42 : premolar ? 0.34 : 0.18;
-  let yaw = defaultYaw, pitch = defaultPitch, zoom = 1;
+  // Keep the complete anatomical model visible on initial load and Reset view.
+  const defaultZoom = 1;
+  let yaw = defaultYaw, pitch = defaultPitch, zoom = defaultZoom;
+  let visibleAnchorCache: Map<number, { x: number; y: number }> | null = null;
   const draw = (pick = false) => {
     gl.useProgram(program);
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -462,7 +466,66 @@ export function createToothRenderer(canvas: HTMLCanvasElement, toothNumber: numb
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.max(1, Math.round(rect.width * ratio));
     canvas.height = Math.max(1, Math.round(rect.height * ratio));
+    visibleAnchorCache = null;
     draw();
+  };
+  const getVisibleAnchors = () => {
+    if (visibleAnchorCache) return visibleAnchorCache;
+    const anchors = new Map<number, { x: number; y: number }>();
+    const width = canvas.width;
+    const height = canvas.height;
+    const rect = canvas.getBoundingClientRect();
+    if (!width || !height || !rect.width || !rect.height) return anchors;
+    draw(true);
+    const pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    draw();
+    const stats = Array.from({ length: RENDER_SURFACES.length + 1 }, () => ({ x: 0, y: 0, count: 0 }));
+    const step = Math.max(1, Math.floor(Math.max(width, height) / 600));
+    for (let py = 0; py < height; py += step) {
+      for (let px = 0; px < width; px += step) {
+        const surfaceId = pixels[(py * width + px) * 4] ?? 0;
+        const stat = stats[surfaceId];
+        if (!stat || surfaceId === 0) continue;
+        stat.x += px; stat.y += py; stat.count++;
+      }
+    }
+    for (let surfaceId = 1; surfaceId < stats.length; surfaceId++) {
+      const stat = stats[surfaceId];
+      if (!stat?.count) continue;
+      const centreX = stat.x / stat.count;
+      const centreY = stat.y / stat.count;
+      const insetRadius = Math.max(step, Math.round(5 * width / rect.width));
+      const neighbourOffsets = [
+        [-insetRadius, 0], [insetRadius, 0], [0, -insetRadius], [0, insetRadius],
+        [-insetRadius, -insetRadius], [insetRadius, -insetRadius],
+        [-insetRadius, insetRadius], [insetRadius, insetRadius],
+      ] as const;
+      let bestX = centreX, bestY = centreY, bestDistance = Number.POSITIVE_INFINITY;
+      let foundInteriorPixel = false;
+      for (let py = 0; py < height; py += step) {
+        for (let px = 0; px < width; px += step) {
+          if ((pixels[(py * width + px) * 4] ?? 0) !== surfaceId) continue;
+          const isInterior = neighbourOffsets.every(([offsetX, offsetY]) => {
+            const sampleX = px + offsetX;
+            const sampleY = py + offsetY;
+            return sampleX >= 0 && sampleX < width && sampleY >= 0 && sampleY < height
+              && (pixels[(sampleY * width + sampleX) * 4] ?? 0) === surfaceId;
+          });
+          if (foundInteriorPixel && !isInterior) continue;
+          const distance = (px - centreX) ** 2 + (py - centreY) ** 2;
+          if ((isInterior && !foundInteriorPixel) || distance < bestDistance) {
+            bestX = px; bestY = py; bestDistance = distance; foundInteriorPixel = isInterior;
+          }
+        }
+      }
+      anchors.set(surfaceId, {
+        x: (bestX + 0.5) / width * rect.width,
+        y: rect.height - (bestY + 0.5) / height * rect.height,
+      });
+    }
+    visibleAnchorCache = anchors;
+    return anchors;
   };
   resize();
   return {
@@ -477,35 +540,47 @@ export function createToothRenderer(canvas: HTMLCanvasElement, toothNumber: numb
       draw();
     },
     rotate: (dx, dy) => {
-      yaw += dx; pitch = Math.max(-0.8, Math.min(1.5, pitch + dy)); draw();
+      yaw += dx; pitch = Math.max(-0.8, Math.min(1.5, pitch + dy)); visibleAnchorCache = null; draw();
     },
     previewTurn: (progress) => {
       yaw = defaultYaw + Math.max(0, Math.min(1, progress)) * Math.PI * 2;
+      visibleAnchorCache = null;
       draw();
     },
     zoom: (delta) => {
-      zoom = Math.max(0.72, Math.min(1.42, zoom + delta)); draw();
+      zoom = Math.max(0.72, Math.min(1.65, zoom + delta)); visibleAnchorCache = null; draw();
     },
     locate: (surface) => {
       const id = RENDER_SURFACES.indexOf(surface) + 1;
-      let x = 0, y = 0, z = 0, count = 0;
-      for (let index = 0; index < mesh.surfaces.length; index++) {
-        if (mesh.surfaces[index] !== id) continue;
-        x += mesh.positions[index * 3] ?? 0;
-        y += mesh.positions[index * 3 + 1] ?? 0;
-        z += mesh.positions[index * 3 + 2] ?? 0;
-        count++;
-      }
-      if (!count) return null;
-      x /= count; y = y / count + 0.18; z /= count;
+      const visibleAnchor = getVisibleAnchors().get(id);
+      if (visibleAnchor) return visibleAnchor;
       const c = Math.cos(yaw), s = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-      const rotatedX = c * x + s * z;
-      const rotatedZ = -s * x + c * z;
-      const rotatedY = cp * y - sp * rotatedZ;
+      const candidates: Array<{ x: number; y: number; depth: number }> = [];
+      for (let index = 0; index < mesh.surfaces.length; index += 3) {
+        if (mesh.surfaces[index] !== id) continue;
+        // Mesh data is expanded into triangles. Use a triangle centre rather
+        // than averaging the entire surface, which can place the projected
+        // point over a neighbouring region after rotation.
+        let x = 0, y = 0, z = 0;
+        for (let vertex = index; vertex < index + 3; vertex++) {
+          x += mesh.positions[vertex * 3] ?? 0;
+          y += mesh.positions[vertex * 3 + 1] ?? 0;
+          z += mesh.positions[vertex * 3 + 2] ?? 0;
+        }
+        x /= 3; y = y / 3 + 0.18; z /= 3;
+        const rotatedX = c * x + s * z;
+        const rotatedZ = -s * x + c * z;
+        const rotatedY = cp * y - sp * rotatedZ;
+        candidates.push({ x: rotatedX, y: rotatedY, depth: rotatedZ });
+      }
+      if (!candidates.length) return null;
+      candidates.sort((a, b) => b.depth - a.depth);
+      const visibleTriangle = candidates[0];
+      if (!visibleTriangle) return null;
       const rect = canvas.getBoundingClientRect();
       return {
-        x: rect.width / 2 + rotatedX * zoom * rect.height / 3.7,
-        y: rect.height / 2 - rotatedY * zoom * rect.height / 3.7,
+        x: rect.width / 2 + visibleTriangle.x * zoom * rect.height / 3.7,
+        y: rect.height / 2 - visibleTriangle.y * zoom * rect.height / 3.7,
       };
     },
     face: (surface) => {
@@ -513,9 +588,10 @@ export function createToothRenderer(canvas: HTMLCanvasElement, toothNumber: numb
       pitch = surface === 'OCCLUSAL' ? 1.48 : defaultPitch;
       yaw = surface === 'MESIAL' ? -mesialSign * Math.PI / 2
         : surface === 'DISTAL' ? mesialSign * Math.PI / 2
-        : surface === 'LINGUAL' ? Math.PI
-        : surface === null ? defaultYaw : 0;
-      if (surface === null) zoom = 1;
+        : surface === 'LINGUAL' ? facialYaw + Math.PI
+        : surface === null ? defaultYaw : facialYaw;
+      if (surface === null) zoom = defaultZoom;
+      visibleAnchorCache = null;
       draw();
     },
     pick: (x, y) => {
