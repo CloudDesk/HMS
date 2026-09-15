@@ -17,6 +17,8 @@ import {
   useSaveOpdDentalExaminationDraft,
 } from '../../../hooks/opd/useOpd';
 import { getOpdErrorMessage } from '../../../pages/opd-utils';
+import { navigate } from '../../../routing/navigation';
+import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { DentalHistorySection } from './DentalHistorySection';
 import { DentalSoftTissueSection } from './DentalSoftTissueSection';
 import { DentalTreatmentPlanSection } from './DentalTreatmentPlanSection';
@@ -87,8 +89,10 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const [teeth, setTeeth] = useState<ToothFinding[]>([]);
   const [treatmentPlanItems, setTreatmentPlanItems] = useState<DentalTreatmentPlanItem[]>([]);
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const dirtyRef = useRef(false);
+  const allowNavigationRef = useRef(false);
   const loadedVersion = useRef<string | undefined>(undefined);
   dirtyRef.current = isDirty;
 
@@ -126,10 +130,15 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
     };
     window.addEventListener('beforeunload', warn);
     const beforeNavigation = (event: Event) => {
+      if (allowNavigationRef.current) {
+        allowNavigationRef.current = false;
+        return;
+      }
       if (!dirtyRef.current || !(event instanceof CustomEvent)) return;
       const destination = new URL(event.detail.to, window.location.href);
       if (destination.pathname === '/opd/consultation' && destination.searchParams.get('id') === visitId) return;
-      if (!window.confirm('Discard unsaved dental examination changes and leave this visit?')) event.preventDefault();
+      event.preventDefault();
+      setPendingNavigation(`${destination.pathname}${destination.search}${destination.hash}`);
     };
     window.addEventListener('hms:before-navigation', beforeNavigation);
     return () => {
@@ -137,6 +146,14 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       window.removeEventListener('hms:before-navigation', beforeNavigation);
     };
   }, [visitId]);
+
+  const confirmDiscardAndNavigate = () => {
+    if (!pendingNavigation) return;
+    const destination = pendingNavigation;
+    setPendingNavigation(null);
+    allowNavigationRef.current = true;
+    navigate(destination);
+  };
 
   const buildPayload = (): SaveOpdDentalExaminationPayload => ({
     expected_updated_at: loadedVersion.current,
@@ -514,6 +531,15 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        confirmLabel="Discard and Leave"
+        message="Discard unsaved dental examination changes and leave this visit?"
+        onCancel={() => setPendingNavigation(null)}
+        onConfirm={confirmDiscardAndNavigate}
+        open={Boolean(pendingNavigation)}
+        title="Unsaved Dental Examination"
+      />
     </div>
   );
 };

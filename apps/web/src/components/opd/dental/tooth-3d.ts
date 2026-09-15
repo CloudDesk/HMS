@@ -6,6 +6,29 @@ export const RENDER_SURFACES: ToothSurface[] = ['OCCLUSAL', 'MESIAL', 'DISTAL', 
 type Point = [number, number, number];
 export type ToothMesh = { positions: Float32Array; normals: Float32Array; surfaces: Float32Array };
 
+export function isIncisalOrOcclusalFace(
+  toothNumber: number,
+  distanceFromCrownRatio: number,
+  upwardNormal: number,
+) {
+  const toothPosition = toothNumber % 10;
+  const anterior = toothPosition <= 3;
+  const canine = toothPosition === 3;
+
+  // A canine's incisal anatomy is its narrow cusp tip/ridge, not the broad
+  // facial crown. Keep its render region deliberately tighter than incisors.
+  if (canine) {
+    return distanceFromCrownRatio <= 0.035
+      || (distanceFromCrownRatio <= 0.065 && upwardNormal > 0.72);
+  }
+  if (anterior) {
+    return distanceFromCrownRatio <= 0.09
+      || (distanceFromCrownRatio <= 0.16 && upwardNormal > 0.55);
+  }
+  return distanceFromCrownRatio <= 0.18
+    || (distanceFromCrownRatio <= 0.26 && upwardNormal > 0.35);
+}
+
 export function parseAnatomicalToothObj(source: string, toothNumber: number): ToothMesh {
   const vertices: Point[] = [];
   const vertexNormals: Point[] = [];
@@ -52,7 +75,6 @@ export function parseAnatomicalToothObj(source: string, toothNumber: number): To
   const facialAngle = 0.5 * Math.atan2(2 * covariance.xy, covariance.xx - covariance.yy);
   const facialCos = Math.cos(facialAngle), facialSin = Math.sin(facialAngle);
   const quadrant = Math.floor(toothNumber / 10);
-  const anterior = toothNumber % 10 <= 3;
   const mesialSign = [1, 4, 5, 8].includes(quadrant) ? 1 : -1;
   const baseTransform = (point: Point): Point => [
     ((point[0] - centerX) * facialCos + (point[1] - centerDepth) * facialSin) * scale,
@@ -101,11 +123,11 @@ export function parseAnatomicalToothObj(source: string, toothNumber: number): To
     // palatal triangles can also point upward, so normal direction alone must
     // not classify an anterior crown face as incisal. Posterior occlusal
     // tables, however, legitimately include upward-facing cusps and fossae.
-    if (anterior
-      ? distanceFromCrown <= length * 0.09
-        || (distanceFromCrown <= length * 0.16 && normal[1] > 0.55)
-      : distanceFromCrown <= length * 0.18
-        || (distanceFromCrown <= length * 0.26 && normal[1] > 0.35)) return 1;
+    if (isIncisalOrOcclusalFace(
+      toothNumber,
+      distanceFromCrown / length,
+      normal[1],
+    )) return 1;
     const transformed = transform(sourceCenter);
     const x = transformed[0], depth = transformed[2];
     if (Math.abs(x) > Math.abs(depth)) return x * mesialSign > 0 ? 2 : 3;
