@@ -106,9 +106,9 @@ const DENTAL_WORKSPACE_TABS = [
   { id: '2', label: '2 Diagnosis', name: 'Diagnosis' },
   { id: '3', label: '3 Prescription', name: 'Prescription' },
   { id: '4', label: '4 Lab Orders', name: 'Lab Orders' },
-  { id: '5', label: '5 Imaging Orders', name: 'Imaging Orders' },
-  { id: '6', label: '6 Referral', name: 'Referral' },
-  { id: '7', label: '7 Follow-up', name: 'Follow-up' },
+  // Dental workflow: Imaging Orders and Referral are intentionally hidden.
+  // Their existing OPD implementations remain available to non-Dental visits.
+  { id: '5', label: '5 Follow-up', name: 'Follow-up' },
 ] as const;
 
 const emptyVitalsForm: VitalsFormState = {
@@ -259,6 +259,14 @@ export function OpdVisitPage() {
     [visit, departments],
   );
   const activeWorkspaceTabs = isDental && feature.state.canViewConsultation ? DENTAL_WORKSPACE_TABS : WORKSPACE_TABS;
+
+  useEffect(() => {
+    if (!isDental || (activeTab !== 'Imaging Orders' && activeTab !== 'Referral')) return;
+    setActiveTab('Follow-up');
+    if (visit?.id) {
+      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=Follow-up`, { replace: true });
+    }
+  }, [activeTab, isDental, setActiveTab, visit?.id]);
 
   const handleSubmitReferral = async () => {
     if (!visit || !referralDoctorId || !referralSpecialty) {
@@ -1466,6 +1474,7 @@ export function OpdVisitPage() {
                     handleNextStep={handleNextStep}
                     handleToggleLabTest={handleToggleLabTest}
                     isDental={isDental}
+                    nextTab={isDental ? 'Follow-up' : 'Imaging Orders'}
                     labCategory={labCategory}
                     labCategoryOptions={labCategoryOptions}
                     labClinicalNotes={labClinicalNotes}
