@@ -189,6 +189,7 @@ export function DepartmentManagementPage() {
   const [activeDept, setActiveDept] = useState<DepartmentResponse | null>(null);
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DepartmentResponse | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const deptForm = useForm<DepartmentFormData>({
     resolver: zodResolver(departmentSchema),
@@ -377,7 +378,7 @@ export function DepartmentManagementPage() {
         </div>
 
         {/* ── Body (Table + Right Panel) ────────────────────────────────────── */}
-        <div className="um-body">
+        <div className={`um-body${showAnalytics ? ' um-body--analytics' : ' um-body--full'}`}>
           {/* Table Section */}
           <div className="um-table-section card">
             {/* Toolbar */}
@@ -432,6 +433,15 @@ export function DepartmentManagementPage() {
                 </select>
                 <button className="um-clear-btn" onClick={resetFilters} type="button">
                   <i className="ph ph-x" aria-hidden="true" /> Clear Filters
+                </button>
+                <button
+                  aria-expanded={showAnalytics}
+                  className="btn-secondary admin-table-action admin-analytics-toggle"
+                  onClick={() => setShowAnalytics((visible) => !visible)}
+                  type="button"
+                >
+                  <i className="ph ph-chart-bar" aria-hidden="true" />
+                  {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
                 </button>
               </div>
             </div>
@@ -620,7 +630,7 @@ export function DepartmentManagementPage() {
           </div>
 
           {/* ── Right Analytics Panel ─────────────────────────────────────── */}
-          <div className="um-right-panel">
+          {showAnalytics ? <div className="um-right-panel">
             {/* Status Donut */}
             <div className="card um-chart-card">
               <div className="card-header">
@@ -649,7 +659,7 @@ export function DepartmentManagementPage() {
               )}
             </div>
 
-          </div>
+          </div> : null}
         </div>
       </div>
 

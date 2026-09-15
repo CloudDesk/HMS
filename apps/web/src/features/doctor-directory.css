@@ -39,6 +39,35 @@
   gap: 0.5rem;
 }
 
+.doctor-directory-table {
+  min-width: 1120px;
+  table-layout: auto;
+}
+
+.doctor-directory-table th:first-child,
+.doctor-directory-table td:first-child {
+  min-width: 230px;
+}
+
+.doctor-directory-table th:nth-child(2),
+.doctor-directory-table td:nth-child(2) {
+  min-width: 170px;
+}
+
+.doctor-directory-table th:nth-child(5),
+.doctor-directory-table td:nth-child(5) {
+  min-width: 170px;
+}
+
+.doctor-directory-table th:last-child,
+.doctor-directory-table td:last-child {
+  min-width: 200px;
+}
+
+.doctor-directory-table .doc-actions {
+  flex-wrap: nowrap;
+}
+
 /* ==========================================================================
    2. Doctor Directory Profile & Empty State
    ========================================================================== */

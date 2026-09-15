@@ -15,7 +15,7 @@
 .patient-search-top-grid {
   display: grid;
   grid-template-columns: minmax(130px, 1.2fr) minmax(140px, 1.4fr) minmax(120px, 1.1fr) minmax(110px, 1fr) minmax(110px, 1fr) auto;
-  gap: 0.65rem;
+  gap: 0.5rem;
   align-items: flex-end;
 }
 
@@ -51,13 +51,13 @@
 .patient-search-actions-group {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.3rem;
   margin-bottom: 1px;
 }
 
 .patient-search-btn-search {
   height: 36px;
-  padding: 0 1rem;
+  padding: 0 0.85rem;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -78,7 +78,7 @@
 
 .patient-search-btn-secondary {
   height: 36px;
-  padding: 0 0.75rem;
+  padding: 0 0.65rem;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -99,6 +99,11 @@
   color: #1e293b;
 }
 
+.consent-patient-switch {
+  width: min(460px, 100%);
+  min-width: 320px;
+}
+
 @media (max-width: 1200px) {
   .patient-search-top-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -108,6 +113,11 @@
 @media (max-width: 768px) {
   .patient-search-top-grid {
     grid-template-columns: 1fr;
+  }
+
+  .consent-patient-switch {
+    width: 100%;
+    min-width: 0;
   }
 }
 

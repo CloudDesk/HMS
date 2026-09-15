@@ -537,7 +537,7 @@ export function DoctorDirectoryPage() {
             </div>
           </div>
           <div className="doc-table-wrap">
-            <table className="doc-table responsive-table">
+            <table className="doc-table responsive-table doctor-directory-table">
               <thead>
                 <tr>
                   <th onClick={() => handleSort('doctor_number')}>Doctor</th>

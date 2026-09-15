@@ -9,6 +9,8 @@
 .pharmacy-inventory-page {
   display: grid;
   gap: 14px;
+  min-width: 0;
+  padding: 1.25rem 1.75rem;
 }
 
 .inventory-alert-strip,
@@ -487,6 +489,10 @@
 }
 
 @media (max-width: 720px) {
+  .pharmacy-inventory-page {
+    padding: 1rem;
+  }
+
   .inventory-kpis,
   .inventory-detail-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -294,6 +294,30 @@ a {
   border-color: #cbd5e1;
 }
 
+.executive-dashboard-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.dashboard-tab-content > .dashboard-grid {
+  padding-top: 1rem;
+}
+
+.executive-dashboard-header {
+  margin-bottom: 0.75rem;
+}
+
+.executive-dashboard-branch,
+.executive-dashboard-refresh {
+  height: 42px;
+}
+
+.executive-dashboard-refresh {
+  gap: 0.45rem;
+}
+
 .link-action {
   width: fit-content;
   border: 0;

@@ -152,6 +152,10 @@
   gap: 0.6rem;
 }
 
+.admin-analytics-toggle {
+  margin-left: auto;
+}
+
 .um-search {
   position: relative;
   display: flex;
@@ -1009,6 +1013,20 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
+}
+
+.um-body--full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.um-body--analytics .um-search {
+  min-width: 160px;
+}
+
+.um-body--analytics .um-toolbar-row1 .admin-table-action,
+.um-body--analytics .um-toolbar-row1 .um-add-btn {
+  padding-inline: 0.75rem;
+  font-size: 0.82rem;
 }
 
 .rp-matrix-empty {

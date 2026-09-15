@@ -87,16 +87,16 @@ function ExecutiveOverviewTab() {
 
   return (
     <div className="dashboard-grid">
-      <div className="appointment-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="appointment-page-header executive-dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div className="appointment-page-title">
           <h2>Hospital Executive Overview</h2>
           <p>Welcome back, {firstName}. Live enterprise health and encounter performance.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="executive-dashboard-actions">
           {accessibleBranches.length > 1 ? (
             <select
-              className="doc-form-select"
-              style={{ padding: '0.45rem 0.75rem', fontSize: '0.85rem', borderRadius: '6px', borderColor: '#cbd5e1' }}
+              aria-label="Dashboard branch"
+              className="um-filter executive-dashboard-branch"
               value={selectedBranchId ?? ''}
               onChange={(e) => setSelectedBranchId(e.target.value || undefined)}
             >
@@ -106,7 +106,7 @@ function ExecutiveOverviewTab() {
               ))}
             </select>
           ) : null}
-          <button className="secondary-action" disabled={loading || isFetching} onClick={() => refresh()} type="button">
+          <button className="btn-secondary admin-table-action executive-dashboard-refresh" disabled={loading || isFetching} onClick={() => refresh()} type="button">
             <i className={`ph ph-arrow-clockwise${isFetching ? ' ph-spin' : ''}`} aria-hidden="true" />
             {isFetching ? 'Refreshing...' : 'Refresh Live Data'}
           </button>
@@ -393,7 +393,7 @@ export function DashboardShell() {
 
   return (
     <div className="dashboard-master-wrapper">
-      <div aria-label="Dashboard sections" className="dashboard-tab-bar" role="tablist" style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid #e2e8f0', marginBottom: '1.25rem', overflowX: 'auto' }}>
+      <div aria-label="Dashboard sections" className="dashboard-tab-bar" role="tablist" style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid #e2e8f0', overflowX: 'auto' }}>
         {tabs.map((tab) => (
           <button
             aria-selected={activeTab.key === tab.key}
