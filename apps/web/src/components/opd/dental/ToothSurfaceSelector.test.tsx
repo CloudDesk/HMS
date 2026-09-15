@@ -24,6 +24,21 @@ describe('ToothSurfaceSelector clinical contract', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="surface-mesial"]')?.click());
     expect(change).toHaveBeenLastCalledWith(['OCCLUSAL']);
   });
+  it('maps every visible surface control to the correct clinical enum', async () => {
+    const change = vi.fn();
+    await act(async () => root.render(<ToothSurfaceSelector toothNumber={43} surfaces={[]} onChange={change}/>));
+    const mappings = [
+      ['occlusal', 'OCCLUSAL'],
+      ['mesial', 'MESIAL'],
+      ['distal', 'DISTAL'],
+      ['buccal', 'BUCCAL'],
+      ['lingual', 'LINGUAL'],
+    ] as const;
+    for (const [testId, surface] of mappings) {
+      await act(async () => container.querySelector<HTMLButtonElement>(`[data-testid="surface-${testId}"]`)?.click());
+      expect(change).toHaveBeenLastCalledWith([surface]);
+    }
+  });
   it('keeps recorded selections visible and prevents changes while disabled', async () => {
     const change = vi.fn();
     await act(async () => root.render(<ToothSurfaceSelector toothNumber={36} surfaces={['LINGUAL']} onChange={change} disabled/>));
