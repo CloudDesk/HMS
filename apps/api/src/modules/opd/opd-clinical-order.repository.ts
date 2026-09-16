@@ -277,7 +277,7 @@ export class OpdClinicalOrderRepository {
       ];
     }
     const [records, total] = await Promise.all([
-      OpdClinicalOrderModel.find(filter).sort({ submittedAt: 1, _id: 1 })
+      OpdClinicalOrderModel.find(filter).sort({ submittedAt: -1, _id: -1 })
         .skip((page - 1) * limit).limit(limit).lean<OpdClinicalOrderLean[]>(),
       OpdClinicalOrderModel.countDocuments(filter),
     ]);
