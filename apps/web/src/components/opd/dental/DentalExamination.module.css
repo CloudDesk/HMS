@@ -809,7 +809,8 @@
 .jawTooth[data-kind='premolar'] .jawCrown { transform: scale(.98); }
 .jawTooth:hover:not(:disabled) .jawToothArt { filter: drop-shadow(0 0 3px #3b82f6); }
 .jawTooth:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
-.jawTooth[aria-pressed='true'] { outline: 3px solid #2563eb; outline-offset: 2px; background: #dbeafe; z-index: 2; }
+.jawTooth[data-condition]:not([data-condition='unrecorded']) { z-index: 2; }
+.jawTooth[aria-pressed='true'] { outline: 3px solid #2563eb; outline-offset: 2px; background: #dbeafe; z-index: 4; }
 .jawTooth:disabled { cursor: default; }
 .jawNumber { position: absolute; z-index: 3; color: #1e293b; font-size: clamp(10px, .8vw, 14px); line-height: 1; font-weight: 700; white-space: nowrap; text-shadow: 0 0 2px #fff, 0 0 4px #fff; }
 .jawTooth[aria-pressed='true'] .jawNumber { color: #1d4ed8; }
@@ -820,7 +821,8 @@
 .jawTooth[data-condition='root'] .jawConditionTint { fill: #9333ea88; }
 .jawTooth[data-condition='attention'] .jawConditionTint { fill: #f9731677; }
 .jawTooth[data-condition='missing'] .jawToothArt { opacity: .3; }
-.jawFindingMark { position: absolute; right: -3px; bottom: 0; display: grid; place-items: center; min-width: 13px; height: 13px; border-radius: 50%; background: #ef4444; color: #fff; font-size: 12px; line-height: 1; box-shadow: 0 0 0 1px #fff; }
+.jawFindingMark { position: absolute; right: 8px; bottom: 8px; z-index: 5; display: grid; place-items: center; width: 16px; height: 16px; border: 2px solid #fff; border-radius: 50%; background: #ef4444; color: #fff; font-size: 12px; font-weight: 800; line-height: 1; box-shadow: 0 1px 3px #0f172a40; }
+.jawTooth[data-patient-side='left'] .jawFindingMark { right: auto; left: 8px; }
 .jawTooth[data-condition='healthy'] .jawFindingMark { background: #16a34a; }
 .jawTooth[data-condition='filled'] .jawFindingMark { background: #2563eb; }
 .jawTooth[data-condition='crown'] .jawFindingMark { background: #d97706; }

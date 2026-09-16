@@ -103,6 +103,7 @@ const ToothButton = memo(function ToothButton({ toothNumber, arch, finding, sele
     aria-label={`Tooth ${toothNumber}: ${getToothName(toothNumber)}`} aria-pressed={selected}
     data-fdi={toothNumber} data-condition={condition} data-arch={arch} data-kind={kind}
     data-dentition={toothNumber >= 50 ? 'primary' : 'permanent'}
+    data-patient-side={right ? 'right' : 'left'}
     title={`FDI ${toothNumber} — ${getToothName(toothNumber)}\n${finding ? finding.status + '; ' + finding.conditions.join(', ') : 'No finding recorded'}`}>
     <span className={styles.jawToothArt} style={{ transform: `rotate(${rotation}deg)` }}><ToothShape kind={kind} /></span>
     <span className={styles.jawNumber} style={anterior
