@@ -107,9 +107,7 @@ const DENTAL_WORKSPACE_TABS = [
   { id: 'dental', label: 'Dental Examination', name: 'Dental Examination' },
   { id: '2', label: '2 Diagnosis', name: 'Diagnosis' },
   { id: '3', label: '3 Prescription', name: 'Prescription' },
-  { id: '4', label: '4 Lab Orders', name: 'Lab Orders' },
-  // Dental workflow: Imaging Orders and Referral are intentionally hidden.
-  // Their existing OPD implementations remain available to non-Dental visits.
+  { id: '4', label: '4 Referral', name: 'Referral' },
   { id: '5', label: '5 Follow-up', name: 'Follow-up' },
 ] as const;
 
@@ -263,7 +261,7 @@ export function OpdVisitPage() {
   const activeWorkspaceTabs = isDental && feature.state.canViewConsultation ? DENTAL_WORKSPACE_TABS : WORKSPACE_TABS;
 
   useEffect(() => {
-    if (!isDental || (activeTab !== 'Imaging Orders' && activeTab !== 'Referral')) return;
+    if (!isDental || (activeTab !== 'Lab Orders' && activeTab !== 'Imaging Orders')) return;
     setActiveTab('Follow-up');
     if (visit?.id) {
       navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=Follow-up`, { replace: true });
@@ -834,10 +832,11 @@ export function OpdVisitPage() {
   };
 
   const handleNextStep = (nextTab: string) => {
+    const resolvedNextTab = isDental && nextTab === 'Lab Orders' ? 'Referral' : nextTab;
     void saveConsultationDraft();
-    setActiveTab(nextTab);
+    setActiveTab(resolvedNextTab);
     if (visit?.id) {
-      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(nextTab)}`, { replace: true });
+      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(resolvedNextTab)}`, { replace: true });
     }
     requestAnimationFrame(() => {
       const scrollContainer = document.querySelector('.main-content');
