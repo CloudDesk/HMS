@@ -29,8 +29,8 @@
   --text-base: clamp(0.9rem, 0.88rem + 0.15vw, 1rem);
   --text-lg: clamp(1.05rem, 1rem + 0.3vw, 1.25rem);
   --text-xl: clamp(1.2rem, 1.1rem + 0.5vw, 1.5rem);
-  --sidebar-width: 17.5rem;
-  --sidebar-width-collapsed: 4.5rem;
+  --sidebar-width: 13.5rem;
+  --sidebar-width-collapsed: 3.5rem;
   --header-height: clamp(3.75rem, 3.5rem + 1vw, 4.5rem);
   --bp-sm: 480px;
   --bp-md: 768px;
@@ -500,12 +500,12 @@ p {
 }
 
 .sidebar-header {
-  height: 80px;
+  height: 60px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 1.25rem;
+  gap: 8px;
+  padding: 0 0.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: relative;
 }
@@ -515,9 +515,9 @@ p {
   border: 0;
   background: rgba(255, 255, 255, 0.08);
   color: #cbd5e1;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -532,7 +532,7 @@ p {
 }
 
 .sidebar-toggle-btn i {
-  font-size: 1.1rem;
+  font-size: 0.9rem;
 }
 
 .sidebar.collapsed .sidebar-toggle-btn {
@@ -541,19 +541,19 @@ p {
 
 .brand-icon {
   color: #38bdf8;
-  font-size: 2rem;
+  font-size: 1.5rem;
 }
 
 .logo-text h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 0.9rem;
   line-height: 1.1;
 }
 
 .logo-text p {
   margin: 0;
   color: #94a3b8;
-  font-size: 0.65rem;
+  font-size: 0.56rem;
   line-height: 1.2;
 }
 
@@ -561,7 +561,7 @@ p {
   flex: 1;
   overflow: auto;
   overflow-x: hidden;
-  padding: 1rem 0;
+  padding: 0.4rem 0;
 }
 
 .sidebar-nav::-webkit-scrollbar {
@@ -580,7 +580,7 @@ p {
 .nav-group {
   display: flex;
   flex-direction: column;
-  margin-bottom: 8px;
+  margin-bottom: 2px;
 }
 
 .nav-item,
@@ -598,12 +598,12 @@ p {
 .nav-item {
   display: flex;
   align-items: center;
-  min-height: 46px;
-  margin-bottom: 8px;
-  padding: 0.75rem 1.5rem;
-  gap: 12px;
+  min-height: 36px;
+  margin-bottom: 1px;
+  padding: 0.4rem 0.75rem;
+  gap: 8px;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 0.74rem;
 }
 
 .nav-item:hover,
@@ -618,15 +618,15 @@ p {
 }
 
 .nav-item i:first-child {
-  width: 24px;
+  width: 18px;
   flex: 0 0 auto;
-  font-size: 1.25rem;
+  font-size: 1rem;
   text-align: center;
 }
 
 .dropdown-icon {
   margin-left: auto;
-  font-size: 0.9rem;
+  font-size: 0.72rem;
   transition: transform 0.2s;
 }
 
@@ -645,9 +645,9 @@ p {
 
 .sub-nav-item {
   display: block;
-  padding: 0.75rem 1.5rem 0.75rem 60px;
+  padding: 0.42rem 0.75rem 0.42rem 2.55rem;
   color: #94a3b8;
-  font-size: 0.85rem;
+  font-size: 0.68rem;
 }
 
 .sub-nav-item.active {
@@ -698,7 +698,7 @@ p {
 }
 
 .sidebar.collapsed .nav-item {
-  padding: 0.75rem;
+  padding: 0.4rem;
 }
 
 .main-content {
@@ -4648,6 +4648,20 @@ p {
   .sidebar.collapsed .nav-item,
   .sidebar.collapsed .collapse-btn {
     justify-content: flex-start;
+  }
+
+  .sidebar-header {
+    height: 64px;
+  }
+
+  .nav-item {
+    min-height: 44px;
+    font-size: 0.82rem;
+  }
+
+  .sub-nav-item {
+    min-height: 40px;
+    font-size: 0.76rem;
   }
 
   .sidebar-backdrop {
