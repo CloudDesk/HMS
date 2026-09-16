@@ -411,6 +411,8 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           onRemoveFinding={handleRemoveFinding}
           disabled={controlsDisabled}
           showAffectedSurfaces={false}
+          onSave={isReadOnly ? undefined : handleSaveDraft}
+          isSaving={saveDraftMutation.isPending}
         />
       </div>
 

@@ -480,7 +480,7 @@
 
 .odontogramLayout {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 20px;
   width: 100%;
   padding: 20px 0;
@@ -788,6 +788,49 @@
   line-height: 1;
 }
 
+/* Occlusal arch artwork and native tooth controls. */
+.chartSelectionHint, .jawChart > .patientPerspective, .jawOrientation { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.jawChart { padding: 24px 12px 16px; background: linear-gradient(115deg, #f8fafc, #fff 45%, #f8fafc); min-width: 440px; }
+.jawSection { position: relative; }
+.jawSection + .jawSection { margin-top: 8px; }
+.jawSection:first-of-type .jawStage { margin-bottom: -16px; }
+.jawHeader { position: absolute; top: 16px; left: 8px; z-index: 1; max-width: 132px; }
+.jawHeader strong { display: block; color: #1452a3; background: #eff6ff; border-radius: 8px; padding: 8px 10px; font-size: .8rem; line-height: 1.4; text-align: center; }
+.jawHeader strong span { display: block; }
+.jawStage { position: relative; width: 100%; max-width: 640px; margin: auto; aspect-ratio: 600 / 360; }
+.jawGums { position: absolute; inset: 0; width: 100%; height: 100%; }
+.jawTooth { position: absolute; width: 7.2%; height: 13.2%; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; border-radius: 35%; cursor: pointer; color: #24344a; }
+.jawToothArt { display: block; width: 100%; height: 100%; filter: drop-shadow(0 2px 1px #843b3b55); }
+.jawCrown { display: block; width: 100%; height: 100%; overflow: visible; }
+.jawTooth[data-kind='incisor'] .jawCrown { transform: scaleX(.9); }
+.jawTooth[data-kind='incisor'][data-arch='lower'] .jawCrown { transform: scaleX(.78); }
+.jawTooth[data-kind='canine'] .jawCrown { transform: scaleX(.9); }
+.jawTooth[data-kind='premolar'] .jawCrown { transform: scale(.92); }
+.jawTooth:hover:not(:disabled) .jawToothArt { filter: drop-shadow(0 0 3px #3b82f6); }
+.jawTooth:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.jawTooth[aria-pressed='true'] { outline: 3px solid #2563eb; outline-offset: 2px; background: #dbeafe; z-index: 2; }
+.jawTooth:disabled { cursor: default; }
+.jawNumber { position: absolute; font-size: clamp(10px, .8vw, 14px); line-height: 1; font-weight: 700; white-space: nowrap; }
+.jawTooth[aria-pressed='true'] .jawNumber { color: #1d4ed8; }
+.jawConditionTint { fill: transparent; }
+.jawTooth[data-condition='caries'] .jawConditionTint { fill: #ef444466; }
+.jawTooth[data-condition='filled'] .jawConditionTint { fill: #3b82f666; }
+.jawTooth[data-condition='crown'] .jawConditionTint { fill: #f59e0b88; }
+.jawTooth[data-condition='root'] .jawConditionTint { fill: #9333ea88; }
+.jawTooth[data-condition='attention'] .jawConditionTint { fill: #f9731677; }
+.jawTooth[data-condition='missing'] .jawToothArt { opacity: .3; }
+.jawFindingMark { position: absolute; right: -3px; bottom: 0; display: grid; place-items: center; min-width: 13px; height: 13px; border-radius: 50%; background: #ef4444; color: #fff; font-size: 12px; line-height: 1; box-shadow: 0 0 0 1px #fff; }
+.jawTooth[data-condition='healthy'] .jawFindingMark { background: #16a34a; }
+.jawTooth[data-condition='filled'] .jawFindingMark { background: #2563eb; }
+.jawTooth[data-condition='crown'] .jawFindingMark { background: #d97706; }
+.jawTooth[data-condition='root'] .jawFindingMark { background: #9333ea; }
+.jawPocket { position: absolute; left: 50%; top: 100%; z-index: 3; transform: translateX(-50%); background: #fee2e2; border-radius: 3px; padding: 1px 3px; color: #991b1b; font-size: 9px; white-space: nowrap; }
+.jawGuides { pointer-events: none; position: absolute; inset: 0; color: #334155; font-size: clamp(10px, .8vw, 13px); font-weight: 600; }
+.jawGroupBrackets { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: #2563eb; stroke-width: 1.2; stroke-linejoin: round; }
+.jawGroupBrackets path { vector-effect: non-scaling-stroke; }
+.jawIncisorGuide { position: absolute; left: 38%; width: 24%; text-align: center; }
+.jawSideGuide { position: absolute; transform: translateY(-50%); white-space: nowrap; padding: 5px; }
+
 /* Anatomical odontogram overview. Kept local to the Dental CSS module. */
 .anatomicalChartViewport {
   max-width: 100%;
@@ -1092,7 +1135,18 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  align-self: start;
+  box-shadow: 0 2px 6px #0f172a04;
 }
+
+.panelContainer .formGrid2 { grid-template-columns: minmax(0, 1fr); }
+.panelContainer .input, .panelContainer .select { min-height: 40px; }
+.panelContainer .textarea { min-height: 100px; }
+.panelSaveButton { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; width: 100%; border: 1px solid #2563eb; border-radius: 8px; background: #1755ff; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.panelSaveButton:hover:not(:disabled) { background: #1d4ed8; }
+.panelSaveButton:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.panelSaveButton:disabled { opacity: .6; cursor: not-allowed; }
 
 .panelHeader {
   display: flex;
@@ -1100,6 +1154,7 @@
   justify-content: space-between;
   border-bottom: 1px solid #f1f5f9;
   padding-bottom: 10px;
+  gap: 12px;
 }
 
 .panelToothBadge {

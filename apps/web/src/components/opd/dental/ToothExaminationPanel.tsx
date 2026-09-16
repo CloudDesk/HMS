@@ -21,6 +21,8 @@ interface ToothExaminationPanelProps {
   onRemoveFinding: (toothNumber: number) => void;
   disabled?: boolean;
   showAffectedSurfaces?: boolean;
+  onSave?: () => void;
+  isSaving?: boolean;
 }
 
 type ToothAffectedSurfacesProps = Pick<
@@ -70,6 +72,8 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   onRemoveFinding,
   disabled = false,
   showAffectedSurfaces = true,
+  onSave,
+  isSaving = false,
 }) => {
   if (!selectedToothNumber) {
     return (
@@ -353,6 +357,13 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
           rows={2}
         />
       </div>
+      {onSave && (
+        <button type="button" className={styles.panelSaveButton} onClick={onSave} disabled={disabled || isSaving}
+          title="Save the dental examination as a draft">
+          <i className="ph ph-floppy-disk" aria-hidden="true" />
+          {isSaving ? 'Saving Findings...' : 'Save Findings'}
+        </button>
+      )}
     </div>
   );
 };

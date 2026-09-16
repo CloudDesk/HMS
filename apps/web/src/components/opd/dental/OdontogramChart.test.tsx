@@ -24,6 +24,29 @@ describe('anatomical Dental odontogram', () => {
   beforeEach(() => { container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
+  it('directs surface editing below the complete chart', async () => {
+    const selection = vi.fn();
+    await act(async () => root.render(<OdontogramChart teeth={findings} selectedToothNumber={31}
+      onSelectTooth={selection} />));
+    expect(container.textContent).toContain('choose affected surfaces below the chart');
+    expect(container.querySelectorAll('section')).toHaveLength(2);
+    expect(selection).not.toHaveBeenCalled();
+  });
+
+  it('aligns group brackets with both arches and omits premolars in primary dentition', async () => {
+    await act(async () => root.render(<ControlledChart />));
+    expect(container.querySelectorAll('[data-tooth-group]')).toHaveLength(14);
+    const upper = container.querySelector('section[aria-label="Maxillary upper arch"]');
+    const lower = container.querySelector('section[aria-label="Mandibular lower arch"]');
+    expect(upper?.querySelector('[data-tooth-group="Premolars"]')?.getAttribute('d')).toBe('M142 125 H132 V182 H142 M132 153.5 h-4');
+    expect(lower?.querySelector('[data-tooth-group="Premolars"]')?.getAttribute('d')).toBe('M142 178 H132 V235 H142 M132 206.5 h-4');
+    expect(lower?.querySelector('[data-tooth-group="Canine"]')?.getAttribute('d')).toBe('M142 248 H132 V268 H142 M132 258 h-4');
+    const primary = Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.includes('Primary / Deciduous'));
+    await act(async () => primary?.click());
+    expect(container.querySelectorAll('[data-tooth-group]')).toHaveLength(10);
+    expect(container.querySelector('[data-tooth-group="Premolars"]')).toBeNull();
+  });
+
   it('renders all 32 permanent FDI teeth in patient-perspective anatomical arches', async () => {
     await act(async () => root.render(<ControlledChart />));
     const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
@@ -32,8 +55,8 @@ describe('anatomical Dental odontogram', () => {
       18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28,
       48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
     ]);
-    expect(container.textContent).toContain('Maxillary Arch / Upper');
-    expect(container.textContent).toContain('Mandibular Arch / Lower');
+    expect(container.textContent).toContain('Maxillary Arch(Upper)');
+    expect(container.textContent).toContain('Mandibular Arch(Lower)');
     expect(container.textContent).toContain('patient perspective');
     expect(container.textContent).toContain('Premolars');
   });
@@ -62,6 +85,31 @@ describe('anatomical Dental odontogram', () => {
     expect(container.querySelectorAll('[data-fdi]')).toHaveLength(32);
     expect(container.querySelectorAll('[aria-label="Selected tooth context"]')).toHaveLength(1);
     expect(container.querySelector('[data-fdi="35"]')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('mirrors tooth positions and rotations across both arches for every dentition', async () => {
+    await act(async () => root.render(<ControlledChart />));
+    for (const primary of [false, true]) {
+      if (primary) {
+        const tab = Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.includes('Primary / Deciduous'));
+        await act(async () => tab?.click());
+      }
+      for (let position = 1; position <= (primary ? 5 : 8); position++) {
+        const numbers = primary ? [50, 60, 80, 70] : [10, 20, 40, 30];
+        const controls = numbers.map((base) => container.querySelector<HTMLButtonElement>(`[data-fdi="${base + position}"]`));
+        const [upperRight, upperLeft, lowerRight, lowerLeft] = controls;
+        expect(upperRight?.style.left).toBe(lowerRight?.style.left);
+        expect(upperLeft?.style.left).toBe(lowerLeft?.style.left);
+        expect(parseFloat(upperRight?.style.left ?? '') + parseFloat(upperLeft?.style.left ?? '')).toBeCloseTo(100);
+        expect(parseFloat(upperRight?.style.top ?? '') + parseFloat(lowerRight?.style.top ?? '')).toBeCloseTo(100);
+        const rotations = controls.map((control) => Number(control?.querySelector<HTMLElement>('span')?.style.transform.match(/rotate\(([-\d.]+)deg\)/)?.[1]));
+        const [upperRightAngle = NaN, upperLeftAngle = NaN, lowerRightAngle = NaN, lowerLeftAngle = NaN] = rotations;
+        expect(upperRightAngle + lowerRightAngle).toBe(180);
+        expect(upperLeftAngle + lowerLeftAngle).toBe(180);
+        const expectedKind = position <= 2 ? 'incisor' : position === 3 ? 'canine' : primary || position >= 6 ? 'molar' : 'premolar';
+        for (const control of controls) expect(control?.dataset.kind).toBe(expectedKind);
+      }
+    }
   });
 
   it('applies each finding to its correct tooth silhouette and exposes native keyboard controls', async () => {
