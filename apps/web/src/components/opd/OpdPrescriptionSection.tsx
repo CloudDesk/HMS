@@ -73,6 +73,8 @@ export function OpdPrescriptionSection({
       return a.name.localeCompare(b.name);
     });
   }, [masterMedicines, isDental]);
+  const nextStep = isDental ? 'Referral' : 'Lab Orders';
+
   return (
     <article className="doc-card opd-tab-card">
       <section className="opd-form-section">
@@ -504,10 +506,10 @@ export function OpdPrescriptionSection({
           )}
           <button
             className="doc-btn"
-            onClick={() => handleNextStep('Lab Orders')}
+            onClick={() => handleNextStep(nextStep)}
             type="button"
           >
-            Next: Lab Orders
+            Next: {nextStep}
             <i aria-hidden="true" className="ph ph-arrow-right" />
           </button>
         </div>
