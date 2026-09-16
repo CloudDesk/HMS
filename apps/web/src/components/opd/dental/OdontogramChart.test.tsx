@@ -71,6 +71,8 @@ describe('anatomical Dental odontogram', () => {
       55, 54, 53, 52, 51, 61, 62, 63, 64, 65, 85, 84, 83, 82, 81, 71, 72, 73, 74, 75,
     ]);
     expect(container.textContent).not.toContain('Premolars');
+    expect(container.querySelectorAll<HTMLElement>('[data-fdi="55"] > span')[1]?.style.right).toBe('calc(100% - 16px)');
+    expect(container.querySelectorAll<HTMLElement>('[data-fdi="65"] > span')[1]?.style.left).toBe('calc(100% - 16px)');
   });
 
   it('changes the selected FDI tooth without duplicating controls or context', async () => {

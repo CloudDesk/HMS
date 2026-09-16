@@ -799,18 +799,19 @@
 .jawHeader strong span { display: block; }
 .jawStage { position: relative; width: 100%; max-width: 640px; margin: auto; aspect-ratio: 600 / 360; }
 .jawGums { position: absolute; inset: 0; width: 100%; height: 100%; }
-.jawTooth { position: absolute; width: 7.2%; height: 13.2%; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; border-radius: 35%; cursor: pointer; color: #24344a; }
+.jawTooth { position: absolute; width: 7.8%; height: 14.2%; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; border-radius: 35%; cursor: pointer; color: #24344a; }
+.jawTooth[data-dentition='primary'] { width: 9.6%; height: 17.5%; }
 .jawToothArt { display: block; width: 100%; height: 100%; filter: drop-shadow(0 2px 1px #843b3b55); }
 .jawCrown { display: block; width: 100%; height: 100%; overflow: visible; }
-.jawTooth[data-kind='incisor'] .jawCrown { transform: scaleX(.9); }
-.jawTooth[data-kind='incisor'][data-arch='lower'] .jawCrown { transform: scaleX(.78); }
-.jawTooth[data-kind='canine'] .jawCrown { transform: scaleX(.9); }
-.jawTooth[data-kind='premolar'] .jawCrown { transform: scale(.92); }
+.jawTooth[data-kind='incisor'] .jawCrown { transform: scaleX(1.02); }
+.jawTooth[data-kind='incisor'][data-arch='lower'] .jawCrown { transform: scaleX(1.02); }
+.jawTooth[data-kind='canine'] .jawCrown { transform: scaleX(.98); }
+.jawTooth[data-kind='premolar'] .jawCrown { transform: scale(.98); }
 .jawTooth:hover:not(:disabled) .jawToothArt { filter: drop-shadow(0 0 3px #3b82f6); }
 .jawTooth:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
 .jawTooth[aria-pressed='true'] { outline: 3px solid #2563eb; outline-offset: 2px; background: #dbeafe; z-index: 2; }
 .jawTooth:disabled { cursor: default; }
-.jawNumber { position: absolute; font-size: clamp(10px, .8vw, 14px); line-height: 1; font-weight: 700; white-space: nowrap; }
+.jawNumber { position: absolute; z-index: 3; color: #1e293b; font-size: clamp(10px, .8vw, 14px); line-height: 1; font-weight: 700; white-space: nowrap; text-shadow: 0 0 2px #fff, 0 0 4px #fff; }
 .jawTooth[aria-pressed='true'] .jawNumber { color: #1d4ed8; }
 .jawConditionTint { fill: transparent; }
 .jawTooth[data-condition='caries'] .jawConditionTint { fill: #ef444466; }

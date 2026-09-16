@@ -78,8 +78,8 @@ function ToothShape({ kind }: { kind: ToothKind }) {
 // Coordinates are artwork positions; clinical identifiers come from the existing FDI arrays.
 const ADULT_POSITIONS = [[17, 70, -6], [50, 79, -21], [79, 102, -38], [100, 135, -62],
   [112, 172, -76], [120, 210, -83], [124, 250, -87], [126, 290, -90]] as const;
-const PRIMARY_POSITIONS = [[21, 72, -8], [61, 90, -28], [96, 128, -52],
-  [119, 193, -78], [126, 259, -88]] as const;
+const PRIMARY_POSITIONS = [[21, 72, -8], [58, 94, -28], [88, 132, -52],
+  [108, 178, -72], [118, 230, -84]] as const;
 
 const ToothButton = memo(function ToothButton({ toothNumber, arch, finding, selected, disabled, onSelect }: {
   toothNumber: number; arch: Arch; finding?: ToothFinding; selected: boolean; disabled: boolean;
@@ -102,11 +102,12 @@ const ToothButton = memo(function ToothButton({ toothNumber, arch, finding, sele
     onClick={() => onSelect(toothNumber)} disabled={disabled}
     aria-label={`Tooth ${toothNumber}: ${getToothName(toothNumber)}`} aria-pressed={selected}
     data-fdi={toothNumber} data-condition={condition} data-arch={arch} data-kind={kind}
+    data-dentition={toothNumber >= 50 ? 'primary' : 'permanent'}
     title={`FDI ${toothNumber} — ${getToothName(toothNumber)}\n${finding ? finding.status + '; ' + finding.conditions.join(', ') : 'No finding recorded'}`}>
     <span className={styles.jawToothArt} style={{ transform: `rotate(${rotation}deg)` }}><ToothShape kind={kind} /></span>
     <span className={styles.jawNumber} style={anterior
       ? { left: '50%', top: arch === 'upper' ? '-17px' : 'calc(100% + 3px)', transform: 'translateX(-50%)' }
-      : { top: '50%', ...(right ? { right: 'calc(100% + 7px)' } : { left: 'calc(100% + 7px)' }), transform: 'translateY(-50%)' }}>{toothNumber}</span>
+      : { top: '50%', ...(right ? { right: 'calc(100% - 16px)' } : { left: 'calc(100% - 16px)' }), transform: 'translateY(-50%)' }}>{toothNumber}</span>
     {condition !== 'unrecorded' && <span className={styles.jawFindingMark} aria-hidden="true">{condition === 'missing' ? '×' : condition === 'healthy' ? '✓' : '•'}</span>}
     {(finding?.pocket_depth_mm ?? 0) > 3 && <span className={styles.jawPocket}>{finding?.pocket_depth_mm} mm</span>}
   </button>;
