@@ -202,6 +202,7 @@ export function ServiceCataloguePage() {
   const [activeSvc, setActiveSvc] = useState<ServiceResponse | null>(null);
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ServiceResponse | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const svcForm = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema),
@@ -458,7 +459,7 @@ export function ServiceCataloguePage() {
         </div>
 
         {/* ── Body ───────────────────────────────────────────────────────── */}
-        <div className="um-body">
+        <div className={`um-body${showAnalytics ? ' um-body--analytics' : ' um-body--full'}`}>
           {/* Table section */}
           <div className="um-table-section card">
             {/* Toolbar */}
@@ -529,6 +530,15 @@ export function ServiceCataloguePage() {
 
                 <button className="um-clear-btn" onClick={resetFilters} type="button">
                   <i className="ph ph-x" aria-hidden="true" /> Clear Filters
+                </button>
+                <button
+                  aria-expanded={showAnalytics}
+                  className="btn-secondary admin-table-action admin-analytics-toggle"
+                  onClick={() => setShowAnalytics((visible) => !visible)}
+                  type="button"
+                >
+                  <i className="ph ph-chart-bar" aria-hidden="true" />
+                  {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
                 </button>
               </div>
             </div>
@@ -694,7 +704,7 @@ export function ServiceCataloguePage() {
           </div>
 
           {/* ── Right Analytics Panel ────────────────────────────────────── */}
-          <div className="um-right-panel">
+          {showAnalytics ? <div className="um-right-panel">
             <div className="card um-chart-card">
               <div className="card-header">
                 <h3>Services by Status</h3>
@@ -721,7 +731,7 @@ export function ServiceCataloguePage() {
               )}
             </div>
 
-          </div>
+          </div> : null}
         </div>
       </div>
 

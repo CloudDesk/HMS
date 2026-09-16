@@ -36,6 +36,7 @@ export type OpdLabSectionProps = {
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
   isDental?: boolean;
+  nextTab?: 'Imaging Orders' | 'Follow-up';
 };
 
 export function OpdLabSection({
@@ -64,6 +65,7 @@ export function OpdLabSection({
   handleNextStep,
   canEdit,
   isDental = false,
+  nextTab = 'Imaging Orders',
 }: OpdLabSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -322,10 +324,10 @@ export function OpdLabSection({
           </button>
           <button
             className="doc-btn primary"
-            onClick={() => handleNextStep('Imaging Orders')}
+            onClick={() => handleNextStep(nextTab)}
             type="button"
           >
-            Next: Imaging Orders
+            Next: {nextTab}
             <i aria-hidden="true" className="ph ph-arrow-right" />
           </button>
         </div>

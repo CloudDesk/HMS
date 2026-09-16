@@ -179,6 +179,10 @@ describe('OpdVisitPage feature-hook rendering', () => {
     await act(async () => root.render(<OpdVisitPage />));
 
     expect(container.textContent).toContain('Dental Examination');
+    expect(container.textContent).not.toContain('5 Imaging Orders');
+    expect(container.textContent).not.toContain('6 Referral');
+    expect(container.textContent).toContain('5 Follow-up');
+    expect(container.textContent).not.toContain('7 Follow-up');
   });
 
   it('does NOT render the "Dental Examination" tab for non-Dental visits (protecting OPD regression)', async () => {
@@ -217,6 +221,8 @@ describe('OpdVisitPage feature-hook rendering', () => {
     expect(container.textContent).not.toContain('Dental Examination');
     expect(container.textContent).toContain('1 Consultation');
     expect(container.textContent).toContain('2 Diagnosis');
+    expect(container.textContent).toContain('5 Imaging Orders');
+    expect(container.textContent).toContain('6 Referral');
   });
 
   it('renders the OpdDentalExaminationTab when activeTab is "Dental Examination"', async () => {
@@ -267,27 +273,27 @@ describe('OpdVisitPage feature-hook rendering', () => {
     );
   });
 
-  it('clears persisted imaging UI state when switching to a visit without an imaging order', async () => {
+  it('preserves Imaging Orders for non-Dental visits and clears state when switching visits', async () => {
     testState.loading = false;
-    testState.activeVisitId = 'visit-dental-1';
+    testState.activeVisitId = 'visit-general-1';
     testState.activeTab = 'Imaging Orders';
     testState.visit = {
-      id: 'visit-dental-1',
-      visit_number: 'OPD-DENT-001',
+      id: 'visit-general-1',
+      visit_number: 'OPD-GEN-001',
       patient_id: 'pat-1',
       patient_name: 'Jane Doe',
       patient_number: 'MRN-001',
-      doctor_id: 'doc-dent-1',
-      doctor_name: 'Dental Doctor',
-      doctor_specialization: 'Dentistry',
+      doctor_id: 'doc-general-1',
+      doctor_name: 'General Doctor',
+      doctor_specialization: 'General Medicine',
       branch_id: 'branch-1',
-      department_id: 'dept-dent-1',
+      department_id: 'dept-general-1',
       status: 'IN_CONSULTATION',
       visit_type: 'NEW_CONSULTATION',
       priority: 'ROUTINE',
     } as unknown as OpdVisitResponse;
     testState.departments = [
-      { id: 'dept-dent-1', name: 'Dentistry', code: 'DENT', branch_ids: ['branch-1'] },
+      { id: 'dept-general-1', name: 'General Medicine', code: 'GEN', branch_ids: ['branch-1'] },
     ] as unknown as DepartmentResponse[];
     testState.imagingOrder = {
       priority: 'ROUTINE',
@@ -305,10 +311,9 @@ describe('OpdVisitPage feature-hook rendering', () => {
 
     await act(async () => root.render(<OpdVisitPage />));
     expect(container.textContent).toContain('IOPA X-Ray');
-    expect(container.textContent).toContain('#36');
 
-    testState.activeVisitId = 'visit-dental-2';
-    testState.visit = { ...testState.visit, id: 'visit-dental-2', visit_number: 'OPD-DENT-002' } as OpdVisitResponse;
+    testState.activeVisitId = 'visit-general-2';
+    testState.visit = { ...testState.visit, id: 'visit-general-2', visit_number: 'OPD-GEN-002' } as OpdVisitResponse;
     testState.imagingOrder = null;
     await act(async () => root.render(<OpdVisitPage />));
 

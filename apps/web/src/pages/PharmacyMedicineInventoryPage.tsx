@@ -253,20 +253,23 @@ export function PharmacyMedicineInventoryPage({ embedded = false }: PharmacyMedi
   };
 
   return (
-    <div className="opd-queue-page">
-      <header className="page-header">
-        <div className="header-title">
-          <h1>Medicine Inventory</h1>
-          <div className="branch-selector">
+    <div className="pharmacy-inventory-page">
+      <header className="appointment-page-header">
+        <div className="appointment-page-title">
+          <h2>Medicine Inventory</h2>
+          <p>Manage medicine stock, batches, thresholds, and expiry status</p>
+        </div>
+          <label className="pharmacy-dashboard-branch">
+            <span>Branch</span>
             <select
+              aria-label="Medicine inventory branch"
               disabled={branches.length <= 1}
               onChange={(e) => updateQuery({ branch_id: e.target.value, page: 1 })}
               value={activeBranchId}
             >
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </select>
-          </div>
-        </div>
+          </label>
       </header>
 
       {summary ? (

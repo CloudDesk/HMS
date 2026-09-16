@@ -96,7 +96,7 @@ export function DiagnosticQueue({
         <button className="btn-secondary" type="button" onClick={clearFilters}>Clear</button>
       </div>
       <div className="table-responsive">
-        <table className="data-table">
+        <table className="data-table diagnostic-queue-table">
           <thead><tr><th>Patient</th><th>Source</th><th>Services</th><th>Doctor</th><th>Submitted</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {isLoading ? (

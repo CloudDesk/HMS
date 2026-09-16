@@ -88,14 +88,17 @@ export function PatientConsentPage() {
         <section className="appointment-page-header">
           <div className="appointment-page-title"><h2>Consent Management</h2><p>Manage stored patient authorization files</p></div>
           <div className="appointment-page-actions">
-            <select
-              aria-label="Switch patient"
-              onChange={(event) => handlePatientChange(event.target.value)}
-              value={patient?.id ?? ''}
-            >
-              <option value="">Select patient</option>
-              {patients.map((item) => <option key={item.id} value={item.id}>{patientFullName(item)} - {item.patient_number}</option>)}
-            </select>
+            <div className="doc-field consent-patient-switch">
+              <label htmlFor="consent-patient-switch">Patient</label>
+              <select
+                id="consent-patient-switch"
+                onChange={(event) => handlePatientChange(event.target.value)}
+                value={patient?.id ?? ''}
+              >
+                <option value="">Select patient</option>
+                {patients.map((item) => <option key={item.id} value={item.id}>{patientFullName(item)} - {item.patient_number}</option>)}
+              </select>
+            </div>
             <button className="doc-btn primary" disabled={!patient || !canCreate} onClick={() => { setUploadOpen(true); setSignedByName(patient ? patientFullName(patient) : ''); }} type="button">
               <i className="ph ph-upload-simple" aria-hidden="true" /> Upload Consent
             </button>

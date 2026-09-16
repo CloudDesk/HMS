@@ -89,6 +89,7 @@ export function BranchManagementPage() {
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BranchResponse | null>(null);
   const [configurationBranch, setConfigurationBranch] = useState<BranchResponse | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Status
   const [toastMessage, setToastMessage] = useState('');
@@ -209,17 +210,17 @@ export function BranchManagementPage() {
 
   return (
     <>
-      <div className="um-kpi-row">
-        {[
-          ['ph-buildings', 'blue', 'Total Branches', summary.total],
-          ['ph-check-circle', 'green', 'Active Branches', summary.active],
-          ['ph-pause-circle', 'orange', 'Inactive Branches', summary.inactive],
-          ['ph-users', 'purple', 'Assigned Users', summary.assignedUsers],
-          ['ph-map-pin', 'red', 'Cities Covered', summary.cities],
-        ].map(([icon, tone, label, value]) => <div className="kpi-card" key={String(label)}><div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} /></div><div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{loading ? '-' : value}</span></div></div>)}
-      </div>
       <div className="um-grid">
-        <div className="um-body">
+        <div className="um-kpi-row">
+          {[
+            ['ph-buildings', 'blue', 'Total Branches', summary.total],
+            ['ph-check-circle', 'green', 'Active Branches', summary.active],
+            ['ph-pause-circle', 'orange', 'Inactive Branches', summary.inactive],
+            ['ph-users', 'purple', 'Assigned Users', summary.assignedUsers],
+            ['ph-map-pin', 'red', 'Cities Covered', summary.cities],
+          ].map(([icon, tone, label, value]) => <div className="kpi-card" key={String(label)}><div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} /></div><div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{loading ? '-' : value}</span></div></div>)}
+        </div>
+        <div className={`um-body${showAnalytics ? ' um-body--analytics' : ' um-body--full'}`}>
           <div className="um-table-section card">
             <div className="um-toolbar">
               <div className="um-toolbar-row1">
@@ -256,6 +257,15 @@ export function BranchManagementPage() {
                     <i className="ph ph-x" aria-hidden="true" /> Clear Filters
                   </button>
                 )}
+                <button
+                  aria-expanded={showAnalytics}
+                  className="btn-secondary admin-table-action admin-analytics-toggle"
+                  onClick={() => setShowAnalytics((visible) => !visible)}
+                  type="button"
+                >
+                  <i className="ph ph-chart-bar" aria-hidden="true" />
+                  {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
+                </button>
               </div>
             </div>
 
@@ -386,7 +396,7 @@ export function BranchManagementPage() {
               </div>
             </div>
           </div>
-          <aside className="um-right-panel" aria-label="Branch analytics">
+          {showAnalytics ? <aside className="um-right-panel" aria-label="Branch analytics">
             <div className="card um-chart-card">
               <div className="card-header"><h3>Branches by Status</h3></div>
               {loading ? <div className="um-panel-loading">Loading status...</div> : (
@@ -403,7 +413,7 @@ export function BranchManagementPage() {
                 <div><span><i className="ph ph-map-pin" /> Cities Covered</span><strong>{loading ? '-' : summary.cities}</strong></div>
               </div>
             </div>
-          </aside>
+          </aside> : null}
         </div>
       </div>
 
