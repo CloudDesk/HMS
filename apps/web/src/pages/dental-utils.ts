@@ -212,15 +212,11 @@ export const STANDARD_CONDITIONS: ToothConditionOption[] = [
   { id: 'FRACTURED', label: 'Fractured', color: '#b91c1c', badgeBg: '#fecaca', description: 'Enamel/dentin fracture' },
   { id: 'PULPITIC', label: 'Pulpitis / RCT Needed', color: '#be123c', badgeBg: '#ffe4e6', description: 'Pulpal inflammation or non-vital' },
   { id: 'PERIAPICAL_LESION', label: 'Periapical Lesion', color: '#991b1b', badgeBg: '#fee2e2', description: 'Apical abscess / cyst / granuloma' },
-  { id: 'MISSING', label: 'Missing', color: '#64748b', badgeBg: '#f1f5f9', description: 'Congenitally absent or lost' },
 ];
 
 export const TOOTH_STATUSES: { value: ToothStatus; label: string }[] = [
   { value: 'PRESENT', label: 'Present' },
   { value: 'MISSING', label: 'Missing' },
-  { value: 'IMPACTED', label: 'Impacted' },
-  { value: 'EXTRACTED', label: 'Extracted' },
-  { value: 'UNERUPTED', label: 'Unerupted' },
 ];
 
 export const TOOTH_SURFACES: { value: ToothSurface; label: string; short: string; desc: string }[] = [
@@ -238,33 +234,64 @@ export const MOBILITY_LEVELS: { value: ToothMobility; label: string; desc: strin
   { value: 'GRADE_III', label: 'Grade III', desc: 'Severe (> 2mm horizontal and/or vertical depression)' },
 ];
 
-export const COMMON_MEDICAL_ALERTS = [
+export const DENTAL_MEDICAL_CONDITIONS = [
   'Hypertension',
   'Diabetes Mellitus',
-  'Bleeding Disorder / Anticoagulant Therapy',
+  'Asthma / Respiratory Disease',
+  'Heart Disease',
+  'Cardiac Pacemaker',
+  'Epilepsy / Seizure Disorder',
+  'Hepatitis / Liver Disease',
+  'Pregnancy / Nursing',
+] as const;
+
+export const DENTAL_BLEEDING_MEDICATION_RISKS = [
+  'Bleeding Disorder',
+  'Anticoagulant Therapy',
+  'Steroid / Immunosuppressant Therapy',
+  'Bisphosphonate Therapy (Osteonecrosis Risk)',
+  'Infective Endocarditis Risk / Premedication Required',
+] as const;
+
+export const DENTAL_ALLERGIES = [
   'Allergy to Penicillin',
   'Allergy to Local Anesthetics',
   'Allergy to Latex',
-  'Asthma / Respiratory Disease',
-  'Cardiac Pacemaker / Heart Disease',
-  'Infective Endocarditis Risk / Premedication Required',
-  'Pregnancy / Nursing',
-  'Hepatitis / Liver Disease',
-  'Epilepsy / Seizure Disorder',
-  'Steroid / Immunosuppressant Therapy',
-  'Bisphosphonate Therapy (Osteonecrosis Risk)',
+] as const;
+
+export interface DentalMedicalAlertCategory {
+  category: string;
+  alerts: readonly string[];
+}
+
+export const COMMON_MEDICAL_ALERTS_GROUPED: readonly DentalMedicalAlertCategory[] = [
+  {
+    category: 'Medical Conditions',
+    alerts: DENTAL_MEDICAL_CONDITIONS,
+  },
+  {
+    category: 'Bleeding / Medication Risks',
+    alerts: DENTAL_BLEEDING_MEDICATION_RISKS,
+  },
+  {
+    category: 'Allergies',
+    alerts: DENTAL_ALLERGIES,
+  },
+] as const;
+
+export const COMMON_MEDICAL_ALERTS: readonly string[] = [
+  ...DENTAL_MEDICAL_CONDITIONS,
+  ...DENTAL_BLEEDING_MEDICATION_RISKS,
+  ...DENTAL_ALLERGIES,
 ];
 
-export const COMMON_DENTAL_HABITS = [
+export const COMMON_DENTAL_HABITS: readonly string[] = [
   'Smoking / Tobacco',
   'Betel Nut / Tobacco Chewing',
   'Alcohol Consumption',
   'Bruxism / Teeth Clenching',
-  'Nail Biting',
   'Mouth Breathing',
-  'Thumb Sucking',
-  'Tongue Thrusting',
-];
+] as const;
 
 export const SOFT_TISSUE_OPTIONS = {
   gingiva: [

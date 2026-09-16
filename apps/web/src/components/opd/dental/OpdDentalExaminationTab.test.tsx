@@ -406,15 +406,13 @@ describe('OpdDentalExaminationTab Component', () => {
   it('Phase 6 retains dirty findings on background refetch and warns before leaving', async () => {
     await act(async () => { root.render(<QueryClientProvider client={queryClient}><OpdDentalExaminationTab visitId="visit-1" canEdit={true} /></QueryClientProvider>); });
     await act(async () => { container.querySelector<HTMLElement>('[aria-label="Tooth 16: Maxillary Right First Molar"]')?.click(); });
-    await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Mark Healthy'))?.click(); });
+    await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Healthy')?.click(); });
     await act(async () => { queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), { ...mockExamData, updated_at: '2026-09-07T12:00:00.000Z' }); });
     expect(container.textContent).toContain('Unsaved Changes');
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const event = new CustomEvent('hms:before-navigation', { cancelable: true, detail: { to: '/patients' } });
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
-    expect(confirm).toHaveBeenCalledOnce();
-    confirm.mockRestore();
+    expect(document.body.textContent).toContain('Unsaved Dental Examination');
     await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Save Draft'))?.click(); });
     expect(api.saveDentalExaminationDraft).toHaveBeenCalledWith('visit-1', expect.objectContaining({ teeth: [expect.objectContaining({ conditions: ['HEALTHY'] })] }));
   });
@@ -437,9 +435,9 @@ describe('OpdDentalExaminationTab Component', () => {
       tooth16Card?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    // Click "Mark Healthy" quick action
+    // Click "Healthy" condition chip
     const markHealthyBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Mark Healthy'),
+      b.textContent?.trim() === 'Healthy',
     );
     expect(markHealthyBtn).toBeDefined();
     await act(async () => {
@@ -500,7 +498,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
     // Click Caries for Tooth 18
     const cariesBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.trim() === 'Caries',
+      b.textContent?.includes('Caries'),
     );
     await act(async () => {
       cariesBtn?.click();
@@ -601,7 +599,7 @@ describe('OpdDentalExaminationTab Component', () => {
     });
 
     const markHealthyBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Mark Healthy'),
+      b.textContent?.trim() === 'Healthy',
     );
     await act(async () => {
       markHealthyBtn?.click();
@@ -642,7 +640,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
     // Mark Caries on Tooth 11
     const cariesBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.trim() === 'Caries',
+      b.textContent?.includes('Caries'),
     );
     await act(async () => {
       cariesBtn?.click();
@@ -657,7 +655,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
     // Mark Healthy on Tooth 21
     const healthyBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Mark Healthy'),
+      b.textContent?.trim() === 'Healthy',
     );
     await act(async () => {
       healthyBtn?.click();
@@ -1096,5 +1094,43 @@ describe('OpdDentalExaminationTab Component', () => {
 
     // Verify changing tooth selection did not automatically trigger draft/order save
     expect(api.saveDentalExaminationDraft).not.toHaveBeenCalled();
+  });
+
+  it('renders side-by-side Odontogram and Selected Tooth panel with Affected Surfaces and 3D viewer, without duplicate standalone section below chart', async () => {
+    api.getDentalExamination.mockResolvedValue(mockExamData);
+    queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} />
+        </QueryClientProvider>,
+      );
+    });
+
+    // Select Tooth 11 on odontogram
+    const tooth11Btn = container.querySelector('[aria-label*="Tooth 11"]');
+    expect(tooth11Btn).toBeTruthy();
+    await act(async () => {
+      (tooth11Btn as HTMLElement).click();
+    });
+
+    // Exactly one Affected Surfaces section must exist in the entire container
+    const affectedSurfacesSections = container.querySelectorAll('section[aria-label="Affected Surfaces"]');
+    expect(affectedSurfacesSections.length).toBe(1);
+
+    // It must be located inside the side-by-side right panel
+    const rightPanel = container.querySelector('div[class*="panelContainer"]');
+    expect(rightPanel).toBeTruthy();
+    expect(rightPanel?.querySelector('section[aria-label="Affected Surfaces"]')).toBeTruthy();
+
+    // The odontogram main column must NOT contain any Affected Surfaces section
+    const odontogramMainCol = container.querySelector('div[class*="odontogramMainColumn"]');
+    expect(odontogramMainCol).toBeTruthy();
+    expect(odontogramMainCol?.querySelector('section[aria-label="Affected Surfaces"]')).toBeNull();
+
+    // Context must show FDI #11
+    expect(rightPanel?.textContent).toContain('FDI #11');
+    expect(rightPanel?.textContent).toContain('Maxillary Right Central Incisor');
+    expect(rightPanel?.textContent).toContain('0 / 5 selected');
   });
 });

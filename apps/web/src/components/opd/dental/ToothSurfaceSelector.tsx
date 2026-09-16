@@ -116,10 +116,20 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
     const onRestored = () => setContextVersion((version) => version + 1);
     canvas.addEventListener('webglcontextlost', onLost);
     canvas.addEventListener('webglcontextrestored', onRestored);
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!rendererRef.current) return;
+      const zoomStep = event.deltaY < 0 ? 0.08 : -0.08;
+      rendererRef.current.zoom(zoomStep);
+      updateSurfaceAnchor();
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       disposed = true;
       observer?.disconnect();
       window.removeEventListener('resize', resize);
+      canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('webglcontextlost', onLost);
       canvas.removeEventListener('webglcontextrestored', onRestored);
       rendererRef.current = null;
@@ -158,12 +168,6 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
           role="img"
           aria-label={`Interactive 3D ${toothType?.toLowerCase()}. Move the mouse left or right, drag, or use arrow keys to rotate. Use the labelled buttons below to select surfaces.`}
           aria-describedby={helpId}
-          onWheel={(event) => {
-            if (!available) return;
-            event.preventDefault();
-            rendererRef.current?.zoom(event.deltaY < 0 ? 0.08 : -0.08);
-            updateSurfaceAnchor();
-          }}
           onPointerDown={(event) => {
             if (!available || event.button !== 0 || pointerRef.current) return;
             event.currentTarget.focus();

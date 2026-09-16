@@ -14,6 +14,14 @@ import {
   isPrimaryFdiTooth,
   isUpperArch,
   isValidFdiTooth,
+  COMMON_DENTAL_HABITS,
+  COMMON_MEDICAL_ALERTS,
+  COMMON_MEDICAL_ALERTS_GROUPED,
+  DENTAL_MEDICAL_CONDITIONS,
+  DENTAL_BLEEDING_MEDICATION_RISKS,
+  DENTAL_ALLERGIES,
+  STANDARD_CONDITIONS,
+  TOOTH_STATUSES,
 } from './dental-utils';
 
 describe('dental-utils tests', () => {
@@ -243,3 +251,116 @@ describe('Phase 8 service and medication prioritization helpers', () => {
     expect(isDentalMedication({ name: 'Metformin 500mg' })).toBe(false);
   });
 });
+
+describe('Dental History & Medical Risk Assessment predefined options', () => {
+  it('contains ONLY clinically approved dental & oral habits and removes minor ones', () => {
+    expect(COMMON_DENTAL_HABITS).toEqual([
+      'Smoking / Tobacco',
+      'Betel Nut / Tobacco Chewing',
+      'Alcohol Consumption',
+      'Bruxism / Teeth Clenching',
+      'Mouth Breathing',
+    ]);
+    expect(COMMON_DENTAL_HABITS).not.toContain('Nail Biting');
+    expect(COMMON_DENTAL_HABITS).not.toContain('Thumb Sucking');
+    expect(COMMON_DENTAL_HABITS).not.toContain('Tongue Thrusting');
+  });
+
+  it('organizes medical alerts into the three designated clinical categories', () => {
+    expect(COMMON_MEDICAL_ALERTS_GROUPED).toHaveLength(3);
+    expect(COMMON_MEDICAL_ALERTS_GROUPED.map((g) => g.category)).toEqual([
+      'Medical Conditions',
+      'Bleeding / Medication Risks',
+      'Allergies',
+    ]);
+
+    expect(DENTAL_MEDICAL_CONDITIONS).toEqual([
+      'Hypertension',
+      'Diabetes Mellitus',
+      'Asthma / Respiratory Disease',
+      'Heart Disease',
+      'Cardiac Pacemaker',
+      'Epilepsy / Seizure Disorder',
+      'Hepatitis / Liver Disease',
+      'Pregnancy / Nursing',
+    ]);
+
+    expect(DENTAL_BLEEDING_MEDICATION_RISKS).toEqual([
+      'Bleeding Disorder',
+      'Anticoagulant Therapy',
+      'Steroid / Immunosuppressant Therapy',
+      'Bisphosphonate Therapy (Osteonecrosis Risk)',
+      'Infective Endocarditis Risk / Premedication Required',
+    ]);
+
+    expect(DENTAL_ALLERGIES).toEqual([
+      'Allergy to Penicillin',
+      'Allergy to Local Anesthetics',
+      'Allergy to Latex',
+    ]);
+  });
+
+  it('splits combined conditions into separate options and eliminates legacy combined values', () => {
+    // Verified split values are present
+    expect(COMMON_MEDICAL_ALERTS).toContain('Bleeding Disorder');
+    expect(COMMON_MEDICAL_ALERTS).toContain('Anticoagulant Therapy');
+    expect(COMMON_MEDICAL_ALERTS).toContain('Heart Disease');
+    expect(COMMON_MEDICAL_ALERTS).toContain('Cardiac Pacemaker');
+
+    // Legacy combined values must NOT be present in predefined options
+    expect(COMMON_MEDICAL_ALERTS).not.toContain('Bleeding Disorder / Anticoagulant Therapy');
+    expect(COMMON_MEDICAL_ALERTS).not.toContain('Cardiac Pacemaker / Heart Disease');
+  });
+
+  it('keeps COMMON_MEDICAL_ALERTS completely aligned with grouped categories', () => {
+    const expected = [
+      ...DENTAL_MEDICAL_CONDITIONS,
+      ...DENTAL_BLEEDING_MEDICATION_RISKS,
+      ...DENTAL_ALLERGIES,
+    ];
+    expect(COMMON_MEDICAL_ALERTS).toEqual(expected);
+    expect(COMMON_MEDICAL_ALERTS).toHaveLength(16);
+  });
+});
+
+describe('Dental Tooth Status and Clinical Conditions constants', () => {
+  it('TOOTH_STATUSES contains ONLY presence/absence values (Present and Missing)', () => {
+    expect(TOOTH_STATUSES).toEqual([
+      { value: 'PRESENT', label: 'Present' },
+      { value: 'MISSING', label: 'Missing' },
+    ]);
+  });
+
+  it('STANDARD_CONDITIONS contains the 9 approved clinical conditions and excludes Missing', () => {
+    const conditionIds = STANDARD_CONDITIONS.map((c) => c.id);
+    expect(conditionIds).toEqual([
+      'HEALTHY',
+      'CARIOUS',
+      'FILLED',
+      'CROWN',
+      'ROOT_PIECE',
+      'IMPACTED',
+      'FRACTURED',
+      'PULPITIC',
+      'PERIAPICAL_LESION',
+    ]);
+
+    expect(conditionIds).not.toContain('MISSING');
+
+    const conditionLabels = STANDARD_CONDITIONS.map((c) => c.label);
+    expect(conditionLabels).toEqual([
+      'Healthy',
+      'Caries / Decay',
+      'Filled / Restored',
+      'Crown / Cap',
+      'Root Piece',
+      'Impacted',
+      'Fractured',
+      'Pulpitis / RCT Needed',
+      'Periapical Lesion',
+    ]);
+    expect(conditionLabels).not.toContain('Missing');
+  });
+});
+
+

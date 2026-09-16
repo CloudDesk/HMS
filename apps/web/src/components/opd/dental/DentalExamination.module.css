@@ -6,7 +6,7 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
-  padding-bottom: 40px;
+  padding-bottom: 8px;
   overflow-x: hidden;
 }
 
@@ -25,6 +25,7 @@
 }
 
 .titleArea {
+  flex: 1 1 24rem;
   flex-wrap: wrap;
   min-width: 0;
   display: flex;
@@ -33,6 +34,8 @@
 }
 
 .examTitle {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 1.15rem;
   font-weight: 700;
   color: #0f172a;
@@ -111,8 +114,22 @@
 
 .actionButtons {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+  max-width: 100%;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.actionButtons > button {
+  min-height: 38px;
+  justify-content: center;
+}
+
+.examTitle > i,
+.actionButtons > button > i {
+  flex-shrink: 0;
 }
 
 .btnSecondary {
@@ -423,6 +440,22 @@
   cursor: not-allowed;
 }
 
+.alertCategoryGroup {
+  margin-top: 10px;
+}
+
+.alertCategoryTitle {
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .alertBanner {
   display: flex;
   align-items: flex-start;
@@ -480,24 +513,20 @@
 
 .odontogramLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
   gap: 20px;
   width: 100%;
-  padding: 20px 0;
+  padding: 16px 0;
   box-sizing: border-box;
+  align-items: start;
 }
 
-@media (max-width: 1400px) {
-  .odontogramLayout {
-    grid-template-columns: 1fr 300px;
-  }
-}
-
-@media (max-width: 1200px) {
+@media (max-width: 900px) {
   .odontogramLayout {
     grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 12px 0;
   }
-
 }
 
 .odontogramMainColumn {
@@ -508,17 +537,34 @@
 }
 
 .affectedSurfacesPanel {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  background: #ffffff;
+  background: #f8fafc;
+}
+
+.affectedSurfacesHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .affectedSurfacesTitle {
-  margin: 0 0 10px;
+  margin: 0;
   color: #0f172a;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 700;
+}
+
+.affectedSurfacesToothContext {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2563eb;
 }
 
 .clinicalRelationshipCard {
@@ -790,7 +836,8 @@
 
 /* Occlusal arch artwork and native tooth controls. */
 .chartSelectionHint, .jawChart > .patientPerspective, .jawOrientation { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.jawChart { padding: 24px 12px 16px; background: linear-gradient(115deg, #f8fafc, #fff 45%, #f8fafc); min-width: 440px; }
+/* Anchor the absolute screen-reader labels inside the chart's scroll context. */
+.jawChart { position: relative; padding: 24px 12px 16px; background: linear-gradient(115deg, #f8fafc, #fff 45%, #f8fafc); min-width: 440px; }
 .jawSection { position: relative; }
 .jawSection + .jawSection { margin-top: 8px; }
 .jawSection:first-of-type .jawStage { margin-bottom: -16px; }
@@ -1131,14 +1178,14 @@
 .panelContainer {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 16px 20px 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
-  align-self: start;
-  box-shadow: 0 2px 6px #0f172a04;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .panelContainer .formGrid2 { grid-template-columns: minmax(0, 1fr); }
@@ -1223,11 +1270,17 @@
   position: relative;
   display: flex;
   justify-content: center;
-  height: 210px;
+  align-items: center;
+  height: 220px;
+  min-height: 220px;
+  max-height: 220px;
   overflow: hidden;
   border: 1px solid #edf2f7;
   border-radius: 8px;
   background: #fafbfc;
+  box-sizing: border-box;
+  contain: paint;
+  overscroll-behavior: contain;
 }
 .surfaceModelCanvas {
   width: 100%;
@@ -1235,6 +1288,8 @@
   display: block;
   touch-action: none;
   cursor: grab;
+  border-radius: 8px;
+  overscroll-behavior: contain;
 }
 .surfaceModelCanvas:active { cursor: grabbing; }
 .surfaceModelCanvas:focus-visible {

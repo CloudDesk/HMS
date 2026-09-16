@@ -23,7 +23,7 @@ import { DentalHistorySection } from './DentalHistorySection';
 import { DentalSoftTissueSection } from './DentalSoftTissueSection';
 import { DentalTreatmentPlanSection } from './DentalTreatmentPlanSection';
 import { OdontogramChart } from './OdontogramChart';
-import { ToothAffectedSurfaces, ToothExaminationPanel } from './ToothExaminationPanel';
+import { ToothExaminationPanel } from './ToothExaminationPanel';
 import styles from './DentalExamination.module.css';
 
 interface OpdDentalExaminationTabProps {
@@ -387,7 +387,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         consultationAssessment={consultation?.assessment}
       />
 
-      {/* 2. Interactive Odontogram + Tooth Examination Panel */}
+      {/* 2. Interactive Odontogram + Side-by-Side Tooth Detail & Affected Surfaces Panel */}
       <div className={styles.odontogramLayout}>
         <div className={styles.odontogramMainColumn}>
           <OdontogramChart
@@ -395,12 +395,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             selectedToothNumber={selectedToothNumber}
             onSelectTooth={(num) => setSelectedToothNumber(num)}
             disabled={isSaving}
-          />
-          <ToothAffectedSurfaces
-            selectedToothNumber={selectedToothNumber}
-            currentFinding={currentFinding}
-            onUpdateFinding={handleUpdateFinding}
-            disabled={controlsDisabled}
           />
         </div>
 
@@ -410,7 +404,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           onUpdateFinding={handleUpdateFinding}
           onRemoveFinding={handleRemoveFinding}
           disabled={controlsDisabled}
-          showAffectedSurfaces={false}
+          showAffectedSurfaces={true}
           onSave={isReadOnly ? undefined : handleSaveDraft}
           isSaving={saveDraftMutation.isPending}
         />

@@ -1,3 +1,133 @@
+/* Consultation-only layout; retain shared OPD controls and visual tokens. */
+.opd-consultation-page {
+  min-width: 0;
+}
+
+.opd-consultation-page .opd-page-header {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.opd-consultation-page .opd-page-title {
+  flex: 0 0 auto;
+}
+
+.opd-consultation-page .opd-page-actions {
+  flex: 1 1 36rem;
+  min-width: 0;
+  width: auto;
+  justify-content: flex-end;
+}
+
+.opd-consultation-page .opd-page-header .doc-btn {
+  width: auto;
+  min-height: 38px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.opd-consultation-page .opd-visit-selector {
+  flex: 1 1 20rem;
+  min-width: 0;
+  max-width: 36rem;
+}
+
+.opd-consultation-page .opd-visit-selector > span {
+  flex-shrink: 0;
+}
+
+.opd-consultation-page .opd-visit-selector select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  text-overflow: ellipsis;
+}
+
+.opd-consultation-page .opd-patient-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0;
+}
+
+.opd-consultation-page .opd-patient-banner-title {
+  flex-wrap: wrap;
+}
+
+.opd-consultation-page .opd-patient-banner-title h3 {
+  overflow-wrap: anywhere;
+}
+
+.opd-consultation-page .opd-mrn-chip,
+.opd-consultation-page .opd-patient-banner-title .doc-status {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.opd-consultation-page .opd-patient-meta-line {
+  gap: 0.35rem 0.75rem;
+}
+
+.opd-consultation-page .opd-patient-meta-line > span:not(.divider) {
+  overflow-wrap: anywhere;
+}
+
+.opd-consultation-page .opd-patient-meta-line .divider {
+  display: none;
+}
+
+.opd-consultation-page .opd-patient-banner-actions {
+  grid-column: 2;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+  width: auto;
+}
+
+.opd-consultation-page .opd-patient-banner-actions .doc-btn {
+  min-height: 38px;
+}
+
+.opd-consultation-page .opd-workspace-tabs {
+  align-self: stretch;
+}
+
+.opd-consultation-page .opd-workspace-tab {
+  min-height: 36px;
+}
+
+@media (min-width: 1600px) {
+  .opd-consultation-page .opd-patient-banner {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .opd-consultation-page .opd-patient-banner-actions {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .opd-page.opd-consultation-page {
+    padding: 1rem;
+  }
+
+  .opd-consultation-page .opd-page-actions {
+    justify-content: flex-start;
+  }
+
+  .opd-consultation-page .opd-visit-selector {
+    max-width: none;
+  }
+
+  .opd-consultation-page .opd-patient-banner-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
 /* OPD Consultation Workspace: Enhanced Diagnosis, Lab & Imaging UI */
 .opd-dx-search-input-wrap {
   position: relative;

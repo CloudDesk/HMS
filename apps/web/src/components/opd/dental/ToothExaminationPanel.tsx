@@ -54,7 +54,9 @@ export const ToothAffectedSurfaces: React.FC<ToothAffectedSurfacesProps> = ({
 
   return (
     <section className={styles.affectedSurfacesPanel} aria-label="Affected Surfaces">
-      <h3 className={styles.affectedSurfacesTitle}>Affected Surfaces</h3>
+      <div className={styles.affectedSurfacesHeader}>
+        <h3 className={styles.affectedSurfacesTitle}>Affected Surfaces</h3>
+      </div>
       <ToothSurfaceSelector
         toothNumber={selectedToothNumber}
         surfaces={finding.surfaces}
@@ -106,24 +108,45 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   };
 
   const handleStatusChange = (status: ToothStatus) => {
-    onUpdateFinding({ ...finding, status });
+    if (status === 'MISSING') {
+      onUpdateFinding({
+        ...finding,
+        status: 'MISSING',
+        surfaces: [],
+        mobility: null,
+        pocket_depth_mm: null,
+        furcation_involvement: null,
+        conditions: finding.conditions.includes('MISSING') ? ['MISSING'] : [],
+      });
+    } else if (status === 'PRESENT') {
+      onUpdateFinding({
+        ...finding,
+        status: 'PRESENT',
+        conditions:
+          finding.conditions.length === 0 ||
+          (finding.conditions.length === 1 && finding.conditions[0] === 'MISSING')
+            ? ['HEALTHY']
+            : finding.conditions.filter((c: string) => c !== 'MISSING'),
+        mobility: finding.mobility ?? 'NONE',
+      });
+    } else {
+      onUpdateFinding({ ...finding, status });
+    }
   };
 
   const toggleCondition = (conditionId: string) => {
-    if (disabled) return;
+    if (disabled || finding.status === 'MISSING') return;
     let newConditions = [...finding.conditions];
     if (newConditions.includes(conditionId)) {
       newConditions = newConditions.filter((c: string) => c !== conditionId);
       if (newConditions.length === 0) newConditions = ['HEALTHY'];
     } else {
-      // If adding an abnormality, remove 'HEALTHY'
-      if (conditionId !== 'HEALTHY') {
-        newConditions = newConditions.filter((c: string) => c !== 'HEALTHY');
-      } else {
-        // If selecting HEALTHY, clear abnormal conditions
+      if (conditionId === 'HEALTHY') {
         newConditions = ['HEALTHY'];
+      } else {
+        newConditions = newConditions.filter((c: string) => c !== 'HEALTHY');
+        newConditions.push(conditionId);
       }
-      newConditions.push(conditionId);
     }
     onUpdateFinding({ ...finding, conditions: newConditions });
   };
@@ -146,41 +169,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
     onUpdateFinding({ ...finding, furcation_involvement: val.trim() || null });
   };
 
-  const quickMarkHealthy = () => {
-    onUpdateFinding({
-      ...finding,
-      status: 'PRESENT',
-      conditions: ['HEALTHY'],
-      surfaces: [],
-      mobility: 'NONE',
-      pocket_depth_mm: null,
-      furcation_involvement: null,
-    });
-  };
-
-  const quickMarkCarious = () => {
-    const conditions = finding.conditions.filter((c: string) => c !== 'HEALTHY');
-    if (!conditions.includes('CARIOUS')) conditions.push('CARIOUS');
-    onUpdateFinding({
-      ...finding,
-      status: 'PRESENT',
-      conditions,
-      surfaces: finding.surfaces.length > 0 ? finding.surfaces : ['OCCLUSAL'],
-    });
-  };
-
-  const quickMarkMissing = () => {
-    onUpdateFinding({
-      ...finding,
-      status: 'MISSING',
-      conditions: ['MISSING'],
-      surfaces: [],
-      mobility: null,
-      pocket_depth_mm: null,
-      furcation_involvement: null,
-    });
-  };
-
   return (
     <div className={styles.panelContainer}>
       <div className={styles.panelHeader}>
@@ -201,36 +189,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         )}
       </div>
 
-      {/* Quick Action Shortcuts */}
-      {!disabled && (
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            style={{ padding: '3px 8px', fontSize: '0.725rem', color: '#16a34a', borderColor: '#bbf7d0' }}
-            onClick={quickMarkHealthy}
-          >
-            <i className="ph ph-check" /> Mark Healthy
-          </button>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            style={{ padding: '3px 8px', fontSize: '0.725rem', color: '#dc2626', borderColor: '#fecaca' }}
-            onClick={quickMarkCarious}
-          >
-            <i className="ph ph-warning-circle" /> Caries
-          </button>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            style={{ padding: '3px 8px', fontSize: '0.725rem', color: '#64748b', borderColor: '#e2e8f0' }}
-            onClick={quickMarkMissing}
-          >
-            <i className="ph ph-x-circle" /> Missing
-          </button>
-        </div>
-      )}
-
       {/* Tooth Status */}
       <div className={styles.formGroup}>
         <label className={styles.label}>Tooth Status</label>
@@ -245,21 +203,30 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
               {st.label}
             </option>
           ))}
+          {!TOOTH_STATUSES.some((st) => st.value === finding.status) && (
+            <option value={finding.status}>{finding.status}</option>
+          )}
         </select>
       </div>
 
       {/* Clinical Conditions */}
       <div className={styles.formGroup}>
         <label className={styles.label}>Conditions & Findings</label>
+        {finding.status === 'MISSING' && (
+          <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginBottom: '4px' }}>
+            Tooth is marked as Missing. Set Tooth Status to &ldquo;Present&rdquo; to record clinical conditions.
+          </div>
+        )}
         <div className={styles.conditionChipsGrid}>
           {STANDARD_CONDITIONS.map((cond: (typeof STANDARD_CONDITIONS)[number]) => {
             const isSelected = finding.conditions.includes(cond.id);
+            const isConditionDisabled = disabled || finding.status === 'MISSING';
             return (
               <button
                 key={cond.id}
                 type="button"
-                disabled={disabled}
-                className={styles.conditionChip}
+                disabled={isConditionDisabled}
+                className={`${styles.conditionChip} ${isConditionDisabled ? styles.chipDisabled : ''}`}
                 style={{
                   backgroundColor: isSelected ? cond.badgeBg : '#f1f5f9',
                   color: isSelected ? cond.color : '#475569',

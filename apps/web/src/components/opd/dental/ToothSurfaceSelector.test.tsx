@@ -60,4 +60,23 @@ describe('ToothSurfaceSelector clinical contract', () => {
     expect(container.querySelector('[data-testid="surface-lingual"]')?.getAttribute('aria-label')).toBe('L — Lingual');
     expect(change).not.toHaveBeenCalled();
   });
+  it('isolates wheel event on canvas by preventing default and stopping propagation', async () => {
+    const change = vi.fn();
+    await act(async () => root.render(<ToothSurfaceSelector toothNumber={11} surfaces={[]} onChange={change} />));
+    const canvas = container.querySelector<HTMLCanvasElement>('canvas');
+    expect(canvas).not.toBeNull();
+
+    const wheelEvent = new WheelEvent('wheel', {
+      deltaY: -100,
+      bubbles: true,
+      cancelable: true,
+    });
+    const stopPropagationSpy = vi.spyOn(wheelEvent, 'stopPropagation');
+    const preventDefaultSpy = vi.spyOn(wheelEvent, 'preventDefault');
+
+    canvas?.dispatchEvent(wheelEvent);
+
+    expect(preventDefaultSpy).toHaveBeenCalled();
+    expect(stopPropagationSpy).toHaveBeenCalled();
+  });
 });

@@ -3,6 +3,7 @@ import type { DentalHistory } from '../../../api/opd';
 import {
   COMMON_DENTAL_HABITS,
   COMMON_MEDICAL_ALERTS,
+  COMMON_MEDICAL_ALERTS_GROUPED,
   getPainScaleInfo,
 } from '../../../pages/dental-utils';
 import styles from './DentalExamination.module.css';
@@ -86,6 +87,14 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
 
   const painInfo = getPainScaleInfo(current.pain_scale);
   const alertsList = current.medical_alerts ?? [];
+  const habitsList = current.habits ?? [];
+
+  const customHabits = habitsList.filter(
+    (habit: string) => !(COMMON_DENTAL_HABITS as readonly string[]).includes(habit),
+  );
+
+  const predefinedAlerts = new Set<string>(COMMON_MEDICAL_ALERTS);
+  const customAlerts = alertsList.filter((alert: string) => !predefinedAlerts.has(alert));
 
   // Show consultation context if general CC, HPI, or Assessment exists
   const hasConsultationContext = Boolean(
@@ -262,7 +271,7 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           </label>
           <div className={styles.chipContainer}>
             {COMMON_DENTAL_HABITS.map((habit: string) => {
-              const selected = (current.habits ?? []).includes(habit);
+              const selected = habitsList.includes(habit);
               return (
                 <button
                   key={habit}
@@ -276,6 +285,26 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
                 </button>
               );
             })}
+            {customHabits.map((habit: string) => (
+              <button
+                key={habit}
+                type="button"
+                disabled={disabled}
+                className={`${styles.chip} ${styles.chipSelected} ${disabled ? styles.chipDisabled : ''}`}
+                onClick={() => toggleHabit(habit)}
+                title="Click to remove habit"
+              >
+                <i className="ph ph-check" />
+                {habit}
+                {!disabled && (
+                  <i
+                    className="ph ph-x"
+                    style={{ fontSize: '0.7rem', marginLeft: '3px', opacity: 0.7 }}
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            ))}
           </div>
 
           {!disabled && (
@@ -311,26 +340,78 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           <label className={styles.label} style={{ color: '#991b1b' }}>
             <i className="ph ph-shield-warning" /> Medical Alerts &amp; Systemic Conditions (Impacts Treatment &amp; Anesthesia)
           </label>
-          <div className={styles.chipContainer}>
-            {COMMON_MEDICAL_ALERTS.map((alert: string) => {
-              const selected = alertsList.includes(alert);
-              return (
-                <button
-                  key={alert}
-                  type="button"
-                  disabled={disabled}
-                  className={`${styles.chip} ${selected ? styles.chipAlertSelected : ''} ${disabled ? styles.chipDisabled : ''}`}
-                  onClick={() => toggleMedicalAlert(alert)}
-                >
-                  {selected && <i className="ph ph-warning-circle" />}
-                  {alert}
-                </button>
-              );
-            })}
-          </div>
+
+          {COMMON_MEDICAL_ALERTS_GROUPED.map((group) => {
+            let iconName = 'ph-heartbeat';
+            let iconColor = '#2563eb';
+            if (group.category === 'Bleeding / Medication Risks') {
+              iconName = 'ph-drop';
+              iconColor = '#dc2626';
+            } else if (group.category === 'Allergies') {
+              iconName = 'ph-warning-octagon';
+              iconColor = '#d97706';
+            }
+
+            return (
+              <div key={group.category} className={styles.alertCategoryGroup}>
+                <div className={styles.alertCategoryTitle}>
+                  <i className={`ph ${iconName}`} style={{ color: iconColor, fontSize: '0.85rem' }} />
+                  {group.category}
+                </div>
+                <div className={styles.chipContainer}>
+                  {group.alerts.map((alert: string) => {
+                    const selected = alertsList.includes(alert);
+                    return (
+                      <button
+                        key={alert}
+                        type="button"
+                        disabled={disabled}
+                        className={`${styles.chip} ${selected ? styles.chipAlertSelected : ''} ${disabled ? styles.chipDisabled : ''}`}
+                        onClick={() => toggleMedicalAlert(alert)}
+                      >
+                        {selected && <i className="ph ph-warning-circle" />}
+                        {alert}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {customAlerts.length > 0 && (
+            <div className={styles.alertCategoryGroup}>
+              <div className={styles.alertCategoryTitle}>
+                <i className="ph ph-tag" style={{ color: '#64748b', fontSize: '0.85rem' }} />
+                Other / Custom Alerts
+              </div>
+              <div className={styles.chipContainer}>
+                {customAlerts.map((alert: string) => (
+                  <button
+                    key={alert}
+                    type="button"
+                    disabled={disabled}
+                    className={`${styles.chip} ${styles.chipAlertSelected} ${disabled ? styles.chipDisabled : ''}`}
+                    onClick={() => toggleMedicalAlert(alert)}
+                    title="Click to remove alert"
+                  >
+                    <i className="ph ph-warning-circle" />
+                    {alert}
+                    {!disabled && (
+                      <i
+                        className="ph ph-x"
+                        style={{ fontSize: '0.7rem', marginLeft: '3px', opacity: 0.7 }}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {!disabled && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', maxWidth: '380px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', maxWidth: '380px' }}>
               <input
                 type="text"
                 placeholder="Add other medical alert/allergy..."

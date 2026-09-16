@@ -1263,7 +1263,7 @@ export function OpdVisitPage() {
   );
 
   return (
-    <div className="opd-page">
+    <div className="opd-page opd-consultation-page">
       {/* Top Header Bar */}
       <section className="opd-page-header">
         <div className="opd-page-title">
