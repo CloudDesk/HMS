@@ -27,7 +27,7 @@ export function Sidebar({
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
       <div className="sidebar-header">
         {logoUrl ? (
-          <img alt={hospitalName} src={logoUrl} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0 }} />
+          <img alt={hospitalName} src={logoUrl} style={{ width: '22px', height: '22px', borderRadius: '5px', objectFit: 'contain', flexShrink: 0 }} />
         ) : (
           <i className="ph ph-hospital brand-icon" aria-hidden="true" />
         )}
