@@ -15,7 +15,10 @@ export const DENTAL_IMAGING_KEYWORDS_REGEX =
   /iopa|bitewing|bite[ -]?wing|opg|orthopantomogram|cbct|cone beam|cephalometric|cephalogram|dental|periapical|rvg|radiovisiography|occlusal view/i;
 
 export const DENTAL_LAB_KEYWORDS_REGEX =
-  /cbc|complete blood|hemogram|pt[/ -]?inr|prothrombin|bleeding time|clotting time|bt[/ -]?ct|glucose|rbs|fbs|hba1c|biopsy|histopathol|oral smear|culture/i;
+  /cbc|complete blood|hemogram|pt[/ -]?inr|prothrombin|bleeding time|clotting time|bt[/ -]?ct|glucose|rbs|fbs|hba1c|biopsy|histopathol|oral smear|culture|bloot|blood/i;
+
+export const EXCLUDED_DENTAL_KEYWORDS_REGEX =
+  /ocular|eye|corneal|conjunctival|macula|optic|chest|abdomen|abdominal|brain|head\b|thyroid|\bt3\b|\bt4\b|\btsh\b|liver|\blft\b/i;
 
 export const DENTAL_MEDICATION_KEYWORDS_REGEX =
   /amoxicillin|amox|clavulan|metronidazole|ciprofloxacin|doxycycline|azithromycin|paracetamol|acetaminophen|ibuprofen|ketorolac|diclofenac|tramadol|aceclofenac|chlorhexidine|povidone|mouthwash|rinse|clotrimazole|miconazole|nystatin|fluconazole|triamcinolone|orabase|choline salicylate|lignocaine|lidocaine|benzocaine/i;
@@ -28,6 +31,7 @@ export function isDentalMedication(med: { name: string; category?: string | null
 }
 
 export function isDentalImagingService(service: { name: string; category?: string | null }): boolean {
+  if (EXCLUDED_DENTAL_KEYWORDS_REGEX.test(service.name)) return false;
   return (
     DENTAL_IMAGING_KEYWORDS_REGEX.test(service.name) ||
     Boolean(service.category && DENTAL_IMAGING_KEYWORDS_REGEX.test(service.category))
@@ -35,6 +39,7 @@ export function isDentalImagingService(service: { name: string; category?: strin
 }
 
 export function isDentalLabService(service: { name: string; category?: string | null }): boolean {
+  if (EXCLUDED_DENTAL_KEYWORDS_REGEX.test(service.name)) return false;
   return (
     DENTAL_LAB_KEYWORDS_REGEX.test(service.name) ||
     Boolean(service.category && DENTAL_LAB_KEYWORDS_REGEX.test(service.category))

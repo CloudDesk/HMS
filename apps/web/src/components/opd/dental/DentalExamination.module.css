@@ -788,6 +788,301 @@
   line-height: 1;
 }
 
+/* Anatomical odontogram overview. Kept local to the Dental CSS module. */
+.anatomicalChartViewport {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.anatomicalChart {
+  box-sizing: border-box;
+  min-width: 720px;
+  padding: 12px 18px 16px;
+  background:
+    radial-gradient(ellipse at 50% 31%, rgba(254, 226, 226, 0.62) 0 19%, transparent 19.5%),
+    radial-gradient(ellipse at 50% 72%, rgba(254, 226, 226, 0.62) 0 19%, transparent 19.5%),
+    #fff;
+}
+
+.patientPerspective {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.anatomicalArch {
+  position: relative;
+  padding: 0 8px;
+}
+
+.anatomicalArchHeader {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.anatomicalArchHeader strong {
+  color: #1e3a5f;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
+.anatomicalArchHeader span:last-child { text-align: right; }
+
+.toothGroupGuide {
+  display: grid;
+  grid-template-columns: 3fr 2fr 1fr 4fr 1fr 2fr 3fr;
+  gap: 3px;
+  align-items: end;
+  margin: 0 5px 5px;
+  color: #64748b;
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.toothGroupGuidePrimary { grid-template-columns: 4fr 1fr 4fr 1fr 4fr; }
+
+.toothGroupGuide span {
+  position: relative;
+  padding: 0 2px 5px;
+  border-bottom: 1px solid #94a3b8;
+}
+
+.toothGroupGuide span::before,
+.toothGroupGuide span::after {
+  position: absolute;
+  bottom: -3px;
+  width: 1px;
+  height: 5px;
+  background: #94a3b8;
+  content: '';
+}
+
+.toothGroupGuide span::before { left: 0; }
+.toothGroupGuide span::after { right: 0; }
+
+.anatomicalArchRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(16, minmax(38px, 1fr));
+  align-items: start;
+  min-height: 138px;
+  padding: 0 2px;
+}
+
+.anatomicalArchRowPrimary {
+  grid-template-columns: repeat(10, minmax(46px, 1fr));
+  padding-inline: 13%;
+}
+
+.anatomicalArchRowLower {
+  align-items: end;
+}
+
+.anatomicalMidline {
+  position: absolute;
+  top: 13px;
+  bottom: 13px;
+  left: 50%;
+  width: 1px;
+  background: repeating-linear-gradient(to bottom, #94a3b8 0 4px, transparent 4px 8px);
+  transform: translateX(-50%);
+}
+
+.anatomicalToothButton {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 38px;
+  min-height: 105px;
+  border: 0;
+  border-radius: 12px;
+  padding: 3px 1px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.anatomicalArchRowLower .anatomicalToothButton { justify-content: flex-end; }
+.anatomicalToothButton:hover:not(:disabled) { background: rgba(239, 246, 255, 0.9); }
+.anatomicalToothButton:focus-visible { outline: 3px solid #60a5fa; outline-offset: 1px; }
+.anatomicalToothButton:disabled { cursor: default; }
+
+.anatomicalToothSelected {
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 2px #2563eb, 0 5px 12px rgba(37, 99, 235, 0.18);
+}
+
+.anatomicalToothNumber {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  min-width: 25px;
+  height: 20px;
+  border-radius: 999px;
+  color: #334155;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.anatomicalToothSelected .anatomicalToothNumber { background: #2563eb; color: #fff; }
+
+.anatomicalToothGraphic {
+  display: block;
+  width: 100%;
+  max-width: 43px;
+  color: #f8fafc;
+}
+
+.anatomicalTooth {
+  display: block;
+  width: 100%;
+  height: 80px;
+  overflow: visible;
+  filter: drop-shadow(0 2px 1px rgba(15, 23, 42, 0.12));
+}
+
+.toothRoots path {
+  fill: #fffdf7;
+  stroke: #94a3b8;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
+.toothCrown {
+  fill: currentColor;
+  stroke: #64748b;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.toothSurface {
+  fill: rgba(255, 255, 255, 0.38);
+  stroke: #cbd5e1;
+  stroke-width: 0.7;
+}
+
+.toothSurfaceCaries { fill: #ef4444; stroke: #b91c1c; }
+.toothSurfaceFilled { fill: #3b82f6; stroke: #1d4ed8; }
+.toothSurfaceCrown { fill: #f59e0b; stroke: #b45309; }
+.toothSurfaceAttention { fill: #f97316; stroke: #c2410c; }
+.toothConditionHealthy { color: #dcfce7; }
+.toothConditionCaries { color: #fecaca; }
+.toothConditionFilled { color: #dbeafe; }
+.toothConditionCrown { color: #fef3c7; }
+.toothConditionRoot { color: #f3e8ff; }
+.toothConditionMissing { color: #e2e8f0; opacity: 0.58; }
+.toothConditionAttention { color: #ffedd5; }
+.toothConditionUnrecorded { color: #fffdf7; }
+
+.toothMissingMark path { fill: none; stroke: #dc2626; stroke-linecap: round; stroke-width: 3; }
+.toothImpactedMark { fill: none; stroke: #ea580c; stroke-width: 3; }
+.toothLesionMark { fill: #dc2626; stroke: #fff; stroke-width: 1; }
+
+.toothClinicalFlag {
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  border-radius: 999px;
+  padding: 2px 4px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.5rem;
+  font-weight: 800;
+}
+
+.archCurve0 { margin-top: 0; }
+.archCurve1 { margin-top: 2px; }
+.archCurve2 { margin-top: 6px; }
+.archCurve3 { margin-top: 12px; }
+.archCurve4 { margin-top: 20px; }
+.archCurve5 { margin-top: 29px; }
+.archCurve6 { margin-top: 39px; }
+.archCurve7 { margin-top: 50px; }
+.anatomicalArchRowLower .archCurve0 { margin-top: 0; margin-bottom: 0; }
+.anatomicalArchRowLower .archCurve1 { margin-top: 0; margin-bottom: 2px; }
+.anatomicalArchRowLower .archCurve2 { margin-top: 0; margin-bottom: 6px; }
+.anatomicalArchRowLower .archCurve3 { margin-top: 0; margin-bottom: 12px; }
+.anatomicalArchRowLower .archCurve4 { margin-top: 0; margin-bottom: 20px; }
+.anatomicalArchRowLower .archCurve5 { margin-top: 0; margin-bottom: 29px; }
+.anatomicalArchRowLower .archCurve6 { margin-top: 0; margin-bottom: 39px; }
+.anatomicalArchRowLower .archCurve7 { margin-top: 0; margin-bottom: 50px; }
+.anatomicalToothButton:hover:not(:disabled) { transform: translateY(-3px); }
+.anatomicalArchRowLower .anatomicalToothButton:hover:not(:disabled) { transform: translateY(3px); }
+.anatomicalToothSelected { transform: scale(1.05); }
+
+.archOcclusalGap {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 8px 8px;
+  color: #64748b;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.archOcclusalGap::before,
+.archOcclusalGap::after { height: 1px; background: #cbd5e1; content: ''; }
+.archOcclusalGap span:first-child { justify-self: start; }
+.archOcclusalGap span:nth-child(2) { position: absolute; left: 50%; transform: translateX(-50%); }
+.archOcclusalGap span:last-child { justify-self: end; }
+
+.odontogramLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  border-top: 1px solid #e2e8f0;
+  padding: 11px 12px;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.odontogramLegend span { display: inline-flex; align-items: center; gap: 5px; }
+.odontogramLegend i { display: inline-grid; place-items: center; width: 11px; height: 11px; border-radius: 3px; font-style: normal; }
+.legendHealthy { background: #22c55e; border-radius: 50% !important; }
+.legendCaries { background: #ef4444; }
+.legendFilled { background: #3b82f6; }
+.legendCrown { background: #f59e0b; }
+.legendRoot { background: #9333ea; }
+.legendMissing { border: 1px solid #cbd5e1; color: #dc2626; font-weight: 800; }
+
+@media (max-width: 800px) {
+  .anatomicalChart { min-width: 704px; padding-inline: 10px; }
+  .odontogramTabs { grid-template-columns: 1fr; }
+  .odontogramTabBtn { min-height: 43px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anatomicalToothButton { transition: none; }
+}
+
 /* Tooth Examination Panel */
 .panelContainer {
   background: #ffffff;

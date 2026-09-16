@@ -12,6 +12,7 @@ import type { ClinicalSourceContext } from './clinical-context.types.js';
 import type { OpdClinicalOrder } from './opd-clinical-order.types.js';
 import { isDentalClinicalContext } from './opd-dental-examination.service.js';
 import { isValidFdiTooth } from './opd-dental-examination.schemas.js';
+import { dentalImagingDraftSchema } from './opd-clinical-order.schemas.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
@@ -26,15 +27,16 @@ export class OpdClinicalOrderService {
   ) {}
 
   async getByVisitAndType(visitId: string, orderType: ClinicalOrderType, userId: string) {
-    await this.getVisit(visitId, userId);
+    await this.getVisit(visitId, userId, orderType);
     return this.repository.getByVisitAndType(visitId, orderType);
   }
 
   async saveDraft(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
-    const visit = await this.getVisit(visitId, userId);
+    const visit = await this.getVisit(visitId, userId, orderType);
     this.ensureOpenVisit(visit);
-    const consultation = await this.getConsultation(visitId);
+    const consultation = await this.getOrCreateConsultation(visit, userId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
+    this.assertVersion(current, data);
 
     if (current && current.status !== 'DRAFT') {
       throw new AppError('A submitted clinical order cannot be edited', 400, 'CLINICAL_ORDER_SUBMITTED');
@@ -42,12 +44,12 @@ export class OpdClinicalOrderService {
 
     this.validateLaboratoryFields(orderType, data);
     await this.validateToothAssociation(orderType, data, visit);
-    const items = await this.normalizeServices(orderType, data);
-    return this.repository.saveForVisit({ ...data, items, consultation, orderType, status: 'DRAFT', visit }, userId);
+    const items = await this.normalizeServices(orderType, data, await this.isDental(visit));
+    return this.repository.saveForVisit({ ...data, expected_updated_at: current?.updated_at.toISOString(), items, consultation, orderType, status: 'DRAFT', visit }, userId);
   }
 
   async submit(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
-    const visit = await this.getVisit(visitId, userId);
+    const visit = await this.getVisit(visitId, userId, orderType);
     this.ensureOpenVisit(visit, true);
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
@@ -55,6 +57,7 @@ export class OpdClinicalOrderService {
     if (current && current.status !== 'DRAFT') {
       return current;
     }
+    this.assertVersion(current, data);
 
     if (consultation.status !== 'COMPLETED') {
       throw new AppError(
@@ -70,9 +73,9 @@ export class OpdClinicalOrderService {
 
     this.validateLaboratoryFields(orderType, data);
     await this.validateToothAssociation(orderType, data, visit);
-    const items = await this.normalizeServices(orderType, data);
+    const items = await this.normalizeServices(orderType, data, await this.isDental(visit));
     const order = await this.repository.saveForVisit(
-      { ...data, items, consultation, orderType, status: 'SUBMITTED', submittedAt: new Date(), visit },
+      { ...data, expected_updated_at: current?.updated_at.toISOString(), items, consultation, orderType, status: 'SUBMITTED', submittedAt: new Date(), visit },
       userId,
     );
 
@@ -133,13 +136,63 @@ export class OpdClinicalOrderService {
     return this.repository.submitForContext(context, orderType, normalized, actor, session);
   }
 
-  private async getVisit(visitId: string, userId: string) {
+  async authorizeDentalImagingReport(orderId: string, userId: string) {
+    const scope = await this.repository.resolveBranchScope(userId);
+    const order = await this.repository.getOperationalById(orderId, 'IMAGING', scope);
+    if (!order?.visit_id || order.source_type !== 'OPD_VISIT') {
+      throw new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+    }
+    const visit = await this.getVisit(order.visit_id, userId, 'IMAGING');
+    if (!(await this.isDental(visit)) || order.patient_id !== visit.patient_id ||
+        order.branch_id !== visit.branch_id || order.doctor_id !== visit.doctor_id) {
+      throw new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+    }
+  }
+
+  async authorizeDentalLaboratoryResult(orderId: string, userId: string) {
+    const scope = await this.repository.resolveBranchScope(userId);
+    const order = await this.repository.getOperationalById(orderId, 'LABORATORY', scope);
+    if (!order?.visit_id || order.source_type !== 'OPD_VISIT') {
+      throw new AppError('Dental laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
+    }
+    const visit = await this.getVisit(order.visit_id, userId, 'LABORATORY');
+    if (!(await this.isDental(visit)) || order.patient_id !== visit.patient_id ||
+        order.branch_id !== visit.branch_id || order.doctor_id !== visit.doctor_id) {
+      throw new AppError('Dental laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
+    }
+  }
+
+  private assertVersion(current: OpdClinicalOrder | null, data: SaveOpdClinicalOrderDTO) {
+    if (data.expected_updated_at !== undefined && (current?.updated_at.toISOString() ?? null) !== data.expected_updated_at) {
+      throw new AppError('Clinical order changed; refresh and retry', 409, 'CLINICAL_ORDER_CONFLICT');
+    }
+  }
+
+  private async isDental(visit: OpdVisit) {
+    const department = visit.department_id && Types.ObjectId.isValid(visit.department_id)
+      ? await this.departmentRepository.getById(visit.department_id) : null;
+    return isDentalClinicalContext(visit.doctor_specialization || '', department ?? undefined);
+  }
+
+  private async getVisit(visitId: string, userId: string, orderType: ClinicalOrderType) {
     if (!Types.ObjectId.isValid(visitId)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
     const scope = await this.visitRepository.resolveBranchScope(userId);
     const visit = await this.visitRepository.getById(visitId, scope);
     if (!visit) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+    if (orderType === 'IMAGING' && await this.isDental(visit)) {
+      const actor = await this.repository.getClinicalActor(userId);
+      if (!actor.isSuperAdmin) {
+        if (actor.departmentIds.length && !actor.departmentIds.includes(visit.department_id)) {
+          throw new AppError('Department access denied', 403, 'DEPARTMENT_ACCESS_DENIED');
+        }
+        if (actor.doctor && (String(actor.doctor.departmentId) !== visit.department_id ||
+            String(actor.doctor.branchId) !== visit.branch_id || String(actor.doctor._id) !== visit.doctor_id)) {
+          throw new AppError('Doctor access denied for this visit', 403, 'DOCTOR_ACCESS_DENIED');
+        }
+      }
+    }
     return visit;
   }
 
@@ -147,6 +200,47 @@ export class OpdClinicalOrderService {
     const consultation = await this.consultationRepository.getByVisit(visitId);
     if (!consultation) {
       throw new AppError('Start the consultation before creating clinical orders', 400, 'CONSULTATION_REQUIRED');
+    }
+    return consultation;
+  }
+
+  private async getOrCreateConsultation(visit: OpdVisit, userId: string) {
+    let consultation = await this.consultationRepository.getByVisit(visit.id);
+    if (!consultation) {
+      if (['READY_FOR_CONSULTATION', 'IN_CONSULTATION'].includes(visit.status)) {
+        consultation = await this.consultationRepository.saveForVisit(
+          {
+            status: 'DRAFT',
+            visit,
+          },
+          userId,
+        );
+        if (visit.status === 'READY_FOR_CONSULTATION') {
+          await this.visitRepository.updateStatus(
+            visit.id,
+            {
+              notes: 'Doctor consultation started.',
+              status: 'IN_CONSULTATION',
+            },
+            userId,
+          );
+          visit.status = 'IN_CONSULTATION';
+        }
+      } else {
+        throw new AppError('Start the consultation before creating clinical orders', 400, 'CONSULTATION_REQUIRED');
+      }
+    } else if (consultation.status === 'COMPLETED') {
+      throw new AppError('Clinical orders cannot be modified after consultation is completed', 400, 'CONSULTATION_COMPLETED');
+    } else if (visit.status === 'READY_FOR_CONSULTATION') {
+      await this.visitRepository.updateStatus(
+        visit.id,
+        {
+          notes: 'Doctor consultation started.',
+          status: 'IN_CONSULTATION',
+        },
+        userId,
+      );
+      visit.status = 'IN_CONSULTATION';
     }
     return consultation;
   }
@@ -198,14 +292,18 @@ export class OpdClinicalOrderService {
     }
   }
 
-  private async normalizeServices(orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO) {
+  private async normalizeServices(orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, dentalImaging = false) {
+    if (dentalImaging) {
+      const parsed = dentalImagingDraftSchema.safeParse(data);
+      if (!parsed.success) throw new AppError('Imaging request validation failed', 400, 'VALIDATION_ERROR', parsed.error.flatten());
+    }
     const ids = [...new Set(data.items.map((item) => item.service_id))];
     if (ids.length !== data.items.length) {
       throw new AppError('A service can only be added once to an order', 400, 'DUPLICATE_SERVICE');
     }
     const serviceType = orderType === 'LABORATORY' ? 'LAB_TEST' : 'IMAGING_SERVICE';
     let services: Array<{ _id: unknown; name: string }> = await this.serviceRepository.getActiveClinicalOrderServices(ids, serviceType);
-    if (services.length !== ids.length) {
+    if (services.length !== ids.length && !dentalImaging) {
       services = await this.serviceRepository.getActiveBillingServices(ids);
     }
     if (services.length !== ids.length) {

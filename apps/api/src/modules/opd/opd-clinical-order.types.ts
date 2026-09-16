@@ -57,6 +57,7 @@ export type OpdClinicalOrder = {
 export type SaveClinicalOrderItemDTO = Omit<ClinicalOrderItem, 'id' | 'service_name'>;
 
 export type SaveOpdClinicalOrderDTO = {
+  expected_updated_at?: string | null;
   priority: ClinicalOrderPriority;
   destination?: string | null;
   specimen_type?: string | null;

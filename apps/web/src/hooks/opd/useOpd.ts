@@ -229,6 +229,8 @@ export function useSubmitOpdClinicalOrder(options: OpdMutationNotificationOption
       opdApi.submitClinicalOrder(visitId, type, payload),
     onSuccess: async (data, { visitId, type }) => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.clinicalOrder(visitId, type) });
+      await queryClient.invalidateQueries({ queryKey: opdKeys.consultation(visitId) });
+      await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
     },
     onError: (error) => {
       if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));
@@ -243,6 +245,8 @@ export function useSaveOpdClinicalOrderDraft(options: OpdMutationNotificationOpt
       opdApi.saveClinicalOrderDraft(visitId, type, payload),
     onSuccess: async (_data, { visitId, type }) => {
       await queryClient.invalidateQueries({ queryKey: opdKeys.clinicalOrder(visitId, type) });
+      await queryClient.invalidateQueries({ queryKey: opdKeys.consultation(visitId) });
+      await queryClient.invalidateQueries({ queryKey: opdKeys.visits() });
     },
     onError: (error) => {
       if (options.notifyOnError !== false) toast.error(getOpdErrorMessage(error));

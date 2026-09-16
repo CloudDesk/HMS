@@ -32,8 +32,18 @@ export const registerLaboratoryRoutes = async (app: FastifyInstance, services: S
     async (request) => ok(await services.laboratory.updateResult(
       parseLaboratoryParams(request.params).id, parseLaboratoryResultBody(request.body), request.user!.id, metadata(request),
     )));
-  app.get('/api/laboratory/orders/:id/results', { preHandler: requirePermission(services, 'Laboratory', 'Orders', 'View') },
-    async (request) => ok(await services.laboratory.getResult(parseLaboratoryParams(request.params).id, request.user!.id)));
+  app.get('/api/laboratory/orders/:id/results', { preHandler: authenticate(services) },
+    async (request) => {
+      const id = parseLaboratoryParams(request.params).id;
+      if (!(await services.permissions.userHasPermission(request.user!.id, 'Laboratory', 'Orders', 'View'))) {
+        if (!(await services.permissions.userHasPermission(request.user!.id, 'OPD', 'OPD Clinical Orders', 'View'))) {
+          await services.permissions.auditDeniedAccess(request.user!.id, 'Laboratory', 'Orders', 'View', metadata(request));
+          throw new AppError('Permission required', 403, 'PERMISSION_REQUIRED');
+        }
+        await services.opdClinicalOrders.authorizeDentalLaboratoryResult(id, request.user!.id);
+      }
+      return ok(await services.laboratory.getResult(id, request.user!.id));
+    });
   app.get('/api/laboratory/summary', { preHandler: requirePermission(services, 'Laboratory', 'Orders', 'View') },
     async (request) => {
       const query = parseLaboratoryListQuery(request.query);

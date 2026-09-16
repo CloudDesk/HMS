@@ -1,10 +1,6 @@
-import React, { useState } from 'react';
-import type { DentitionType, ToothFinding } from '../../../api/opd';
-import {
-  getToothName,
-  PERMANENT_QUADRANTS,
-  PRIMARY_QUADRANTS,
-} from '../../../pages/dental-utils';
+import React, { memo, useState } from 'react';
+import type { DentitionType, ToothFinding, ToothSurface } from '../../../api/opd';
+import { getToothName, PERMANENT_QUADRANTS, PRIMARY_QUADRANTS } from '../../../pages/dental-utils';
 import styles from './DentalExamination.module.css';
 
 interface OdontogramChartProps {
@@ -14,273 +10,138 @@ interface OdontogramChartProps {
   disabled?: boolean;
 }
 
-export const OdontogramChart: React.FC<OdontogramChartProps> = ({
-  teeth,
-  selectedToothNumber,
-  onSelectTooth,
-  disabled = false,
-}) => {
+type Arch = 'upper' | 'lower';
+type ToothKind = 'incisor' | 'canine' | 'premolar' | 'molar';
+
+const CURVE_CLASSES = [styles.archCurve0, styles.archCurve1, styles.archCurve2, styles.archCurve3,
+  styles.archCurve4, styles.archCurve5, styles.archCurve6, styles.archCurve7] as const;
+
+const getKind = (toothNumber: number): ToothKind => {
+  const position = toothNumber % 10;
+  if (position <= 2) return 'incisor';
+  if (position === 3) return 'canine';
+  if (position <= 5 && toothNumber < 50) return 'premolar';
+  return 'molar';
+};
+
+const conditionFor = (finding?: ToothFinding) => {
+  if (finding?.status === 'MISSING' || finding?.status === 'EXTRACTED' || finding?.conditions.includes('MISSING')) return 'missing';
+  if (finding?.conditions.includes('CARIOUS')) return 'caries';
+  if (finding?.conditions.includes('FILLED')) return 'filled';
+  if (finding?.conditions.includes('CROWN')) return 'crown';
+  if (finding?.conditions.includes('ROOT_PIECE')) return 'root';
+  if (finding?.conditions.some((item) => ['FRACTURED', 'PULPITIC', 'PERIAPICAL_LESION'].includes(item))) return 'attention';
+  return finding ? 'healthy' : 'unrecorded';
+};
+
+const surfaceClass = (surface: ToothSurface, finding?: ToothFinding) => {
+  if (!finding?.surfaces.includes(surface)) return styles.toothSurface;
+  if (finding.conditions.includes('CARIOUS')) return `${styles.toothSurface} ${styles.toothSurfaceCaries}`;
+  if (finding.conditions.includes('FILLED')) return `${styles.toothSurface} ${styles.toothSurfaceFilled}`;
+  if (finding.conditions.includes('CROWN')) return `${styles.toothSurface} ${styles.toothSurfaceCrown}`;
+  return `${styles.toothSurface} ${styles.toothSurfaceAttention}`;
+};
+
+function ToothShape({ arch, kind, finding }: { arch: Arch; kind: ToothKind; finding?: ToothFinding }) {
+  const transform = arch === 'lower' ? 'rotate(180 28 42)' : undefined;
+  const crown = kind === 'incisor'
+    ? 'M19 35 Q28 30 37 35 L36 60 Q34 70 28 72 Q22 70 20 60 Z'
+    : kind === 'canine'
+      ? 'M17 37 Q23 31 28 25 Q33 31 39 37 L37 61 Q34 70 28 73 Q22 70 19 61 Z'
+      : kind === 'premolar'
+        ? 'M14 39 Q19 31 28 33 Q37 31 42 39 L40 62 Q35 71 28 72 Q21 71 16 62 Z'
+        : 'M10 40 Q13 31 20 34 Q28 28 36 34 Q43 31 46 40 L44 63 Q38 72 28 72 Q18 72 12 63 Z';
+  const roots = kind === 'incisor'
+    ? <path d="M22 38 Q21 20 27 6 Q34 20 34 38" />
+    : kind === 'canine'
+      ? <path d="M21 39 Q22 18 28 4 Q34 18 35 39" />
+      : kind === 'premolar'
+        ? <><path d="M18 40 Q17 21 21 8 Q27 23 27 40" /><path d="M29 40 Q31 22 37 9 Q40 24 38 40" /></>
+        : <><path d="M15 41 Q12 24 16 10 Q23 24 23 41" /><path d="M25 41 Q28 20 32 8 Q36 22 34 41" /><path d="M36 41 Q42 23 43 12 Q47 29 42 42" /></>;
+  return <svg className={styles.anatomicalTooth} viewBox="0 0 56 84" aria-hidden="true">
+    <g transform={transform}>
+      <g className={styles.toothRoots}>{roots}</g>
+      <path className={styles.toothCrown} d={crown} />
+      <path className={surfaceClass('BUCCAL', finding)} d="M18 41 Q28 35 38 41 L36 48 Q28 44 20 48 Z" />
+      <path className={surfaceClass('MESIAL', finding)} d="M18 41 L20 60 L25 55 L25 44 Z" />
+      <path className={surfaceClass('DISTAL', finding)} d="M38 41 L36 60 L31 55 L31 44 Z" />
+      <path className={surfaceClass('OCCLUSAL', finding)} d="M25 44 L31 44 L31 55 L25 55 Z" />
+      <path className={surfaceClass('LINGUAL', finding)} d="M20 60 Q28 67 36 60 L31 55 L25 55 Z" />
+      {(finding?.status === 'MISSING' || finding?.status === 'EXTRACTED') && <g className={styles.toothMissingMark}><path d="M13 30 L43 69" /><path d="M43 30 L13 69" /></g>}
+      {finding?.status === 'IMPACTED' && <path className={styles.toothImpactedMark} d="M12 55 Q28 76 44 55" />}
+      {finding?.conditions.includes('PERIAPICAL_LESION') && <circle className={styles.toothLesionMark} cx="28" cy="8" r="4" />}
+    </g>
+  </svg>;
+}
+
+const ToothButton = memo(function ToothButton({ toothNumber, arch, curve, finding, selected, disabled, onSelect }: {
+  toothNumber: number; arch: Arch; curve: number; finding?: ToothFinding; selected: boolean; disabled: boolean;
+  onSelect: (toothNumber: number) => void;
+}) {
+  const condition = conditionFor(finding);
+  const conditionClass = `toothCondition${condition[0]?.toUpperCase()}${condition.slice(1)}`;
+  const statusText = finding ? `${finding.status}; ${finding.conditions.join(', ')}` : 'No finding recorded';
+  return <button type="button"
+    className={`${styles.anatomicalToothButton} ${CURVE_CLASSES[curve]} ${selected ? styles.anatomicalToothSelected : ''}`}
+    onClick={() => onSelect(toothNumber)} disabled={disabled}
+    aria-label={`Tooth ${toothNumber}: ${getToothName(toothNumber)}`} aria-pressed={selected}
+    data-fdi={toothNumber} data-condition={condition} data-arch={arch}
+    title={`FDI ${toothNumber} — ${getToothName(toothNumber)}\n${statusText}`}>
+    {arch === 'upper' && <span className={styles.anatomicalToothNumber}>{toothNumber}</span>}
+    <span className={`${styles.anatomicalToothGraphic} ${styles[conditionClass]}`}><ToothShape arch={arch} kind={getKind(toothNumber)} finding={finding} /></span>
+    {arch === 'lower' && <span className={styles.anatomicalToothNumber}>{toothNumber}</span>}
+    {(finding?.pocket_depth_mm ?? 0) > 3 && <span className={styles.toothClinicalFlag}>{finding?.pocket_depth_mm} mm</span>}
+  </button>;
+});
+
+function GroupGuide({ primary, arch }: { primary: boolean; arch: Arch }) {
+  const labels = primary ? ['Molars', 'Canine', 'Incisors', 'Canine', 'Molars']
+    : ['Molars', 'Premolars', 'Canine', 'Incisors', 'Canine', 'Premolars', 'Molars'];
+  return <div className={`${styles.toothGroupGuide} ${primary ? styles.toothGroupGuidePrimary : ''}`} aria-label={`${arch === 'upper' ? 'Upper' : 'Lower'} tooth groups`}>
+    {labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
+  </div>;
+}
+
+const archTeeth = (dentition: DentitionType, arch: Arch): readonly number[] => {
+  if (dentition === 'PERMANENT') return arch === 'upper'
+    ? [...PERMANENT_QUADRANTS.Q1_UPPER_RIGHT, ...PERMANENT_QUADRANTS.Q2_UPPER_LEFT]
+    : [...PERMANENT_QUADRANTS.Q4_LOWER_RIGHT, ...PERMANENT_QUADRANTS.Q3_LOWER_LEFT];
+  return arch === 'upper'
+    ? [...PRIMARY_QUADRANTS.Q5_UPPER_RIGHT, ...PRIMARY_QUADRANTS.Q6_UPPER_LEFT]
+    : [...PRIMARY_QUADRANTS.Q8_LOWER_RIGHT, ...PRIMARY_QUADRANTS.Q7_LOWER_LEFT];
+};
+
+export const OdontogramChart: React.FC<OdontogramChartProps> = ({ teeth, selectedToothNumber, onSelectTooth, disabled = false }) => {
   const [dentitionView, setDentitionView] = useState<DentitionType>('PERMANENT');
-
-  const getFinding = (toothNumber: number): ToothFinding | undefined => {
-    return teeth.find((t) => t.tooth_number === toothNumber);
+  const primary = dentitionView === 'PRIMARY';
+  const renderArch = (arch: Arch) => {
+    const numbers = archTeeth(dentitionView, arch);
+    return <section className={styles.anatomicalArch} aria-label={`${arch === 'upper' ? 'Maxillary upper' : 'Mandibular lower'} arch`}>
+      <header className={styles.anatomicalArchHeader}><span>Patient right</span><strong>{arch === 'upper' ? 'Maxillary Arch / Upper' : 'Mandibular Arch / Lower'}</strong><span>Patient left</span></header>
+      {arch === 'upper' && <GroupGuide primary={primary} arch={arch} />}
+      <div className={`${styles.anatomicalArchRow} ${primary ? styles.anatomicalArchRowPrimary : ''} ${arch === 'lower' ? styles.anatomicalArchRowLower : ''}`}>
+        {numbers.map((number, index) => <ToothButton key={number} toothNumber={number} arch={arch}
+          curve={Math.min(7, Math.floor(Math.abs(index - (numbers.length - 1) / 2)))}
+          finding={teeth.find((item) => item.tooth_number === number)} selected={selectedToothNumber === number}
+          disabled={disabled} onSelect={onSelectTooth} />)}
+        <span className={styles.anatomicalMidline} aria-hidden="true" />
+      </div>
+      {arch === 'lower' && <GroupGuide primary={primary} arch={arch} />}
+    </section>;
   };
-
-  const renderToothCard = (toothNumber: number) => {
-    const finding = getFinding(toothNumber);
-    const isSelected = selectedToothNumber === toothNumber;
-    const toothName = getToothName(toothNumber);
-
-    const isMissing = finding?.status === 'MISSING' || finding?.status === 'EXTRACTED';
-    const isImpacted = finding?.status === 'IMPACTED';
-    const isCarious = finding?.conditions.includes('CARIOUS');
-    const isFilled = finding?.conditions.includes('FILLED');
-    const isCrown = finding?.conditions.includes('CROWN');
-    const isRootPiece = finding?.conditions.includes('ROOT_PIECE');
-    const isFractured = finding?.conditions.includes('FRACTURED');
-    const isPulpitic = finding?.conditions.includes('PULPITIC');
-    const isPeriapical = finding?.conditions.includes('PERIAPICAL_LESION');
-    const hasAbnormality = isCarious || isFilled || isCrown || isRootPiece || isFractured || isPulpitic || isPeriapical;
-
-    // Surface fills
-    const surfaces = finding?.surfaces ?? [];
-    const getSurfaceFill = (surf: 'BUCCAL' | 'LINGUAL' | 'MESIAL' | 'DISTAL' | 'OCCLUSAL') => {
-      if (isMissing) return '#cbd5e1';
-      if (surfaces.includes(surf)) {
-        if (isCarious) return '#ef4444';
-        if (isFilled) return '#3b82f6';
-        if (isCrown) return '#f59e0b';
-        return '#f97316';
-      }
-      if (isCrown) return '#fef3c7';
-      if (isRootPiece) return '#f3e8ff';
-      return '#ffffff';
-    };
-
-    return (
-      <div
-        key={toothNumber}
-        className={`${styles.toothCard} ${isSelected ? styles.toothCardSelected : ''}`}
-        style={{
-          opacity: isMissing ? 0.6 : 1,
-          backgroundColor: isMissing ? '#f1f5f9' : undefined,
-        }}
-        onClick={() => onSelectTooth(toothNumber)}
-        role="button"
-        tabIndex={disabled ? -1 : 0}
-        onKeyDown={(event) => {
-          if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
-            event.preventDefault();
-            onSelectTooth(toothNumber);
-          }
-        }}
-        aria-label={`Tooth ${toothNumber}: ${toothName}`}
-        aria-selected={isSelected}
-        title={`${toothNumber} — ${toothName}${finding ? `\nStatus: ${finding.status}\nConditions: ${finding.conditions.join(', ')}` : ''}`}
-      >
-        <span className={styles.toothNumber} style={{ color: isSelected ? '#1d4ed8' : '#334155' }}>
-          {toothNumber}
-        </span>
-
-        {/* Tooth Surface Mini SVG */}
-        <svg className={styles.toothSvg} viewBox="0 0 100 100">
-          {/* Outer Border / Crown */}
-          <rect x="5" y="5" width="90" height="90" rx="12" fill={isCrown ? '#fef3c7' : '#ffffff'} stroke={isMissing ? '#94a3b8' : '#64748b'} strokeWidth="2" />
-
-          {/* Buccal (Top) */}
-          <polygon points="12,12 88,12 70,30 30,30" fill={getSurfaceFill('BUCCAL')} stroke="#94a3b8" strokeWidth="1" />
-          {/* Mesial (Left) */}
-          <polygon points="12,12 30,30 30,70 12,88" fill={getSurfaceFill('MESIAL')} stroke="#94a3b8" strokeWidth="1" />
-          {/* Distal (Right) */}
-          <polygon points="88,12 88,88 70,70 70,30" fill={getSurfaceFill('DISTAL')} stroke="#94a3b8" strokeWidth="1" />
-          {/* Lingual (Bottom) */}
-          <polygon points="30,70 70,70 88,88 12,88" fill={getSurfaceFill('LINGUAL')} stroke="#94a3b8" strokeWidth="1" />
-          {/* Occlusal (Center) */}
-          <polygon points="30,30 70,30 70,70 30,70" fill={getSurfaceFill('OCCLUSAL')} stroke="#94a3b8" strokeWidth="1" />
-
-          {/* Missing / Extracted cross */}
-          {isMissing && (
-            <g stroke="#dc2626" strokeWidth="4" strokeLinecap="round">
-              <line x1="15" y1="15" x2="85" y2="85" />
-              <line x1="85" y1="15" x2="15" y2="85" />
-            </g>
-          )}
-
-          {/* Impacted symbol */}
-          {isImpacted && (
-            <text x="50" y="58" textAnchor="middle" fontSize="24" fontWeight="bold" fill="#ea580c">
-              IMP
-            </text>
-          )}
-
-          {/* Periapical lesion apex indicator */}
-          {isPeriapical && (
-            <circle cx="50" cy="94" r="5" fill="#dc2626" stroke="#ffffff" strokeWidth="1" />
-          )}
-        </svg>
-
-        {/* Tooth Status Mini Badges */}
-        <div className={styles.toothBadgesRow}>
-          {isMissing ? (
-            <span className={styles.miniBadge} style={{ background: '#f1f5f9', color: '#64748b' }}>
-              MISS
-            </span>
-          ) : isCarious ? (
-            <span className={styles.miniBadge} style={{ background: '#fee2e2', color: '#dc2626' }}>
-              CAR
-            </span>
-          ) : isFilled ? (
-            <span className={styles.miniBadge} style={{ background: '#dbeafe', color: '#2563eb' }}>
-              FILL
-            </span>
-          ) : isCrown ? (
-            <span className={styles.miniBadge} style={{ background: '#fef3c7', color: '#d97706' }}>
-              CRN
-            </span>
-          ) : isRootPiece ? (
-            <span className={styles.miniBadge} style={{ background: '#f3e8ff', color: '#9333ea' }}>
-              ROOT
-            </span>
-          ) : hasAbnormality ? (
-            <span className={styles.miniBadge} style={{ background: '#fef3c7', color: '#b45309' }}>
-              EXP
-            </span>
-          ) : finding?.status === 'PRESENT' ? (
-            <span className={styles.miniDot} style={{ background: '#22c55e' }} title="Healthy" />
-          ) : null}
-
-          {/* Pocket depth tag if elevated */}
-          {finding?.pocket_depth_mm !== null && finding?.pocket_depth_mm !== undefined && finding.pocket_depth_mm > 3 && (
-            <span className={styles.miniBadge} style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '0.55rem' }}>
-              {finding.pocket_depth_mm}mm
-            </span>
-          )}
-
-          {/* Mobility indicator */}
-          {finding?.mobility && finding.mobility !== 'NONE' && (
-            <span className={styles.miniBadge} style={{ background: '#ffedd5', color: '#c2410c', fontSize: '0.55rem' }}>
-              {finding.mobility.replace('GRADE_', 'M:')}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const isPermanent = dentitionView === 'PERMANENT';
-
-  return (
-    <div className={styles.odontogramCard}>
-      {/* View Switcher: Permanent vs Primary */}
-      <div className={styles.odontogramTabs}>
-        <button
-          type="button"
-          className={`${styles.odontogramTabBtn} ${isPermanent ? styles.odontogramTabBtnActive : ''}`}
-          onClick={() => setDentitionView('PERMANENT')}
-        >
-          <i className="ph ph-user" style={{ marginRight: '6px' }} />
-          Permanent Dentition (Adult &mdash; 32 Teeth)
-        </button>
-        <button
-          type="button"
-          className={`${styles.odontogramTabBtn} ${!isPermanent ? styles.odontogramTabBtnActive : ''}`}
-          onClick={() => setDentitionView('PRIMARY')}
-        >
-          <i className="ph ph-baby" style={{ marginRight: '6px' }} />
-          Primary / Deciduous (Pediatric &mdash; 20 Teeth)
-        </button>
-      </div>
-
-      <div className={styles.chartContainer}>
-        {/* UPPER ARCH (MAXILLARY) */}
-        <div>
-          <div className={styles.archHeader}>
-            <span>Right (Patient) &mdash; Quadrant {isPermanent ? '1' : '5'}</span>
-            <span>Maxillary Arch (Upper)</span>
-            <span>Quadrant {isPermanent ? '2' : '6'} &mdash; Left (Patient)</span>
-          </div>
-
-          <div className={styles.archGrid} style={{ marginTop: '8px' }}>
-            {/* Quadrant 1 or 5 (Upper Right): Back to Front */}
-            <div className={styles.quadrantSection}>
-              {(isPermanent ? PERMANENT_QUADRANTS.Q1_UPPER_RIGHT : PRIMARY_QUADRANTS.Q5_UPPER_RIGHT).map(
-                renderToothCard,
-              )}
-            </div>
-
-            {/* Midline */}
-            <div className={styles.midlineDivider} title="Midline" />
-
-            {/* Quadrant 2 or 6 (Upper Left): Front to Back */}
-            <div className={styles.quadrantSection}>
-              {(isPermanent ? PERMANENT_QUADRANTS.Q2_UPPER_LEFT : PRIMARY_QUADRANTS.Q6_UPPER_LEFT).map(
-                renderToothCard,
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Arch Horizontal Divider */}
-        <div className={styles.horizontalDivider} />
-
-        {/* LOWER ARCH (MANDIBULAR) */}
-        <div>
-          <div className={styles.archGrid} style={{ marginBottom: '8px' }}>
-            {/* Quadrant 4 or 8 (Lower Right): Back to Front */}
-            <div className={styles.quadrantSection}>
-              {(isPermanent ? PERMANENT_QUADRANTS.Q4_LOWER_RIGHT : PRIMARY_QUADRANTS.Q8_LOWER_RIGHT).map(
-                renderToothCard,
-              )}
-            </div>
-
-            {/* Midline */}
-            <div className={styles.midlineDivider} title="Midline" />
-
-            {/* Quadrant 3 or 7 (Lower Left): Front to Back */}
-            <div className={styles.quadrantSection}>
-              {(isPermanent ? PERMANENT_QUADRANTS.Q3_LOWER_LEFT : PRIMARY_QUADRANTS.Q7_LOWER_LEFT).map(
-                renderToothCard,
-              )}
-            </div>
-          </div>
-
-          <div className={styles.archHeader}>
-            <span>Right (Patient) &mdash; Quadrant {isPermanent ? '4' : '8'}</span>
-            <span>Mandibular Arch (Lower)</span>
-            <span>Quadrant {isPermanent ? '3' : '7'} &mdash; Left (Patient)</span>
-          </div>
-        </div>
-
-        {/* Chart Color Legend */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', justifyContent: 'center', paddingTop: '10px', borderTop: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
-          <div style={{ display: 'flex', alignContent: 'center', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-            <span>Healthy</span>
-          </div>
-          <div style={{ display: 'flex', alignContent: 'center', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#ef4444', display: 'inline-block' }} />
-            <span>Caries</span>
-          </div>
-          <div style={{ display: 'flex', alignContent: 'center', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#3b82f6', display: 'inline-block' }} />
-            <span>Restored / Filled</span>
-          </div>
-          <div style={{ display: 'flex', alignContent: 'center', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#f59e0b', display: 'inline-block' }} />
-            <span>Crown</span>
-          </div>
-          <div style={{ display: 'flex', alignContent: 'center', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#9333ea', display: 'inline-block' }} />
-            <span>Root Piece</span>
-          </div>
-          <div style={{ display: 'flex', alignContent: 'center', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#cbd5e1', display: 'inline-block', position: 'relative' }}>
-              <span style={{ position: 'absolute', top: '-2px', left: '1px', color: '#dc2626', fontWeight: 'bold', fontSize: '8px' }}>✕</span>
-            </span>
-            <span>Missing</span>
-          </div>
-        </div>
-      </div>
+  return <div className={styles.odontogramCard}>
+    <div className={styles.odontogramTabs} role="tablist" aria-label="Dentition type">
+      <button type="button" role="tab" aria-selected={!primary} className={`${styles.odontogramTabBtn} ${!primary ? styles.odontogramTabBtnActive : ''}`} onClick={() => setDentitionView('PERMANENT')}><i className="ph ph-user" aria-hidden="true" /> Permanent Dentition (Adult — 32 Teeth)</button>
+      <button type="button" role="tab" aria-selected={primary} className={`${styles.odontogramTabBtn} ${primary ? styles.odontogramTabBtnActive : ''}`} onClick={() => setDentitionView('PRIMARY')}><i className="ph ph-baby" aria-hidden="true" /> Primary / Deciduous (Pediatric — 20 Teeth)</button>
     </div>
-  );
+    <div className={styles.anatomicalChartViewport}><div className={styles.anatomicalChart} data-testid="anatomical-odontogram">
+      <p className={styles.patientPerspective}>Dental chart orientation · patient perspective</p>
+      {renderArch('upper')}<div className={styles.archOcclusalGap}><span>Upper</span><span>Midline</span><span>Lower</span></div>{renderArch('lower')}
+    </div></div>
+    <div className={styles.odontogramLegend} aria-label="Clinical condition legend">
+      <span><i className={styles.legendHealthy} />Healthy</span><span><i className={styles.legendCaries} />Caries</span>
+      <span><i className={styles.legendFilled} />Restored / Filled</span><span><i className={styles.legendCrown} />Crown</span>
+      <span><i className={styles.legendRoot} />Root Piece</span><span><i className={styles.legendMissing}>×</i>Missing</span>
+    </div>
+  </div>;
 };

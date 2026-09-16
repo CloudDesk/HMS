@@ -289,7 +289,7 @@ export type OpdDentalExaminationResponse = {
 };
 
 export type SaveOpdDentalExaminationPayload = {
-  expected_updated_at?: string;
+  expected_updated_at?: string | null;
   dental_history?: DentalHistory | null;
   soft_tissue?: SoftTissueExamination | null;
   teeth?: ToothFinding[];
@@ -388,6 +388,7 @@ export type OpdClinicalOrderResponse = {
 };
 
 export type SaveOpdClinicalOrderPayload = {
+  expected_updated_at?: string;
   priority: ApiClinicalOrderPriority;
   destination?: string | null;
   specimen_type?: string | null;

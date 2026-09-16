@@ -39,9 +39,9 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   const { user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
   const canAccess = (module: string, screen: string) =>
-    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen });
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen }, user?.roles ?? []);
   const canAction = (module: string, screen: string, action: string) =>
-    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action }, user?.roles ?? []);
 
   // Capability flags — owned here so OpdVisitPage never traverses permissions directly
   const canEditConsultation = canAction('OPD', 'OPD Consultation', 'Edit');

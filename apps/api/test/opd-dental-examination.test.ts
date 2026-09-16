@@ -12,6 +12,7 @@ import { RoleModel } from '../src/modules/roles/role.model.js';
 import { UserModel } from '../src/modules/users/user.model.js';
 import { OpdVisitModel } from '../src/modules/opd/opd-visit.model.js';
 import { OpdDentalExaminationModel } from '../src/modules/opd/opd-dental-examination.model.js';
+import { OpdClinicalOrderModel } from '../src/modules/opd/opd-clinical-order.model.js';
 import { OpdDentalExaminationRepository } from '../src/modules/opd/opd-dental-examination.repository.js';
 import { OpdDentalExaminationService } from '../src/modules/opd/opd-dental-examination.service.js';
 import { OpdVisitRepository } from '../src/modules/opd/opd-visit.repository.js';
@@ -2717,6 +2718,153 @@ describe('Dental OPD Consultation Foundation - Backend Tests', () => {
       expect(labToothRes.json().error.message).toContain('only applicable for imaging orders');
     });
 
+    it('Phase 11A: persists Tooth 35 through the existing radiology/report lifecycle with scoped clinician reads', async () => {
+      const dentist = { authorization: `Bearer ${await accessTokenFor('dentist_user')}` };
+      const radiology = { authorization: `Bearer ${await accessTokenFor('imaging_mb01')}` };
+      const url = `/api/opd/visits/${dentalVisitId}/clinical-orders/IMAGING`;
+      const payload = { priority: 'ROUTINE', items: [{ service_id: imagingServiceId, investigation_name: 'IOPA X-Ray', category: 'Dental Imaging', tooth_number: 35 }] };
+      const saved = await app.inject({ method: 'PUT', url, headers: dentist, payload });
+      expect(saved.statusCode, saved.body).toBe(200);
+      const orderId = saved.json().data.id;
+      const loaded = await app.inject({ method: 'GET', url, headers: dentist });
+      expect(loaded.json().data.items[0].tooth_number).toBe(35);
+      expect(loaded.json().data.patient_id).toBe(patientId);
+      const premature = await app.inject({ method: 'POST', url: `${url}/submit`, headers: dentist, payload });
+      expect(premature.json().error.code).toBe('CONSULTATION_NOT_COMPLETED');
+      const vitals = await app.inject({ method: 'POST', url: `/api/opd/visits/${dentalVisitId}/vitals`,
+        headers: { authorization: `Bearer ${await accessTokenFor('nurse_user')}` },
+        payload: { blood_pressure_systolic: 120, blood_pressure_diastolic: 80, pulse_bpm: 72, notes: 'Synthetic integration test vitals' } });
+      expect(vitals.statusCode, vitals.body).toBe(201);
+      const complete = await app.inject({ method: 'POST', url: `/api/opd/visits/${dentalVisitId}/consultation/complete`, headers: dentist,
+        payload: { assessment: 'Synthetic dental imaging integration test' } });
+      expect(complete.statusCode, complete.body).toBe(200);
+      const submitted = await app.inject({ method: 'POST', url: `${url}/submit`, headers: dentist, payload });
+      expect(submitted.statusCode, submitted.body).toBe(200);
+      expect(submitted.json().data.id).toBe(orderId);
+      const queue = await app.inject({ method: 'GET', url: `/api/imaging/orders?search=P-1001&limit=100`, headers: radiology });
+      expect(queue.statusCode, queue.body).toBe(200);
+      expect(queue.json().data.data.some((item: { id: string }) => item.id === orderId)).toBe(true);
+      for (const status of ['RECEIVED', 'IN_PROGRESS']) {
+        const transition = await app.inject({ method: 'PATCH', url: `/api/imaging/orders/${orderId}/status`, headers: radiology, payload: { status } });
+        expect(transition.statusCode, transition.body).toBe(200);
+      }
+      const reportUrl = `/api/imaging/orders/${orderId}/report`;
+      const report = await app.inject({ method: 'POST', url: reportUrl, headers: radiology,
+        payload: { findings: 'Synthetic test findings for Tooth 35', impression: 'Synthetic integration report' } });
+      expect(report.statusCode, report.body).toBe(201);
+      expect(report.json().data).toMatchObject({ order_id: orderId, patient_id: patientId, visit_id: dentalVisitId, encounter_id: dentalVisitId });
+      const clinicianReport = await app.inject({ method: 'GET', url: reportUrl, headers: dentist });
+      expect(clinicianReport.statusCode, clinicianReport.body).toBe(200);
+      expect(clinicianReport.json().data.id).toBe(report.json().data.id);
+      for (const username of ['cardio_doctor_user', 'other_branch_doctor', 'nurse_user', 'reception_user']) {
+        const denied = await app.inject({ method: 'GET', url: reportUrl, headers: { authorization: `Bearer ${await accessTokenFor(username)}` } });
+        expect([403, 404], denied.body).toContain(denied.statusCode);
+      }
+      expect((await app.inject({ method: 'GET', url: reportUrl })).statusCode).toBe(401);
+      const doctorMutation = await app.inject({ method: 'PATCH', url: `/api/imaging/orders/${orderId}/status`, headers: dentist, payload: { status: 'VERIFIED' } });
+      expect(doctorMutation.statusCode).toBe(403);
+      for (const status of ['VERIFIED', 'COMPLETED']) {
+        const transition = await app.inject({ method: 'PATCH', url: `/api/imaging/orders/${orderId}/status`, headers: radiology, payload: { status } });
+        expect(transition.statusCode, transition.body).toBe(200);
+      }
+      const final = await app.inject({ method: 'GET', url, headers: dentist });
+      expect(final.json().data).toMatchObject({ id: orderId, status: 'COMPLETED', visit_id: dentalVisitId });
+      expect(final.json().data.items[0].tooth_number).toBe(35);
+      expect(await AuditLogModel.countDocuments({ eventType: 'imaging.report.entered' })).toBeGreaterThan(0);
+      expect(await PatientTimelineEventModel.countDocuments({ eventType: 'OPD_IMAGING_ORDER_SUBMITTED' })).toBeGreaterThan(0);
+      // A corrupted/foreign patient reference cannot expose a report through the clinician fallback.
+      await OpdClinicalOrderModel.updateOne({ _id: orderId }, { $set: { patientId: new Types.ObjectId() } });
+      expect((await app.inject({ method: 'GET', url: reportUrl, headers: dentist })).statusCode).toBe(404);
+    });
+
+    it('Phase 11A: permits full-mouth imaging and unchanged non-Dental imaging without a tooth', async () => {
+      for (const [visitId, username] of [[dentalVisitId, 'dentist_user'], [cardioVisitId, 'cardio_doctor_user']] as const) {
+        const headers = { authorization: `Bearer ${await accessTokenFor(username)}` };
+        const url = `/api/opd/visits/${visitId}/clinical-orders/IMAGING`;
+        const response = await app.inject({ method: 'PUT', url, headers, payload: {
+          priority: 'ROUTINE', items: [{ service_id: imagingServiceId, investigation_name: 'IOPA X-Ray', category: 'Imaging' }],
+        } });
+        expect(response.statusCode, response.body).toBe(200);
+        expect((await app.inject({ method: 'GET', url, headers })).json().data.items[0].tooth_number).toBeNull();
+      }
+    });
+
+    it('Phase 11A: rejects unauthorized, foreign branch/department/doctor and missing visits', async () => {
+      const payload = { priority: 'ROUTINE', items: [{ service_id: imagingServiceId, investigation_name: 'IOPA X-Ray', category: 'Imaging', tooth_number: 35 }] };
+      const url = `/api/opd/visits/${dentalVisitId}/clinical-orders/IMAGING`;
+      for (const username of ['cardio_doctor_user', 'other_branch_doctor', 'nurse_user', 'reception_user', 'imaging']) {
+        const response = await app.inject({ method: 'PUT', url, payload, headers: { authorization: `Bearer ${await accessTokenFor(username)}` } });
+        expect([403, 404], response.body).toContain(response.statusCode);
+      }
+      const headers = { authorization: `Bearer ${await accessTokenFor('dentist_user')}` };
+      expect((await app.inject({ method: 'PUT', url, payload })).statusCode).toBe(401);
+      expect((await app.inject({ method: 'PUT', url: `/api/opd/visits/${new Types.ObjectId()}/clinical-orders/IMAGING`, payload, headers })).statusCode).toBe(404);
+      await OpdVisitModel.updateOne({ _id: dentalVisitId }, { $set: { doctorId: new Types.ObjectId() } });
+      expect((await app.inject({ method: 'PUT', url, payload, headers })).json().error.code).toBe('DOCTOR_ACCESS_DENIED');
+    });
+
+    it('Phase 11A: rejects stale drafts and preserves the winning tooth association', async () => {
+      const headers = { authorization: `Bearer ${await accessTokenFor('dentist_user')}` };
+      const url = `/api/opd/visits/${dentalVisitId}/clinical-orders/IMAGING`;
+      const payload = { priority: 'ROUTINE', items: [{ service_id: imagingServiceId, investigation_name: 'IOPA X-Ray', category: 'Imaging', tooth_number: 35 }] };
+      const saved = await app.inject({ method: 'PUT', url, payload, headers });
+      const stale = { ...payload, expected_updated_at: saved.json().data.updated_at };
+      const next = await app.inject({ method: 'PUT', url, headers, payload: { ...stale, items: [{ ...payload.items[0], tooth_number: 36 }] } });
+      expect(next.statusCode, next.body).toBe(200);
+      const rejected = await app.inject({ method: 'PUT', url, headers, payload: stale });
+      expect(rejected.statusCode, rejected.body).toBe(409);
+      expect((await app.inject({ method: 'GET', url, headers })).json().data.items[0].tooth_number).toBe(36);
+    });
+
+    it('Phase 11A: examination save and completion do not create investigations', async () => {
+      const headers = { authorization: `Bearer ${await accessTokenFor('dentist_user')}` };
+      const payload = { dental_history: { chief_complaint: 'Synthetic finding-only test' }, teeth: [{ tooth_number: 35, dentition: 'PERMANENT', status: 'PRESENT', surfaces: [], conditions: ['CARIOUS'], mobility: 'NONE' }] };
+      for (const [method, suffix] of [['PUT', ''], ['POST', '/complete']] as const) {
+        const response = await app.inject({ method, url: `/api/opd/visits/${dentalVisitId}/dental-examination${suffix}`, headers, payload });
+        expect(response.statusCode, response.body).toBe(200);
+        expect(await OpdClinicalOrderModel.countDocuments({ visitId: dentalVisitId })).toBe(0);
+      }
+    });
+
+    it('Phase 11A: catalogue validation accepts active IMAGING_SERVICE and rejects non-imaging or inactive services', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+      const url = `/api/opd/visits/${dentalVisitId}/clinical-orders/IMAGING`;
+
+      // 1. Non-imaging service (e.g. LAB_TEST) on Dental imaging request -> rejected
+      const nonImagingRes = await app.inject({
+        method: 'PUT',
+        url,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [{ service_id: labServiceId, investigation_name: 'CBC', category: 'Laboratory', tooth_number: 35 }],
+        },
+      });
+      expect(nonImagingRes.statusCode).toBe(400);
+      expect(nonImagingRes.json().error.code).toBe('INVALID_CLINICAL_ORDER_SERVICE');
+
+      // 2. Inactive imaging service -> rejected
+      const inactiveImgService = await ServiceModel.create({
+        code: 'DENT-IMG-INACTIVE',
+        name: 'Inactive Radiograph',
+        serviceType: 'IMAGING_SERVICE',
+        departmentId: new Types.ObjectId(dentalDeptId),
+        standardPrice: 40.0,
+        status: 'INACTIVE',
+      });
+      const inactiveRes = await app.inject({
+        method: 'PUT',
+        url,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [{ service_id: inactiveImgService._id.toString(), investigation_name: 'Inactive Radiograph', category: 'Dental Imaging', tooth_number: 35 }],
+        },
+      });
+      expect(inactiveRes.statusCode).toBe(400);
+      expect(inactiveRes.json().error.code).toBe('INVALID_CLINICAL_ORDER_SERVICE');
+    });
+
     it('should allow generic laboratory orders without tooth_number on Dental visit', async () => {
       const doctorToken = await accessTokenFor('dentist_user');
 
@@ -2742,6 +2890,262 @@ describe('Dental OPD Consultation Foundation - Backend Tests', () => {
       const data = labRes.json().data;
       expect(data.order_type).toBe('LABORATORY');
       expect(data.items[0].tooth_number).toBeNull();
+    });
+
+    it('Phase 11B: persists Dental Lab order through the existing laboratory/result lifecycle with scoped clinician reads', async () => {
+      const dentist = { authorization: `Bearer ${await accessTokenFor('dentist_user')}` };
+      const labUser = { authorization: `Bearer ${await accessTokenFor('laboratory_mb01')}` };
+      const url = `/api/opd/visits/${dentalVisitId}/clinical-orders/LABORATORY`;
+      const payload = {
+        priority: 'ROUTINE',
+        specimen_type: 'Blood',
+        clinical_notes: 'Pre-op coagulation profile',
+        items: [{ service_id: labServiceId, investigation_name: 'Complete Blood Count', category: 'Hematology' }],
+      };
+
+      // 1. Save draft
+      const saved = await app.inject({ method: 'PUT', url, headers: dentist, payload });
+      expect(saved.statusCode, saved.body).toBe(200);
+      const orderId = saved.json().data.id;
+      expect(saved.json().data.items[0].tooth_number).toBeNull();
+
+      // 2. Refresh / reload
+      const loaded = await app.inject({ method: 'GET', url, headers: dentist });
+      expect(loaded.json().data.items[0].tooth_number).toBeNull();
+      expect(loaded.json().data.patient_id).toBe(patientId);
+
+      // 3. Nurse vitals prerequisite + Consultation completion
+      const vitals = await app.inject({
+        method: 'POST',
+        url: `/api/opd/visits/${dentalVisitId}/vitals`,
+        headers: { authorization: `Bearer ${await accessTokenFor('nurse_user')}` },
+        payload: { blood_pressure_systolic: 120, blood_pressure_diastolic: 80, pulse_bpm: 72, notes: 'Synthetic vitals for lab test' },
+      });
+      expect(vitals.statusCode, vitals.body).toBe(201);
+
+      const complete = await app.inject({
+        method: 'POST',
+        url: `/api/opd/visits/${dentalVisitId}/consultation/complete`,
+        headers: dentist,
+        payload: { assessment: 'Synthetic dental lab integration test' },
+      });
+      expect(complete.statusCode, complete.body).toBe(200);
+
+      // 4. Submit order into Laboratory queue
+      const submitted = await app.inject({ method: 'POST', url: `${url}/submit`, headers: dentist, payload });
+      expect(submitted.statusCode, submitted.body).toBe(200);
+      expect(submitted.json().data.id).toBe(orderId);
+
+      // 5. Existing Laboratory queue receives order
+      const queue = await app.inject({ method: 'GET', url: `/api/laboratory/orders?search=P-1001&limit=100`, headers: labUser });
+      expect(queue.statusCode, queue.body).toBe(200);
+      expect(queue.json().data.data.some((item: { id: string }) => item.id === orderId)).toBe(true);
+
+      // 6. Laboratory processes status
+      for (const status of ['RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS']) {
+        const transition = await app.inject({ method: 'PATCH', url: `/api/laboratory/orders/${orderId}/status`, headers: labUser, payload: { status } });
+        expect(transition.statusCode, transition.body).toBe(200);
+      }
+
+      // 7. Laboratory enters result
+      const resultUrl = `/api/laboratory/orders/${orderId}/results`;
+      const resultRes = await app.inject({
+        method: 'POST',
+        url: resultUrl,
+        headers: labUser,
+        payload: {
+          remarks: 'Pre-op CBC normal',
+          result_items: [
+            {
+              service_id: labServiceId,
+              service_name: 'Complete Blood Count',
+              value: '14.5',
+              unit: 'g/dL',
+              reference_range: '13-17',
+              comments: 'NORMAL',
+            },
+          ],
+        },
+      });
+      expect(resultRes.statusCode, resultRes.body).toBe(201);
+
+      // 8. Clinician (Dentist) can view the result
+      const clinicianResult = await app.inject({ method: 'GET', url: resultUrl, headers: dentist });
+      expect(clinicianResult.statusCode, clinicianResult.body).toBe(200);
+      expect(clinicianResult.json().data.result_items[0].value).toBe('14.5');
+
+      // 9. Verify audit and timeline events
+      expect(await AuditLogModel.countDocuments({ eventType: 'laboratory.result.entered' })).toBeGreaterThan(0);
+      expect(await PatientTimelineEventModel.countDocuments({ eventType: 'OPD_LAB_ORDER_SUBMITTED' })).toBeGreaterThan(0);
+    });
+
+    it('Phase 11B: catalogue validation rejects non-laboratory services on Dental Lab orders', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+      const url = `/api/opd/visits/${dentalVisitId}/clinical-orders/LABORATORY`;
+
+      const nonLabRes = await app.inject({
+        method: 'PUT',
+        url,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [{ service_id: imagingServiceId, investigation_name: 'IOPA', category: 'Imaging' }],
+        },
+      });
+      expect(nonLabRes.statusCode).toBe(400);
+      expect(nonLabRes.json().error.code).toBe('INVALID_CLINICAL_ORDER_SERVICE');
+    });
+
+    it('creates draft consultation and saves imaging order when visit is in active consultation without prior consultation document', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+      const freshVisit = await OpdVisitModel.create({
+        visitNumber: 'OPD-DENT-FRESH-1',
+        patientId: new Types.ObjectId(patientId),
+        patientNumber: 'P-1001',
+        patientName: 'Dental Patient',
+        doctorId: new Types.ObjectId(doctorDocId),
+        doctorName: 'Dr. Dentist',
+        doctorSpecialization: 'Dentistry',
+        branchId: new Types.ObjectId(branchId),
+        departmentId: new Types.ObjectId(dentalDeptId),
+        visitDate: new Date(),
+        checkInTime: new Date(),
+        visitType: 'NEW_CONSULTATION',
+        priority: 'ROUTINE',
+        status: 'IN_CONSULTATION',
+      });
+
+      const noConsultation = await consultationRepo.getByVisit(freshVisit._id.toString());
+      expect(noConsultation).toBeNull();
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${freshVisit._id.toString()}/clinical-orders/IMAGING`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [{ service_id: imagingServiceId, investigation_name: 'IOPA X-Ray', category: 'Dental Imaging', tooth_number: 31 }],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json().data;
+      expect(data.order_type).toBe('IMAGING');
+      expect(data.status).toBe('DRAFT');
+      expect(data.items[0].tooth_number).toBe(31);
+
+      const createdConsultation = await consultationRepo.getByVisit(freshVisit._id.toString());
+      expect(createdConsultation).not.toBeNull();
+      expect(createdConsultation?.status).toBe('DRAFT');
+    });
+
+    it('creates draft consultation and advances READY_FOR_CONSULTATION visit to IN_CONSULTATION when saving lab order draft', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+      const freshVisit = await OpdVisitModel.create({
+        visitNumber: 'OPD-DENT-FRESH-2',
+        patientId: new Types.ObjectId(patientId),
+        patientNumber: 'P-1001',
+        patientName: 'Dental Patient',
+        doctorId: new Types.ObjectId(doctorDocId),
+        doctorName: 'Dr. Dentist',
+        doctorSpecialization: 'Dentistry',
+        branchId: new Types.ObjectId(branchId),
+        departmentId: new Types.ObjectId(dentalDeptId),
+        visitDate: new Date(),
+        checkInTime: new Date(),
+        visitType: 'NEW_CONSULTATION',
+        priority: 'ROUTINE',
+        status: 'READY_FOR_CONSULTATION',
+      });
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${freshVisit._id.toString()}/clinical-orders/LABORATORY`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          specimen_type: 'Blood',
+          items: [{ service_id: labServiceId, investigation_name: 'Complete Blood Count', category: 'Hematology' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json().data;
+      expect(data.order_type).toBe('LABORATORY');
+      expect(data.status).toBe('DRAFT');
+
+      const updatedVisit = await OpdVisitModel.findById(freshVisit._id).lean();
+      expect(updatedVisit?.status).toBe('IN_CONSULTATION');
+
+      const createdConsultation = await consultationRepo.getByVisit(freshVisit._id.toString());
+      expect(createdConsultation).not.toBeNull();
+      expect(createdConsultation?.status).toBe('DRAFT');
+    });
+
+    it('rejects clinical order draft creation if visit has not reached consultation readiness (e.g. WAITING_FOR_VITALS)', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+      const freshVisit = await OpdVisitModel.create({
+        visitNumber: 'OPD-DENT-FRESH-3',
+        patientId: new Types.ObjectId(patientId),
+        patientNumber: 'P-1001',
+        patientName: 'Dental Patient',
+        doctorId: new Types.ObjectId(doctorDocId),
+        doctorName: 'Dr. Dentist',
+        doctorSpecialization: 'Dentistry',
+        branchId: new Types.ObjectId(branchId),
+        departmentId: new Types.ObjectId(dentalDeptId),
+        visitDate: new Date(),
+        checkInTime: new Date(),
+        visitType: 'NEW_CONSULTATION',
+        priority: 'ROUTINE',
+        status: 'WAITING_FOR_VITALS',
+      });
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${freshVisit._id.toString()}/clinical-orders/IMAGING`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [{ service_id: imagingServiceId, investigation_name: 'IOPA X-Ray', category: 'Dental Imaging', tooth_number: 31 }],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('CONSULTATION_REQUIRED');
+    });
+
+    it('rejects clinical order draft creation if visit is closed (e.g. COMPLETED)', async () => {
+      const doctorToken = await accessTokenFor('dentist_user');
+      const freshVisit = await OpdVisitModel.create({
+        visitNumber: 'OPD-DENT-FRESH-4',
+        patientId: new Types.ObjectId(patientId),
+        patientNumber: 'P-1001',
+        patientName: 'Dental Patient',
+        doctorId: new Types.ObjectId(doctorDocId),
+        doctorName: 'Dr. Dentist',
+        doctorSpecialization: 'Dentistry',
+        branchId: new Types.ObjectId(branchId),
+        departmentId: new Types.ObjectId(dentalDeptId),
+        visitDate: new Date(),
+        checkInTime: new Date(),
+        visitType: 'NEW_CONSULTATION',
+        priority: 'ROUTINE',
+        status: 'COMPLETED',
+      });
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/opd/visits/${freshVisit._id.toString()}/clinical-orders/IMAGING`,
+        headers: { authorization: `Bearer ${doctorToken}` },
+        payload: {
+          priority: 'ROUTINE',
+          items: [{ service_id: imagingServiceId, investigation_name: 'IOPA X-Ray', category: 'Dental Imaging', tooth_number: 31 }],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('VISIT_CLOSED');
     });
   });
 });

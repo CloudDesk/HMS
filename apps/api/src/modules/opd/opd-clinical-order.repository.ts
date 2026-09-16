@@ -4,6 +4,7 @@ import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { DoctorModel } from '../doctors/doctor.model.js';
 import {
   OpdClinicalOrderModel,
   type ClinicalOrderItemFields,
@@ -94,6 +95,18 @@ const toItemFields = (item: SaveClinicalOrderItemDTO) => ({
 });
 
 export class OpdClinicalOrderRepository {
+  async getClinicalActor(userId: string) {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('departmentIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null,
+    }));
+    const doctor = await DoctorModel.findOne({ userId: objectId(userId), deletedAt: null })
+      .select('_id departmentId branchId').lean();
+    return { isSuperAdmin, departmentIds: user.departmentIds.map(String), doctor };
+  }
+
   async getByVisitAndType(visitId: string, orderType: ClinicalOrderType): Promise<OpdClinicalOrder | null> {
     const record = await OpdClinicalOrderModel.findOne({
       visitId: objectId(visitId),
@@ -123,7 +136,10 @@ export class OpdClinicalOrderRepository {
 
   async saveForVisit(data: SaveClinicalOrderRecord, userId: string): Promise<OpdClinicalOrder> {
     const record = await OpdClinicalOrderModel.findOneAndUpdate(
-      { visitId: objectId(data.visit.id), orderType: data.orderType, deletedAt: null },
+      { visitId: objectId(data.visit.id), orderType: data.orderType, deletedAt: null,
+        status: 'DRAFT',
+        ...(data.expected_updated_at ? { updatedAt: new Date(data.expected_updated_at) } : {}),
+      },
       {
         $set: {
           sourceType: sourceTypeForVisit(data.visit.visit_type),
@@ -154,11 +170,11 @@ export class OpdClinicalOrderRepository {
           createdBy: objectId(userId),
         },
       },
-      { lean: true, returnDocument: 'after', upsert: true },
+      { lean: true, returnDocument: 'after', upsert: !data.expected_updated_at },
     ).lean<OpdClinicalOrderLean>();
 
     if (!record) {
-      throw new AppError('Clinical order could not be saved', 500, 'CLINICAL_ORDER_SAVE_FAILED');
+      throw new AppError('Clinical order changed; refresh and retry', 409, 'CLINICAL_ORDER_CONFLICT');
     }
 
     return toClinicalOrder(record);

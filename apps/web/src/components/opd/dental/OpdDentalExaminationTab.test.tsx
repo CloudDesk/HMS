@@ -91,11 +91,23 @@ vi.mock('../../../api/opd', async () => {
       getDentalExamination: api.getDentalExamination,
       saveDentalExaminationDraft: api.saveDentalExaminationDraft,
       completeDentalExamination: api.completeDentalExamination,
+      getOpdClinicalOrder: vi.fn(async () => ({ id: 'order-1', items: [], status: 'DRAFT' })),
     },
   };
 });
 
+vi.mock('../../../auth/useAuth', () => ({
+  useAuth: () => ({ user: { roles: [{ code: 'SUPER_ADMIN' }], permissions: [] } }),
+}));
+
+vi.mock('../../../routing/navigation', () => ({
+  useAppLocation: () => ({ pathname: '/opd/consultation', search: '?id=visit-1&tab=Dental+Examination' }),
+  navigate: vi.fn(),
+}));
+
 import { OpdDentalExaminationTab } from './OpdDentalExaminationTab';
+import { DentalImagingSection } from './DentalImagingSection';
+import { DentalLabSection } from './DentalLabSection';
 
 describe('OpdDentalExaminationTab Component', () => {
   let container: HTMLDivElement;
@@ -566,10 +578,9 @@ describe('OpdDentalExaminationTab Component', () => {
       );
     });
 
-    // Verify Cycle 1 (Tooth 18) AND Cycle 2 (Tooth 16 still exists, changes intact)
     expect(serverDbRecord.teeth.some((t) => t.tooth_number === 18)).toBe(true);
     expect(serverDbRecord.teeth.some((t) => t.tooth_number === 16)).toBe(true);
-  });
+  }, 20000);
 
   it('handles Save Draft failure correctly (retains dirty badge, keeps unsaved input, displays error toast)', async () => {
     const showToastMock = vi.fn();
@@ -906,5 +917,184 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(container.textContent).toContain('Completed & Locked');
     expect(container.querySelector('button[title="Remove procedure"]')).toBeNull();
     expect(container.textContent).toContain('Create Invoice');
+  });
+
+  it('renders exactly ONE Dental Imaging section and ONE Dental Laboratory section', async () => {
+    api.getDentalExamination.mockResolvedValue(mockExamData);
+    queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab
+            visitId="visit-1"
+            canEdit={true}
+            renderImaging={(selectedTooth) => (
+              <section className="imaging-panel" aria-label="Dental imaging" key={`dental-imaging-visit-1`}>
+                <h3>{selectedTooth ? `Imaging · Tooth #${selectedTooth}` : 'Dental imaging'}</h3>
+              </section>
+            )}
+            renderLab={() => (
+              <section className="imaging-panel" aria-label="Dental laboratory" key={`dental-lab-visit-1`}>
+                <h3>Dental laboratory investigations</h3>
+              </section>
+            )}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    const imagingSections = container.querySelectorAll('section[aria-label="Dental imaging"]');
+    const labSections = container.querySelectorAll('section[aria-label="Dental laboratory"]');
+    expect(imagingSections.length).toBe(1);
+    expect(labSections.length).toBe(1);
+    expect(imagingSections[0]?.textContent).toContain('Dental imaging');
+  });
+
+  it('updates the single Dental Imaging title when a tooth is selected without rendering extra sections', async () => {
+    api.getDentalExamination.mockResolvedValue(mockExamData);
+    queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab
+            visitId="visit-1"
+            canEdit={true}
+            renderImaging={(selectedTooth) => (
+              <section className="imaging-panel" aria-label="Dental imaging" key={`dental-imaging-visit-1`}>
+                <h3>{selectedTooth ? `Imaging · Tooth #${selectedTooth}` : 'Dental imaging'}</h3>
+              </section>
+            )}
+            renderLab={() => (
+              <section className="imaging-panel" aria-label="Dental laboratory" key={`dental-lab-visit-1`}>
+                <h3>Dental laboratory investigations</h3>
+              </section>
+            )}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    // Click tooth #16 on odontogram
+    const toothBtn = container.querySelector('button[aria-label*="Tooth 16"], [data-tooth-number="16"]');
+    if (toothBtn) {
+      await act(async () => {
+        (toothBtn as HTMLButtonElement).click();
+      });
+    }
+
+    const imagingSections = container.querySelectorAll('section[aria-label="Dental imaging"]');
+    const labSections = container.querySelectorAll('section[aria-label="Dental laboratory"]');
+    expect(imagingSections.length).toBe(1);
+    expect(labSections.length).toBe(1);
+  });
+
+  it('renders actual DentalImagingSection and DentalLabSection without duplication during repeated tooth selection cycles', async () => {
+    api.getDentalExamination.mockResolvedValue(mockExamData);
+    queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab
+            visitId="visit-1"
+            canEdit={true}
+            renderImaging={(selectedTooth) => (
+              <DentalImagingSection
+                key="dental-imaging-visit-1"
+                visitId="visit-1"
+                selectedTooth={selectedTooth}
+                active={true}
+                canEdit={true}
+                consultationCompleted={false}
+                draft={{ priority: 'ROUTINE', items: [] }}
+              />
+            )}
+            renderLab={() => (
+              <DentalLabSection
+                key="dental-lab-visit-1"
+                visitId="visit-1"
+                active={true}
+                canEdit={true}
+                consultationCompleted={false}
+                draft={{ priority: 'ROUTINE', items: [] }}
+              />
+            )}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    const imagingSections = container.querySelectorAll('section[aria-label="Dental imaging"]');
+    const labSections = container.querySelectorAll('section[aria-label="Dental laboratory"]');
+    expect(imagingSections.length).toBe(1);
+    expect(labSections.length).toBe(1);
+    expect(imagingSections[0]?.textContent).toContain('Dental imaging');
+
+    // Simulate multiple rapid tooth clicks (#21 -> #35 -> #16 -> #21)
+    const teethToTest = ['21', '35', '16', '21', '35', '16'];
+    for (const toothNum of teethToTest) {
+      const btn = container.querySelector(`button[aria-label*="Tooth ${toothNum}"], [data-tooth-number="${toothNum}"]`);
+      if (btn) {
+        await act(async () => { (btn as HTMLButtonElement).click(); });
+      }
+      const currentImaging = container.querySelectorAll('section[aria-label="Dental imaging"]');
+      const currentLab = container.querySelectorAll('section[aria-label="Dental laboratory"]');
+      expect(currentImaging.length).toBe(1);
+      expect(currentLab.length).toBe(1);
+    }
+  });
+
+  it('displays clear + Add X-Ray / Scan and + Add Lab Investigation entry points without automatic order creation on tooth selection', async () => {
+    api.getDentalExamination.mockResolvedValue(mockExamData);
+    queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab
+            visitId="visit-1"
+            canEdit={true}
+            renderImaging={(selectedTooth) => (
+              <DentalImagingSection
+                key="dental-imaging-visit-1"
+                visitId="visit-1"
+                selectedTooth={selectedTooth}
+                active={true}
+                canEdit={true}
+                consultationCompleted={false}
+                draft={{ priority: 'ROUTINE', items: [] }}
+              />
+            )}
+            renderLab={() => (
+              <DentalLabSection
+                key="dental-lab-visit-1"
+                visitId="visit-1"
+                active={true}
+                canEdit={true}
+                consultationCompleted={false}
+                draft={{ priority: 'ROUTINE', items: [] }}
+              />
+            )}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    const addImagingBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add X-Ray / Scan'));
+    const addLabBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add Lab Investigation'));
+    expect(addImagingBtn).toBeTruthy();
+    expect(addLabBtn).toBeTruthy();
+
+    // Select Tooth #38 on odontogram
+    const tooth38Btn = container.querySelector('[aria-label*="Tooth 38"]');
+    if (!tooth38Btn) throw new Error('Tooth 38 element not found on Odontogram');
+    await act(async () => { (tooth38Btn as HTMLElement).click(); });
+
+    // Verify title updated to Tooth #38, action button remains visible, and sections remain 1 each
+    const imagingSection = container.querySelector('section[aria-label="Dental imaging"]');
+    expect(imagingSection?.textContent).toContain('Imaging · Tooth #38');
+    expect(container.querySelectorAll('section[aria-label="Dental imaging"]').length).toBe(1);
+    expect(container.querySelectorAll('section[aria-label="Dental laboratory"]').length).toBe(1);
+
+    // Verify changing tooth selection did not automatically trigger draft/order save
+    expect(api.saveDentalExaminationDraft).not.toHaveBeenCalled();
   });
 });

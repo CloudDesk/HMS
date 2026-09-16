@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fromZonedTime } from 'date-fns-tz';
 import type { SaveBillingInvoiceItem } from '../api/billing';
+import { DentalImagingSection } from '../components/opd/dental/DentalImagingSection';
+import { DentalLabSection } from '../components/opd/dental/DentalLabSection';
 import {
   type ApiClinicalOrderPriority,
   type OpdConsultationResponse,
@@ -245,13 +247,13 @@ export function OpdVisitPage() {
 
   // Derive unique specialties from Doctor Directory records
   const uniqueSpecialties = useMemo(() => {
-    return Array.from(new Set(doctors.map((d) => d.specialization).filter(Boolean))).sort();
+    return Array.from(new Set((doctors || []).map((d) => d.specialization).filter(Boolean))).sort();
   }, [doctors]);
 
   // Derive filtered doctors for selected referral specialty
   const filteredReferralDoctors = useMemo(() => {
-    if (!referralSpecialty) return doctors;
-    return doctors.filter((d) => d.specialization === referralSpecialty);
+    if (!referralSpecialty) return doctors || [];
+    return (doctors || []).filter((d) => d.specialization === referralSpecialty);
   }, [doctors, referralSpecialty]);
 
   const isDental = useMemo(
@@ -352,17 +354,17 @@ export function OpdVisitPage() {
   };
 
   const labTestServices = useMemo(
-    () => services.filter((s) => s.service_type === 'LAB_TEST'),
+    () => (services || []).filter((s) => s.service_type === 'LAB_TEST'),
     [services],
   );
 
   const imagingServices = useMemo(
-    () => services.filter((s) => s.service_type === 'IMAGING_SERVICE'),
+    () => (services || []).filter((s) => s.service_type === 'IMAGING_SERVICE'),
     [services],
   );
 
   const dentalProcedureServices = useMemo(() => {
-    return services.filter(
+    return (services || []).filter(
       (s) =>
         s.service_type === 'PROCEDURE' &&
         s.status === 'ACTIVE' &&
@@ -1181,6 +1183,78 @@ export function OpdVisitPage() {
     }
   };
 
+  const renderDentalImaging = useCallback(
+    (selectedTooth: number | null) => (
+      <DentalImagingSection
+        key={`dental-imaging-${visit?.id ?? 'none'}`}
+        visitId={visit?.id ?? ''}
+        selectedTooth={selectedTooth}
+        active={activeTab === 'Dental Examination'}
+        canEdit={!isVisitCompleted && (feature.state.canEditClinicalOrders || feature.state.canEditConsultation)}
+        consultationCompleted={consultation?.status === 'COMPLETED'}
+        draft={{
+          priority: imagingPriority,
+          clinical_notes: imagingClinicalInfo || null,
+          instructions: imagingOrderInstructions || null,
+          items: imagingOrders.map((item) => ({
+            service_id: item.id,
+            investigation_name: item.name,
+            category: item.category || 'Imaging',
+            tooth_number: item.tooth_number ?? null,
+          })),
+        }}
+      />
+    ),
+    [
+      visit?.id,
+      activeTab,
+      isVisitCompleted,
+      feature.state.canEditClinicalOrders,
+      feature.state.canEditConsultation,
+      consultation?.status,
+      imagingPriority,
+      imagingClinicalInfo,
+      imagingOrderInstructions,
+      imagingOrders,
+    ],
+  );
+
+  const renderDentalLab = useCallback(
+    () => (
+      <DentalLabSection
+        key={`dental-lab-${visit?.id ?? 'none'}`}
+        visitId={visit?.id ?? ''}
+        active={activeTab === 'Dental Examination'}
+        canEdit={!isVisitCompleted && (feature.state.canEditClinicalOrders || feature.state.canEditConsultation)}
+        consultationCompleted={consultation?.status === 'COMPLETED'}
+        draft={{
+          priority: labPriority,
+          clinical_notes: labClinicalNotes || null,
+          specimen_type: labSampleType || 'Blood',
+          instructions: null,
+          items: labOrders.map((item) => ({
+            service_id: item.id,
+            investigation_name: item.name,
+            category: item.category || 'Laboratory',
+            tooth_number: null,
+          })),
+        }}
+      />
+    ),
+    [
+      visit?.id,
+      activeTab,
+      isVisitCompleted,
+      feature.state.canEditClinicalOrders,
+      feature.state.canEditConsultation,
+      consultation?.status,
+      labPriority,
+      labClinicalNotes,
+      labSampleType,
+      labOrders,
+    ],
+  );
+
   return (
     <div className="opd-page">
       {/* Top Header Bar */}
@@ -1384,6 +1458,8 @@ export function OpdVisitPage() {
                       showToast={showToast}
                       consultation={consultation}
                       departmentServices={dentalProcedureServices}
+                      renderImaging={renderDentalImaging}
+                      renderLab={renderDentalLab}
                       diagnoses={selectedDiagnoses}
                       billingStates={feature.state.dentalBillingStates}
                       billingStateLoading={feature.state.dentalBillingLoading}

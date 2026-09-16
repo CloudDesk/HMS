@@ -41,6 +41,8 @@ interface OpdDentalExaminationTabProps {
   billingTreatmentItemPending?: string | null;
   onCreateInvoice?: (treatmentItemId: string) => Promise<void>;
   onOpenInvoice?: (invoiceId: string) => void;
+  renderImaging?: (selectedTooth: number | null) => React.ReactNode;
+  renderLab?: () => React.ReactNode;
 }
 
 export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = ({
@@ -60,6 +62,8 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   billingTreatmentItemPending = null,
   onCreateInvoice,
   onOpenInvoice,
+  renderImaging,
+  renderLab,
 }) => {
   const { data: dentalExam, isLoading, isError, error, refetch } = useOpdDentalExamination(visitId);
 
@@ -392,6 +396,9 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           showAffectedSurfaces={false}
         />
       </div>
+
+      {renderImaging?.(selectedToothNumber)}
+      {renderLab?.()}
 
       <section className={`${styles.consultationContext} ${styles.clinicalRelationshipCard}`} aria-label="Dental clinical relationship">
         <div className={styles.clinicalRelationshipHeader}>
