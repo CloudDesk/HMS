@@ -20,6 +20,7 @@ type DepartmentRecord = {
   branchId?: Types.ObjectId;
   status: 'ACTIVE' | 'INACTIVE';
   isClinical: boolean;
+  hiddenModules?: Department['hiddenModules'];
   createdBy?: Types.ObjectId | null;
   updatedBy?: Types.ObjectId | null;
   createdAt: Date;
@@ -36,6 +37,7 @@ const toDepartment = (record: DepartmentRecord): Department => ({
   branch_ids: branchIds(record).map((id) => id.toString()),
   status: record.status,
   isClinical: record.isClinical,
+  hiddenModules: record.hiddenModules ?? [],
   created_by: record.createdBy?.toString() ?? null,
   updated_by: record.updatedBy?.toString() ?? null,
   created_at: record.createdAt,
@@ -111,6 +113,7 @@ export class DepartmentRepository {
       description: data.description ?? undefined,
       status: data.status ?? 'ACTIVE',
       isClinical: data.isClinical ?? false,
+      hiddenModules: data.hiddenModules ?? [],
       createdBy: new Types.ObjectId(createdBy),
       updatedBy: new Types.ObjectId(createdBy),
     });
@@ -122,6 +125,7 @@ export class DepartmentRepository {
       branchIds: department.branchIds,
       status: department.status,
       isClinical: department.isClinical,
+      hiddenModules: department.hiddenModules,
       createdBy: department.createdBy,
       updatedBy: department.updatedBy,
       createdAt: department.createdAt,
@@ -137,6 +141,7 @@ export class DepartmentRepository {
     if (data.description !== undefined) updatePayload.description = data.description;
     if (data.status !== undefined) updatePayload.status = data.status;
     if (data.isClinical !== undefined) updatePayload.isClinical = data.isClinical;
+    if (data.hiddenModules !== undefined) updatePayload.hiddenModules = data.hiddenModules;
 
     const record = await DepartmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null },

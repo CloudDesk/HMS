@@ -1,3 +1,11 @@
+import { departmentModuleKeys } from './department.types.js';
+
+const hiddenModulesSchema = {
+  type: 'array',
+  uniqueItems: true,
+  items: { type: 'string', enum: departmentModuleKeys },
+} as const;
+
 export const departmentIdParamsSchema = {
   type: 'object',
   required: ['id'],
@@ -39,6 +47,7 @@ export const createDepartmentBodySchema = {
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
     isClinical: { type: 'boolean' },
+    hiddenModules: hiddenModulesSchema,
   },
 } as const;
 
@@ -57,6 +66,7 @@ export const updateDepartmentBodySchema = {
     description: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
     isClinical: { type: 'boolean' },
+    hiddenModules: hiddenModulesSchema,
   },
 } as const;
 

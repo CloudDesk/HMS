@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AuthPermission, AuthRole } from './auth-types';
+import type { AuthDepartment, AuthPermission, AuthRole } from './auth-types';
 import { canAccessRoute, getAccessibleSidebarModules, hasPermission } from './access-control';
 
 const permission = (module: string, screen: string, action = 'View'): AuthPermission => ({
@@ -79,6 +79,38 @@ describe('staff route access control', () => {
     expect(canAccessRoute('/surgery', [permission('Surgery', 'Bookings')])).toBe(true);
     expect(canAccessRoute('/surgery', [permission('Surgery', 'Schedule')])).toBe(true);
     expect(canAccessRoute('/surgery', [])).toBe(false);
+  });
+
+  it('applies configured department module visibility only after Doctor permission filtering', () => {
+    const surgeryPermission = [permission('Surgery', 'Recommendations')];
+    const dental: AuthDepartment[] = [{
+      id: 'dental',
+      code: 'DENTAL',
+      name: 'Dental',
+      hiddenModules: ['surgery'],
+    }];
+
+    expect(getAccessibleSidebarModules(surgeryPermission, doctorRole, dental)
+      .some((module) => module.key === 'surgery')).toBe(false);
+    expect(getAccessibleSidebarModules(surgeryPermission, doctorRole, [])
+      .some((module) => module.key === 'surgery')).toBe(true);
+    expect(getAccessibleSidebarModules(surgeryPermission, [{ id: 'surgeon', code: 'SURGEON', name: 'Surgeon' }], dental)
+      .some((module) => module.key === 'surgery')).toBe(true);
+  });
+
+  it('combines hidden modules across multiple Doctor department assignments', () => {
+    const permissions = [
+      permission('Surgery', 'Recommendations'),
+      permission('Emergency', 'Encounters'),
+    ];
+    const departments: AuthDepartment[] = [
+      { id: 'one', code: 'DENTAL', name: 'Dental', hiddenModules: ['surgery'] },
+      { id: 'two', code: 'GENERAL', name: 'General', hiddenModules: ['emergency'] },
+    ];
+    const keys = getAccessibleSidebarModules(permissions, doctorRole, departments).map((module) => module.key);
+
+    expect(keys).not.toContain('surgery');
+    expect(keys).not.toContain('emergency');
   });
 
   it('derives Check In from the exact OPD visit creation permission, not a role name', () => {

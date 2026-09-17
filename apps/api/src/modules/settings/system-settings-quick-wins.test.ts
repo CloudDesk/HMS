@@ -221,7 +221,7 @@ describe('System Settings quick-win runtime behavior', () => {
     const clearFailedLogin = vi.spyOn(repository, 'clearFailedLogin').mockResolvedValue(undefined);
     vi.spyOn(repository, 'findUserById').mockResolvedValue({ ...authUser, failedLoginAttempts: 0 });
     vi.spyOn(repository, 'createRefreshToken').mockResolvedValue('refresh-1');
-    vi.spyOn(repository, 'getUserAccessContext').mockResolvedValue({ branches: [], permissions: [], roles: [] });
+    vi.spyOn(repository, 'getUserAccessContext').mockResolvedValue({ branches: [], departments: [], permissions: [], roles: [] });
     vi.spyOn(repository, 'audit').mockResolvedValue(undefined);
 
     const patientOtp = new PatientOtpService(

@@ -22,7 +22,11 @@ export function Sidebar({
 }: SidebarProps) {
   const { user } = useAuth();
   const { hospitalName, logoUrl } = useHospitalSettings();
-  const accessibleModules = getAccessibleSidebarModules(user?.permissions ?? [], user?.roles ?? []);
+  const accessibleModules = getAccessibleSidebarModules(
+    user?.permissions ?? [],
+    user?.roles ?? [],
+    user?.departments ?? [],
+  );
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>

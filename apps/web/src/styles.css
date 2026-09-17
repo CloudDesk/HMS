@@ -1822,6 +1822,42 @@ p {
 }
 
 /* User Management screen migrated from HMS Local */
+.um-role-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.form-field.um-role-field,
+fieldset.form-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.um-role-options .checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 34px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: #ffffff;
+  font-weight: 600;
+}
+
+.form-field .um-role-options input[type='checkbox'] {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
 .um-grid {
   flex: 1;
   display: flex;

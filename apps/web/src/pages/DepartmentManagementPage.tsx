@@ -6,6 +6,7 @@ import { useDepartmentManagementFeature, type SortColumn, type SortDirection } f
 import { ApiError } from '../api/api-error';
 import { type BranchResponse } from '../api/branches';
 import {
+  departmentModuleOptions,
   type ApiDepartmentStatus,
   type DepartmentResponse,
 } from '../api/departments';
@@ -26,6 +27,10 @@ const departmentSchema = z.object({
   description: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
   isClinical: z.boolean(),
+  hiddenModules: z.array(z.enum([
+    'patients', 'doctors', 'appointments', 'opd', 'emergency', 'admissions', 'surgery',
+    'pharmacy', 'laboratory', 'imaging', 'billing', 'reports', 'administration',
+  ])),
 });
 type DepartmentFormData = z.infer<typeof departmentSchema>;
 
@@ -194,7 +199,7 @@ export function DepartmentManagementPage() {
   const deptForm = useForm<DepartmentFormData>({
     resolver: zodResolver(departmentSchema),
     defaultValues: {
-      code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false
+      code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false, hiddenModules: []
     }
   });
 
@@ -222,10 +227,11 @@ export function DepartmentManagementPage() {
         description: dept.description || '',
         status: dept.status,
         isClinical: dept.isClinical,
+        hiddenModules: dept.hiddenModules ?? [],
       });
     } else {
       deptForm.reset({
-        code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false
+        code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false, hiddenModules: []
       });
     }
   };
@@ -254,6 +260,7 @@ export function DepartmentManagementPage() {
         description: values.description?.trim() || null,
         status: values.status,
         isClinical: values.isClinical,
+        hiddenModules: values.hiddenModules,
       };
 
       if (modalMode === 'create') {
@@ -775,6 +782,34 @@ export function DepartmentManagementPage() {
               </label>
             </div>
 
+            <div className="form-section-title">Doctor Module Visibility</div>
+            <p className="dialog-message" style={{ marginTop: 0 }}>
+              Selected modules are hidden only from users with the Doctor role assigned to this department.
+              Existing role permissions and API authorization are unchanged.
+            </p>
+            <div className="um-role-options" aria-label="Modules hidden from department doctors">
+              {departmentModuleOptions.map((module) => {
+                const hiddenModules = deptForm.watch('hiddenModules');
+                const checked = hiddenModules.includes(module.key);
+                return (
+                  <label className="um-role-option" key={module.key}>
+                    <input
+                      checked={checked}
+                      disabled={submitting}
+                      onChange={(event) => {
+                        const next = event.target.checked
+                          ? [...hiddenModules, module.key]
+                          : hiddenModules.filter((key) => key !== module.key);
+                        deptForm.setValue('hiddenModules', next, { shouldDirty: true, shouldValidate: true });
+                      }}
+                      type="checkbox"
+                    />
+                    <span>Hide {module.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+
             <div className="form-section-title">Additional Information</div>
             <div className="form-grid-3">
               <label className="form-field" style={{ gridColumn: '1 / -1' }}>
@@ -820,6 +855,16 @@ export function DepartmentManagementPage() {
               <label className="form-field" style={{ gridColumn: '1 / -1' }}>
                 <span>Description</span>
                 <textarea readOnly rows={3} value={activeDept.description || ''} />
+              </label>
+              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
+                <span>Modules Hidden from Doctors</span>
+                <textarea
+                  readOnly
+                  rows={2}
+                  value={activeDept.hiddenModules.length > 0
+                    ? activeDept.hiddenModules.map((key) => departmentModuleOptions.find((option) => option.key === key)?.label ?? key).join(', ')
+                    : 'None (existing navigation behaviour)'}
+                />
               </label>
             </div>
           </>

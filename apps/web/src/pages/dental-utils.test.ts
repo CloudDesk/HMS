@@ -160,6 +160,7 @@ describe('dental-utils tests', () => {
       branch_ids: ['b-1'],
       status: 'ACTIVE',
       isClinical: true,
+      hiddenModules: [],
       created_by: 'staff-1',
       updated_by: 'staff-1',
       created_at: '2026-09-07T10:00:00Z',

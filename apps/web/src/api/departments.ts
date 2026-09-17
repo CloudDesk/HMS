@@ -2,6 +2,24 @@ import { apiClient } from './client';
 
 export type ApiDepartmentStatus = 'ACTIVE' | 'INACTIVE';
 
+export const departmentModuleOptions = [
+  { key: 'patients', label: 'Patients' },
+  { key: 'doctors', label: 'Doctors' },
+  { key: 'appointments', label: 'Appointments' },
+  { key: 'opd', label: 'OPD' },
+  { key: 'emergency', label: 'Emergency' },
+  { key: 'admissions', label: 'Admissions' },
+  { key: 'surgery', label: 'Surgery' },
+  { key: 'pharmacy', label: 'Pharmacy' },
+  { key: 'laboratory', label: 'Laboratory' },
+  { key: 'imaging', label: 'Imaging' },
+  { key: 'billing', label: 'Billing' },
+  { key: 'reports', label: 'Reports' },
+  { key: 'administration', label: 'Administration' },
+] as const;
+
+export type DepartmentModuleKey = (typeof departmentModuleOptions)[number]['key'];
+
 export type DepartmentResponse = {
   id: string;
   code: string;
@@ -10,6 +28,7 @@ export type DepartmentResponse = {
   branch_ids: string[];
   status: ApiDepartmentStatus;
   isClinical: boolean;
+  hiddenModules: DepartmentModuleKey[];
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -44,6 +63,7 @@ export type SaveDepartmentPayload = {
   description?: string | null;
   status?: ApiDepartmentStatus;
   isClinical?: boolean;
+  hiddenModules?: DepartmentModuleKey[];
 };
 
 export type DepartmentSummary = {

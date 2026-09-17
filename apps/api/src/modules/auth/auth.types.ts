@@ -17,6 +17,12 @@ export type AuthAccessContext = {
     code: string;
     name: string;
   }>;
+  departments: Array<{
+    id: string;
+    code: string;
+    name: string;
+    hiddenModules: string[];
+  }>;
 };
 
 export type AuthUserRecord = {

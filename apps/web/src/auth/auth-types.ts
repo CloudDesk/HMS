@@ -19,6 +19,13 @@ export type AuthRole = {
   name: string;
 };
 
+export type AuthDepartment = {
+  id: string;
+  code: string;
+  name: string;
+  hiddenModules: string[];
+};
+
 export type AuthUser = {
   id: string;
   username: string;
@@ -28,6 +35,7 @@ export type AuthUser = {
   lastLoginAt?: string | null;
   patientId: string | null;
   branches: AuthBranch[];
+  departments?: AuthDepartment[];
   permissions: AuthPermission[];
   roles: AuthRole[];
 };

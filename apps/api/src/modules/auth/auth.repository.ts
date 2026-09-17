@@ -2,6 +2,7 @@ import { UserModel } from '../users/user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { PermissionModel } from '../permissions/permission.model.js';
 import { RoleModel } from '../roles/role.model.js';
+import { DepartmentModel } from '../departments/department.model.js';
 import { RefreshTokenModel } from './refresh-token.model.js';
 import { PasswordResetTokenModel, AuditLogModel } from './auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -33,20 +34,24 @@ const mapUser = (user: UserLean): AuthUserRecord => ({
 export class AuthRepository {
   async getUserAccessContext(userId: string): Promise<AuthAccessContext> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
-      .select('roleIds branchIds')
+      .select('roleIds branchIds departmentIds')
       .lean();
 
     if (!user) {
-      return { branches: [], permissions: [], roles: [] };
+      return { branches: [], departments: [], permissions: [], roles: [] };
     }
 
-    const [roles, branches] = await Promise.all([
+    const [roles, branches, departments] = await Promise.all([
       RoleModel.find({ _id: { $in: user.roleIds ?? [] }, status: 'active', deletedAt: null })
         .select('_id code name permissionIds')
         .sort({ name: 1 })
         .lean(),
       BranchModel.find({ _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null })
         .select('_id code name')
+        .sort({ name: 1 })
+        .lean(),
+      DepartmentModel.find({ _id: { $in: user.departmentIds ?? [] }, status: 'ACTIVE', deletedAt: null })
+        .select('_id code name hiddenModules')
         .sort({ name: 1 })
         .lean(),
     ]);
@@ -67,6 +72,12 @@ export class AuthRepository {
         id: String(branch._id),
         code: branch.code,
         name: branch.name,
+      })),
+      departments: departments.map((department) => ({
+        id: String(department._id),
+        code: department.code,
+        name: department.name,
+        hiddenModules: department.hiddenModules ?? [],
       })),
       permissions: permissions.map((permission) => ({
         code: permission.code,

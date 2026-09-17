@@ -272,7 +272,7 @@ const hasRole = (user: AuthUser, roleCode: string) =>
 const dashboardShortcutOnlyModules = new Set(['emergency', 'admissions', 'surgery']);
 
 function AccessibleModulesOverview({ user }: { user: AuthUser }) {
-  const modules = getAccessibleSidebarModules(user.permissions, user.roles)
+  const modules = getAccessibleSidebarModules(user.permissions, user.roles, user.departments ?? [])
     .filter((module) => !dashboardShortcutOnlyModules.has(module.key));
 
   return (
