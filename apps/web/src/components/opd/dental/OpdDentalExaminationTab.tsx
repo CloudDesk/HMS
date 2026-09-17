@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Icd10Diagnosis } from '../../../data/icd10-diagnoses';
 import type {
   DentalHistory,
   DentalTreatmentPlanItem,
+  DentitionType,
   OpdConsultationResponse,
   OpdDentalExaminationResponse,
   SaveOpdDentalExaminationPayload,
@@ -11,12 +12,15 @@ import type {
 } from '../../../api/opd';
 import type { ServiceResponse } from '../../../api/services';
 import type { DentalTreatmentBillingState } from '../../../api/billing';
+import type { PatientResponse } from '../../../api/patients';
 import {
   useCompleteOpdDentalExamination,
   useOpdDentalExamination,
   useSaveOpdDentalExaminationDraft,
 } from '../../../hooks/opd/useOpd';
 import { getOpdErrorMessage } from '../../../pages/opd-utils';
+import { getPatientAgeInYears, resolveInitialDentition } from '../../../pages/dental-utils';
+import { useCurrencyFormatter } from '../../../api/useSettings';
 import { navigate } from '../../../routing/navigation';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { DentalHistorySection } from './DentalHistorySection';
@@ -31,6 +35,8 @@ interface OpdDentalExaminationTabProps {
   canEdit: boolean;
   showToast?: (message: string, tone?: 'success' | 'error') => void;
   consultation?: OpdConsultationResponse | null;
+  patient?: PatientResponse | null;
+  patientDateOfBirth?: string | null;
   departmentServices?: ServiceResponse[];
   diagnoses?: Icd10Diagnosis[];
   onOpenDiagnosis?: (tooth: number | null) => void;
@@ -52,6 +58,8 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   canEdit,
   showToast,
   consultation,
+  patient,
+  patientDateOfBirth,
   departmentServices = [],
   diagnoses = [],
   onOpenDiagnosis,
@@ -71,6 +79,49 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
 
   const saveDraftMutation = useSaveOpdDentalExaminationDraft({ notifyOnError: false, notifyOnSuccess: false });
   const completeMutation = useCompleteOpdDentalExamination({ notifyOnError: false, notifyOnSuccess: false });
+
+  const isCompleted = dentalExam?.status === 'COMPLETED';
+  const isReadOnly = !canEdit || isCompleted;
+  const isSaving = saveDraftMutation.isPending || completeMutation.isPending;
+  const controlsDisabled = isReadOnly || isSaving;
+
+  const effectiveDob = patientDateOfBirth ?? patient?.date_of_birth ?? null;
+  const patientAge = useMemo(() => getPatientAgeInYears(effectiveDob), [effectiveDob]);
+
+  const defaultDentition = useMemo(
+    () =>
+      resolveInitialDentition({
+        dateOfBirth: effectiveDob,
+        existingTeeth: dentalExam?.teeth,
+        isCompleted,
+      }),
+    [effectiveDob, dentalExam?.teeth, isCompleted],
+  );
+
+  const [currentDentition, setCurrentDentition] = useState<DentitionType>(defaultDentition);
+  const userOverriddenDentitionRef = useRef(false);
+  const lastVisitIdRef = useRef(visitId);
+
+  // When visitId changes (e.g. switching patient/visit), reset manual override and recalculate default
+  useEffect(() => {
+    if (lastVisitIdRef.current !== visitId) {
+      lastVisitIdRef.current = visitId;
+      userOverriddenDentitionRef.current = false;
+      setCurrentDentition(defaultDentition);
+    }
+  }, [visitId, defaultDentition]);
+
+  // When defaultDentition resolves/updates on initial data load, sync if user hasn't overridden
+  useEffect(() => {
+    if (!userOverriddenDentitionRef.current) {
+      setCurrentDentition(defaultDentition);
+    }
+  }, [defaultDentition]);
+
+  const handleDentitionChange = (newDentition: DentitionType) => {
+    userOverriddenDentitionRef.current = true;
+    setCurrentDentition(newDentition);
+  };
 
   const [selectedToothNumber, setSelectedToothNumber] = useState<number | null>(null);
   const [dentalHistory, setDentalHistory] = useState<DentalHistory>({
@@ -100,6 +151,16 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const loadedVersion = useRef<string | undefined>(undefined);
   dirtyRef.current = isDirty;
 
+  const formatCurrency = useCurrencyFormatter();
+
+  const medicalAlerts = useMemo(() => {
+    return dentalHistory.medical_alerts ?? [];
+  }, [dentalHistory.medical_alerts]);
+
+  const totalPlanCost = useMemo(() => {
+    return treatmentPlanItems.reduce((acc, it) => acc + (it.estimated_cost ?? 0), 0);
+  }, [treatmentPlanItems]);
+
   // Synchronize incoming data to controlled form state
   useEffect(() => {
     if (dentalExam && !dirtyRef.current) {
@@ -119,11 +180,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       setIsDirty(false);
     }
   }, [dentalExam]);
-
-  const isCompleted = dentalExam?.status === 'COMPLETED';
-  const isReadOnly = !canEdit || isCompleted;
-  const isSaving = saveDraftMutation.isPending || completeMutation.isPending;
-  const controlsDisabled = isReadOnly || isSaving;
 
   useEffect(() => { onCompletedChange?.(Boolean(isCompleted)); }, [isCompleted, onCompletedChange]);
   useEffect(() => {
@@ -314,7 +370,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       <div className={styles.actionBar}>
         <div className={styles.titleArea}>
           <h2 className={styles.examTitle}>
-            <i className="ph ph-tooth" style={{ color: '#2563eb', fontSize: '1.4rem' }} />
+            <i className="ph ph-tooth" style={{ color: '#2563eb', fontSize: '1.25rem' }} />
             Dental Examination &amp; Odontogram
           </h2>
           {isCompleted ? (
@@ -362,13 +418,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         </div>
       </div>
 
-      {/* Read-Only / Completed Banner */}
-      {isCompleted && (
-        <div className={styles.lockedBannerCompleted}>
-          <i className="ph ph-lock-key-fill" style={{ fontSize: '1.25rem' }} />
-          <span>Dental Examination is marked as COMPLETED &mdash; Records are finalized and locked in read-only mode.</span>
-        </div>
-      )}
+
 
       {!canEdit && !isCompleted && (
         <div className={styles.lockedBanner}>
@@ -377,17 +427,57 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         </div>
       )}
 
-      {/* 1. Dental History & Medical Alerts Section */}
-      <DentalHistorySection
-        history={dentalHistory}
-        onChange={handleHistoryChange}
-        disabled={controlsDisabled}
-        consultationChiefComplaint={consultation?.chief_complaint}
-        consultationHpi={consultation?.history_present_illness}
-        consultationAssessment={consultation?.assessment}
-      />
+      {/* Medical Alerts Top Banner */}
+      <div
+        className={`${styles.medicalAlertBanner} ${medicalAlerts.length > 0 ? styles.medicalAlertBannerAlert : styles.medicalAlertBannerClean}`}
+        role="region"
+        aria-label="Patient Medical Alerts"
+      >
+        <div className={styles.medicalAlertLeft}>
+          <span className={styles.medicalAlertTitle}>
+            <i
+              className={medicalAlerts.length > 0 ? 'ph ph-warning-octagon' : 'ph ph-check-circle'}
+              style={{ fontSize: '1.2rem', color: medicalAlerts.length > 0 ? '#dc2626' : '#16a34a' }}
+            />
+            {medicalAlerts.length > 0 ? 'Medical Alerts & Risk Factors:' : 'Medical Alerts:'}
+          </span>
+          {medicalAlerts.length > 0 ? (
+            <div className={styles.medicalAlertList}>
+              {medicalAlerts.map((alert) => {
+                const isAllergy = /allerg/i.test(alert);
+                return (
+                  <span
+                    key={alert}
+                    className={`${styles.medicalAlertBadge} ${isAllergy ? styles.medicalAlertBadgeAllergy : ''}`}
+                  >
+                    <i className={isAllergy ? 'ph ph-warning-diamond-fill' : 'ph ph-warning'} />
+                    {alert}
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <span style={{ color: '#166534', fontSize: '0.8rem' }}>
+              No active medical alerts, drug allergies, or systemic contraindications recorded.
+            </span>
+          )}
+        </div>
 
-      {/* 2. Interactive Odontogram + Side-by-Side Tooth Detail & Affected Surfaces Panel */}
+        <button
+          type="button"
+          className={styles.medicalAlertJumpBtn}
+          onClick={() => {
+            const historyEl = document.getElementById('dental-history-section');
+            historyEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          title="Jump to Dental History & Medical Risk Assessment"
+        >
+          <i className="ph ph-heartbeat" />
+          {medicalAlerts.length > 0 ? 'Review History' : 'Add Medical Alerts'}
+        </button>
+      </div>
+
+      {/* 1. Interactive Odontogram Hero + Side-by-Side Tooth Detail & Affected Surfaces Panel */}
       <div className={styles.odontogramLayout}>
         <div className={styles.odontogramMainColumn}>
           <OdontogramChart
@@ -395,6 +485,10 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             selectedToothNumber={selectedToothNumber}
             onSelectTooth={(num) => setSelectedToothNumber(num)}
             disabled={isSaving}
+            dentition={currentDentition}
+            defaultDentition={defaultDentition}
+            onDentitionChange={handleDentitionChange}
+            patientAge={patientAge}
           />
         </div>
 
@@ -407,6 +501,18 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           showAffectedSurfaces={true}
           onSave={isReadOnly ? undefined : handleSaveDraft}
           isSaving={saveDraftMutation.isPending}
+        />
+      </div>
+
+      {/* 2. Dental History & Medical Alerts Section (Now placed below the Odontogram) */}
+      <div id="dental-history-section">
+        <DentalHistorySection
+          history={dentalHistory}
+          onChange={handleHistoryChange}
+          disabled={controlsDisabled}
+          consultationChiefComplaint={consultation?.chief_complaint}
+          consultationHpi={consultation?.history_present_illness}
+          consultationAssessment={consultation?.assessment}
         />
       </div>
 
@@ -488,6 +594,72 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         onCreateInvoice={onCreateInvoice}
         onOpenInvoice={onOpenInvoice}
       />
+
+      {/* Sticky Bottom Workstation Action Bar */}
+      <div className={styles.stickyActionBar}>
+        <div className={styles.stickySummary}>
+          <span className={styles.stickyMetric}>
+            <i className="ph ph-tooth" style={{ color: '#2563eb' }} />
+            Examined Teeth: <strong>{teeth.length}</strong>
+          </span>
+          <span className={styles.stickyMetric}>
+            <i className="ph ph-calendar-check" style={{ color: '#7c3aed' }} />
+            Procedures: <strong>{treatmentPlanItems.length}</strong>
+          </span>
+          <span className={styles.stickyMetric}>
+            <i className="ph ph-receipt" style={{ color: '#059669' }} />
+            Est. Total: <strong>{formatCurrency(totalPlanCost)}</strong>
+          </span>
+          {medicalAlerts.length > 0 && (
+            <span className={styles.stickyMetricAlert}>
+              <i className="ph ph-warning-octagon" />
+              {medicalAlerts.length} Alert{medicalAlerts.length > 1 ? 's' : ''}
+            </span>
+          )}
+          {isDirty && (
+            <span className={styles.unsavedBadge}>
+              <i className="ph ph-warning-circle" /> Unsaved Changes
+            </span>
+          )}
+        </div>
+
+        <div className={styles.stickyActions}>
+          {!isReadOnly && (
+            <>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={handleSaveDraft}
+                disabled={isSaving}
+              >
+                <i className="ph ph-floppy-disk" />
+                {saveDraftMutation.isPending ? 'Saving...' : 'Save Draft'}
+              </button>
+
+              <button
+                type="button"
+                className={styles.btnComplete}
+                onClick={() => setConfirmCompleteOpen(true)}
+                disabled={isSaving}
+              >
+                <i className="ph ph-check-circle" />
+                Complete Examination
+              </button>
+            </>
+          )}
+
+          {onOpenDiagnosis && (
+            <button
+              type="button"
+              className={styles.btnPrimaryGradient}
+              onClick={() => onOpenDiagnosis(selectedToothNumber)}
+            >
+              Continue to Diagnosis
+              <i className="ph ph-arrow-right" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Complete Confirmation Modal */}
       {confirmCompleteOpen && (

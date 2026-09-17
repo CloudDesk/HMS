@@ -97,9 +97,26 @@ vi.mock('../components/opd/dental/OpdDentalExaminationTab', () => ({
     </div>
   ),
 }));
+vi.mock('../components/opd/OpdPatientTimelineModal', () => ({
+  OpdPatientTimelineModal: (props: {
+    open: boolean;
+    onClose: () => void;
+    patientId: string;
+    patientName: string;
+    patientNumber: string;
+  }) => (
+    props.open ? (
+      <div data-testid="opd-patient-timeline-modal">
+        <span>Patient Timeline & Encounter History</span>
+        <span>{props.patientName}</span>
+        <span>{props.patientNumber}</span>
+        <button data-testid="timeline-modal-close" onClick={props.onClose} type="button">Close</button>
+      </div>
+    ) : null
+  ),
+}));
 
 import { OpdVisitPage } from './OpdVisitPage';
-import { navigate } from '../routing/navigation';
 
 describe('OpdVisitPage feature-hook rendering', () => {
   let container: HTMLDivElement;
@@ -178,11 +195,14 @@ describe('OpdVisitPage feature-hook rendering', () => {
 
     await act(async () => root.render(<OpdVisitPage />));
 
-    expect(container.textContent).toContain('Dental Examination');
+    expect(container.textContent).toContain('1 Consultation');
+    expect(container.textContent).toContain('2 Dental Examination');
+    expect(container.textContent).toContain('3 Diagnosis');
+    expect(container.textContent).toContain('4 Prescription');
+    expect(container.textContent).toContain('5 Referral');
+    expect(container.textContent).toContain('6 Follow-up');
     expect(container.textContent).not.toContain('4 Lab Orders');
     expect(container.textContent).not.toContain('5 Imaging Orders');
-    expect(container.textContent).toContain('4 Referral');
-    expect(container.textContent).toContain('5 Follow-up');
     expect(container.textContent).not.toContain('7 Follow-up');
   });
 
@@ -264,14 +284,7 @@ describe('OpdVisitPage feature-hook rendering', () => {
     expect(dentalExamElement?.textContent).toContain('Dental Examination Component');
     expect(dentalExamElement?.textContent).toContain('Visit: visit-dental-1');
 
-    const timelineButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('Patient Timeline'),
-    );
-    await act(async () => timelineButton?.click());
-
-    expect(navigate).toHaveBeenCalledWith(
-      '/patients/profile?id=pat-1&tab=EMR%20Timeline',
-    );
+    expect(container.textContent).not.toContain('Patient Timeline');
   });
 
   it('preserves Imaging Orders for non-Dental visits and clears state when switching visits', async () => {
@@ -320,5 +333,84 @@ describe('OpdVisitPage feature-hook rendering', () => {
 
     expect(container.textContent).not.toContain('IOPA X-Ray');
     expect(container.textContent).toContain('No tests selected.');
+  });
+
+  it('renders a compact clinician-first patient header with primary identity and secondary metadata, omitting redundant doctor name', async () => {
+    testState.loading = false;
+    testState.activeVisitId = 'visit-dental-1';
+    testState.visit = {
+      id: 'visit-dental-1',
+      visit_number: 'OPD-DENT-001',
+      patient_id: 'pat-1',
+      patient_name: 'Jane Doe',
+      patient_number: 'MRN-001',
+      doctor_id: 'doc-dent-1',
+      doctor_name: 'Dr. Anderson James',
+      doctor_specialization: 'Dentistry',
+      branch_id: 'branch-1',
+      department_id: 'dept-dent-1',
+      status: 'IN_CONSULTATION',
+      visit_type: 'NEW_CONSULTATION',
+      priority: 'ROUTINE',
+    } as unknown as OpdVisitResponse;
+    testState.patient = {
+      id: 'pat-1',
+      mrn: 'MRN-001',
+      first_name: 'Jane',
+      last_name: 'Doe',
+      gender: 'FEMALE',
+      date_of_birth: '1990-01-01',
+      phone_number: '1234567890',
+    } as unknown as PatientResponse;
+    testState.departments = [
+      { id: 'dept-dent-1', name: 'Dentistry', code: 'DENT', branch_ids: ['branch-1'] },
+    ] as unknown as DepartmentResponse[];
+
+    await act(async () => root.render(<OpdVisitPage />));
+
+    const banner = container.querySelector('.opd-patient-banner');
+    expect(banner).not.toBeNull();
+
+    // Primary patient identity
+    expect(banner?.querySelector('h3')?.textContent).toBe('Jane Doe');
+    expect(banner?.querySelector('.opd-mrn-chip')?.textContent).toBe('MRN-001');
+    expect(banner?.querySelector('.doc-status')?.textContent).toContain('In consultation');
+    expect(banner?.querySelector('.opd-patient-avatar-box')?.textContent).toBe('JD');
+
+    // Secondary encounter context
+    expect(banner?.textContent).toContain('Female');
+    expect(banner?.textContent).toContain('Dentistry');
+    expect(banner?.textContent).toContain('New Consultation');
+    expect(banner?.textContent).toContain('Visit: OPD-DENT-001');
+
+    // Doctor name is removed from primary header
+    expect(banner?.querySelector('.opd-patient-meta-line')?.textContent).not.toContain('Dr. Anderson James');
+
+    // Tertiary action controls: exactly [Summary] and [Timeline] buttons
+    const actionButtons = Array.from(banner?.querySelectorAll('.opd-patient-banner-actions button') ?? []);
+    expect(actionButtons).toHaveLength(2);
+
+    const summaryBtn = banner?.querySelector('button[aria-controls="opd-patient-summary-panel"]');
+    expect(summaryBtn).not.toBeNull();
+    expect(summaryBtn?.textContent).toContain('Summary');
+
+    const timelineBtn = actionButtons.find((b) => b.textContent?.includes('Timeline'));
+    expect(timelineBtn).toBeDefined();
+    expect(timelineBtn?.getAttribute('title')).toBe('Patient Timeline & Encounter History');
+
+    // More menu (⋮) and View Patient Profile are completely REMOVED
+    expect(banner?.querySelector('.opd-hdr-more-btn')).toBeNull();
+    expect(banner?.querySelector('.opd-more-menu-container')).toBeNull();
+    expect(banner?.querySelector('.opd-more-menu-dropdown')).toBeNull();
+    expect(banner?.textContent).not.toContain('View Patient Profile');
+
+    // Clicking Timeline opens the Patient Timeline modal
+    expect(container.querySelector('[data-testid="opd-patient-timeline-modal"]')).toBeNull();
+    await act(async () => timelineBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    const timelineModal = container.querySelector('[data-testid="opd-patient-timeline-modal"]');
+    expect(timelineModal).not.toBeNull();
+    expect(timelineModal?.textContent).toContain('Patient Timeline & Encounter History');
+    expect(timelineModal?.textContent).toContain('Jane Doe');
   });
 });

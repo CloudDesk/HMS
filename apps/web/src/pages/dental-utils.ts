@@ -3,6 +3,7 @@ import type { DepartmentResponse } from '../api/departments';
 import type {
   DentitionType,
   OpdVisitResponse,
+  ToothFinding,
   ToothMobility,
   ToothStatus,
   ToothSurface,
@@ -430,4 +431,68 @@ export function parseDentalDiagnoses(assessment: string): Icd10Diagnosis[] {
     }
 
   return parsedDiagnoses;
+}
+
+/**
+ * Clinical threshold for pediatric primary/deciduous dentition (years).
+ * In clinical pedodontics, mixed dentition transitions to permanent dentition
+ * around age 12 when all deciduous molars have exfoliated and permanent second molars erupt.
+ */
+export const PEDIATRIC_DENTITION_AGE_THRESHOLD = 12;
+
+/**
+ * Calculates a patient's age in completed years from their date of birth.
+ * Returns null if the DOB is missing, invalid, or in the future.
+ */
+export function getPatientAgeInYears(dob: string | null | undefined): number | null {
+  if (!dob) return null;
+  const birthDate = new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  if (birthDate > today) return null;
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age < 0 ? null : age;
+}
+
+/**
+ * Deterministically determines the default dentition classification based on patient age.
+ * - Under 12 years: PRIMARY (Deciduous / Pediatric - 20 Teeth)
+ * - 12 years and older: PERMANENT (Adult - 32 Teeth)
+ * - Age unavailable / invalid: PERMANENT (safe default fallback)
+ */
+export function getDefaultDentitionForAge(ageInYears: number | null): DentitionType {
+  if (ageInYears === null) return 'PERMANENT';
+  return ageInYears < PEDIATRIC_DENTITION_AGE_THRESHOLD ? 'PRIMARY' : 'PERMANENT';
+}
+
+/**
+ * Resolves the initial dentition view for a dental examination.
+ * - If the examination is finalized/completed and has existing recorded teeth:
+ *   preserves the recorded teeth's dentition (e.g. all primary -> PRIMARY, all permanent -> PERMANENT).
+ * - Otherwise:
+ *   uses the patient's age-based dentition classification.
+ */
+export function resolveInitialDentition({
+  dateOfBirth,
+  existingTeeth,
+  isCompleted,
+}: {
+  dateOfBirth?: string | null;
+  existingTeeth?: ToothFinding[];
+  isCompleted?: boolean;
+}): DentitionType {
+  if (isCompleted && existingTeeth && existingTeeth.length > 0) {
+    const hasPrimary = existingTeeth.some((t) => isPrimaryFdiTooth(t.tooth_number));
+    const hasPermanent = existingTeeth.some((t) => isPermanentFdiTooth(t.tooth_number));
+    if (hasPrimary && !hasPermanent) return 'PRIMARY';
+    if (hasPermanent && !hasPrimary) return 'PERMANENT';
+  }
+
+  const ageInYears = getPatientAgeInYears(dateOfBirth);
+  return getDefaultDentitionForAge(ageInYears);
 }

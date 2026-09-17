@@ -1,0 +1,45 @@
+.slot { width: 100%; min-width: 0; }
+.controls { display: flex; align-items: center; justify-content: space-evenly; width: 100%; }
+.compact { flex-direction: column; justify-content: center; gap: 8px; }
+.controls .active { color: #7dd3fc; background: var(--sidebar-hover, #1e293b); box-shadow: inset 0 0 0 1px #38bdf8; }
+.footerAvatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary, #0046c0); color: white; font-size: .7rem; font-weight: 700; }
+.backdrop { position: fixed; inset: 0; z-index: 9998; background: rgb(15 23 42 / 38%); }
+.dialog { position: fixed; inset: 0; z-index: 9999; pointer-events: none; color: #f1f5f9; }
+.panel { position: absolute; display: flex; flex-direction: column; min-width: 0; border: 1px solid #334155; border-radius: 12px; background: var(--sidebar-bg, #0f172a); box-shadow: 0 8px 24px rgb(0 0 0 / 20%); overflow: hidden; pointer-events: auto; font-size: .85rem; }
+.floatingControls { position: absolute; pointer-events: auto; border-radius: 8px; background: var(--sidebar-bg, #0f172a); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; flex-shrink: 0; }
+.header h2 { margin: 0; color: #f8fafc; font-size: 1rem; }
+.panel button { font: inherit; color: #cbd5e1; border: 1px solid transparent; border-radius: 6px; background: transparent; cursor: pointer; padding: 6px 8px; }
+.panel button:hover:not(:disabled) { background: var(--sidebar-hover, #1e293b); color: #fff; }
+.panel button:disabled { opacity: .55; cursor: default; }
+.dialog button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: -2px; }
+.header button { flex-shrink: 0; font-size: 1.1rem; }
+.notificationToolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 0 16px 10px; border-bottom: 1px solid #334155; color: #94a3b8; font-size: .78rem; }
+.notificationToolbar button { color: #7dd3fc; }
+.scrollBody { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; overflow-wrap: anywhere; scrollbar-color: #475569 #0f172a; }
+.notification { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid #334155; }
+.notification:last-child { border-bottom: 0; }
+.notification > i { font-size: 1.2rem; margin-top: 2px; }
+.notificationCopy { flex: 1; min-width: 0; }
+.notificationCopy strong { color: #f1f5f9; font-size: .84rem; }
+.notificationCopy p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; margin: 4px 0; line-height: 1.5; color: #cbd5e1; font-size: .78rem; }
+.notificationCopy time, .muted { color: #94a3b8; font-size: .75rem; }
+.referral { color: #60a5fa; }
+.neutral { color: #cbd5e1; }
+.panel .unread { color: #60a5fa; font-size: .65rem; flex-shrink: 0; }
+.empty { display: grid; justify-items: center; gap: 8px; padding: 16px 8px; color: #94a3b8; text-align: center; }
+.empty i { font-size: 1.5rem; }
+.empty strong { color: #f1f5f9; }
+.identity { display: flex; align-items: center; gap: 12px; padding-bottom: 16px; }
+.identity > div { min-width: 0; display: grid; gap: 5px; }
+.identity strong { color: #f8fafc; }
+.identity span:not(.avatar):not(.sessionDot) { color: #cbd5e1; font-size: .78rem; }
+.avatar { position: relative; display: grid; place-items: center; flex: 0 0 40px; height: 40px; border-radius: 50%; background: var(--primary, #0046c0); color: white; font-weight: 700; }
+.sessionDot { position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; background: var(--c-green, #10b981); border: 2px solid var(--sidebar-bg, #0f172a); border-radius: 50%; }
+.panel .menuAction { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 8px; text-align: left; }
+.menuAction > span { flex: 1; }
+.panel .menuAction[aria-pressed="true"] { background: var(--sidebar-hover, #1e293b); color: #7dd3fc; }
+.signoutRow { border-top: 1px solid #334155; margin-top: 10px; padding-top: 8px; }
+.signoutRow .menuAction { color: #fca5a5; }
+@media (prefers-reduced-motion: no-preference) { .panel { animation: utility-appear .12s ease-out; } }
+@keyframes utility-appear { from { opacity: 0; } to { opacity: 1; } }

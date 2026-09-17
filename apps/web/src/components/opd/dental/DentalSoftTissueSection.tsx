@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { SoftTissueExamination } from '../../../api/opd';
 import { SOFT_TISSUE_OPTIONS } from '../../../pages/dental-utils';
 import styles from './DentalExamination.module.css';
@@ -14,6 +14,7 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
   onChange,
   disabled = false,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
   const current: SoftTissueExamination = softTissue ?? {
     gingiva_condition: null,
     calculus_plaque: null,
@@ -32,14 +33,40 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
 
   return (
     <div className={`${styles.card} ${styles.softTissueCard}`}>
-      <div className={styles.cardHeader}>
-        <h3 className={styles.cardTitle}>
-          <i className="ph ph-mask-happy" style={{ color: '#0d9488' }} />
-          General Oral &amp; Soft Tissue Examination
-        </h3>
+      <div
+        className={`${styles.cardHeader} ${styles.cardHeaderCollapsible}`}
+        onClick={() => setIsExpanded(!isExpanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+        aria-expanded={isExpanded}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className={styles.collapseToggleBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+            aria-label={isExpanded ? 'Collapse Soft Tissue Examination' : 'Expand Soft Tissue Examination'}
+          >
+            <i className={`ph ph-caret-down ${styles.collapseChevron} ${isExpanded ? styles.collapseChevronExpanded : ''}`} />
+          </button>
+          <h3 className={styles.cardTitle}>
+            <i className="ph ph-mask-happy" style={{ color: '#0d9488' }} />
+            General Oral &amp; Soft Tissue Examination
+          </h3>
+        </div>
       </div>
 
-      <div className={styles.cardContent}>
+      {isExpanded && (
+        <div className={styles.cardContent}>
         <div className={styles.formGrid3}>
           {/* Gingiva Condition */}
           <div className={styles.formGroup}>
@@ -150,6 +177,7 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

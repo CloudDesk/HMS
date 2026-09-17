@@ -1,4 +1,4 @@
-import React, { memo, useId, useState } from 'react';
+import React, { memo, useEffect, useId, useRef, useState } from 'react';
 import type { DentitionType, ToothFinding } from '../../../api/opd';
 import { getToothName, PERMANENT_QUADRANTS, PRIMARY_QUADRANTS } from '../../../pages/dental-utils';
 import styles from './DentalExamination.module.css';
@@ -8,6 +8,10 @@ interface OdontogramChartProps {
   selectedToothNumber: number | null;
   onSelectTooth: (toothNumber: number) => void;
   disabled?: boolean;
+  defaultDentition?: DentitionType;
+  dentition?: DentitionType;
+  onDentitionChange?: (dentition: DentitionType) => void;
+  patientAge?: number | null;
 }
 
 type Arch = 'upper' | 'lower';
@@ -187,9 +191,36 @@ const archTeeth = (dentition: DentitionType, arch: Arch): readonly number[] => {
     : [...PRIMARY_QUADRANTS.Q8_LOWER_RIGHT, ...PRIMARY_QUADRANTS.Q7_LOWER_LEFT];
 };
 
-export const OdontogramChart: React.FC<OdontogramChartProps> = ({ teeth, selectedToothNumber, onSelectTooth, disabled = false }) => {
-  const [dentitionView, setDentitionView] = useState<DentitionType>('PERMANENT');
+export const OdontogramChart: React.FC<OdontogramChartProps> = ({
+  teeth,
+  selectedToothNumber,
+  onSelectTooth,
+  disabled = false,
+  defaultDentition = 'PERMANENT',
+  dentition: controlledDentition,
+  onDentitionChange,
+  patientAge = null,
+}) => {
+  const [internalDentition, setInternalDentition] = useState<DentitionType>(defaultDentition);
+  const prevDefaultRef = useRef(defaultDentition);
+
+  useEffect(() => {
+    if (prevDefaultRef.current !== defaultDentition) {
+      prevDefaultRef.current = defaultDentition;
+      setInternalDentition(defaultDentition);
+    }
+  }, [defaultDentition]);
+
+  const dentitionView = controlledDentition ?? internalDentition;
   const primary = dentitionView === 'PRIMARY';
+
+  const handleSelectDentition = (type: DentitionType) => {
+    if (controlledDentition === undefined) {
+      setInternalDentition(type);
+    }
+    onDentitionChange?.(type);
+  };
+
   const renderArch = (arch: Arch) => {
     const numbers = archTeeth(dentitionView, arch);
     return <section className={styles.jawSection} aria-label={`${arch === 'upper' ? 'Maxillary upper' : 'Mandibular lower'} arch`}>
@@ -204,11 +235,69 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({ teeth, selecte
       </div>
     </section>;
   };
+  // Age-aware dentition control:
+  // - Adult (patientAge known, defaultDentition=PERMANENT): read-only indicator, no tab group.
+  // - Pediatric (patientAge known, defaultDentition=PRIMARY): two buttons; dentist may override to Permanent.
+  // - Unknown age (patientAge null): two buttons, existing behaviour.
+  const isAdultAutoMode = patientAge !== null && defaultDentition === 'PERMANENT';
+  const isPediatricAutoMode = patientAge !== null && defaultDentition === 'PRIMARY';
+
+  const renderDentitionControl = () => {
+    if (isAdultAutoMode) {
+      // Read-only indicator — not a tab group
+      return (
+        <div className={styles.dentitionIndicator} aria-label="Dentition type: Permanent Dentition (automatically determined)">
+          <i className="ph ph-user" aria-hidden="true" />
+          <span>Permanent Dentition (Adult — 32 Teeth)</span>
+          <span
+            className={styles.dentitionAutoBadge}
+            title={`Automatically selected based on patient age (${patientAge} years)`}
+          >
+            ✓ Auto ({patientAge}y)
+          </span>
+        </div>
+      );
+    }
+
+    // Pediatric auto mode: both buttons rendered; Primary is active; dentist may override.
+    // Unknown age: both buttons rendered; existing interactive tab group.
+    return (
+      <div className={styles.odontogramTabs} role="tablist" aria-label="Dentition type">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!primary}
+          className={`${styles.odontogramTabBtn} ${!primary ? styles.odontogramTabBtnActive : ''}`}
+          onClick={() => handleSelectDentition('PERMANENT')}
+        >
+          <i className="ph ph-user" aria-hidden="true" />
+          <span>Permanent Dentition (Adult — 32 Teeth)</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={primary}
+          className={`${styles.odontogramTabBtn} ${primary ? styles.odontogramTabBtnActive : ''}`}
+          onClick={() => handleSelectDentition('PRIMARY')}
+          title={isPediatricAutoMode ? `Recommended for patient age (${patientAge} yrs)` : undefined}
+        >
+          <i className="ph ph-baby" aria-hidden="true" />
+          <span>Primary / Deciduous (Pediatric — 20 Teeth)</span>
+          {isPediatricAutoMode && (
+            <span
+              className={styles.dentitionAutoBadge}
+              title={`Automatically selected based on patient age (${patientAge} years)`}
+            >
+              ✓ Auto ({patientAge}y)
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  };
+
   return <div className={styles.odontogramCard}>
-    <div className={styles.odontogramTabs} role="tablist" aria-label="Dentition type">
-      <button type="button" role="tab" aria-selected={!primary} className={`${styles.odontogramTabBtn} ${!primary ? styles.odontogramTabBtnActive : ''}`} onClick={() => setDentitionView('PERMANENT')}><i className="ph ph-user" aria-hidden="true" /> Permanent Dentition (Adult — 32 Teeth)</button>
-      <button type="button" role="tab" aria-selected={primary} className={`${styles.odontogramTabBtn} ${primary ? styles.odontogramTabBtnActive : ''}`} onClick={() => setDentitionView('PRIMARY')}><i className="ph ph-baby" aria-hidden="true" /> Primary / Deciduous (Pediatric — 20 Teeth)</button>
-    </div>
+    {renderDentitionControl()}
     <div className={styles.anatomicalChartViewport}><div className={styles.jawChart} data-testid="anatomical-odontogram">
       <p className={styles.patientPerspective}>Dental chart orientation · patient perspective</p>
       <p className={styles.chartSelectionHint}>Select a tooth to view its findings and choose affected surfaces below the chart.</p>

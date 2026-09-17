@@ -22,6 +22,10 @@ import {
   DENTAL_ALLERGIES,
   STANDARD_CONDITIONS,
   TOOTH_STATUSES,
+  getPatientAgeInYears,
+  PEDIATRIC_DENTITION_AGE_THRESHOLD,
+  getDefaultDentitionForAge,
+  resolveInitialDentition,
 } from './dental-utils';
 
 describe('dental-utils tests', () => {
@@ -360,6 +364,116 @@ describe('Dental Tooth Status and Clinical Conditions constants', () => {
       'Periapical Lesion',
     ]);
     expect(conditionLabels).not.toContain('Missing');
+  });
+});
+
+describe('Age-based dentition classification', () => {
+  describe('getPatientAgeInYears', () => {
+    it('calculates exact completed years correctly for adult and pediatric birthdates', () => {
+      const today = new Date();
+      // 36 years ago
+      const birth36 = new Date(today.getFullYear() - 36, today.getMonth(), today.getDate() - 1);
+      expect(getPatientAgeInYears(birth36.toISOString())).toBe(36);
+
+      // 7 years ago
+      const birth7 = new Date(today.getFullYear() - 7, today.getMonth(), today.getDate() - 1);
+      expect(getPatientAgeInYears(birth7.toISOString())).toBe(7);
+    });
+
+    it('accounts for upcoming birthday in the current calendar year', () => {
+      const today = new Date();
+      // Birthday is next month (has not occurred yet this year)
+      const futureMonthBirth = new Date(today.getFullYear() - 10, today.getMonth() + 1, 15);
+      expect(getPatientAgeInYears(futureMonthBirth.toISOString())).toBe(9);
+    });
+
+    it('returns null for missing, invalid, or future dates of birth without guessing', () => {
+      expect(getPatientAgeInYears(null)).toBeNull();
+      expect(getPatientAgeInYears(undefined)).toBeNull();
+      expect(getPatientAgeInYears('')).toBeNull();
+      expect(getPatientAgeInYears('invalid-date-string')).toBeNull();
+
+      // Future date
+      const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+      expect(getPatientAgeInYears(futureDate)).toBeNull();
+    });
+  });
+
+  describe('getDefaultDentitionForAge and clinical threshold', () => {
+    it('uses 12 years as the clinical pedodontic dentition threshold', () => {
+      expect(PEDIATRIC_DENTITION_AGE_THRESHOLD).toBe(12);
+    });
+
+    it('classifies age < 12 as PRIMARY (Pediatric / Deciduous)', () => {
+      expect(getDefaultDentitionForAge(0)).toBe('PRIMARY');
+      expect(getDefaultDentitionForAge(4)).toBe('PRIMARY');
+      expect(getDefaultDentitionForAge(7)).toBe('PRIMARY');
+      expect(getDefaultDentitionForAge(8)).toBe('PRIMARY');
+      expect(getDefaultDentitionForAge(11)).toBe('PRIMARY');
+    });
+
+    it('classifies age >= 12 as PERMANENT (Adult)', () => {
+      expect(getDefaultDentitionForAge(12)).toBe('PERMANENT');
+      expect(getDefaultDentitionForAge(13)).toBe('PERMANENT');
+      expect(getDefaultDentitionForAge(18)).toBe('PERMANENT');
+      expect(getDefaultDentitionForAge(36)).toBe('PERMANENT');
+      expect(getDefaultDentitionForAge(75)).toBe('PERMANENT');
+    });
+
+    it('defaults safely to PERMANENT when age is null/unavailable without guessing', () => {
+      expect(getDefaultDentitionForAge(null)).toBe('PERMANENT');
+    });
+  });
+
+  describe('resolveInitialDentition', () => {
+    it('resolves age-based default when no completed teeth exist', () => {
+      const today = new Date();
+      const birth36 = new Date(today.getFullYear() - 36, today.getMonth(), today.getDate()).toISOString();
+      expect(resolveInitialDentition({ dateOfBirth: birth36 })).toBe('PERMANENT');
+
+      const birth7 = new Date(today.getFullYear() - 7, today.getMonth(), today.getDate()).toISOString();
+      expect(resolveInitialDentition({ dateOfBirth: birth7 })).toBe('PRIMARY');
+    });
+
+    it('preserves existing recorded primary teeth when reopening a completed exam', () => {
+      const today = new Date();
+      const birth36 = new Date(today.getFullYear() - 36, today.getMonth(), today.getDate()).toISOString();
+      // Patient is 36, but completed exam has primary teeth recorded (e.g. retained deciduous tooth 55)
+      const result = resolveInitialDentition({
+        dateOfBirth: birth36,
+        isCompleted: true,
+        existingTeeth: [
+          {
+            tooth_number: 55,
+            dentition: 'PRIMARY',
+            status: 'PRESENT',
+            conditions: ['CARIOUS'],
+            surfaces: ['OCCLUSAL'],
+          },
+        ],
+      });
+      expect(result).toBe('PRIMARY');
+    });
+
+    it('preserves existing recorded permanent teeth when reopening a completed exam', () => {
+      const today = new Date();
+      const birth8 = new Date(today.getFullYear() - 8, today.getMonth(), today.getDate()).toISOString();
+      // Patient is 8, but completed exam recorded permanent first molars (tooth 16)
+      const result = resolveInitialDentition({
+        dateOfBirth: birth8,
+        isCompleted: true,
+        existingTeeth: [
+          {
+            tooth_number: 16,
+            dentition: 'PERMANENT',
+            status: 'PRESENT',
+            conditions: ['FILLED'],
+            surfaces: ['OCCLUSAL'],
+          },
+        ],
+      });
+      expect(result).toBe('PERMANENT');
+    });
   });
 });
 

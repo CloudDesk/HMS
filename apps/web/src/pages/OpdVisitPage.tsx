@@ -28,6 +28,7 @@ import {
   OpdSummaryPanel,
   OpdClinicalVitalsModal,
   OpdDentalExaminationTab,
+  OpdPatientTimelineModal,
 } from '../components/opd';
 import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
 import { useActiveBranch } from '../context/BranchContext';
@@ -104,11 +105,11 @@ const WORKSPACE_TABS = [
 
 const DENTAL_WORKSPACE_TABS = [
   { id: '1', label: '1 Consultation', name: 'Consultation' },
-  { id: 'dental', label: 'Dental Examination', name: 'Dental Examination' },
-  { id: '2', label: '2 Diagnosis', name: 'Diagnosis' },
-  { id: '3', label: '3 Prescription', name: 'Prescription' },
-  { id: '4', label: '4 Referral', name: 'Referral' },
-  { id: '5', label: '5 Follow-up', name: 'Follow-up' },
+  { id: 'dental', label: '2 Dental Examination', name: 'Dental Examination' },
+  { id: '2', label: '3 Diagnosis', name: 'Diagnosis' },
+  { id: '3', label: '4 Prescription', name: 'Prescription' },
+  { id: '4', label: '5 Referral', name: 'Referral' },
+  { id: '5', label: '6 Follow-up', name: 'Follow-up' },
 ] as const;
 
 const emptyVitalsForm: VitalsFormState = {
@@ -187,9 +188,7 @@ export function OpdVisitPage() {
   const timezone = useTimezone();
   const feature = useOpdVisitFeature();
   const {
-    activeVisitId,
     activeTab,
-    recentVisits,
     visit,
     patient,
     vitals,
@@ -227,6 +226,8 @@ export function OpdVisitPage() {
 
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
+  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
@@ -1274,6 +1275,16 @@ export function OpdVisitPage() {
         </div>
         <div className="opd-page-actions">
           <button
+            className="doc-btn opd-refresh-btn"
+            disabled={loading}
+            onClick={() => void feature.actions.refetchVisit()}
+            title="Refresh patient and visit data"
+            aria-label="Refresh patient and visit data"
+            type="button"
+          >
+            <i className={`ph ph-arrow-clockwise${loading ? ' ph-spin' : ''}`} aria-hidden="true" />
+          </button>
+          <button
             className="doc-btn primary"
             disabled={!visit || visit.status !== 'COMPLETED' || updating === 'call-next'}
             onClick={() => void handleCallNextPatient()}
@@ -1281,32 +1292,7 @@ export function OpdVisitPage() {
             type="button"
           >
             <i className="ph ph-megaphone" aria-hidden="true" />
-            {updating === 'call-next' ? 'Calling...' : 'Call Next Patient'}
-          </button>
-          {recentVisits.length > 1 ? (
-            <label className="opd-visit-selector" htmlFor="active-visit-select">
-              <span>Patient Visit:</span>
-              <select
-                id="active-visit-select"
-                onChange={(e) => selectVisit(e.target.value)}
-                value={activeVisitId}
-              >
-                {recentVisits.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.patient_name} ({v.visit_number}) - {opdVisitStatusLabels[v.status]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          <button
-            className="doc-btn"
-            disabled={loading}
-            onClick={() => void feature.actions.refetchVisit()}
-            type="button"
-          >
-            <i className="ph ph-arrow-clockwise" aria-hidden="true" />
-            Refresh
+            <span>{updating === 'call-next' ? 'Calling...' : 'Call Next Patient'}</span>
           </button>
         </div>
       </section>
@@ -1332,8 +1318,8 @@ export function OpdVisitPage() {
         </section>
       ) : (
         <>
-          {/* Patient Hero Card (Matching Image 1) */}
-          <section className="doc-card opd-patient-banner">
+          {/* Patient Hero Card — Compact Clinician-First Context */}
+          <section className="doc-card opd-patient-banner opd-patient-banner--compact">
             <div className="opd-patient-avatar-box">
               <span>{patientInitials(visit.patient_name)}</span>
             </div>
@@ -1346,47 +1332,35 @@ export function OpdVisitPage() {
                 </span>
               </div>
               <div className="opd-patient-meta-line">
-                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
-                <span className="divider">|</span>
+                <span>{patient ? `${patient.gender.charAt(0) + patient.gender.slice(1).toLowerCase()} · ${calculateAge(patient.date_of_birth)}` : 'Gender/Age N/A'}</span>
+                <span className="meta-sep" aria-hidden="true">·</span>
+                <span>{visit.doctor_specialization || 'Dental'}</span>
+                <span className="meta-sep" aria-hidden="true">·</span>
                 <span>{opdVisitTypeLabels[visit.visit_type]}</span>
-                <span className="divider">|</span>
-                <span>{visit.doctor_specialization}</span>
-                <span className="divider">|</span>
-                <span>{visit.doctor_name}</span>
-                <span className="divider">|</span>
-                <span>10:00 AM</span>
-                <span className="divider">|</span>
-                <span>{visit.visit_number}</span>
+                <span className="meta-sep" aria-hidden="true">·</span>
+                <span className="opd-visit-number-badge">Visit: {visit.visit_number}</span>
               </div>
             </div>
             <div className="opd-patient-banner-actions">
               <button
                 aria-controls="opd-patient-summary-panel"
                 aria-expanded={summaryPanelOpen}
-                className={`doc-btn ${summaryPanelOpen ? 'active' : ''}`}
+                className={`doc-btn opd-hdr-btn ${summaryPanelOpen ? 'active' : ''}`}
                 onClick={() => setSummaryPanelOpen((open) => !open)}
+                title={summaryPanelOpen ? 'Hide patient summary' : 'Show patient summary'}
                 type="button"
               >
                 <i className="ph ph-sidebar-simple" aria-hidden="true" />
-                {summaryPanelOpen ? 'Hide Patient Summary' : 'Patient Summary'}
+                <span>Summary</span>
               </button>
               <button
-                className="doc-btn"
-                onClick={() => navigate(`/patients/profile?id=${visit.patient_id}`)}
-                type="button"
-              >
-                <i className="ph ph-user" aria-hidden="true" />
-                View Patient Profile
-              </button>
-              <button
-                className="doc-btn"
-                onClick={() =>
-                  navigate(`/patients/profile?id=${visit.patient_id}&tab=${encodeURIComponent('EMR Timeline')}`)
-                }
+                className="doc-btn opd-hdr-btn"
+                onClick={() => setTimelineModalOpen(true)}
+                title="Patient Timeline & Encounter History"
                 type="button"
               >
                 <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
-                Patient Timeline
+                <span>Timeline</span>
               </button>
             </div>
           </section>
@@ -1464,6 +1438,8 @@ export function OpdVisitPage() {
                       canEdit={!isVisitCompleted && feature.state.canEditConsultation}
                       showToast={showToast}
                       consultation={consultation}
+                      patient={patient}
+                      patientDateOfBirth={patient?.date_of_birth}
                       departmentServices={dentalProcedureServices}
                       renderImaging={renderDentalImaging}
                       renderLab={renderDentalLab}
@@ -1694,6 +1670,17 @@ export function OpdVisitPage() {
         visit={visit}
         vitalsForm={vitalsForm}
       />
+
+      {/* Patient Timeline Contextual Modal (query only when open) */}
+      {visit && timelineModalOpen ? (
+        <OpdPatientTimelineModal
+          onClose={() => setTimelineModalOpen(false)}
+          open={timelineModalOpen}
+          patientId={visit.patient_id}
+          patientName={visit.patient_name}
+          patientNumber={visit.patient_number}
+        />
+      ) : null}
 
       <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </div>

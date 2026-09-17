@@ -1,7 +1,4 @@
 import { NavLink } from './NavLink';
-import { BranchSelector } from './BranchSelector';
-import { UserMenu } from './UserMenu';
-import { NotificationsMenu } from './NotificationsMenu';
 
 type TopHeaderProps = {
   title: string;
@@ -9,7 +6,14 @@ type TopHeaderProps = {
   onOpenMobileSidebar: () => void;
 };
 
-export function TopHeader({ title, breadcrumbs = ['Home', title], onOpenMobileSidebar }: TopHeaderProps) {
+/**
+ * @deprecated The global top header has been decommissioned across the entire application shell.
+ * Global application controls (Branch, Notifications, User profile, Sign out) are consolidated in the
+ * compact sidebar footer, and pages render their own contextual titles to eliminate wasted vertical space.
+ */
+export function TopHeader({ title, breadcrumbs, onOpenMobileSidebar }: TopHeaderProps) {
+  const effectiveBreadcrumbs = breadcrumbs ?? ['Home', title];
+
   return (
     <header className="top-header">
       <div className="header-left">
@@ -18,30 +22,28 @@ export function TopHeader({ title, breadcrumbs = ['Home', title], onOpenMobileSi
         </button>
         <div className="header-title-area">
           <h1>{title}</h1>
-          <div className="breadcrumbs">
-            {breadcrumbs.map((crumb, index) => {
-              const isLast = index === breadcrumbs.length - 1;
+          {effectiveBreadcrumbs.length > 0 && (
+            <div className="breadcrumbs">
+              {effectiveBreadcrumbs.map((crumb, index) => {
+                const isLast = index === effectiveBreadcrumbs.length - 1;
 
-              return (
-                <span className={isLast ? 'current' : undefined} key={`${crumb}-${index}`}>
-                  {index > 0 ? <i className="ph ph-caret-right" aria-hidden="true" /> : null}
-                  {isLast ? (
-                    <span>{crumb}</span>
-                  ) : (
-                    <NavLink href="/dashboard">{crumb}</NavLink>
-                  )}
-                </span>
-              );
-            })}
-          </div>
+                return (
+                  <span className={isLast ? 'current' : undefined} key={`${crumb}-${index}`}>
+                    {index > 0 ? <i className="ph ph-caret-right" aria-hidden="true" /> : null}
+                    {isLast ? (
+                      <span>{crumb}</span>
+                    ) : (
+                      <NavLink href="/dashboard">{crumb}</NavLink>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="header-right">
-        <BranchSelector />
-        <NotificationsMenu />
-        <UserMenu />
-      </div>
+      <div className="header-right" />
     </header>
   );
 }

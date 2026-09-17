@@ -23,3 +23,4 @@ export { ToothSurfaceSelector } from './dental/ToothSurfaceSelector';
 export { DentalHistorySection } from './dental/DentalHistorySection';
 export { DentalSoftTissueSection } from './dental/DentalSoftTissueSection';
 export { DentalTreatmentPlanSection } from './dental/DentalTreatmentPlanSection';
+export { OpdPatientTimelineModal } from './OpdPatientTimelineModal';

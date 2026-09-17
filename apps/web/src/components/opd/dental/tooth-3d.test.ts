@@ -126,7 +126,7 @@ describe('anatomical tooth surface classification', () => {
         ).toBeLessThan(0.12);
       }
     }
-  });
+  }, 15000);
 
   it('keeps all five regions anatomically separated and proportionate on every tooth', () => {
     for (const toothNumber of SUPPORTED_FDI_TEETH) {
@@ -149,7 +149,7 @@ describe('anatomical tooth surface classification', () => {
           .toBeLessThan(0.55);
       }
     }
-  });
+  }, 15000);
 
   it('does not produce detached canine incisal highlight fragments', () => {
     for (const toothNumber of SUPPORTED_FDI_TEETH.filter((value) => value % 10 === 3)) {

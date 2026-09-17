@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/useAuth';
 import { useHospitalSettings } from '../../hooks/settings/useSettings';
 import { NavLink } from './NavLink';
 import { SidebarNavGroup } from './SidebarNavGroup';
+import { SidebarUtilityBar } from './SidebarUtilityBar';
 
 type SidebarProps = {
   activeKey?: string;
@@ -64,6 +65,10 @@ export function Sidebar({
           />
         ))}
       </nav>
+
+      <div className="sidebar-footer">
+        <SidebarUtilityBar />
+      </div>
     </aside>
   );
 }

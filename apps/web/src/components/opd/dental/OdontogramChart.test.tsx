@@ -126,4 +126,72 @@ describe('anatomical Dental odontogram', () => {
     expect(tooth31?.tagName).toBe('BUTTON');
     expect(tooth31?.getAttribute('aria-label')).toContain('Tooth 31');
   });
+
+  it('renders pediatric dentition (20 teeth) and auto badge when defaultDentition is PRIMARY with patientAge', async () => {
+    await act(async () => {
+      root.render(
+        <OdontogramChart
+          teeth={findings}
+          selectedToothNumber={null}
+          onSelectTooth={() => {}}
+          defaultDentition="PRIMARY"
+          patientAge={7}
+        />,
+      );
+    });
+
+    const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
+    expect(controls).toHaveLength(20);
+    expect(container.textContent).toContain('✓ Auto (7y)');
+    const primaryTab = Array.from(container.querySelectorAll('button')).find((item) =>
+      item.textContent?.includes('Primary / Deciduous'),
+    );
+    expect(primaryTab?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('renders adult dentition (32 teeth) and auto badge when defaultDentition is PERMANENT with patientAge', async () => {
+    await act(async () => {
+      root.render(
+        <OdontogramChart
+          teeth={findings}
+          selectedToothNumber={null}
+          onSelectTooth={() => {}}
+          defaultDentition="PERMANENT"
+          patientAge={36}
+        />,
+      );
+    });
+
+    const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
+    expect(controls).toHaveLength(32);
+    expect(container.textContent).toContain('✓ Auto (36y)');
+    // Adult patients with known age show a read-only indicator (not a tab button)
+    const indicator = container.querySelector('[aria-label="Dentition type: Permanent Dentition (automatically determined)"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator?.textContent).toContain('Permanent Dentition');
+    // No selectable tab buttons should be rendered for adults
+    const adultTabBtn = Array.from(container.querySelectorAll('button')).find((item) =>
+      item.getAttribute('role') === 'tab' && item.textContent?.includes('Permanent Dentition'),
+    );
+    expect(adultTabBtn).toBeUndefined();
+  });
+
+  it('does not display auto badge when patientAge is unavailable/null', async () => {
+    await act(async () => {
+      root.render(
+        <OdontogramChart
+          teeth={findings}
+          selectedToothNumber={null}
+          onSelectTooth={() => {}}
+          defaultDentition="PERMANENT"
+          patientAge={null}
+        />,
+      );
+    });
+
+    expect(container.textContent).not.toContain('✓ Auto');
+    const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
+    expect(controls).toHaveLength(32);
+  });
 });
+

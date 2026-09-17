@@ -28,6 +28,7 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
   consultationHpi,
   consultationAssessment,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
   const [customHabit, setCustomHabit] = useState('');
   const [customAlert, setCustomAlert] = useState('');
 
@@ -96,6 +97,10 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
   const predefinedAlerts = new Set<string>(COMMON_MEDICAL_ALERTS);
   const customAlerts = alertsList.filter((alert: string) => !predefinedAlerts.has(alert));
 
+  const isAllergyAlert = (alert: string) => /allerg/i.test(alert);
+  const allergyAlerts = alertsList.filter(isAllergyAlert);
+  const nonAllergyAlerts = alertsList.filter((a) => !isAllergyAlert(a));
+
   // Show consultation context if general CC, HPI, or Assessment exists
   const hasConsultationContext = Boolean(
     consultationChiefComplaint?.trim() ||
@@ -105,20 +110,61 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
 
   return (
     <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <h3 className={styles.cardTitle}>
-          <i className="ph ph-heartbeat" style={{ color: '#2563eb' }} />
-          Dental History &amp; Medical Risk Assessment
-        </h3>
+      <div
+        className={`${styles.cardHeader} ${styles.cardHeaderCollapsible}`}
+        style={{ padding: '10px 16px' }}
+        onClick={() => {
+          if (disabled) return;
+          setIsExpanded(!isExpanded);
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+        aria-expanded={isExpanded}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className={styles.collapseToggleBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (disabled) return;
+              setIsExpanded(!isExpanded);
+            }}
+            disabled={disabled}
+            aria-label={isExpanded ? 'Collapse Dental History' : 'Expand Dental History'}
+          >
+            <i className={`ph ph-caret-down ${styles.collapseChevron} ${isExpanded ? styles.collapseChevronExpanded : ''}`} />
+          </button>
+          <h3 className={styles.cardTitle} style={{ fontSize: '0.9rem' }}>
+            <i className="ph ph-heartbeat" style={{ color: '#2563eb' }} />
+            Dental History &amp; Medical Risk Assessment
+          </h3>
+        </div>
         {alertsList.length > 0 && (
-          <span className={styles.statusBadgeDraft} style={{ background: '#fee2e2', color: '#991b1b', borderColor: '#fca5a5' }}>
-            <i className="ph ph-warning" />
-            {alertsList.length} Medical Alert{alertsList.length > 1 ? 's' : ''} Active
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {allergyAlerts.length > 0 && (
+              <span className={styles.activeAllergyBadge} title="Active allergies recorded">
+                <i className="ph ph-warning-diamond-fill" />
+                {allergyAlerts.length} Allergy Alert{allergyAlerts.length > 1 ? 's' : ''}
+              </span>
+            )}
+            <span className={styles.statusBadgeDraft} style={{ background: '#fee2e2', color: '#991b1b', borderColor: '#fca5a5' }}>
+              <i className="ph ph-warning" />
+              {alertsList.length} Medical Alert{alertsList.length > 1 ? 's' : ''} Active
+            </span>
+          </div>
         )}
       </div>
 
-      <div className={styles.cardContent}>
+      {isExpanded && (
+        <div className={styles.cardContent} style={{ padding: '14px 16px' }}>
         {/* Critical Alerts Banner */}
         {alertsList.length > 0 && (
           <div className={styles.alertBanner}>
@@ -126,7 +172,13 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
             <div>
               <div className={styles.alertBannerTitle}>Active Medical Alerts / Precautions Required:</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                {alertsList.map((a: string) => (
+                {allergyAlerts.map((a: string) => (
+                  <span key={a} className={styles.activeAllergyBadge}>
+                    <i className="ph ph-warning-diamond-fill" />
+                    {a}
+                  </span>
+                ))}
+                {nonAllergyAlerts.map((a: string) => (
                   <span
                     key={a}
                     style={{
@@ -187,7 +239,8 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
               value={current.chief_complaint ?? ''}
               onChange={(e) => updateField('chief_complaint', e.target.value.trim() ? e.target.value : null)}
               disabled={disabled}
-              rows={3}
+              rows={2}
+              style={{ minHeight: '56px' }}
             />
           </div>
 
@@ -265,10 +318,18 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
         </div>
 
         {/* Habits Row */}
-        <div style={{ marginTop: '16px' }}>
-          <label className={styles.label}>
-            <i className="ph ph-activity" /> Dental &amp; Oral Habits
-          </label>
+        <div style={{ marginTop: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <label className={styles.label}>
+              <i className="ph ph-activity" /> Dental &amp; Oral Habits
+              {habitsList.length === 0 && (
+                <span style={{ fontWeight: 400, color: '#64748b', marginLeft: '6px' }}>&mdash; None recorded</span>
+              )}
+            </label>
+            {habitsList.length > 0 && disabled && (
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{habitsList.length} recorded</span>
+            )}
+          </div>
           <div className={styles.chipContainer}>
             {COMMON_DENTAL_HABITS.map((habit: string) => {
               const selected = habitsList.includes(habit);
@@ -335,109 +396,139 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           )}
         </div>
 
-        {/* Medical Risk Alerts Row */}
-        <div style={{ marginTop: '18px' }}>
-          <label className={styles.label} style={{ color: '#991b1b' }}>
-            <i className="ph ph-shield-warning" /> Medical Alerts &amp; Systemic Conditions (Impacts Treatment &amp; Anesthesia)
+        {/* Medical Risk Alerts Row: Progressive Disclosure */}
+        <div style={{ marginTop: '14px' }}>
+          <label className={styles.label} style={{ color: alertsList.length > 0 ? '#991b1b' : '#334155' }}>
+            <i className={alertsList.length > 0 ? "ph ph-warning-octagon" : "ph ph-shield-check"} style={{ color: alertsList.length > 0 ? '#dc2626' : '#2563eb' }} />
+            Medical Alerts &amp; Systemic Conditions (Impacts Treatment &amp; Anesthesia)
+            {alertsList.length === 0 && (
+              <span style={{ fontWeight: 400, color: '#64748b', marginLeft: '6px' }}>&mdash; No active dental treatment alerts (None recorded)</span>
+            )}
           </label>
 
-          {COMMON_MEDICAL_ALERTS_GROUPED.map((group) => {
-            let iconName = 'ph-heartbeat';
-            let iconColor = '#2563eb';
-            if (group.category === 'Bleeding / Medication Risks') {
-              iconName = 'ph-drop';
-              iconColor = '#dc2626';
-            } else if (group.category === 'Allergies') {
-              iconName = 'ph-warning-octagon';
-              iconColor = '#d97706';
-            }
+          <details
+            className={styles.progressiveDisclosure}
+            open={!disabled || alertsList.length > 0}
+          >
+            <summary className={styles.disclosureSummary}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <i className="ph ph-list-checks" style={{ color: alertsList.length > 0 ? '#dc2626' : '#2563eb' }} />
+                <span>Medical Alerts Checklist {alertsList.length > 0 ? `(${alertsList.length} Active)` : ''}</span>
+              </span>
+              <span style={{ fontSize: '0.725rem', color: '#64748b' }}>
+                {disabled ? 'Review category checklist' : 'Toggle category checklist'}
+              </span>
+            </summary>
 
-            return (
-              <div key={group.category} className={styles.alertCategoryGroup}>
-                <div className={styles.alertCategoryTitle}>
-                  <i className={`ph ${iconName}`} style={{ color: iconColor, fontSize: '0.85rem' }} />
-                  {group.category}
-                </div>
-                <div className={styles.chipContainer}>
-                  {group.alerts.map((alert: string) => {
-                    const selected = alertsList.includes(alert);
-                    return (
-                      <button
-                        key={alert}
-                        type="button"
-                        disabled={disabled}
-                        className={`${styles.chip} ${selected ? styles.chipAlertSelected : ''} ${disabled ? styles.chipDisabled : ''}`}
-                        onClick={() => toggleMedicalAlert(alert)}
-                      >
-                        {selected && <i className="ph ph-warning-circle" />}
-                        {alert}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+            <div className={styles.disclosureContent}>
+              {COMMON_MEDICAL_ALERTS_GROUPED.map((group) => {
+                let iconName = 'ph-heartbeat';
+                let iconColor = '#2563eb';
+                if (group.category === 'Bleeding / Medication Risks') {
+                  iconName = 'ph-drop';
+                  iconColor = '#dc2626';
+                } else if (group.category === 'Allergies') {
+                  iconName = 'ph-warning-octagon';
+                  iconColor = '#d97706';
+                }
 
-          {customAlerts.length > 0 && (
-            <div className={styles.alertCategoryGroup}>
-              <div className={styles.alertCategoryTitle}>
-                <i className="ph ph-tag" style={{ color: '#64748b', fontSize: '0.85rem' }} />
-                Other / Custom Alerts
-              </div>
-              <div className={styles.chipContainer}>
-                {customAlerts.map((alert: string) => (
+                return (
+                  <div key={group.category} className={styles.alertCategoryGroup}>
+                    <div className={styles.alertCategoryTitle}>
+                      <i className={`ph ${iconName}`} style={{ color: iconColor, fontSize: '0.85rem' }} />
+                      {group.category}
+                    </div>
+                    <div className={styles.chipContainer}>
+                      {group.alerts.map((alert: string) => {
+                        const selected = alertsList.includes(alert);
+                        const isAllergy = group.category === 'Allergies' || isAllergyAlert(alert);
+                        const selectedClass = isAllergy ? styles.chipAllergySelected : styles.chipAlertSelected;
+                        return (
+                          <button
+                            key={alert}
+                            type="button"
+                            disabled={disabled}
+                            className={`${styles.chip} ${selected ? selectedClass : ''} ${disabled ? styles.chipDisabled : ''}`}
+                            onClick={() => toggleMedicalAlert(alert)}
+                          >
+                            {selected && (
+                              <i className={isAllergy ? 'ph ph-warning-diamond-fill' : 'ph ph-warning-circle'} />
+                            )}
+                            {alert}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {customAlerts.length > 0 && (
+                <div className={styles.alertCategoryGroup}>
+                  <div className={styles.alertCategoryTitle}>
+                    <i className="ph ph-tag" style={{ color: '#64748b', fontSize: '0.85rem' }} />
+                    Other / Custom Alerts
+                  </div>
+                  <div className={styles.chipContainer}>
+                    {customAlerts.map((alert: string) => {
+                      const isAllergy = isAllergyAlert(alert);
+                      const selectedClass = isAllergy ? styles.chipAllergySelected : styles.chipAlertSelected;
+                      return (
+                        <button
+                          key={alert}
+                          type="button"
+                          disabled={disabled}
+                          className={`${styles.chip} ${selectedClass} ${disabled ? styles.chipDisabled : ''}`}
+                          onClick={() => toggleMedicalAlert(alert)}
+                          title="Click to remove alert"
+                        >
+                          <i className={isAllergy ? 'ph ph-warning-diamond-fill' : 'ph ph-warning-circle'} />
+                          {alert}
+                          {!disabled && (
+                            <i
+                              className="ph ph-x"
+                              style={{ fontSize: '0.7rem', marginLeft: '3px', opacity: 0.7 }}
+                              aria-hidden="true"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {!disabled && (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', maxWidth: '380px' }}>
+                  <input
+                    type="text"
+                    placeholder="Add other medical alert/allergy..."
+                    className={styles.input}
+                    style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                    value={customAlert}
+                    onChange={(e) => setCustomAlert(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomAlert();
+                      }
+                    }}
+                  />
                   <button
-                    key={alert}
                     type="button"
-                    disabled={disabled}
-                    className={`${styles.chip} ${styles.chipAlertSelected} ${disabled ? styles.chipDisabled : ''}`}
-                    onClick={() => toggleMedicalAlert(alert)}
-                    title="Click to remove alert"
+                    className={styles.btnSecondary}
+                    style={{ padding: '4px 12px', fontSize: '0.775rem', color: '#991b1b', borderColor: '#fca5a5' }}
+                    onClick={addCustomAlert}
                   >
-                    <i className="ph ph-warning-circle" />
-                    {alert}
-                    {!disabled && (
-                      <i
-                        className="ph ph-x"
-                        style={{ fontSize: '0.7rem', marginLeft: '3px', opacity: 0.7 }}
-                        aria-hidden="true"
-                      />
-                    )}
+                    Add Alert
                   </button>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
-          )}
-
-          {!disabled && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', maxWidth: '380px' }}>
-              <input
-                type="text"
-                placeholder="Add other medical alert/allergy..."
-                className={styles.input}
-                style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                value={customAlert}
-                onChange={(e) => setCustomAlert(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addCustomAlert();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                style={{ padding: '4px 12px', fontSize: '0.775rem', color: '#991b1b', borderColor: '#fca5a5' }}
-                onClick={addCustomAlert}
-              >
-                Add Alert
-              </button>
-            </div>
-          )}
+          </details>
         </div>
       </div>
+      )}
     </div>
   );
 };

@@ -231,7 +231,7 @@ export function AppRouter() {
     content = <OpdDashboardPage />;
   } else if (pathname === '/opd/consultation') {
     title = 'Consultation Workspace';
-    breadcrumbs = ['Home', 'OPD', 'Consultation'];
+    breadcrumbs = [];
     content = <OpdVisitPage />;
   } else if (pathname === '/opd/queue') {
     title = 'OPD Waiting Queue';
@@ -239,7 +239,7 @@ export function AppRouter() {
     content = <OpdQueuePage />;
   } else if (pathname === '/opd/visit') {
     title = 'Consultation Workspace';
-    breadcrumbs = ['Home', 'OPD', 'Consultation Workspace'];
+    breadcrumbs = [];
     content = <OpdVisitPage />;
   } else if (pathname === '/administration/users') {
     title = 'User Management';
@@ -356,7 +356,7 @@ export function AppRouter() {
 
   return (
     <ProtectedRoute>
-      <DashboardLayout title={title} breadcrumbs={breadcrumbs}>
+      <DashboardLayout breadcrumbs={breadcrumbs} title={title}>
         <Suspense fallback={<LoadingState title="Loading page" message="Preparing the requested HMS workspace." />}>
           {content}
         </Suspense>

@@ -169,11 +169,35 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
     onUpdateFinding({ ...finding, furcation_involvement: val.trim() || null });
   };
 
+  const isAbnormal =
+    finding.status === 'MISSING' ||
+    finding.status === 'EXTRACTED' ||
+    (finding.conditions.length > 0 && !finding.conditions.every((c) => c === 'HEALTHY')) ||
+    (finding.pocket_depth_mm != null && finding.pocket_depth_mm > 3) ||
+    (finding.mobility != null && finding.mobility !== 'NONE') ||
+    Boolean(finding.furcation_involvement);
+
+  const abnormalConditionLabels = finding.conditions
+    .filter((c) => c !== 'HEALTHY')
+    .map((c) => STANDARD_CONDITIONS.find((sc) => sc.id === c)?.label ?? c);
+
   return (
     <div className={styles.panelContainer}>
       <div className={styles.panelHeader}>
         <div>
-          <div className={styles.panelToothBadge}>FDI #{selectedToothNumber}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span className={styles.panelToothBadge}>FDI #{selectedToothNumber}</span>
+            {isAbnormal ? (
+              <span className={styles.panelAbnormalBadge}>
+                <i className="ph ph-warning-circle-fill" />
+                {abnormalConditionLabels[0] ?? (finding.status === 'MISSING' ? 'Missing' : 'Abnormal Finding')}
+              </span>
+            ) : (
+              <span className={styles.panelHealthyBadge}>
+                <i className="ph ph-check-circle" /> Healthy
+              </span>
+            )}
+          </div>
           <div className={styles.panelToothName}>{toothName}</div>
         </div>
         {!disabled && (
@@ -189,148 +213,159 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         )}
       </div>
 
-      {/* Tooth Status */}
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Tooth Status</label>
-        <select
-          className={styles.select}
-          value={finding.status}
-          onChange={(e) => handleStatusChange(e.target.value as ToothStatus)}
-          disabled={disabled}
-        >
-          {TOOTH_STATUSES.map((st: (typeof TOOTH_STATUSES)[number]) => (
-            <option key={st.value} value={st.value}>
-              {st.label}
-            </option>
-          ))}
-          {!TOOTH_STATUSES.some((st) => st.value === finding.status) && (
-            <option value={finding.status}>{finding.status}</option>
-          )}
-        </select>
-      </div>
+      {/* Subsection: STATUS & CONDITION */}
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionHeader}>Status &amp; Condition</div>
+        <div className={styles.formGroup}>
+          <label className={styles.label}>Tooth Status</label>
+          <select
+            className={styles.select}
+            value={finding.status}
+            onChange={(e) => handleStatusChange(e.target.value as ToothStatus)}
+            disabled={disabled}
+          >
+            {TOOTH_STATUSES.map((st: (typeof TOOTH_STATUSES)[number]) => (
+              <option key={st.value} value={st.value}>
+                {st.label}
+              </option>
+            ))}
+            {!TOOTH_STATUSES.some((st) => st.value === finding.status) && (
+              <option value={finding.status}>{finding.status}</option>
+            )}
+          </select>
+        </div>
 
-      {/* Clinical Conditions */}
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Conditions & Findings</label>
-        {finding.status === 'MISSING' && (
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginBottom: '4px' }}>
-            Tooth is marked as Missing. Set Tooth Status to &ldquo;Present&rdquo; to record clinical conditions.
+        <div className={styles.formGroup}>
+          <label className={styles.label}>Conditions &amp; Findings</label>
+          {finding.status === 'MISSING' && (
+            <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginBottom: '4px' }}>
+              Tooth is marked as Missing. Set Tooth Status to &ldquo;Present&rdquo; to record clinical conditions.
+            </div>
+          )}
+          <div className={styles.conditionChipsGrid}>
+            {STANDARD_CONDITIONS.map((cond: (typeof STANDARD_CONDITIONS)[number]) => {
+              const isSelected = finding.conditions.includes(cond.id);
+              const isConditionDisabled = disabled || finding.status === 'MISSING';
+              return (
+                <button
+                  key={cond.id}
+                  type="button"
+                  disabled={isConditionDisabled}
+                  className={`${styles.conditionChip} ${isConditionDisabled ? styles.chipDisabled : ''}`}
+                  style={{
+                    backgroundColor: isSelected ? cond.badgeBg : '#f1f5f9',
+                    color: isSelected ? cond.color : '#475569',
+                    borderColor: isSelected ? cond.color : 'transparent',
+                  }}
+                  onClick={() => toggleCondition(cond.id)}
+                  title={cond.description}
+                >
+                  {cond.label}
+                </button>
+              );
+            })}
           </div>
-        )}
-        <div className={styles.conditionChipsGrid}>
-          {STANDARD_CONDITIONS.map((cond: (typeof STANDARD_CONDITIONS)[number]) => {
-            const isSelected = finding.conditions.includes(cond.id);
-            const isConditionDisabled = disabled || finding.status === 'MISSING';
-            return (
-              <button
-                key={cond.id}
-                type="button"
-                disabled={isConditionDisabled}
-                className={`${styles.conditionChip} ${isConditionDisabled ? styles.chipDisabled : ''}`}
-                style={{
-                  backgroundColor: isSelected ? cond.badgeBg : '#f1f5f9',
-                  color: isSelected ? cond.color : '#475569',
-                  borderColor: isSelected ? cond.color : 'transparent',
-                }}
-                onClick={() => toggleCondition(cond.id)}
-                title={cond.description}
-              >
-                {cond.label}
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* Affected Surfaces */}
-      {showAffectedSurfaces ? (
-        <ToothAffectedSurfaces
-          selectedToothNumber={selectedToothNumber}
-          currentFinding={finding}
-          onUpdateFinding={onUpdateFinding}
-          disabled={disabled}
-        />
+      {/* Subsection: AFFECTED SURFACES */}
+      {showAffectedSurfaces && finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' ? (
+        <div className={styles.panelSection}>
+          <ToothAffectedSurfaces
+            selectedToothNumber={selectedToothNumber}
+            currentFinding={finding}
+            onUpdateFinding={onUpdateFinding}
+            disabled={disabled}
+          />
+        </div>
       ) : null}
 
-      {/* Periodontal Probing & Mobility */}
+      {/* Subsection: PERIODONTAL & CLINICAL FINDINGS */}
       {finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (
-        <div className={styles.formGrid2}>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>
-              Probing Depth (mm)
-              {finding.pocket_depth_mm != null && finding.pocket_depth_mm > 3 && (
-                <span style={{ color: '#dc2626', fontSize: '0.7rem' }}> (Deep Pocket)</span>
-              )}
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="20"
-              step="1"
-              placeholder="0 - 20 mm"
-              className={styles.input}
-              value={finding.pocket_depth_mm ?? ''}
-              onChange={(e) => handlePocketDepthChange(e.target.value)}
-              disabled={disabled}
-            />
+        <div className={styles.panelSection}>
+          <div className={styles.panelSectionHeader}>Periodontal &amp; Mobility</div>
+          <div className={styles.formGrid2}>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Probing Depth (mm)
+                {finding.pocket_depth_mm != null && finding.pocket_depth_mm > 3 && (
+                  <span style={{ color: '#dc2626', fontSize: '0.7rem' }}> (Deep Pocket)</span>
+                )}
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="20"
+                step="1"
+                placeholder="0 - 20 mm"
+                className={styles.input}
+                value={finding.pocket_depth_mm ?? ''}
+                onChange={(e) => handlePocketDepthChange(e.target.value)}
+                disabled={disabled}
+              />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Tooth Mobility</label>
+              <select
+                className={styles.select}
+                value={finding.mobility ?? 'NONE'}
+                onChange={(e) => handleMobilityChange(e.target.value as ToothMobility)}
+                disabled={disabled}
+              >
+                {MOBILITY_LEVELS.map((m: (typeof MOBILITY_LEVELS)[number]) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.label}>Tooth Mobility</label>
+            <label className={styles.label}>Furcation Involvement</label>
             <select
               className={styles.select}
-              value={finding.mobility ?? 'NONE'}
-              onChange={(e) => handleMobilityChange(e.target.value as ToothMobility)}
+              value={finding.furcation_involvement ?? ''}
+              onChange={(e) => handleFurcationChange(e.target.value)}
               disabled={disabled}
             >
-              {MOBILITY_LEVELS.map((m: (typeof MOBILITY_LEVELS)[number]) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
+              <option value="">None / Not Applicable</option>
+              <option value="Class I (Incipient / Early)">Class I (Incipient / Early)</option>
+              <option value="Class II (Moderate / Partial)">Class II (Moderate / Partial)</option>
+              <option value="Class III (Through-and-Through)">Class III (Through-and-Through)</option>
+              <option value="Class IV (Through-and-Through, Clinically Exposed)">Class IV (Through-and-Through, Clinically Exposed)</option>
             </select>
           </div>
         </div>
       )}
 
-      {/* Furcation Involvement */}
-      {finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (
+      {/* Subsection: TOOTH NOTES & ACTIONS */}
+      <div className={styles.panelSection}>
+        <div className={styles.panelSectionHeader}>Tooth Notes &amp; Actions</div>
         <div className={styles.formGroup}>
-          <label className={styles.label}>Furcation Involvement</label>
-          <select
-            className={styles.select}
-            value={finding.furcation_involvement ?? ''}
-            onChange={(e) => handleFurcationChange(e.target.value)}
+          <textarea
+            className={styles.textarea}
+            placeholder="Specific clinical notes for this tooth..."
+            value={finding.notes ?? ''}
+            onChange={(e) => handleNotesChange(e.target.value)}
             disabled={disabled}
-          >
-            <option value="">None / Not Applicable</option>
-            <option value="Class I (Incipient / Early)">Class I (Incipient / Early)</option>
-            <option value="Class II (Moderate / Partial)">Class II (Moderate / Partial)</option>
-            <option value="Class III (Through-and-Through)">Class III (Through-and-Through)</option>
-            <option value="Class IV (Through-and-Through, Clinically Exposed)">Class IV (Through-and-Through, Clinically Exposed)</option>
-          </select>
+            rows={2}
+          />
         </div>
-      )}
-
-      {/* Tooth Notes */}
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Tooth Notes</label>
-        <textarea
-          className={styles.textarea}
-          placeholder="Specific clinical notes for this tooth..."
-          value={finding.notes ?? ''}
-          onChange={(e) => handleNotesChange(e.target.value)}
-          disabled={disabled}
-          rows={2}
-        />
+        {onSave && (
+          <button
+            type="button"
+            className={styles.panelSaveButton}
+            onClick={onSave}
+            disabled={disabled || isSaving}
+            title="Save the dental examination as a draft"
+          >
+            <i className="ph ph-floppy-disk" aria-hidden="true" />
+            {isSaving ? 'Saving Findings...' : 'Save Findings'}
+          </button>
+        )}
       </div>
-      {onSave && (
-        <button type="button" className={styles.panelSaveButton} onClick={onSave} disabled={disabled || isSaving}
-          title="Save the dental examination as a draft">
-          <i className="ph ph-floppy-disk" aria-hidden="true" />
-          {isSaving ? 'Saving Findings...' : 'Save Findings'}
-        </button>
-      )}
     </div>
   );
 };

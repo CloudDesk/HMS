@@ -271,7 +271,7 @@ describe('OpdDentalExaminationTab Component', () => {
     });
 
     expect(container.textContent).toContain('Completed & Locked');
-    expect(container.textContent).toContain('Dental Examination is marked as COMPLETED');
+    expect(container.textContent).not.toContain('Dental Examination is marked as COMPLETED');
 
     // Save Draft and Complete buttons should NOT be rendered
     const saveButton = Array.from(container.querySelectorAll('button')).find((b) =>
@@ -1133,4 +1133,96 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(rightPanel?.textContent).toContain('Maxillary Right Central Incisor');
     expect(rightPanel?.textContent).toContain('0 / 5 selected');
   });
+
+  it('automatically defaults to Permanent Dentition for adult patients based on patientDateOfBirth', async () => {
+    const today = new Date();
+    const adultDob = new Date(today.getFullYear() - 36, today.getMonth(), today.getDate()).toISOString();
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patientDateOfBirth={adultDob} />
+        </QueryClientProvider>,
+      );
+    });
+
+    const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
+    expect(controls).toHaveLength(32);
+    expect(container.textContent).toContain('✓ Auto (36y)');
+
+    // Adult patients show a read-only indicator, not a selectable tab button
+    const indicator = container.querySelector('[aria-label="Dentition type: Permanent Dentition (automatically determined)"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator?.textContent).toContain('Permanent Dentition');
+    const adultTabBtn = Array.from(container.querySelectorAll('button')).find((item) =>
+      item.getAttribute('role') === 'tab' && item.textContent?.includes('Permanent Dentition'),
+    );
+    expect(adultTabBtn).toBeUndefined();
+  });
+
+  it('automatically defaults to Primary / Deciduous Dentition for pediatric patients based on patientDateOfBirth', async () => {
+    const today = new Date();
+    const pediatricDob = new Date(today.getFullYear() - 7, today.getMonth(), today.getDate()).toISOString();
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patientDateOfBirth={pediatricDob} />
+        </QueryClientProvider>,
+      );
+    });
+
+    const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
+    expect(controls).toHaveLength(20);
+    expect(container.textContent).toContain('✓ Auto (7y)');
+
+    const pediatricTab = Array.from(container.querySelectorAll('button')).find((item) =>
+      item.textContent?.includes('Primary / Deciduous'),
+    );
+    expect(pediatricTab?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('allows manual dentition override and preserves the dentist selection', async () => {
+    const today = new Date();
+    const pediatricDob = new Date(today.getFullYear() - 8, today.getMonth(), today.getDate()).toISOString();
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patientDateOfBirth={pediatricDob} />
+        </QueryClientProvider>,
+      );
+    });
+
+    // Starts in pediatric mode (20 teeth)
+    expect(container.querySelectorAll<HTMLButtonElement>('[data-fdi]')).toHaveLength(20);
+
+    // Dentist manually overrides to Permanent Dentition
+    const permanentTab = Array.from(container.querySelectorAll('button')).find((item) =>
+      item.textContent?.includes('Permanent Dentition'),
+    );
+    await act(async () => {
+      permanentTab?.click();
+    });
+
+    // Now renders 32 adult teeth
+    expect(container.querySelectorAll<HTMLButtonElement>('[data-fdi]')).toHaveLength(32);
+    expect(permanentTab?.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('handles missing or invalid date of birth safely by defaulting to Permanent Dentition without guessing', async () => {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patientDateOfBirth={null} />
+        </QueryClientProvider>,
+      );
+    });
+
+    // Safely defaults to 32 permanent teeth and does NOT render an auto badge
+    const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
+    expect(controls).toHaveLength(32);
+    expect(container.textContent).not.toContain('✓ Auto');
+  });
 });
+

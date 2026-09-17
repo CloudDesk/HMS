@@ -53,12 +53,17 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   onOpenInvoice,
 }) => {
   const formatCurrency = useCurrencyFormatter();
+  const [isExpanded, setIsExpanded] = useState(true);
   const [toothNumber, setToothNumber] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [procedureName, setProcedureName] = useState<string>('');
   const [priority, setPriority] = useState<DentalTreatmentPriority>('ROUTINE');
   const [estimatedCost, setEstimatedCost] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+
+  const urgentCount = useMemo(() => {
+    return items.filter((it) => it.priority === 'URGENT' || it.priority === 'HIGH').length;
+  }, [items]);
 
   const examinedTeethNumbers = useMemo(() => {
     return teeth
@@ -168,8 +173,31 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
   return (
     <div className={`${styles.card} ${styles.treatmentPlanCard}`}>
-      <div className={styles.cardHeader}>
+      <div
+        className={`${styles.cardHeader} ${styles.cardHeaderCollapsible}`}
+        onClick={() => setIsExpanded(!isExpanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+        aria-expanded={isExpanded}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className={styles.collapseToggleBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+            aria-label={isExpanded ? 'Collapse Treatment Plan' : 'Expand Treatment Plan'}
+          >
+            <i className={`ph ph-caret-down ${styles.collapseChevron} ${isExpanded ? styles.collapseChevronExpanded : ''}`} />
+          </button>
           <h3 className={styles.cardTitle}>
             <i className="ph ph-calendar-check" style={{ color: '#7c3aed' }} />
             Proposed Dental Treatment Plan &amp; Procedures
@@ -191,14 +219,60 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
         )}
       </div>
 
-      <div className={styles.cardContent}>
-        {billingStateError ? (
-          <div className={styles.billingError} role="alert">
-            <i className="ph ph-warning-circle" /> {billingStateError}
+      {isExpanded && (
+        <div className={styles.cardContent}>
+          {billingStateError ? (
+            <div className={styles.billingError} role="alert">
+              <i className="ph ph-warning-circle" /> {billingStateError}
+            </div>
+          ) : null}
+
+          {/* KPI Summary Cards */}
+          <div className={styles.treatmentKpiGrid}>
+            <div className={`${styles.treatmentKpiCard} ${styles.kpiCardBlue}`}>
+              <div className={styles.treatmentKpiIconWrapper}>
+                <i className="ph ph-calendar-check" />
+              </div>
+              <div className={styles.treatmentKpiContent}>
+                <span className={styles.treatmentKpiLabel}>Planned Procedures</span>
+                <span className={styles.treatmentKpiValue}>{items.length}</span>
+                <span className={styles.treatmentKpiSubtext}>
+                  {items.filter((i) => i.status === 'COMPLETED').length} Completed &middot; {items.filter((i) => i.status === 'ACCEPTED').length} Accepted
+                </span>
+              </div>
+            </div>
+
+            <div className={`${styles.treatmentKpiCard} ${styles.kpiCardEmerald}`}>
+              <div className={styles.treatmentKpiIconWrapper}>
+                <i className="ph ph-receipt" />
+              </div>
+              <div className={styles.treatmentKpiContent}>
+                <span className={styles.treatmentKpiLabel}>Estimated Total</span>
+                <span className={styles.treatmentKpiValue}>{formatCurrency(totalCost)}</span>
+                <span className={styles.treatmentKpiSubtext}>
+                  Active: {formatCurrency(acceptedOrActiveCost)}
+                </span>
+              </div>
+            </div>
+
+            <div className={`${styles.treatmentKpiCard} ${urgentCount > 0 ? styles.kpiCardRed : styles.kpiCardAmber}`}>
+              <div className={styles.treatmentKpiIconWrapper}>
+                <i className={urgentCount > 0 ? 'ph ph-warning' : 'ph ph-clock'} />
+              </div>
+              <div className={styles.treatmentKpiContent}>
+                <span className={styles.treatmentKpiLabel}>Urgent Procedures</span>
+                <span className={styles.treatmentKpiValue} style={urgentCount > 0 ? { color: '#dc2626' } : undefined}>
+                  {urgentCount}
+                </span>
+                <span className={styles.treatmentKpiSubtext}>
+                  {urgentCount > 0 ? 'Requires priority clinical attention' : 'Standard clinical schedule'}
+                </span>
+              </div>
+            </div>
           </div>
-        ) : null}
-        {/* Planned Items Table */}
-        <div style={{ overflowX: 'auto' }}>
+
+          {/* Planned Items Table */}
+          <div style={{ overflowX: 'auto' }}>
           <table className={styles.treatmentTable}>
             <thead>
               <tr>
@@ -657,6 +731,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
           </>
         )}
       </div>
+      )}
     </div>
   );
 };

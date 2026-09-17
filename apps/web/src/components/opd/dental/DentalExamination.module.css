@@ -1,13 +1,68 @@
 /* Dental OPD Consultation: Isolated CSS Module */
 
 .container {
+  /* Scoped Light Aurora Clinical Design Tokens */
+  --dental-bg: #f8fafc;
+  --dental-surface: rgba(255, 255, 255, 0.92);
+  --dental-surface-solid: #ffffff;
+  --dental-border: #e2e8f0;
+  --dental-border-focus: #93c5fd;
+  --dental-ink: #0f172a;
+  --dental-ink-muted: #64748b;
+  --dental-ink-light: #94a3b8;
+
+  /* Clinical Semantic Colors */
+  --dental-healthy: #10b981;
+  --dental-healthy-bg: #ecfdf5;
+  --dental-healthy-border: #a7f3d0;
+  --dental-caries: #f43f5e;
+  --dental-caries-bg: #fff1f2;
+  --dental-caries-border: #fecdd3;
+  --dental-watch: #f59e0b;
+  --dental-watch-bg: #fffbeb;
+  --dental-watch-border: #fde68a;
+  --dental-filled: #3b82f6;
+  --dental-filled-bg: #eff6ff;
+  --dental-filled-border: #bfdbfe;
+  --dental-missing: #64748b;
+  --dental-missing-bg: #f1f5f9;
+  --dental-missing-border: #cbd5e1;
+  --dental-alert: #f97316;
+  --dental-alert-bg: #fff7ed;
+  --dental-alert-border: #fed7aa;
+  --dental-allergy: #ef4444;
+  --dental-allergy-bg: #fef2f2;
+  --dental-allergy-border: #fecaca;
+
+  /* Brand / Action Interaction Accent (used strictly for interactive focus & primary action) */
+  --dental-violet: #6366f1;
+  --dental-teal: #0d9488;
+  --dental-accent-gradient: linear-gradient(135deg, #4f46e5 0%, #0d9488 100%);
+  --dental-accent-gradient-hover: linear-gradient(135deg, #4338ca 0%, #0f766e 100%);
+
+  /* Typography */
+  --dental-font-heading: 'Sora', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dental-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Radii */
+  --dental-radius-card: 16px;
+  --dental-radius-section: 12px;
+  --dental-radius-control: 8px;
+  --dental-radius-pill: 9999px;
+
+  /* Shadows */
+  --dental-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --dental-shadow-card: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --dental-shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   width: 100%;
   padding-bottom: 8px;
   overflow-x: hidden;
+  font-family: var(--dental-font-body);
 }
 
 /* Header & Action Bar */
@@ -16,12 +71,12 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   background: #ffffff;
-  padding: 16px 20px;
-  border-radius: 12px;
+  padding: 10px 18px;
+  border-radius: var(--dental-radius-section, 12px);
   border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--dental-shadow-card, 0 1px 3px rgba(0, 0, 0, 0.04));
 }
 
 .titleArea {
@@ -36,8 +91,10 @@
 .examTitle {
   min-width: 0;
   overflow-wrap: anywhere;
+  font-family: var(--dental-font-heading);
   font-size: 1.15rem;
   font-weight: 700;
+  letter-spacing: -0.015em;
   color: #0f172a;
   margin: 0;
   display: flex;
@@ -48,27 +105,29 @@
 .statusBadgeDraft {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding: 4px 10px;
   border-radius: 9999px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
   font-size: 0.75rem;
   font-weight: 600;
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  background: var(--dental-watch-bg, #fef3c7);
+  color: var(--dental-watch, #d97706);
+  border: 1px solid var(--dental-watch-border, #fde68a);
 }
 
 .statusBadgeCompleted {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding: 4px 10px;
   border-radius: 9999px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
   font-size: 0.75rem;
   font-weight: 600;
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
+  background: var(--dental-healthy-bg, #f0fdf4);
+  color: var(--dental-healthy, #16a34a);
+  border: 1px solid var(--dental-healthy-border, #bbf7d0);
 }
 
 .unsavedBadge {
@@ -202,27 +261,27 @@
 .lockedBanner {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #1e40af;
-  padding: 12px 16px;
+  padding: 8px 14px;
   border-radius: 8px;
-  font-size: 0.875rem;
+  font-size: 0.825rem;
   font-weight: 500;
 }
 
 .lockedBannerCompleted {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
-  padding: 12px 16px;
+  gap: 8px;
+  background: var(--dental-healthy-bg, #f0fdf4);
+  border: 1px solid var(--dental-healthy-border, #bbf7d0);
+  color: #15803d;
+  padding: 8px 14px;
   border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.825rem;
+  font-weight: 600;
 }
 
 /* Cards & Panels */
@@ -435,6 +494,13 @@
   font-weight: 600;
 }
 
+.chipAllergySelected {
+  background: var(--dental-allergy-bg, #fef2f2);
+  color: var(--dental-allergy, #ef4444);
+  border-color: var(--dental-allergy-border, #fecaca);
+  font-weight: 600;
+}
+
 .chipDisabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -474,6 +540,100 @@
   margin-bottom: 2px;
 }
 
+/* Progressive Disclosure for Medical Alerts & Habits */
+.progressiveDisclosure {
+  margin-top: 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.disclosureSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8fafc;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  list-style: none;
+}
+
+.disclosureSummary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosureContent {
+  padding: 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.activeAlertsStrip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.activeAlertsTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.activeAlertBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.activeAllergyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--dental-allergy-bg, #fef2f2);
+  color: var(--dental-allergy, #dc2626);
+  border: 1px solid var(--dental-allergy-border, #fecaca);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.quietAlertSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
 /* Odontogram Section Layout */
 .odontogramCard {
   background: #ffffff;
@@ -484,48 +644,106 @@
 }
 
 .odontogramTabs {
-  display: flex;
-  border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  margin: 12px 16px 8px;
+  gap: 4px;
 }
 
 .odontogramTabBtn {
-  padding: 10px 20px;
-  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.825rem;
   font-weight: 600;
   color: #64748b;
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
-.odontogramTabBtn:hover {
-  color: #0f172a;
+.odontogramTabBtn:hover:not(:disabled) {
+  color: #1e293b;
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .odontogramTabBtnActive {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
+  color: #0f172a;
   background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dentitionAutoBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--dental-font-body, 'Inter', sans-serif);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  color: #475569;
+  line-height: 1.2;
+}
+
+.odontogramTabBtnActive .dentitionAutoBadge {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Read-only dentition indicator — shown for adult patients (age auto-determined, no tab group) */
+.dentitionIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 12px 16px 8px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #1d4ed8;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  white-space: nowrap;
+  /* Not interactive — pointer events disabled */
+  pointer-events: none;
+  user-select: none;
+}
+
+.dentitionIndicator .dentitionAutoBadge {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .odontogramLayout {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr);
+  gap: 16px;
   width: 100%;
-  padding: 16px 0;
+  padding: 8px 0 12px;
   box-sizing: border-box;
   align-items: start;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .odontogramLayout {
     grid-template-columns: 1fr;
     gap: 16px;
-    padding: 12px 0;
+    padding: 8px 0;
   }
 }
 
@@ -857,10 +1075,19 @@
 .jawTooth:hover:not(:disabled) .jawToothArt { filter: drop-shadow(0 0 3px #3b82f6); }
 .jawTooth:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
 .jawTooth[data-condition]:not([data-condition='unrecorded']) { z-index: 2; }
-.jawTooth[aria-pressed='true'] { outline: 3px solid #2563eb; outline-offset: 2px; background: #dbeafe; z-index: 4; }
+.jawTooth[aria-pressed='true'] {
+  outline: 3px solid #6366f1;
+  outline-offset: 2px;
+  background: rgba(99, 102, 241, 0.12);
+  box-shadow: 0 0 0 1px #0d9488, 0 3px 8px rgba(99, 102, 241, 0.25);
+  z-index: 4;
+}
 .jawTooth:disabled { cursor: default; }
 .jawNumber { position: absolute; z-index: 3; color: #1e293b; font-size: clamp(10px, .8vw, 14px); line-height: 1; font-weight: 700; white-space: nowrap; text-shadow: 0 0 2px #fff, 0 0 4px #fff; }
-.jawTooth[aria-pressed='true'] .jawNumber { color: #1d4ed8; }
+.jawTooth[aria-pressed='true'] .jawNumber {
+  color: #4338ca;
+  font-weight: 800;
+}
 .jawConditionTint { fill: transparent; }
 .jawTooth[data-condition='caries'] .jawConditionTint { fill: #ef444466; }
 .jawTooth[data-condition='filled'] .jawConditionTint { fill: #3b82f666; }
@@ -1168,8 +1395,8 @@
 
 @media (max-width: 800px) {
   .anatomicalChart { min-width: 704px; padding-inline: 10px; }
-  .odontogramTabs { grid-template-columns: 1fr; }
-  .odontogramTabBtn { min-height: 43px; }
+  .odontogramTabs { width: calc(100% - 32px); }
+  .odontogramTabBtn { min-height: 40px; flex: 1 1 auto; justify-content: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1178,25 +1405,59 @@
 
 /* Tooth Examination Panel */
 .panelContainer {
-  background: #ffffff;
+  position: sticky;
+  top: 12px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 16px 20px 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
   box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
 .panelContainer .formGrid2 { grid-template-columns: minmax(0, 1fr); }
 .panelContainer .input, .panelContainer .select { min-height: 40px; }
 .panelContainer .textarea { min-height: 100px; }
-.panelSaveButton { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; width: 100%; border: 1px solid #2563eb; border-radius: 8px; background: #1755ff; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
-.panelSaveButton:hover:not(:disabled) { background: #1d4ed8; }
-.panelSaveButton:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
-.panelSaveButton:disabled { opacity: .6; cursor: not-allowed; }
+.panelSaveButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--dental-accent-gradient, linear-gradient(135deg, #6366f1 0%, #0d9488 100%));
+  color: #ffffff;
+  font: inherit;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+  transition: all 0.2s ease;
+}
+.panelSaveButton:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+.panelSaveButton:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+.panelSaveButton:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
 
 .panelHeader {
   display: flex;
@@ -1208,9 +1469,11 @@
 }
 
 .panelToothBadge {
-  font-size: 1.1rem;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 1.15rem;
   font-weight: 800;
   color: #1e40af;
+  letter-spacing: -0.02em;
 }
 
 .panelToothName {
@@ -1233,6 +1496,55 @@
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.panelSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.panelSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.panelAbnormalBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: var(--dental-caries-bg, #fef2f2);
+  color: var(--dental-caries, #e11d48);
+  border: 1px solid var(--dental-caries-border, #fecdd3);
+}
+
+.panelHealthyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: var(--dental-healthy-bg, #f0fdf4);
+  color: var(--dental-healthy, #16a34a);
+  border: 1px solid var(--dental-healthy-border, #bbf7d0);
 }
 
 /* Surface selector: decorative model and accessible clinical controls. */
@@ -1759,4 +2071,323 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: 12px;
   align-items: start;
+}
+
+/* ==========================================================================
+   Dentist Workstation Refinements: Medical Alerts, KPIs & Sticky Action Bar
+   ========================================================================== */
+
+/* 1. Medical Alerts Top Banner */
+.medicalAlertBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: var(--dental-radius-section, 12px);
+  font-size: 0.82rem;
+  font-weight: 500;
+  border: 1px solid;
+  transition: all 0.2s ease;
+}
+
+.medicalAlertBannerAlert {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+  box-shadow: 0 1px 3px rgba(244, 63, 94, 0.08);
+}
+
+.medicalAlertBannerClean {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.medicalAlertLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.medicalAlertTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.medicalAlertList {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.medicalAlertBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  color: #be123c;
+  border: 1px solid #fda4af;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.medicalAlertBadgeAllergy {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+.medicalAlertJumpBtn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.medicalAlertJumpBtn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* 2. Collapsible Section Controls */
+.cardHeaderCollapsible {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.cardHeaderCollapsible:hover {
+  background: #f8fafc;
+}
+
+.cardHeaderTitleArea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.collapseToggleBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+
+.collapseToggleBtn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.collapseChevron {
+  font-size: 1rem;
+  color: #64748b;
+  transition: transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collapseChevronExpanded {
+  transform: rotate(180deg);
+}
+
+/* 3. Treatment Plan Summary KPI Cards */
+.treatmentKpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.treatmentKpiCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--dental-radius-section, 12px);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--dental-shadow-sm, 0 1px 2px rgba(15, 23, 42, 0.04));
+  transition: all 0.15s ease;
+}
+
+.treatmentKpiCard:hover {
+  border-color: #cbd5e1;
+  box-shadow: var(--dental-shadow-card, 0 2px 6px rgba(15, 23, 42, 0.06));
+}
+
+.treatmentKpiIconWrapper {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.treatmentKpiContent {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.treatmentKpiLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.treatmentKpiValue {
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.treatmentKpiSubtext {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.kpiCardBlue .treatmentKpiIconWrapper {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.kpiCardEmerald .treatmentKpiIconWrapper {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.kpiCardAmber .treatmentKpiIconWrapper {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.kpiCardRed .treatmentKpiIconWrapper {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* 4. Sticky Bottom Action Bar */
+.stickyActionBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 10px 18px;
+  border-radius: var(--dental-radius-section, 12px);
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 -4px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  margin-top: 6px;
+}
+
+.stickySummary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.stickyMetric {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stickyMetric strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.stickyMetricAlert {
+  color: #b91c1c;
+  background: #fef2f2;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 600;
+  border: 1px solid #fca5a5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stickyActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btnPrimaryGradient {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--dental-accent-gradient, linear-gradient(135deg, #4f46e5 0%, #0d9488 100%));
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+  transition: all 0.15s ease;
+}
+
+.btnPrimaryGradient:hover:not(:disabled) {
+  background: var(--dental-accent-gradient-hover, linear-gradient(135deg, #4338ca 0%, #0f766e 100%));
+  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.25);
+  transform: translateY(-1px);
+}
+
+.btnPrimaryGradient:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
