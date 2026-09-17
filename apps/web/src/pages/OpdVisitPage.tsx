@@ -1450,6 +1450,7 @@ export function OpdVisitPage() {
                     canEdit={!isVisitCompleted && feature.state.canEditConsultation}
                     consultationForm={consultationForm}
                     handleNextStep={handleNextStep}
+                    nextTab={isDental ? 'Dental Examination' : 'Diagnosis'}
                     saveConsultationDraft={saveConsultationDraft}
                     setConsultationForm={setConsultationForm}
                   />

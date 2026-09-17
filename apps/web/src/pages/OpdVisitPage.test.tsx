@@ -179,6 +179,7 @@ describe('OpdVisitPage feature-hook rendering', () => {
     await act(async () => root.render(<OpdVisitPage />));
 
     expect(container.textContent).toContain('Dental Examination');
+    expect(container.textContent).toContain('Next: Dental Examination');
     expect(container.textContent).not.toContain('4 Lab Orders');
     expect(container.textContent).not.toContain('5 Imaging Orders');
     expect(container.textContent).toContain('4 Referral');

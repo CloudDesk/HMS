@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { departmentModuleKeys, type DepartmentModuleKey } from './department.types.js';
 
 export interface IDepartment extends Document {
   id: string;
@@ -8,6 +9,7 @@ export interface IDepartment extends Document {
   branchIds: Types.ObjectId[];
   status: 'ACTIVE' | 'INACTIVE';
   isClinical: boolean;
+  hiddenModules: DepartmentModuleKey[];
 
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -26,6 +28,7 @@ const departmentSchema = new Schema<IDepartment>(
     branchIds: [{ type: Schema.Types.ObjectId, ref: 'Branch', required: true }],
     status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
     isClinical: { type: Boolean, default: false },
+    hiddenModules: { type: [String], enum: departmentModuleKeys, default: [] },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },

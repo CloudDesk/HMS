@@ -16,6 +16,7 @@ export type OpdConsultationSectionProps = {
   saveConsultationDraft: () => void;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
+  nextTab?: string;
 };
 
 export function OpdConsultationSection({
@@ -24,6 +25,7 @@ export function OpdConsultationSection({
   saveConsultationDraft,
   handleNextStep,
   canEdit,
+  nextTab = 'Diagnosis',
 }: OpdConsultationSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -155,10 +157,10 @@ export function OpdConsultationSection({
           )}
           <button
             className="doc-btn primary"
-            onClick={() => handleNextStep('Diagnosis')}
+            onClick={() => handleNextStep(nextTab)}
             type="button"
           >
-            Next: Diagnosis
+            Next: {nextTab}
             <i aria-hidden="true" className="ph ph-arrow-right" />
           </button>
         </div>

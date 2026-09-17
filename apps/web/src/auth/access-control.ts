@@ -1,5 +1,5 @@
 import { sidebarModules, type SidebarModule } from '../data/ui-foundation';
-import type { AuthPermission, AuthRole } from './auth-types';
+import type { AuthDepartment, AuthPermission, AuthRole } from './auth-types';
 
 export type PermissionRequirement = {
   module: string;
@@ -166,13 +166,19 @@ export const canAccessRoute = (
 export const getAccessibleSidebarModules = (
   permissions: AuthPermission[],
   roles: AuthRole[] = [],
+  departments: AuthDepartment[] = [],
 ): SidebarModule[] => {
   if (isSuperAdministrator(roles)) return sidebarModules;
+
+  const doctorDepartmentHiddenModules = roles.some((role) => role.code === 'DOCTOR')
+    ? new Set(departments.flatMap((department) => department.hiddenModules ?? []).map(normalize))
+    : new Set<string>();
 
   return sidebarModules
     .map((module) => ({
       ...module,
       links: module.links.filter((link) => canAccessRoute(link.href, permissions, roles)),
     }))
-    .filter((module) => module.links.length > 0);
+    .filter((module) => module.links.length > 0)
+    .filter((module) => !doctorDepartmentHiddenModules.has(normalize(module.key)));
 };

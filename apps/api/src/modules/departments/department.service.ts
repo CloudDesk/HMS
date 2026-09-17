@@ -34,7 +34,11 @@ export class DepartmentService {
 
     await Promise.all(data.branch_ids.map((branch_id) => this.requireActiveBranch(branch_id)));
     const department = await this.repository.create(data, userId);
-    await this.repository.audit('department.created', userId, metadata, { departmentId: department.id, code: department.code });
+    await this.repository.audit('department.created', userId, metadata, {
+      departmentId: department.id,
+      code: department.code,
+      hiddenModules: department.hiddenModules,
+    });
     return department;
   }
 
@@ -55,7 +59,12 @@ export class DepartmentService {
     const eventType = data.status && data.status !== department.status
       ? data.status === 'ACTIVE' ? 'department.activated' : 'department.deactivated'
       : 'department.updated';
-    await this.repository.audit(eventType, userId, metadata, { departmentId: id, code: updated.code });
+    await this.repository.audit(eventType, userId, metadata, {
+      departmentId: id,
+      code: updated.code,
+      hiddenModulesBefore: department.hiddenModules,
+      hiddenModulesAfter: updated.hiddenModules,
+    });
     return updated;
   }
 
