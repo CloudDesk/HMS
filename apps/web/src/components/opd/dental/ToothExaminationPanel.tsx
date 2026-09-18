@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type {
   ToothFinding,
   ToothMobility,
@@ -9,7 +9,6 @@ import {
   getToothName,
   MOBILITY_LEVELS,
   STANDARD_CONDITIONS,
-  TOOTH_STATUSES,
 } from '../../../pages/dental-utils';
 import { ToothSurfaceSelector } from './ToothSurfaceSelector';
 import styles from './DentalExamination.module.css';
@@ -23,6 +22,7 @@ interface ToothExaminationPanelProps {
   showAffectedSurfaces?: boolean;
   onSave?: () => void;
   isSaving?: boolean;
+  additionalContent?: React.ReactNode;
 }
 
 type ToothAffectedSurfacesProps = Pick<
@@ -74,9 +74,14 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   onRemoveFinding,
   disabled = false,
   showAffectedSurfaces = true,
-  onSave,
-  isSaving = false,
+  additionalContent,
 }) => {
+  const [activeDetailTab, setActiveDetailTab] = useState<'surfaces' | 'periodontal'>('surfaces');
+
+  useEffect(() => {
+    setActiveDetailTab('surfaces');
+  }, [selectedToothNumber]);
+
   if (!selectedToothNumber) {
     return (
       <div className={styles.panelContainer}>
@@ -87,6 +92,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
             Click any tooth on the odontogram to record clinical findings, surfaces, and periodontal status.
           </p>
         </div>
+        {additionalContent}
       </div>
     );
   }
@@ -135,7 +141,16 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   };
 
   const toggleCondition = (conditionId: string) => {
-    if (disabled || finding.status === 'MISSING') return;
+    if (disabled) return;
+    if (finding.status === 'MISSING' || finding.status === 'EXTRACTED') {
+      onUpdateFinding({
+        ...finding,
+        status: 'PRESENT',
+        conditions: [conditionId],
+        mobility: finding.mobility ?? 'NONE',
+      });
+      return;
+    }
     let newConditions = [...finding.conditions];
     if (newConditions.includes(conditionId)) {
       newConditions = newConditions.filter((c: string) => c !== conditionId);
@@ -199,6 +214,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
             )}
           </div>
           <div className={styles.panelToothName}>{toothName}</div>
+          {finding.notes ? <div className={styles.panelToothNotePreview}>{finding.notes}</div> : null}
         </div>
         {!disabled && (
           <button
@@ -213,39 +229,52 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         )}
       </div>
 
+      <div className={styles.toothDetailTabs} role="tablist" aria-label="Selected tooth details">
+        {([
+          ['surfaces', 'Surfaces'],
+          ['periodontal', 'Periodontal'],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={activeDetailTab === value}
+            className={`${styles.toothDetailTab} ${activeDetailTab === value ? styles.toothDetailTabActive : ''}`}
+            onClick={() => setActiveDetailTab(value)}
+            disabled={value === 'periodontal' && (finding.status === 'MISSING' || finding.status === 'EXTRACTED')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeDetailTab === 'surfaces' && <>
+      {/* Keep surface recording first so the selected-tooth workflow matches the
+          workstation: select tooth -> mark surfaces -> record the condition. */}
+      {showAffectedSurfaces && finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' ? (
+        <div className={`${styles.panelSection} ${styles.panelSurfaceSection}`}>
+          <ToothAffectedSurfaces
+            selectedToothNumber={selectedToothNumber}
+            currentFinding={finding}
+            onUpdateFinding={onUpdateFinding}
+            disabled={disabled}
+          />
+        </div>
+      ) : null}
+
       {/* Subsection: STATUS & CONDITION */}
       <div className={styles.panelSection}>
         <div className={styles.panelSectionHeader}>Status &amp; Condition</div>
         <div className={styles.formGroup}>
-          <label className={styles.label}>Tooth Status</label>
-          <select
-            className={styles.select}
-            value={finding.status}
-            onChange={(e) => handleStatusChange(e.target.value as ToothStatus)}
-            disabled={disabled}
-          >
-            {TOOTH_STATUSES.map((st: (typeof TOOTH_STATUSES)[number]) => (
-              <option key={st.value} value={st.value}>
-                {st.label}
-              </option>
-            ))}
-            {!TOOTH_STATUSES.some((st) => st.value === finding.status) && (
-              <option value={finding.status}>{finding.status}</option>
-            )}
-          </select>
-        </div>
-
-        <div className={styles.formGroup}>
-          <label className={styles.label}>Conditions &amp; Findings</label>
           {finding.status === 'MISSING' && (
             <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginBottom: '4px' }}>
-              Tooth is marked as Missing. Set Tooth Status to &ldquo;Present&rdquo; to record clinical conditions.
+              Tooth is marked as Missing. Select another condition or Missing again to restore it as present.
             </div>
           )}
           <div className={styles.conditionChipsGrid}>
             {STANDARD_CONDITIONS.map((cond: (typeof STANDARD_CONDITIONS)[number]) => {
               const isSelected = finding.conditions.includes(cond.id);
-              const isConditionDisabled = disabled || finding.status === 'MISSING';
+              const isConditionDisabled = disabled;
               return (
                 <button
                   key={cond.id}
@@ -264,25 +293,32 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
                 </button>
               );
             })}
+            <button
+              type="button"
+              disabled={disabled}
+              aria-pressed={finding.status === 'MISSING' || finding.status === 'EXTRACTED'}
+              className={`${styles.conditionChip} ${disabled ? styles.chipDisabled : ''}`}
+              style={{
+                backgroundColor: finding.status === 'MISSING' || finding.status === 'EXTRACTED' ? '#fef2f2' : '#f1f5f9',
+                color: finding.status === 'MISSING' || finding.status === 'EXTRACTED' ? '#dc2626' : '#475569',
+                borderColor: finding.status === 'MISSING' || finding.status === 'EXTRACTED' ? '#dc2626' : 'transparent',
+              }}
+              onClick={() => handleStatusChange(
+                finding.status === 'MISSING' || finding.status === 'EXTRACTED' ? 'PRESENT' : 'MISSING',
+              )}
+              title="Mark this tooth as missing"
+            >
+              Missing
+            </button>
           </div>
         </div>
       </div>
-
-      {/* Subsection: AFFECTED SURFACES */}
-      {showAffectedSurfaces && finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' ? (
-        <div className={styles.panelSection}>
-          <ToothAffectedSurfaces
-            selectedToothNumber={selectedToothNumber}
-            currentFinding={finding}
-            onUpdateFinding={onUpdateFinding}
-            disabled={disabled}
-          />
-        </div>
-      ) : null}
+      {additionalContent}
+      </>}
 
       {/* Subsection: PERIODONTAL & CLINICAL FINDINGS */}
-      {finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (
-        <div className={styles.panelSection}>
+      {activeDetailTab === 'periodontal' && finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (
+        <div className={`${styles.panelSection} ${styles.panelPeriodontalSection}`}>
           <div className={styles.panelSectionHeader}>Periodontal &amp; Mobility</div>
           <div className={styles.formGrid2}>
             <div className={styles.formGroup}>
@@ -337,35 +373,20 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
               <option value="Class IV (Through-and-Through, Clinically Exposed)">Class IV (Through-and-Through, Clinically Exposed)</option>
             </select>
           </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Tooth Notes</label>
+            <textarea
+              className={styles.textarea}
+              placeholder="Specific clinical notes for this tooth..."
+              value={finding.notes ?? ''}
+              onChange={(e) => handleNotesChange(e.target.value)}
+              disabled={disabled}
+              rows={2}
+            />
+          </div>
         </div>
       )}
-
-      {/* Subsection: TOOTH NOTES & ACTIONS */}
-      <div className={styles.panelSection}>
-        <div className={styles.panelSectionHeader}>Tooth Notes &amp; Actions</div>
-        <div className={styles.formGroup}>
-          <textarea
-            className={styles.textarea}
-            placeholder="Specific clinical notes for this tooth..."
-            value={finding.notes ?? ''}
-            onChange={(e) => handleNotesChange(e.target.value)}
-            disabled={disabled}
-            rows={2}
-          />
-        </div>
-        {onSave && (
-          <button
-            type="button"
-            className={styles.panelSaveButton}
-            onClick={onSave}
-            disabled={disabled || isSaving}
-            title="Save the dental examination as a draft"
-          >
-            <i className="ph ph-floppy-disk" aria-hidden="true" />
-            {isSaving ? 'Saving Findings...' : 'Save Findings'}
-          </button>
-        )}
-      </div>
     </div>
   );
 };

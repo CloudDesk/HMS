@@ -34,7 +34,7 @@ describe('ToothExaminationPanel refactored component', () => {
     expect(container.textContent).toContain('Select a Tooth');
   });
 
-  it('does NOT render redundant quick action shortcut buttons (Mark Healthy, Caries, Missing)', async () => {
+  it('does not render redundant Mark Healthy or Caries shortcut buttons', async () => {
     const onUpdate = vi.fn();
     await act(async () => {
       root.render(
@@ -53,10 +53,10 @@ describe('ToothExaminationPanel refactored component', () => {
     // Quick action buttons must NOT be present
     expect(buttonTexts).not.toContain('Mark Healthy');
     expect(buttonTexts).not.toContain('Caries');
-    expect(buttonTexts).not.toContain('Missing');
+    expect(buttonTexts).toContain('Missing');
   });
 
-  it('renders Tooth Status dropdown with ONLY Present and Missing by default', async () => {
+  it('removes the Tooth Status dropdown and provides Missing under conditions', async () => {
     await act(async () => {
       root.render(
         <ToothExaminationPanel
@@ -68,21 +68,13 @@ describe('ToothExaminationPanel refactored component', () => {
       );
     });
 
-    const statusSelect = container.querySelector<HTMLSelectElement>('select');
-    expect(statusSelect).toBeDefined();
-
-    const options = Array.from(statusSelect?.options ?? []).map((o) => ({
-      value: o.value,
-      label: o.text.trim(),
-    }));
-
-    expect(options).toEqual([
-      { value: 'PRESENT', label: 'Present' },
-      { value: 'MISSING', label: 'Missing' },
-    ]);
+    expect(container.textContent).not.toContain('Tooth Status');
+    expect(container.querySelector('select')).toBeNull();
+    const missing = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Missing');
+    expect(missing?.getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('renders Conditions & Findings with the 9 clinical findings and excludes Missing', async () => {
+  it('renders Conditions & Findings with the 9 clinical findings and Missing', async () => {
     await act(async () => {
       root.render(
         <ToothExaminationPanel
@@ -108,9 +100,8 @@ describe('ToothExaminationPanel refactored component', () => {
       'Fractured',
       'Pulpitis / RCT Needed',
       'Periapical Lesion',
+      'Missing',
     ]);
-
-    expect(conditionChips).not.toContain('Missing');
   });
 
   it('toggles condition finding: adding an abnormality removes Healthy; selecting Healthy clears abnormalities', async () => {
@@ -212,14 +203,8 @@ describe('ToothExaminationPanel refactored component', () => {
       );
     });
 
-    const statusSelect = container.querySelector<HTMLSelectElement>('select');
-    expect(statusSelect).toBeDefined();
-
     await act(async () => {
-      if (statusSelect) {
-        statusSelect.value = 'MISSING';
-        statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Missing')?.click();
     });
 
     expect(onUpdate).toHaveBeenCalledWith(
@@ -232,7 +217,8 @@ describe('ToothExaminationPanel refactored component', () => {
       }),
     );
 
-    // When status is MISSING, condition chips must be disabled and notice rendered
+    // When status is MISSING, another condition remains available so it can
+    // restore the tooth as present in one click.
     const missingFinding: ToothFinding = {
       ...findingWithSurfaces,
       status: 'MISSING',
@@ -259,8 +245,20 @@ describe('ToothExaminationPanel refactored component', () => {
       container.querySelectorAll<HTMLButtonElement>('button[class*="conditionChip"]'),
     );
     for (const btn of conditionButtons) {
-      expect(btn.disabled).toBe(true);
+      expect(btn.disabled).toBe(false);
     }
+
+    await act(async () => {
+      conditionButtons.find((button) => button.textContent?.trim() === 'Caries / Decay')?.click();
+    });
+
+    expect(onUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: 'PRESENT',
+        conditions: ['CARIOUS'],
+        mobility: 'NONE',
+      }),
+    );
   });
 
   it('changes Tooth Status back to Present: restores conditions to Healthy', async () => {
@@ -288,14 +286,8 @@ describe('ToothExaminationPanel refactored component', () => {
       );
     });
 
-    const statusSelect = container.querySelector<HTMLSelectElement>('select');
-    expect(statusSelect).toBeDefined();
-
     await act(async () => {
-      if (statusSelect) {
-        statusSelect.value = 'PRESENT';
-        statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Missing')?.click();
     });
 
     expect(onUpdate).toHaveBeenCalledWith(
@@ -332,14 +324,16 @@ describe('ToothExaminationPanel refactored component', () => {
     });
 
     expect(container.textContent).toContain('FDI #16');
-    // Does NOT render "Missing" chip under conditions
+    // The unified Missing chip represents the legacy missing status.
     const conditionChips = Array.from(
       container.querySelectorAll<HTMLButtonElement>('button[class*="conditionChip"]'),
     ).map((b) => b.textContent?.trim());
-    expect(conditionChips).not.toContain('Missing');
+    expect(conditionChips).toContain('Missing');
+    const missing = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Missing');
+    expect(missing?.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('preserves legacy status values (e.g. EXTRACTED) in dropdown without error', async () => {
+  it('represents legacy EXTRACTED status through the unified Missing condition without error', async () => {
     const legacyStatusFinding: ToothFinding = {
       tooth_number: 28,
       dentition: 'PERMANENT',
@@ -363,11 +357,9 @@ describe('ToothExaminationPanel refactored component', () => {
       );
     });
 
-    const statusSelect = container.querySelector<HTMLSelectElement>('select');
-    expect(statusSelect?.value).toBe('EXTRACTED');
-
-    const optionValues = Array.from(statusSelect?.options ?? []).map((o) => o.value);
-    expect(optionValues).toContain('EXTRACTED');
+    expect(container.querySelector('select')).toBeNull();
+    const missing = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Missing');
+    expect(missing?.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('calls onRemoveFinding when Reset button is clicked', async () => {
@@ -393,6 +385,29 @@ describe('ToothExaminationPanel refactored component', () => {
     });
 
     expect(onRemove).toHaveBeenCalledWith(12);
+  });
+
+  it('uses compact detail tabs without losing periodontal or notes controls', async () => {
+    await act(async () => {
+      root.render(
+        <ToothExaminationPanel
+          selectedToothNumber={12}
+          currentFinding={undefined}
+          onUpdateFinding={vi.fn()}
+          onRemoveFinding={vi.fn()}
+        />,
+      );
+    });
+
+    const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Surfaces', 'Periodontal']);
+    expect(container.textContent).not.toContain('Probing Depth (mm)');
+
+    await act(async () => tabs[1]?.click());
+    expect(container.textContent).toContain('Probing Depth (mm)');
+    expect(container.textContent).toContain('Furcation Involvement');
+
+    expect(container.textContent).toContain('Tooth Notes');
   });
 
   it('renders Affected Surfaces section with 3D tooth context and surface buttons inside the panel', async () => {

@@ -160,11 +160,79 @@ describe('OpdDentalExaminationTab Component', () => {
       );
     });
 
-    expect(container.textContent).toContain('Dental Examination & Odontogram');
+    expect(container.textContent).toContain('Odontogram');
     expect(container.textContent).toContain('Draft In-Progress');
     expect(container.textContent).toContain('Dental History & Medical Risk Assessment');
-    expect(container.textContent).toContain('Toothache in upper molar');
     expect(container.textContent).toContain('Hypertension');
+  });
+
+  it('uses section sub-tabs without unmounting the dental examination panels', async () => {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} />
+        </QueryClientProvider>,
+      );
+    });
+
+    const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('button[id^="dental-subtab-"][role="tab"]'));
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([
+      'History & Risk',
+      'Odontogram',
+      'Imaging',
+      'Laboratory',
+      'Diagnosis & Plan',
+    ]);
+
+    const odontogramPanel = container.querySelector<HTMLElement>('#dental-subtab-panel-odontogram');
+    const historyPanel = container.querySelector<HTMLElement>('#dental-subtab-panel-history');
+    expect(odontogramPanel?.hidden).toBe(true);
+    expect(historyPanel?.hidden).toBe(false);
+
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.trim() === 'Diabetes Mellitus')
+        ?.click();
+    });
+
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Next: Odontogram'))
+        ?.click();
+    });
+
+    expect(api.saveDentalExaminationDraft).toHaveBeenCalledTimes(1);
+    expect(odontogramPanel?.hidden).toBe(false);
+    expect(historyPanel?.hidden).toBe(true);
+
+    for (const [label, panelId] of [
+      ['Next: Imaging', '#dental-subtab-panel-imaging'],
+      ['Next: Laboratory', '#dental-subtab-panel-laboratory'],
+      ['Next: Diagnosis & Plan', '#dental-subtab-panel-treatment-plan'],
+    ] as const) {
+      await act(async () => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent?.includes(label))
+          ?.click();
+      });
+      expect(container.querySelector<HTMLElement>(panelId)?.hidden).toBe(false);
+    }
+  });
+
+  it('shows both arches with the clinical legend below the odontogram', async () => {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(container.querySelector('[aria-label="Maxillary upper arch"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Mandibular lower arch"]')).not.toBeNull();
+
+    expect(container.querySelector('[aria-label="Clinical condition legend"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('Upper Only');
   });
 
   it('selects a tooth on the odontogram and displays its findings in the panel', async () => {

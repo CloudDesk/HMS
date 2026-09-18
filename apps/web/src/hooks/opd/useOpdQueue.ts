@@ -18,6 +18,9 @@ export type OpdQueueFilters = {
 export function useOpdQueue(filters: OpdQueueFilters) {
   const { user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
+  const isDoctorUser = Boolean(user?.roles?.some(
+    (role) => role.code === 'DOCTOR' || role.code === 'CLINICIAN_DOCTOR' || role.name.toLowerCase() === 'doctor',
+  ));
   const canAccess = (module: string, screen: string) =>
     isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen });
   const canAction = (module: string, screen: string, action: string) =>
@@ -32,8 +35,8 @@ export function useOpdQueue(filters: OpdQueueFilters) {
   const { data: visitsData, isLoading: visitsLoading, error: visitsError } = useOpdVisits({
     search: filters.search || undefined,
     status: filters.status || undefined,
-    doctor_id: filters.doctor_id || undefined,
-    department_id: filters.department_id || undefined,
+    doctor_id: isDoctorUser ? undefined : filters.doctor_id || undefined,
+    department_id: isDoctorUser ? undefined : filters.department_id || undefined,
     date_from: filters.date,
     date_to: filters.date,
     limit: 100,
@@ -43,12 +46,12 @@ export function useOpdQueue(filters: OpdQueueFilters) {
 
   const { data: doctorsData, isLoading: doctorsLoading } = useDoctors(
     { status: 'ACTIVE', limit: 100, sortBy: 'display_name', sortOrder: 'asc' },
-    canAccess('Doctors', 'Doctor Directory')
+    !isDoctorUser && canAccess('Doctors', 'Doctor Directory')
   );
   
   const { data: departmentsData, isLoading: departmentsLoading } = useDepartments(
     { status: 'ACTIVE', limit: 100 },
-    canAccess('Administration', 'Departments')
+    !isDoctorUser && canAccess('Administration', 'Departments')
   );
   
   // Mutations
@@ -80,5 +83,6 @@ export function useOpdQueue(filters: OpdQueueFilters) {
     canEditVisit,
     canViewConsultation,
     canEditConsultation,
+    isDoctorUser,
   };
 }

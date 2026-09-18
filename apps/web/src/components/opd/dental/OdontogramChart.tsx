@@ -12,6 +12,8 @@ interface OdontogramChartProps {
   dentition?: DentitionType;
   onDentitionChange?: (dentition: DentitionType) => void;
   patientAge?: number | null;
+  visibleArches?: 'both' | 'upper' | 'lower';
+  showLegend?: boolean;
 }
 
 type Arch = 'upper' | 'lower';
@@ -167,7 +169,7 @@ function GroupGuide({ primary, arch }: { primary: boolean; arch: Arch }) {
   });
   return <div className={styles.jawGuides} aria-label={`${arch === 'upper' ? 'Upper' : 'Lower'} tooth groups`}>
     <svg className={styles.jawGroupBrackets} viewBox="0 0 600 360" aria-hidden="true">
-      <path data-tooth-group="Incisors" d={arch === 'upper' ? 'M228 35 V24 H372 V35 M300 24 V20' : 'M228 325 V336 H372 V325 M300 336 V340'} />
+      <path data-tooth-group="Incisors" d={arch === 'upper' ? 'M228 28 V16 H372 V28 M300 16 V12' : 'M228 332 V344 H372 V332 M300 344 V348'} />
       {labels.flatMap(({ text, start, end }) => [true, false].map((right) => {
         const x = right ? 132 : 468;
         const tip = right ? x + 10 : x - 10;
@@ -175,7 +177,7 @@ function GroupGuide({ primary, arch }: { primary: boolean; arch: Arch }) {
           d={`M${tip} ${start} H${x} V${end} H${tip} M${x} ${(start + end) / 2} h${right ? -4 : 4}`} />;
       }))}
     </svg>
-    <span className={styles.jawIncisorGuide} style={{ top: arch === 'upper' ? '1%' : '95%' }}>Incisors</span>
+    <span className={styles.jawIncisorGuide} style={{ top: arch === 'upper' ? '-2%' : '97%' }}>Incisors</span>
     {labels.flatMap(({ text, start, end }) => [true, false].map((right) =>
       <span key={`${text}-${right}`} className={styles.jawSideGuide}
         style={{ top: `${(start + end) / 7.2}%`, ...(right ? { right: '79%' } : { left: '79%' }) }}>{text}</span>))}
@@ -200,6 +202,8 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
   dentition: controlledDentition,
   onDentitionChange,
   patientAge = null,
+  visibleArches = 'both',
+  showLegend = true,
 }) => {
   const [internalDentition, setInternalDentition] = useState<DentitionType>(defaultDentition);
   const prevDefaultRef = useRef(defaultDentition);
@@ -301,12 +305,13 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
     <div className={styles.anatomicalChartViewport}><div className={styles.jawChart} data-testid="anatomical-odontogram">
       <p className={styles.patientPerspective}>Dental chart orientation · patient perspective</p>
       <p className={styles.chartSelectionHint}>Select a tooth to view its findings and choose affected surfaces below the chart.</p>
-      {renderArch('upper')}{renderArch('lower')}
+      {visibleArches !== 'lower' ? renderArch('upper') : null}
+      {visibleArches !== 'upper' ? renderArch('lower') : null}
     </div></div>
-    <div className={styles.odontogramLegend} aria-label="Clinical condition legend">
+    {showLegend ? <div className={styles.odontogramLegend} aria-label="Clinical condition legend">
       <span><i className={styles.legendHealthy} />Healthy</span><span><i className={styles.legendCaries} />Caries</span>
       <span><i className={styles.legendFilled} />Restored / Filled</span><span><i className={styles.legendCrown} />Crown</span>
       <span><i className={styles.legendRoot} />Root Piece</span><span><i className={styles.legendMissing}>×</i>Missing</span>
-    </div>
+    </div> : null}
   </div>;
 };

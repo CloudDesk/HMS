@@ -54,20 +54,20 @@ export function OpdQueuePage() {
   });
 
 
-  const { visits, doctors, departments, isLoading, error, isUpdating, updateVisitStatus, canEditVisit, canViewConsultation, canEditConsultation } = useOpdQueue(filters);
+  const { visits, doctors, departments, isLoading, error, isUpdating, updateVisitStatus, canEditVisit, canViewConsultation, canEditConsultation, isDoctorUser } = useOpdQueue(filters);
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (filters.search?.trim()) params.set('search', filters.search.trim());
-    if (filters.department_id) params.set('department_id', filters.department_id);
-    if (filters.doctor_id) params.set('doctor_id', filters.doctor_id);
+    if (!isDoctorUser && filters.department_id) params.set('department_id', filters.department_id);
+    if (!isDoctorUser && filters.doctor_id) params.set('doctor_id', filters.doctor_id);
     if (filters.status) params.set('status', filters.status);
     if (filters.priority) params.set('priority', filters.priority);
     if (filters.date !== todayInputValue()) params.set('date', filters.date);
     const query = params.toString();
     const nextUrl = `/opd/queue${query ? `?${query}` : ''}`;
     if (window.location.pathname + window.location.search !== nextUrl) navigate(nextUrl, { replace: true });
-  }, [filters]);
+  }, [filters, isDoctorUser]);
 
   const clinicianVisits = useMemo(() => visits.filter((visit) => clinicianStatuses.has(visit.status)).sort(visitSort), [visits]);
   const readyVisits = clinicianVisits.filter((visit) => visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED');
@@ -101,7 +101,7 @@ export function OpdQueuePage() {
   return (
     <div className="opd-page">
       <section className="opd-page-header">
-        <div className="opd-page-title"><h2>Doctor Waiting Queue</h2><p>Review consultation-ready patients in persisted token order</p></div>
+        <div className="opd-page-title"><h2>Patients Queue</h2><p>Review consultation-ready patients in persisted token order</p></div>
         <button className="doc-btn" onClick={() => window.location.reload()} type="button"><i className="ph ph-arrow-clockwise" aria-hidden="true" /> Refresh Queue</button>
       </section>
 
@@ -117,9 +117,9 @@ export function OpdQueuePage() {
       </section>
 
       <section className="doc-toolbar">
-        <div className="doc-field grow doc-search"><label htmlFor="opd-search">Search Doctor Queue</label><i className="ph ph-magnifying-glass" aria-hidden="true" /><input id="opd-search" onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search visit, MRN, patient, or doctor" type="search" value={filters.search} /></div>
-        <div className="doc-field"><label htmlFor="opd-department">Department</label><select id="opd-department" onChange={(event) => setFilters((current) => ({ ...current, department_id: event.target.value }))} value={filters.department_id}><option value="">All Departments</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>
-        <div className="doc-field"><label htmlFor="opd-doctor">Doctor</label><select id="opd-doctor" onChange={(event) => setFilters((current) => ({ ...current, doctor_id: event.target.value }))} value={filters.doctor_id}><option value="">All Doctors</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.display_name}</option>)}</select></div>
+        <div className="doc-field grow doc-search"><label htmlFor="opd-search">Search Patients Queue</label><i className="ph ph-magnifying-glass" aria-hidden="true" /><input id="opd-search" onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder={isDoctorUser ? 'Search visit, MRN, or patient' : 'Search visit, MRN, patient, or doctor'} type="search" value={filters.search} /></div>
+        {!isDoctorUser ? <div className="doc-field"><label htmlFor="opd-department">Department</label><select id="opd-department" onChange={(event) => setFilters((current) => ({ ...current, department_id: event.target.value }))} value={filters.department_id}><option value="">All Departments</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div> : null}
+        {!isDoctorUser ? <div className="doc-field"><label htmlFor="opd-doctor">Doctor</label><select id="opd-doctor" onChange={(event) => setFilters((current) => ({ ...current, doctor_id: event.target.value }))} value={filters.doctor_id}><option value="">All Doctors</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.display_name}</option>)}</select></div> : null}
         <div className="doc-field"><label htmlFor="opd-status">Status</label><select id="opd-status" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as StatusFilter }))} value={filters.status}><option value="">All Clinical Statuses</option><option value="READY_FOR_CONSULTATION">Ready for Consultation</option><option value="IN_CONSULTATION">In Consultation</option><option value="SKIPPED">Skipped</option><option value="COMPLETED">Completed</option></select></div>
         <div className="doc-field"><label htmlFor="opd-priority">Priority</label><select id="opd-priority" onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as PriorityFilter }))} value={filters.priority}><option value="">All Priorities</option>{Object.entries(opdVisitPriorityLabels).map(([priority, label]) => <option key={priority} value={priority}>{label}</option>)}</select></div>
         <div className="doc-field"><label htmlFor="opd-date">Date</label><input id="opd-date" onChange={(event) => setFilters((current) => ({ ...current, date: event.target.value }))} type="date" value={filters.date} /></div>
@@ -129,12 +129,21 @@ export function OpdQueuePage() {
       <section className="doc-card">
         <div className="doc-card-header"><div><h3>Consultation Queue</h3><p>{isLoading ? 'Loading queue...' : `${clinicianVisits.length} clinical visits`}</p></div></div>
         <div className="doc-table-wrap appointment-queue-table-wrap">
-          <table className="doc-table">
-            <thead><tr><th>Token</th><th>Patient &amp; Visit</th><th>Doctor</th><th>Wait</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
+          <table className="doc-table opd-queue-table">
+            <colgroup>
+              <col style={{ width: isDoctorUser ? '8%' : '7%' }} />
+              <col style={{ width: isDoctorUser ? '24%' : '25%' }} />
+              {!isDoctorUser ? <col style={{ width: '20%' }} /> : null}
+              <col style={{ width: isDoctorUser ? '12%' : '9%' }} />
+              <col style={{ width: isDoctorUser ? '16%' : '12%' }} />
+              <col style={{ width: isDoctorUser ? '21%' : '14%' }} />
+              <col style={{ width: isDoctorUser ? '19%' : '13%' }} />
+            </colgroup>
+            <thead><tr><th>Token</th><th>Patient &amp; Visit</th>{!isDoctorUser ? <th>Doctor</th> : null}<th>Wait</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
+                  <td colSpan={isDoctorUser ? 6 : 7} style={{ padding: '2.5rem 1rem' }}>
                     <MedicalLoader
                       text="Loading doctor queue..."
                       subtext="Retrieving consultation waiting queue"
@@ -142,14 +151,14 @@ export function OpdQueuePage() {
                   </td>
                 </tr>
               ) : clinicianVisits.length === 0 ? (
-                <tr><td className="um-state-cell" colSpan={7}>No patients are ready for consultation for the selected filters.</td></tr>
+                <tr><td className="um-state-cell" colSpan={isDoctorUser ? 6 : 7}>No patients are ready for consultation for the selected filters.</td></tr>
               ) : paginatedVisits.map((visit, index) => {
                 const globalIndex = (page - 1) * pageSize + index;
                 return (
                 <tr key={visit.id}>
                   <td><span className="queue-token-chip">{tokenFor(visit, globalIndex)}</span></td>
                   <td><div className="doc-person"><span className="doc-avatar">{patientInitials(visit.patient_name)}</span><div><strong>{visit.patient_name}</strong><span>{visit.visit_number}</span></div></div></td>
-                  <td><strong>{visit.doctor_name}</strong><br /><small>{visit.doctor_specialization}</small></td>
+                  {!isDoctorUser ? <td><strong>{visit.doctor_name}</strong><br /><small>{visit.doctor_specialization}</small></td> : null}
                   <td>{waitMinutes(visit)} min</td>
                   <td><span className={`doc-status ${visitPriorityClass(visit.priority)}`}>{opdVisitPriorityLabels[visit.priority]}</span></td>
                   <td><span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span></td>

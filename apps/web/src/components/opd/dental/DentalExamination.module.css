@@ -451,6 +451,53 @@
   cursor: pointer;
 }
 
+/* Dental history workstation */
+.historyAssessmentCard { border-radius: 14px; box-shadow: 0 3px 14px rgba(15, 23, 42, 0.06); }
+.historyAssessmentHeader { min-height: 68px; padding: 10px 18px !important; background: linear-gradient(110deg, #f8fbff, #fff); }
+.historyAssessmentHeader > div:first-child { gap: 12px !important; }
+.historyHeaderIcon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 12px; background: #eff6ff; color: #1565e8; font-size: 1.6rem; }
+.historyAssessmentHeader .cardTitle { margin: 0; color: #10214b; font-size: 1rem; }
+.historyHeaderSubtitle { margin: 2px 0 0; color: #516789; font-size: 0.75rem; }
+.historyAssessmentContent { padding: 0 14px 14px !important; }
+.historyTopGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.historyTopCard { min-width: 0; padding: 14px; border: 1px solid #dbe5f3; border-radius: 10px; background: #fff; }
+.historyTopCard:only-child { grid-column: 1 / -1; }
+.historyFieldTitle { display: flex; align-items: center; gap: 7px; color: #10214b; font-size: 0.84rem; font-weight: 750; }
+.historyFieldTitle i { color: #1769ef; font-size: 1rem; }
+.historyFieldHelp { margin: 3px 0 8px; color: #526b91; font-size: 0.7rem; }
+.historyTopCard .textarea { min-height: 92px; font-size: 0.76rem; }
+.historyCharacterCount { display: block; margin-top: 3px; color: #55709b; font-size: 0.68rem; text-align: right; }
+.historyTopCard .painLabels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; padding: 0; }
+.historyTopCard .painLabels span { padding: 7px 5px; border-radius: 7px; background: #f5f8fc; color: #405b86; text-align: center; }
+.historyTopCard .painLabels strong { display: block; margin-top: 2px; color: #132957; }
+.historyTopCard .toggleRow { justify-content: space-between; gap: 10px; padding: 10px 0 0; }
+.historyTopCard .checkboxLabel { color: #10214b; font-size: 0.75rem; }
+.riskCardGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.riskCategoryCard { display: flex; min-width: 0; min-height: 250px; flex-direction: column; overflow: hidden; border: 1px solid #dbe5f3; border-radius: 10px; background: #fff; }
+.riskCategoryHeader { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 10px; background: var(--risk-bg); color: var(--risk-color); }
+.riskCategoryHeader > i { justify-self: center; margin-top: 1px; font-size: 1.45rem; line-height: 1; }
+.riskCategoryHeader div { min-width: 0; }
+.riskCategoryHeader strong { display: block; font-size: 0.76rem; }
+.riskCategoryHeader span { display: block; margin-top: 2px; color: #5d7191; font-size: 0.61rem; line-height: 1.25; }
+.riskCategoryHeader em { align-self: start; padding: 5px 7px; border: 1px solid #d7e1ef; border-radius: 7px; background: #f7faff; color: #375174; font-size: 0.61rem; font-style: normal; white-space: nowrap; }
+.riskToneblue { --risk-bg: #eef6ff; --risk-color: #1565e8; }
+.riskTonered { --risk-bg: #fff0f2; --risk-color: #dc2626; }
+.riskToneamber { --risk-bg: #fff8df; --risk-color: #b65f00; }
+.riskTonegreen { --risk-bg: #eafbf3; --risk-color: #05875c; }
+.riskCategoryBody { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 10px; padding: 9px 10px 10px; }
+.riskCategoryBody .chipContainer { gap: 5px; }
+.riskCategoryBody .chip { min-height: 28px; padding: 4px 8px; font-size: 0.65rem; }
+.riskCategoryBody .chip i { font-size: 0.72rem; }
+.riskAddRow { display: grid; grid-template-columns: minmax(0, 1fr) 34px; gap: 6px; }
+.riskAddRow .input { min-height: 34px; padding: 6px 9px; font-size: 0.68rem; }
+.riskAddRow button { border: 1px solid currentColor; border-radius: 7px; background: #fff; color: var(--risk-color); cursor: pointer; font-size: 1rem; }
+
+@media (max-width: 760px) {
+  .historyTopGrid, .riskCardGrid { grid-template-columns: 1fr; }
+  .historyAssessmentHeader { align-items: flex-start; }
+  .historyHeaderSubtitle { display: none; }
+}
+
 /* Chip Multi-select */
 .chipContainer {
   display: flex;
@@ -526,9 +573,9 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  background: #f8fafc;
+  border: 1px solid #dbe5f3;
+  color: #334155;
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 0.825rem;
@@ -611,9 +658,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: var(--dental-allergy-bg, #fef2f2);
-  color: var(--dental-allergy, #dc2626);
-  border: 1px solid var(--dental-allergy-border, #fecaca);
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -635,6 +682,96 @@
 }
 
 /* Odontogram Section Layout */
+.subTabBar {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 58px;
+  overflow: hidden;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.subTabList {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.subTabStatus {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid #e2e8f0;
+}
+
+.subTabButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #52647d;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.subTabButton:hover {
+  background: #f1f5f9;
+  color: #1e3a8a;
+}
+
+.subTabButton:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 1px;
+}
+
+.subTabButtonActive {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: inset 0 -2px 0 #2563eb;
+}
+
+.subTabPanel[hidden] {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .subTabBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .subTabStatus {
+    padding: 6px 4px 0;
+    border-top: 1px solid #e2e8f0;
+    border-left: 0;
+  }
+}
+
 .odontogramCard {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -731,19 +868,59 @@
 
 .odontogramLayout {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr);
-  gap: 16px;
+  grid-template-columns: 184px minmax(520px, 1fr) minmax(320px, 380px);
+  gap: 12px;
   width: 100%;
   padding: 8px 0 12px;
   box-sizing: border-box;
   align-items: start;
 }
 
-@media (max-width: 960px) {
+.odontogramLayout + .card {
+  margin-top: 14px;
+}
+
+@media (min-width: 1081px) {
+  .odontogramPanel {
+    min-height: calc(100vh - 250px);
+  }
+
+  .odontogramPanel .odontogramLayout {
+    min-height: calc(100vh - 250px);
+  }
+
+  .odontogramPanel .odontogramMainColumn,
+  .odontogramPanel .odontogramCard,
+  .odontogramPanel .panelContainer {
+    height: 100%;
+  }
+
+  .odontogramPanel .odontogramCard {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .odontogramPanel .anatomicalChartViewport {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 1280px) {
+  .odontogramLayout {
+    grid-template-columns: 164px minmax(440px, 1fr) minmax(300px, 340px);
+  }
+}
+
+@media (max-width: 1080px) {
   .odontogramLayout {
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 8px 0;
+  }
+
+  .odontogramSidebar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -752,6 +929,96 @@
   flex-direction: column;
   gap: 20px;
   min-width: 0;
+}
+
+.odontogramSidebar {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.sidebarSection {
+  display: grid;
+  gap: 7px;
+}
+
+.sidebarSection + .sidebarSection {
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.sidebarSection h3 {
+  margin: 0 0 2px;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.sidebarControl {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid #dbe5f1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #52647d;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebarControl:hover:not(:disabled) {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+  color: #1d4ed8;
+}
+
+.sidebarControl:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.sidebarControlActive {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.sidebarLegend {
+  display: grid;
+  gap: 7px;
+  color: #64748b;
+  font-size: 0.68rem;
+}
+
+.sidebarLegend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sidebarLegend i {
+  display: inline-grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  border-radius: 3px;
+  font-style: normal;
 }
 
 .affectedSurfacesPanel {
@@ -794,6 +1061,33 @@
 
 .softTissueCard {
   margin-inline: 0;
+}
+
+.softTissueEmbedded {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f7;
+}
+
+.softTissueEmbedded > h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 9px;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.softTissueEmbedded > h3 i { color: #0d9488; font-size: 0.9rem; }
+.softTissueEmbedded .formGrid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.softTissueEmbedded .label { font-size: 0.68rem; }
+.softTissueEmbedded .select { min-height: 34px; padding: 5px 8px; font-size: 0.7rem; }
+
+@media (max-width: 520px) {
+  .softTissueEmbedded .formGrid3 { grid-template-columns: 1fr; }
 }
 
 .treatmentPlanCard {
@@ -1095,8 +1389,8 @@
 .jawTooth[data-condition='root'] .jawConditionTint { fill: #9333ea88; }
 .jawTooth[data-condition='attention'] .jawConditionTint { fill: #f9731677; }
 .jawTooth[data-condition='missing'] .jawToothArt { opacity: .3; }
-.jawFindingMark { position: absolute; right: 8px; bottom: 8px; z-index: 5; display: grid; place-items: center; width: 16px; height: 16px; border: 2px solid #fff; border-radius: 50%; background: #ef4444; color: #fff; font-size: 12px; font-weight: 800; line-height: 1; box-shadow: 0 1px 3px #0f172a40; }
-.jawTooth[data-patient-side='left'] .jawFindingMark { right: auto; left: 8px; }
+.jawFindingMark { position: absolute; left: 1px; right: auto; bottom: 2px; z-index: 5; display: grid; place-items: center; width: 13px; height: 13px; border: 2px solid #fff; border-radius: 50%; background: #ef4444; color: #fff; font-size: 9px; font-weight: 800; line-height: 1; box-shadow: 0 1px 3px #0f172a40; }
+.jawTooth[data-patient-side='right'] .jawFindingMark { left: auto; right: 1px; }
 .jawTooth[data-condition='healthy'] .jawFindingMark { background: #16a34a; }
 .jawTooth[data-condition='filled'] .jawFindingMark { background: #2563eb; }
 .jawTooth[data-condition='crown'] .jawFindingMark { background: #d97706; }
@@ -1424,6 +1718,40 @@
 .panelContainer .formGrid2 { grid-template-columns: minmax(0, 1fr); }
 .panelContainer .input, .panelContainer .select { min-height: 40px; }
 .panelContainer .textarea { min-height: 100px; }
+.toothDetailTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.toothDetailTab {
+  min-height: 34px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 6px 8px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toothDetailTab:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #1d4ed8;
+}
+
+.toothDetailTabActive {
+  border-bottom-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.toothDetailTab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .panelSaveButton {
   display: flex;
   align-items: center;
@@ -1482,13 +1810,25 @@
   margin-top: 2px;
 }
 
+.panelToothNotePreview {
+  max-width: 280px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #475569;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .conditionChipsGrid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
 .conditionChip {
+  width: 100%;
   padding: 4px 8px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -1496,6 +1836,12 @@
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+@media (max-width: 560px) {
+  .conditionChipsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .panelSection {
@@ -2092,10 +2438,10 @@
 }
 
 .medicalAlertBannerAlert {
-  background: #fff1f2;
-  border-color: #fecdd3;
-  color: #9f1239;
-  box-shadow: 0 1px 3px rgba(244, 63, 94, 0.08);
+  background: #f8fafc;
+  border-color: #dbe5f3;
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .medicalAlertBannerClean {
@@ -2134,8 +2480,8 @@
   align-items: center;
   gap: 4px;
   background: #ffffff;
-  color: #be123c;
-  border: 1px solid #fda4af;
+  color: #475569;
+  border: 1px solid #cbd5e1;
   padding: 2px 10px;
   border-radius: 9999px;
   font-size: 0.75rem;
@@ -2144,9 +2490,9 @@
 }
 
 .medicalAlertBadgeAllergy {
-  background: #ef4444;
-  color: #ffffff;
-  border-color: #dc2626;
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
 }
 
 .medicalAlertJumpBtn {
@@ -2323,6 +2669,8 @@
   border: 1px solid #cbd5e1;
   box-shadow: 0 -4px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
   margin-top: 6px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .stickySummary {
@@ -2332,6 +2680,7 @@
   flex-wrap: wrap;
   font-size: 0.8rem;
   color: #475569;
+  min-width: 0;
 }
 
 .stickyMetric {
@@ -2362,6 +2711,8 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .btnPrimaryGradient {
@@ -2390,4 +2741,290 @@
 .btnPrimaryGradient:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Compact three-column odontogram workstation. The clinical controls remain
+   the same; only their density and ordering mirror the approved reference. */
+@media (min-width: 1081px) {
+  .odontogramLayout {
+    grid-template-columns: minmax(430px, 1fr) minmax(400px, 480px);
+    gap: 12px;
+    padding-top: 4px;
+    align-items: stretch;
+  }
+
+  .odontogramSidebar {
+    position: relative;
+    top: auto;
+    gap: 13px;
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .sidebarSection + .sidebarSection {
+    padding-top: 12px;
+  }
+
+  .sidebarControl {
+    min-height: 34px;
+    padding: 6px 9px;
+  }
+
+  .odontogramCard {
+    border-radius: 10px;
+  }
+
+  .dentitionIndicator {
+    margin: 10px 14px 0;
+    padding: 8px 12px;
+    font-size: 0.76rem;
+  }
+
+  .jawChart {
+    min-width: 390px;
+    padding: 6px 8px 10px;
+  }
+
+  .jawSection + .jawSection {
+    margin-top: -12px;
+  }
+
+  .jawSection:first-of-type .jawStage {
+    margin-bottom: -24px;
+  }
+
+  .jawStage {
+    max-width: 600px;
+  }
+
+  .jawHeader {
+    top: 18px;
+    left: 4px;
+    max-width: 116px;
+  }
+
+  .jawHeader strong {
+    padding: 6px 8px;
+    font-size: 0.7rem;
+  }
+
+  .jawGuides,
+  .jawNumber {
+    font-size: 10px;
+  }
+
+  .panelContainer {
+    position: relative;
+    top: auto;
+    gap: 10px;
+    padding: 12px 14px 14px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    align-self: stretch;
+    height: 100%;
+  }
+
+  .panelHeader {
+    padding-bottom: 8px;
+  }
+
+  .panelSection {
+    gap: 6px;
+    padding-top: 8px;
+  }
+
+  .panelSurfaceSection {
+    order: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .affectedSurfacesPanel {
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .affectedSurfacesHeader {
+    display: none;
+  }
+
+  .surfaceSelectorBox {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 132px;
+    grid-template-rows: auto auto auto;
+    gap: 6px 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .surfacePreviewHeader,
+  .surfaceSelectionHeader {
+    display: none;
+  }
+
+  .surfaceModelStage {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    height: 164px;
+    min-height: 164px;
+    max-height: 164px;
+  }
+
+  .surfaceButtonsRow {
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 4px;
+  }
+
+  .surfaceBtn {
+    min-height: 30px;
+    padding: 3px 4px;
+    border-radius: 8px;
+    font-size: 0.68rem;
+  }
+
+  .surfaceButtonCopy {
+    flex: 1 1 auto;
+  }
+
+  .surfaceCheck {
+    margin-left: 0;
+  }
+
+  .surfaceCode {
+    flex-basis: 21px;
+    height: 21px;
+    font-size: 0.66rem;
+  }
+
+  .surfaceSelectorBox > .surfaceSelectionHint {
+    display: none;
+  }
+
+  .panelContainer .select,
+  .panelContainer .input {
+    min-height: 34px;
+  }
+
+  .panelContainer .textarea {
+    min-height: 66px;
+  }
+
+  .panelPeriodontalSection {
+    flex: 1 1 auto;
+  }
+
+  .panelPeriodontalSection .formGroup:last-child {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .panelPeriodontalSection .textarea {
+    flex: 1 1 auto;
+    min-height: 150px;
+  }
+
+  .stickyActionBar {
+    flex-wrap: nowrap;
+    padding: 8px 14px;
+    border-radius: 10px;
+  }
+
+  .stickySummary {
+    flex-wrap: nowrap;
+    gap: 11px;
+    font-size: 0.72rem;
+  }
+
+  .stickyActions {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .stickyActions button {
+    padding-inline: 10px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 721px) {
+  .stickyActionBar {
+    flex-wrap: nowrap;
+  }
+
+  .stickySummary {
+    flex: 1 1 auto;
+  }
+
+  .stickyActions {
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .stickyActions button {
+    padding-inline: 10px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 720px) {
+  .stickyActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .stickyActions button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (min-width: 1081px) and (max-width: 1280px) {
+  .odontogramLayout {
+    grid-template-columns: minmax(390px, 1fr) minmax(360px, 420px);
+    gap: 8px;
+  }
+
+  .odontogramSidebar {
+    padding: 10px;
+  }
+
+  .sidebarControl {
+    padding-inline: 7px;
+    font-size: 0.67rem;
+  }
+
+  .jawChart {
+    min-width: 350px;
+  }
+
+  .jawStage {
+    max-width: 480px;
+  }
+
+  .panelContainer {
+    padding-inline: 10px;
+  }
+
+  .surfaceSelectorBox {
+    grid-template-columns: minmax(0, 1fr) 128px;
+  }
+
+  .surfaceViewControls button:nth-child(1),
+  .surfaceViewControls button:nth-child(5) {
+    display: none;
+  }
+
+  .stickyMetric {
+    gap: 3px;
+  }
 }
