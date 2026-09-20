@@ -59,6 +59,26 @@ interface OpdDentalExaminationTabProps {
   renderLab?: () => React.ReactNode;
 }
 
+type DentalExaminationSubTab = 'odontogram' | 'history' | 'imaging' | 'laboratory' | 'treatment-plan';
+
+const dentalExaminationSubTabs: Array<{ id: DentalExaminationSubTab; label: string; icon: string }> = [
+  { id: 'history', label: 'History & Risk', icon: 'ph-heartbeat' },
+  { id: 'odontogram', label: 'Odontogram', icon: 'ph-tooth' },
+  { id: 'imaging', label: 'Imaging', icon: 'ph-image-square' },
+  { id: 'laboratory', label: 'Laboratory', icon: 'ph-flask' },
+  { id: 'treatment-plan', label: 'Diagnosis & Plan', icon: 'ph-clipboard-text' },
+];
+
+const dentalExaminationNextStep: Partial<Record<
+  DentalExaminationSubTab,
+  { id: DentalExaminationSubTab; label: string }
+>> = {
+  history: { id: 'odontogram', label: 'Next: Odontogram' },
+  odontogram: { id: 'imaging', label: 'Next: Imaging' },
+  imaging: { id: 'laboratory', label: 'Next: Laboratory' },
+  laboratory: { id: 'treatment-plan', label: 'Next: Diagnosis & Plan' },
+};
+
 export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = ({
   visitId,
   canEdit,
@@ -151,11 +171,16 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const [treatmentPlanItems, setTreatmentPlanItems] = useState<DentalTreatmentPlanItem[]>([]);
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<DentalExaminationSubTab>('history');
   const [isDirty, setIsDirty] = useState(false);
   const dirtyRef = useRef(false);
   const allowNavigationRef = useRef(false);
   const loadedVersion = useRef<string | undefined>(undefined);
   dirtyRef.current = isDirty;
+
+  useEffect(() => {
+    setActiveSubTab('history');
+  }, [visitId]);
 
   const formatCurrency = useCurrencyFormatter();
 
@@ -375,9 +400,29 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       dirtyRef.current = false;
       setIsDirty(false);
       showToast?.('Dental examination draft saved successfully.', 'success');
+      return true;
     } catch (err) {
       showToast?.(getOpdErrorMessage(err), 'error');
+      return false;
     }
+  };
+
+  const handleSubTabChange = async (nextTab: DentalExaminationSubTab) => {
+    if (nextTab === activeSubTab || isSaving) return;
+    if (isDirty && !isReadOnly) {
+      const saved = await handleSaveDraft();
+      if (!saved) return;
+    }
+    setActiveSubTab(nextTab);
+  };
+
+  const handleOpenDiagnosis = async () => {
+    if (!onOpenDiagnosis || isSaving) return;
+    if (isDirty && !isReadOnly) {
+      const saved = await handleSaveDraft();
+      if (!saved) return;
+    }
+    onOpenDiagnosis(selectedToothNumber);
   };
 
   const handleConfirmComplete = async () => {
@@ -459,60 +504,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
 
   return (
     <div className={styles.container}>
-      {/* Action Bar */}
-      <div className={styles.actionBar}>
-        <div className={styles.titleArea}>
-          <h2 className={styles.examTitle}>
-            <i className="ph ph-tooth" style={{ color: '#2563eb', fontSize: '1.25rem' }} />
-            Dental Examination &amp; Odontogram
-          </h2>
-          {isCompleted ? (
-            <span className={styles.statusBadgeCompleted}>
-              <i className="ph ph-check-circle-fill" /> Completed &amp; Locked
-            </span>
-          ) : (
-            <>
-              <span className={styles.statusBadgeDraft}>
-                <i className="ph ph-pencil-simple-line" /> Draft In-Progress
-              </span>
-              {isDirty && (
-                <span className={styles.unsavedBadge}>
-                  <i className="ph ph-warning-circle" /> Unsaved Changes
-                </span>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className={styles.actionButtons}>
-          {!isReadOnly && (
-            <>
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={handleSaveDraft}
-                disabled={isSaving}
-              >
-                <i className="ph ph-floppy-disk" />
-                {saveDraftMutation.isPending ? 'Saving Draft...' : 'Save Draft'}
-              </button>
-
-              <button
-                type="button"
-                className={styles.btnComplete}
-                onClick={() => setConfirmCompleteOpen(true)}
-                disabled={isSaving}
-              >
-                <i className="ph ph-check-circle" />
-                Complete Examination
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-
-
       {!canEdit && !isCompleted && (
         <div className={styles.lockedBanner}>
           <i className="ph ph-info" style={{ fontSize: '1.25rem' }} />
@@ -678,8 +669,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           type="button"
           className={styles.medicalAlertJumpBtn}
           onClick={() => {
-            const historyEl = document.getElementById('dental-history-section');
-            historyEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            void handleSubTabChange('history');
           }}
           title="Jump to Dental History & Medical Risk Assessment"
         >
@@ -688,7 +678,47 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         </button>
       </div>
 
-      {/* 1. Interactive Odontogram Hero + Side-by-Side Tooth Detail & Affected Surfaces Panel */}
+      <div className={styles.subTabBar}>
+      <div className={styles.subTabList} role="tablist" aria-label="Dental examination sections">
+        {dentalExaminationSubTabs.map((tab) => (
+          <button
+            aria-controls={`dental-subtab-panel-${tab.id}`}
+            aria-selected={activeSubTab === tab.id}
+            className={`${styles.subTabButton} ${activeSubTab === tab.id ? styles.subTabButtonActive : ''}`}
+            id={`dental-subtab-${tab.id}`}
+            key={tab.id}
+            onClick={() => void handleSubTabChange(tab.id)}
+            disabled={isSaving}
+            role="tab"
+            type="button"
+          >
+            <i className={`ph ${tab.icon}`} aria-hidden="true" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div className={styles.subTabStatus} role="status">
+        {isCompleted ? (
+          <span className={styles.statusBadgeCompleted}>
+            <i className="ph ph-check-circle-fill" /> Completed &amp; Locked
+          </span>
+        ) : (
+          <>
+            <span className={styles.statusBadgeDraft}>
+              <i className="ph ph-pencil-simple-line" /> Draft In-Progress
+            </span>
+            {isDirty && (
+              <span className={styles.unsavedBadge}>
+                <i className="ph ph-warning-circle" /> Unsaved Changes
+              </span>
+            )}
+          </>
+        )}
+      </div>
+      </div>
+
+      {/* Panels stay mounted so switching tabs does not discard unsaved section state. */}
+      <section className={`${styles.subTabPanel} ${styles.odontogramPanel}`} aria-labelledby="dental-subtab-odontogram" hidden={activeSubTab !== 'odontogram'} id="dental-subtab-panel-odontogram" role="tabpanel">
       <div className={styles.odontogramLayout}>
         <div className={styles.odontogramMainColumn}>
           <OdontogramChart
@@ -701,6 +731,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             defaultDentition={defaultDentition}
             onDentitionChange={handleDentitionChange}
             patientAge={patientAge}
+            showLegend
           />
         </div>
 
@@ -712,12 +743,19 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           onRemoveFinding={handleRemoveFinding}
           disabled={controlsDisabled}
           showAffectedSurfaces={true}
-          onSave={isReadOnly ? undefined : handleSaveDraft}
-          isSaving={saveDraftMutation.isPending}
+          additionalContent={(
+            <DentalSoftTissueSection
+              softTissue={softTissue}
+              onChange={handleSoftTissueChange}
+              disabled={controlsDisabled}
+              embedded
+            />
+          )}
         />
       </div>
+      </section>
 
-      {/* 2. Dental History & Medical Alerts Section (Now placed below the Odontogram) */}
+      <section className={styles.subTabPanel} aria-labelledby="dental-subtab-history" hidden={activeSubTab !== 'history'} id="dental-subtab-panel-history" role="tabpanel">
       <div id="dental-history-section">
         <DentalHistorySection
           history={dentalHistory}
@@ -728,10 +766,16 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           consultationAssessment={consultation?.assessment}
         />
       </div>
+      </section>
 
-      {renderImaging?.(selectedToothNumber, currentEpisode?.id ?? dentalExam?.episode_id ?? null)}
-      {renderLab?.()}
+      <section className={styles.subTabPanel} aria-labelledby="dental-subtab-imaging" hidden={activeSubTab !== 'imaging'} id="dental-subtab-panel-imaging" role="tabpanel">
+        {renderImaging?.(selectedToothNumber, currentEpisode?.id ?? dentalExam?.episode_id ?? null)}
+      </section>
+      <section className={styles.subTabPanel} aria-labelledby="dental-subtab-laboratory" hidden={activeSubTab !== 'laboratory'} id="dental-subtab-panel-laboratory" role="tabpanel">
+        {renderLab?.()}
+      </section>
 
+      <section className={styles.subTabPanel} aria-labelledby="dental-subtab-treatment-plan" hidden={activeSubTab !== 'treatment-plan'} id="dental-subtab-panel-treatment-plan" role="tabpanel">
       <section className={`${styles.consultationContext} ${styles.clinicalRelationshipCard}`} aria-label="Dental clinical relationship">
         <div className={styles.clinicalRelationshipHeader}>
           <div className={styles.clinicalRelationshipHeading}>
@@ -784,14 +828,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         </div>
       </section>
 
-      {/* 3. General Oral & Soft Tissue Section */}
-      <DentalSoftTissueSection
-        softTissue={softTissue}
-        onChange={handleSoftTissueChange}
-        disabled={controlsDisabled}
-      />
-
-      {/* 4. Proposed Treatment Plan Section */}
       <DentalTreatmentPlanSection
         items={treatmentPlanItems}
         teeth={teeth}
@@ -810,6 +846,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         episodeId={currentEpisode?.id}
         departmentId={dentalExam?.department_id ?? currentEpisode?.department_id ?? null}
       />
+      </section>
 
       {/* Sticky Bottom Workstation Action Bar */}
       <div className={styles.stickyActionBar}>
@@ -830,11 +867,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             <span className={styles.stickyMetricAlert}>
               <i className="ph ph-warning-octagon" />
               {medicalAlerts.length} Alert{medicalAlerts.length > 1 ? 's' : ''}
-            </span>
-          )}
-          {isDirty && (
-            <span className={styles.unsavedBadge}>
-              <i className="ph ph-warning-circle" /> Unsaved Changes
             </span>
           )}
         </div>
@@ -864,16 +896,27 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             </>
           )}
 
-          {onOpenDiagnosis && (
+          {dentalExaminationNextStep[activeSubTab] ? (
             <button
               type="button"
-              className={styles.btnPrimaryGradient}
-              onClick={() => onOpenDiagnosis(selectedToothNumber)}
+              className={styles.btnPrimary}
+              onClick={() => void handleSubTabChange(dentalExaminationNextStep[activeSubTab]!.id)}
+              disabled={isSaving}
             >
-              Continue to Diagnosis
+              {dentalExaminationNextStep[activeSubTab]!.label}
               <i className="ph ph-arrow-right" />
             </button>
-          )}
+          ) : onOpenDiagnosis ? (
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={() => void handleOpenDiagnosis()}
+              disabled={isSaving}
+            >
+              Next: Diagnosis
+              <i className="ph ph-arrow-right" />
+            </button>
+          ) : null}
         </div>
       </div>
 

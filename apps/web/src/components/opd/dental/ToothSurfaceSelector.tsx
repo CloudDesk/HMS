@@ -35,20 +35,7 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
   const pointerRef = useRef<{ id: number; x: number; y: number; startX: number; startY: number; moved: boolean } | null>(null);
   const [available, setAvailable] = useState(true);
   const [modelLoading, setModelLoading] = useState(false);
-  const [identifiedSurface, setIdentifiedSurface] = useState<ToothSurface | null>(null);
-  const [surfaceAnchor, setSurfaceAnchor] = useState<{ x: number; y: number } | null>(null);
   const [contextVersion, setContextVersion] = useState(0);
-  const arrowId = `${helpId.replace(/:/g, '')}-surface-arrow`;
-  const surfaceOverlays = surfaces.map((surface) => ({
-    surface,
-    anchor: surface === identifiedSurface && surfaceAnchor
-      ? surfaceAnchor
-      : rendererRef.current?.locate(surface) ?? null,
-  })).filter((overlay): overlay is { surface: ToothSurface; anchor: { x: number; y: number } } => Boolean(overlay.anchor));
-
-  const updateSurfaceAnchor = (surface = identifiedSurface) => {
-    if (surface) setSurfaceAnchor(rendererRef.current?.locate(surface) ?? null);
-  };
 
   useEffect(() => {
     selectionRef.current = surfaces;
@@ -100,8 +87,7 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
       renderer?.setSurfaces(selectionRef.current);
       const recordedSurface = selectionRef.current[0];
       if (recordedSurface && renderer) {
-        setIdentifiedSurface(recordedSurface);
-        setSurfaceAnchor(renderer.locate(recordedSurface));
+        renderer.face(recordedSurface);
       }
       observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
       observer?.observe(canvas);
@@ -122,7 +108,6 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
       if (!rendererRef.current) return;
       const zoomStep = event.deltaY < 0 ? 0.08 : -0.08;
       rendererRef.current.zoom(zoomStep);
-      updateSurfaceAnchor();
     };
     canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => {
@@ -181,14 +166,12 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
                 const rect = event.currentTarget.getBoundingClientRect();
                 const progress = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5;
                 rendererRef.current?.previewTurn(progress);
-                updateSurfaceAnchor();
               }
               return;
             }
             if (Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 5) pointer.moved = true;
             if (pointer.moved) {
               rendererRef.current?.rotate((event.clientX - pointer.x) * 0.012, (event.clientY - pointer.y) * 0.012);
-              updateSurfaceAnchor();
             }
             pointer.x = event.clientX;
             pointer.y = event.clientY;
@@ -201,9 +184,6 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
             if (!pointer.moved) {
               const surface = rendererRef.current?.pick(event.clientX, event.clientY);
               if (surface && (!disabled || surfaces.includes(surface))) {
-                setIdentifiedSurface(surface);
-                const rect = event.currentTarget.getBoundingClientRect();
-                setSurfaceAnchor({ x: event.clientX - rect.left, y: event.clientY - rect.top });
                 if (!disabled) toggleSurface(surface);
               }
             }
@@ -218,42 +198,17 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
             if (direction) {
               event.preventDefault();
               rendererRef.current?.rotate(...direction);
-              updateSurfaceAnchor();
             }
           }}
         />
         {modelLoading && <span className={styles.surfaceModelFallback} role="status">Loading anatomical tooth…</span>}
         {!modelLoading && !available && <span className={styles.surfaceModelFallback} role="status">3D view unavailable. Use the surface controls below.</span>}
-        {!modelLoading && available && surfaceOverlays.map(({ surface }, index) => {
-          const [short, label] = getLabel(surface);
-          const color = SURFACE_COLORS[surface];
-          return <button
-            key={surface}
-            type="button"
-            className={styles.surfaceModelLabel}
-            style={{ top: `${8 + index * 36}px`, borderColor: color.border, color: color.text }}
-            aria-label={`Show ${label} surface`}
-            onClick={() => {
-              setIdentifiedSurface(surface);
-              rendererRef.current?.face(surface);
-              setSurfaceAnchor(rendererRef.current?.locate(surface) ?? null);
-            }}
-          ><strong style={{ backgroundColor: color.solid }}>{short}</strong>{label}</button>;
-        })}
-        {!modelLoading && available && surfaceOverlays.length > 0 && <svg className={styles.surfaceModelArrow} aria-hidden="true">
-          <defs>{surfaceOverlays.map(({ surface }) => <marker key={surface} id={`${arrowId}-${surface.toLowerCase()}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" style={{ fill: SURFACE_COLORS[surface].solid }} /></marker>)}</defs>
-          {surfaceOverlays.map(({ surface, anchor }, index) => {
-            const startY = 27 + index * 36;
-            const startX = 120;
-            return <path key={surface} d={`M ${startX} ${startY} Q ${(startX + anchor.x) / 2} ${Math.max(startY + 10, anchor.y - 22)} ${anchor.x} ${anchor.y}`} markerEnd={`url(#${arrowId}-${surface.toLowerCase()})`} style={{ stroke: SURFACE_COLORS[surface].solid }} />;
-          })}
-        </svg>}
         {!modelLoading && available && <div className={styles.surfaceViewControls} role="group" aria-label="Tooth view">
-          <button type="button" onClick={() => { rendererRef.current?.rotate(-Math.PI / 4, 0); updateSurfaceAnchor(); }} aria-label="Rotate tooth left">↶</button>
-          <button type="button" onClick={() => { rendererRef.current?.zoom(-0.12); updateSurfaceAnchor(); }} aria-label="Zoom out">−</button>
-          <button type="button" onClick={() => { rendererRef.current?.face(null); updateSurfaceAnchor(); }}>Reset view</button>
-          <button type="button" onClick={() => { rendererRef.current?.zoom(0.12); updateSurfaceAnchor(); }} aria-label="Zoom in">+</button>
-          <button type="button" onClick={() => { rendererRef.current?.rotate(Math.PI / 4, 0); updateSurfaceAnchor(); }} aria-label="Rotate tooth right">↷</button>
+          <button type="button" onClick={() => rendererRef.current?.rotate(-Math.PI / 4, 0)} aria-label="Rotate tooth left">↶</button>
+          <button type="button" onClick={() => rendererRef.current?.zoom(-0.12)} aria-label="Zoom out">−</button>
+          <button type="button" onClick={() => rendererRef.current?.face(null)}>Reset view</button>
+          <button type="button" onClick={() => rendererRef.current?.zoom(0.12)} aria-label="Zoom in">+</button>
+          <button type="button" onClick={() => rendererRef.current?.rotate(Math.PI / 4, 0)} aria-label="Rotate tooth right">↷</button>
         </div>}
       </div>
       <p className={styles.surfaceSelectionHint} id={helpId}>Move across the viewer for a 360° turn · Drag for full control · Scroll to zoom · Coloured enamel areas are selected.</p>
@@ -277,9 +232,7 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
               className={`${styles.surfaceBtn} ${active ? styles.surfaceBtnActive : ''}`}
               style={active ? { backgroundColor: color.tint, borderColor: color.border, color: color.text } : undefined}
               onClick={() => {
-                setIdentifiedSurface(surface.value);
                 rendererRef.current?.face(surface.value);
-                setSurfaceAnchor(rendererRef.current?.locate(surface.value) ?? null);
                 toggleSurface(surface.value);
               }}
               title={`${label}: ${surface.desc}`}
@@ -291,9 +244,6 @@ export const ToothSurfaceSelector: React.FC<ToothSurfaceSelectorProps> = ({
           );
         })}
       </div>
-      <p className={styles.surfaceSelectionHint}>
-        {disabled ? 'This examination is read-only.' : 'Choose one or more surfaces. Select again to remove.'}
-      </p>
     </div>
   );
 };

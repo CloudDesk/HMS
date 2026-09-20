@@ -42,7 +42,6 @@ const LaboratoryResultEntryPage = lazy(() => import('../pages/LaboratoryResultEn
 const LaboratoryWorkspacePage = lazy(() => import('../pages/LaboratoryWorkspacePage').then((module) => ({ default: module.LaboratoryWorkspacePage })));
 const LoginPage = lazy(() => import('../pages/LoginPage').then((module) => ({ default: module.LoginPage })));
 const MedicineMasterPage = lazy(() => import('../pages/MedicineMasterPage').then((module) => ({ default: module.MedicineMasterPage })));
-const OpdDashboardPage = lazy(() => import('../pages/OpdDashboardPage').then((module) => ({ default: module.OpdDashboardPage })));
 const OpdQueuePage = lazy(() => import('../pages/OpdQueuePage').then((module) => ({ default: module.OpdQueuePage })));
 const OpdVisitPage = lazy(() => import('../pages/OpdVisitPage').then((module) => ({ default: module.OpdVisitPage })));
 const PatientConsentPage = lazy(() => import('../pages/PatientConsentPage').then((module) => ({ default: module.PatientConsentPage })));
@@ -226,9 +225,9 @@ export function AppRouter() {
     breadcrumbs = ['Home', 'Appointments', 'Queue Management'];
     content = <AppointmentQueuePage />;
   } else if (pathname === '/opd' || pathname === '/opd/') {
-    title = 'OPD Dashboard';
-    breadcrumbs = ['Home', 'OPD', 'Dashboard'];
-    content = <OpdDashboardPage />;
+    title = 'OPD Waiting Queue';
+    breadcrumbs = ['Home', 'OPD', 'Waiting Queue'];
+    content = <OpdQueuePage />;
   } else if (pathname === '/opd/consultation') {
     title = 'Consultation Workspace';
     breadcrumbs = [];

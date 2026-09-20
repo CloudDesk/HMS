@@ -3429,6 +3429,10 @@ fieldset.form-field {
   min-width: 1080px;
 }
 
+.opd-queue-table .doc-person {
+  min-width: 0;
+}
+
 .queue-token-chip {
   display: inline-flex;
   border-radius: 6px;
@@ -5552,17 +5556,134 @@ fieldset.form-field {
 .opd-consultation-page {
   gap: 0.85rem;
   padding: 1rem 1.5rem;
+  align-content: start;
+  grid-auto-rows: max-content;
 }
 
 .opd-consultation-page .opd-page-header {
-  min-height: 40px;
-  flex-wrap: wrap;
+  min-height: 0;
+  height: 104px;
+  align-self: start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.opd-back-compact {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 1rem;
+}
+
+.opd-page-header .opd-header-patient {
+  min-width: 0;
+  min-height: 0;
+  height: 82px;
+  align-self: center;
+  margin: 0;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.opd-page-header .opd-header-patient .opd-patient-avatar-box {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  font-size: 0.9rem;
+}
+
+.opd-page-header .opd-header-patient .opd-patient-banner-title h3 {
+  font-size: 0.95rem;
+}
+
+.opd-page-header .opd-header-patient .opd-patient-banner-title {
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+}
+
+.opd-page-header .opd-header-patient .opd-patient-meta-line {
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.opd-page-header .opd-header-patient .opd-visit-selector {
+  display: grid;
+  grid-template-columns: auto minmax(280px, 1fr);
+  width: min(100%, 680px);
+}
+
+.opd-page-header .opd-header-patient .opd-visit-selector select {
+  width: 100%;
+  max-width: none;
+  min-height: 34px;
+}
+
+.opd-page-header .opd-header-patient .opd-patient-banner-actions {
+  width: auto;
+  margin-left: auto;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+}
+
+.opd-page-header .opd-header-patient .opd-patient-banner-info {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-self: center;
+  gap: 0.25rem;
+  height: 100%;
+  overflow: visible;
+}
+
+.opd-page-header .opd-header-patient .opd-patient-meta-line {
+  display: flex;
+  visibility: visible;
+  min-height: 18px;
+}
+
+.opd-page-header .opd-header-patient .opd-hdr-btn {
+  min-height: 34px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.opd-consultation-page .opd-page-actions {
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+}
+
+.opd-consultation-page .opd-page-actions .doc-btn.primary {
+  min-height: 38px;
+  padding: 0.5rem 0.8rem;
+  white-space: nowrap;
 }
 
 .opd-consultation-page .opd-patient-banner {
   margin-bottom: 0;
   padding: 0.85rem 1.25rem;
+}
+
+.opd-consultation-page .opd-page-header .opd-header-patient {
+  margin: 0;
+  padding: 0 0.25rem;
 }
 
 .opd-visit-selector {
@@ -5978,6 +6099,16 @@ fieldset.form-field {
     width: 100%;
     flex-wrap: wrap;
   }
+  .opd-consultation-page .opd-page-header {
+    grid-template-columns: auto 1fr;
+  }
+  .opd-consultation-page .opd-page-actions {
+    grid-column: 1 / -1;
+  }
+  .opd-page-header .opd-header-patient {
+    flex-direction: row;
+    align-items: center;
+  }
   .opd-doc-upload-grid {
     grid-template-columns: 1fr;
   }
@@ -5989,13 +6120,20 @@ fieldset.form-field {
     gap: 0.75rem;
   }
   .opd-consultation-page .opd-page-header {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
+    height: auto;
   }
   .opd-consultation-page .opd-page-actions {
     width: 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+  .opd-page-header .opd-header-patient {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    height: auto;
   }
   .opd-consultation-page .opd-visit-selector {
     width: 100%;

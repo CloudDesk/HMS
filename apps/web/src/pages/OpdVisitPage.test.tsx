@@ -370,18 +370,24 @@ describe('OpdVisitPage feature-hook rendering', () => {
 
     const banner = container.querySelector('.opd-patient-banner');
     expect(banner).not.toBeNull();
+    expect(banner?.closest('.opd-page-header')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Refresh patient and visit data"]')).toBeNull();
+    expect(container.querySelector('.opd-back-compact')?.getAttribute('aria-label')).toBe('Back to Queue');
 
-    // Primary patient identity
-    expect(banner?.querySelector('h3')?.textContent).toBe('Jane Doe');
+    // Primary patient and visit identity
+    const visitSelector = banner?.querySelector<HTMLSelectElement>('select[aria-label="Patient Visit"]');
+    expect(visitSelector).not.toBeNull();
+    expect(visitSelector?.selectedOptions[0]?.textContent).toContain(
+      'Jane Doe (OPD-DENT-001) - In consultation',
+    );
     expect(banner?.querySelector('.opd-mrn-chip')?.textContent).toBe('MRN-001');
-    expect(banner?.querySelector('.doc-status')?.textContent).toContain('In consultation');
     expect(banner?.querySelector('.opd-patient-avatar-box')?.textContent).toBe('JD');
 
     // Secondary encounter context
     expect(banner?.textContent).toContain('Female');
     expect(banner?.textContent).toContain('Dentistry');
     expect(banner?.textContent).toContain('New Consultation');
-    expect(banner?.textContent).toContain('Visit: OPD-DENT-001');
+    expect(banner?.textContent).toContain('Patient Visit:');
 
     // Doctor name is removed from primary header
     expect(banner?.querySelector('.opd-patient-meta-line')?.textContent).not.toContain('Dr. Anderson James');
@@ -390,7 +396,7 @@ describe('OpdVisitPage feature-hook rendering', () => {
     const actionButtons = Array.from(banner?.querySelectorAll('.opd-patient-banner-actions button') ?? []);
     expect(actionButtons).toHaveLength(2);
 
-    const summaryBtn = banner?.querySelector('button[aria-controls="opd-patient-summary-panel"]');
+    const summaryBtn = container.querySelector('button[aria-controls="opd-patient-summary-panel"]');
     expect(summaryBtn).not.toBeNull();
     expect(summaryBtn?.textContent).toContain('Summary');
 

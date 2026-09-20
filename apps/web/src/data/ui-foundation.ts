@@ -46,10 +46,7 @@ export const sidebarModules: SidebarModule[] = [
     key: 'opd',
     label: 'OPD',
     icon: 'ph-first-aid',
-    links: [
-      { href: '/opd/consultation', label: 'Consultation' },
-      { href: '/opd/queue', label: 'Waiting Queue' },
-    ],
+    links: [{ href: '/opd/queue', label: 'OPD' }],
   },
   {
     key: 'emergency',

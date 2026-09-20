@@ -30,7 +30,9 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [customHabit, setCustomHabit] = useState('');
-  const [customAlert, setCustomAlert] = useState('');
+  const [customMedicalCondition, setCustomMedicalCondition] = useState('');
+  const [customBleedingRisk, setCustomBleedingRisk] = useState('');
+  const [customAllergy, setCustomAllergy] = useState('');
 
   const current: DentalHistory = history ?? {
     chief_complaint: '',
@@ -76,30 +78,29 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
     }
   };
 
-  const addCustomAlert = () => {
-    if (disabled || !customAlert.trim()) return;
-    const alert = customAlert.trim();
+  const addCustomAlert = (value: string, clear: () => void) => {
+    if (disabled || !value.trim()) return;
+    const alert = value.trim();
     const alerts = current.medical_alerts ?? [];
     if (!alerts.includes(alert)) {
       updateField('medical_alerts', [...alerts, alert]);
     }
-    setCustomAlert('');
+    clear();
   };
 
   const painInfo = getPainScaleInfo(current.pain_scale);
   const alertsList = current.medical_alerts ?? [];
   const habitsList = current.habits ?? [];
 
-  const customHabits = habitsList.filter(
-    (habit: string) => !(COMMON_DENTAL_HABITS as readonly string[]).includes(habit),
-  );
-
   const predefinedAlerts = new Set<string>(COMMON_MEDICAL_ALERTS);
   const customAlerts = alertsList.filter((alert: string) => !predefinedAlerts.has(alert));
 
+  const medicalGroups = Object.fromEntries(
+    COMMON_MEDICAL_ALERTS_GROUPED.map((group) => [group.category, group.alerts]),
+  ) as Record<string, readonly string[]>;
+
   const isAllergyAlert = (alert: string) => /allerg/i.test(alert);
   const allergyAlerts = alertsList.filter(isAllergyAlert);
-  const nonAllergyAlerts = alertsList.filter((a) => !isAllergyAlert(a));
 
   // Show consultation context if general CC, HPI, or Assessment exists
   const hasConsultationContext = Boolean(
@@ -109,9 +110,9 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
   );
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${styles.historyAssessmentCard}`}>
       <div
-        className={`${styles.cardHeader} ${styles.cardHeaderCollapsible}`}
+        className={`${styles.cardHeader} ${styles.cardHeaderCollapsible} ${styles.historyAssessmentHeader}`}
         style={{ padding: '10px 16px' }}
         onClick={() => {
           if (disabled) return;
@@ -142,10 +143,11 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           >
             <i className={`ph ph-caret-down ${styles.collapseChevron} ${isExpanded ? styles.collapseChevronExpanded : ''}`} />
           </button>
-          <h3 className={styles.cardTitle} style={{ fontSize: '0.9rem' }}>
-            <i className="ph ph-heartbeat" style={{ color: '#2563eb' }} />
-            Dental History &amp; Medical Risk Assessment
-          </h3>
+          <span className={styles.historyHeaderIcon}><i className="ph ph-tooth" /></span>
+          <div>
+            <h3 className={styles.cardTitle}>Dental History &amp; Medical Risk Assessment</h3>
+            <p className={styles.historyHeaderSubtitle}>Assess patient's dental history, habits, and medical conditions to ensure safe treatment.</p>
+          </div>
         </div>
         {alertsList.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -155,7 +157,7 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
                 {allergyAlerts.length} Allergy Alert{allergyAlerts.length > 1 ? 's' : ''}
               </span>
             )}
-            <span className={styles.statusBadgeDraft} style={{ background: '#fee2e2', color: '#991b1b', borderColor: '#fca5a5' }}>
+            <span className={styles.statusBadgeDraft} style={{ background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }}>
               <i className="ph ph-warning" />
               {alertsList.length} Medical Alert{alertsList.length > 1 ? 's' : ''} Active
             </span>
@@ -164,41 +166,7 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
       </div>
 
       {isExpanded && (
-        <div className={styles.cardContent} style={{ padding: '14px 16px' }}>
-        {/* Critical Alerts Banner */}
-        {alertsList.length > 0 && (
-          <div className={styles.alertBanner}>
-            <i className="ph ph-warning-octagon" style={{ fontSize: '1.25rem', color: '#dc2626', marginTop: '2px' }} />
-            <div>
-              <div className={styles.alertBannerTitle}>Active Medical Alerts / Precautions Required:</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                {allergyAlerts.map((a: string) => (
-                  <span key={a} className={styles.activeAllergyBadge}>
-                    <i className="ph ph-warning-diamond-fill" />
-                    {a}
-                  </span>
-                ))}
-                {nonAllergyAlerts.map((a: string) => (
-                  <span
-                    key={a}
-                    style={{
-                      background: '#ffffff',
-                      color: '#991b1b',
-                      border: '1px solid #fca5a5',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontWeight: 600,
-                      fontSize: '0.75rem',
-                    }}
-                  >
-                    {a}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
+        <div className={`${styles.cardContent} ${styles.historyAssessmentContent}`}>
         {/* Read-only General Consultation Context — single source of truth */}
         {hasConsultationContext && (
           <div className={styles.consultationContext}>
@@ -237,17 +205,18 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
               className={styles.textarea}
               placeholder="Describe dental pain location, onset, duration, and triggers (hot, cold, biting, sweets, spontaneous)..."
               value={current.chief_complaint ?? ''}
-              onChange={(e) => updateField('chief_complaint', e.target.value.trim() ? e.target.value : null)}
+              onChange={(e) => updateField('chief_complaint', e.target.value)}
+              rows={3}
               disabled={disabled}
-              rows={2}
-              style={{ minHeight: '56px' }}
             />
           </div>
+        </div>
 
+        <div className={styles.historyTopGrid}>
           {/* Pain Scale (0-10) */}
-          <div className={styles.formGroup}>
+          <div className={styles.historyTopCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className={styles.label}>Patient Pain Rating (0 &mdash; 10)</label>
+              <label className={styles.historyFieldTitle}><i className="ph ph-chart-line-up" /> Patient Pain Rating (0 &mdash; 10)</label>
               <span
                 className={styles.painBadge}
                 style={{ backgroundColor: painInfo.badgeBg, color: painInfo.color }}
@@ -272,10 +241,10 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
                 <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>10</span>
               </div>
               <div className={styles.painLabels}>
-                <span>No Pain</span>
-                <span>Mild (1-3)</span>
-                <span>Moderate (4-6)</span>
-                <span>Severe (7-10)</span>
+                <span>No Pain<strong>0</strong></span>
+                <span>Mild<strong>1 &ndash; 3</strong></span>
+                <span>Moderate<strong>4 &ndash; 6</strong></span>
+                <span>Severe<strong>7 &ndash; 10</strong></span>
               </div>
             </div>
 
@@ -317,215 +286,56 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           </div>
         </div>
 
-        {/* Habits Row */}
-        <div style={{ marginTop: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <label className={styles.label}>
-              <i className="ph ph-activity" /> Dental &amp; Oral Habits
-              {habitsList.length === 0 && (
-                <span style={{ fontWeight: 400, color: '#64748b', marginLeft: '6px' }}>&mdash; None recorded</span>
-              )}
-            </label>
-            {habitsList.length > 0 && disabled && (
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{habitsList.length} recorded</span>
-            )}
-          </div>
-          <div className={styles.chipContainer}>
-            {COMMON_DENTAL_HABITS.map((habit: string) => {
-              const selected = habitsList.includes(habit);
-              return (
-                <button
-                  key={habit}
-                  type="button"
-                  disabled={disabled}
-                  className={`${styles.chip} ${selected ? styles.chipSelected : ''} ${disabled ? styles.chipDisabled : ''}`}
-                  onClick={() => toggleHabit(habit)}
-                >
-                  {selected && <i className="ph ph-check" />}
-                  {habit}
-                </button>
-              );
-            })}
-            {customHabits.map((habit: string) => (
-              <button
-                key={habit}
-                type="button"
-                disabled={disabled}
-                className={`${styles.chip} ${styles.chipSelected} ${disabled ? styles.chipDisabled : ''}`}
-                onClick={() => toggleHabit(habit)}
-                title="Click to remove habit"
-              >
-                <i className="ph ph-check" />
-                {habit}
-                {!disabled && (
-                  <i
-                    className="ph ph-x"
-                    style={{ fontSize: '0.7rem', marginLeft: '3px', opacity: 0.7 }}
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-
-          {!disabled && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', maxWidth: '380px' }}>
-              <input
-                type="text"
-                placeholder="Add other oral habit..."
-                className={styles.input}
-                style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                value={customHabit}
-                onChange={(e) => setCustomHabit(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addCustomHabit();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                style={{ padding: '4px 12px', fontSize: '0.775rem' }}
-                onClick={addCustomHabit}
-              >
-                Add
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Medical Risk Alerts Row: Progressive Disclosure */}
-        <div style={{ marginTop: '14px' }}>
-          <label className={styles.label} style={{ color: alertsList.length > 0 ? '#991b1b' : '#334155' }}>
-            <i className={alertsList.length > 0 ? "ph ph-warning-octagon" : "ph ph-shield-check"} style={{ color: alertsList.length > 0 ? '#dc2626' : '#2563eb' }} />
-            Medical Alerts &amp; Systemic Conditions (Impacts Treatment &amp; Anesthesia)
-            {alertsList.length === 0 && (
-              <span style={{ fontWeight: 400, color: '#64748b', marginLeft: '6px' }}>&mdash; No active dental treatment alerts (None recorded)</span>
-            )}
-          </label>
-
-          <details
-            className={styles.progressiveDisclosure}
-            open={!disabled || alertsList.length > 0}
-          >
-            <summary className={styles.disclosureSummary}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <i className="ph ph-list-checks" style={{ color: alertsList.length > 0 ? '#dc2626' : '#2563eb' }} />
-                <span>Medical Alerts Checklist {alertsList.length > 0 ? `(${alertsList.length} Active)` : ''}</span>
-              </span>
-              <span style={{ fontSize: '0.725rem', color: '#64748b' }}>
-                {disabled ? 'Review category checklist' : 'Toggle category checklist'}
-              </span>
-            </summary>
-
-            <div className={styles.disclosureContent}>
-              {COMMON_MEDICAL_ALERTS_GROUPED.map((group) => {
-                let iconName = 'ph-heartbeat';
-                let iconColor = '#2563eb';
-                if (group.category === 'Bleeding / Medication Risks') {
-                  iconName = 'ph-drop';
-                  iconColor = '#dc2626';
-                } else if (group.category === 'Allergies') {
-                  iconName = 'ph-warning-octagon';
-                  iconColor = '#d97706';
-                }
-
-                return (
-                  <div key={group.category} className={styles.alertCategoryGroup}>
-                    <div className={styles.alertCategoryTitle}>
-                      <i className={`ph ${iconName}`} style={{ color: iconColor, fontSize: '0.85rem' }} />
-                      {group.category}
-                    </div>
-                    <div className={styles.chipContainer}>
-                      {group.alerts.map((alert: string) => {
-                        const selected = alertsList.includes(alert);
-                        const isAllergy = group.category === 'Allergies' || isAllergyAlert(alert);
-                        const selectedClass = isAllergy ? styles.chipAllergySelected : styles.chipAlertSelected;
-                        return (
-                          <button
-                            key={alert}
-                            type="button"
-                            disabled={disabled}
-                            className={`${styles.chip} ${selected ? selectedClass : ''} ${disabled ? styles.chipDisabled : ''}`}
-                            onClick={() => toggleMedicalAlert(alert)}
-                          >
-                            {selected && (
-                              <i className={isAllergy ? 'ph ph-warning-diamond-fill' : 'ph ph-warning-circle'} />
-                            )}
-                            {alert}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {customAlerts.length > 0 && (
-                <div className={styles.alertCategoryGroup}>
-                  <div className={styles.alertCategoryTitle}>
-                    <i className="ph ph-tag" style={{ color: '#64748b', fontSize: '0.85rem' }} />
-                    Other / Custom Alerts
-                  </div>
-                  <div className={styles.chipContainer}>
-                    {customAlerts.map((alert: string) => {
-                      const isAllergy = isAllergyAlert(alert);
-                      const selectedClass = isAllergy ? styles.chipAllergySelected : styles.chipAlertSelected;
-                      return (
-                        <button
-                          key={alert}
-                          type="button"
-                          disabled={disabled}
-                          className={`${styles.chip} ${selectedClass} ${disabled ? styles.chipDisabled : ''}`}
-                          onClick={() => toggleMedicalAlert(alert)}
-                          title="Click to remove alert"
-                        >
-                          <i className={isAllergy ? 'ph ph-warning-diamond-fill' : 'ph ph-warning-circle'} />
-                          {alert}
-                          {!disabled && (
-                            <i
-                              className="ph ph-x"
-                              style={{ fontSize: '0.7rem', marginLeft: '3px', opacity: 0.7 }}
-                              aria-hidden="true"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+        <div className={styles.riskCardGrid}>
+          {[
+            { key: 'Medical Conditions', title: 'Medical Conditions', subtitle: 'Select any medical conditions (multiple allowed)', icon: 'ph-heartbeat', tone: 'blue', items: medicalGroups['Medical Conditions'] ?? [], value: customMedicalCondition, setValue: setCustomMedicalCondition, placeholder: 'Add other medical condition...' },
+            { key: 'Bleeding / Medication Risks', title: 'Bleeding / Medication Risks', subtitle: 'Select any bleeding or medication risks (multiple allowed)', icon: 'ph-drop', tone: 'red', items: medicalGroups['Bleeding / Medication Risks'] ?? [], value: customBleedingRisk, setValue: setCustomBleedingRisk, placeholder: 'Add other medication risk...' },
+            { key: 'Allergies', title: 'Allergies', subtitle: 'Select any allergies (multiple allowed)', icon: 'ph-warning-octagon', tone: 'amber', items: medicalGroups.Allergies ?? [], value: customAllergy, setValue: setCustomAllergy, placeholder: 'Add other allergy...' },
+          ].map((group) => {
+            const selectedCount = group.items.filter((item) => alertsList.includes(item)).length;
+            const defaultItems = group.items.slice(0, 3);
+            const selectedExtraItems = group.items.slice(3).filter((item) => alertsList.includes(item));
+            return <section key={group.key} className={`${styles.riskCategoryCard} ${styles[`riskTone${group.tone}`]}`}>
+              <header className={styles.riskCategoryHeader}>
+                <i className={`ph ${group.icon}`} />
+                <div><strong>{group.title}</strong><span>{group.subtitle}</span></div>
+                <em>{selectedCount ? `${selectedCount} selected` : 'None selected'}</em>
+              </header>
+              <div className={styles.riskCategoryBody}>
+                <div className={styles.chipContainer}>
+                  {[...defaultItems, ...selectedExtraItems].map((alert) => {
+                    const selected = alertsList.includes(alert);
+                    return <button key={alert} type="button" disabled={disabled} className={`${styles.chip} ${selected ? (group.tone === 'amber' ? styles.chipAllergySelected : styles.chipAlertSelected) : ''} ${disabled ? styles.chipDisabled : ''}`} onClick={() => toggleMedicalAlert(alert)}>
+                      <i className={`ph ${group.icon}`} />{alert}
+                    </button>;
+                  })}
+                  {group.key === 'Medical Conditions' && customAlerts.map((alert) => <button key={alert} type="button" disabled={disabled} className={`${styles.chip} ${styles.chipAlertSelected}`} onClick={() => toggleMedicalAlert(alert)}><i className="ph ph-tag" />{alert}</button>)}
                 </div>
-              )}
+                {!disabled && <div className={styles.riskAddRow}>
+                  <input className={styles.input} value={group.value} placeholder={group.placeholder} onChange={(event) => group.setValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCustomAlert(group.value, () => group.setValue('')); } }} />
+                  <button type="button" onClick={() => addCustomAlert(group.value, () => group.setValue(''))} aria-label={`Add ${group.title}`}><i className="ph ph-plus" /></button>
+                </div>}
+              </div>
+            </section>;
+          })}
 
-              {!disabled && (
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px', maxWidth: '380px' }}>
-                  <input
-                    type="text"
-                    placeholder="Add other medical alert/allergy..."
-                    className={styles.input}
-                    style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                    value={customAlert}
-                    onChange={(e) => setCustomAlert(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addCustomAlert();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    style={{ padding: '4px 12px', fontSize: '0.775rem', color: '#991b1b', borderColor: '#fca5a5' }}
-                    onClick={addCustomAlert}
-                  >
-                    Add Alert
-                  </button>
-                </div>
-              )}
+          <section className={`${styles.riskCategoryCard} ${styles.riskTonegreen}`}>
+            <header className={styles.riskCategoryHeader}>
+              <i className="ph ph-tooth" />
+              <div><strong>Dental &amp; Oral Habits</strong><span>Select patient's oral habits (multiple allowed)</span></div>
+              <em>{habitsList.length ? `${habitsList.length} selected` : 'None selected'}</em>
+            </header>
+            <div className={styles.riskCategoryBody}>
+              <div className={styles.chipContainer}>
+                {COMMON_DENTAL_HABITS.slice(0, 3).map((habit) => <button key={habit} type="button" disabled={disabled} className={`${styles.chip} ${habitsList.includes(habit) ? styles.chipSelected : ''} ${disabled ? styles.chipDisabled : ''}`} onClick={() => toggleHabit(habit)}><i className="ph ph-tooth" />{habit}</button>)}
+                {habitsList.filter((habit) => !COMMON_DENTAL_HABITS.slice(0, 3).includes(habit)).map((habit) => <button key={habit} type="button" disabled={disabled} className={`${styles.chip} ${styles.chipSelected}`} onClick={() => toggleHabit(habit)}><i className="ph ph-check" />{habit}</button>)}
+              </div>
+              {!disabled && <div className={styles.riskAddRow}>
+                <input className={styles.input} value={customHabit} placeholder="Add other oral habit..." onChange={(event) => setCustomHabit(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addCustomHabit(); } }} />
+                <button type="button" onClick={addCustomHabit} aria-label="Add oral habit"><i className="ph ph-plus" /></button>
+              </div>}
             </div>
-          </details>
+          </section>
         </div>
       </div>
       )}
