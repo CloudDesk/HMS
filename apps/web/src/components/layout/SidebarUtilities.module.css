@@ -25,6 +25,7 @@
 .notificationCopy p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; margin: 4px 0; line-height: 1.5; color: #cbd5e1; font-size: .78rem; }
 .notificationCopy time, .muted { color: #94a3b8; font-size: .75rem; }
 .referral { color: #60a5fa; }
+.dentalLab { color: #4ade80; }
 .neutral { color: #cbd5e1; }
 .panel .unread { color: #60a5fa; font-size: .65rem; flex-shrink: 0; }
 .empty { display: grid; justify-items: center; gap: 8px; padding: 16px 8px; color: #94a3b8; text-align: center; }

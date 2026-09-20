@@ -86,6 +86,7 @@ const toDomainPlanItem = (item: DentalTreatmentPlanItemFields): DentalTreatmentP
 const toDentalExamination = (record: OpdDentalExaminationLean): OpdDentalExamination => ({
   id: record._id.toString(),
   visit_id: record.visitId.toString(),
+  episode_id: record.episodeId?.toString() ?? null,
   consultation_id: record.consultationId?.toString() ?? null,
   patient_id: record.patientId.toString(),
   patient_number: record.patientNumber,
@@ -190,6 +191,9 @@ export class OpdDentalExaminationRepository {
       updatedBy: requiredObjectId(userId),
     };
 
+    if (data.episode_id !== undefined) {
+      setPayload.episodeId = optionalObjectId(data.episode_id);
+    }
     if (data.dental_history !== undefined) {
       setPayload.dentalHistory = toPersistenceHistory(data.dental_history);
     }

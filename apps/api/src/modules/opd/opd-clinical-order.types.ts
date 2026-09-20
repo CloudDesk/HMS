@@ -23,6 +23,12 @@ export type ClinicalOrderItem = {
   tooth_number?: number | null;
 };
 
+export type ClinicalOrderDentalContext = {
+  treatment_episode_id?: string | null;
+  treatment_stage_id?: string | null;
+  tooth_number?: number | null;
+};
+
 export type OpdClinicalOrder = {
   id: string;
   originating_order_id: string;
@@ -47,6 +53,7 @@ export type OpdClinicalOrder = {
   items: ClinicalOrderItem[];
   clinical_notes: string | null;
   instructions: string | null;
+  dental_context?: ClinicalOrderDentalContext | null;
   submitted_at: Date | null;
   created_by: string | null;
   updated_by: string | null;
@@ -64,6 +71,7 @@ export type SaveOpdClinicalOrderDTO = {
   items: SaveClinicalOrderItemDTO[];
   clinical_notes?: string | null;
   instructions?: string | null;
+  dental_context?: ClinicalOrderDentalContext | null;
 };
 
 export type ClinicalOrderListQuery = {
@@ -75,6 +83,8 @@ export type ClinicalOrderListQuery = {
   patient_id?: string;
   doctor_id?: string;
   branch_id?: string;
+  episode_id?: string;
+  visit_id?: string;
   page?: number;
   limit?: number;
 };

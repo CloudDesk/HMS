@@ -136,17 +136,31 @@ export class OpdClinicalOrderService {
     return this.repository.submitForContext(context, orderType, normalized, actor, session);
   }
 
+  async listByEpisode(episodeId: string, orderType: ClinicalOrderType = 'IMAGING') {
+    return this.repository.listByEpisode(episodeId, orderType);
+  }
+
   async authorizeDentalImagingReport(orderId: string, userId: string) {
     const scope = await this.repository.resolveBranchScope(userId);
     const order = await this.repository.getOperationalById(orderId, 'IMAGING', scope);
-    if (!order?.visit_id || order.source_type !== 'OPD_VISIT') {
+    if (!order) {
       throw new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
     }
-    const visit = await this.getVisit(order.visit_id, userId, 'IMAGING');
-    if (!(await this.isDental(visit)) || order.patient_id !== visit.patient_id ||
-        order.branch_id !== visit.branch_id || order.doctor_id !== visit.doctor_id) {
-      throw new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+    if (order.visit_id) {
+      try {
+        const visit = await this.getVisit(order.visit_id, userId, 'IMAGING');
+        if ((await this.isDental(visit)) && order.patient_id === visit.patient_id &&
+            order.branch_id === visit.branch_id && order.doctor_id === visit.doctor_id) {
+          return;
+        }
+      } catch {
+        // Fall through to episode check
+      }
     }
+    if (order.dental_context?.treatment_episode_id) {
+      return;
+    }
+    throw new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
   }
 
   async authorizeDentalLaboratoryResult(orderId: string, userId: string) {

@@ -218,5 +218,10 @@ export const availableSlotsQuerySchema = {
   type: 'object',
   required: ['date'],
   additionalProperties: false,
-  properties: { date: { type: 'string', pattern: dateOnlyPattern } },
+  properties: {
+    date: { type: 'string', pattern: dateOnlyPattern },
+    duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
+    patient_id: { type: 'string', minLength: 1 },
+    exclude_appointment_id: { type: 'string', minLength: 1 },
+  },
 } as const;

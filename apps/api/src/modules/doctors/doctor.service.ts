@@ -392,8 +392,17 @@ export class DoctorService {
     }
 
     const appointments = await this.appointmentRepository.listActiveWindows(id, date);
+    const patientAppointments = query.patient_id
+      ? await this.appointmentRepository.listPatientActiveWindows(
+          query.patient_id,
+          date,
+          query.exclude_appointment_id,
+        )
+      : [];
+
     const slots = schedule.working_blocks.flatMap((block) => {
-      const duration = block.slot_duration_minutes;
+      const duration = query.duration_minutes && query.duration_minutes > 0 ? query.duration_minutes : block.slot_duration_minutes;
+      const step = block.slot_duration_minutes;
       const blockSlots: Array<{
         start_time: string;
         end_time: string;
@@ -402,15 +411,25 @@ export class DoctorService {
         is_available: boolean;
         reason?: string;
       }> = [];
-      for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += duration) {
+      for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += step) {
         const isPast = isToday && current <= currentMinutesNow;
         const startTime = toTime(current);
         const endTime = toTime(current + duration);
-        const conflict = appointments.some(
+        const doctorConflict = appointments.some(
           (appointment) => startTime < appointment.end_time && endTime > appointment.start_time,
         );
+        const patientConflict = patientAppointments.some(
+          (appointment) => startTime < appointment.end_time && endTime > appointment.start_time,
+        );
+        const conflict = doctorConflict || patientConflict;
         const available = !isPast && !conflict;
-        const reason = conflict ? 'Booked' : isPast ? 'Time passed' : undefined;
+        const reason = doctorConflict
+          ? 'Booked'
+          : patientConflict
+          ? 'Patient has conflicting appointment'
+          : isPast
+          ? 'Time passed'
+          : undefined;
         blockSlots.push({
           start_time: startTime,
           end_time: endTime,

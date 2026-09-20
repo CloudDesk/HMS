@@ -10,7 +10,7 @@ export const createNotificationBodySchema = {
     recipient_branch_id: { type: ['string', 'null'], pattern: objectIdPattern },
     title: { type: 'string', minLength: 1, maxLength: 200 },
     message: { type: 'string', minLength: 1, maxLength: 2000 },
-    type: { type: 'string', enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL'] },
+    type: { type: 'string', enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL', 'DENTAL_LAB_READY'] },
     related_entity_id: { type: ['string', 'null'], pattern: objectIdPattern },
   },
 } as const;

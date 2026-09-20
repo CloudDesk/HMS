@@ -186,6 +186,7 @@ export const dentalTreatmentPlanItemSchema = z
 export const saveOpdDentalExaminationSchema = z
   .object({
     expected_updated_at: z.iso.datetime().optional(),
+    episode_id: id.nullable().optional(),
     dental_history: dentalHistorySchema.nullable().optional(),
     soft_tissue: softTissueSchema.nullable().optional(),
     teeth: z.array(toothFindingSchema).refine(

@@ -55,4 +55,13 @@ export const registerOpdClinicalOrderRoutes = async (app: FastifyInstance, servi
         ),
       ),
   );
+
+  app.get<{ Params: { episodeId: string } }>(
+    '/api/opd/dental/episodes/:episodeId/imaging-orders',
+    {
+      preHandler: requirePermission(services, 'OPD', 'OPD Clinical Orders', 'View'),
+    },
+    async (request) =>
+      ok(await services.opdClinicalOrders.listByEpisode(request.params.episodeId)),
+  );
 };

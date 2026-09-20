@@ -16,6 +16,15 @@ export type AppointmentVisitType =
 
 export type AppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 
+export type AppointmentDentalContext = {
+  treatment_episode_id?: string | null;
+  treatment_stage_id?: string | null;
+  treatment_plan_item_id?: string | null;
+  tooth_number?: number | null;
+  stage_sequence?: number | null;
+  stage_name?: string | null;
+};
+
 export type Appointment = {
   id: string;
   appointment_number: string;
@@ -38,6 +47,7 @@ export type Appointment = {
   status: AppointmentStatus;
   reason: string | null;
   notes: string | null;
+  dental_context?: AppointmentDentalContext | null;
   rescheduled_from_id: string | null;
   rescheduled_to_id: string | null;
   rescheduled_at: Date | null;
@@ -61,6 +71,8 @@ export type AppointmentListQuery = {
   patient_id?: string;
   branch_id?: string;
   department_id?: string;
+  treatment_episode_id?: string;
+  treatment_stage_id?: string;
   date_from?: string;
   date_to?: string;
   page?: number;
@@ -87,12 +99,13 @@ export type CreateAppointmentDTO = {
   priority?: AppointmentPriority;
   reason?: string | null;
   notes?: string | null;
+  dental_context?: AppointmentDentalContext | null;
 };
 
 export type UpdateAppointmentDTO = Partial<
   Pick<
     CreateAppointmentDTO,
-    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes'
+    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes' | 'dental_context'
   >
 > & { reschedule_reason?: string | null };
 

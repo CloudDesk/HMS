@@ -191,11 +191,18 @@ export type SaveDoctorAvailabilityExceptionDTO = {
 
 export type DoctorAvailableSlotsQuery = {
   date: string;
+  duration_minutes?: number;
+  patient_id?: string;
+  exclude_appointment_id?: string;
 };
 
 export type DoctorAvailableSlot = {
   start_time: string;
   end_time: string;
+  max_patients_per_slot?: number;
+  available?: boolean;
+  is_available?: boolean;
+  reason?: string;
 };
 
 export type DoctorUserOption = {

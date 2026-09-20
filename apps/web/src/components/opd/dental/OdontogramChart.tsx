@@ -1,10 +1,11 @@
-import React, { memo, useEffect, useId, useRef, useState } from 'react';
-import type { DentitionType, ToothFinding } from '../../../api/opd';
+import React, { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { DentitionType, HistoricalToothFinding, ToothFinding } from '../../../api/opd';
 import { getToothName, PERMANENT_QUADRANTS, PRIMARY_QUADRANTS } from '../../../pages/dental-utils';
 import styles from './DentalExamination.module.css';
 
 interface OdontogramChartProps {
   teeth: ToothFinding[];
+  historicalTeeth?: HistoricalToothFinding[];
   selectedToothNumber: number | null;
   onSelectTooth: (toothNumber: number) => void;
   disabled?: boolean;
@@ -85,8 +86,8 @@ const ADULT_POSITIONS = [[17, 70, -6], [50, 79, -21], [79, 102, -38], [100, 135,
 const PRIMARY_POSITIONS = [[21, 72, -8], [58, 94, -28], [88, 132, -52],
   [108, 178, -72], [118, 230, -84]] as const;
 
-const ToothButton = memo(function ToothButton({ toothNumber, arch, finding, selected, disabled, onSelect }: {
-  toothNumber: number; arch: Arch; finding?: ToothFinding; selected: boolean; disabled: boolean;
+const ToothButton = memo(function ToothButton({ toothNumber, arch, finding, hasHistory, selected, disabled, onSelect }: {
+  toothNumber: number; arch: Arch; finding?: ToothFinding; hasHistory?: boolean; selected: boolean; disabled: boolean;
   onSelect: (toothNumber: number) => void;
 }) {
   const position = (toothNumber >= 50 ? PRIMARY_POSITIONS : ADULT_POSITIONS)[toothNumber % 10 - 1];
@@ -108,12 +109,16 @@ const ToothButton = memo(function ToothButton({ toothNumber, arch, finding, sele
     data-fdi={toothNumber} data-condition={condition} data-arch={arch} data-kind={kind}
     data-dentition={toothNumber >= 50 ? 'primary' : 'permanent'}
     data-patient-side={right ? 'right' : 'left'}
-    title={`FDI ${toothNumber} — ${getToothName(toothNumber)}\n${finding ? finding.status + '; ' + finding.conditions.join(', ') : 'No finding recorded'}`}>
+    title={`FDI ${toothNumber} — ${getToothName(toothNumber)}\n${finding ? finding.status + '; ' + finding.conditions.join(', ') : 'No finding recorded for current visit'}${hasHistory ? '\n(Has previous visit findings)' : ''}`}>
     <span className={styles.jawToothArt} style={{ transform: `rotate(${rotation}deg)` }}><ToothShape kind={kind} /></span>
     <span className={styles.jawNumber} style={anterior
       ? { left: '50%', top: arch === 'upper' ? '-17px' : 'calc(100% + 3px)', transform: 'translateX(-50%)' }
       : { top: '50%', ...(right ? { right: 'calc(100% - 16px)' } : { left: 'calc(100% - 16px)' }), transform: 'translateY(-50%)' }}>{toothNumber}</span>
-    {condition !== 'unrecorded' && <span className={styles.jawFindingMark} aria-hidden="true">{condition === 'missing' ? '×' : condition === 'healthy' ? '✓' : '•'}</span>}
+    {condition !== 'unrecorded' ? (
+      <span className={styles.jawFindingMark} aria-hidden="true">{condition === 'missing' ? '×' : condition === 'healthy' ? '✓' : '•'}</span>
+    ) : hasHistory ? (
+      <span className={styles.jawFindingMark} style={{ color: '#2563eb', fontWeight: 800 }} title="Has previous visit findings" aria-hidden="true">◷</span>
+    ) : null}
     {(finding?.pocket_depth_mm ?? 0) > 3 && <span className={styles.jawPocket}>{finding?.pocket_depth_mm} mm</span>}
   </button>;
 });
@@ -193,6 +198,7 @@ const archTeeth = (dentition: DentitionType, arch: Arch): readonly number[] => {
 
 export const OdontogramChart: React.FC<OdontogramChartProps> = ({
   teeth,
+  historicalTeeth = [],
   selectedToothNumber,
   onSelectTooth,
   disabled = false,
@@ -203,6 +209,11 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
 }) => {
   const [internalDentition, setInternalDentition] = useState<DentitionType>(defaultDentition);
   const prevDefaultRef = useRef(defaultDentition);
+
+  const historyTeethSet = useMemo(
+    () => new Set((historicalTeeth ?? []).map((t) => t.tooth_number)),
+    [historicalTeeth],
+  );
 
   useEffect(() => {
     if (prevDefaultRef.current !== defaultDentition) {
@@ -230,7 +241,9 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
         <GumArtwork arch={arch} />
         <GroupGuide primary={primary} arch={arch} />
         {numbers.map((number) => <ToothButton key={number} toothNumber={number} arch={arch}
-          finding={teeth.find((item) => item.tooth_number === number)} selected={selectedToothNumber === number}
+          finding={teeth.find((item) => item.tooth_number === number)}
+          hasHistory={historyTeethSet.has(number)}
+          selected={selectedToothNumber === number}
           disabled={disabled} onSelect={onSelectTooth} />)}
       </div>
     </section>;
@@ -307,6 +320,12 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
       <span><i className={styles.legendHealthy} />Healthy</span><span><i className={styles.legendCaries} />Caries</span>
       <span><i className={styles.legendFilled} />Restored / Filled</span><span><i className={styles.legendCrown} />Crown</span>
       <span><i className={styles.legendRoot} />Root Piece</span><span><i className={styles.legendMissing}>×</i>Missing</span>
+      {(historicalTeeth?.length ?? 0) > 0 && (
+        <span style={{ color: '#2563eb', fontWeight: 600 }}>
+          <span style={{ display: 'inline-block', marginRight: '4px', fontSize: '0.85rem' }}>◷</span>
+          Prior Visit History ({historicalTeeth?.length})
+        </span>
+      )}
     </div>
   </div>;
 };

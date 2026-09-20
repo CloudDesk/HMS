@@ -54,6 +54,7 @@ export type DentalTreatmentPlanItemFields = {
 
 export type OpdDentalExaminationFields = {
   visitId: Types.ObjectId;
+  episodeId?: Types.ObjectId | null;
   consultationId?: Types.ObjectId | null;
   patientId: Types.ObjectId;
   patientNumber: string;
@@ -170,6 +171,12 @@ const opdDentalExaminationSchema = new Schema<OpdDentalExaminationFields>(
       ref: 'OpdVisit',
       required: true,
       unique: true,
+    },
+    episodeId: {
+      type: Schema.Types.ObjectId,
+      ref: 'DentalTreatmentEpisode',
+      default: null,
+      index: true,
     },
     consultationId: {
       type: Schema.Types.ObjectId,

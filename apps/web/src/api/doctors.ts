@@ -149,12 +149,21 @@ export type DoctorUserOption = {
   mapped_doctor_id: string | null;
 };
 
+export type DoctorAvailableSlotItem = {
+  start_time: string;
+  end_time: string;
+  max_patients_per_slot?: number;
+  available?: boolean;
+  is_available?: boolean;
+  reason?: string;
+};
+
 export type DoctorAvailableSlotsResponse = {
   doctor_id: string;
   date: string;
   is_available: boolean;
   unavailable_reason: string | null;
-  slots: Array<{ start_time: string; end_time: string }>;
+  slots: DoctorAvailableSlotItem[];
 };
 
 export type DoctorLeaveListParams = Partial<{
@@ -250,9 +259,19 @@ export const doctorsApi = {
     });
   },
 
-  availableSlots(id: string, date: string) {
+  availableSlots(
+    id: string,
+    date: string,
+    durationMinutes?: number,
+    patientId?: string,
+    excludeAppointmentId?: string,
+  ) {
+    const params = new URLSearchParams({ date });
+    if (durationMinutes) params.set('duration_minutes', String(durationMinutes));
+    if (patientId) params.set('patient_id', patientId);
+    if (excludeAppointmentId) params.set('exclude_appointment_id', excludeAppointmentId);
     return apiClient.request<DoctorAvailableSlotsResponse>(
-      `/doctors/${encodeURIComponent(id)}/available-slots?date=${encodeURIComponent(date)}`,
+      `/doctors/${encodeURIComponent(id)}/available-slots?${params.toString()}`,
     );
   },
 

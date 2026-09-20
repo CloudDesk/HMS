@@ -80,6 +80,7 @@ export type DentalTreatmentPlanItem = {
 export type OpdDentalExamination = {
   id: string;
   visit_id: string;
+  episode_id?: string | null;
   consultation_id?: string | null;
   patient_id: string;
   patient_number: string;
@@ -102,6 +103,7 @@ export type OpdDentalExamination = {
 
 export type SaveOpdDentalExaminationDTO = {
   expected_updated_at?: string;
+  episode_id?: string | null;
   dental_history?: DentalHistory | null;
   soft_tissue?: SoftTissueExamination | null;
   teeth?: ToothFinding[];

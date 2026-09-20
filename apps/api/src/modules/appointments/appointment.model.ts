@@ -1,6 +1,15 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import type { AppointmentPriority, AppointmentStatus, AppointmentVisitType } from './appointment.types.js';
 
+export type AppointmentDentalContextFields = {
+  treatmentEpisodeId?: Types.ObjectId | null;
+  treatmentStageId?: Types.ObjectId | null;
+  treatmentPlanItemId?: string | null;
+  toothNumber?: number | null;
+  stageSequence?: number | null;
+  stageName?: string | null;
+};
+
 export type AppointmentFields = {
   appointmentNumber: string;
   patientId: Types.ObjectId;
@@ -22,6 +31,7 @@ export type AppointmentFields = {
   status: AppointmentStatus;
   reason?: string | null;
   notes?: string | null;
+  dentalContext?: AppointmentDentalContextFields | null;
   activeSlotKey?: string | null;
   rescheduledFromId?: Types.ObjectId | null;
   rescheduledToId?: Types.ObjectId | null;
@@ -65,6 +75,14 @@ const appointmentSchema = new Schema<AppointmentFields>(
     },
     reason: { type: String, default: null },
     notes: { type: String, default: null },
+    dentalContext: {
+      treatmentEpisodeId: { type: Schema.Types.ObjectId, ref: 'DentalTreatmentEpisode', default: null },
+      treatmentStageId: { type: Schema.Types.ObjectId, ref: 'DentalTreatmentStage', default: null },
+      treatmentPlanItemId: { type: String, default: null },
+      toothNumber: { type: Number, default: null },
+      stageSequence: { type: Number, default: null },
+      stageName: { type: String, default: null },
+    },
     activeSlotKey: { type: String, default: null },
     rescheduledFromId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
     rescheduledToId: { type: Schema.Types.ObjectId, ref: 'Appointment', default: null },
@@ -89,6 +107,14 @@ appointmentSchema.index({ doctorName: 1 });
 appointmentSchema.index(
   { activeSlotKey: 1 },
   { unique: true, partialFilterExpression: { activeSlotKey: { $type: 'string' } } },
+);
+appointmentSchema.index(
+  { 'dentalContext.treatmentStageId': 1 },
+  { partialFilterExpression: { 'dentalContext.treatmentStageId': { $type: 'objectId' } } },
+);
+appointmentSchema.index(
+  { 'dentalContext.treatmentEpisodeId': 1 },
+  { partialFilterExpression: { 'dentalContext.treatmentEpisodeId': { $type: 'objectId' } } },
 );
 
 export const AppointmentModel = mongoose.model<AppointmentFields>('Appointment', appointmentSchema);

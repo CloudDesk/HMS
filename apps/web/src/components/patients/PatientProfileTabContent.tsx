@@ -289,8 +289,8 @@ export function PatientProfileTabContent({
                 {labOrders.map((order) => (
                   <tr key={order.id}>
                     <td>{formatDate(order.created_at)}</td>
-                    <td><strong>{order.items.map((item) => item.investigation_name).join(', ') || 'Lab Requisition'}</strong></td>
-                    <td>{order.items[0]?.category || 'General Lab'}</td>
+                    <td><strong>{order.items?.map((item) => item.investigation_name).join(', ') || 'Lab Requisition'}</strong></td>
+                    <td>{order.items?.[0]?.category || 'General Lab'}</td>
                     <td><span className="doc-status draft">{order.priority}</span></td>
                     <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
                     <td style={{ textAlign: 'center' }}><button className="doc-btn small" onClick={() => onViewLabOrder(order)} title="View Lab Order" type="button"><i aria-hidden="true" className="ph ph-file-text" /></button></td>
@@ -313,8 +313,8 @@ export function PatientProfileTabContent({
                 {imagingOrders.map((order) => (
                   <tr key={order.id}>
                     <td>{formatDate(order.created_at)}</td>
-                    <td><strong>{order.items.map((item) => item.investigation_name).join(', ') || 'Imaging Requisition'}</strong></td>
-                    <td>{order.items[0]?.category || 'Radiology'}</td>
+                    <td><strong>{order.items?.map((item) => item.investigation_name).join(', ') || 'Imaging Requisition'}</strong></td>
+                    <td>{order.items?.[0]?.category || 'Radiology'}</td>
                     <td><span className="doc-status draft">{order.priority}</span></td>
                     <td><span className="doc-status active">{order.status.replaceAll('_', ' ')}</span></td>
                     <td style={{ textAlign: 'center' }}><button className="doc-btn small" onClick={() => onViewImagingOrder(order)} title="View Imaging Order" type="button"><i aria-hidden="true" className="ph ph-file-text" /></button></td>

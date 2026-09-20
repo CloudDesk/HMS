@@ -265,9 +265,229 @@ export type DentalTreatmentPlanItem = {
   status?: DentalTreatmentStatus;
 };
 
+export type DentalEpisodeStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
+
+export type DentalEpisodeVisitSummary = {
+  visit_id: string;
+  visit_number: string;
+  doctor_id: string;
+  doctor_name: string;
+  visit_date: string;
+  status: string;
+  notes?: string | null;
+};
+
+export type DentalTreatmentEpisodeResponse = {
+  id: string;
+  episode_number: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  originating_visit_id: string;
+  originating_visit_number: string;
+  primary_doctor_id: string;
+  primary_doctor_name: string;
+  branch_id: string;
+  department_id: string;
+  primary_tooth_number?: number | null;
+  diagnosis_code?: string | null;
+  diagnosis_name?: string | null;
+  treatment_plan_summary?: string | null;
+  status: DentalEpisodeStatus;
+  visit_ids: string[];
+  visits?: DentalEpisodeVisitSummary[];
+  notes?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateDentalEpisodePayload = {
+  patient_id: string;
+  originating_visit_id: string;
+  primary_tooth_number?: number | null;
+  diagnosis_code?: string | null;
+  diagnosis_name?: string | null;
+  treatment_plan_summary?: string | null;
+  notes?: string | null;
+};
+
+export type UpdateDentalEpisodeStatusPayload = {
+  status: DentalEpisodeStatus;
+  notes?: string | null;
+};
+
+export type DentalStageStatus =
+  | 'PLANNED'
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'ON_HOLD'
+  | 'CANCELLED';
+
+export type DentalTreatmentStageResponse = {
+  id: string;
+  episode_id: string;
+  plan_item_id: string;
+  tooth_number?: number | null;
+  service_id?: string | null;
+  stage_name: string;
+  sequence: number;
+  assigned_doctor_id: string;
+  assigned_doctor_name: string;
+  status: DentalStageStatus;
+  planned_date?: string | null;
+  completed_at?: string | null;
+  completed_by_doctor_id?: string | null;
+  completed_by_doctor_name?: string | null;
+  appointment_id?: string | null;
+  prosthetic_lab_order_id?: string | null;
+  notes?: string | null;
+  branch_id: string;
+  department_id: string;
+  patient_id: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProstheticType = 'CROWN' | 'BRIDGE' | 'OTHER';
+
+export type DentalLabOrderStatus =
+  | 'DRAFT'
+  | 'ORDERED'
+  | 'RECEIVED'
+  | 'IN_PROGRESS'
+  | 'QUALITY_CHECK'
+  | 'READY'
+  | 'CANCELLED';
+
+export type DentalProstheticLabOrderResponse = {
+  id: string;
+  order_number: string;
+  patient_id: string;
+  treatment_episode_id: string;
+  treatment_stage_id: string;
+  treatment_plan_item_id?: string | null;
+  tooth_number?: number | null;
+  prosthetic_type: ProstheticType;
+  description: string;
+  assigned_lab_id?: string | null;
+  requested_by: string;
+  requested_by_name?: string | null;
+  requested_at: string;
+  received_at?: string | null;
+  in_progress_at?: string | null;
+  quality_check_at?: string | null;
+  ready_at?: string | null;
+  cancelled_at?: string | null;
+  status_remarks?: string | null;
+  cancellation_reason?: string | null;
+  status: DentalLabOrderStatus;
+  branch_id: string;
+  department_id: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateDentalProstheticLabOrderDTO = {
+  patient_id: string;
+  treatment_episode_id: string;
+  treatment_stage_id: string;
+  treatment_plan_item_id?: string | null;
+  tooth_number?: number | null;
+  prosthetic_type: ProstheticType;
+  description: string;
+  assigned_lab_id?: string | null;
+  status?: DentalLabOrderStatus;
+};
+
+export type UpdateDentalLabOrderStatusPayload = {
+  status: DentalLabOrderStatus;
+  remarks?: string | null;
+  cancellation_reason?: string | null;
+};
+
+export type CreateDentalStagePayload = {
+  plan_item_id: string;
+  stage_name: string;
+  assigned_doctor_id: string;
+  tooth_number?: number | null;
+  service_id?: string | null;
+  sequence?: number;
+  planned_date?: string | null;
+  prosthetic_lab_order_id?: string | null;
+  notes?: string | null;
+};
+
+export type UpdateDentalStageStatusPayload = {
+  status: DentalStageStatus;
+  notes?: string | null;
+};
+
+export type AssignDoctorStagePayload = {
+  doctor_id: string;
+  notes?: string | null;
+};
+
+export type ScheduleDentalStagePayload = {
+  doctor_id?: string;
+  appointment_date: string;
+  start_time: string;
+  utc_datetime?: string;
+  duration_minutes: number;
+  reason?: string | null;
+  notes?: string | null;
+};
+
+export type RescheduleDentalStagePayload = {
+  appointment_date: string;
+  start_time: string;
+  utc_datetime?: string;
+  duration_minutes?: number;
+  reschedule_reason?: string | null;
+  notes?: string | null;
+};
+
+/** Lightweight appointment view returned by GET /stages/:id/appointment */
+export type AppointmentForStage = {
+  id: string;
+  appointment_number: string;
+  appointment_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  status: string;
+  doctor_name: string;
+  reason: string | null;
+  notes: string | null;
+};
+
+export type HistoricalToothFinding = {
+  tooth_number: number;
+  dentition: DentitionType;
+  status: ToothStatus;
+  surfaces: ToothSurface[];
+  conditions: string[];
+  mobility?: ToothMobility | null;
+  pocket_depth_mm?: number | null;
+  furcation_involvement?: string | null;
+  notes?: string | null;
+  visit_id: string;
+  visit_number: string;
+  doctor_id: string;
+  doctor_name: string;
+  recorded_at: string;
+};
+
 export type OpdDentalExaminationResponse = {
   id: string;
   visit_id: string;
+  episode_id?: string | null;
   consultation_id?: string | null;
   patient_id: string;
   patient_number: string;
@@ -290,6 +510,7 @@ export type OpdDentalExaminationResponse = {
 
 export type SaveOpdDentalExaminationPayload = {
   expected_updated_at?: string | null;
+  episode_id?: string | null;
   dental_history?: DentalHistory | null;
   soft_tissue?: SoftTissueExamination | null;
   teeth?: ToothFinding[];
@@ -352,6 +573,12 @@ export type ApiClinicalOrderStatus =
   | 'COMPLETED';
 export type ApiClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
 
+export type ApiClinicalOrderDentalContext = {
+  treatment_episode_id?: string | null;
+  treatment_stage_id?: string | null;
+  tooth_number?: number | null;
+};
+
 export type OpdClinicalOrderItemResponse = {
   id: string;
   service_id: string;
@@ -378,6 +605,7 @@ export type OpdClinicalOrderResponse = {
   destination: string | null;
   specimen_type: string | null;
   items: OpdClinicalOrderItemResponse[];
+  dental_context?: ApiClinicalOrderDentalContext | null;
   clinical_notes: string | null;
   instructions: string | null;
   submitted_at: string | null;
@@ -393,6 +621,7 @@ export type SaveOpdClinicalOrderPayload = {
   destination?: string | null;
   specimen_type?: string | null;
   items: Omit<OpdClinicalOrderItemResponse, 'id' | 'service_name'>[];
+  dental_context?: ApiClinicalOrderDentalContext | null;
   clinical_notes?: string | null;
   instructions?: string | null;
 };
@@ -638,6 +867,12 @@ export const opdApi = {
     );
   },
 
+  getEpisodeImagingOrders(episodeId: string) {
+    return apiClient.request<OpdClinicalOrderResponse[]>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/imaging-orders`,
+    );
+  },
+
   getFollowUp(visitId: string) {
     return apiClient.request<OpdFollowUpResponse | null>(`/opd/visits/${encodeURIComponent(visitId)}/follow-up`);
   },
@@ -699,4 +934,379 @@ export const opdApi = {
       },
     );
   },
+
+  createDentalEpisode(payload: CreateDentalEpisodePayload) {
+    return apiClient.request<DentalTreatmentEpisodeResponse>(
+      '/opd/dental/episodes',
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  getDentalEpisode(episodeId: string) {
+    return apiClient.request<DentalTreatmentEpisodeResponse>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}`,
+    );
+  },
+
+  listPatientDentalEpisodes(patientId: string) {
+    return apiClient.request<DentalTreatmentEpisodeResponse[]>(
+      `/opd/dental/patients/${encodeURIComponent(patientId)}/episodes`,
+    );
+  },
+
+  linkVisitToDentalEpisode(episodeId: string, visitId: string) {
+    return apiClient.request<DentalTreatmentEpisodeResponse>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/link-visit`,
+      {
+        body: { visit_id: visitId },
+        method: 'POST',
+      },
+    );
+  },
+
+  updateDentalEpisodeStatus(episodeId: string, payload: UpdateDentalEpisodeStatusPayload) {
+    return apiClient.request<DentalTreatmentEpisodeResponse>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/status`,
+      {
+        body: payload,
+        method: 'PATCH',
+      },
+    );
+  },
+
+  getPatientToothHistory(patientId: string, excludeVisitId?: string) {
+    const query = excludeVisitId ? `?exclude_visit_id=${encodeURIComponent(excludeVisitId)}` : '';
+    return apiClient.request<HistoricalToothFinding[]>(
+      `/opd/dental/patients/${encodeURIComponent(patientId)}/tooth-history${query}`,
+    );
+  },
+
+  createDentalStage(episodeId: string, payload: CreateDentalStagePayload) {
+    return apiClient.request<DentalTreatmentStageResponse>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/stages`,
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  listDentalStages(episodeId: string, planItemId?: string) {
+    const query = planItemId ? `?plan_item_id=${encodeURIComponent(planItemId)}` : '';
+    return apiClient.request<DentalTreatmentStageResponse[]>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/stages${query}`,
+    );
+  },
+
+  getDentalStage(stageId: string) {
+    return apiClient.request<DentalTreatmentStageResponse>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}`,
+    );
+  },
+
+  assignDoctorToDentalStage(stageId: string, payload: AssignDoctorStagePayload) {
+    return apiClient.request<DentalTreatmentStageResponse>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}/doctor`,
+      {
+        body: payload,
+        method: 'PATCH',
+      },
+    );
+  },
+
+  updateDentalStageStatus(stageId: string, payload: UpdateDentalStageStatusPayload) {
+    return apiClient.request<DentalTreatmentStageResponse>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}/status`,
+      {
+        body: payload,
+        method: 'PATCH',
+      },
+    );
+  },
+
+  deleteDentalStage(stageId: string) {
+    return apiClient.request<{ success: boolean }>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}`,
+      {
+        method: 'DELETE',
+      },
+    );
+  },
+
+  scheduleDentalStage(stageId: string, payload: ScheduleDentalStagePayload) {
+    return apiClient.request<DentalTreatmentStageResponse>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}/schedule`,
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  rescheduleDentalStage(stageId: string, payload: RescheduleDentalStagePayload) {
+    return apiClient.request<DentalTreatmentStageResponse>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}/reschedule`,
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  cancelDentalStageAppointment(stageId: string, reason?: string) {
+    return apiClient.request<DentalTreatmentStageResponse>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}/cancel-appointment`,
+      {
+        body: { reason: reason ?? null },
+        method: 'POST',
+      },
+    );
+  },
+
+  getDentalStageAppointment(stageId: string) {
+    return apiClient.request<AppointmentForStage | null>(
+      `/opd/dental/stages/${encodeURIComponent(stageId)}/appointment`,
+    );
+  },
+
+  createDentalLabOrder(payload: CreateDentalProstheticLabOrderDTO) {
+    return apiClient.request<DentalProstheticLabOrderResponse>(
+      '/opd/dental/lab-orders',
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  getDentalLabOrder(orderId: string) {
+    return apiClient.request<DentalProstheticLabOrderResponse>(
+      `/opd/dental/lab-orders/${encodeURIComponent(orderId)}`,
+    );
+  },
+
+  getEpisodeDentalLabOrders(episodeId: string) {
+    return apiClient.request<DentalProstheticLabOrderResponse[]>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/lab-orders`,
+    );
+  },
+
+  updateDentalLabOrderStatus(orderId: string, payload: UpdateDentalLabOrderStatusPayload) {
+    return apiClient.request<DentalProstheticLabOrderResponse>(
+      `/opd/dental/lab-orders/${encodeURIComponent(orderId)}/status`,
+      {
+        body: payload,
+        method: 'PATCH',
+      },
+    );
+  },
+
+  createDentalQuotation(episodeId: string, payload: CreateDentalQuotationDTO) {
+    return apiClient.request<DentalTreatmentQuotationResponse>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/quotations`,
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  getEpisodeDentalQuotations(episodeId: string) {
+    return apiClient.request<DentalTreatmentQuotationResponse[]>(
+      `/opd/dental/episodes/${encodeURIComponent(episodeId)}/quotations`,
+    );
+  },
+
+  getDentalQuotation(quotationId: string) {
+    return apiClient.request<DentalTreatmentQuotationResponse>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}`,
+    );
+  },
+
+  updateDentalQuotationDraft(quotationId: string, payload: UpdateDentalQuotationDraftDTO) {
+    return apiClient.request<DentalTreatmentQuotationResponse>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}`,
+      {
+        body: payload,
+        method: 'PUT',
+      },
+    );
+  },
+
+  sendDentalQuotation(quotationId: string) {
+    return apiClient.request<DentalTreatmentQuotationResponse>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}/send`,
+      {
+        method: 'POST',
+      },
+    );
+  },
+
+  acceptDentalQuotation(quotationId: string, payload: AcceptDentalQuotationDTO) {
+    return apiClient.request<DentalTreatmentQuotationResponse>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}/accept`,
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  rejectDentalQuotation(quotationId: string, payload: RejectDentalQuotationDTO) {
+    return apiClient.request<DentalTreatmentQuotationResponse>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}/reject`,
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  postponeDentalQuotation(quotationId: string, payload: PostponeDentalQuotationDTO) {
+    return apiClient.request<DentalTreatmentQuotationResponse>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}/postpone`,
+      {
+        body: payload,
+        method: 'POST',
+      },
+    );
+  },
+
+  getPatientDentalQuotations(patientId: string) {
+    return apiClient.request<DentalTreatmentQuotationResponse[]>(
+      `/opd/dental/quotations/patient/${encodeURIComponent(patientId)}`,
+    );
+  },
 };
+
+export type DentalQuotationStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'POSTPONED'
+  | 'EXPIRED';
+
+export type DentalQuotationItemResponse = {
+  id?: string;
+  treatment_plan_item_id?: string | null;
+  service_id?: string | null;
+  procedure_name: string;
+  tooth_number?: number | null;
+  quantity: number;
+  unit_price: number;
+  discount_amount: number;
+  tax_amount: number;
+  line_total: number;
+  notes?: string | null;
+};
+
+export type DentalQuotationOptionResponse = {
+  id?: string;
+  name: string;
+  description?: string | null;
+  sequence: number;
+  items: DentalQuotationItemResponse[];
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total: number;
+};
+
+export type DentalTreatmentQuotationResponse = {
+  id: string;
+  quotation_number: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  treatment_episode_id: string;
+  treatment_episode_number?: string | null;
+  doctor_id: string;
+  doctor_name: string;
+  branch_id: string;
+  department_id: string;
+  status: DentalQuotationStatus;
+  currency: string;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total: number;
+  items: DentalQuotationItemResponse[];
+  options?: DentalQuotationOptionResponse[];
+  selected_option_id?: string | null;
+  selected_option_name?: string | null;
+  accepted_at?: string | null;
+  accepted_by?: string | null;
+  decision_reason?: string | null;
+  decision_at?: string | null;
+  sent_at?: string | null;
+  sent_by?: string | null;
+  notes?: string | null;
+  valid_until?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateDentalQuotationItemDTO = {
+  treatment_plan_item_id?: string | null;
+  service_id?: string | null;
+  procedure_name: string;
+  tooth_number?: number | null;
+  quantity?: number;
+  unit_price?: number;
+  discount_amount?: number;
+  tax_amount?: number;
+  notes?: string | null;
+};
+
+export type CreateDentalQuotationOptionDTO = {
+  id?: string;
+  name: string;
+  description?: string | null;
+  sequence?: number;
+  discount_amount?: number;
+  tax_amount?: number;
+  items: CreateDentalQuotationItemDTO[];
+};
+
+export type CreateDentalQuotationDTO = {
+  patient_id?: string;
+  treatment_episode_id?: string;
+  doctor_id?: string;
+  notes?: string | null;
+  valid_until?: string | null;
+  discount_amount?: number;
+  tax_amount?: number;
+  items?: CreateDentalQuotationItemDTO[];
+  options?: CreateDentalQuotationOptionDTO[];
+};
+
+export type UpdateDentalQuotationDraftDTO = {
+  doctor_id?: string;
+  notes?: string | null;
+  valid_until?: string | null;
+  discount_amount?: number;
+  tax_amount?: number;
+  items?: CreateDentalQuotationItemDTO[];
+  options?: CreateDentalQuotationOptionDTO[];
+};
+
+export type AcceptDentalQuotationDTO = {
+  selected_option_id: string;
+  notes?: string | null;
+};
+
+export type RejectDentalQuotationDTO = {
+  reason?: string | null;
+};
+
+export type PostponeDentalQuotationDTO = {
+  reason?: string | null;
+};
+
+

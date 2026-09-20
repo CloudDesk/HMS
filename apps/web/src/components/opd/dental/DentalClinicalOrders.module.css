@@ -166,3 +166,97 @@
   font-size: 0.83rem;
   margin: 0.5rem 0;
 }
+
+.attachmentList {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.attachmentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.attachmentInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.attachmentMeta {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.attachmentActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.viewImageBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem !important;
+  padding: 0.3rem 0.65rem !important;
+  color: #ffffff !important;
+  text-decoration: none;
+  border: 1px solid #2563eb !important;
+  border-radius: 4px;
+  background: #2563eb !important;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.viewImageBtn:hover {
+  background: #1d4ed8 !important;
+}
+
+.downloadBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem !important;
+  padding: 0.3rem 0.6rem !important;
+  color: #2563eb !important;
+  text-decoration: none;
+  border: 1px solid #bfdbfe !important;
+  border-radius: 4px;
+  background: #eff6ff !important;
+}
+
+.downloadBtn:hover {
+  background: #dbeafe !important;
+}
+
+.resultBadge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.resultAvailable {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.resultPending {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+

@@ -13,6 +13,23 @@ import {
   type SaveOpdFollowUpPayload,
   type SaveOpdReferralPayload,
   type SaveOpdDentalExaminationPayload,
+  type CreateDentalEpisodePayload,
+  type UpdateDentalEpisodeStatusPayload,
+  type CreateDentalStagePayload,
+  type UpdateDentalStageStatusPayload,
+  type AssignDoctorStagePayload,
+  type ScheduleDentalStagePayload,
+  type RescheduleDentalStagePayload,
+  type AppointmentForStage,
+  type CreateDentalProstheticLabOrderDTO,
+  type DentalProstheticLabOrderResponse,
+  type UpdateDentalLabOrderStatusPayload,
+  type CreateDentalQuotationDTO,
+  type UpdateDentalQuotationDraftDTO,
+  type AcceptDentalQuotationDTO,
+  type RejectDentalQuotationDTO,
+  type PostponeDentalQuotationDTO,
+  type DentalTreatmentQuotationResponse,
 } from '../../api/opd';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 
@@ -42,6 +59,20 @@ export const opdKeys = {
   referral: (visitId: string) => [...opdKeys.referrals(), visitId] as const,
   dentalExaminations: () => [...opdKeys.all, 'dental-examinations'] as const,
   dentalExamination: (visitId: string) => [...opdKeys.dentalExaminations(), visitId] as const,
+  dentalEpisodes: () => [...opdKeys.all, 'dental-episodes'] as const,
+  patientDentalEpisodes: (patientId: string) => [...opdKeys.dentalEpisodes(), 'patient', patientId] as const,
+  dentalEpisode: (episodeId: string) => [...opdKeys.dentalEpisodes(), episodeId] as const,
+  patientToothHistory: (patientId: string, excludeVisitId?: string) =>
+    [...opdKeys.all, 'tooth-history', patientId, excludeVisitId ?? 'all'] as const,
+  dentalStages: (episodeId: string, planItemId?: string) =>
+    [...opdKeys.all, 'dental-stages', episodeId, planItemId ?? 'all'] as const,
+  dentalStage: (stageId: string) => [...opdKeys.all, 'dental-stage', stageId] as const,
+  dentalLabOrders: () => [...opdKeys.all, 'dental-lab-orders'] as const,
+  dentalLabOrder: (orderId: string) => [...opdKeys.all, 'dental-lab-order', orderId] as const,
+  episodeDentalLabOrders: (episodeId: string) => [...opdKeys.all, 'dental-episode-lab-orders', episodeId] as const,
+  dentalQuotations: (episodeId: string) => [...opdKeys.all, 'dental-quotations', episodeId] as const,
+  dentalQuotation: (quotationId: string) => [...opdKeys.all, 'dental-quotation', quotationId] as const,
+  patientDentalQuotations: (patientId: string) => [...opdKeys.all, 'patient-dental-quotations', patientId] as const,
 };
 
 export function useOpdDashboardSummary(params: OpdVisitListParams, enabled = true) {
@@ -365,3 +396,374 @@ export function useCompleteOpdDentalExamination(options: OpdMutationNotification
     },
   });
 }
+
+export function usePatientDentalEpisodes(patientId?: string, enabled = true) {
+  return useQuery({
+    queryKey: opdKeys.patientDentalEpisodes(patientId ?? ''),
+    queryFn: () => (patientId ? opdApi.listPatientDentalEpisodes(patientId) : Promise.resolve([])),
+    enabled: Boolean(patientId) && enabled,
+  });
+}
+
+export function useDentalEpisode(episodeId?: string, enabled = true) {
+  return useQuery({
+    queryKey: opdKeys.dentalEpisode(episodeId ?? ''),
+    queryFn: () => (episodeId ? opdApi.getDentalEpisode(episodeId) : Promise.resolve(null)),
+    enabled: Boolean(episodeId) && enabled,
+  });
+}
+
+export function usePatientToothHistory(patientId?: string, excludeVisitId?: string, enabled = true) {
+  return useQuery({
+    queryKey: opdKeys.patientToothHistory(patientId ?? '', excludeVisitId),
+    queryFn: () =>
+      patientId
+        ? opdApi.getPatientToothHistory(patientId, excludeVisitId)
+        : Promise.resolve([]),
+    enabled: Boolean(patientId) && enabled,
+  });
+}
+
+export function useCreateDentalEpisode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateDentalEpisodePayload) => opdApi.createDentalEpisode(payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Treatment Episode #${data.episode_number} created.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.patientDentalEpisodes(data.patient_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalEpisode(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useLinkVisitToDentalEpisode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ episodeId, visitId }: { episodeId: string; visitId: string }) =>
+      opdApi.linkVisitToDentalEpisode(episodeId, visitId),
+    onSuccess: async (data) => {
+      toast.success(`Visit linked to Dental Episode #${data.episode_number}.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.patientDentalEpisodes(data.patient_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalEpisode(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useUpdateDentalEpisodeStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      episodeId,
+      payload,
+    }: {
+      episodeId: string;
+      payload: UpdateDentalEpisodeStatusPayload;
+    }) => opdApi.updateDentalEpisodeStatus(episodeId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Episode #${data.episode_number} status updated to ${data.status}.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.patientDentalEpisodes(data.patient_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalEpisode(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useDentalStages(episodeId: string | null | undefined, planItemId?: string, enabled = true) {
+  return useQuery({
+    queryKey: episodeId ? opdKeys.dentalStages(episodeId, planItemId) : [...opdKeys.all, 'dental-stages', 'none'],
+    queryFn: () => opdApi.listDentalStages(episodeId as string, planItemId),
+    enabled: enabled && Boolean(episodeId),
+  });
+}
+
+export function useCreateDentalStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ episodeId, payload }: { episodeId: string; payload: CreateDentalStagePayload }) =>
+      opdApi.createDentalStage(episodeId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Stage "${data.stage_name}" added.`);
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.episode_id] });
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useAssignDoctorToDentalStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stageId, payload }: { stageId: string; payload: AssignDoctorStagePayload }) =>
+      opdApi.assignDoctorToDentalStage(stageId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Assigned to Dr. ${data.assigned_doctor_name}.`);
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.episode_id] });
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useUpdateDentalStageStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stageId, payload }: { stageId: string; payload: UpdateDentalStageStatusPayload }) =>
+      opdApi.updateDentalStageStatus(stageId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Stage "${data.stage_name}" status updated to ${data.status}.`);
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.episode_id] });
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useDeleteDentalStage(episodeId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (stageId: string) => opdApi.deleteDentalStage(stageId),
+    onSuccess: async () => {
+      toast.success('Treatment stage deleted.');
+      if (episodeId) {
+        await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', episodeId] });
+      } else {
+        await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages'] });
+      }
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useScheduleDentalStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stageId, payload }: { stageId: string; payload: ScheduleDentalStagePayload }) =>
+      opdApi.scheduleDentalStage(stageId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Stage "${data.stage_name}" scheduled successfully.`);
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.episode_id] });
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stage-appt', data.id] });
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useRescheduleDentalStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stageId, payload }: { stageId: string; payload: RescheduleDentalStagePayload }) =>
+      opdApi.rescheduleDentalStage(stageId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Stage "${data.stage_name}" rescheduled.`);
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.episode_id] });
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stage-appt', data.id] });
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useCancelDentalStageAppointment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stageId, reason }: { stageId: string; reason?: string }) =>
+      opdApi.cancelDentalStageAppointment(stageId, reason),
+    onSuccess: async (data) => {
+      toast.success(`Appointment for stage "${data.stage_name}" cancelled. Stage reverted to Planned.`);
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.episode_id] });
+      await queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stage-appt', data.id] });
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useDentalStageAppointment(stageId: string | null | undefined, enabled = true) {
+  return useQuery<AppointmentForStage | null>({
+    queryKey: stageId ? [...opdKeys.all, 'dental-stage-appt', stageId] : [...opdKeys.all, 'dental-stage-appt', 'none'],
+    queryFn: () => (stageId ? opdApi.getDentalStageAppointment(stageId) : Promise.resolve(null)),
+    enabled: enabled && Boolean(stageId),
+  });
+}
+
+export function useDentalLabOrder(orderId?: string | null, enabled = true) {
+  return useQuery<DentalProstheticLabOrderResponse | null>({
+    queryKey: orderId ? opdKeys.dentalLabOrder(orderId) : [...opdKeys.all, 'dental-lab-order', 'none'],
+    queryFn: () => (orderId ? opdApi.getDentalLabOrder(orderId) : Promise.resolve(null)),
+    enabled: Boolean(orderId) && enabled,
+  });
+}
+
+export function useEpisodeDentalLabOrders(episodeId?: string | null, enabled = true) {
+  return useQuery<DentalProstheticLabOrderResponse[]>({
+    queryKey: episodeId ? opdKeys.episodeDentalLabOrders(episodeId) : [...opdKeys.all, 'dental-episode-lab-orders', 'none'],
+    queryFn: () => (episodeId ? opdApi.getEpisodeDentalLabOrders(episodeId) : Promise.resolve([])),
+    enabled: Boolean(episodeId) && enabled,
+  });
+}
+
+export function useCreateDentalLabOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateDentalProstheticLabOrderDTO) => opdApi.createDentalLabOrder(payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Lab Order ${data.order_number} created successfully.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.episodeDentalLabOrders(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.treatment_episode_id] }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalLabOrder(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useUpdateDentalLabOrderStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      payload,
+    }: {
+      orderId: string;
+      payload: UpdateDentalLabOrderStatusPayload;
+    }) => opdApi.updateDentalLabOrderStatus(orderId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Lab Order status updated to ${data.status}.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalLabOrder(data.id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.episodeDentalLabOrders(data.treatment_episode_id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useEpisodeDentalQuotations(episodeId?: string | null, enabled = true) {
+  return useQuery<DentalTreatmentQuotationResponse[]>({
+    queryKey: episodeId ? opdKeys.dentalQuotations(episodeId) : [...opdKeys.all, 'dental-quotations', 'none'],
+    queryFn: () => (episodeId ? opdApi.getEpisodeDentalQuotations(episodeId) : Promise.resolve([])),
+    enabled: Boolean(episodeId) && enabled,
+  });
+}
+
+export function useDentalQuotation(quotationId?: string | null, enabled = true) {
+  return useQuery<DentalTreatmentQuotationResponse | null>({
+    queryKey: quotationId ? opdKeys.dentalQuotation(quotationId) : [...opdKeys.all, 'dental-quotation', 'none'],
+    queryFn: () => (quotationId ? opdApi.getDentalQuotation(quotationId) : Promise.resolve(null)),
+    enabled: Boolean(quotationId) && enabled,
+  });
+}
+
+export function useCreateDentalQuotation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ episodeId, payload }: { episodeId: string; payload: CreateDentalQuotationDTO }) =>
+      opdApi.createDentalQuotation(episodeId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Treatment Quotation ${data.quotation_number} created.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotations(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotation(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useUpdateDentalQuotationDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quotationId, payload }: { quotationId: string; payload: UpdateDentalQuotationDraftDTO }) =>
+      opdApi.updateDentalQuotationDraft(quotationId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Treatment Quotation ${data.quotation_number} updated.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotations(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotation(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useSendDentalQuotation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quotationId: string) => opdApi.sendDentalQuotation(quotationId),
+    onSuccess: async (data) => {
+      toast.success(`Dental Treatment Quotation ${data.quotation_number} sent to patient.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotations(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotation(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useAcceptDentalQuotation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quotationId, payload }: { quotationId: string; payload: AcceptDentalQuotationDTO }) =>
+      opdApi.acceptDentalQuotation(quotationId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Treatment Quotation ${data.quotation_number} accepted.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotations(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotation(data.id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalEpisodes() }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalExaminations() }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalStages(data.treatment_episode_id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function useRejectDentalQuotation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quotationId, payload }: { quotationId: string; payload: RejectDentalQuotationDTO }) =>
+      opdApi.rejectDentalQuotation(quotationId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Treatment Quotation ${data.quotation_number} rejected.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotations(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotation(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function usePostponeDentalQuotation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quotationId, payload }: { quotationId: string; payload: PostponeDentalQuotationDTO }) =>
+      opdApi.postponeDentalQuotation(quotationId, payload),
+    onSuccess: async (data) => {
+      toast.success(`Dental Treatment Quotation ${data.quotation_number} marked as postponed.`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotations(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: opdKeys.dentalQuotation(data.id) }),
+      ]);
+    },
+    onError: (error) => toast.error(getOpdErrorMessage(error)),
+  });
+}
+
+export function usePatientDentalQuotations(patientId?: string | null, enabled = true) {
+  return useQuery<DentalTreatmentQuotationResponse[]>({
+    queryKey: patientId ? opdKeys.patientDentalQuotations(patientId) : [...opdKeys.all, 'patient-dental-quotations', 'none'],
+    queryFn: () => (patientId ? opdApi.getPatientDentalQuotations(patientId) : Promise.resolve([])),
+    enabled: Boolean(patientId) && enabled,
+  });
+}
+
+
+
+

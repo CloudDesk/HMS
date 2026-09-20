@@ -24,6 +24,15 @@ export type ApiAppointmentVisitType =
 
 export type ApiAppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 
+export type AppointmentDentalContext = {
+  treatment_episode_id?: string | null;
+  treatment_stage_id?: string | null;
+  treatment_plan_item_id?: string | null;
+  tooth_number?: number | null;
+  stage_sequence?: number | null;
+  stage_name?: string | null;
+};
+
 export type AppointmentResponse = {
   id: string;
   appointment_number: string;
@@ -46,6 +55,7 @@ export type AppointmentResponse = {
   status: ApiAppointmentStatus;
   reason: string | null;
   notes: string | null;
+  dental_context?: AppointmentDentalContext | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

@@ -29,6 +29,8 @@ export const listAppointmentsQuerySchema = {
     patient_id: { type: 'string', minLength: 1 },
     branch_id: { type: 'string', minLength: 1 },
     department_id: { type: 'string', minLength: 1 },
+    treatment_episode_id: { type: 'string', minLength: 1 },
+    treatment_stage_id: { type: 'string', minLength: 1 },
     date_from: { type: 'string', minLength: 10, maxLength: 10 },
     date_to: { type: 'string', minLength: 10, maxLength: 10 },
     page: { type: 'integer', minimum: 1 },
@@ -56,6 +58,18 @@ export const createAppointmentBodySchema = {
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    dental_context: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      properties: {
+        treatment_episode_id: { type: ['string', 'null'] },
+        treatment_stage_id: { type: ['string', 'null'] },
+        treatment_plan_item_id: { type: ['string', 'null'] },
+        tooth_number: { type: ['integer', 'null'] },
+        stage_sequence: { type: ['integer', 'null'] },
+        stage_name: { type: ['string', 'null'] },
+      },
+    },
   },
 } as const;
 
@@ -73,6 +87,18 @@ export const updateAppointmentBodySchema = {
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    dental_context: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      properties: {
+        treatment_episode_id: { type: ['string', 'null'] },
+        treatment_stage_id: { type: ['string', 'null'] },
+        treatment_plan_item_id: { type: ['string', 'null'] },
+        tooth_number: { type: ['integer', 'null'] },
+        stage_sequence: { type: ['integer', 'null'] },
+        stage_name: { type: ['string', 'null'] },
+      },
+    },
     reschedule_reason: { type: ['string', 'null'], maxLength: 1000 },
   },
 } as const;

@@ -1192,10 +1192,11 @@ export function OpdVisitPage() {
   };
 
   const renderDentalImaging = useCallback(
-    (selectedTooth: number | null) => (
+    (selectedTooth: number | null, episodeId?: string | null) => (
       <DentalImagingSection
         key={`dental-imaging-${visit?.id ?? 'none'}`}
         visitId={visit?.id ?? ''}
+        episodeId={episodeId ?? null}
         selectedTooth={selectedTooth}
         active={activeTab === 'Dental Examination'}
         canEdit={!isVisitCompleted && (feature.state.canEditClinicalOrders || feature.state.canEditConsultation)}

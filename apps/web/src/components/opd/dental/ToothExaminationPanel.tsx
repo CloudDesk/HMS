@@ -1,5 +1,6 @@
 import React from 'react';
 import type {
+  HistoricalToothFinding,
   ToothFinding,
   ToothMobility,
   ToothStatus,
@@ -17,6 +18,7 @@ import styles from './DentalExamination.module.css';
 interface ToothExaminationPanelProps {
   selectedToothNumber: number | null;
   currentFinding: ToothFinding | undefined;
+  historicalFinding?: HistoricalToothFinding | null;
   onUpdateFinding: (finding: ToothFinding) => void;
   onRemoveFinding: (toothNumber: number) => void;
   disabled?: boolean;
@@ -70,6 +72,7 @@ export const ToothAffectedSurfaces: React.FC<ToothAffectedSurfacesProps> = ({
 export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   selectedToothNumber,
   currentFinding,
+  historicalFinding,
   onUpdateFinding,
   onRemoveFinding,
   disabled = false,
@@ -116,17 +119,17 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         mobility: null,
         pocket_depth_mm: null,
         furcation_involvement: null,
-        conditions: finding.conditions.includes('MISSING') ? ['MISSING'] : [],
+        conditions: (finding.conditions ?? []).includes('MISSING') ? ['MISSING'] : [],
       });
     } else if (status === 'PRESENT') {
+      const conds = finding.conditions ?? [];
       onUpdateFinding({
         ...finding,
         status: 'PRESENT',
         conditions:
-          finding.conditions.length === 0 ||
-          (finding.conditions.length === 1 && finding.conditions[0] === 'MISSING')
+          conds.length === 0 || (conds.length === 1 && conds[0] === 'MISSING')
             ? ['HEALTHY']
-            : finding.conditions.filter((c: string) => c !== 'MISSING'),
+            : conds.filter((c: string) => c !== 'MISSING'),
         mobility: finding.mobility ?? 'NONE',
       });
     } else {
@@ -212,6 +215,64 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
           </button>
         )}
       </div>
+
+      {/* Historical findings reference card (if any previous visits recorded findings on this tooth) */}
+      {historicalFinding && (
+        <div
+          style={{
+            margin: '0 0 16px',
+            padding: '12px 14px',
+            background: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            borderRadius: '8px',
+            borderLeft: '4px solid #3b82f6',
+          }}
+          aria-label="Previous Visit Dental Findings"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <i className="ph ph-clock-counter-clockwise" style={{ color: '#2563eb' }} />
+              Previous Visit Findings
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              {new Date(historicalFinding.recorded_at).toLocaleDateString()} · Dr. {historicalFinding.doctor_name}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
+            {historicalFinding.conditions.map((c) => {
+              const label = STANDARD_CONDITIONS.find((sc) => sc.id === c)?.label ?? c;
+              return (
+                <span
+                  key={c}
+                  style={{
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '0.725rem',
+                    fontWeight: 600,
+                    background: c === 'HEALTHY' ? '#dcfce7' : '#fee2e2',
+                    color: c === 'HEALTHY' ? '#166534' : '#991b1b',
+                  }}
+                >
+                  {label}
+                </span>
+              );
+            })}
+            {historicalFinding.surfaces.length > 0 && (
+              <span style={{ fontSize: '0.725rem', color: '#475569', alignSelf: 'center' }}>
+                Surfaces: {historicalFinding.surfaces.join(', ')}
+              </span>
+            )}
+          </div>
+          {historicalFinding.notes && (
+            <div style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic', marginBottom: '4px' }}>
+              Notes: {historicalFinding.notes}
+            </div>
+          )}
+          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+            Reference context only (Visit #{historicalFinding.visit_number}). Record fresh findings below.
+          </div>
+        </div>
+      )}
 
       {/* Subsection: STATUS & CONDITION */}
       <div className={styles.panelSection}>

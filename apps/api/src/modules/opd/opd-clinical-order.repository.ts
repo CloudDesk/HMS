@@ -79,12 +79,26 @@ export const toClinicalOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder 
   items: (record.items ?? []).map(toItem),
   clinical_notes: record.clinicalNotes ?? null,
   instructions: record.instructions ?? null,
+  dental_context: record.dentalContext ? {
+    treatment_episode_id: record.dentalContext.treatmentEpisodeId?.toString() ?? null,
+    treatment_stage_id: record.dentalContext.treatmentStageId?.toString() ?? null,
+    tooth_number: record.dentalContext.toothNumber ?? null,
+  } : null,
   submitted_at: record.submittedAt ?? null,
   created_by: record.createdBy?.toString() ?? null,
   updated_by: record.updatedBy?.toString() ?? null,
   created_at: record.createdAt,
   updated_at: record.updatedAt,
 });
+
+const toDentalContextFields = (ctx?: import('./opd-clinical-order.types.js').ClinicalOrderDentalContext | null) => {
+  if (!ctx) return null;
+  return {
+    treatmentEpisodeId: ctx.treatment_episode_id ? objectId(ctx.treatment_episode_id) : null,
+    treatmentStageId: ctx.treatment_stage_id ? objectId(ctx.treatment_stage_id) : null,
+    toothNumber: ctx.tooth_number ?? null,
+  };
+};
 
 const toItemFields = (item: SaveClinicalOrderItemDTO) => ({
   serviceId: objectId(item.service_id),
@@ -161,6 +175,7 @@ export class OpdClinicalOrderRepository {
           items: data.items.map(toItemFields),
           clinicalNotes: nullableString(data.clinical_notes),
           instructions: nullableString(data.instructions),
+          dentalContext: toDentalContextFields(data.dental_context),
           submittedAt: data.submittedAt ?? (data.status === 'SUBMITTED' ? new Date() : null),
           updatedBy: objectId(userId),
         },
@@ -211,7 +226,8 @@ export class OpdClinicalOrderRepository {
         status: 'SUBMITTED', priority: data.priority, destination: nullableString(data.destination),
         specimenType: orderType === 'LABORATORY' ? nullableString(data.specimen_type) : null,
         items: data.items.map(toItemFields), clinicalNotes: nullableString(data.clinical_notes),
-        instructions: nullableString(data.instructions), submittedAt: new Date(), updatedBy: objectId(userId),
+        instructions: nullableString(data.instructions), dentalContext: toDentalContextFields(data.dental_context),
+        submittedAt: new Date(), updatedBy: objectId(userId),
         encounterId: context.encounter_id ? objectId(context.encounter_id) : null,
         admissionId: context.admission_id ? objectId(context.admission_id) : null,
         procedureId: context.procedure_id ? objectId(context.procedure_id) : null,
@@ -262,6 +278,8 @@ export class OpdClinicalOrderRepository {
     if (query.priority) filter.priority = query.priority;
     if (query.patient_id) filter.patientId = objectId(query.patient_id);
     if (query.doctor_id) filter.doctorId = objectId(query.doctor_id);
+    if (query.visit_id) filter.visitId = objectId(query.visit_id);
+    if (query.episode_id) filter['dentalContext.treatmentEpisodeId'] = objectId(query.episode_id);
     if (query.date_from || query.date_to) {
       const submittedAt: { $gte?: Date; $lte?: Date } = {};
       if (query.date_from) submittedAt.$gte = new Date(`${query.date_from}T00:00:00.000Z`);
@@ -285,6 +303,15 @@ export class OpdClinicalOrderRepository {
       data: records.map((record) => toClinicalOrder(record)),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  async listByEpisode(episodeId: string, orderType: ClinicalOrderType = 'IMAGING') {
+    const records = await OpdClinicalOrderModel.find({
+      orderType,
+      'dentalContext.treatmentEpisodeId': objectId(episodeId),
+      deletedAt: null,
+    }).sort({ createdAt: -1 }).lean<OpdClinicalOrderLean[]>();
+    return records.map(toClinicalOrder);
   }
 
   async getOperationalById(id: string, orderType: ClinicalOrderType, branchIds?: string[], session?: ClientSession) {

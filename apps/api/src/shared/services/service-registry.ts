@@ -22,6 +22,14 @@ import { OpdConsultationRepository } from '../../modules/opd/opd-consultation.re
 import { OpdConsultationService } from '../../modules/opd/opd-consultation.service.js';
 import { OpdDentalExaminationRepository } from '../../modules/opd/opd-dental-examination.repository.js';
 import { OpdDentalExaminationService } from '../../modules/opd/opd-dental-examination.service.js';
+import { DentalEpisodeRepository } from '../../modules/opd/dental-episode.repository.js';
+import { DentalEpisodeService } from '../../modules/opd/dental-episode.service.js';
+import { DentalStageRepository } from '../../modules/opd/dental-stage.repository.js';
+import { DentalStageService } from '../../modules/opd/dental-stage.service.js';
+import { DentalLabOrderRepository } from '../../modules/opd/dental-lab-order.repository.js';
+import { DentalLabOrderService } from '../../modules/opd/dental-lab-order.service.js';
+import { DentalQuotationRepository } from '../../modules/opd/dental-quotation.repository.js';
+import { DentalQuotationService } from '../../modules/opd/dental-quotation.service.js';
 import { OpdClinicalOrderRepository } from '../../modules/opd/opd-clinical-order.repository.js';
 import { OpdClinicalOrderService } from '../../modules/opd/opd-clinical-order.service.js';
 import { OpdPrescriptionRepository } from '../../modules/opd/opd-prescription.repository.js';
@@ -92,6 +100,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const opdVitalsRepository = new OpdVitalsRepository();
   const opdConsultationRepository = new OpdConsultationRepository();
   const opdDentalExaminationRepository = new OpdDentalExaminationRepository();
+  const dentalEpisodeRepository = new DentalEpisodeRepository();
+  const dentalStageRepository = new DentalStageRepository();
   const opdClinicalOrderRepository = new OpdClinicalOrderRepository();
   const opdPrescriptionRepository = new OpdPrescriptionRepository();
   const opdFollowUpRepository = new OpdFollowUpRepository();
@@ -169,6 +179,31 @@ export const createServiceRegistry = (): ServiceRegistry => {
     serviceRepository,
     billingRepository,
   );
+  const dentalEpisodeService = new DentalEpisodeService(
+    dentalEpisodeRepository,
+    opdVisitRepository,
+    patientRepository,
+    sequenceService,
+  );
+  const dentalLabOrderRepository = new DentalLabOrderRepository();
+  const dentalStageService = new DentalStageService(
+    dentalStageRepository,
+    dentalEpisodeRepository,
+    patientRepository,
+    appointmentService,
+    doctorRepository,
+    settingsRepository,
+    dentalLabOrderRepository,
+  );
+  const notificationService = new NotificationService(notificationRepository);
+  const dentalLabOrderService = new DentalLabOrderService(
+    dentalLabOrderRepository,
+    dentalStageRepository,
+    dentalEpisodeRepository,
+    patientRepository,
+    sequenceService,
+    notificationService,
+  );
   const billingService = new BillingService(
     billingRepository,
     patientRepository,
@@ -182,6 +217,16 @@ export const createServiceRegistry = (): ServiceRegistry => {
     departmentRepository,
   );
 
+  const dentalQuotationRepository = new DentalQuotationRepository();
+  const dentalQuotationService = new DentalQuotationService(
+    dentalQuotationRepository,
+    dentalEpisodeRepository,
+    patientRepository,
+    serviceRepository,
+    settingsRepository,
+    sequenceService,
+    dentalStageRepository,
+  );
 
   return {
     database: {
@@ -207,7 +252,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       doctorRepository,
       opdConsultationRepository,
       sequenceService,
-      new NotificationService(notificationRepository),
+      notificationService,
     ),
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
     opdConsultations: new OpdConsultationService(
@@ -218,6 +263,10 @@ export const createServiceRegistry = (): ServiceRegistry => {
       appointmentRepository,
     ),
     opdDentalExaminations: opdDentalExaminationService,
+    dentalEpisodes: dentalEpisodeService,
+    dentalStages: dentalStageService,
+    dentalLabOrders: dentalLabOrderService,
+    dentalQuotations: dentalQuotationService,
     opdClinicalOrders: opdClinicalOrderService,
     opdPrescriptions: opdPrescriptionService,
     opdFollowUps: new OpdFollowUpService(
@@ -234,7 +283,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       doctorRepository,
       appointmentService,
       patientRepository,
-      new NotificationService(notificationRepository),
+      notificationService,
       userRepository,
     ),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
@@ -245,10 +294,10 @@ export const createServiceRegistry = (): ServiceRegistry => {
       laboratoryRepository,
       serviceRepository,
     ),
-    imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository),
+    imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository, patientDocumentStorageService),
     billing: billingService,
     settings: settingsService,
-    notification: new NotificationService(notificationRepository),
+    notification: notificationService,
     pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
     patientPortal: new PatientPortalService(
       new PatientPortalRepository(),

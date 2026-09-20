@@ -21,9 +21,22 @@ export function NotificationsMenu({ notifications }: { notifications: ReturnType
       </div>}
       {query.data?.data.map((notification) => {
         const date = parseISO(notification.created_at);
-        const icon = notification.type === 'REFERRAL' ? 'ph-user-switch' : notification.type === 'CALL_NEXT_PATIENT' ? 'ph-megaphone' : 'ph-bell';
+        const icon =
+          notification.type === 'REFERRAL'
+            ? 'ph-user-switch'
+            : notification.type === 'CALL_NEXT_PATIENT'
+            ? 'ph-megaphone'
+            : notification.type === 'DENTAL_LAB_READY'
+            ? 'ph-wrench'
+            : 'ph-bell';
+        const typeClass =
+          notification.type === 'REFERRAL'
+            ? styles.referral
+            : notification.type === 'DENTAL_LAB_READY'
+            ? styles.dentalLab
+            : styles.neutral;
         return <article className={styles.notification} key={notification.id}>
-          <i className={`ph ${icon} ${notification.type === 'REFERRAL' ? styles.referral : styles.neutral}`} aria-hidden="true" />
+          <i className={`ph ${icon} ${typeClass}`} aria-hidden="true" />
           <div className={styles.notificationCopy}>
             <strong>{notification.title}</strong>
             <p title={notification.message}>{notification.message}</p>

@@ -14,6 +14,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import type {
   Appointment,
   AppointmentListQuery,
+  AppointmentVisitType,
   CreateAppointmentDTO,
   PortalRescheduleAppointmentDTO,
   UpdateAppointmentDTO,
@@ -232,6 +233,7 @@ export class AppointmentService {
       data.start_time,
       endTimeStr,
       data.duration_minutes,
+      original.visit_type,
     );
     await this.validateDoctorConflict(
       doctor.id,
@@ -344,6 +346,7 @@ export class AppointmentService {
       startTimeStr,
       endTime,
       data.duration_minutes,
+      data.visit_type,
     );
     await this.validateDoctorConflict(
       doctor.id,
@@ -463,6 +466,7 @@ export class AppointmentService {
       startTimeStr,
       endTime,
       durationMinutes,
+      data.visit_type ?? existing.visit_type,
     );
     await this.validateDoctorConflict(
       doctor.id,
@@ -702,6 +706,7 @@ export class AppointmentService {
     startTime: string,
     endTime: string,
     durationMinutes: number,
+    visitType?: AppointmentVisitType,
   ) {
     if (await this.doctorRepository.hasActiveLeave(doctor.id, appointmentDate)) {
       throw new AppError('Doctor is on leave on the selected date', 400, 'DOCTOR_ON_LEAVE');
@@ -738,7 +743,7 @@ export class AppointmentService {
       );
     }
 
-    if (durationMinutes !== matchingBlock.slot_duration_minutes) {
+    if (visitType !== 'PROCEDURE' && durationMinutes !== matchingBlock.slot_duration_minutes) {
       throw new AppError(
         'Appointment duration must match the doctor slot duration',
         400,

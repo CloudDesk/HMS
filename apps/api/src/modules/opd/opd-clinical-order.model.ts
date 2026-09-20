@@ -15,6 +15,12 @@ export type ClinicalOrderItemFields = {
   toothNumber?: number | null;
 };
 
+export type ClinicalOrderDentalContextFields = {
+  treatmentEpisodeId?: Types.ObjectId | null;
+  treatmentStageId?: Types.ObjectId | null;
+  toothNumber?: number | null;
+};
+
 export type OpdClinicalOrderFields = {
   sourceType: ClinicalContextSourceType;
   sourceId: Types.ObjectId;
@@ -37,6 +43,7 @@ export type OpdClinicalOrderFields = {
   items: ClinicalOrderItemFields[];
   clinicalNotes?: string | null;
   instructions?: string | null;
+  dentalContext?: ClinicalOrderDentalContextFields | null;
   submittedAt?: Date | null;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -105,6 +112,11 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
     items: { type: [clinicalOrderItemSchema], default: [] },
     clinicalNotes: { type: String, default: null },
     instructions: { type: String, default: null },
+    dentalContext: {
+      treatmentEpisodeId: { type: Schema.Types.ObjectId, ref: 'DentalTreatmentEpisode', default: null },
+      treatmentStageId: { type: Schema.Types.ObjectId, ref: 'DentalTreatmentStage', default: null },
+      toothNumber: { type: Number, default: null },
+    },
     submittedAt: { type: Date, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -132,6 +144,14 @@ opdClinicalOrderSchema.index({ orderType: 1, status: 1, priority: 1, submittedAt
 opdClinicalOrderSchema.index({ branchId: 1, orderType: 1, status: 1, submittedAt: -1 });
 opdClinicalOrderSchema.index({ admissionId: 1, orderType: 1, status: 1, submittedAt: -1 });
 opdClinicalOrderSchema.index({ procedureId: 1, orderType: 1, status: 1, submittedAt: -1 });
+opdClinicalOrderSchema.index(
+  { 'dentalContext.treatmentEpisodeId': 1 },
+  { sparse: true },
+);
+opdClinicalOrderSchema.index(
+  { 'dentalContext.treatmentStageId': 1 },
+  { sparse: true },
+);
 
 export const OpdClinicalOrderModel = mongoose.model<OpdClinicalOrderFields>(
   'OpdClinicalOrder',

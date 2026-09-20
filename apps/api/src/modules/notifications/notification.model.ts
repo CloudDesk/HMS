@@ -22,7 +22,7 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
     recipientBranchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
     title: { type: String, required: true },
     message: { type: String, required: true },
-    type: { type: String, enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL'], required: true },
+    type: { type: String, enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL', 'DENTAL_LAB_READY'], required: true },
     relatedEntityId: { type: Schema.Types.ObjectId, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     isRead: { type: Boolean, default: false },

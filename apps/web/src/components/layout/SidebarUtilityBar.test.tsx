@@ -119,6 +119,40 @@ describe('Sidebar utility interactions', () => {
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('No notifications');
   });
 
+  it('renders DENTAL_LAB_READY notification with appropriate wrench icon and content', async () => {
+    const dentalNotif = {
+      id: 'notif-dental-1',
+      title: 'Dental Prosthetic Ready',
+      message: 'The dental prosthetic (CROWN, DPL-2026-00001) for Tooth #16 is ready for clinical fitting.',
+      type: 'DENTAL_LAB_READY' as const,
+      is_read: false,
+      recipient_role: null,
+      recipient_user_id: 'u',
+      recipient_branch_id: 'a',
+      related_entity_id: 'lab-order-1',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    vi.mocked(notificationsApi.listMe).mockResolvedValue({
+      data: [dentalNotif],
+      meta: { total: 1 },
+    });
+
+    await render();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    await click(utility('notifications'));
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain('Dental Prosthetic Ready');
+    expect(dialog?.textContent).toContain('The dental prosthetic (CROWN, DPL-2026-00001) for Tooth #16 is ready for clinical fitting.');
+    const icon = dialog?.querySelector('i.ph-wrench');
+    expect(icon).not.toBeNull();
+  });
+
   it('renders only notifications and user account in the footer; standalone branch and signout are absent', async () => {
     await render();
     expect(utility('notifications')).not.toBeNull();

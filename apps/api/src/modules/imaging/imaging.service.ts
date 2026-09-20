@@ -3,8 +3,9 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { executeTransaction } from '../../shared/database/transaction.js';
 import type { OpdClinicalOrderRepository } from '../opd/opd-clinical-order.repository.js';
 import type { ClinicalOrderRequestMetadata, OpdClinicalOrder } from '../opd/opd-clinical-order.types.js';
+import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
 import type { ImagingRepository } from './imaging.repository.js';
-import type { ImagingOrderListQuery, SaveImagingReportDTO, UpdateImagingStatusDTO } from './imaging.types.js';
+import type { ImagingOrderListQuery, SaveImagingAttachmentDTO, SaveImagingReportDTO, UpdateImagingStatusDTO } from './imaging.types.js';
 
 const transitions: Partial<Record<OpdClinicalOrder['status'], UpdateImagingStatusDTO['status']>> = {
   SUBMITTED: 'RECEIVED', RECEIVED: 'IN_PROGRESS', REPORT_ENTERED: 'VERIFIED', VERIFIED: 'COMPLETED',
@@ -13,12 +14,19 @@ const auditEvents: Record<UpdateImagingStatusDTO['status'], string> = {
   RECEIVED: 'imaging.order.received', IN_PROGRESS: 'imaging.order.in_progress',
   VERIFIED: 'imaging.report.verified', COMPLETED: 'imaging.order.completed',
 };
-const downstreamContext = (order: OpdClinicalOrder) => ({ ...order, encounter_id: order.encounter_id, admission_id: order.admission_id, procedure_id: order.procedure_id });
+const downstreamContext = (order: OpdClinicalOrder) => ({
+  ...order,
+  encounter_id: order.encounter_id,
+  admission_id: order.admission_id,
+  procedure_id: order.procedure_id,
+  dental_context: order.dental_context,
+});
 
 export class ImagingService {
   constructor(
     private readonly orderRepository: OpdClinicalOrderRepository,
     private readonly repository: ImagingRepository,
+    private readonly storageService?: PatientDocumentStorageService,
   ) {}
 
   async list(query: ImagingOrderListQuery, actorUserId: string) {
@@ -108,6 +116,51 @@ export class ImagingService {
       }, session);
       return saved;
     });
+  }
+
+  async uploadAttachment(
+    orderId: string,
+    file: { fileName: string; mimeType: string; data: Buffer },
+    actorUserId: string,
+  ): Promise<SaveImagingAttachmentDTO> {
+    if (!this.storageService) {
+      throw new AppError('Storage service not configured', 500, 'STORAGE_NOT_CONFIGURED');
+    }
+    const order = await this.requireOrder(orderId, actorUserId);
+    const { storageKey } = await this.storageService.uploadPatientDocument({
+      patientId: order.patient_id,
+      fileName: file.fileName,
+      mimeType: file.mimeType,
+      data: file.data,
+    });
+    const attachmentDTO: SaveImagingAttachmentDTO = {
+      file_name: file.fileName,
+      file_size_bytes: file.data.length,
+      mime_type: file.mimeType,
+      storage_key: storageKey,
+    };
+    const existingReport = await this.repository.getReport(orderId);
+    if (existingReport) {
+      await this.repository.addAttachmentToReport(orderId, attachmentDTO, actorUserId);
+    }
+    return attachmentDTO;
+  }
+
+  async downloadAttachment(orderId: string, attachmentId: string, actorUserId: string) {
+    if (!this.storageService) {
+      throw new AppError('Storage service not configured', 500, 'STORAGE_NOT_CONFIGURED');
+    }
+    await this.requireOrder(orderId, actorUserId);
+    const attachment = await this.repository.getAttachment(orderId, attachmentId);
+    if (!attachment) {
+      throw new AppError('Imaging attachment not found', 404, 'ATTACHMENT_NOT_FOUND');
+    }
+    const download = await this.storageService.download(attachment.storage_key);
+    return {
+      attachment,
+      data: download.data,
+      contentType: attachment.mime_type || download.contentType || 'application/octet-stream',
+    };
   }
 
   private async requireOrder(id: string, actorUserId: string) {

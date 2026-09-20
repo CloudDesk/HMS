@@ -124,6 +124,20 @@ const scheduleEventClass = (appointment: AppointmentResponse) => {
   return '';
 };
 
+const formatDentalContext = (appointment: AppointmentResponse): string | null => {
+  if (!appointment.dental_context) return null;
+  const parts = ['Dental'];
+  if (appointment.dental_context.tooth_number) {
+    parts.push(`Tooth ${appointment.dental_context.tooth_number}`);
+  }
+  if (appointment.dental_context.stage_sequence) {
+    parts.push(`Stage ${appointment.dental_context.stage_sequence}`);
+  } else if (appointment.dental_context.treatment_stage_id) {
+    parts.push('Stage');
+  }
+  return parts.join(' • ');
+};
+
 const getRelativeDateLabel = (dateStr: string, view: DoctorScheduleViewMode, firstDayOfWeek: 'Monday' | 'Sunday') => {
   if (view === 'month') {
     return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(parseScheduleDate(dateStr));
@@ -350,6 +364,11 @@ export function DoctorSchedulePage() {
                               {appointment.start_time} - {appointment.patient_name}
                             </strong>
                             <small>
+                              {formatDentalContext(appointment) ? (
+                                <span style={{ fontWeight: 600, color: '#0369a1', marginRight: 6 }}>
+                                  [{formatDentalContext(appointment)}]
+                                </span>
+                              ) : null}
                               {visitTypeText(appointment.visit_type)} - {appointment.doctor_specialization}
                             </small>
                           </span>
@@ -389,7 +408,10 @@ export function DoctorSchedulePage() {
                             <strong>
                               {appointment.start_time} - {appointment.patient_name}
                             </strong>
-                            <span>{visitTypeText(appointment.visit_type)}</span>
+                            <span>
+                              {formatDentalContext(appointment) ? `${formatDentalContext(appointment)} • ` : ''}
+                              {visitTypeText(appointment.visit_type)}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -414,7 +436,10 @@ export function DoctorSchedulePage() {
                         <strong>
                           {appointment.start_time} - {appointment.patient_name}
                         </strong>
-                        <span>{visitTypeText(appointment.visit_type)}</span>
+                        <span>
+                          {formatDentalContext(appointment) ? `${formatDentalContext(appointment)} • ` : ''}
+                          {visitTypeText(appointment.visit_type)}
+                        </span>
                       </button>
                     ))}
                   </div>

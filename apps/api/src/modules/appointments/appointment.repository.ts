@@ -1,4 +1,5 @@
 import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
+import { DentalTreatmentStageModel } from '../opd/dental-stage.model.js';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -81,6 +82,14 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   status: appointment.status,
   reason: appointment.reason ?? null,
   notes: appointment.notes ?? null,
+  dental_context: appointment.dentalContext ? {
+    treatment_episode_id: appointment.dentalContext.treatmentEpisodeId?.toString() ?? null,
+    treatment_stage_id: appointment.dentalContext.treatmentStageId?.toString() ?? null,
+    treatment_plan_item_id: appointment.dentalContext.treatmentPlanItemId ?? null,
+    tooth_number: appointment.dentalContext.toothNumber ?? null,
+    stage_sequence: appointment.dentalContext.stageSequence ?? null,
+    stage_name: appointment.dentalContext.stageName ?? null,
+  } : null,
   rescheduled_from_id: appointment.rescheduledFromId?.toString() ?? null,
   rescheduled_to_id: appointment.rescheduledToId?.toString() ?? null,
   rescheduled_at: appointment.rescheduledAt ?? null,
@@ -119,6 +128,16 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   status: 'SCHEDULED' as const,
   reason: nullableString(data.reason),
   notes: nullableString(data.notes),
+  ...(data.dental_context !== undefined ? {
+    dentalContext: data.dental_context ? {
+      treatmentEpisodeId: data.dental_context.treatment_episode_id ? toObjectId(data.dental_context.treatment_episode_id) : null,
+      treatmentStageId: data.dental_context.treatment_stage_id ? toObjectId(data.dental_context.treatment_stage_id) : null,
+      treatmentPlanItemId: data.dental_context.treatment_plan_item_id ?? null,
+      toothNumber: data.dental_context.tooth_number ?? null,
+      stageSequence: data.dental_context.stage_sequence ?? null,
+      stageName: data.dental_context.stage_name ?? null,
+    } : null,
+  } : {}),
   activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime),
   createdBy: toObjectId(userId),
   updatedBy: toObjectId(userId),
@@ -140,6 +159,16 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.priority !== undefined ? { priority: data.priority } : {}),
   ...(data.reason !== undefined ? { reason: nullableString(data.reason) } : {}),
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+  ...(data.dental_context !== undefined ? {
+    dentalContext: data.dental_context ? {
+      treatmentEpisodeId: data.dental_context.treatment_episode_id ? toObjectId(data.dental_context.treatment_episode_id) : null,
+      treatmentStageId: data.dental_context.treatment_stage_id ? toObjectId(data.dental_context.treatment_stage_id) : null,
+      treatmentPlanItemId: data.dental_context.treatment_plan_item_id ?? null,
+      toothNumber: data.dental_context.tooth_number ?? null,
+      stageSequence: data.dental_context.stage_sequence ?? null,
+      stageName: data.dental_context.stage_name ?? null,
+    } : null,
+  } : {}),
   ...(data.doctor_id && data.appointmentDate && data.startTime
     ? { activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime) }
     : {}),
@@ -189,6 +218,12 @@ export class AppointmentRepository {
     }
     if (query.department_id) {
       filter.departmentId = toObjectId(query.department_id);
+    }
+    if (query.treatment_episode_id) {
+      filter['dentalContext.treatmentEpisodeId'] = toObjectId(query.treatment_episode_id);
+    }
+    if (query.treatment_stage_id) {
+      filter['dentalContext.treatmentStageId'] = toObjectId(query.treatment_stage_id);
     }
     if (query.date_from || query.date_to) {
       filter.appointmentDate = {
@@ -331,7 +366,16 @@ export class AppointmentRepository {
       { returnDocument: 'after', lean: true, session },
     ).lean<AppointmentLean>();
 
-    return appointment ? toAppointment(appointment) : undefined;
+    const mapped = appointment ? toAppointment(appointment) : undefined;
+    if (mapped && data.status === 'CANCELLED' && mapped.dental_context?.treatment_stage_id) {
+      await DentalTreatmentStageModel.updateOne(
+        { _id: toObjectId(mapped.dental_context.treatment_stage_id) },
+        { $set: { appointmentId: null, status: 'PLANNED', updatedBy: toObjectId(userId) } },
+        session ? { session } : undefined,
+      );
+    }
+
+    return mapped;
   }
 
   async findDoctorConflict(
@@ -395,6 +439,29 @@ async listActiveWindows(doctorId: string, appointmentDate: Date) {
     end_time: appointment.endTime,
   }));
 }
+
+  async listPatientActiveWindows(patientId: string, appointmentDate: Date, excludeAppointmentId?: string) {
+    const filter: Record<string, unknown> = {
+      patientId: toObjectId(patientId),
+      appointmentDate,
+      deletedAt: null,
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
+    };
+
+    if (excludeAppointmentId) {
+      filter._id = { $ne: toObjectId(excludeAppointmentId) };
+    }
+
+    const appointments = await AppointmentModel.find(filter)
+      .select('startTime endTime')
+      .sort({ startTime: 1 })
+      .lean<Array<{ startTime: string; endTime: string }>>();
+
+    return appointments.map((appointment) => ({
+      start_time: appointment.startTime,
+      end_time: appointment.endTime,
+    }));
+  }
 
 async findPatientConflict(
   patientId: string,

@@ -1,6 +1,6 @@
-﻿import { apiClient } from './client';
+import { apiClient } from './client';
 
-export type ApiNotificationType = 'REFERRAL' | 'CALL_NEXT_PATIENT' | 'GENERAL';
+export type ApiNotificationType = 'REFERRAL' | 'CALL_NEXT_PATIENT' | 'GENERAL' | 'DENTAL_LAB_READY';
 
 export type NotificationResponse = {
   id: string;

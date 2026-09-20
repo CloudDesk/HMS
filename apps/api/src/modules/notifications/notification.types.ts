@@ -1,4 +1,4 @@
-export type NotificationType = 'REFERRAL' | 'CALL_NEXT_PATIENT' | 'GENERAL';
+export type NotificationType = 'REFERRAL' | 'CALL_NEXT_PATIENT' | 'GENERAL' | 'DENTAL_LAB_READY';
 
 export type Notification = {
   id: string;
