@@ -22,6 +22,8 @@ import { OpdConsultationRepository } from '../../modules/opd/opd-consultation.re
 import { OpdConsultationService } from '../../modules/opd/opd-consultation.service.js';
 import { OpdDentalExaminationRepository } from '../../modules/opd/opd-dental-examination.repository.js';
 import { OpdDentalExaminationService } from '../../modules/opd/opd-dental-examination.service.js';
+import { DentalChairsideImageRepository } from '../../modules/opd/dental-chairside-image.repository.js';
+import { DentalChairsideImageService } from '../../modules/opd/dental-chairside-image.service.js';
 import { DentalEpisodeRepository } from '../../modules/opd/dental-episode.repository.js';
 import { DentalEpisodeService } from '../../modules/opd/dental-episode.service.js';
 import { DentalStageRepository } from '../../modules/opd/dental-stage.repository.js';
@@ -179,6 +181,15 @@ export const createServiceRegistry = (): ServiceRegistry => {
     serviceRepository,
     billingRepository,
   );
+  const dentalChairsideImageRepository = new DentalChairsideImageRepository();
+  const dentalChairsideImageService = new DentalChairsideImageService(
+    dentalChairsideImageRepository,
+    opdVisitRepository,
+    patientRepository,
+    patientDocumentStorageService,
+    dentalEpisodeRepository,
+    opdDentalExaminationRepository,
+  );
   const dentalEpisodeService = new DentalEpisodeService(
     dentalEpisodeRepository,
     opdVisitRepository,
@@ -263,6 +274,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       appointmentRepository,
     ),
     opdDentalExaminations: opdDentalExaminationService,
+    dentalChairsideImages: dentalChairsideImageService,
     dentalEpisodes: dentalEpisodeService,
     dentalStages: dentalStageService,
     dentalLabOrders: dentalLabOrderService,

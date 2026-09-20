@@ -1720,20 +1720,23 @@
 .panelContainer .textarea { min-height: 100px; }
 .toothDetailTabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-bottom: 1px solid #e2e8f0;
+  width: 100%;
 }
 
 .toothDetailTab {
   min-height: 34px;
   border: 0;
   border-bottom: 2px solid transparent;
-  padding: 6px 8px;
+  padding: 6px 4px;
   background: transparent;
   color: #64748b;
   font: inherit;
   font-size: 0.72rem;
   font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1891,6 +1894,47 @@
   background: var(--dental-healthy-bg, #f0fdf4);
   color: var(--dental-healthy, #16a34a);
   border: 1px solid var(--dental-healthy-border, #bbf7d0);
+}
+
+.panelUnrecordedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+}
+
+.panelEpisodeToothBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.panelDiagnosisTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
 }
 
 /* Surface selector: decorative model and accessible clinical controls. */
@@ -2414,9 +2458,48 @@
 }
 .treatmentFormGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: 1.3fr 1.5fr 1.4fr 0.9fr 0.9fr 1.4fr auto;
   gap: 12px;
-  align-items: start;
+  align-items: end;
+  width: 100%;
+}
+
+.treatmentFormGridNoCatalogue {
+  grid-template-columns: 1.3fr 1.5fr 0.9fr 0.9fr 1.4fr auto;
+}
+
+.treatmentFormGrid .formGroup {
+  margin-bottom: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.treatmentFormGrid .label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.treatmentFormGrid .input,
+.treatmentFormGrid .select {
+  height: 36px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .treatmentFormGrid,
+  .treatmentFormGridNoCatalogue {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 
 /* ==========================================================================
@@ -3531,3 +3614,572 @@
     gap: 3px;
   }
 }
+
+/* ==========================================================================
+   Dental Treatment Quotation Modal (Redesigned Fixed Header/Footer Layout)
+   ========================================================================== */
+
+.quotationModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100050;
+  padding: 16px;
+}
+
+.quotationModalCard {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  max-width: 960px;
+  height: 88vh;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: quotationModalFadeIn 0.15s ease-out;
+}
+
+@keyframes quotationModalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.quotationModalHeader {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.quotationModalTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quotationModalTitle {
+  font-family: var(--dental-font-heading, sans-serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quotationModalSubtitle {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.quotationContextBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.quotationContextBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.quotationContextBadge i {
+  color: #0284c7;
+  font-size: 0.85rem;
+}
+
+.quotationModalBody {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 20px 24px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.quotationCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.quotationCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.quotationCardTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.quotationCardTitle i {
+  color: #0284c7;
+}
+
+.quotationOptionsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.quotationOptionsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quotationOptionCard {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: border-color 0.15s ease;
+}
+
+.quotationOptionCard:focus-within {
+  border-color: #93c5fd;
+}
+
+.quotationOptionTopBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.quotationOptionFields {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr);
+  gap: 12px;
+}
+
+.quotationOptionTableContainer {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.quotationOptionTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.quotationOptionTable thead tr {
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.quotationOptionTable th {
+  padding: 8px 10px;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.quotationOptionTable tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.quotationOptionTable tbody tr:last-child {
+  border-bottom: none;
+}
+
+.quotationOptionTable td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.quotationOptionTable input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  background: #ffffff;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.quotationOptionTable input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.quotationOptionBottomBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.quotationOptionTotals {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+  font-size: 0.82rem;
+}
+
+.quotationOptionTotalsField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+}
+
+.quotationOptionTotalsField input {
+  width: 90px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  text-align: right;
+  outline: none;
+}
+
+.quotationOptionTotalsField input:focus {
+  border-color: #3b82f6;
+}
+
+.quotationOptionTotalBadge {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0369a1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quotationOptionTotalBadge span {
+  color: #0284c7;
+  font-size: 1rem;
+}
+
+.quotationSummaryCard {
+  background: #ffffff;
+  border: 1px solid #e0f2fe;
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.quotationSummaryTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0369a1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quotationSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.quotationSummaryItem {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quotationSummaryItemName {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quotationSummaryItemValue {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0284c7;
+}
+
+.quotationSummaryItemCount {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.quotationModalFooter {
+  flex-shrink: 0;
+  padding: 14px 24px;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.quotationFooterInfo {
+  font-size: 0.8rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quotationFooterActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Quotation Summary Metadata Card */
+.quotationSummaryMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 16px;
+}
+
+.quotationSummaryMetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.quotationSummaryMetaLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.quotationSummaryMetaValue {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* Status Badges */
+.quotationStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+
+.quotationStatusBadgeDraft {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.quotationStatusBadgeSent {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.quotationStatusBadgeAccepted {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.quotationStatusBadgeRejected {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.quotationStatusBadgePostponed {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+/* Info Banner */
+.quotationInstructionBanner {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #0369a1;
+}
+
+.quotationInstructionBanner i {
+  font-size: 1.1rem;
+  color: #0284c7;
+  flex-shrink: 0;
+}
+
+/* Decision Option Card */
+.quotationDecisionOptionCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.15s ease-in-out;
+}
+
+.quotationDecisionOptionCardSelectable {
+  cursor: pointer;
+}
+
+.quotationDecisionOptionCardSelectable:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.08);
+}
+
+.quotationDecisionOptionCardSelected {
+  border: 2px solid #0284c7;
+  background: #f8fafc;
+  box-shadow: 0 0 0 1px #0284c7;
+}
+
+.quotationDecisionOptionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.quotationDecisionOptionNameRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quotationDecisionOptionRadio {
+  width: 18px;
+  height: 18px;
+  accent-color: #0284c7;
+  cursor: pointer;
+}
+
+.quotationDecisionOptionTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.quotationDecisionOptionTotalBadge {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0284c7;
+  white-space: nowrap;
+}
+
+.quotationDecisionOptionDesc {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.quotationFinancialSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 0.82rem;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.quotationFinancialRow {
+  display: flex;
+  justify-content: space-between;
+  min-width: 220px;
+  color: #64748b;
+}
+
+.quotationFinancialTotal {
+  display: flex;
+  justify-content: space-between;
+  min-width: 220px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 4px;
+  margin-top: 2px;
+}
+

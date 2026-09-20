@@ -9,6 +9,7 @@ import type { AppointmentService } from '../../modules/appointments/appointment.
 import type { DoctorService } from '../../modules/doctors/doctor.service.js';
 import type { OpdConsultationService } from '../../modules/opd/opd-consultation.service.js';
 import type { OpdDentalExaminationService } from '../../modules/opd/opd-dental-examination.service.js';
+import type { DentalChairsideImageService } from '../../modules/opd/dental-chairside-image.service.js';
 import type { DentalEpisodeService } from '../../modules/opd/dental-episode.service.js';
 import type { DentalStageService } from '../../modules/opd/dental-stage.service.js';
 import type { DentalLabOrderService } from '../../modules/opd/dental-lab-order.service.js';
@@ -58,6 +59,7 @@ export type ServiceRegistry = {
   opdVitals: OpdVitalsService;
   opdConsultations: OpdConsultationService;
   opdDentalExaminations: OpdDentalExaminationService;
+  dentalChairsideImages: DentalChairsideImageService;
   dentalEpisodes: DentalEpisodeService;
   dentalStages: DentalStageService;
   dentalLabOrders: DentalLabOrderService;

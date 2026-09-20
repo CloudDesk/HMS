@@ -28,6 +28,7 @@ import {
   useAcceptDentalQuotation,
   useRejectDentalQuotation,
   usePostponeDentalQuotation,
+  usePatientDentalEpisodes,
 } from '../../../hooks/opd/useOpd';
 import { useDoctorsList } from '../../../hooks/doctors/useDoctors';
 import type { DoctorResponse } from '../../../api/doctors';
@@ -64,6 +65,14 @@ interface DentalTreatmentPlanSectionProps {
   billingTreatmentItemPending?: string | null;
   onCreateInvoice?: (treatmentItemId: string) => Promise<void>;
   onOpenInvoice?: (invoiceId: string) => void;
+  /** Callback to trigger starting a treatment episode from diagnosis & plan context */
+  onStartEpisode?: () => void;
+  /** Patient display name for quotation modal header context */
+  patientName?: string | null;
+  /** Treatment Episode Number for quotation modal header context */
+  episodeNumber?: string | number | null;
+  /** Primary tooth number for quotation modal header context */
+  primaryToothNumber?: number | null;
 }
 
 export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProps> = ({
@@ -83,6 +92,10 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   billingTreatmentItemPending = null,
   onCreateInvoice,
   onOpenInvoice,
+  onStartEpisode,
+  patientName = null,
+  episodeNumber = null,
+  primaryToothNumber = null,
 }) => {
   const formatCurrency = useCurrencyFormatter();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -101,10 +114,19 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [newStageNotes, setNewStageNotes] = useState('');
   const [newStagePlannedDate, setNewStagePlannedDate] = useState('');
 
+  // Patient episodes fallback if episodeId is not explicitly passed
+  const { data: patientEpisodes = [] } = usePatientDentalEpisodes(patientId ?? undefined);
+  const effectiveEpisodeId = useMemo(() => {
+    if (episodeId) return episodeId;
+    const active = patientEpisodes.find((e) => e.status === 'ACTIVE');
+    if (active) return active.id;
+    return patientEpisodes[0]?.id ?? null;
+  }, [episodeId, patientEpisodes]);
+
   // Lab Order modal state
   const [labOrderCreateStage, setLabOrderCreateStage] = useState<DentalTreatmentStageResponse | null>(null);
   const [viewLabOrderId, setViewLabOrderId] = useState<string | null>(null);
-  const { data: episodeLabOrders = [] } = useEpisodeDentalLabOrders(episodeId);
+  const { data: episodeLabOrders = [] } = useEpisodeDentalLabOrders(effectiveEpisodeId);
 
   // Scheduling modal state
   const [scheduleModalStage, setScheduleModalStage] = useState<DentalTreatmentStageResponse | null>(null);
@@ -112,7 +134,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [viewAppointmentStageId, setViewAppointmentStageId] = useState<string | null>(null);
 
   // Queries & Mutations
-  const { data: allStages = [] } = useDentalStages(episodeId);
+  const { data: allStages = [] } = useDentalStages(effectiveEpisodeId);
   const { data: stageAppointmentData, isLoading: stageAppointmentLoading } = useDentalStageAppointment(viewAppointmentStageId);
   const { data: doctorsData } = useDoctorsList(departmentId ? { department_id: departmentId } : {});
   const doctors: DoctorResponse[] = useMemo(() => doctorsData?.data ?? [], [doctorsData]);
@@ -120,7 +142,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const createStageMutation = useCreateDentalStage();
   const assignDoctorMutation = useAssignDoctorToDentalStage();
   const updateStageStatusMutation = useUpdateDentalStageStatus();
-  const deleteStageMutation = useDeleteDentalStage(episodeId ?? undefined);
+  const deleteStageMutation = useDeleteDentalStage(effectiveEpisodeId ?? undefined);
   const cancelAppointmentMutation = useCancelDentalStageAppointment();
 
   // Quotation state & queries
@@ -336,14 +358,15 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   };
 
   const handleSaveStage = async (planItemId: string, toothNum?: number | null, serviceId?: string | null) => {
-    if (!episodeId || !newStageName.trim() || !newStageDoctorId) return;
+    const targetEpisodeId = episodeId ?? effectiveEpisodeId;
+    if (!targetEpisodeId || !newStageName.trim() || !newStageDoctorId) return;
 
     const activeLabOrder = episodeLabOrders.find(
       (lo) => lo.treatment_plan_item_id === planItemId && lo.status !== 'CANCELLED',
     );
 
     await createStageMutation.mutateAsync({
-      episodeId,
+      episodeId: targetEpisodeId,
       payload: {
         plan_item_id: planItemId,
         stage_name: newStageName.trim(),
@@ -543,6 +566,37 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
             </div>
           ) : null}
 
+          {/* Episode initiation prompt in treatment planning context */}
+          {!episodeId && onStartEpisode && !disabled && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                background: '#f8fafc',
+                border: '1px dashed #cbd5e1',
+                borderRadius: '8px',
+                marginBottom: '14px',
+                flexWrap: 'wrap',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#475569' }}>
+                <i className="ph ph-folder-plus" style={{ color: '#2563eb', fontSize: '1.2rem' }} />
+                <span>Planning multi-visit or multi-stage dental procedures? Start a dedicated treatment episode.</span>
+              </div>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+                onClick={onStartEpisode}
+              >
+                <i className="ph ph-plus-circle" /> Start Treatment Episode
+              </button>
+            </div>
+          )}
+
           {/* KPI Summary Cards */}
           <div className={styles.treatmentKpiGrid}>
             <div className={`${styles.treatmentKpiCard} ${styles.kpiCardBlue}`}>
@@ -673,7 +727,8 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                   Catalogue
                                 </span>
                               )}
-                              {episodeId && isPersisted && (
+                              {/* Treatment Stages indicator / toggle */}
+                              {isPersisted && (
                                 <button
                                   type="button"
                                   className={styles.chip}
@@ -682,17 +737,22 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                     fontSize: '0.725rem',
                                     background: itemStages.length > 0 ? '#eff6ff' : '#f8fafc',
                                     color: itemStages.length > 0 ? '#1d4ed8' : '#64748b',
-                                    borderColor: itemStages.length > 0 ? '#bfdbfe' : '#e2e8f0',
+                                    borderColor: itemStages.length > 0 ? '#bfdbfe' : '#cbd5e1',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '4px',
                                     padding: '2px 8px',
+                                    fontWeight: itemStages.length > 0 ? 600 : 500,
                                   }}
                                   onClick={() => item.id && toggleStageRow(item.id)}
-                                  title="Toggle sequential treatment stages"
+                                  title={
+                                    itemStages.length > 0
+                                      ? 'Toggle sequential treatment stages'
+                                      : 'Manage treatment stages for this procedure'
+                                  }
                                 >
                                   <i className="ph ph-git-merge" />
-                                  Stages ({itemStages.length})
+                                  {itemStages.length > 0 ? `Stages (${itemStages.length})` : '+ Manage Stages'}
                                   <i className={`ph ph-caret-down ${isStagesExpanded ? styles.collapseChevronExpanded : ''}`} />
                                 </button>
                               )}
@@ -862,8 +922,22 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                 </div>
 
                                 {itemStages.length === 0 && !isAddingStage && (
-                                  <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', padding: '6px 0' }}>
-                                    No stages defined yet. Break this procedure down into multi-doctor stages (e.g. Stage 1 RCT by Endodontist, Stage 2 Crown Impression by Prosthodontist).
+                                  <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>
+                                      No treatment stages created yet. Break this procedure down into multi-doctor stages (e.g. Stage 1 RCT by Endodontist, Stage 2 Crown Impression by Prosthodontist).
+                                    </div>
+                                    {!disabled && (
+                                      <div>
+                                        <button
+                                          type="button"
+                                          className={styles.btnSecondary}
+                                          style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                          onClick={() => handleOpenAddStage(item.id!)}
+                                        >
+                                          <i className="ph ph-plus" /> Manage Stages
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
 
@@ -935,6 +1009,15 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                                 <i className="ph ph-stethoscope" style={{ color: '#2563eb' }} />
                                                 Dr. {stage.assigned_doctor_name}
                                               </span>
+                                              {stage.appointment_id ? (
+                                                <span style={{ color: '#166534', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                  <i className="ph ph-calendar-check" /> Appointment: {stage.planned_date ? `${stage.planned_date} (Scheduled)` : 'Scheduled'}
+                                                </span>
+                                              ) : (
+                                                <span style={{ color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                  <i className="ph ph-calendar-blank" /> Appointment: Not scheduled
+                                                </span>
+                                              )}
                                               {stage.notes && <span>{stage.notes}</span>}
                                               {stage.completed_at && (
                                                 <span style={{ color: '#166534' }}>
@@ -1439,9 +1522,20 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   Add Planned Dental Procedure
                 </div>
 
-                <div className={styles.treatmentFormGrid}>
+                <div
+                  className={`${styles.treatmentFormGrid} ${departmentServices.length === 0 ? styles.treatmentFormGridNoCatalogue : ''}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: departmentServices.length > 0
+                      ? '1.3fr 1.5fr 1.4fr 0.9fr 0.9fr 1.4fr auto'
+                      : '1.3fr 1.5fr 0.9fr 0.9fr 1.4fr auto',
+                    gap: '12px',
+                    alignItems: 'end',
+                    width: '100%',
+                  }}
+                >
                   {/* Tooth Selector */}
-                  <div className={styles.formGroup}>
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
                     <label className={styles.label}>Tooth # (Optional)</label>
                     <select
                       className={styles.select}
@@ -1503,7 +1597,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
                   {/* Service Catalogue Picker */}
                   {departmentServices.length > 0 && (
-                    <div className={styles.formGroup}>
+                    <div className={styles.formGroup} style={{ minWidth: 0 }}>
                       <label className={styles.label}>Service Catalogue</label>
                       <select
                         className={styles.select}
@@ -1521,14 +1615,14 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   )}
 
                   {/* Procedure Name Input */}
-                  <div className={styles.formGroup}>
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
                     <label className={styles.label}>
                       Procedure Name <span style={{ color: '#dc2626' }}>*</span>
                     </label>
                     <input
                       type="text"
                       list="dental-procedure-suggestions"
-                      placeholder="e.g. Composite Restoration, Root Canal Treatment, Scaling..."
+                      placeholder="e.g. Composite Restoration, RCT..."
                       className={styles.input}
                       value={procedureName}
                       onChange={(e) => {
@@ -1558,7 +1652,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   </div>
 
                   {/* Priority */}
-                  <div className={styles.formGroup}>
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
                     <label className={styles.label}>Priority</label>
                     <select
                       className={styles.select}
@@ -1575,7 +1669,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   </div>
 
                   {/* Est. Cost */}
-                  <div className={styles.formGroup}>
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
                     <label className={styles.label}>Est. Cost</label>
                     <input
                       type="number"
@@ -1589,23 +1683,30 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   </div>
 
                   {/* Clinical Treatment Notes */}
-                  <div className={styles.formGroup}>
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
                     <label className={styles.label}>Treatment Notes (Optional)</label>
                     <input
                       type="text"
-                      placeholder="e.g. Shade A2, post & core, subgingival margins..."
+                      placeholder="e.g. Shade A2, post & core..."
                       className={styles.input}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                     />
                   </div>
 
-                    {/* Submit Button */}
-                  <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%', paddingTop: '18px' }}>
+                  {/* Submit Button */}
+                  <div style={{ alignSelf: 'end', minWidth: 'max-content' }}>
                     <button
                       type="submit"
                       className={styles.btnPrimary}
-                      style={{ height: '36px', whiteSpace: 'nowrap', padding: '0 16px' }}
+                      style={{
+                        height: '36px',
+                        whiteSpace: 'nowrap',
+                        padding: '0 16px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
                     >
                       <i className="ph ph-plus" /> Add to Plan
                     </button>
@@ -1817,82 +1918,106 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
     {/* Generate Quotation Modal */}
     {showQuotationModal && (
-      <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Generate Quotation">
-        <div className={styles.modalCard} style={{ maxWidth: 840, maxHeight: '90vh', overflowY: 'auto' }}>
-          <div className={styles.modalHeader}>
-            <h3 className={styles.modalTitle}>
-              <i className="ph ph-receipt" style={{ color: '#0284c7' }} /> Generate Treatment Quotation (Multiple Options)
-            </h3>
+      <div className={styles.quotationModalOverlay} role="dialog" aria-modal="true" aria-label="Generate Treatment Quotation">
+        <div className={styles.quotationModalCard}>
+          {/* 1. FIXED HEADER */}
+          <div className={styles.quotationModalHeader}>
+            <div className={styles.quotationModalTitleGroup}>
+              <h3 className={styles.quotationModalTitle}>
+                <i className="ph ph-receipt" style={{ color: '#0284c7' }} /> Generate Treatment Quotation
+              </h3>
+              <p className={styles.quotationModalSubtitle}>
+                Create an immutable draft quotation for the patient with one or more treatment options using Service Catalogue standard pricing.
+              </p>
+              {(patientName || episodeNumber || primaryToothNumber) && (
+                <div className={styles.quotationContextBadges}>
+                  {patientName && (
+                    <span className={styles.quotationContextBadge} title="Patient">
+                      <i className="ph ph-user" /> {patientName}
+                    </span>
+                  )}
+                  {episodeNumber && (
+                    <span className={styles.quotationContextBadge} title="Treatment Episode">
+                      <i className="ph ph-hash" /> Episode #{episodeNumber}
+                    </span>
+                  )}
+                  {primaryToothNumber && (
+                    <span className={styles.quotationContextBadge} title="Primary Tooth">
+                      <i className="ph ph-tooth" /> Tooth #{primaryToothNumber} ({getToothName(primaryToothNumber)})
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className={styles.modalCloseBtn}
               onClick={() => setShowQuotationModal(false)}
               aria-label="Close"
+              title="Close modal"
             >
               <i className="ph ph-x" />
             </button>
           </div>
-          <div style={{ fontSize: '0.85rem', margin: '12px 0 16px' }}>
-            <p style={{ color: '#475569', marginBottom: '12px' }}>
-              Create an immutable draft quotation for the patient with one or more treatment options (e.g. Option A: RCT + Crown vs Option B: Extraction) using Service Catalogue standard pricing.
-            </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Valid Until (Optional)</label>
-                <input
-                  type="date"
-                  className={styles.input}
-                  value={quoteValidUntil}
-                  onChange={(e) => setQuoteValidUntil(e.target.value)}
-                />
+          {/* 2. SCROLLABLE BODY */}
+          <div className={styles.quotationModalBody}>
+            {/* Quotation Details Card */}
+            <div className={styles.quotationCard}>
+              <div className={styles.quotationCardHeader}>
+                <h4 className={styles.quotationCardTitle}>
+                  <i className="ph ph-sliders" /> Quotation Details
+                </h4>
               </div>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Quotation Notes (Optional)</label>
-                <input
-                  type="text"
-                  className={styles.input}
-                  value={quoteNotes}
-                  onChange={(e) => setQuoteNotes(e.target.value)}
-                  placeholder="e.g. Valid for 30 days, includes post-op check"
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Valid Until (Optional)</label>
+                  <input
+                    type="date"
+                    className={styles.input}
+                    value={quoteValidUntil}
+                    onChange={(e) => setQuoteValidUntil(e.target.value)}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Quotation Notes (Optional)</label>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    value={quoteNotes}
+                    onChange={(e) => setQuoteNotes(e.target.value)}
+                    placeholder="e.g. Valid for 30 days, includes post-op check"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Options Builder */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>
-                <i className="ph ph-rows" style={{ color: '#0284c7' }} /> Treatment Options ({quoteOptions.length})
-              </h4>
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                style={{ fontSize: '0.8rem', padding: '4px 10px' }}
-                onClick={handleAddOption}
-              >
-                <i className="ph ph-plus" /> Add Option
-              </button>
-            </div>
+            {/* Treatment Options Section */}
+            <div className={styles.quotationOptionsSection}>
+              <div className={styles.quotationOptionsHeader}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="ph ph-rows" style={{ color: '#0284c7' }} /> Treatment Options ({quoteOptions.length})
+                </h4>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  style={{ fontSize: '0.8rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                  onClick={handleAddOption}
+                >
+                  <i className="ph ph-plus" /> Add Option
+                </button>
+              </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {quoteOptions.map((opt) => {
+              {quoteOptions.map((opt, optIdx) => {
                 const optSubtotal = opt.items.reduce((s, it) => s + (it.unit_price * it.quantity), 0);
                 const optDisc = parseFloat(opt.discount_amount) || 0;
                 const optTax = parseFloat(opt.tax_amount) || 0;
                 const optTotal = Math.max(0, optSubtotal - optDisc + optTax);
 
                 return (
-                  <div
-                    key={opt.id}
-                    style={{
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '8px',
-                      padding: '12px 14px',
-                      background: '#ffffff',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: '10px' }}>
-                      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 3fr', gap: '10px' }}>
+                  <div key={opt.id} className={styles.quotationOptionCard}>
+                    <div className={styles.quotationOptionTopBar}>
+                      <div className={styles.quotationOptionFields}>
                         <div className={styles.formGroup}>
                           <label className={styles.label}>Option Name</label>
                           <input
@@ -1900,7 +2025,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                             className={styles.input}
                             value={opt.name}
                             onChange={(e) => handleOptionChange(opt.id, 'name', e.target.value)}
-                            placeholder="e.g. Option A – Recommended RCT"
+                            placeholder={`e.g. Option ${String.fromCharCode(65 + optIdx)} – Recommended RCT`}
                           />
                         </div>
                         <div className={styles.formGroup}>
@@ -1918,154 +2043,147 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                         <button
                           type="button"
                           className={styles.btnSecondary}
-                          style={{ color: '#dc2626', borderColor: '#fca5a5', padding: '4px 8px', marginTop: '20px' }}
+                          style={{ color: '#dc2626', borderColor: '#fca5a5', padding: '6px 10px', marginTop: '22px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
                           onClick={() => handleRemoveOption(opt.id)}
                           title="Remove Option"
                         >
-                          <i className="ph ph-trash" /> Remove
+                          <i className="ph ph-trash" /> Remove Option
                         </button>
                       )}
                     </div>
 
                     {/* Items table for this option */}
-                    <table className={styles.table} style={{ width: '100%', fontSize: '0.8rem', marginBottom: '8px' }}>
-                      <thead>
-                        <tr style={{ background: '#f8fafc' }}>
-                          <th style={{ textAlign: 'left', padding: '4px 6px' }}>Procedure</th>
-                          <th style={{ textAlign: 'center', padding: '4px 6px', width: '90px' }}>Tooth #</th>
-                          <th style={{ textAlign: 'center', padding: '4px 6px', width: '60px' }}>Qty</th>
-                          <th style={{ textAlign: 'right', padding: '4px 6px', width: '110px' }}>Unit Price</th>
-                          <th style={{ textAlign: 'right', padding: '4px 6px', width: '100px' }}>Total</th>
-                          <th style={{ textAlign: 'center', padding: '4px 6px', width: '40px' }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {opt.items.map((item) => {
-                          const lineTotal = item.quantity * item.unit_price;
-                          return (
-                            <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '4px 6px' }}>
-                                <input
-                                  type="text"
-                                  className={styles.input}
-                                  style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                                  value={item.procedure_name}
-                                  onChange={(e) => handleOptionItemChange(opt.id, item.id, 'procedure_name', e.target.value)}
-                                  placeholder="Procedure name"
-                                />
-                              </td>
-                              <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                                <input
-                                  type="number"
-                                  className={styles.input}
-                                  style={{ padding: '4px 6px', fontSize: '0.8rem', textAlign: 'center' }}
-                                  value={item.tooth_number ?? ''}
-                                  onChange={(e) =>
-                                    handleOptionItemChange(
-                                      opt.id,
-                                      item.id,
-                                      'tooth_number',
-                                      e.target.value ? parseInt(e.target.value, 10) : null,
-                                    )
-                                  }
-                                  placeholder="Tooth #"
-                                />
-                              </td>
-                              <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  className={styles.input}
-                                  style={{ padding: '4px 6px', fontSize: '0.8rem', textAlign: 'center' }}
-                                  value={item.quantity}
-                                  onChange={(e) =>
-                                    handleOptionItemChange(
-                                      opt.id,
-                                      item.id,
-                                      'quantity',
-                                      Math.max(1, parseInt(e.target.value, 10) || 1),
-                                    )
-                                  }
-                                />
-                              </td>
-                              <td style={{ padding: '4px 6px', textAlign: 'right' }}>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  className={styles.input}
-                                  style={{ padding: '4px 6px', fontSize: '0.8rem', textAlign: 'right' }}
-                                  value={item.unit_price}
-                                  onChange={(e) =>
-                                    handleOptionItemChange(
-                                      opt.id,
-                                      item.id,
-                                      'unit_price',
-                                      parseFloat(e.target.value) || 0,
-                                    )
-                                  }
-                                />
-                              </td>
-                              <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>
-                                {formatCurrency(lineTotal)}
-                              </td>
-                              <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                                {opt.items.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveOptionItem(opt.id, item.id)}
-                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                                    title="Delete item"
-                                  >
-                                    <i className="ph ph-x" />
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    <div className={styles.quotationOptionTableContainer}>
+                      <table className={styles.quotationOptionTable}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: 'left', width: '42%' }}>Procedure</th>
+                            <th style={{ textAlign: 'center', width: '12%' }}>Tooth #</th>
+                            <th style={{ textAlign: 'center', width: '10%' }}>Qty</th>
+                            <th style={{ textAlign: 'right', width: '16%' }}>Unit Price</th>
+                            <th style={{ textAlign: 'right', width: '14%' }}>Total</th>
+                            <th style={{ textAlign: 'center', width: '6%' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {opt.items.map((item) => {
+                            const lineTotal = item.quantity * item.unit_price;
+                            return (
+                              <tr key={item.id}>
+                                <td>
+                                  <input
+                                    type="text"
+                                    value={item.procedure_name}
+                                    onChange={(e) => handleOptionItemChange(opt.id, item.id, 'procedure_name', e.target.value)}
+                                    placeholder="Procedure name"
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <input
+                                    type="number"
+                                    style={{ textAlign: 'center' }}
+                                    value={item.tooth_number ?? ''}
+                                    onChange={(e) =>
+                                      handleOptionItemChange(
+                                        opt.id,
+                                        item.id,
+                                        'tooth_number',
+                                        e.target.value ? parseInt(e.target.value, 10) : null,
+                                      )
+                                    }
+                                    placeholder="Tooth #"
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    style={{ textAlign: 'center' }}
+                                    value={item.quantity}
+                                    onChange={(e) =>
+                                      handleOptionItemChange(
+                                        opt.id,
+                                        item.id,
+                                        'quantity',
+                                        Math.max(1, parseInt(e.target.value, 10) || 1),
+                                      )
+                                    }
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    style={{ textAlign: 'right' }}
+                                    value={item.unit_price}
+                                    onChange={(e) =>
+                                      handleOptionItemChange(
+                                        opt.id,
+                                        item.id,
+                                        'unit_price',
+                                        parseFloat(e.target.value) || 0,
+                                      )
+                                    }
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                                  {formatCurrency(lineTotal)}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  {opt.items.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveOptionItem(opt.id, item.id)}
+                                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4 }}
+                                      title="Delete item"
+                                    >
+                                      <i className="ph ph-trash" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                    <div className={styles.quotationOptionBottomBar}>
                       <button
                         type="button"
                         className={styles.btnSecondary}
-                        style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                        style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
                         onClick={() => handleAddOptionItem(opt.id)}
                       >
                         <i className="ph ph-plus" /> Add Item
                       </button>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.8rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div className={styles.quotationOptionTotals}>
+                        <div className={styles.quotationOptionTotalsField}>
                           <span>Discount:</span>
                           <input
                             type="number"
                             min="0"
                             step="0.01"
-                            className={styles.input}
-                            style={{ width: '80px', padding: '2px 6px', fontSize: '0.8rem' }}
                             value={opt.discount_amount}
                             onChange={(e) => handleOptionChange(opt.id, 'discount_amount', e.target.value)}
                             placeholder="0"
                           />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div className={styles.quotationOptionTotalsField}>
                           <span>Tax:</span>
                           <input
                             type="number"
                             min="0"
                             step="0.01"
-                            className={styles.input}
-                            style={{ width: '80px', padding: '2px 6px', fontSize: '0.8rem' }}
                             value={opt.tax_amount}
                             onChange={(e) => handleOptionChange(opt.id, 'tax_amount', e.target.value)}
                             placeholder="0"
                           />
                         </div>
-                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>
-                          Total: <span style={{ color: '#0284c7' }}>{formatCurrency(optTotal)}</span>
+                        <div className={styles.quotationOptionTotalBadge}>
+                          Total: <span>{formatCurrency(optTotal)}</span>
                         </div>
                       </div>
                     </div>
@@ -2074,39 +2192,28 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               })}
             </div>
 
-            {/* Comparison Overview Bar */}
-            <div
-              style={{
-                background: '#f0f9ff',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '1px solid #bae6fd',
-                marginTop: '16px',
-              }}
-            >
-              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0369a1', marginBottom: '6px' }}>
-                OPTIONS SUMMARY COMPARISON
+            {/* Comparison Overview Card */}
+            <div className={styles.quotationSummaryCard}>
+              <div className={styles.quotationSummaryTitle}>
+                <i className="ph ph-chart-bar" /> Options Comparison Overview
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+              <div className={styles.quotationSummaryGrid}>
                 {quoteOptions.map((opt, idx) => {
                   const optSub = opt.items.reduce((s, it) => s + (it.unit_price * it.quantity), 0);
                   const optDisc = parseFloat(opt.discount_amount) || 0;
                   const optTax = parseFloat(opt.tax_amount) || 0;
                   const optTot = Math.max(0, optSub - optDisc + optTax);
                   return (
-                    <div
-                      key={opt.id}
-                      style={{
-                        background: '#ffffff',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #e0f2fe',
-                        fontSize: '0.8rem',
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, color: '#334155' }}>{opt.name || `Option ${idx + 1}`}: </span>
-                      <strong style={{ color: '#0284c7' }}>{formatCurrency(optTot)}</strong>
-                      <span style={{ color: '#64748b', fontSize: '0.75rem' }}> ({opt.items.length} items)</span>
+                    <div key={opt.id} className={styles.quotationSummaryItem}>
+                      <div className={styles.quotationSummaryItemName}>
+                        {opt.name || `Option ${String.fromCharCode(65 + idx)}`}
+                      </div>
+                      <div className={styles.quotationSummaryItemValue}>
+                        {formatCurrency(optTot)}
+                      </div>
+                      <div className={styles.quotationSummaryItemCount}>
+                        {opt.items.length} {opt.items.length === 1 ? 'procedure' : 'procedures'}
+                      </div>
                     </div>
                   );
                 })}
@@ -2114,58 +2221,65 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={() => setShowQuotationModal(false)}
-              disabled={createQuotationMutation.isPending}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.btnPrimary}
-              disabled={createQuotationMutation.isPending || quoteOptions.length === 0}
-              onClick={() => {
-                if (!episodeId) return;
-                const formattedOptions = quoteOptions.map((opt) => ({
-                  name: opt.name.trim() || 'Option',
-                  description: opt.description.trim() || undefined,
-                  discount_amount: parseFloat(opt.discount_amount) || 0,
-                  tax_amount: parseFloat(opt.tax_amount) || 0,
-                  items: opt.items.map((it) => ({
-                    treatment_plan_item_id: it.treatment_plan_item_id,
-                    service_id: it.service_id,
-                    procedure_name: it.procedure_name.trim() || 'Dental Procedure',
-                    tooth_number: it.tooth_number ?? undefined,
-                    quantity: it.quantity || 1,
-                    unit_price: it.unit_price || 0,
-                  })),
-                }));
+          {/* 3. FIXED FOOTER */}
+          <div className={styles.quotationModalFooter}>
+            <div className={styles.quotationFooterInfo}>
+              <i className="ph ph-info" style={{ color: '#0284c7' }} />
+              <span>Draft quotations are non-binding estimates until accepted.</span>
+            </div>
+            <div className={styles.quotationFooterActions}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => setShowQuotationModal(false)}
+                disabled={createQuotationMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                disabled={createQuotationMutation.isPending || quoteOptions.length === 0}
+                onClick={() => {
+                  if (!episodeId) return;
+                  const formattedOptions = quoteOptions.map((opt) => ({
+                    name: opt.name.trim() || 'Option',
+                    description: opt.description.trim() || undefined,
+                    discount_amount: parseFloat(opt.discount_amount) || 0,
+                    tax_amount: parseFloat(opt.tax_amount) || 0,
+                    items: opt.items.map((it) => ({
+                      treatment_plan_item_id: it.treatment_plan_item_id,
+                      service_id: it.service_id,
+                      procedure_name: it.procedure_name.trim() || 'Dental Procedure',
+                      tooth_number: it.tooth_number ?? undefined,
+                      quantity: it.quantity || 1,
+                      unit_price: it.unit_price || 0,
+                    })),
+                  }));
 
-                createQuotationMutation.mutate(
-                  {
-                    episodeId,
-                    payload: {
-                      notes: quoteNotes.trim() || undefined,
-                      valid_until: quoteValidUntil || undefined,
-                      options: formattedOptions,
+                  createQuotationMutation.mutate(
+                    {
+                      episodeId,
+                      payload: {
+                        notes: quoteNotes.trim() || undefined,
+                        valid_until: quoteValidUntil || undefined,
+                        options: formattedOptions,
+                      },
                     },
-                  },
-                  {
-                    onSuccess: () => {
-                      setShowQuotationModal(false);
-                      setQuoteNotes('');
-                      setQuoteValidUntil('');
+                    {
+                      onSuccess: () => {
+                        setShowQuotationModal(false);
+                        setQuoteNotes('');
+                        setQuoteValidUntil('');
+                      },
                     },
-                  },
-                );
-              }}
-            >
-              <i className="ph ph-check" />
-              {createQuotationMutation.isPending ? 'Generating…' : 'Create Draft Quotation'}
-            </button>
+                  );
+                }}
+              >
+                <i className="ph ph-check" />
+                {createQuotationMutation.isPending ? 'Generating…' : 'Create Draft Quotation'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2173,23 +2287,54 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
     {/* View Quotation Details / Decision Modal */}
     {selectedQuotation && (
-      <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Quotation Details">
-        <div className={styles.modalCard} style={{ maxWidth: 780, maxHeight: '90vh', overflowY: 'auto' }}>
-          <div className={styles.modalHeader}>
-            <h3 className={styles.modalTitle}>
-              <i className="ph ph-file-text" style={{ color: '#0284c7' }} /> Quotation #{selectedQuotation.quotation_number}
-            </h3>
+      <div className={styles.quotationModalOverlay} role="dialog" aria-modal="true" aria-label="Quotation Details">
+        <div className={styles.quotationModalCard}>
+          {/* 1. FIXED HEADER */}
+          <div className={styles.quotationModalHeader}>
+            <div className={styles.quotationModalTitleGroup}>
+              <h3 className={styles.quotationModalTitle}>
+                <i className="ph ph-file-text" style={{ color: '#0284c7' }} /> Quotation #{selectedQuotation.quotation_number}
+              </h3>
+              <p className={styles.quotationModalSubtitle}>
+                Dental Treatment Quotation
+              </p>
+              {(patientName || episodeNumber || primaryToothNumber) && (
+                <div className={styles.quotationContextBadges}>
+                  {patientName && (
+                    <span className={styles.quotationContextBadge} title="Patient">
+                      <i className="ph ph-user" /> {patientName}
+                    </span>
+                  )}
+                  {episodeNumber && (
+                    <span className={styles.quotationContextBadge} title="Treatment Episode">
+                      <i className="ph ph-hash" /> Episode #{episodeNumber}
+                    </span>
+                  )}
+                  {primaryToothNumber && (
+                    <span className={styles.quotationContextBadge} title="Primary Tooth">
+                      <i className="ph ph-tooth" /> Tooth #{primaryToothNumber} ({getToothName(primaryToothNumber)})
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className={styles.modalCloseBtn}
-              onClick={() => setSelectedQuotation(null)}
+              onClick={() => {
+                setSelectedQuotation(null);
+                setDecisionMode('view');
+                setDecisionReasonInput('');
+              }}
               aria-label="Close"
+              title="Close modal"
             >
               <i className="ph ph-x" />
             </button>
           </div>
-          <div style={{ fontSize: '0.85rem', lineHeight: '1.6', margin: '12px 0 16px' }}>
-            
+
+          {/* 2. SCROLLABLE BODY */}
+          <div className={styles.quotationModalBody}>
             {/* Status Banners */}
             {selectedQuotation.status === 'ACCEPTED' && (
               <div
@@ -2198,7 +2343,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   border: '1px solid #86efac',
                   borderRadius: '8px',
                   padding: '12px 16px',
-                  marginBottom: '16px',
                   color: '#14532d',
                 }}
               >
@@ -2230,7 +2374,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   border: '1px solid #fca5a5',
                   borderRadius: '8px',
                   padding: '12px 16px',
-                  marginBottom: '16px',
                   color: '#991b1b',
                 }}
               >
@@ -2258,7 +2401,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   border: '1px solid #cbd5e1',
                   borderRadius: '8px',
                   padding: '12px 16px',
-                  marginBottom: '16px',
                   color: '#334155',
                 }}
               >
@@ -2279,49 +2421,93 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               </div>
             )}
 
-            {/* Metadata Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '6px 12px', marginBottom: '14px' }}>
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Status:</span>
-              <span style={{ fontWeight: 700, color: selectedQuotation.status === 'ACCEPTED' ? '#15803d' : selectedQuotation.status === 'REJECTED' ? '#b91c1c' : '#b45309' }}>
-                {selectedQuotation.status}
-              </span>
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Doctor:</span>
-              <span>{selectedQuotation.doctor_name}</span>
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Date Created:</span>
-              <span>{new Date(selectedQuotation.created_at).toLocaleString()}</span>
-              {selectedQuotation.sent_at && (
-                <>
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Date Sent:</span>
-                  <span>{new Date(selectedQuotation.sent_at).toLocaleString()}</span>
-                </>
-              )}
-              {selectedQuotation.valid_until && (
-                <>
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Valid Until:</span>
-                  <span>{new Date(selectedQuotation.valid_until).toLocaleDateString()}</span>
-                </>
-              )}
-              {selectedQuotation.notes && (
-                <>
-                  <span style={{ color: '#64748b', fontWeight: 600 }}>Notes:</span>
-                  <span>{selectedQuotation.notes}</span>
-                </>
-              )}
+            {/* Quotation Summary Card */}
+            <div className={styles.quotationCard}>
+              <div className={styles.quotationCardHeader}>
+                <h4 className={styles.quotationCardTitle}>
+                  <i className="ph ph-info" /> Quotation Summary
+                </h4>
+              </div>
+              <div className={styles.quotationSummaryMetaGrid}>
+                <div className={styles.quotationSummaryMetaItem}>
+                  <span className={styles.quotationSummaryMetaLabel}>Status</span>
+                  <div>
+                    <span
+                      className={`${styles.quotationStatusBadge} ${
+                        selectedQuotation.status === 'ACCEPTED'
+                          ? styles.quotationStatusBadgeAccepted
+                          : selectedQuotation.status === 'REJECTED'
+                          ? styles.quotationStatusBadgeRejected
+                          : selectedQuotation.status === 'SENT'
+                          ? styles.quotationStatusBadgeSent
+                          : selectedQuotation.status === 'POSTPONED'
+                          ? styles.quotationStatusBadgePostponed
+                          : styles.quotationStatusBadgeDraft
+                      }`}
+                    >
+                      ● {selectedQuotation.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={styles.quotationSummaryMetaItem}>
+                  <span className={styles.quotationSummaryMetaLabel}>Doctor</span>
+                  <span className={styles.quotationSummaryMetaValue}>
+                    {selectedQuotation.doctor_name || '—'}
+                  </span>
+                </div>
+
+                <div className={styles.quotationSummaryMetaItem}>
+                  <span className={styles.quotationSummaryMetaLabel}>Created</span>
+                  <span className={styles.quotationSummaryMetaValue}>
+                    {new Date(selectedQuotation.created_at).toLocaleString()}
+                  </span>
+                </div>
+
+                {selectedQuotation.sent_at && (
+                  <div className={styles.quotationSummaryMetaItem}>
+                    <span className={styles.quotationSummaryMetaLabel}>Sent</span>
+                    <span className={styles.quotationSummaryMetaValue}>
+                      {new Date(selectedQuotation.sent_at).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+
+                {selectedQuotation.valid_until && (
+                  <div className={styles.quotationSummaryMetaItem}>
+                    <span className={styles.quotationSummaryMetaLabel}>Valid Until</span>
+                    <span className={styles.quotationSummaryMetaValue}>
+                      {new Date(selectedQuotation.valid_until).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+
+                {selectedQuotation.notes && (
+                  <div className={styles.quotationSummaryMetaItem} style={{ gridColumn: '1 / -1' }}>
+                    <span className={styles.quotationSummaryMetaLabel}>Notes</span>
+                    <span className={styles.quotationSummaryMetaValue} style={{ fontWeight: 400 }}>
+                      {selectedQuotation.notes}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* If quotation has multiple options, display multi-option breakdown */}
+            {/* Presented Treatment Options Section */}
             {selectedQuotation.options && selectedQuotation.options.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e293b' }}>
-                    Presented Treatment Options ({selectedQuotation.options.length})
-                  </div>
-                  {(selectedQuotation.status === 'SENT' || selectedQuotation.status === 'POSTPONED') && (
-                    <span style={{ fontSize: '0.78rem', color: '#0284c7', fontWeight: 600 }}>
-                      <i className="ph ph-hand-pointing" /> Select an option below to accept
-                    </span>
-                  )}
+              <div className={styles.quotationOptionsSection}>
+                <div className={styles.quotationOptionsHeader}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph ph-rows" style={{ color: '#0284c7' }} /> Presented Treatment Options ({selectedQuotation.options.length})
+                  </h4>
                 </div>
+
+                {(selectedQuotation.status === 'SENT' || selectedQuotation.status === 'POSTPONED') && (
+                  <div className={styles.quotationInstructionBanner}>
+                    <i className="ph ph-hand-pointing" />
+                    <span>Select an option below to accept and continue.</span>
+                  </div>
+                )}
 
                 {selectedQuotation.options.map((opt, optIdx) => {
                   const isSelected =
@@ -2339,27 +2525,22 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                           setSelectedDecisionOptionId(opt.id);
                         }
                       }}
-                      style={{
-                        border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        padding: '12px',
-                        background: isSelected ? '#f0f9ff' : '#f8fafc',
-                        cursor: canSelect ? 'pointer' : 'default',
-                        transition: 'all 0.15s ease-in-out',
-                      }}
+                      className={`${styles.quotationDecisionOptionCard} ${
+                        canSelect ? styles.quotationDecisionOptionCardSelectable : ''
+                      } ${isSelected ? styles.quotationDecisionOptionCardSelected : ''}`}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className={styles.quotationDecisionOptionHeader}>
+                        <div className={styles.quotationDecisionOptionNameRow}>
                           {canSelect && (
                             <input
                               type="radio"
                               name="decisionOptionRadio"
+                              className={styles.quotationDecisionOptionRadio}
                               checked={selectedDecisionOptionId === opt.id}
                               onChange={() => opt.id && setSelectedDecisionOptionId(opt.id)}
-                              style={{ cursor: 'pointer' }}
                             />
                           )}
-                          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
+                          <span className={styles.quotationDecisionOptionTitle}>
                             {opt.name}
                           </span>
                           {selectedQuotation.status === 'ACCEPTED' && selectedQuotation.selected_option_id === opt.id && (
@@ -2367,9 +2548,10 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                               style={{
                                 background: '#dcfce7',
                                 color: '#15803d',
-                                padding: '1px 6px',
+                                border: '1px solid #86efac',
+                                padding: '2px 8px',
                                 borderRadius: '4px',
-                                fontSize: '0.7rem',
+                                fontSize: '0.72rem',
                                 fontWeight: 700,
                               }}
                             >
@@ -2377,145 +2559,143 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                             </span>
                           )}
                         </div>
-                        <span
-                          style={{
-                            background: isSelected ? '#bae6fd' : '#e0f2fe',
-                            color: '#0369a1',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                          }}
-                        >
-                          Total: {formatCurrency(opt.total ?? 0)}
+                        <span className={styles.quotationDecisionOptionTotalBadge}>
+                          {formatCurrency(opt.total ?? 0)}
                         </span>
                       </div>
+
                       {opt.description && (
-                        <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: '#64748b' }}>
+                        <p className={styles.quotationDecisionOptionDesc}>
                           {opt.description}
                         </p>
                       )}
 
-                      <table className={styles.table} style={{ width: '100%', fontSize: '0.8rem', marginBottom: '8px', background: '#ffffff' }}>
-                        <thead>
-                          <tr style={{ background: '#f1f5f9' }}>
-                            <th style={{ textAlign: 'left', padding: '4px 6px' }}>#</th>
-                            <th style={{ textAlign: 'left', padding: '4px 6px' }}>Procedure</th>
-                            <th style={{ textAlign: 'center', padding: '4px 6px' }}>Tooth</th>
-                            <th style={{ textAlign: 'center', padding: '4px 6px' }}>Qty</th>
-                            <th style={{ textAlign: 'right', padding: '4px 6px' }}>Unit Price</th>
-                            <th style={{ textAlign: 'right', padding: '4px 6px' }}>Line Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(opt.items ?? []).map((it, idx) => (
-                            <tr key={it.id ?? idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '4px 6px', color: '#64748b' }}>{idx + 1}</td>
-                              <td style={{ padding: '4px 6px', fontWeight: 600 }}>{it.procedure_name}</td>
-                              <td style={{ padding: '4px 6px', textAlign: 'center', color: '#64748b' }}>
-                                {it.tooth_number ? `Tooth #${it.tooth_number}` : 'General'}
-                              </td>
-                              <td style={{ padding: '4px 6px', textAlign: 'center' }}>{it.quantity}</td>
-                              <td style={{ padding: '4px 6px', textAlign: 'right' }}>{formatCurrency(it.unit_price ?? 0)}</td>
-                              <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>
-                                {formatCurrency(it.line_total ?? (it.unit_price ?? 0) * (it.quantity ?? 1))}
-                              </td>
+                      {/* Items table */}
+                      <div className={styles.quotationOptionTableContainer}>
+                        <table className={styles.quotationOptionTable}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', width: '38px' }}>#</th>
+                              <th style={{ textAlign: 'left' }}>Procedure</th>
+                              <th style={{ textAlign: 'center', width: '90px' }}>Tooth</th>
+                              <th style={{ textAlign: 'center', width: '60px' }}>Qty</th>
+                              <th style={{ textAlign: 'right', width: '120px' }}>Unit Price</th>
+                              <th style={{ textAlign: 'right', width: '120px' }}>Line Total</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {(opt.items ?? []).map((it, idx) => (
+                              <tr key={it.id ?? idx}>
+                                <td style={{ color: '#64748b' }}>{idx + 1}</td>
+                                <td style={{ fontWeight: 600 }}>{it.procedure_name}</td>
+                                <td style={{ textAlign: 'center', color: '#64748b' }}>
+                                  {it.tooth_number ? `Tooth #${it.tooth_number}` : 'General'}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>{it.quantity}</td>
+                                <td style={{ textAlign: 'right' }}>{formatCurrency(it.unit_price ?? 0)}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                                  {formatCurrency(it.line_total ?? (it.unit_price ?? 0) * (it.quantity ?? 1))}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', fontSize: '0.8rem', color: '#64748b' }}>
-                        <span>Subtotal: {formatCurrency(opt.subtotal ?? 0)}</span>
-                        {(opt.discount_amount ?? 0) > 0 && <span style={{ color: '#16a34a' }}>Discount: -{formatCurrency(opt.discount_amount ?? 0)}</span>}
-                        {(opt.tax_amount ?? 0) > 0 && <span>Tax: +{formatCurrency(opt.tax_amount ?? 0)}</span>}
-                        <span style={{ fontWeight: 700, color: '#0f172a' }}>Option Total: {formatCurrency(opt.total ?? 0)}</span>
+                      {/* Financial breakdown */}
+                      <div className={styles.quotationFinancialSummary}>
+                        <div className={styles.quotationFinancialRow}>
+                          <span>Subtotal:</span>
+                          <span>{formatCurrency(opt.subtotal ?? 0)}</span>
+                        </div>
+                        {(opt.discount_amount ?? 0) > 0 && (
+                          <div className={styles.quotationFinancialRow} style={{ color: '#16a34a' }}>
+                            <span>Discount:</span>
+                            <span>-{formatCurrency(opt.discount_amount ?? 0)}</span>
+                          </div>
+                        )}
+                        {(opt.tax_amount ?? 0) > 0 && (
+                          <div className={styles.quotationFinancialRow}>
+                            <span>Tax:</span>
+                            <span>+{formatCurrency(opt.tax_amount ?? 0)}</span>
+                          </div>
+                        )}
+                        <div className={styles.quotationFinancialTotal}>
+                          <span>Option Total:</span>
+                          <span style={{ color: '#0284c7' }}>{formatCurrency(opt.total ?? 0)}</span>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              // Legacy single-item list
-              <>
-                <table className={styles.table} style={{ width: '100%', fontSize: '0.8rem', marginBottom: '12px' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ textAlign: 'left', padding: '6px 8px' }}>#</th>
-                      <th style={{ textAlign: 'left', padding: '6px 8px' }}>Procedure</th>
-                      <th style={{ textAlign: 'center', padding: '6px 8px' }}>Tooth</th>
-                      <th style={{ textAlign: 'center', padding: '6px 8px' }}>Qty</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px' }}>Unit Price</th>
-                      <th style={{ textAlign: 'right', padding: '6px 8px' }}>Line Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedQuotation.items.map((it, idx) => (
-                      <tr key={it.id ?? idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '6px 8px', color: '#64748b' }}>{idx + 1}</td>
-                        <td style={{ padding: '6px 8px', fontWeight: 600 }}>{it.procedure_name}</td>
-                        <td style={{ padding: '6px 8px', textAlign: 'center', color: '#64748b' }}>
-                          {it.tooth_number ? `Tooth #${it.tooth_number}` : 'General'}
-                        </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'center' }}>{it.quantity}</td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{formatCurrency(it.unit_price)}</td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>
-                          {formatCurrency(it.line_total)}
-                        </td>
+              // Legacy single items list
+              <div className={styles.quotationCard}>
+                <div className={styles.quotationCardHeader}>
+                  <h4 className={styles.quotationCardTitle}>
+                    <i className="ph ph-list" /> Treatment Items
+                  </h4>
+                </div>
+                <div className={styles.quotationOptionTableContainer} style={{ marginBottom: 12 }}>
+                  <table className={styles.quotationOptionTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', width: '38px' }}>#</th>
+                        <th style={{ textAlign: 'left' }}>Procedure</th>
+                        <th style={{ textAlign: 'center', width: '90px' }}>Tooth</th>
+                        <th style={{ textAlign: 'center', width: '60px' }}>Qty</th>
+                        <th style={{ textAlign: 'right', width: '120px' }}>Unit Price</th>
+                        <th style={{ textAlign: 'right', width: '120px' }}>Line Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {selectedQuotation.items.map((it, idx) => (
+                        <tr key={it.id ?? idx}>
+                          <td style={{ color: '#64748b' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: 600 }}>{it.procedure_name}</td>
+                          <td style={{ textAlign: 'center', color: '#64748b' }}>
+                            {it.tooth_number ? `Tooth #${it.tooth_number}` : 'General'}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>{it.quantity}</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(it.unit_price)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                            {formatCurrency(it.line_total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-                <div
-                  style={{
-                    background: '#f8fafc',
-                    padding: '12px 16px',
-                    borderRadius: '6px',
-                    border: '1px solid #e2e8f0',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
-                    <span>Subtotal</span>
+                <div className={styles.quotationFinancialSummary}>
+                  <div className={styles.quotationFinancialRow}>
+                    <span>Subtotal:</span>
                     <span>{formatCurrency(selectedQuotation.subtotal)}</span>
                   </div>
                   {selectedQuotation.discount_amount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                      <span>Discount</span>
+                    <div className={styles.quotationFinancialRow} style={{ color: '#16a34a' }}>
+                      <span>Discount:</span>
                       <span>-{formatCurrency(selectedQuotation.discount_amount)}</span>
                     </div>
                   )}
                   {selectedQuotation.tax_amount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
-                      <span>Tax</span>
+                    <div className={styles.quotationFinancialRow}>
+                      <span>Tax:</span>
                       <span>+{formatCurrency(selectedQuotation.tax_amount)}</span>
                     </div>
                   )}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontWeight: 700,
-                      fontSize: '1rem',
-                      color: '#0f172a',
-                      borderTop: '1px solid #cbd5e1',
-                      paddingTop: '6px',
-                      marginTop: '4px',
-                    }}
-                  >
-                    <span>Grand Total ({selectedQuotation.currency})</span>
-                    <span>{formatCurrency(selectedQuotation.total)}</span>
+                  <div className={styles.quotationFinancialTotal}>
+                    <span>Grand Total:</span>
+                    <span style={{ color: '#0284c7' }}>{formatCurrency(selectedQuotation.total)}</span>
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             {/* Reject / Postpone Reason Inputs */}
             {decisionMode === 'reject' && (
-              <div style={{ marginTop: '16px', padding: '12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px' }}>
+              <div style={{ padding: '14px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px' }}>
                 <label className={styles.label} style={{ color: '#991b1b', fontWeight: 600 }}>
                   Reason for Rejection (Optional)
                 </label>
@@ -2525,13 +2705,13 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   placeholder="e.g. Patient prefers conservative observation or seeks second opinion"
                   value={decisionReasonInput}
                   onChange={(e) => setDecisionReasonInput(e.target.value)}
-                  style={{ marginTop: '4px' }}
+                  style={{ marginTop: '6px' }}
                 />
               </div>
             )}
 
             {decisionMode === 'postpone' && (
-              <div style={{ marginTop: '16px', padding: '12px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
+              <div style={{ padding: '14px 16px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
                 <label className={styles.label} style={{ color: '#334155', fontWeight: 600 }}>
                   Postponement Remark (Optional)
                 </label>
@@ -2541,34 +2721,16 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   placeholder="e.g. Decision postponed pending family discussion or insurance verification"
                   value={decisionReasonInput}
                   onChange={(e) => setDecisionReasonInput(e.target.value)}
-                  style={{ marginTop: '4px' }}
+                  style={{ marginTop: '6px' }}
                 />
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-            <div>
-              {selectedQuotation.status === 'DRAFT' && !disabled && (
-                <button
-                  type="button"
-                  className={styles.btnPrimary}
-                  style={{ background: '#4338ca', borderColor: '#4338ca' }}
-                  disabled={sendQuotationMutation.isPending}
-                  onClick={() => {
-                    sendQuotationMutation.mutate(selectedQuotation.id, {
-                      onSuccess: (updated) => setSelectedQuotation(updated),
-                    });
-                  }}
-                >
-                  <i className="ph ph-paper-plane-tilt" />
-                  {sendQuotationMutation.isPending ? 'Sending…' : 'Send to Patient'}
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              {/* Decision Action Buttons for SENT / POSTPONED quotations */}
+          {/* 3. FIXED FOOTER */}
+          <div className={styles.quotationModalFooter}>
+            {/* Left side actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {(selectedQuotation.status === 'SENT' || selectedQuotation.status === 'POSTPONED') && !disabled && (
                 <>
                   {decisionMode === 'view' ? (
@@ -2595,112 +2757,143 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                       >
                         <i className="ph ph-x-circle" /> Reject
                       </button>
-                      <button
-                        type="button"
-                        className={styles.btnPrimary}
-                        style={{ background: '#16a34a', borderColor: '#16a34a' }}
-                        disabled={acceptQuotationMutation.isPending || (!selectedDecisionOptionId && selectedQuotation.options && selectedQuotation.options.length > 0)}
-                        onClick={() => {
-                          acceptQuotationMutation.mutate(
-                            {
-                              quotationId: selectedQuotation.id,
-                              payload: {
-                                selected_option_id: selectedDecisionOptionId,
-                              },
-                            },
-                            {
-                              onSuccess: (updated) => {
-                                setSelectedQuotation(updated);
-                              },
-                            },
-                          );
-                        }}
-                      >
-                        <i className="ph ph-check-circle" />
-                        {acceptQuotationMutation.isPending ? 'Accepting…' : 'Accept Option'}
-                      </button>
-                    </>
-                  ) : decisionMode === 'reject' ? (
-                    <>
-                      <button
-                        type="button"
-                        className={styles.btnSecondary}
-                        onClick={() => setDecisionMode('view')}
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.btnPrimary}
-                        style={{ background: '#dc2626', borderColor: '#dc2626' }}
-                        disabled={rejectQuotationMutation.isPending}
-                        onClick={() => {
-                          rejectQuotationMutation.mutate(
-                            {
-                              quotationId: selectedQuotation.id,
-                              payload: {
-                                reason: decisionReasonInput.trim() || undefined,
-                              },
-                            },
-                            {
-                              onSuccess: (updated) => {
-                                setSelectedQuotation(updated);
-                                setDecisionMode('view');
-                              },
-                            },
-                          );
-                        }}
-                      >
-                        <i className="ph ph-x-circle" />
-                        {rejectQuotationMutation.isPending ? 'Rejecting…' : 'Confirm Rejection'}
-                      </button>
                     </>
                   ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={styles.btnSecondary}
-                        onClick={() => setDecisionMode('view')}
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.btnPrimary}
-                        style={{ background: '#475569', borderColor: '#475569' }}
-                        disabled={postponeQuotationMutation.isPending}
-                        onClick={() => {
-                          postponeQuotationMutation.mutate(
-                            {
-                              quotationId: selectedQuotation.id,
-                              payload: {
-                                reason: decisionReasonInput.trim() || undefined,
-                              },
-                            },
-                            {
-                              onSuccess: (updated) => {
-                                setSelectedQuotation(updated);
-                                setDecisionMode('view');
-                              },
-                            },
-                          );
-                        }}
-                      >
-                        <i className="ph ph-clock" />
-                        {postponeQuotationMutation.isPending ? 'Saving…' : 'Confirm Postponement'}
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      className={styles.btnSecondary}
+                      onClick={() => setDecisionMode('view')}
+                    >
+                      Back
+                    </button>
                   )}
                 </>
               )}
+            </div>
 
+            {/* Right side actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
                 type="button"
                 className={styles.btnSecondary}
-                onClick={() => setSelectedQuotation(null)}
+                onClick={() => {
+                  setSelectedQuotation(null);
+                  setDecisionMode('view');
+                  setDecisionReasonInput('');
+                }}
               >
                 Close
               </button>
+
+              {/* DRAFT: Send to Patient button */}
+              {selectedQuotation.status === 'DRAFT' && !disabled && (
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  style={{ background: '#4338ca', borderColor: '#4338ca' }}
+                  disabled={sendQuotationMutation.isPending}
+                  onClick={() => {
+                    sendQuotationMutation.mutate(selectedQuotation.id, {
+                      onSuccess: (updated) => setSelectedQuotation(updated),
+                    });
+                  }}
+                >
+                  <i className="ph ph-paper-plane-tilt" />
+                  {sendQuotationMutation.isPending ? 'Sending…' : 'Send to Patient'}
+                </button>
+              )}
+
+              {/* SENT / POSTPONED: Accept Option / Confirm Buttons */}
+              {(selectedQuotation.status === 'SENT' || selectedQuotation.status === 'POSTPONED') && !disabled && (
+                <>
+                  {decisionMode === 'view' && (
+                    <button
+                      type="button"
+                      className={styles.btnPrimary}
+                      style={{ background: '#16a34a', borderColor: '#16a34a' }}
+                      disabled={
+                        acceptQuotationMutation.isPending ||
+                        (!selectedDecisionOptionId &&
+                          Boolean(selectedQuotation.options && selectedQuotation.options.length > 0))
+                      }
+                      onClick={() => {
+                        acceptQuotationMutation.mutate(
+                          {
+                            quotationId: selectedQuotation.id,
+                            payload: {
+                              selected_option_id: selectedDecisionOptionId,
+                            },
+                          },
+                          {
+                            onSuccess: (updated) => {
+                              setSelectedQuotation(updated);
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      <i className="ph ph-check-circle" />
+                      {acceptQuotationMutation.isPending ? 'Accepting…' : 'Accept Option'}
+                    </button>
+                  )}
+
+                  {decisionMode === 'reject' && (
+                    <button
+                      type="button"
+                      className={styles.btnPrimary}
+                      style={{ background: '#dc2626', borderColor: '#dc2626' }}
+                      disabled={rejectQuotationMutation.isPending}
+                      onClick={() => {
+                        rejectQuotationMutation.mutate(
+                          {
+                            quotationId: selectedQuotation.id,
+                            payload: {
+                              reason: decisionReasonInput.trim() || undefined,
+                            },
+                          },
+                          {
+                            onSuccess: (updated) => {
+                              setSelectedQuotation(updated);
+                              setDecisionMode('view');
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      <i className="ph ph-x-circle" />
+                      {rejectQuotationMutation.isPending ? 'Rejecting…' : 'Confirm Rejection'}
+                    </button>
+                  )}
+
+                  {decisionMode === 'postpone' && (
+                    <button
+                      type="button"
+                      className={styles.btnPrimary}
+                      style={{ background: '#475569', borderColor: '#475569' }}
+                      disabled={postponeQuotationMutation.isPending}
+                      onClick={() => {
+                        postponeQuotationMutation.mutate(
+                          {
+                            quotationId: selectedQuotation.id,
+                            payload: {
+                              reason: decisionReasonInput.trim() || undefined,
+                            },
+                          },
+                          {
+                            onSuccess: (updated) => {
+                              setSelectedQuotation(updated);
+                              setDecisionMode('view');
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      <i className="ph ph-clock" />
+                      {postponeQuotationMutation.isPending ? 'Saving…' : 'Confirm Postponement'}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

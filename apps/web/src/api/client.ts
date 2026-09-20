@@ -28,7 +28,17 @@ const getUrl = (path: string) => {
     return path;
   }
 
-  return `${appConfig.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  const base = appConfig.apiBaseUrl.replace(/\/+$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (base.endsWith('/api') && normalizedPath.startsWith('/api/')) {
+    return `${base}${normalizedPath.slice(4)}`;
+  }
+  if (base.endsWith('/api') && normalizedPath === '/api') {
+    return base;
+  }
+
+  return `${base}${normalizedPath}`;
 };
 
 const readJson = async (response: Response) => {
@@ -229,3 +239,14 @@ export const apiClient = {
     return response.blob;
   },
 };
+
+export const getAuthenticatedMediaUrl = (url?: string | null): string => {
+  if (!url) return '';
+  const resolvedUrl = getUrl(url);
+  const token = tokenStorage.getAccessToken();
+  if (!token) return resolvedUrl;
+  if (resolvedUrl.includes('token=')) return resolvedUrl;
+  const separator = resolvedUrl.includes('?') ? '&' : '?';
+  return `${resolvedUrl}${separator}token=${encodeURIComponent(token)}`;
+};
+

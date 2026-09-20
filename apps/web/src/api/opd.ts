@@ -265,7 +265,35 @@ export type DentalTreatmentPlanItem = {
   status?: DentalTreatmentStatus;
 };
 
+export type DentalChairsideImage = {
+  id: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  visit_id: string;
+  visit_number: string;
+  episode_id: string | null;
+  episode_number: string | null;
+  examination_id: string | null;
+  tooth_number: number | null;
+  imaging_source: 'CHAIRSIDE';
+  file_name: string;
+  mime_type: string;
+  file_size_bytes: number;
+  storage_key: string;
+  file_url: string;
+  notes: string | null;
+  doctor_id: string;
+  doctor_name: string;
+  branch_id: string;
+  department_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DentalEpisodeStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
+
 
 export type DentalEpisodeVisitSummary = {
   visit_id: string;
@@ -931,6 +959,41 @@ export const opdApi = {
       {
         body: payload,
         method: 'POST',
+      },
+    );
+  },
+
+  uploadDentalChairsideImage(visitId: string, formData: FormData) {
+    return apiClient.request<DentalChairsideImage>(
+      `/opd/visits/${encodeURIComponent(visitId)}/dental-chairside-images`,
+      {
+        body: formData,
+        method: 'POST',
+      },
+    );
+  },
+
+  listDentalChairsideImages(visitId: string, params?: { tooth_number?: number; episode_id?: string }) {
+    return apiClient.request<DentalChairsideImage[]>(
+      `/opd/visits/${encodeURIComponent(visitId)}/dental-chairside-images${toQueryString(params ?? {})}`,
+    );
+  },
+
+  listEpisodeChairsideImages(episodeId: string) {
+    return apiClient.request<DentalChairsideImage[]>(
+      `/opd/dental-episodes/${encodeURIComponent(episodeId)}/dental-chairside-images`,
+    );
+  },
+
+  getDentalChairsideImageDownloadUrl(imageId: string) {
+    return `/api/opd/dental-chairside-images/${encodeURIComponent(imageId)}/download`;
+  },
+
+  deleteDentalChairsideImage(imageId: string) {
+    return apiClient.request<{ message: string }>(
+      `/opd/dental-chairside-images/${encodeURIComponent(imageId)}`,
+      {
+        method: 'DELETE',
       },
     );
   },

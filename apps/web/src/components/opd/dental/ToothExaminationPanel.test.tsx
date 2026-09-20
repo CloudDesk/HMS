@@ -1,8 +1,13 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ToothFinding } from '../../../api/opd';
 import { ToothExaminationPanel } from './ToothExaminationPanel';
+
+vi.mock('../../../auth/useAuth', () => ({
+  useAuth: () => ({ user: { roles: [{ code: 'SUPER_ADMIN' }], permissions: [] } }),
+}));
 
 describe('ToothExaminationPanel refactored component', () => {
   let container: HTMLDivElement;
@@ -364,11 +369,22 @@ describe('ToothExaminationPanel refactored component', () => {
 
   it('calls onRemoveFinding when Reset button is clicked', async () => {
     const onRemove = vi.fn();
+    const existingFinding: ToothFinding = {
+      tooth_number: 12,
+      dentition: 'PERMANENT',
+      status: 'PRESENT',
+      surfaces: [],
+      conditions: ['CARIOUS'],
+      mobility: 'NONE',
+      pocket_depth_mm: null,
+      furcation_involvement: null,
+      notes: null,
+    };
     await act(async () => {
       root.render(
         <ToothExaminationPanel
           selectedToothNumber={12}
-          currentFinding={undefined}
+          currentFinding={existingFinding}
           onUpdateFinding={vi.fn()}
           onRemoveFinding={onRemove}
         />,
@@ -400,10 +416,10 @@ describe('ToothExaminationPanel refactored component', () => {
     });
 
     const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Surfaces', 'Periodontal']);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Surfaces', 'Imaging', 'Periodontal']);
     expect(container.textContent).not.toContain('Probing Depth (mm)');
 
-    await act(async () => tabs[1]?.click());
+    await act(async () => tabs[2]?.click());
     expect(container.textContent).toContain('Probing Depth (mm)');
     expect(container.textContent).toContain('Furcation Involvement');
 
@@ -571,5 +587,83 @@ describe('ToothExaminationPanel refactored component', () => {
     const affectedHeader = affectedSection?.querySelector('h3');
     expect(affectedHeader?.textContent).toBe('Affected Surfaces');
     expect(affectedSection?.querySelector('span[class*="affectedSurfacesToothContext"]')).toBeNull();
+  });
+
+  it('displays "Not Examined" badge when an unrecorded tooth is selected', async () => {
+    await act(async () => {
+      root.render(
+        <ToothExaminationPanel
+          selectedToothNumber={22}
+          currentFinding={undefined}
+          onUpdateFinding={vi.fn()}
+          onRemoveFinding={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('Not Examined');
+    expect(container.textContent).not.toContain('✓ Healthy');
+  });
+
+  it('displays Episode Target Tooth badge and tooth diagnoses when present', async () => {
+    await act(async () => {
+      root.render(
+        <ToothExaminationPanel
+          selectedToothNumber={22}
+          currentFinding={undefined}
+          onUpdateFinding={vi.fn()}
+          onRemoveFinding={vi.fn()}
+          episodeContext={{
+            episode_number: 'DEP-2026-0001',
+            primary_tooth_number: 22,
+            diagnosis_name: 'Root Canal Treatment',
+          }}
+          toothDiagnoses={[
+            { code: 'K04.0', name: 'Pulpitis' },
+          ]}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('Not Examined');
+    expect(container.textContent).toContain('Episode #DEP-2026-0001 Target Tooth');
+    expect(container.textContent).toContain('K04.0 — Pulpitis');
+  });
+
+  it('renders Tooth-Centered Imaging section with Capture, Upload, and Order actions for selected tooth', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <ToothExaminationPanel
+            selectedToothNumber={22}
+            currentFinding={undefined}
+            onUpdateFinding={vi.fn()}
+            onRemoveFinding={vi.fn()}
+            visitId="visit-1"
+            canEdit={true}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(container.textContent).toContain('Imaging · Tooth #22');
+
+    const captureBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Capture Image'),
+    );
+    const uploadBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Upload Image'),
+    );
+    const orderBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Order X-Ray / Scan'),
+    );
+
+    expect(captureBtn).toBeDefined();
+    expect(uploadBtn).toBeDefined();
+    expect(orderBtn).toBeDefined();
   });
 });

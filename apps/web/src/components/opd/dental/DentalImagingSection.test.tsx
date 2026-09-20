@@ -135,6 +135,8 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     });
     vi.spyOn(opdApi, 'getClinicalOrder').mockImplementation(async () => persisted);
     vi.spyOn(opdApi, 'getEpisodeImagingOrders').mockResolvedValue([]);
+    vi.spyOn(opdApi, 'listDentalChairsideImages').mockResolvedValue([]);
+    vi.spyOn(opdApi, 'listEpisodeChairsideImages').mockResolvedValue([]);
     vi.spyOn(servicesApi, 'list').mockResolvedValue({
       data: [service],
       meta: { page: 1, limit: 100, total: 1, totalPages: 1 },
@@ -436,5 +438,73 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     await render(35, true, false);
     await settle();
     expect(container.textContent).not.toContain('+ Add X-Ray / Scan');
+  });
+
+  it('8. Renders Immediate Chairside Imaging section with Capture & Upload actions', async () => {
+    await render(35, true, true, 'ep-1');
+    await settle();
+
+    expect(container.textContent).toContain('Immediate Chairside Imaging');
+    expect(container.textContent).toContain('Upload Chairside Image');
+    expect(container.textContent).toContain('Capture Image');
+    expect(container.textContent).toContain('Tooth #35');
+    // Radiology orders section remains intact below
+    expect(container.textContent).toContain('Formal Radiology Department investigations');
+  });
+
+  it('9. Displays uploaded chairside image and allows opening DentalImageViewerModal', async () => {
+    vi.spyOn(opdApi, 'listDentalChairsideImages').mockResolvedValue([
+      {
+        id: 'chairside-img-1',
+        visit_id: 'visit-1',
+        visit_number: 'VIS-001',
+        patient_id: 'patient-1',
+        patient_number: 'P-001',
+        patient_name: 'Test Patient',
+        episode_id: 'ep-1',
+        episode_number: 'EP-001',
+        examination_id: 'exam-1',
+        tooth_number: 35,
+        file_name: 'tooth_35_intraoral.jpg',
+        file_size_bytes: 204800,
+        mime_type: 'image/jpeg',
+        storage_key: 'dental-chairside/visit-1/test.jpg',
+        file_url: 'http://localhost:3000/api/v1/opd/dental-chairside-images/chairside-img-1/file',
+        imaging_source: 'CHAIRSIDE',
+        notes: 'Pre-op view tooth 35',
+        doctor_id: 'dentist-1',
+        doctor_name: 'Dr. Test Dentist',
+        branch_id: 'branch-1',
+        department_id: 'dept-1',
+        created_by: 'dentist-1',
+        created_at: '2026-09-20T10:00:00Z',
+        updated_at: '2026-09-20T10:00:00Z',
+      },
+    ]);
+
+    await render(35, true, true, 'ep-1');
+    await settle();
+
+    expect(container.textContent).toContain('tooth_35_intraoral.jpg');
+    expect(container.textContent).toContain('Tooth #35');
+    expect(container.textContent).toContain('Pre-op view tooth 35');
+
+    // Click on image card / view button
+    const viewBtn = Array.from(document.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('View')
+    );
+    expect(viewBtn).toBeDefined();
+
+    await act(async () => {
+      viewBtn?.click();
+    });
+    await settle();
+
+    const modalTitle = document.getElementById('dental-image-viewer-title');
+    expect(modalTitle?.textContent).toBe('tooth_35_intraoral.jpg');
+    const viewerImg = document.querySelector<HTMLImageElement>(
+      'img[data-testid="dental-viewer-image"]'
+    );
+    expect(viewerImg?.src).toContain('chairside-img-1');
   });
 });

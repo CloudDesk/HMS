@@ -35,7 +35,8 @@ const conditionFor = (finding?: ToothFinding) => {
   if (finding?.conditions.includes('CROWN')) return 'crown';
   if (finding?.conditions.includes('ROOT_PIECE')) return 'root';
   if (finding?.conditions.some((item) => ['FRACTURED', 'PULPITIC', 'PERIAPICAL_LESION'].includes(item))) return 'attention';
-  return finding ? 'healthy' : 'unrecorded';
+  if (finding?.conditions.includes('HEALTHY')) return 'healthy';
+  return 'unrecorded';
 };
 
 

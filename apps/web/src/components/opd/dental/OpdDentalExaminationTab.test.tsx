@@ -1016,7 +1016,7 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(imagingSections[0]?.textContent).toContain('Dental imaging');
   });
 
-  it('updates the single Dental Imaging title when a tooth is selected without rendering extra sections', async () => {
+  it('preserves the single Dental Imaging section when a tooth is selected without rendering extra sections', async () => {
     api.getDentalExamination.mockResolvedValue(mockExamData);
     queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
     await act(async () => {
@@ -1093,7 +1093,7 @@ describe('OpdDentalExaminationTab Component', () => {
     const labSections = container.querySelectorAll('section[aria-label="Dental laboratory"]');
     expect(imagingSections.length).toBe(1);
     expect(labSections.length).toBe(1);
-    expect(imagingSections[0]?.textContent).toContain('Dental imaging');
+    expect(imagingSections[0]?.textContent).toContain('Formal Imaging Orders');
 
     // Simulate multiple rapid tooth clicks (#21 -> #35 -> #16 -> #21)
     const teethToTest = ['21', '35', '16', '21', '35', '16'];
@@ -1154,9 +1154,9 @@ describe('OpdDentalExaminationTab Component', () => {
     if (!tooth38Btn) throw new Error('Tooth 38 element not found on Odontogram');
     await act(async () => { (tooth38Btn as HTMLElement).click(); });
 
-    // Verify title updated to Tooth #38, action button remains visible, and sections remain 1 each
+    // Verify formal imaging orders and action button remain visible and sections remain 1 each
     const imagingSection = container.querySelector('section[aria-label="Dental imaging"]');
-    expect(imagingSection?.textContent).toContain('Imaging · Tooth #38');
+    expect(imagingSection?.textContent).toContain('Formal Imaging Orders');
     expect(container.querySelectorAll('section[aria-label="Dental imaging"]').length).toBe(1);
     expect(container.querySelectorAll('section[aria-label="Dental laboratory"]').length).toBe(1);
 

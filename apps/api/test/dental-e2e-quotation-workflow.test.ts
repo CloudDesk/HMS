@@ -431,7 +431,7 @@ describe('HMS Dental Flow – Phase 8E: End-to-End Quotation & Treatment Regress
     const optB = quote.options.find((o: { name: string }) => o.name.includes('Option B'));
     expect(optB).toBeTruthy();
     expect(optB.total).toBe(6000);
-    optionBId = optB.id;
+    expect(optB.id).toBeTruthy();
   });
 
   it('Step 3: Quotation is sent to patient (DRAFT -> SENT)', async () => {
@@ -518,7 +518,7 @@ describe('HMS Dental Flow – Phase 8E: End-to-End Quotation & Treatment Regress
     });
 
     expect(scheduleRes.statusCode).toBe(200);
-    const body = resJson(scheduleRes);
+    const body = scheduleRes.json();
     expect(body.data.stage.status).toBe('SCHEDULED');
     expect(body.data.stage.appointment_id).toBeTruthy();
     rctAppointmentId = body.data.stage.appointment_id;
@@ -642,7 +642,7 @@ describe('HMS Dental Flow – Phase 8E: End-to-End Quotation & Treatment Regress
       },
     });
     expect(scheduleRes.statusCode).toBe(200);
-    const body = resJson(scheduleRes);
+    const body = scheduleRes.json();
     expect(body.data.stage.status).toBe('SCHEDULED');
 
     // 2. Start fitting stage

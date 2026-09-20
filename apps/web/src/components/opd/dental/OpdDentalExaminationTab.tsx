@@ -25,7 +25,7 @@ import {
   useUpdateDentalEpisodeStatus,
 } from '../../../hooks/opd/useOpd';
 import { getOpdErrorMessage } from '../../../pages/opd-utils';
-import { getPatientAgeInYears, resolveInitialDentition } from '../../../pages/dental-utils';
+import { getPatientAgeInYears, getToothName, resolveInitialDentition } from '../../../pages/dental-utils';
 import { useCurrencyFormatter } from '../../../api/useSettings';
 import { navigate } from '../../../routing/navigation';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
@@ -200,24 +200,39 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const linkVisitMutation = useLinkVisitToDentalEpisode();
   const updateEpisodeStatusMutation = useUpdateDentalEpisodeStatus();
 
-  const currentEpisode = useMemo(() => {
-    if (!episodes.length) return null;
-    if (dentalExam?.episode_id) {
-      const matched = episodes.find((e) => e.id === dentalExam.episode_id);
-      if (matched) return matched;
-    }
-    const linked = episodes.find((e) => e.visit_ids?.includes(visitId));
-    if (linked) return linked;
+  const activeEpisodeForPatient = useMemo(() => {
     return episodes.find((e) => e.status === 'ACTIVE') ?? null;
-  }, [episodes, dentalExam?.episode_id, visitId]);
+  }, [episodes]);
+
+  const episodeForSelectedTooth = useMemo(() => {
+    if (selectedToothNumber === null || selectedToothNumber === undefined) return null;
+    const active = episodes.find(
+      (e) => e.primary_tooth_number === selectedToothNumber && e.status === 'ACTIVE',
+    );
+    if (active) return active;
+    return episodes.find((e) => e.primary_tooth_number === selectedToothNumber) ?? null;
+  }, [episodes, selectedToothNumber]);
+
+  const displayedEpisode = useMemo(() => {
+    if (selectedToothNumber !== null && selectedToothNumber !== undefined) {
+      return episodeForSelectedTooth;
+    }
+    return null;
+  }, [selectedToothNumber, episodeForSelectedTooth]);
+
+  const currentFinding = useMemo(() => {
+    return selectedToothNumber
+      ? teeth.find((t) => t.tooth_number === selectedToothNumber)
+      : undefined;
+  }, [selectedToothNumber, teeth]);
 
   const isVisitLinkedToEpisode = useMemo(() => {
-    if (!currentEpisode) return false;
+    if (!displayedEpisode) return false;
     return (
-      dentalExam?.episode_id === currentEpisode.id ||
-      currentEpisode.visit_ids?.includes(visitId)
+      dentalExam?.episode_id === displayedEpisode.id ||
+      displayedEpisode.visit_ids?.includes(visitId)
     );
-  }, [currentEpisode, dentalExam?.episode_id, visitId]);
+  }, [displayedEpisode, dentalExam?.episode_id, visitId]);
 
   const currentHistoryFinding = useMemo(() => {
     if (!selectedToothNumber || !toothHistory.length) return null;
@@ -231,7 +246,10 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
 
   const openCreateEpisodeModal = () => {
     setNewEpisodeTooth(selectedToothNumber ? String(selectedToothNumber) : '');
-    setNewEpisodeDiagnosis(consultation?.chief_complaint ?? '');
+    const toothDx = selectedToothNumber ? diagnoses.find((d) => d.tooth_number === selectedToothNumber) : null;
+    const generalDx = diagnoses[0];
+    const initialDxName = toothDx?.name || generalDx?.name || consultation?.chief_complaint || '';
+    setNewEpisodeDiagnosis(initialDxName);
     setNewEpisodeNotes('');
     setCreateEpisodeModalOpen(true);
   };
@@ -258,19 +276,19 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   };
 
   const handleLinkVisit = async () => {
-    if (!currentEpisode) return;
+    if (!displayedEpisode) return;
     try {
-      await linkVisitMutation.mutateAsync({ episodeId: currentEpisode.id, visitId });
+      await linkVisitMutation.mutateAsync({ episodeId: displayedEpisode.id, visitId });
     } catch (err) {
       showToast?.(getOpdErrorMessage(err), 'error');
     }
   };
 
   const handleEpisodeStatusChange = async (newStatus: DentalEpisodeStatus) => {
-    if (!currentEpisode) return;
+    if (!displayedEpisode) return;
     try {
       await updateEpisodeStatusMutation.mutateAsync({
-        episodeId: currentEpisode.id,
+        episodeId: displayedEpisode.id,
         payload: { status: newStatus },
       });
     } catch (err) {
@@ -334,7 +352,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
 
   const buildPayload = (): SaveOpdDentalExaminationPayload => ({
     expected_updated_at: loadedVersion.current,
-    episode_id: currentEpisode?.id ?? dentalExam?.episode_id ?? null,
+    episode_id: displayedEpisode?.id ?? dentalExam?.episode_id ?? null,
     dental_history: {
       chief_complaint: dentalHistory.chief_complaint?.trim() || null,
       pain_scale: dentalHistory.pain_scale ?? null,
@@ -498,10 +516,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
     );
   }
 
-  const currentFinding = selectedToothNumber
-    ? teeth.find((t) => t.tooth_number === selectedToothNumber)
-    : undefined;
-
   return (
     <div className={styles.container}>
       {!canEdit && !isCompleted && (
@@ -511,172 +525,147 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         </div>
       )}
 
-      {/* Dental Treatment Episode Journey Card */}
-      {currentEpisode && isVisitLinkedToEpisode ? (
-        <div className={styles.episodeCard} role="region" aria-label="Dental Treatment Episode">
-          <div className={styles.episodeCardHeader}>
-            <div className={styles.episodeInfoGroup}>
-              <span className={styles.episodeNumberBadge}>
-                <i className="ph ph-folder-notch-open" />
-                Episode #{currentEpisode.episode_number}
-              </span>
-              <span
-                className={
-                  currentEpisode.status === 'ACTIVE'
-                    ? styles.episodeStatusActive
-                    : currentEpisode.status === 'ON_HOLD'
-                    ? styles.episodeStatusOnHold
-                    : currentEpisode.status === 'COMPLETED'
-                    ? styles.episodeStatusCompleted
-                    : styles.episodeStatusCancelled
-                }
-              >
-                <i className="ph ph-circle-fill" style={{ fontSize: '0.5rem' }} />
-                {currentEpisode.status.replace('_', ' ')}
-              </span>
-              {currentEpisode.primary_tooth_number && (
-                <span className={styles.episodeNumberBadge} style={{ background: '#f8fafc', borderColor: '#cbd5e1' }}>
-                  <i className="ph ph-tooth" />
-                  Primary Tooth #{currentEpisode.primary_tooth_number}
-                </span>
-              )}
-            </div>
-
-            {!isReadOnly && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <label style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>Episode Status:</label>
-                <select
-                  className={styles.modalInput}
-                  style={{ padding: '3px 8px', fontSize: '0.78rem' }}
-                  value={currentEpisode.status}
-                  disabled={updateEpisodeStatusMutation.isPending}
-                  onChange={(e) => handleEpisodeStatusChange(e.target.value as DentalEpisodeStatus)}
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="ON_HOLD">ON HOLD</option>
-                  <option value="COMPLETED">COMPLETED</option>
-                  <option value="CANCELLED">CANCELLED</option>
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className={styles.episodeDetailsRow}>
-            {currentEpisode.diagnosis_name && (
-              <div className={styles.episodeDetailItem}>
-                <span className={styles.episodeDetailLabel}>Diagnosis:</span>
-                <span className={styles.episodeDetailVal}>{currentEpisode.diagnosis_name}</span>
-              </div>
-            )}
-            <div className={styles.episodeDetailItem}>
-              <span className={styles.episodeDetailLabel}>Primary Doctor:</span>
-              <span className={styles.episodeDetailVal}>{currentEpisode.primary_doctor_name}</span>
-            </div>
-            <div className={styles.episodeDetailItem}>
-              <span className={styles.episodeDetailLabel}>Linked Visits:</span>
-              <span className={styles.episodeDetailVal}>
-                {currentEpisode.visit_ids?.length ?? 1} visit{(currentEpisode.visit_ids?.length ?? 1) === 1 ? '' : 's'} in journey
-              </span>
-            </div>
-          </div>
-        </div>
-      ) : currentEpisode && !isVisitLinkedToEpisode ? (
-        <div className={styles.episodeNoticeCard} role="region" aria-label="Active Dental Episode Notice">
-          <div className={styles.episodeNoticeContent}>
-            <i className="ph ph-info" style={{ fontSize: '1.4rem', color: '#16a34a' }} />
-            <div>
-              <div style={{ fontWeight: 600, color: '#166534', fontSize: '0.88rem' }}>
-                Active Dental Episode #{currentEpisode.episode_number}
-                {currentEpisode.diagnosis_name ? ` – ${currentEpisode.diagnosis_name}` : ''}
-              </div>
-              <div style={{ fontSize: '0.8rem', color: '#15803d', marginTop: '2px' }}>
-                This patient has an active treatment journey with {currentEpisode.visit_ids?.length ?? 1} prior visit(s).
-                Link this visit to record cumulative progress.
-              </div>
-            </div>
-          </div>
-          {!isReadOnly && (
-            <button
-              type="button"
-              className={styles.btnPrimaryGradient}
-              onClick={handleLinkVisit}
-              disabled={linkVisitMutation.isPending}
-            >
-              <i className="ph ph-link" />
-              {linkVisitMutation.isPending ? 'Linking...' : 'Link This Visit to Episode'}
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className={styles.episodeNoticeEmpty} role="region" aria-label="No Active Dental Episode">
-          <div className={styles.episodeNoticeContent}>
-            <i className="ph ph-tooth" style={{ fontSize: '1.25rem', color: '#94a3b8' }} />
-            <span style={{ fontSize: '0.84rem', color: '#64748b' }}>
-              No active multi-visit treatment episode for this patient. Single-visit consultation mode.
-            </span>
-          </div>
-          {!isReadOnly && (
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-              onClick={openCreateEpisodeModal}
-            >
-              <i className="ph ph-plus-circle" />
-              Start Treatment Episode
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Medical Alerts Top Banner */}
-      <div
-        className={`${styles.medicalAlertBanner} ${medicalAlerts.length > 0 ? styles.medicalAlertBannerAlert : styles.medicalAlertBannerClean}`}
-        role="region"
-        aria-label="Patient Medical Alerts"
-      >
-        <div className={styles.medicalAlertLeft}>
-          <span className={styles.medicalAlertTitle}>
-            <i
-              className={medicalAlerts.length > 0 ? 'ph ph-warning-octagon' : 'ph ph-check-circle'}
-              style={{ fontSize: '1.2rem', color: medicalAlerts.length > 0 ? '#dc2626' : '#16a34a' }}
-            />
-            {medicalAlerts.length > 0 ? 'Medical Alerts & Risk Factors:' : 'Medical Alerts:'}
-          </span>
-          {medicalAlerts.length > 0 ? (
-            <div className={styles.medicalAlertList}>
-              {medicalAlerts.map((alert) => {
-                const isAllergy = /allerg/i.test(alert);
-                return (
-                  <span
-                    key={alert}
-                    className={`${styles.medicalAlertBadge} ${isAllergy ? styles.medicalAlertBadgeAllergy : ''}`}
-                  >
-                    <i className={isAllergy ? 'ph ph-warning-diamond-fill' : 'ph ph-warning'} />
-                    {alert}
+      {/* Dental Treatment Episode Journey Card - strictly selected tooth driven */}
+      {selectedToothNumber !== null ? (
+        displayedEpisode ? (
+          displayedEpisode.status !== 'ACTIVE' || isVisitLinkedToEpisode ? (
+            <div className={styles.episodeCard} role="region" aria-label="Dental Treatment Episode">
+              <div className={styles.episodeCardHeader}>
+                <div className={styles.episodeInfoGroup}>
+                  <span className={styles.episodeNumberBadge}>
+                    <i className="ph ph-folder-notch-open" />
+                    Episode #{displayedEpisode.episode_number}
                   </span>
-                );
-              })}
+                  <span
+                    className={
+                      displayedEpisode.status === 'ACTIVE'
+                        ? styles.episodeStatusActive
+                        : displayedEpisode.status === 'ON_HOLD'
+                        ? styles.episodeStatusOnHold
+                        : displayedEpisode.status === 'COMPLETED'
+                        ? styles.episodeStatusCompleted
+                        : styles.episodeStatusCancelled
+                    }
+                  >
+                    <i className="ph ph-circle-fill" style={{ fontSize: '0.5rem' }} />
+                    {displayedEpisode.status.replace('_', ' ')}
+                  </span>
+                  {displayedEpisode.primary_tooth_number && (
+                    <span className={styles.episodeNumberBadge} style={{ background: '#f8fafc', borderColor: '#cbd5e1' }}>
+                      <i className="ph ph-tooth" />
+                      Primary Tooth #{displayedEpisode.primary_tooth_number}
+                    </span>
+                  )}
+                </div>
+
+                {!isReadOnly && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>Episode Status:</label>
+                    <select
+                      className={styles.modalInput}
+                      style={{ padding: '3px 8px', fontSize: '0.78rem' }}
+                      value={displayedEpisode.status}
+                      disabled={updateEpisodeStatusMutation.isPending}
+                      onChange={(e) => handleEpisodeStatusChange(e.target.value as DentalEpisodeStatus)}
+                    >
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="ON_HOLD">ON HOLD</option>
+                      <option value="COMPLETED">COMPLETED</option>
+                      <option value="CANCELLED">CANCELLED</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.episodeDetailsRow}>
+                {displayedEpisode.diagnosis_name && (
+                  <div className={styles.episodeDetailItem}>
+                    <span className={styles.episodeDetailLabel}>Diagnosis:</span>
+                    <span className={styles.episodeDetailVal}>{displayedEpisode.diagnosis_name}</span>
+                  </div>
+                )}
+                <div className={styles.episodeDetailItem}>
+                  <span className={styles.episodeDetailLabel}>Primary Doctor:</span>
+                  <span className={styles.episodeDetailVal}>{displayedEpisode.primary_doctor_name}</span>
+                </div>
+                <div className={styles.episodeDetailItem}>
+                  <span className={styles.episodeDetailLabel}>Linked Visits:</span>
+                  <span className={styles.episodeDetailVal}>
+                    {displayedEpisode.visit_ids?.length ?? 1} visit{(displayedEpisode.visit_ids?.length ?? 1) === 1 ? '' : 's'} in journey
+                  </span>
+                </div>
+              </div>
             </div>
           ) : (
-            <span style={{ color: '#166534', fontSize: '0.8rem' }}>
-              No active medical alerts, drug allergies, or systemic contraindications recorded.
-            </span>
-          )}
-        </div>
-
-        <button
-          type="button"
-          className={styles.medicalAlertJumpBtn}
-          onClick={() => {
-            void handleSubTabChange('history');
-          }}
-          title="Jump to Dental History & Medical Risk Assessment"
-        >
-          <i className="ph ph-heartbeat" />
-          {medicalAlerts.length > 0 ? 'Review History' : 'Add Medical Alerts'}
-        </button>
-      </div>
+            <div className={styles.episodeNoticeCard} role="region" aria-label="Active Dental Episode Notice">
+              <div className={styles.episodeNoticeContent}>
+                <i className="ph ph-info" style={{ fontSize: '1.4rem', color: '#16a34a' }} />
+                <div>
+                  <div style={{ fontWeight: 600, color: '#166534', fontSize: '0.88rem' }}>
+                    Active Dental Episode #{displayedEpisode.episode_number}
+                    {displayedEpisode.diagnosis_name ? ` – ${displayedEpisode.diagnosis_name}` : ''}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#15803d', marginTop: '2px' }}>
+                    This patient has an active treatment journey on Tooth #{displayedEpisode.primary_tooth_number} with {displayedEpisode.visit_ids?.length ?? 1} prior visit(s).
+                    Link this visit to record cumulative progress.
+                  </div>
+                </div>
+              </div>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  className={styles.btnPrimaryGradient}
+                  onClick={handleLinkVisit}
+                  disabled={linkVisitMutation.isPending}
+                >
+                  <i className="ph ph-link" />
+                  {linkVisitMutation.isPending ? 'Linking...' : 'Link This Visit to Episode'}
+                </button>
+              )}
+            </div>
+          )
+        ) : activeEpisodeForPatient ? (
+          <div className={styles.episodeNoticeEmpty} role="region" aria-label="Active Dental Episode Exists for Patient">
+            <div className={styles.episodeNoticeContent}>
+              <i className="ph ph-warning-circle" style={{ fontSize: '1.25rem', color: '#d97706' }} />
+              <div>
+                <div style={{ fontWeight: 600, color: '#92400e', fontSize: '0.85rem' }}>
+                  An active treatment episode already exists for this patient.
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#b45309', marginTop: '2px' }}>
+                  Active Episode: #{activeEpisodeForPatient.episode_number} &middot; Primary Tooth #{activeEpisodeForPatient.primary_tooth_number ?? 'General'}
+                  {activeEpisodeForPatient.diagnosis_name ? ` (${activeEpisodeForPatient.diagnosis_name})` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.episodeNoticeEmpty} role="region" aria-label={`No Treatment Episode for Tooth #${selectedToothNumber}`}>
+            <div className={styles.episodeNoticeContent}>
+              <i className="ph ph-tooth" style={{ fontSize: '1.25rem', color: '#0284c7' }} />
+              <div>
+                <div style={{ fontWeight: 600, color: '#0369a1', fontSize: '0.85rem' }}>
+                  Tooth #{selectedToothNumber} &middot; {getToothName(selectedToothNumber)}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#0284c7', marginTop: '2px' }}>
+                  No treatment episode has been started for this tooth.
+                </div>
+              </div>
+            </div>
+            {!isReadOnly && (
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                style={{ fontSize: '0.8rem', padding: '5px 12px' }}
+                onClick={openCreateEpisodeModal}
+              >
+                <i className="ph ph-plus-circle" />
+                Start Treatment Episode
+              </button>
+            )}
+          </div>
+        )
+      ) : null}
 
       <div className={styles.subTabBar}>
       <div className={styles.subTabList} role="tablist" aria-label="Dental examination sections">
@@ -743,6 +732,16 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           onRemoveFinding={handleRemoveFinding}
           disabled={controlsDisabled}
           showAffectedSurfaces={true}
+          episodeContext={displayedEpisode ? {
+            episode_number: displayedEpisode.episode_number,
+            primary_tooth_number: displayedEpisode.primary_tooth_number,
+            diagnosis_name: displayedEpisode.diagnosis_name,
+          } : null}
+          toothDiagnoses={selectedToothNumber ? diagnoses.filter((d) => d.tooth_number === selectedToothNumber) : []}
+          visitId={visitId}
+          episodeId={displayedEpisode?.id ?? dentalExam?.episode_id ?? null}
+          canEdit={canEdit && !isReadOnly}
+          consultationCompleted={isCompleted}
           additionalContent={(
             <DentalSoftTissueSection
               softTissue={softTissue}
@@ -769,7 +768,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       </section>
 
       <section className={styles.subTabPanel} aria-labelledby="dental-subtab-imaging" hidden={activeSubTab !== 'imaging'} id="dental-subtab-panel-imaging" role="tabpanel">
-        {renderImaging?.(selectedToothNumber, currentEpisode?.id ?? dentalExam?.episode_id ?? null)}
+        {renderImaging?.(null, displayedEpisode?.id ?? dentalExam?.episode_id ?? null)}
       </section>
       <section className={styles.subTabPanel} aria-labelledby="dental-subtab-laboratory" hidden={activeSubTab !== 'laboratory'} id="dental-subtab-panel-laboratory" role="tabpanel">
         {renderLab?.()}
@@ -843,8 +842,17 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         onCreateInvoice={onCreateInvoice}
         onOpenInvoice={onOpenInvoice}
         patientId={patientId}
-        episodeId={currentEpisode?.id}
-        departmentId={dentalExam?.department_id ?? currentEpisode?.department_id ?? null}
+        episodeId={
+          dentalExam?.episode_id ??
+          activeEpisodeForPatient?.id ??
+          displayedEpisode?.id ??
+          episodes[0]?.id
+        }
+        departmentId={dentalExam?.department_id ?? displayedEpisode?.department_id ?? null}
+        onStartEpisode={openCreateEpisodeModal}
+        patientName={patient ? [patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.patient_number : undefined}
+        episodeNumber={displayedEpisode?.episode_number ?? activeEpisodeForPatient?.episode_number ?? episodes[0]?.episode_number}
+        primaryToothNumber={displayedEpisode?.primary_tooth_number ?? activeEpisodeForPatient?.primary_tooth_number ?? episodes[0]?.primary_tooth_number}
       />
       </section>
 

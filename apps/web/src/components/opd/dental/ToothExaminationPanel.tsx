@@ -12,6 +12,7 @@ import {
   STANDARD_CONDITIONS,
 } from '../../../pages/dental-utils';
 import { ToothSurfaceSelector } from './ToothSurfaceSelector';
+import { ToothImagingPanelSection } from './ToothImagingPanelSection';
 import styles from './DentalExamination.module.css';
 
 interface ToothExaminationPanelProps {
@@ -25,6 +26,21 @@ interface ToothExaminationPanelProps {
   onSave?: () => void;
   isSaving?: boolean;
   additionalContent?: React.ReactNode;
+  episodeContext?: {
+    episode_number: string | number;
+    primary_tooth_number?: number | null;
+    diagnosis_name?: string | null;
+  } | null;
+  toothDiagnoses?: Array<{
+    code: string;
+    name: string;
+    tooth_number?: number | null;
+  }>;
+  visitId?: string;
+  episodeId?: string | null;
+  canEdit?: boolean;
+  consultationCompleted?: boolean;
+  imagingContent?: React.ReactNode;
 }
 
 type ToothAffectedSurfacesProps = Pick<
@@ -45,7 +61,7 @@ export const ToothAffectedSurfaces: React.FC<ToothAffectedSurfacesProps> = ({
     dentition: getDentition(selectedToothNumber),
     status: 'PRESENT',
     surfaces: [],
-    conditions: ['HEALTHY'],
+    conditions: [],
     mobility: 'NONE',
     pocket_depth_mm: null,
     furcation_involvement: null,
@@ -78,8 +94,15 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   disabled = false,
   showAffectedSurfaces = true,
   additionalContent,
+  episodeContext = null,
+  toothDiagnoses = [],
+  visitId,
+  episodeId,
+  canEdit = true,
+  consultationCompleted = false,
+  imagingContent,
 }) => {
-  const [activeDetailTab, setActiveDetailTab] = useState<'surfaces' | 'periodontal'>('surfaces');
+  const [activeDetailTab, setActiveDetailTab] = useState<'surfaces' | 'imaging' | 'periodontal'>('surfaces');
 
   useEffect(() => {
     setActiveDetailTab('surfaces');
@@ -109,7 +132,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
     dentition,
     status: 'PRESENT',
     surfaces: [],
-    conditions: ['HEALTHY'],
+    conditions: [],
     mobility: 'NONE',
     pocket_depth_mm: null,
     furcation_involvement: null,
@@ -125,17 +148,15 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         mobility: null,
         pocket_depth_mm: null,
         furcation_involvement: null,
-        conditions: (finding.conditions ?? []).includes('MISSING') ? ['MISSING'] : [],
+        conditions: ['MISSING'],
       });
     } else if (status === 'PRESENT') {
       const conds = finding.conditions ?? [];
+      const restored = conds.filter((c: string) => c !== 'MISSING');
       onUpdateFinding({
         ...finding,
         status: 'PRESENT',
-        conditions:
-          conds.length === 0 || (conds.length === 1 && conds[0] === 'MISSING')
-            ? ['HEALTHY']
-            : conds.filter((c: string) => c !== 'MISSING'),
+        conditions: restored.length > 0 ? restored : ['HEALTHY'],
         mobility: finding.mobility ?? 'NONE',
       });
     } else {
@@ -154,10 +175,10 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
       });
       return;
     }
-    let newConditions = [...finding.conditions];
+    const currentConditions = currentFinding?.conditions ?? [];
+    let newConditions = [...currentConditions];
     if (newConditions.includes(conditionId)) {
       newConditions = newConditions.filter((c: string) => c !== conditionId);
-      if (newConditions.length === 0) newConditions = ['HEALTHY'];
     } else {
       if (conditionId === 'HEALTHY') {
         newConditions = ['HEALTHY'];
@@ -166,7 +187,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         newConditions.push(conditionId);
       }
     }
-    onUpdateFinding({ ...finding, conditions: newConditions });
+    onUpdateFinding({ ...finding, status: 'PRESENT', conditions: newConditions });
   };
 
   const handleMobilityChange = (mobility: ToothMobility) => {
@@ -199,27 +220,60 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
     .filter((c) => c !== 'HEALTHY')
     .map((c) => STANDARD_CONDITIONS.find((sc) => sc.id === c)?.label ?? c);
 
+  const isEpisodeTargetTooth = Boolean(
+    episodeContext && episodeContext.primary_tooth_number === selectedToothNumber,
+  );
+
   return (
     <div className={styles.panelContainer}>
       <div className={styles.panelHeader}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span className={styles.panelToothBadge}>FDI #{selectedToothNumber}</span>
-            {isAbnormal ? (
-              <span className={styles.panelAbnormalBadge}>
-                <i className="ph ph-warning-circle-fill" />
-                {abnormalConditionLabels[0] ?? (finding.status === 'MISSING' ? 'Missing' : 'Abnormal Finding')}
-              </span>
+            {currentFinding ? (
+              isAbnormal ? (
+                <span className={styles.panelAbnormalBadge}>
+                  <i className="ph ph-warning-circle-fill" />
+                  {abnormalConditionLabels[0] ?? (finding.status === 'MISSING' ? 'Missing' : 'Abnormal Finding')}
+                </span>
+              ) : finding.conditions.includes('HEALTHY') ? (
+                <span className={styles.panelHealthyBadge}>
+                  <i className="ph ph-check-circle" /> Healthy
+                </span>
+              ) : (
+                <span className={styles.panelUnrecordedBadge}>
+                  <i className="ph ph-circle-dashed" /> Not Examined
+                </span>
+              )
             ) : (
-              <span className={styles.panelHealthyBadge}>
-                <i className="ph ph-check-circle" /> Healthy
+              <span className={styles.panelUnrecordedBadge}>
+                <i className="ph ph-circle-dashed" /> Not Examined
+              </span>
+            )}
+            {isEpisodeTargetTooth && (
+              <span
+                className={styles.panelEpisodeToothBadge}
+                title={`Primary tooth for Treatment Episode #${episodeContext?.episode_number}${
+                  episodeContext?.diagnosis_name ? ` (${episodeContext.diagnosis_name})` : ''
+                }`}
+              >
+                <i className="ph ph-folder-notch-open" /> Episode #{episodeContext?.episode_number} Target Tooth
               </span>
             )}
           </div>
           <div className={styles.panelToothName}>{toothName}</div>
+          {toothDiagnoses.length > 0 && (
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+              {toothDiagnoses.map((dx) => (
+                <span key={dx.code} className={styles.panelDiagnosisTag}>
+                  <i className="ph ph-stethoscope" /> {dx.code} — {dx.name}
+                </span>
+              ))}
+            </div>
+          )}
           {finding.notes ? <div className={styles.panelToothNotePreview}>{finding.notes}</div> : null}
         </div>
-        {!disabled && (
+        {!disabled && currentFinding && (
           <button
             type="button"
             className={styles.btnSecondary}
@@ -292,6 +346,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
       <div className={styles.toothDetailTabs} role="tablist" aria-label="Selected tooth details">
         {([
           ['surfaces', 'Surfaces'],
+          ['imaging', 'Imaging'],
           ['periodontal', 'Periodontal'],
         ] as const).map(([value, label]) => (
           <button
@@ -373,8 +428,46 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Immediate Tooth Imaging Subsection inside the selected tooth panel */}
+      {imagingContent ? (
+        imagingContent
+      ) : visitId ? (
+        <ToothImagingPanelSection
+          selectedToothNumber={selectedToothNumber}
+          visitId={visitId}
+          episodeId={episodeId}
+          canEdit={canEdit && !disabled}
+          consultationCompleted={consultationCompleted}
+          disabled={disabled}
+        />
+      ) : null}
+
       {additionalContent}
       </>}
+
+      {/* Subsection: TOOTH-CENTERED IMAGING TAB */}
+      {activeDetailTab === 'imaging' && (
+        <div style={{ marginTop: '8px' }}>
+          {imagingContent ? (
+            imagingContent
+          ) : visitId ? (
+            <ToothImagingPanelSection
+              selectedToothNumber={selectedToothNumber}
+              visitId={visitId}
+              episodeId={episodeId}
+              canEdit={canEdit && !disabled}
+              consultationCompleted={consultationCompleted}
+              disabled={disabled}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px 10px', color: '#94a3b8', fontSize: '0.82rem' }}>
+              <i className="ph ph-camera" style={{ fontSize: '1.8rem', display: 'block', marginBottom: '6px', color: '#cbd5e1' }} />
+              Tooth imaging is available when consultation is active.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Subsection: PERIODONTAL & CLINICAL FINDINGS */}
       {activeDetailTab === 'periodontal' && finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (

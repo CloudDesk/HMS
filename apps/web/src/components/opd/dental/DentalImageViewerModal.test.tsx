@@ -190,7 +190,7 @@ describe('Phase 4B: Dental Image Viewer Component Tests', () => {
 
     const downloadLink = document.querySelector<HTMLAnchorElement>('a[data-testid="toolbar-download-btn"]');
     expect(downloadLink).not.toBeNull();
-    expect(downloadLink?.getAttribute('href')).toBe(
+    expect(downloadLink?.getAttribute('href')).toContain(
       '/api/imaging/orders/order-99/attachments/att-1/download'
     );
     expect(downloadLink?.getAttribute('download')).toBe('iopa_tooth_16.jpg');
@@ -219,7 +219,7 @@ describe('Phase 4B: Dental Image Viewer Component Tests', () => {
 
     const fallbackDownload = document.querySelector<HTMLAnchorElement>('a[data-testid="fallback-download-btn"]');
     expect(fallbackDownload).not.toBeNull();
-    expect(fallbackDownload?.getAttribute('href')).toBe(
+    expect(fallbackDownload?.getAttribute('href')).toContain(
       '/api/imaging/orders/order-99/attachments/att-3/download'
     );
   });
@@ -270,5 +270,82 @@ describe('Phase 4B: Dental Image Viewer Component Tests', () => {
 
     const downloadLink = document.querySelector('a[data-testid="toolbar-download-btn"]');
     expect(downloadLink).toBeNull();
+  });
+
+  it('9. Close button in header and toolbar trigger onClose', async () => {
+    const handleClose = vi.fn();
+    await act(async () => {
+      root.render(
+        <DentalImageViewerModal
+          open={true}
+          onClose={handleClose}
+          attachment={sampleImageAttachment}
+          orderId="order-99"
+        />
+      );
+    });
+    await settle();
+
+    const closeBtn = document.querySelector<HTMLButtonElement>('button[aria-label="Close image viewer"]');
+    expect(closeBtn).not.toBeNull();
+    await act(async () => {
+      closeBtn?.click();
+    });
+    await settle();
+    expect(handleClose).toHaveBeenCalledTimes(1);
+
+    const toolbarCloseBtn = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+      (b) => b.textContent?.trim() === 'Close'
+    );
+    expect(toolbarCloseBtn).not.toBeNull();
+    await act(async () => {
+      toolbarCloseBtn?.click();
+    });
+    await settle();
+    expect(handleClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('10. Clicking the backdrop overlay triggers onClose', async () => {
+    const handleClose = vi.fn();
+    await act(async () => {
+      root.render(
+        <DentalImageViewerModal
+          open={true}
+          onClose={handleClose}
+          attachment={sampleImageAttachment}
+          orderId="order-99"
+        />
+      );
+    });
+    await settle();
+
+    const overlay = document.querySelector<HTMLDivElement>('div[data-testid="dental-image-viewer-overlay"]');
+    expect(overlay).not.toBeNull();
+    await act(async () => {
+      overlay?.click();
+    });
+    await settle();
+    expect(handleClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('11. Pressing Escape key triggers onClose', async () => {
+    const handleClose = vi.fn();
+    await act(async () => {
+      root.render(
+        <DentalImageViewerModal
+          open={true}
+          onClose={handleClose}
+          attachment={sampleImageAttachment}
+          orderId="order-99"
+        />
+      );
+    });
+    await settle();
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await settle();
+    expect(handleClose).toHaveBeenCalledTimes(1);
   });
 });

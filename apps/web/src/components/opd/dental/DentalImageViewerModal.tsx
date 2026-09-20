@@ -1,22 +1,34 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { ImagingAttachment } from '../../../api/imaging';
 import { imagingApi } from '../../../api/imaging';
+import { getAuthenticatedMediaUrl } from '../../../api/client';
 import styles from './DentalImageViewerModal.module.css';
+
+export type ViewerAttachmentItem = {
+  id: string;
+  file_name: string;
+  mime_type?: string | null;
+  file_size_bytes?: number | null;
+  uploaded_at?: string | null;
+  file_url?: string | null;
+};
 
 export type DentalImageViewerModalProps = {
   open: boolean;
   onClose: () => void;
-  attachment: ImagingAttachment | null;
-  attachments?: ImagingAttachment[];
-  orderId: string;
+  attachment: ImagingAttachment | ViewerAttachmentItem | null;
+  attachments?: (ImagingAttachment | ViewerAttachmentItem)[];
+  orderId?: string;
+  directDownloadUrl?: string;
   investigationName?: string;
   toothNumber?: number | null;
   canDownload?: boolean;
-  onSelectAttachment?: (attachment: ImagingAttachment) => void;
+  onSelectAttachment?: (attachment: ImagingAttachment | ViewerAttachmentItem) => void;
 };
 
-const BROWSER_IMAGE_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-const BROWSER_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+const BROWSER_IMAGE_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'];
+const BROWSER_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
 
 export function isBrowserViewableImage(mimeType?: string | null, fileName?: string | null): boolean {
   if (mimeType) {
@@ -46,7 +58,8 @@ export function DentalImageViewerModal({
   onClose,
   attachment,
   attachments = [],
-  orderId,
+  orderId = '',
+  directDownloadUrl,
   investigationName,
   toothNumber,
   canDownload = true,
@@ -61,10 +74,28 @@ export function DentalImageViewerModal({
     }
   }, [open, attachment?.id]);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   if (!open || !attachment) return null;
 
   const isImage = isBrowserViewableImage(attachment.mime_type, attachment.file_name);
-  const downloadUrl = imagingApi.getAttachmentDownloadUrl(orderId, attachment.id);
+  const rawDownloadUrl =
+    directDownloadUrl ||
+    attachment.file_url ||
+    (orderId ? imagingApi.getAttachmentDownloadUrl(orderId, attachment.id) : '');
+  const downloadUrl = getAuthenticatedMediaUrl(rawDownloadUrl);
   const formattedSize = formatBytes(attachment.file_size_bytes);
 
   const handleZoomIn = () => {
@@ -83,51 +114,54 @@ export function DentalImageViewerModal({
     setZoom(1);
   };
 
-  return (
+  return createPortal(
     <div
-      className={styles.viewerModal}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="dental-image-viewer-title"
-      style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 1050,
+      className={styles.modalOverlay}
+      data-testid="dental-image-viewer-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
       }}
     >
-      {/* Header with metadata */}
-      <div className={styles.viewerHeader}>
-        <div className={styles.viewerTitleArea}>
-          <div className={styles.viewerTitleRow}>
-            <span id="dental-image-viewer-title" className={styles.viewerFileName}>
-              {attachment.file_name}
-            </span>
-            {investigationName && (
-              <span className={styles.typeBadge}>{investigationName}</span>
-            )}
-            {toothNumber !== undefined && toothNumber !== null && (
-              <span className={styles.toothBadge}>Tooth #{toothNumber}</span>
-            )}
+      <div
+        className={styles.viewerModal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dental-image-viewer-title"
+      >
+        {/* Header with metadata */}
+        <div className={styles.viewerHeader}>
+          <div className={styles.viewerTitleArea}>
+            <div className={styles.viewerTitleRow}>
+              <span id="dental-image-viewer-title" className={styles.viewerFileName} title={attachment.file_name}>
+                {attachment.file_name}
+              </span>
+              {investigationName && (
+                <span className={styles.typeBadge}>{investigationName}</span>
+              )}
+              {toothNumber !== undefined && toothNumber !== null && (
+                <span className={styles.toothBadge}>Tooth #{toothNumber}</span>
+              )}
+            </div>
+            <div className={styles.viewerMetaRow}>
+              {attachment.mime_type && <span>{attachment.mime_type}</span>}
+              {formattedSize && <span>• {formattedSize}</span>}
+              {attachment.uploaded_at && (
+                <span>• {new Date(attachment.uploaded_at).toLocaleString()}</span>
+              )}
+            </div>
           </div>
-          <div className={styles.viewerMetaRow}>
-            {attachment.mime_type && <span>{attachment.mime_type}</span>}
-            {formattedSize && <span>• {formattedSize}</span>}
-            {attachment.uploaded_at && (
-              <span>• {new Date(attachment.uploaded_at).toLocaleString()}</span>
-            )}
-          </div>
+          <button
+            type="button"
+            className={styles.closeButton}
+            onClick={onClose}
+            aria-label="Close image viewer"
+            title="Close image viewer"
+          >
+            ✕
+          </button>
         </div>
-        <button
-          type="button"
-          className={styles.closeButton}
-          onClick={onClose}
-          aria-label="Close image viewer"
-        >
-          ✕
-        </button>
-      </div>
 
       {/* Multiple attachments switcher */}
       {attachments.length > 1 && (
@@ -255,5 +289,7 @@ export function DentalImageViewerModal({
         </div>
       </div>
     </div>
-  );
+  </div>,
+  document.body
+);
 }

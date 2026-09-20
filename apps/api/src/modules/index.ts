@@ -31,6 +31,7 @@ import { registerNotificationRoutes } from './notifications/index.js';
 import { registerPharmacyDispensingRoutes } from './pharmacy-dispensing/pharmacy-dispensing.routes.js';
 import { registerAdmissionsConfigurationRoutes } from './admissions-configuration/admissions-configuration.routes.js';
 import { registerDentalEpisodeRoutes } from './opd/dental-episode.routes.js';
+import { registerDentalChairsideImageRoutes } from './opd/dental-chairside-image.routes.js';
 import { registerDentalStageRoutes } from './opd/dental-stage.routes.js';
 import { registerDentalLabOrderRoutes } from './opd/dental-lab-order.routes.js';
 import { registerDentalQuotationRoutes } from './opd/dental-quotation.routes.js';
@@ -65,6 +66,7 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerOpdVitalsRoutes(app, services);
   await registerOpdConsultationRoutes(app, services);
   await registerOpdDentalExaminationRoutes(app, services);
+  await registerDentalChairsideImageRoutes(app, services);
   await registerDentalEpisodeRoutes(app, services);
   await registerDentalStageRoutes(app, services);
   await registerDentalLabOrderRoutes(app, services);
