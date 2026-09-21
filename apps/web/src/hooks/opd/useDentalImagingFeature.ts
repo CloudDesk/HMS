@@ -12,6 +12,7 @@ import { getOpdErrorMessage } from '../../pages/opd-utils';
 import { navigate, useAppLocation } from '../../routing/navigation';
 import { useServicesList } from '../services/useServices';
 import { useImagingReport } from '../imaging/useImaging';
+import { useDownloadPatientDocument, usePatientDocuments } from '../patients/usePatients';
 import { useOpdClinicalOrder, useSaveOpdClinicalOrderDraft, useSubmitOpdClinicalOrder } from './useOpd';
 
 const requestSchema = z.object({
@@ -65,6 +66,27 @@ export function useDentalImagingFeature(input: DentalImagingFeatureInput) {
   const reportAvailable = Boolean(order.data && ['REPORT_ENTERED', 'VERIFIED', 'COMPLETED'].includes(order.data.status));
   const targetReportOrderId = activeReportOrderId ?? order.data?.id ?? null;
   const report = useImagingReport(targetReportOrderId, input.active && canView && reportOpen && Boolean(targetReportOrderId));
+  const activeReportOrder = order.data?.id === targetReportOrderId
+    ? order.data
+    : episodeOrdersQuery.data?.find((episodeOrder) => episodeOrder.id === targetReportOrderId);
+  const canViewReportAttachments = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN')) ||
+    hasPermission(user?.permissions ?? [], { module: 'Patients', screen: 'Patient Documents', action: 'View' }, user?.roles ?? []);
+  const reportDocumentsQuery = usePatientDocuments(
+    activeReportOrder?.patient_id ?? null,
+    {
+      document_type: 'CLINICAL',
+      visit_id: activeReportOrder?.visit_id ?? undefined,
+      limit: 100,
+    },
+    input.active && reportOpen && canViewReportAttachments && Boolean(activeReportOrder),
+  );
+  const reportAttachmentMarker = activeReportOrder
+    ? `Imaging order ${activeReportOrder.originating_order_id}`
+    : '';
+  const reportDocuments = (reportDocumentsQuery.data?.data ?? []).filter(
+    (document) => document.description === reportAttachmentMarker,
+  );
+  const downloadReportDocument = useDownloadPatientDocument();
   const form = useForm<RequestValues>({ resolver: zodResolver(requestSchema), defaultValues: { serviceId: '', tooth: '', clinicalNotes: '' } });
   const canAdd = input.canEdit && !input.consultationCompleted && canView && (!order.data || order.data.status !== 'COMPLETED');
 
@@ -140,7 +162,11 @@ export function useDentalImagingFeature(input: DentalImagingFeatureInput) {
   };
   return { canView, canAdd, open, setOpen, form, openRequest, saveRequest, saveError,
     order, catalogue, report, reportAvailable, reportOpen, setReportOpen,
-    activeReportOrderId, openOrderReport,
+    activeReportOrderId, openOrderReport, activeReportOrder,
+    canViewReportAttachments, reportDocuments,
+    reportDocumentsLoading: reportDocumentsQuery.isLoading,
+    reportDocumentsError: reportDocumentsQuery.isError,
+    downloadReportDocument,
     episodeOrders: episodeOrdersQuery.data ?? [], isEpisodeOrdersLoading: episodeOrdersQuery.isLoading,
     refetchEpisodeOrders: () => void episodeOrdersQuery.refetch(),
     searchTerm, page, changeSearch, saving: save.isPending || submit.isPending, submitRequest };

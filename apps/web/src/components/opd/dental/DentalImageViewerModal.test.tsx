@@ -96,6 +96,26 @@ describe('Phase 4B: Dental Image Viewer Component Tests', () => {
     expect(img?.src).toContain('/api/imaging/orders/order-99/attachments/att-1/download');
   });
 
+  it('preserves a downloaded browser blob URL for protected patient-document previews', async () => {
+    const blobUrl = 'blob:http://localhost/protected-study-image';
+    await act(async () => {
+      root.render(
+        <DentalImageViewerModal
+          open={true}
+          onClose={vi.fn()}
+          attachment={samplePngAttachment}
+          directDownloadUrl={blobUrl}
+          investigationName="Dental IOPA X-Ray"
+        />
+      );
+    });
+    await settle();
+
+    const image = document.querySelector<HTMLImageElement>('img[data-testid="dental-viewer-image"]');
+    expect(image?.getAttribute('src')).toBe(blobUrl);
+    expect(document.querySelector<HTMLAnchorElement>('a[data-testid="toolbar-download-btn"]')?.getAttribute('href')).toBe(blobUrl);
+  });
+
   it('3. Zoom controls work (Zoom In and Zoom Out update level and scale)', async () => {
     await act(async () => {
       root.render(

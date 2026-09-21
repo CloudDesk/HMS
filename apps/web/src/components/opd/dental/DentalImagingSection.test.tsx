@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { opdApi, type OpdClinicalOrderResponse, type SaveOpdClinicalOrderPayload } from '../../../api/opd';
 import { servicesApi, type ServiceResponse } from '../../../api/services';
 import { imagingApi } from '../../../api/imaging';
+import { patientsApi } from '../../../api/patients';
 import { DentalImagingSection } from './DentalImagingSection';
 
 const auth = vi.hoisted(() => ({ allowed: true }));
@@ -13,7 +14,10 @@ vi.mock('../../../auth/useAuth', () => ({
     user: {
       roles: [],
       permissions: auth.allowed
-        ? [{ module: 'OPD', screen: 'OPD Clinical Orders', action: 'View' }]
+        ? [
+            { module: 'OPD', screen: 'OPD Clinical Orders', action: 'View' },
+            { module: 'Patients', screen: 'Patient Documents', action: 'View' },
+          ]
         : [],
     },
   }),
@@ -123,6 +127,10 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     vi.spyOn(opdApi, 'getEpisodeImagingOrders').mockResolvedValue([]);
     vi.spyOn(opdApi, 'listDentalChairsideImages').mockResolvedValue([]);
     vi.spyOn(opdApi, 'listEpisodeChairsideImages').mockResolvedValue([]);
+    vi.spyOn(patientsApi, 'documents').mockResolvedValue({
+      data: [],
+      meta: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    });
     vi.spyOn(servicesApi, 'list').mockResolvedValue({
       data: [service],
       meta: { page: 1, limit: 100, total: 1, totalPages: 1 },
@@ -327,6 +335,50 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
       'img[data-testid="dental-viewer-image"]'
     );
     expect(viewerImg?.src).toContain('/api/imaging/orders/order-1/attachments/att-1/download');
+  });
+
+  it('shows study images uploaded by the Imaging department in the OPD report', async () => {
+    persisted = {
+      ...record,
+      status: 'COMPLETED',
+      items: [{
+        id: 'item-1',
+        service_id: serviceId,
+        service_name: 'IOPA X-Ray',
+        investigation_name: 'IOPA X-Ray',
+        category: 'Dental Imaging',
+        tooth_number: 35,
+      }],
+    };
+    vi.mocked(patientsApi.documents).mockResolvedValue({
+      data: [{
+        id: 'document-1', patient_id: 'patient-1', visit_id: 'visit-1', admission_id: null,
+        procedure_id: null, context_type: null, context_id: null, consent_template_id: null,
+        consent_category: null, consent_version: null, document_type: 'CLINICAL',
+        title: 'Imaging attachment: uploaded-iopa.png', file_name: 'uploaded-iopa.png',
+        mime_type: 'image/png', file_size_bytes: 18432, storage_key: 'patients/p1/uploaded-iopa.png',
+        description: 'Imaging order order-1', consent_status: null, signed_at: null,
+        valid_until: null, signed_by_name: null, source: 'HOSPITAL', review_status: 'NOT_REQUIRED',
+        reviewed_by: null, reviewed_by_name: null, reviewed_at: null, review_notes: null,
+        document_date: null, provider_name: null, status: 'ACTIVE', uploaded_by: 'imaging-user',
+        uploaded_by_name: 'Imaging User', uploaded_at: '2026-09-21T10:00:00Z',
+        verified_by: null, verified_at: null, created_at: '2026-09-21T10:00:00Z',
+        updated_at: '2026-09-21T10:00:00Z',
+      }],
+      meta: { page: 1, limit: 100, total: 1, totalPages: 1 },
+    });
+
+    await render();
+    await settle();
+    const viewReportBtn = Array.from(document.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('View Report'));
+    await act(async () => viewReportBtn?.click());
+    await settle();
+
+    expect(patientsApi.documents).toHaveBeenCalledWith('patient-1', expect.objectContaining({ visit_id: 'visit-1' }));
+    expect(document.body.textContent).toContain('Uploaded Study Images & Files (1)');
+    expect(document.body.textContent).toContain('uploaded-iopa.png');
+    expect(document.body.textContent).toContain('18.0 KB');
   });
 
   it('6. Displays other episode imaging orders and allows viewing their results', async () => {

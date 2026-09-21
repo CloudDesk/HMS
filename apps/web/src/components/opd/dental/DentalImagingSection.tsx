@@ -5,6 +5,7 @@ import { getOpdErrorMessage } from '../../../pages/opd-utils';
 import { imagingApi, type ImagingAttachment } from '../../../api/imaging';
 import { getAuthenticatedMediaUrl } from '../../../api/client';
 import { opdApi, type DentalChairsideImage } from '../../../api/opd';
+import type { PatientDocumentResponse } from '../../../api/patients';
 import styles from './DentalClinicalOrders.module.css';
 import { Modal } from '../../ui/Modal';
 import { DentalImageViewerModal, type ViewerAttachmentItem } from './DentalImageViewerModal';
@@ -115,6 +116,61 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
       investigationName,
       toothNumber: toothNum,
     });
+  };
+
+  const handleOpenReportDocument = async (document: PatientDocumentResponse) => {
+    const activeOrder = feature.activeReportOrder;
+    if (!activeOrder) return;
+    const download = await feature.downloadReportDocument.mutateAsync({
+      patientId: activeOrder.patient_id,
+      docId: document.id,
+    });
+    const fileUrl = URL.createObjectURL(download.blob);
+    setActiveViewerItem({
+      attachment: {
+        id: document.id,
+        file_name: document.file_name,
+        mime_type: document.mime_type,
+        file_size_bytes: document.file_size_bytes,
+        uploaded_at: document.uploaded_at,
+        file_url: fileUrl,
+      },
+      attachments: [{
+        id: document.id,
+        file_name: document.file_name,
+        mime_type: document.mime_type,
+        file_size_bytes: document.file_size_bytes,
+        uploaded_at: document.uploaded_at,
+        file_url: fileUrl,
+      }],
+      directDownloadUrl: fileUrl,
+      investigationName: activeOrder.items[0]?.investigation_name || 'Radiology Investigation',
+      toothNumber: activeOrder.dental_context?.tooth_number ?? activeOrder.items[0]?.tooth_number ?? null,
+    });
+  };
+
+  const handleDownloadReportDocument = async (document: PatientDocumentResponse) => {
+    const activeOrder = feature.activeReportOrder;
+    if (!activeOrder) return;
+    const download = await feature.downloadReportDocument.mutateAsync({
+      patientId: activeOrder.patient_id,
+      docId: document.id,
+    });
+    const url = URL.createObjectURL(download.blob);
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = download.fileName ?? document.file_name;
+    window.document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const closeImageViewer = () => {
+    if (activeViewerItem?.directDownloadUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(activeViewerItem.directDownloadUrl);
+    }
+    setActiveViewerItem(null);
   };
 
   const renderChairsideCard = (img: DentalChairsideImage) => (
@@ -402,6 +458,44 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
                   <p>{report.data.recommendations}</p>
                 </>
               )}
+              {feature.reportDocumentsLoading && <p role="status">Loading uploaded study files…</p>}
+              {feature.reportDocumentsError && <p role="alert">Uploaded study files could not be loaded.</p>}
+              {feature.reportDocuments.length > 0 && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <h4>Uploaded Study Images &amp; Files ({feature.reportDocuments.length})</h4>
+                  <ul className={styles.attachmentList}>
+                    {feature.reportDocuments.map((document) => (
+                      <li key={document.id} className={styles.attachmentItem}>
+                        <div className={styles.attachmentInfo}>
+                          <strong>{document.file_name}</strong>
+                          <span className={styles.attachmentMeta}>
+                            {document.mime_type} • {formatFileSize(document.file_size_bytes)} • {new Date(document.uploaded_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className={styles.attachmentActions}>
+                          {document.mime_type.startsWith('image/') && (
+                            <button
+                              type="button"
+                              className={styles.viewImageBtn}
+                              onClick={() => void handleOpenReportDocument(document)}
+                              aria-label={`View uploaded study ${document.file_name}`}
+                            >
+                              View Image
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={styles.downloadBtn}
+                            onClick={() => void handleDownloadReportDocument(document)}
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {report.data.attachments && report.data.attachments.length > 0 && (
                 <div style={{ marginTop: '0.75rem' }}>
                   <h4>Attached Images &amp; Files ({report.data.attachments.length})</h4>
@@ -448,7 +542,7 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
       {/* Shared Image Viewer Modal for both Chairside & Radiology Report Attachments */}
       <DentalImageViewerModal
         open={Boolean(activeViewerItem)}
-        onClose={() => setActiveViewerItem(null)}
+        onClose={closeImageViewer}
         attachment={activeViewerItem?.attachment ?? null}
         attachments={activeViewerItem?.attachments ?? []}
         orderId={activeViewerItem?.orderId ?? ''}
