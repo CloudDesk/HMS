@@ -49,6 +49,7 @@ vi.mock('../components/layout/DashboardLayout', () => ({
 }));
 
 vi.mock('../pages/OpdVisitPage', () => testState.opdPage);
+vi.mock('../pages/LoginPage', () => ({ LoginPage: () => 'Sign-in form' }));
 
 import { AppRouter } from './AppRouter';
 
@@ -99,6 +100,21 @@ describe('M-009 lazy staff routes', () => {
       '/login?redirect=%2Fopd%2Fvisit',
       { replace: true },
     );
+  });
+
+  it.each(['loading', 'unauthenticated'])('shows sign-in at the home URL while %s', async (status) => {
+    testState.pathname = '/';
+    testState.status = status;
+    await act(async () => { root.render(<AppRouter />); });
+    expect(container.textContent).toContain('Sign-in form');
+    expect(container.textContent).not.toContain('Verifying access');
+  });
+
+  it('keeps protected content hidden while restoring a session', async () => {
+    testState.status = 'loading';
+    await act(async () => { root.render(<AppRouter />); });
+    expect(container.textContent).toContain('Verifying access');
+    expect(container.textContent).not.toContain('Lazy OPD workspace');
   });
 
   it.each(['/billing', '/administration', '/administration/users'])(

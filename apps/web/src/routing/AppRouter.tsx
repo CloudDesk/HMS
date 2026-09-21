@@ -91,13 +91,9 @@ export function AppRouter() {
   const { status, user } = useAuth();
   const { pathname } = useAppLocation();
 
-  if (status === 'loading' && pathname !== '/login') {
-    return <LoadingState />;
-  }
-
   // ── Public routes ────────────────────────────────────────────────────────────
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || (pathname === '/' && status !== 'authenticated')) {
     return <Suspense fallback={<LoadingState title="Loading sign in" message="Preparing the secure sign-in page." />}><LoginPage /></Suspense>;
   }
 
@@ -110,6 +106,10 @@ export function AppRouter() {
   }
 
   // ── Protected routes ─────────────────────────────────────────────────────────
+
+  if (status === 'loading') {
+    return <LoadingState />;
+  }
 
   let content = <NotFoundPage />;
   let title = 'Not Found';

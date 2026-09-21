@@ -28,6 +28,7 @@ export const authApi = {
       body: {}, // Send empty object so backend schema validation succeeds
       retryOnUnauthorized: false,
       credentials: 'include',
+      signal: AbortSignal.timeout(10_000),
     });
   },
 
@@ -46,7 +47,7 @@ export const authApi = {
   },
 
   me() {
-    return apiClient.request<AuthUser>('/auth/me');
+    return apiClient.request<AuthUser>('/auth/me', { signal: AbortSignal.timeout(10_000) });
   },
 
   passwordPolicy() {

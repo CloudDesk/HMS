@@ -242,6 +242,7 @@ export const apiClient = {
 
 export const getAuthenticatedMediaUrl = (url?: string | null): string => {
   if (!url) return '';
+  if (url.startsWith('blob:') || url.startsWith('data:')) return url;
   const resolvedUrl = getUrl(url);
   const token = tokenStorage.getAccessToken();
   if (!token) return resolvedUrl;

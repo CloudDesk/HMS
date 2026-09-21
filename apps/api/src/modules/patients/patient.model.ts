@@ -254,6 +254,7 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
 );
 
 patientTimelineEventSchema.index({ patientId: 1, occurredAt: -1 });
+patientTimelineEventSchema.index({ patientId: 1, eventType: 1, occurredAt: -1 });
 
 export const PatientModel = mongoose.model<PatientDocumentFields>('Patient', patientSchema);
 export const PatientDocumentModel = mongoose.model<PatientDocumentMetadataFields>(

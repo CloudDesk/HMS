@@ -116,6 +116,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const completeMutation = useCompleteOpdDentalExamination({ notifyOnError: false, notifyOnSuccess: false });
 
   const isCompleted = dentalExam?.status === 'COMPLETED';
+  const isConsultationCompleted = consultation?.status === 'COMPLETED';
   const isReadOnly = !canEdit || isCompleted;
   const isSaving = saveDraftMutation.isPending || completeMutation.isPending;
   const controlsDisabled = isReadOnly || isSaving;
@@ -535,135 +536,185 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
 
       {/* Dental Examination Secondary Navigation Tabs */}
       <div className={styles.subTabBar}>
-        <div className={styles.subTabList} role="tablist" aria-label="Dental examination sections">
-          {dentalExaminationSubTabs.map((tab) => (
-            <button
-              aria-controls={`dental-subtab-panel-${tab.id}`}
-              aria-selected={activeSubTab === tab.id}
-              className={`${styles.subTabButton} ${activeSubTab === tab.id ? styles.subTabButtonActive : ''}`}
-              id={`dental-subtab-${tab.id}`}
-              key={tab.id}
-              onClick={() => void handleSubTabChange(tab.id)}
-              disabled={isSaving}
-              role="tab"
-              type="button"
-            >
-              <i className={`ph ${tab.icon}`} aria-hidden="true" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div className={styles.subTabStatus} role="status">
-          {/* Compact Episode Info Indicator & Popover */}
-          {episodeForSelectedTooth && (
-            <div className={styles.episodeIndicatorWrapper} ref={episodeIndicatorRef}>
-              <button
-                type="button"
-                className={`${styles.episodeIndicatorBtn} ${
-                  isEpisodePopoverOpen || isEpisodeHovered ? styles.episodeIndicatorBtnActive : ''
-                }`}
-                onClick={() => setIsEpisodePopoverOpen((prev) => !prev)}
-                onMouseEnter={() => setIsEpisodeHovered(true)}
-                onMouseLeave={() => setIsEpisodeHovered(false)}
-                aria-expanded={isEpisodePopoverOpen}
-                aria-haspopup="dialog"
-                aria-label={`Episode Info #${episodeForSelectedTooth.episode_number}`}
-                title={`Episode Info #${episodeForSelectedTooth.episode_number}`}
-              >
-                <i className="ph ph-info" aria-hidden="true" />
-                <span className={styles.episodeIndicatorLabel}>Episode</span>
-              </button>
+  <div
+    className={styles.subTabList}
+    role="tablist"
+    aria-label="Dental examination sections"
+  >
+    {dentalExaminationSubTabs.map((tab) => (
+      <button
+        aria-controls={`dental-subtab-panel-${tab.id}`}
+        aria-selected={activeSubTab === tab.id}
+        className={`${styles.subTabButton} ${
+          activeSubTab === tab.id
+            ? styles.subTabButtonActive
+            : ''
+        }`}
+        id={`dental-subtab-${tab.id}`}
+        key={tab.id}
+        onClick={() => void handleSubTabChange(tab.id)}
+        disabled={isSaving}
+        role="tab"
+        type="button"
+      >
+        <i className={`ph ${tab.icon}`} aria-hidden="true" />
+        {tab.label}
+      </button>
+    ))}
+  </div>
 
-              {(isEpisodePopoverOpen || isEpisodeHovered) && (
-                <div
-                  className={styles.episodePopover}
-                  role="region"
-                  aria-label="Dental Treatment Episode Details"
-                  onMouseEnter={() => setIsEpisodeHovered(true)}
-                  onMouseLeave={() => setIsEpisodeHovered(false)}
-                >
-                  <div className={styles.episodePopoverTitle}>
-                    Episode #{episodeForSelectedTooth.episode_number}
-                  </div>
-                  <div className={styles.episodePopoverRow}>
-                    <span className={styles.episodePopoverKey}>Status:</span>
-                    <span className={styles.episodePopoverVal}>
-                      {episodeForSelectedTooth.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className={styles.episodePopoverRow}>
-                    <span className={styles.episodePopoverKey}>Primary Tooth:</span>
-                    <span className={styles.episodePopoverVal}>
-                      {episodeForSelectedTooth.primary_tooth_number
-                        ? `#${episodeForSelectedTooth.primary_tooth_number}`
-                        : '—'}
-                    </span>
-                  </div>
+  <div className={styles.subTabStatus} role="status">
+    {/* Compact Episode Info Indicator & Popover */}
+    {episodeForSelectedTooth && (
+      <div
+        className={styles.episodeIndicatorWrapper}
+        ref={episodeIndicatorRef}
+      >
+        <button
+          type="button"
+          className={`${styles.episodeIndicatorBtn} ${
+            isEpisodePopoverOpen || isEpisodeHovered
+              ? styles.episodeIndicatorBtnActive
+              : ''
+          }`}
+          onClick={() =>
+            setIsEpisodePopoverOpen((prev) => !prev)
+          }
+          onMouseEnter={() => setIsEpisodeHovered(true)}
+          onMouseLeave={() => setIsEpisodeHovered(false)}
+          aria-expanded={isEpisodePopoverOpen}
+          aria-haspopup="dialog"
+          aria-label={`Episode Info #${episodeForSelectedTooth.episode_number}`}
+          title={`Episode Info #${episodeForSelectedTooth.episode_number}`}
+        >
+          <i className="ph ph-info" aria-hidden="true" />
+          <span className={styles.episodeIndicatorLabel}>
+            Episode
+          </span>
+        </button>
 
-                  {episodeProgress?.isCompleted ? (
-                    <div className={styles.episodePopoverSuccessRow}>
-                      <span className={styles.episodePopoverSuccessText}>
-                        ✓ All treatment completed
-                      </span>
-                    </div>
-                  ) : episodeProgress && episodeProgress.totalStages === 0 ? (
-                    <div className={styles.episodePopoverProgressText}>
-                      Progress: No treatment stages yet
-                    </div>
-                  ) : episodeProgress ? (
-                    <div className={styles.episodePopoverProgressSection}>
-                      <div className={styles.episodePopoverProgressRow}>
-                        <span className={styles.episodePopoverKey}>Progress:</span>
-                        <span className={styles.episodePopoverVal}>
-                          {episodeProgress.completedStages} / {episodeProgress.totalStages} stages
-                        </span>
-                      </div>
-                      {episodeProgress.remainingStages > 0 && (
-                        <div className={styles.episodePopoverRemainingRow}>
-                          <span className={styles.episodePopoverRemainingText}>
-                            {episodeProgress.remainingStages} stage{episodeProgress.remainingStages === 1 ? '' : 's'} remaining
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              )}
+        {(isEpisodePopoverOpen || isEpisodeHovered) && (
+          <div
+            className={styles.episodePopover}
+            role="region"
+            aria-label="Dental Treatment Episode Details"
+            onMouseEnter={() => setIsEpisodeHovered(true)}
+            onMouseLeave={() => setIsEpisodeHovered(false)}
+          >
+            <div className={styles.episodePopoverTitle}>
+              Episode #{episodeForSelectedTooth.episode_number}
             </div>
-          )}
 
-          {isCompleted ? (
-            <span
-              className={styles.statusBadgeCompleted}
-              title="Completed & Locked"
-              aria-label="Completed & Locked"
-            >
-              <i className="ph ph-check-circle-fill" />
-            </span>
-          ) : (
-            <>
-              <span
-                className={styles.statusBadgeDraft}
-                title="Draft In-Progress"
-                aria-label="Draft In-Progress"
-              >
-                <i className="ph ph-pencil-simple-line" />
+            <div className={styles.episodePopoverRow}>
+              <span className={styles.episodePopoverKey}>
+                Status:
               </span>
-              {isDirty && (
-                <span
-                  className={styles.unsavedBadge}
-                  title="Unsaved Changes"
-                  aria-label="Unsaved Changes"
-                >
-                  <i className="ph ph-warning-circle" />
-                </span>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+              <span className={styles.episodePopoverVal}>
+                {episodeForSelectedTooth.status.replace('_', ' ')}
+              </span>
+            </div>
 
-      {/* Panels stay mounted so switching tabs does not discard unsaved section state. */}
+            <div className={styles.episodePopoverRow}>
+              <span className={styles.episodePopoverKey}>
+                Primary Tooth:
+              </span>
+              <span className={styles.episodePopoverVal}>
+                {episodeForSelectedTooth.primary_tooth_number
+                  ? `#${episodeForSelectedTooth.primary_tooth_number}`
+                  : '—'}
+              </span>
+            </div>
+
+            {episodeProgress?.isCompleted ? (
+              <div className={styles.episodePopoverSuccessRow}>
+                <span
+                  className={styles.episodePopoverSuccessText}
+                >
+                  ✓ All treatment completed
+                </span>
+              </div>
+            ) : episodeProgress &&
+              episodeProgress.totalStages === 0 ? (
+              <div className={styles.episodePopoverProgressText}>
+                Progress: No treatment stages yet
+              </div>
+            ) : episodeProgress ? (
+              <div
+                className={styles.episodePopoverProgressSection}
+              >
+                <div
+                  className={styles.episodePopoverProgressRow}
+                >
+                  <span className={styles.episodePopoverKey}>
+                    Progress:
+                  </span>
+                  <span className={styles.episodePopoverVal}>
+                    {episodeProgress.completedStages} /{' '}
+                    {episodeProgress.totalStages} stages
+                  </span>
+                </div>
+
+                {episodeProgress.remainingStages > 0 && (
+                  <div
+                    className={styles.episodePopoverRemainingRow}
+                  >
+                    <span
+                      className={
+                        styles.episodePopoverRemainingText
+                      }
+                    >
+                      {episodeProgress.remainingStages} stage
+                      {episodeProgress.remainingStages === 1
+                        ? ''
+                        : 's'}{' '}
+                      remaining
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    )}
+
+    {!isConsultationCompleted ? (
+      <>
+        {isCompleted ? (
+          <span
+            className={styles.statusBadgeCompleted}
+            title="Completed & Locked"
+            aria-label="Completed & Locked"
+          >
+            <i className="ph ph-check-circle-fill" />
+          </span>
+        ) : (
+          <>
+            <span
+              className={styles.statusBadgeDraft}
+              title="Draft In-Progress"
+              aria-label="Draft In-Progress"
+            >
+              <i className="ph ph-pencil-simple-line" />
+            </span>
+
+            {isDirty && (
+              <span
+                className={styles.unsavedBadge}
+                title="Unsaved Changes"
+                aria-label="Unsaved Changes"
+              >
+                <i className="ph ph-warning-circle" />
+              </span>
+            )}
+          </>
+        )}
+      </>
+    ) : null}
+  </div>
+</div>
+
+{/* Panels stay mounted so switching tabs does not discard unsaved section state. */}
       <section className={`${styles.subTabPanel} ${styles.odontogramPanel}`} aria-labelledby="dental-subtab-odontogram" hidden={activeSubTab !== 'odontogram'} id="dental-subtab-panel-odontogram" role="tabpanel">
       <div className={styles.odontogramLayout}>
         <div className={styles.odontogramMainColumn}>

@@ -160,10 +160,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        // A temporary API/network failure must not destroy a still-valid
-        // session. Retain the loading/restoration state so that focus/reload
-        // can retry.
+        // Leave the HttpOnly cookie intact so a reload can restore the session,
+        // but stop blocking the UI when verification fails or times out.
         setAuthError(getFriendlyAuthMessage(error));
+        setStatus('unauthenticated');
       }
     };
 
@@ -194,6 +194,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [refreshCurrentUser, status]);
 
   const login = useCallback(async (identifier: string, password: string) => {
+    // Settle the bounded startup refresh before signing in. A late refresh
+    // must not overwrite the new account or clear its authenticated state.
+    try {
+      await refreshPromiseRef.current;
+    } catch {
+      // A failed restoration does not prevent an explicit sign-in attempt.
+    }
     setAuthError(null);
     setStatus('loading');
 

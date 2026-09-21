@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { areVitalsOptional } from './opd-vitals-policy.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
@@ -69,7 +70,7 @@ export class OpdConsultationService {
     await this.dentalExaminations.validateAssessment(visit, data.assessment, userId);
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
-    await this.ensureVitalsRecorded(visit.id);
+    if (!await areVitalsOptional(visit)) await this.ensureVitalsRecorded(visit.id);
 
     if (visit.status === 'READY_FOR_CONSULTATION') {
       await this.visitRepository.updateStatus(
@@ -114,7 +115,13 @@ export class OpdConsultationService {
       {
         event_type: 'OPD_CONSULTATION_COMPLETED',
         title: 'OPD consultation completed',
-        description: `${visit.visit_number}: ${data.assessment?.trim() ?? 'Clinical assessment recorded'}.`,
+        description: [
+          visit.visit_number,
+          data.chief_complaint?.trim() ? `Complaint: ${data.chief_complaint.trim()}` : null,
+          data.assessment?.trim() ? `Assessment: ${data.assessment.trim()}` : 'Assessment recorded',
+          data.treatment_plan?.trim() ? `Plan: ${data.treatment_plan.trim()}` : null,
+          `Doctor: ${visit.doctor_name}`,
+        ].filter(Boolean).join(' · '),
       },
       userId,
     );

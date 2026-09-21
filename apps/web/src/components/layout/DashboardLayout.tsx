@@ -83,6 +83,11 @@ export function DashboardLayout({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    document.body.classList.add('dashboard-open');
+    return () => document.body.classList.remove('dashboard-open');
+  }, []);
+
   const toggleCollapsed = () => setCollapsed((current) => !current);
 
   return (

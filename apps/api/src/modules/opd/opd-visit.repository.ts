@@ -302,9 +302,9 @@ export class OpdVisitRepository {
     return toVisit(created.toObject<OpdVisitLean>());
   }
 
-  async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string, branchIds?: string[], session?: ClientSession): Promise<OpdVisit | undefined> {
+  async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string, branchIds?: string[], session?: ClientSession, expectedStatus?: OpdVisit['status']): Promise<OpdVisit | undefined> {
     const visit = await OpdVisitModel.findOneAndUpdate(
-      { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}) },
+      { _id: id, deletedAt: null, ...(expectedStatus ? { status: expectedStatus } : {}), ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}) },
       {
         $set: {
           status: data.status,

@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { areVitalsOptional } from './opd-vitals-policy.js';
 import type { ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { executeTransaction } from '../../shared/database/transaction.js';
@@ -119,7 +120,10 @@ export class OpdVisitService {
     const existing = await this.getById(id, userId);
     const scope = await this.repository.resolveBranchScope(userId, existing.branch_id);
 
-    if (!this.isStatusTransitionAllowed(existing.status, data.status)) {
+    const directDentalConsultation = data.status === 'IN_CONSULTATION'
+      && (existing.status === 'CHECKED_IN' || existing.status === 'WAITING_FOR_VITALS')
+      && await areVitalsOptional(existing);
+    if (!directDentalConsultation && !this.isStatusTransitionAllowed(existing.status, data.status)) {
       throw new AppError('OPD visit status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
     }
 
@@ -134,9 +138,9 @@ export class OpdVisitService {
       }
     }
 
-    const visit = await this.repository.updateStatus(id, data, userId, scope);
+    const visit = await this.repository.updateStatus(id, data, userId, scope, undefined, existing.status);
     if (!visit) {
-      throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+      throw new AppError('OPD visit changed. Refresh the queue and try again.', 409, 'VISIT_STATUS_CONFLICT');
     }
 
     if (existing.status !== visit.status) {

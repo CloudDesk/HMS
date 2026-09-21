@@ -13,6 +13,7 @@ import { useUnreadNotifications } from '../notifications/useNotifications';
 import { useDepartmentsList } from '../departments/useDepartments';
 import { useDoctorsList } from '../doctors/useDoctors';
 import { useBranchesList } from '../branches/useBranches';
+import { isDentalVisit } from '../../pages/dental-utils';
 
 export type QueueStatusFilter = ApiAppointmentStatus | '';
 export type QueuePriorityFilter = ApiAppointmentPriority | '';
@@ -276,6 +277,24 @@ export function useAppointmentQueueFeature() {
     ]);
   };
 
+  const canGoDirectlyToConsultation = (visit: OpdVisitResponse | null) =>
+    canViewConsultation && canEditVisit && isDentalVisit(visit, departments)
+    && (visit?.status === 'CHECKED_IN' || visit?.status === 'WAITING_FOR_VITALS');
+
+  const handleDirectConsultation = async (visit: OpdVisitResponse) => {
+    if (!canGoDirectlyToConsultation(visit) || updating) return;
+    try {
+      await updateVisit.mutateAsync({
+        id: visit.id,
+        payload: { status: 'IN_CONSULTATION', notes: 'Dental consultation started without vitals.' },
+      });
+      toast.success('Dental consultation started.');
+      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
+    } catch {
+      // The domain mutation displays the API error and keeps the patient in the queue.
+    }
+  };
+
   return {
     state: {
       departmentFilter,
@@ -316,6 +335,8 @@ export function useAppointmentQueueFeature() {
       handleNoShow,
       handleComplete,
       handleSaveVitals,
+      canGoDirectlyToConsultation,
+      handleDirectConsultation,
     }
   };
 }

@@ -390,6 +390,27 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(container.textContent).toContain('Severe jaw pain and swelling on right side');
     expect(container.textContent).toContain('Pain started 3 days ago after chewing hard food');
     expect(container.textContent).toContain('Dental-Specific Complaint');
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab
+            visitId="visit-1"
+            canEdit={false}
+            consultation={{
+              ...mockConsultation,
+              status: 'COMPLETED',
+              completed_at: '2026-09-07T11:00:00.000Z',
+            }}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(container.textContent).not.toContain('Consultation Completed · Read Only');
+    expect(container.textContent).not.toContain('Draft In-Progress');
+    expect(container.textContent).not.toContain('You have view-only access to this dental examination record.');
+    expect(container.textContent).not.toContain('No treatment episode has been started for this tooth.');
   });
 
   it('renders service catalogue quick-add procedure chips in treatment plan and auto-fills price', async () => {
@@ -1145,7 +1166,7 @@ describe('OpdDentalExaminationTab Component', () => {
     }
   });
 
-  it('displays clear + Add X-Ray / Scan and + Add Lab Investigation entry points without automatic order creation on tooth selection', async () => {
+  it('hides the duplicate imaging action while retaining laboratory entry and tooth selection flow', async () => {
     api.getDentalExamination.mockResolvedValue(mockExamData);
     queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
     await act(async () => {
@@ -1182,7 +1203,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
     const addImagingBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add X-Ray / Scan'));
     const addLabBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add Lab Investigation'));
-    expect(addImagingBtn).toBeTruthy();
+    expect(addImagingBtn).toBeFalsy();
     expect(addLabBtn).toBeTruthy();
 
     // Select Tooth #38 on odontogram
@@ -1190,7 +1211,7 @@ describe('OpdDentalExaminationTab Component', () => {
     if (!tooth38Btn) throw new Error('Tooth 38 element not found on Odontogram');
     await act(async () => { (tooth38Btn as HTMLElement).click(); });
 
-    // Verify formal imaging orders and action button remain visible and sections remain 1 each
+    // Verify formal imaging history remains visible and sections remain 1 each
     const imagingSection = container.querySelector('section[aria-label="Dental imaging"]');
     expect(imagingSection?.textContent).toContain('Formal Imaging Orders');
     expect(container.querySelectorAll('section[aria-label="Dental imaging"]').length).toBe(1);

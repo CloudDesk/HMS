@@ -96,6 +96,37 @@
   user-select: none;
 }
 
+.opd-consultation-page .opd-read-only-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #047857;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.opd-consultation-page .opd-workspace-tabs-shell {
+  position: relative;
+}
+
+.opd-consultation-page .opd-workspace-tabs-shell .opd-workspace-tabs {
+  padding-right: 12.5rem !important;
+}
+
+.opd-consultation-page .opd-workspace-read-only-status {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  z-index: 1;
+  transform: translateY(calc(-50% - 0.375rem));
+}
+
 .opd-consultation-page .opd-visit-number-badge {
   color: #475569;
   font-weight: 600;

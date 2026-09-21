@@ -96,6 +96,8 @@ export function AppointmentQueuePage() {
       handleNoShow,
       handleComplete,
       handleSaveVitals,
+      canGoDirectlyToConsultation,
+      handleDirectConsultation,
       visitForAppointment,
     }
   } = useAppointmentQueueFeature();
@@ -365,6 +367,18 @@ export function AppointmentQueuePage() {
                             >
                               <i className="ph ph-heartbeat" aria-hidden="true" />
                               Take Vitals
+                            </button>
+                          ) : null}
+                          {linkedVisit && canGoDirectlyToConsultation(linkedVisit) ? (
+                            <button
+                              className="doc-btn compact"
+                              disabled={updating}
+                              onClick={() => void handleDirectConsultation(linkedVisit)}
+                              title="Start dental consultation without recording vitals"
+                              type="button"
+                            >
+                              <i className="ph ph-stethoscope" aria-hidden="true" />
+                              Go to Consultation
                             </button>
                           ) : null}
                           {isStartConsultationAvailable && linkedVisit ? (

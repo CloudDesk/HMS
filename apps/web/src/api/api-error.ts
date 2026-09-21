@@ -24,6 +24,9 @@ export class ApiError extends Error {
 }
 
 export const getFriendlyAuthMessage = (error: unknown) => {
+  if (error instanceof DOMException && error.name === 'TimeoutError') {
+    return 'The authentication service is taking too long to respond. Please try again.';
+  }
   if (error instanceof ApiError) {
     if (error.code === 'INVALID_CREDENTIALS' || error.status === 401) {
       return 'The username or password you entered is not valid.';

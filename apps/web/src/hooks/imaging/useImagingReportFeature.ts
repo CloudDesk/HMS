@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import type { PatientDocumentResponse } from '../../api/patients';
@@ -20,6 +21,11 @@ export function useImagingReportFeature() {
   const { user } = useAuth();
   const location = useAppLocation();
   const id = new URLSearchParams(location.search).get('id') ?? '';
+  const [recentlyUploadedAttachments, setRecentlyUploadedAttachments] = useState<PatientDocumentResponse[]>([]);
+
+  useEffect(() => {
+    setRecentlyUploadedAttachments([]);
+  }, [id]);
 
   const orderQuery = useImagingOrderDetails(id || null);
   const order = orderQuery.data;
@@ -48,9 +54,15 @@ export function useImagingReportFeature() {
     visit_id: order?.visit_id,
     limit: 100,
   }, canViewAttachments && Boolean(order));
-  const attachments = (attachmentsQuery.data?.data ?? []).filter(
+  const persistedAttachments = (attachmentsQuery.data?.data ?? []).filter(
     (document) => document.description === attachmentMarker,
   );
+  const attachments = [...persistedAttachments];
+  for (const uploadedDocument of recentlyUploadedAttachments) {
+    if (!attachments.some((document) => document.id === uploadedDocument.id)) {
+      attachments.push(uploadedDocument);
+    }
+  }
   const uploadAttachment = useUploadPatientDocument();
   const downloadAttachment = useDownloadPatientDocument();
 
@@ -75,8 +87,9 @@ export function useImagingReportFeature() {
 
   const uploadAttachments = async (files: File[]) => {
     if (!order || !canUploadAttachments || files.length === 0) return;
+    const uploadedDocuments: PatientDocumentResponse[] = [];
     for (const file of files) {
-      await uploadAttachment.mutateAsync({
+      const uploadedDocument = await uploadAttachment.mutateAsync({
         id: order.patient_id,
         payload: {
           visit_id: order.visit_id,
@@ -89,7 +102,18 @@ export function useImagingReportFeature() {
           file,
         },
       });
+      uploadedDocuments.push(uploadedDocument);
     }
+    setRecentlyUploadedAttachments((current) => {
+      const merged = [...current];
+      for (const uploadedDocument of uploadedDocuments) {
+        const existingIndex = merged.findIndex((document) => document.id === uploadedDocument.id);
+        if (existingIndex >= 0) merged[existingIndex] = uploadedDocument;
+        else merged.push(uploadedDocument);
+      }
+      return merged;
+    });
+    void attachmentsQuery.refetch();
     toast.success(`${files.length} imaging attachment${files.length === 1 ? '' : 's'} uploaded.`);
   };
 
@@ -124,7 +148,7 @@ export function useImagingReportFeature() {
     canUploadAttachments,
     attachments,
     attachmentsLoading: attachmentsQuery.isLoading,
-    attachmentsError: attachmentsQuery.isError,
+    attachmentsError: attachmentsQuery.isError && attachments.length === 0,
     uploadingAttachments: uploadAttachment.isPending,
     downloadingAttachment: downloadAttachment.isPending,
     actions: {

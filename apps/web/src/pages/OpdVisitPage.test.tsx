@@ -107,7 +107,7 @@ vi.mock('../components/opd/OpdPatientTimelineModal', () => ({
   }) => (
     props.open ? (
       <div data-testid="opd-patient-timeline-modal">
-        <span>Patient Timeline & Encounter History</span>
+        <span>Doctor Clinical Timeline & Care Plan</span>
         <span>{props.patientName}</span>
         <span>{props.patientNumber}</span>
         <button data-testid="timeline-modal-close" onClick={props.onClose} type="button">Close</button>
@@ -402,7 +402,7 @@ describe('OpdVisitPage feature-hook rendering', () => {
 
     const timelineBtn = actionButtons.find((b) => b.textContent?.includes('Timeline'));
     expect(timelineBtn).toBeDefined();
-    expect(timelineBtn?.getAttribute('title')).toBe('Patient Timeline & Encounter History');
+    expect(timelineBtn?.getAttribute('title')).toBe('Doctor Clinical Timeline & Care Plan');
 
     // More menu (⋮) and View Patient Profile are completely REMOVED
     expect(banner?.querySelector('.opd-hdr-more-btn')).toBeNull();
@@ -416,7 +416,7 @@ describe('OpdVisitPage feature-hook rendering', () => {
 
     const timelineModal = container.querySelector('[data-testid="opd-patient-timeline-modal"]');
     expect(timelineModal).not.toBeNull();
-    expect(timelineModal?.textContent).toContain('Patient Timeline & Encounter History');
+    expect(timelineModal?.textContent).toContain('Doctor Clinical Timeline & Care Plan');
     expect(timelineModal?.textContent).toContain('Jane Doe');
   });
 });
