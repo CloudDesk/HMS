@@ -678,28 +678,26 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           </button>
         ))}
       </div>
-      <div className={styles.subTabStatus} role="status">
-        {isCompleted ? (
-          <span className={styles.statusBadgeCompleted}>
-            <i className="ph ph-check-circle-fill" /> Completed &amp; Locked
-          </span>
-        ) : isConsultationCompleted ? (
-          <span className={styles.statusBadgeCompleted}>
-            <i className="ph ph-lock-key" /> Consultation Completed · Read Only
-          </span>
-        ) : (
-          <>
-            <span className={styles.statusBadgeDraft}>
-              <i className="ph ph-pencil-simple-line" /> Draft In-Progress
+      {!isConsultationCompleted ? (
+        <div className={styles.subTabStatus} role="status">
+          {isCompleted ? (
+            <span className={styles.statusBadgeCompleted}>
+              <i className="ph ph-check-circle-fill" /> Completed &amp; Locked
             </span>
-            {isDirty && (
-              <span className={styles.unsavedBadge}>
-                <i className="ph ph-warning-circle" /> Unsaved Changes
+          ) : (
+            <>
+              <span className={styles.statusBadgeDraft}>
+                <i className="ph ph-pencil-simple-line" /> Draft In-Progress
               </span>
-            )}
-          </>
-        )}
-      </div>
+              {isDirty && (
+                <span className={styles.unsavedBadge}>
+                  <i className="ph ph-warning-circle" /> Unsaved Changes
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
       </div>
 
       {/* Panels stay mounted so switching tabs does not discard unsaved section state. */}

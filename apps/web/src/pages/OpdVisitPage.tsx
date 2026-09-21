@@ -1360,50 +1360,37 @@ export function OpdVisitPage() {
           {/* Main Layout: 9 Workspace Tabs on Left, Patient Summary on Right */}
           <div className={`opd-workspace ${summaryPanelOpen ? '' : 'summary-hidden'}`}>
             <main className="opd-clinical-main">
-              {isVisitCompleted ? (
-                <div
-                  className="opd-completed-banner"
-                  style={{
-                    padding: '0.75rem 1.25rem',
-                    marginBottom: '1rem',
-                    backgroundColor: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    borderRadius: '0.5rem',
-                    color: '#166534',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    fontWeight: 500,
-                  }}
-                >
-                  <i className="ph ph-check-circle-fill" aria-hidden="true" style={{ fontSize: '1.25rem', color: '#16a34a' }} />
-                  <span>Consultation Completed &mdash; Details are locked in read-only mode.</span>
-                </div>
-              ) : null}
-
               {/* Workspace Tabs Bar */}
-              <div className="opd-workspace-tabs" role="tablist" aria-label="Consultation tabs">
-                {activeWorkspaceTabs.map((tab) => {
-                  const completed = isTabCompleted(tab.name);
-                  return (
-                    <button
-                      aria-selected={activeTab === tab.name}
-                      className={`opd-workspace-tab ${activeTab === tab.name ? 'active' : ''} ${completed ? 'completed' : ''}`}
-                      key={tab.id}
-                      onClick={() => {
-                        setActiveTab(tab.name);
-                        navigate(`/opd/consultation?id=${visit.id}&tab=${encodeURIComponent(tab.name)}`, { replace: true });
-                      }}
-                      role="tab"
-                      type="button"
-                    >
-                      {tab.label}
-                      {completed ? (
-                        <i className="ph ph-check-circle-fill tab-completed-icon" aria-hidden="true" title="Tab completed" />
-                      ) : null}
-                    </button>
-                  );
-                })}
+              <div className="opd-workspace-tabs-shell">
+                <div className="opd-workspace-tabs" role="tablist" aria-label="Consultation tabs">
+                  {activeWorkspaceTabs.map((tab) => {
+                    const completed = isTabCompleted(tab.name);
+                    return (
+                      <button
+                        aria-selected={activeTab === tab.name}
+                        className={`opd-workspace-tab ${activeTab === tab.name ? 'active' : ''} ${completed ? 'completed' : ''}`}
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveTab(tab.name);
+                          navigate(`/opd/consultation?id=${visit.id}&tab=${encodeURIComponent(tab.name)}`, { replace: true });
+                        }}
+                        role="tab"
+                        type="button"
+                      >
+                        {tab.label}
+                        {completed ? (
+                          <i className="ph ph-check-circle-fill tab-completed-icon" aria-hidden="true" title="Tab completed" />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                {isVisitCompleted ? (
+                  <span className="opd-read-only-status opd-workspace-read-only-status" role="status">
+                    <i className="ph ph-lock-key" aria-hidden="true" />
+                    Completed · Read Only
+                  </span>
+                ) : null}
               </div>
 
               <fieldset
