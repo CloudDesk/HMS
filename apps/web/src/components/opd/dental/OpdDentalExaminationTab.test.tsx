@@ -409,6 +409,8 @@ describe('OpdDentalExaminationTab Component', () => {
 
     expect(container.textContent).toContain('Consultation Completed · Read Only');
     expect(container.textContent).not.toContain('Draft In-Progress');
+    expect(container.textContent).not.toContain('You have view-only access to this dental examination record.');
+    expect(container.textContent).not.toContain('No treatment episode has been started for this tooth.');
   });
 
   it('renders service catalogue quick-add procedure chips in treatment plan and auto-fills price', async () => {

@@ -519,13 +519,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
 
   return (
     <div className={styles.container}>
-      {!canEdit && !isCompleted && (
-        <div className={styles.lockedBanner}>
-          <i className="ph ph-info" style={{ fontSize: '1.25rem' }} />
-          <span>You have view-only access to this dental examination record.</span>
-        </div>
-      )}
-
       {/* Dental Treatment Episode Journey Card - strictly selected tooth driven */}
       {selectedToothNumber !== null ? (
         displayedEpisode ? (
@@ -640,7 +633,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
               </div>
             </div>
           </div>
-        ) : (
+        ) : !isReadOnly ? (
           <div className={styles.episodeNoticeEmpty} role="region" aria-label={`No Treatment Episode for Tooth #${selectedToothNumber}`}>
             <div className={styles.episodeNoticeContent}>
               <i className="ph ph-tooth" style={{ fontSize: '1.25rem', color: '#0284c7' }} />
@@ -653,19 +646,17 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
                 </div>
               </div>
             </div>
-            {!isReadOnly && (
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-                onClick={openCreateEpisodeModal}
-              >
-                <i className="ph ph-plus-circle" />
-                Start Treatment Episode
-              </button>
-            )}
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              style={{ fontSize: '0.8rem', padding: '5px 12px' }}
+              onClick={openCreateEpisodeModal}
+            >
+              <i className="ph ph-plus-circle" />
+              Start Treatment Episode
+            </button>
           </div>
-        )
+        ) : null
       ) : null}
 
       <div className={styles.subTabBar}>
