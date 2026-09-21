@@ -116,7 +116,7 @@ export class OpdReferralService {
       {
         event_type: 'OPD_REFERRAL_SUBMITTED',
         title: 'OPD referral submitted',
-        description: `${data.referral_type} referral to ${doctor?.display_name ?? data.referred_doctor_name?.trim() ?? data.facility?.trim()}.`,
+        description: `${data.referral_type} referral to ${doctor?.display_name ?? data.referred_doctor_name?.trim() ?? data.facility?.trim()} · Specialty: ${data.specialty!.trim()} · Priority: ${data.priority ?? 'ROUTINE'} · Reason: ${data.reason!.trim()} · Referring doctor: ${visit.doctor_name}`,
       },
       userId,
     );

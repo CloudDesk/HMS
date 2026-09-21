@@ -79,20 +79,6 @@ let persisted: OpdClinicalOrderResponse | null;
 let queryClient: QueryClient;
 const draft: SaveOpdClinicalOrderPayload = { priority: 'ROUTINE', items: [] };
 
-const clickTrigger = async (text: string) => {
-  const found = Array.from(document.querySelectorAll('button')).find(
-    (item) => !item.getAttribute('form') && item.textContent?.includes(text)
-  );
-  if (!found) throw new Error(`Missing trigger button ${text}`);
-  await act(async () => found.click());
-};
-
-const clickModalSubmit = async () => {
-  const found = document.querySelector<HTMLButtonElement>('button[form="dental-imaging-form"]');
-  if (!found) throw new Error('Missing modal submit button');
-  await act(async () => found.click());
-};
-
 const render = async (
   selectedTooth: number | null = 35,
   active = true,
@@ -208,77 +194,28 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     vi.restoreAllMocks();
   });
 
-  it('1. Dentist orders tooth imaging with clinical indication and dental episode context', async () => {
+  it('1. Hides duplicate imaging creation actions while retaining imaging history', async () => {
+    persisted = {
+      ...record,
+      items: [{
+        id: 'item-1',
+        service_id: serviceId,
+        service_name: 'IOPA X-Ray',
+        investigation_name: 'IOPA X-Ray',
+        category: 'Dental Imaging',
+        tooth_number: 35,
+      }],
+    };
+
     await render(35, true, true, 'ep-99');
     await settle();
-    await clickTrigger('+ Add X-Ray / Scan');
-    await settle();
 
-    const tooth = document.querySelector<HTMLSelectElement>('select[name="tooth"]');
-    expect(tooth?.value).toBe('35');
-
-    const radio = document.querySelector<HTMLInputElement>(
-      `input[name="serviceId"][value="${serviceId}"]`
-    );
-    if (!radio) throw new Error('Missing service selector');
-    await act(async () => {
-      radio.click();
-    });
-
-    const notesInput = document.querySelector<HTMLInputElement>('input[name="clinicalNotes"]');
-    expect(notesInput).not.toBeNull();
-    if (notesInput) {
-      await act(async () => {
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-          window.HTMLInputElement.prototype,
-          'value'
-        )?.set;
-        nativeInputValueSetter?.call(notesInput, 'Suspected deep pulp involvement');
-        notesInput.dispatchEvent(new Event('input', { bubbles: true }));
-        notesInput.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-
-    await clickModalSubmit();
-    await settle();
-
-    expect(opdApi.saveClinicalOrderDraft).toHaveBeenCalledWith(
-      'visit-1',
-      'IMAGING',
-      expect.objectContaining({
-        clinical_notes: 'Suspected deep pulp involvement',
-        dental_context: expect.objectContaining({
-          treatment_episode_id: 'ep-99',
-          tooth_number: 35,
-        }),
-        items: [expect.objectContaining({ service_id: serviceId, tooth_number: 35 })],
-      })
-    );
-
+    expect(container.textContent).not.toContain('Capture Image');
+    expect(container.textContent).not.toContain('Upload Chairside Image');
+    expect(container.textContent).not.toContain('+ Add X-Ray / Scan');
     expect(container.textContent).toContain('IOPA X-Ray');
     expect(container.textContent).toContain('Tooth #35');
-    expect(container.textContent).toContain('Indication: Suspected deep pulp involvement');
-    expect(container.textContent).toContain('DRAFT');
-  });
-
-  it('2. Allows full-mouth imaging without a tooth selected', async () => {
-    await render(null);
-    await settle();
-    await clickTrigger('+ Add X-Ray / Scan');
-    await settle();
-
-    const radio = document.querySelector<HTMLInputElement>(
-      `input[name="serviceId"][value="${serviceId}"]`
-    );
-    if (!radio) throw new Error('Missing service selector');
-    await act(async () => {
-      radio.click();
-    });
-    await clickModalSubmit();
-    await settle();
-
-    expect(persisted?.items[0]?.tooth_number).toBeNull();
-    expect(container.textContent).toContain('General / Full Mouth');
+    expect(container.textContent).not.toContain('Refresh status');
   });
 
   it('3. Displays actual order status (SUBMITTED / IN_PROGRESS / REPORT_ENTERED)', async () => {
@@ -323,7 +260,7 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
 
     expect(container.textContent).toContain('Report Available');
     const viewReportBtn = Array.from(document.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('View report')
+      b.textContent?.includes('View Report')
     );
     await act(async () => {
       viewReportBtn?.click();
@@ -331,9 +268,20 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     await settle();
 
     expect(imagingApi.getReport).toHaveBeenCalledWith('order-1');
-    expect(container.textContent).toContain('Periapical bone resorption at tooth 35 apex');
-    expect(container.textContent).toContain('iopa_35_preop.jpg');
-    expect(container.textContent).toContain('400.0 KB');
+    expect(document.body.textContent).toContain('Periapical bone resorption at tooth 35 apex');
+    expect(document.body.textContent).toContain('iopa_35_preop.jpg');
+    expect(document.body.textContent).toContain('400.0 KB');
+    expect(document.querySelector('.modal-box')?.textContent).toContain('Imaging Report');
+    expect(document.body.classList.contains('modal-open')).toBe(true);
+    expect(document.body.classList.contains('modal-backdrop')).toBe(false);
+
+    const closeReportBtn = document.querySelector<HTMLButtonElement>('.modal-box .modal-close');
+    expect(closeReportBtn).not.toBeNull();
+    await act(async () => closeReportBtn?.click());
+    await settle();
+    expect(document.querySelector('.modal-overlay')?.classList.contains('open')).toBe(false);
+    expect(document.querySelector('.modal-overlay')?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.body.classList.contains('modal-open')).toBe(false);
   });
 
   it('5. View Image button on attachment opens DentalImageViewerModal', async () => {
@@ -355,7 +303,7 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     await settle();
 
     const viewReportBtn = Array.from(document.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('View report')
+      b.textContent?.includes('View Report')
     );
     await act(async () => {
       viewReportBtn?.click();
@@ -422,7 +370,6 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     await render(35, true, true, 'ep-99');
     await settle();
 
-    expect(container.textContent).toContain('Other Episode Imaging Orders');
     expect(container.textContent).toContain('CBCT 3D Scan');
     expect(container.textContent).toContain('Prior visit CBCT scan');
   });
@@ -440,14 +387,14 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     expect(container.textContent).not.toContain('+ Add X-Ray / Scan');
   });
 
-  it('8. Renders Immediate Chairside Imaging section with Capture & Upload actions', async () => {
+  it('8. Renders Immediate Chairside Imaging history without duplicate creation actions', async () => {
     await render(35, true, true, 'ep-1');
     await settle();
 
     expect(container.textContent).toContain('Immediate Chairside Imaging');
-    expect(container.textContent).toContain('Upload Chairside Image');
-    expect(container.textContent).toContain('Capture Image');
-    expect(container.textContent).toContain('Tooth #35');
+    expect(container.textContent).not.toContain('Upload Chairside Image');
+    expect(container.textContent).not.toContain('Capture Image');
+    expect(container.textContent).not.toContain('+ Add X-Ray / Scan');
     // Radiology orders section remains intact below
     expect(container.textContent).toContain('Formal Radiology Department investigations');
   });

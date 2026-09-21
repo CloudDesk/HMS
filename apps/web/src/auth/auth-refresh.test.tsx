@@ -204,4 +204,33 @@ describe('web auth token refresh and concurrent request handling', () => {
     queryClient.clear();
     container.remove();
   });
+
+  it.each([
+    new TypeError('Failed to fetch'),
+    new DOMException('Request timed out', 'TimeoutError'),
+  ])('exits startup loading after a transient failure: %s', async (error) => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.mocked(fetch).mockRejectedValue(error);
+    const clear = vi.spyOn(tokenStorage, 'clear');
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const queryClient = new QueryClient();
+    function Observer() {
+      const { status, authError } = useAuth();
+      return <span>{status}: {authError}</span>;
+    }
+    try {
+      await act(async () => {
+        root.render(<QueryClientProvider client={queryClient}><AuthProvider><Observer /></AuthProvider></QueryClientProvider>);
+      });
+      expect(container.textContent).toContain('unauthenticated');
+      expect(container.textContent).toContain('Please try again');
+      expect(clear).not.toHaveBeenCalled();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(fetch).mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+    } finally {
+      await act(async () => root.unmount());
+      queryClient.clear();
+    }
+  });
 });

@@ -1109,7 +1109,7 @@ describe('OpdDentalExaminationTab Component', () => {
     }
   });
 
-  it('displays clear + Add X-Ray / Scan and + Add Lab Investigation entry points without automatic order creation on tooth selection', async () => {
+  it('hides the duplicate imaging action while retaining laboratory entry and tooth selection flow', async () => {
     api.getDentalExamination.mockResolvedValue(mockExamData);
     queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), mockExamData);
     await act(async () => {
@@ -1146,7 +1146,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
     const addImagingBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add X-Ray / Scan'));
     const addLabBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add Lab Investigation'));
-    expect(addImagingBtn).toBeTruthy();
+    expect(addImagingBtn).toBeFalsy();
     expect(addLabBtn).toBeTruthy();
 
     // Select Tooth #38 on odontogram
@@ -1154,7 +1154,7 @@ describe('OpdDentalExaminationTab Component', () => {
     if (!tooth38Btn) throw new Error('Tooth 38 element not found on Odontogram');
     await act(async () => { (tooth38Btn as HTMLElement).click(); });
 
-    // Verify formal imaging orders and action button remain visible and sections remain 1 each
+    // Verify formal imaging history remains visible and sections remain 1 each
     const imagingSection = container.querySelector('section[aria-label="Dental imaging"]');
     expect(imagingSection?.textContent).toContain('Formal Imaging Orders');
     expect(container.querySelectorAll('section[aria-label="Dental imaging"]').length).toBe(1);

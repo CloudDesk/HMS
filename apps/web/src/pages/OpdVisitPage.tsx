@@ -1315,7 +1315,7 @@ export function OpdVisitPage() {
                 <i className="ph ph-sidebar-simple" aria-hidden="true" />
                 <span>Summary</span>
               </button>
-              <button className="doc-btn opd-hdr-btn" onClick={() => setTimelineModalOpen(true)} title="Patient Timeline & Encounter History" type="button">
+              <button className="doc-btn opd-hdr-btn" onClick={() => setTimelineModalOpen(true)} title="Doctor Clinical Timeline & Care Plan" type="button">
                 <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
                 <span>Timeline</span>
               </button>

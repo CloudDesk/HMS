@@ -4,6 +4,16 @@ import { formatDateTime } from '../../pages/patient-utils';
 import { MedicalLoader } from '../ui/MedicalLoader';
 import { Modal } from '../ui/Modal';
 
+const doctorClinicalEventTypes = new Set<PatientTimelineEventResponse['event_type']>([
+  'OPD_CONSULTATION_COMPLETED',
+  'OPD_DENTAL_EXAMINATION_COMPLETED',
+  'OPD_PRESCRIPTION_SUBMITTED',
+  'OPD_LAB_ORDER_SUBMITTED',
+  'OPD_IMAGING_ORDER_SUBMITTED',
+  'OPD_FOLLOW_UP_SCHEDULED',
+  'OPD_REFERRAL_SUBMITTED',
+]);
+
 export type OpdPatientTimelineModalProps = {
   open: boolean;
   onClose: () => void;
@@ -21,8 +31,13 @@ const getEventIcon = (eventType: PatientTimelineEventResponse['event_type']) => 
   if (eventType === 'OPD_VISIT_CREATED') return 'ph-calendar-check';
   if (eventType === 'OPD_VISIT_STATUS_UPDATED') return 'ph-activity';
   if (eventType === 'VITALS_RECORDED') return 'ph-heartbeat';
-  if (eventType === 'OPD_CONSULTATION_COMPLETED') return 'ph-check-circle';
-  if (eventType === 'OPD_REFERRAL_BOOKED') return 'ph-arrow-square-out';
+  if (eventType === 'OPD_CONSULTATION_COMPLETED') return 'ph-stethoscope';
+  if (eventType === 'OPD_DENTAL_EXAMINATION_COMPLETED') return 'ph-tooth';
+  if (eventType === 'OPD_PRESCRIPTION_SUBMITTED') return 'ph-prescription';
+  if (eventType === 'OPD_LAB_ORDER_SUBMITTED') return 'ph-test-tube';
+  if (eventType === 'OPD_IMAGING_ORDER_SUBMITTED') return 'ph-x-ray';
+  if (eventType === 'OPD_FOLLOW_UP_SCHEDULED') return 'ph-calendar-plus';
+  if (eventType === 'OPD_REFERRAL_SUBMITTED' || eventType === 'OPD_REFERRAL_BOOKED') return 'ph-arrow-square-out';
   return 'ph-clock-counter-clockwise';
 };
 
@@ -36,6 +51,12 @@ const getEventCategory = (eventType: PatientTimelineEventResponse['event_type'])
   if (eventType === 'OPD_VISIT_STATUS_UPDATED') return 'Visit Status Updated';
   if (eventType === 'VITALS_RECORDED') return 'Vitals Recorded';
   if (eventType === 'OPD_CONSULTATION_COMPLETED') return 'Consultation Completed';
+  if (eventType === 'OPD_DENTAL_EXAMINATION_COMPLETED') return 'Dental Care';
+  if (eventType === 'OPD_PRESCRIPTION_SUBMITTED') return 'Medication Plan';
+  if (eventType === 'OPD_LAB_ORDER_SUBMITTED') return 'Laboratory Plan';
+  if (eventType === 'OPD_IMAGING_ORDER_SUBMITTED') return 'Imaging Plan';
+  if (eventType === 'OPD_FOLLOW_UP_SCHEDULED') return 'Follow-up Plan';
+  if (eventType === 'OPD_REFERRAL_SUBMITTED') return 'Referral Plan';
   if (eventType === 'OPD_REFERRAL_BOOKED') return 'Referral Booked';
   return 'Clinical Event';
 };
@@ -49,11 +70,13 @@ export function OpdPatientTimelineModal({
 }: OpdPatientTimelineModalProps) {
   const { data, isLoading, isError, error, refetch } = usePatientTimeline(
     open && patientId ? patientId : null,
-    { limit: 50 },
+    { clinical_only: true, limit: 100 },
     open && Boolean(patientId),
   );
 
-  const timelineEvents = data?.data ?? [];
+  const timelineEvents = (data?.data ?? []).filter((event) =>
+    doctorClinicalEventTypes.has(event.event_type),
+  );
 
   return (
     <Modal
@@ -61,7 +84,7 @@ export function OpdPatientTimelineModal({
       onClose={onClose}
       open={open}
       size="large"
-      title="Patient Timeline & Encounter History"
+      title="Doctor Clinical Timeline & Care Plan"
     >
       <div className="opd-timeline-modal-body">
         {/* Patient Subheader Context */}
@@ -71,7 +94,7 @@ export function OpdPatientTimelineModal({
             <span className="opd-mrn-chip">{patientNumber}</span>
           </div>
           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            Historical encounters, investigations, and clinical records
+            What doctors completed, ordered, prescribed, referred, or planned
           </span>
         </div>
 
@@ -90,8 +113,8 @@ export function OpdPatientTimelineModal({
         ) : timelineEvents.length === 0 ? (
           <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
             <i className="ph ph-clock-counter-clockwise" style={{ fontSize: '2.25rem', color: '#94a3b8', marginBottom: '0.5rem', display: 'block' }} aria-hidden="true" />
-            <strong style={{ display: 'block', color: '#0f172a', marginBottom: '0.25rem' }}>No Previous Timeline Events</strong>
-            <p style={{ margin: 0, fontSize: '0.85rem' }}>No historical consultations or clinical milestones recorded for this patient yet.</p>
+            <strong style={{ display: 'block', color: '#0f172a', marginBottom: '0.25rem' }}>No Doctor Clinical Events</strong>
+            <p style={{ margin: 0, fontSize: '0.85rem' }}>No completed consultation, treatment, order, referral, or follow-up plan has been recorded yet.</p>
           </div>
         ) : (
           <div className="opd-timeline-events-list">

@@ -82,7 +82,7 @@ export class OpdFollowUpService {
       {
         event_type: 'OPD_FOLLOW_UP_SCHEDULED',
         title: 'OPD follow-up scheduled',
-        description: `${appointment.appointment_number}: follow-up with ${appointment.doctor_name} on ${data.next_visit_date} at ${data.start_time}.`,
+        description: `${appointment.appointment_number} · Follow-up with ${appointment.doctor_name} on ${data.next_visit_date} at ${data.start_time} · Reason: ${data.reason!.trim()}`,
       },
       userId,
     );

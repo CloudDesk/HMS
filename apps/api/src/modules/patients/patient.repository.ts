@@ -27,10 +27,24 @@ import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { OpdVisitModel, type OpdVisitFields } from '../opd/opd-visit.model.js';
+import { OpdConsultationModel, type OpdConsultationFields } from '../opd/opd-consultation.model.js';
+import { OpdPrescriptionModel, type OpdPrescriptionFields } from '../opd/opd-prescription.model.js';
+import { OpdClinicalOrderModel, type OpdClinicalOrderFields } from '../opd/opd-clinical-order.model.js';
+import { OpdDentalExaminationModel, type OpdDentalExaminationFields } from '../opd/opd-dental-examination.model.js';
+import { OpdFollowUpModel, type OpdFollowUpFields } from '../opd/opd-follow-up.model.js';
+import { OpdReferralModel, type OpdReferralFields } from '../opd/opd-referral.model.js';
 
 type PatientLean = PatientDocumentFields & { _id: Types.ObjectId };
 type PatientDocumentLean = PatientDocumentMetadataFields & { _id: Types.ObjectId };
 type PatientTimelineEventLean = PatientTimelineEventFields & { _id: Types.ObjectId };
+type OpdVisitTimelineLean = OpdVisitFields & { _id: Types.ObjectId };
+type OpdConsultationTimelineLean = OpdConsultationFields & { _id: Types.ObjectId };
+type OpdPrescriptionTimelineLean = OpdPrescriptionFields & { _id: Types.ObjectId };
+type OpdClinicalOrderTimelineLean = OpdClinicalOrderFields & { _id: Types.ObjectId };
+type OpdDentalExaminationTimelineLean = OpdDentalExaminationFields & { _id: Types.ObjectId };
+type OpdFollowUpTimelineLean = OpdFollowUpFields & { _id: Types.ObjectId };
+type OpdReferralTimelineLean = OpdReferralFields & { _id: Types.ObjectId };
 
 const nullableString = (value: string | null | undefined) => {
   const trimmed = value?.trim();
@@ -381,6 +395,18 @@ export class PatientRepository {
 
     if (query.event_type) {
       filter.eventType = query.event_type;
+    } else if (query.clinical_only) {
+      filter.eventType = {
+        $in: [
+          'OPD_CONSULTATION_COMPLETED',
+          'OPD_DENTAL_EXAMINATION_COMPLETED',
+          'OPD_PRESCRIPTION_SUBMITTED',
+          'OPD_LAB_ORDER_SUBMITTED',
+          'OPD_IMAGING_ORDER_SUBMITTED',
+          'OPD_FOLLOW_UP_SCHEDULED',
+          'OPD_REFERRAL_SUBMITTED',
+        ],
+      };
     }
 
     if (query.from || query.to) {
@@ -404,6 +430,10 @@ export class PatientRepository {
       PatientTimelineEventModel.countDocuments(filter),
     ]);
 
+    const enrichedDescriptions = query.clinical_only
+      ? await this.buildHistoricalConsultationDescriptions(patientId, events)
+      : new Map<string, string>();
+
     const creatorIds = events.flatMap((event) => (event.createdBy ? [event.createdBy] : []));
     const creators = await UserModel.find({ _id: { $in: creatorIds } })
       .select({ fullName: 1 })
@@ -411,9 +441,14 @@ export class PatientRepository {
     const creatorNames = new Map(creators.map((user) => [user._id.toString(), user.fullName]));
 
     return {
-      data: events.map((event) =>
-        toTimelineEvent(event, event.createdBy ? creatorNames.get(event.createdBy.toString()) ?? null : null),
-      ),
+      data: events.map((event) => {
+        const enriched = enrichedDescriptions.get(event._id.toString());
+        const timelineEvent = enriched ? { ...event, description: enriched } : event;
+        return toTimelineEvent(
+          timelineEvent,
+          event.createdBy ? creatorNames.get(event.createdBy.toString()) ?? null : null,
+        );
+      }),
       meta: {
         total: count,
         page,
@@ -421,6 +456,100 @@ export class PatientRepository {
         totalPages: Math.ceil(count / limit) || 1,
       },
     };
+  }
+
+  private async buildHistoricalConsultationDescriptions(
+    patientId: string,
+    events: PatientTimelineEventLean[],
+  ) {
+    const consultationEvents = events.flatMap((event) => {
+      if (event.eventType !== 'OPD_CONSULTATION_COMPLETED') return [];
+      const visitNumber = event.description?.match(/\bOPD-\d{4}-\d+\b/)?.[0];
+      return visitNumber ? [{ event, visitNumber }] : [];
+    });
+    if (consultationEvents.length === 0) return new Map<string, string>();
+
+    const patientObjectId = new Types.ObjectId(patientId);
+    const visits = await OpdVisitModel.find({
+      patientId: patientObjectId,
+      visitNumber: { $in: consultationEvents.map(({ visitNumber }) => visitNumber) },
+      deletedAt: null,
+    }).lean<OpdVisitTimelineLean[]>();
+    const visitIds = visits.map((visit) => visit._id);
+    if (visitIds.length === 0) return new Map<string, string>();
+
+    const [consultations, prescriptions, orders, dentalExaminations, followUps, referrals] = await Promise.all([
+      OpdConsultationModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdConsultationTimelineLean[]>(),
+      OpdPrescriptionModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdPrescriptionTimelineLean[]>(),
+      OpdClinicalOrderModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdClinicalOrderTimelineLean[]>(),
+      OpdDentalExaminationModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdDentalExaminationTimelineLean[]>(),
+      OpdFollowUpModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdFollowUpTimelineLean[]>(),
+      OpdReferralModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdReferralTimelineLean[]>(),
+    ]);
+
+    const byVisit = <Record extends { visitId?: Types.ObjectId | null }>(records: Record[]) =>
+      new Map<string, Record>(
+        records.flatMap((record) => (record.visitId ? [[record.visitId.toString(), record] as const] : [])),
+      );
+    const consultationByVisit = byVisit(consultations);
+    const prescriptionByVisit = byVisit(prescriptions);
+    const dentalByVisit = byVisit(dentalExaminations);
+    const followUpByVisit = byVisit(followUps);
+    const referralByVisit = byVisit(referrals);
+    const ordersByVisit = new Map<string, OpdClinicalOrderTimelineLean[]>();
+    for (const order of orders) {
+      if (!order.visitId) continue;
+      const key = order.visitId.toString();
+      ordersByVisit.set(key, [...(ordersByVisit.get(key) ?? []), order]);
+    }
+    const visitByNumber = new Map(visits.map((visit) => [visit.visitNumber, visit]));
+    const descriptions = new Map<string, string>();
+
+    for (const { event, visitNumber } of consultationEvents) {
+      const visit = visitByNumber.get(visitNumber);
+      if (!visit) continue;
+      const key = visit._id.toString();
+      const consultation = consultationByVisit.get(key);
+      const prescription = prescriptionByVisit.get(key);
+      const dental = dentalByVisit.get(key);
+      const followUp = followUpByVisit.get(key);
+      const referral = referralByVisit.get(key);
+      const visitOrders = ordersByVisit.get(key) ?? [];
+      const laboratoryNames = visitOrders
+        .filter((order) => order.orderType === 'LABORATORY')
+        .flatMap((order) => order.items.map((item) => item.investigationName));
+      const imagingNames = visitOrders
+        .filter((order) => order.orderType === 'IMAGING')
+        .flatMap((order) => order.items.map((item) => item.investigationName));
+      const details = [
+        visitNumber,
+        consultation?.chiefComplaint ? `Problem: ${consultation.chiefComplaint}` : visit.reason ? `Problem: ${visit.reason}` : null,
+        consultation?.assessment ? `Assessment: ${consultation.assessment}` : null,
+        consultation?.treatmentPlan ? `Treatment: ${consultation.treatmentPlan}` : null,
+        prescription?.items.length
+          ? `Medicines: ${prescription.items.map((item) => `${item.medicineName}${item.strength ? ` ${item.strength}` : ''}`).join(', ')}`
+          : null,
+        laboratoryNames.length ? `Laboratory: ${laboratoryNames.join(', ')}` : null,
+        imagingNames.length ? `Imaging: ${imagingNames.join(', ')}` : null,
+        dental?.teeth.length ? `Dental findings: ${dental.teeth.length} tooth finding${dental.teeth.length === 1 ? '' : 's'}` : null,
+        dental?.treatmentPlanItems.length
+          ? `Dental plan: ${dental.treatmentPlanItems.map((item) => item.procedureName).join(', ')}`
+          : null,
+        referral?.reason ? `Referral: ${referral.reason}` : null,
+        followUp?.reason && followUp.nextVisitDate
+          ? `Follow-up: ${followUp.reason} on ${followUp.nextVisitDate.toISOString().slice(0, 10)}${followUp.startTime ? ` at ${followUp.startTime}` : ''}`
+          : null,
+        `Doctor: ${visit.doctorName}`,
+      ].filter(Boolean).join(' · ');
+      descriptions.set(event._id.toString(), details);
+    }
+    return descriptions;
   }
 
   async listDocuments(patientId: string, query: PatientDocumentListQuery = {}) {

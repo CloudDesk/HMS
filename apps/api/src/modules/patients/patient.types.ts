@@ -219,6 +219,7 @@ export type PatientTimelineEventType =
 
 export type PatientTimelineListQuery = {
   event_type?: PatientTimelineEventType;
+  clinical_only?: boolean;
   from?: string;
   to?: string;
   page?: number;

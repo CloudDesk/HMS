@@ -172,6 +172,12 @@ export type PatientTimelineEventResponse = {
   | 'OPD_VISIT_STATUS_UPDATED'
   | 'VITALS_RECORDED'
   | 'OPD_CONSULTATION_COMPLETED'
+  | 'OPD_DENTAL_EXAMINATION_COMPLETED'
+  | 'OPD_PRESCRIPTION_SUBMITTED'
+  | 'OPD_LAB_ORDER_SUBMITTED'
+  | 'OPD_IMAGING_ORDER_SUBMITTED'
+  | 'OPD_FOLLOW_UP_SCHEDULED'
+  | 'OPD_REFERRAL_SUBMITTED'
   | 'OPD_REFERRAL_BOOKED';
   title: string;
   description: string | null;
@@ -185,6 +191,7 @@ export type PatientTimelineEventType = PatientTimelineEventResponse['event_type'
 
 export type PatientTimelineListParams = Partial<{
   event_type: PatientTimelineEventType;
+  clinical_only: boolean;
   from: string;
   to: string;
   page: number;
@@ -208,7 +215,7 @@ export type PatientHistoryResponse = {
   visits: [];
 };
 
-const toQueryString = (params: Record<string, string | number | undefined>) => {
+const toQueryString = (params: Record<string, string | number | boolean | undefined>) => {
   const searchParams = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {

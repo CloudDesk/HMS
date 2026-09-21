@@ -61,7 +61,7 @@ export function Modal({
 
   useEffect(() => {
     if (open) {
-      document.body.classList.add('modal-backdrop');
+      document.body.classList.add('modal-open');
       const item: ActiveModalItem = {
         id: modalId,
         onClose,
@@ -83,7 +83,7 @@ export function Modal({
           notifyStackDepths();
         }
         if (activeModalStack.length === 0) {
-          document.body.classList.remove('modal-backdrop');
+          document.body.classList.remove('modal-open');
         }
       };
     } else {
@@ -93,7 +93,7 @@ export function Modal({
         notifyStackDepths();
       }
       if (activeModalStack.length === 0) {
-        document.body.classList.remove('modal-backdrop');
+        document.body.classList.remove('modal-open');
       }
     }
   }, [open, onClose, modalId]);

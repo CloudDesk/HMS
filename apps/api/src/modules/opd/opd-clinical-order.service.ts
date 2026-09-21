@@ -88,7 +88,9 @@ export class OpdClinicalOrderService {
       {
         event_type: isLaboratory ? 'OPD_LAB_ORDER_SUBMITTED' : 'OPD_IMAGING_ORDER_SUBMITTED',
         title: isLaboratory ? 'Laboratory order submitted' : 'Imaging order submitted',
-        description: `${sourceLabel} ${visit.visit_number}: ${data.items.length} ${isLaboratory ? 'laboratory' : 'imaging'} investigation${data.items.length === 1 ? '' : 's'} ordered by ${visit.doctor_name}.`,
+        description: `${sourceLabel} ${visit.visit_number} · ${isLaboratory ? 'Tests' : 'Studies'}: ${items.map((item) =>
+          `${item.investigation_name}${item.tooth_number ? ` (Tooth #${item.tooth_number})` : ''}`
+        ).join(', ')} · Priority: ${data.priority} · Doctor: ${visit.doctor_name}`,
       },
       userId,
     );

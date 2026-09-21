@@ -221,7 +221,19 @@ export class OpdDentalExaminationService {
         {
           event_type: 'OPD_DENTAL_EXAMINATION_COMPLETED',
           title: 'Dental examination completed',
-          description: `${visit.visit_number}: Dental examination completed by ${visit.doctor_name}.`,
+          description: [
+            visit.visit_number,
+            examination.dental_history?.chief_complaint?.trim()
+              ? `Complaint: ${examination.dental_history.chief_complaint.trim()}`
+              : null,
+            examination.teeth.length > 0
+              ? `${examination.teeth.length} tooth finding${examination.teeth.length === 1 ? '' : 's'} recorded`
+              : null,
+            examination.treatment_plan_items.length > 0
+              ? `Plan: ${examination.treatment_plan_items.map((item) => item.procedure_name).join(', ')}`
+              : null,
+            `Doctor: ${visit.doctor_name}`,
+          ].filter(Boolean).join(' · '),
         },
         userId,
         session,

@@ -89,6 +89,7 @@ export const listPatientTimelineQuerySchema = {
       type: 'string',
       enum: ['REGISTRATION', 'PROFILE_UPDATED', 'DOCUMENT_ADDED', 'DOCUMENT_DELETED', 'CONSENT_ADDED', 'CONSENT_VERIFIED', 'OPD_REFERRAL_BOOKED'],
     },
+    clinical_only: { type: 'boolean' },
     from: { type: 'string', minLength: 1 },
     to: { type: 'string', minLength: 1 },
     page: { type: 'integer', minimum: 1 },

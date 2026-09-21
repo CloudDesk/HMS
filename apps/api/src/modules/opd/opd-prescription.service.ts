@@ -64,7 +64,9 @@ export class OpdPrescriptionService {
       {
         event_type: 'OPD_PRESCRIPTION_SUBMITTED',
         title: 'OPD prescription submitted',
-        description: `${visit.visit_number}: ${data.items.length} medication${data.items.length === 1 ? '' : 's'} prescribed by ${visit.doctor_name}.`,
+        description: `${visit.visit_number} · Medicines: ${data.items.map((item) =>
+          `${item.medicine_name}${item.strength ? ` ${item.strength}` : ''}`
+        ).join(', ')} · Doctor: ${visit.doctor_name}`,
       },
       userId,
     );
