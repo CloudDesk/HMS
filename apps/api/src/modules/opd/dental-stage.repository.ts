@@ -6,32 +6,42 @@ type DentalTreatmentStageLean = DentalTreatmentStageFields & { _id: Types.Object
 
 const requiredObjectId = (value: string) => new Types.ObjectId(value);
 
-const toDomainStage = (doc: DentalTreatmentStageLean): DentalTreatmentStage => ({
-  id: doc._id.toString(),
-  episode_id: doc.episodeId.toString(),
-  plan_item_id: doc.planItemId,
-  tooth_number: doc.toothNumber ?? null,
-  service_id: doc.serviceId ? doc.serviceId.toString() : null,
-  stage_name: doc.stageName,
-  sequence: doc.sequence,
-  assigned_doctor_id: doc.assignedDoctorId.toString(),
-  assigned_doctor_name: doc.assignedDoctorName,
-  status: doc.status,
-  planned_date: doc.plannedDate ?? null,
-  completed_at: doc.completedAt ?? null,
-  completed_by_doctor_id: doc.completedByDoctorId ? doc.completedByDoctorId.toString() : null,
-  completed_by_doctor_name: doc.completedByDoctorName ?? null,
-  appointment_id: doc.appointmentId ? doc.appointmentId.toString() : null,
-  prosthetic_lab_order_id: doc.prostheticLabOrderId ? doc.prostheticLabOrderId.toString() : null,
-  notes: doc.notes ?? null,
-  branch_id: doc.branchId.toString(),
-  department_id: doc.departmentId.toString(),
-  patient_id: doc.patientId.toString(),
-  created_by: doc.createdBy?.toString() ?? null,
-  updated_by: doc.updatedBy?.toString() ?? null,
-  created_at: doc.createdAt,
-  updated_at: doc.updatedAt,
-});
+const toDomainStage = (doc: DentalTreatmentStageLean): DentalTreatmentStage => {
+  let status = doc.status;
+  if (status === 'IN_PROGRESS' && !doc.appointmentId) {
+    status = 'PLANNED';
+    void DentalTreatmentStageModel.updateOne(
+      { _id: doc._id, status: 'IN_PROGRESS', appointmentId: null },
+      { $set: { status: 'PLANNED' } },
+    ).exec().catch(() => {});
+  }
+  return {
+    id: doc._id.toString(),
+    episode_id: doc.episodeId.toString(),
+    plan_item_id: doc.planItemId,
+    tooth_number: doc.toothNumber ?? null,
+    service_id: doc.serviceId ? doc.serviceId.toString() : null,
+    stage_name: doc.stageName,
+    sequence: doc.sequence,
+    assigned_doctor_id: doc.assignedDoctorId.toString(),
+    assigned_doctor_name: doc.assignedDoctorName,
+    status,
+    planned_date: doc.plannedDate ?? null,
+    completed_at: doc.completedAt ?? null,
+    completed_by_doctor_id: doc.completedByDoctorId ? doc.completedByDoctorId.toString() : null,
+    completed_by_doctor_name: doc.completedByDoctorName ?? null,
+    appointment_id: doc.appointmentId ? doc.appointmentId.toString() : null,
+    prosthetic_lab_order_id: doc.prostheticLabOrderId ? doc.prostheticLabOrderId.toString() : null,
+    notes: doc.notes ?? null,
+    branch_id: doc.branchId.toString(),
+    department_id: doc.departmentId.toString(),
+    patient_id: doc.patientId.toString(),
+    created_by: doc.createdBy?.toString() ?? null,
+    updated_by: doc.updatedBy?.toString() ?? null,
+    created_at: doc.createdAt,
+    updated_at: doc.updatedAt,
+  };
+};
 
 export class DentalStageRepository {
   async create(
@@ -112,8 +122,7 @@ export class DentalStageRepository {
     if (!Types.ObjectId.isValid(episodeId)) return 0;
     const doc = await DentalTreatmentStageModel.findOne({
       episodeId: requiredObjectId(episodeId),
-      planItemId,
-      deletedAt: null,
+      planItemId: planItemId.trim(),
     })
       .sort({ sequence: -1 })
       .session(session ?? null)

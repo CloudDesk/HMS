@@ -161,7 +161,7 @@ describe('OpdDentalExaminationTab Component', () => {
     });
 
     expect(container.textContent).toContain('Odontogram');
-    expect(container.textContent).toContain('Draft In-Progress');
+    expect(container.querySelector('[aria-label="Draft In-Progress"]')).toBeTruthy();
     expect(container.textContent).toContain('Dental History & Medical Risk Assessment');
     expect(container.textContent).toContain('Hypertension');
   });
@@ -450,7 +450,15 @@ describe('OpdDentalExaminationTab Component', () => {
       );
     });
 
-    expect(container.textContent).toContain('Quick-Add from Service Catalogue');
+    // Click + Add Treatment to reveal the form and quick-select chips
+    const addBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('+ Add Treatment'),
+    );
+    await act(async () => {
+      addBtn?.click();
+    });
+
+    expect(container.textContent).toContain('Quick-Select from Service Catalogue');
     expect(container.textContent).toContain('Root Canal Treatment (RCT)');
 
     const chipButton = Array.from(container.querySelectorAll('button')).find((b) =>
@@ -479,11 +487,14 @@ describe('OpdDentalExaminationTab Component', () => {
         onOpenDiagnosis={openDiagnosis} onSaveDiagnosis={saveDiagnosis} /></QueryClientProvider>);
     });
     const relationship = container.querySelector('[aria-label="Dental clinical relationship"]');
-    expect(relationship?.textContent).toContain('Tooth #16');
-    expect(relationship?.textContent).toContain('CARIOUS');
+    expect(relationship?.textContent).toContain('#16');
+    expect(relationship?.textContent).toMatch(/carious/i);
     expect(relationship?.textContent).toContain('K02.9');
     expect(relationship?.textContent).toContain('Composite Restoration');
     expect(relationship?.textContent).toContain('General / Full Mouth: K05.1');
+    await act(async () => {
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Odontogram'))?.click();
+    });
     await act(async () => { container.querySelector<HTMLElement>('[aria-label="Tooth 16: Maxillary Right First Molar"]')?.click(); });
     await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Add diagnosis for Tooth #16'))?.click(); });
     expect(openDiagnosis).toHaveBeenCalledWith(16);
@@ -781,9 +792,17 @@ describe('OpdDentalExaminationTab Component', () => {
     });
 
     // Check existing item is rendered
-    expect(container.textContent).toContain('Proposed Dental Treatment Plan & Procedures');
+    expect(container.textContent).toContain('Dental Treatment Plan');
     expect(container.textContent).toContain('Composite Restoration');
     expect(container.textContent).toContain('#16');
+
+    // Open the Add Procedure form
+    const addTreatmentBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('+ Add Treatment'),
+    );
+    await act(async () => {
+      addTreatmentBtn?.click();
+    });
 
     // Fill the Add Procedure form
     const procedureInput = container.querySelector('input[placeholder*="Composite Restoration"]') as HTMLInputElement;
@@ -873,10 +892,22 @@ describe('OpdDentalExaminationTab Component', () => {
 
     // Item should now be removed from table
     expect(container.textContent).not.toContain('Composite Restoration');
-    expect(container.textContent).toContain('No planned dental procedures recorded');
+    expect(container.textContent).toContain('No dental treatment procedures planned yet.');
   });
 
   it('shows an explicit billing action only when the existing Billing permission is available', async () => {
+    const acceptedExam = {
+      ...mockExamData,
+      treatment_plan_items: [
+        {
+          ...mockExamData.treatment_plan_items[0]!,
+          status: 'ACCEPTED' as const,
+        },
+      ],
+    };
+    api.getDentalExamination.mockResolvedValue(acceptedExam);
+    queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), acceptedExam);
+
     const onCreateInvoice = vi.fn(async () => undefined);
     await act(async () => {
       root.render(
@@ -915,7 +946,8 @@ describe('OpdDentalExaminationTab Component', () => {
       );
     });
 
-    const row = container.querySelector('tbody tr');
+    const rows = container.querySelectorAll('tbody tr');
+    const row = rows[rows.length - 1];
     expect(row?.textContent).toContain('#16');
     expect(row?.textContent).toContain('Composite Restoration');
     expect(row?.textContent).toContain('900.00');
@@ -933,7 +965,6 @@ describe('OpdDentalExaminationTab Component', () => {
         </QueryClientProvider>,
       );
     });
-    expect(container.textContent).toContain('Not billed');
     expect(container.textContent).not.toContain('Create Invoice');
   });
 
@@ -968,7 +999,6 @@ describe('OpdDentalExaminationTab Component', () => {
 
     expect(container.textContent).toContain('Paid');
     expect(container.textContent).toContain('INV-DENT-001');
-    expect(container.textContent).toContain('Invoice linked');
     expect(container.textContent).not.toContain('Create Invoice');
     expect(container.querySelector('button[title="Remove procedure"]')).toBeNull();
     const invoiceButton = Array.from(container.querySelectorAll('button')).find(
@@ -984,6 +1014,12 @@ describe('OpdDentalExaminationTab Component', () => {
       ...mockExamData,
       status: 'COMPLETED' as const,
       completed_at: '2026-09-08T10:00:00.000Z',
+      treatment_plan_items: [
+        {
+          ...mockExamData.treatment_plan_items[0]!,
+          status: 'ACCEPTED' as const,
+        },
+      ],
     };
     api.getDentalExamination.mockResolvedValue(completedExam);
     queryClient.setQueryData(opdKeys.dentalExamination('visit-1'), completedExam);

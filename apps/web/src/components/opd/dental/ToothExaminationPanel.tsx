@@ -36,6 +36,7 @@ interface ToothExaminationPanelProps {
     name: string;
     tooth_number?: number | null;
   }>;
+  onOpenDiagnosis?: (tooth: number) => void;
   visitId?: string;
   episodeId?: string | null;
   canEdit?: boolean;
@@ -96,6 +97,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   additionalContent,
   episodeContext = null,
   toothDiagnoses = [],
+  onOpenDiagnosis,
   visitId,
   episodeId,
   canEdit = true,
@@ -178,12 +180,12 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
     const currentConditions = currentFinding?.conditions ?? [];
     let newConditions = [...currentConditions];
     if (newConditions.includes(conditionId)) {
-      newConditions = newConditions.filter((c: string) => c !== conditionId);
+      newConditions = newConditions.filter((c) => c !== conditionId);
     } else {
       if (conditionId === 'HEALTHY') {
         newConditions = ['HEALTHY'];
       } else {
-        newConditions = newConditions.filter((c: string) => c !== 'HEALTHY');
+        newConditions = newConditions.filter((c) => c !== 'HEALTHY');
         newConditions.push(conditionId);
       }
     }
@@ -262,15 +264,38 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
             )}
           </div>
           <div className={styles.panelToothName}>{toothName}</div>
-          {toothDiagnoses.length > 0 && (
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+          {toothDiagnoses.length > 0 ? (
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px', alignItems: 'center' }}>
               {toothDiagnoses.map((dx) => (
                 <span key={dx.code} className={styles.panelDiagnosisTag}>
                   <i className="ph ph-stethoscope" /> {dx.code} — {dx.name}
                 </span>
               ))}
+              {!disabled && onOpenDiagnosis && (
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  style={{ padding: '2px 6px', fontSize: '0.7rem', height: 'auto' }}
+                  onClick={() => onOpenDiagnosis(selectedToothNumber)}
+                  title="Add or edit diagnosis for this tooth"
+                >
+                  <i className="ph ph-plus" /> Diagnosis
+                </button>
+              )}
             </div>
-          )}
+          ) : !disabled && onOpenDiagnosis ? (
+            <div style={{ marginTop: '4px' }}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                style={{ padding: '2px 8px', fontSize: '0.72rem', height: 'auto' }}
+                onClick={() => onOpenDiagnosis(selectedToothNumber)}
+                title="Add diagnosis for this tooth"
+              >
+                <i className="ph ph-plus" /> Add Diagnosis
+              </button>
+            </div>
+          ) : null}
           {finding.notes ? <div className={styles.panelToothNotePreview}>{finding.notes}</div> : null}
         </div>
         {!disabled && currentFinding && (

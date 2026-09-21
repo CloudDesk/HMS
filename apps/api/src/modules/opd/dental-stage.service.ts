@@ -13,6 +13,8 @@ import type { DoctorRepository } from '../doctors/doctor.repository.js';
 import type { SettingsRepository } from '../settings/settings.repository.js';
 import type { DentalLabOrderRepository } from './dental-lab-order.repository.js';
 import type { DentalProstheticLabOrder } from './dental-lab-order.types.js';
+import { OpdDentalExaminationModel } from './opd-dental-examination.model.js';
+import { evaluateProcedurePrerequisites } from './dental-procedure-dependency.js';
 import type {
   AssignDoctorStageDTO,
   CreateDentalStageDTO,
@@ -27,13 +29,58 @@ const isObjectId = (value: string | null | undefined) =>
   Boolean(value && Types.ObjectId.isValid(value));
 
 const VALID_TRANSITIONS: Record<DentalStageStatus, DentalStageStatus[]> = {
-  PLANNED: ['SCHEDULED', 'IN_PROGRESS', 'ON_HOLD', 'CANCELLED'],
+  PLANNED: ['SCHEDULED', 'ON_HOLD', 'CANCELLED'],
   SCHEDULED: ['IN_PROGRESS', 'PLANNED', 'ON_HOLD', 'CANCELLED'],
   IN_PROGRESS: ['COMPLETED', 'ON_HOLD', 'CANCELLED'],
   ON_HOLD: ['PLANNED', 'SCHEDULED', 'IN_PROGRESS', 'CANCELLED'],
   COMPLETED: [], // terminal
   CANCELLED: [], // terminal
 };
+
+export function isStageCompatibleWithProcedure(procedureName: string, stageName: string): boolean {
+  const p = procedureName.toLowerCase();
+  const s = stageName.toLowerCase();
+
+  const isExtractionProc = /extraction|exodontia|disimpaction|socket\b/i.test(p);
+  const isEndoProc = /root canal|rct|pulpectomy|pulpotomy|endodont/i.test(p);
+  const isProstheticProc = /crown|bridge|veneer|inlay|onlay|denture|prosthes/i.test(p);
+  const isRestorativeProc = /restoration|filling|composite|gic|amalgam|glass ionomer|cavity/i.test(p);
+  const isScalingProc = /scaling|prophylaxis|root planing|curettage|periodont/i.test(p);
+
+  const isExtractionStage = /extraction|exodontia|disimpaction|socket debridement/i.test(s);
+  const isEndoStage = /root canal|rct|pulpectomy|pulpotomy|canal instrumentation|canal shaping|canal obturation|working length/i.test(s);
+  const isProstheticStage = /crown measurement|crown impression|crown fitting|crown cementation|prosthetic lab|framework try-in|veneer impression/i.test(s);
+  const isRestorativeStage = /cavity preparation|caries excavation|composite.*restoration|gic.*restoration/i.test(s);
+  const isScalingStage = /ultrasonic scaling|subgingival curettage|root planing/i.test(s);
+
+  if (isExtractionProc && (isEndoStage || isProstheticStage || isRestorativeStage || isScalingStage)) {
+    return false;
+  }
+  if (isEndoProc && (isExtractionStage || isProstheticStage || isScalingStage)) {
+    return false;
+  }
+  if (isProstheticProc && (isExtractionStage || isEndoStage || isScalingStage)) {
+    return false;
+  }
+  if (isRestorativeProc && (isExtractionStage || isEndoStage || isProstheticStage)) {
+    return false;
+  }
+  if (isScalingProc && (isExtractionStage || isEndoStage || isProstheticStage || isRestorativeStage)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function validateClinicalCompatibility(procedureName: string, stageName: string): void {
+  if (!isStageCompatibleWithProcedure(procedureName, stageName)) {
+    throw new AppError(
+      `Clinically incompatible stage: Cannot add stage "${stageName}" to procedure "${procedureName}". A treatment stage must be a valid clinical step of its parent procedure.`,
+      400,
+      'CLINICAL_MISMATCH',
+    );
+  }
+}
 
 export class DentalStageService {
   constructor(
@@ -87,22 +134,62 @@ export class DentalStageService {
 
     const doctorName = doctor.displayName || `${doctor.firstName} ${doctor.lastName}`.trim();
 
-    // Sequence assignment
-    let sequence = data.sequence;
-    if (!sequence || sequence < 1) {
-      const maxSeq = await this.repository.getMaxSequence(episodeId, data.plan_item_id);
-      sequence = maxSeq + 1;
-    } else {
-      // If sequence was explicitly given, check for existing stage with same sequence
-      const existing = await this.repository.listByPlanItem(episodeId, data.plan_item_id);
-      if (existing.some((s) => s.sequence === sequence)) {
-        throw new AppError(
-          `A stage with sequence ${sequence} already exists for this treatment item`,
-          409,
-          'STAGE_SEQUENCE_CONFLICT',
-        );
+    // Clinical Consistency Check
+    let procedureName: string | null = null;
+    try {
+      if (isObjectId(data.plan_item_id)) {
+        const planItemIdObj = new Types.ObjectId(data.plan_item_id);
+        const exam = await OpdDentalExaminationModel.findOne({
+          'treatmentPlanItems._id': planItemIdObj,
+        }).lean();
+        if (exam?.treatmentPlanItems) {
+          const matchedItem = exam.treatmentPlanItems.find(
+            (it) => it._id?.toString() === data.plan_item_id,
+          );
+          if (matchedItem) {
+            if (matchedItem.status === 'PROPOSED') {
+              throw new AppError(
+                'Treatment stages can only be created for accepted active treatment procedures. Please accept the treatment quotation or confirm the procedure first.',
+                400,
+                'TREATMENT_NOT_ACCEPTED',
+              );
+            }
+            if (matchedItem.status === 'DECLINED' || matchedItem.status === 'CANCELLED') {
+              throw new AppError(
+                `Cannot add treatment stages to a ${matchedItem.status.toLowerCase()} treatment plan procedure`,
+                400,
+                'INVALID_PROCEDURE_STATUS',
+              );
+            }
+            if (matchedItem.procedureName) {
+              procedureName = matchedItem.procedureName;
+            }
+          }
+        }
       }
+      if (!procedureName && episode) {
+        if (episode.diagnosis_name) {
+          procedureName = episode.diagnosis_name;
+        } else if (episode.treatment_plan_summary) {
+          procedureName = episode.treatment_plan_summary;
+        }
+      }
+    } catch (err) {
+      if (err instanceof AppError) {
+        throw err;
+      }
+      // Fallback: proceed without lookup error
     }
+
+    if (procedureName) {
+      validateClinicalCompatibility(procedureName, data.stage_name);
+    }
+
+    // Sequence assignment & creation with retry for race conditions
+    const isAutoSequence = !data.sequence || data.sequence < 1;
+    let sequence = isAutoSequence ? 1 : data.sequence!;
+    let attempts = 0;
+    const maxAttempts = isAutoSequence ? 3 : 1;
 
     let prostheticLabOrderId: Types.ObjectId | null = null;
     if (data.prosthetic_lab_order_id) {
@@ -127,25 +214,76 @@ export class DentalStageService {
       }
     }
 
-    const stage = await this.repository.create({
-      episodeId: new Types.ObjectId(episodeId),
-      planItemId: data.plan_item_id.trim(),
-      toothNumber: data.tooth_number ?? episode.primary_tooth_number ?? null,
-      serviceId: data.service_id ? new Types.ObjectId(data.service_id) : null,
-      stageName: data.stage_name.trim(),
-      sequence,
-      assignedDoctorId: new Types.ObjectId(data.assigned_doctor_id),
-      assignedDoctorName: doctorName,
-      status: 'PLANNED',
-      plannedDate: data.planned_date ? new Date(data.planned_date) : null,
-      prostheticLabOrderId,
-      notes: data.notes?.trim() || null,
-      branchId: new Types.ObjectId(episode.branch_id),
-      departmentId: new Types.ObjectId(episode.department_id),
-      patientId: new Types.ObjectId(episode.patient_id),
-      createdBy: new Types.ObjectId(userId),
-      updatedBy: new Types.ObjectId(userId),
-    });
+    let stage: DentalTreatmentStage | null = null;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      if (isAutoSequence) {
+        const maxSeq = await this.repository.getMaxSequence(episodeId, data.plan_item_id);
+        sequence = maxSeq + 1;
+      } else {
+        const existing = await this.repository.listByPlanItem(episodeId, data.plan_item_id);
+        if (existing.some((s) => s.sequence === sequence)) {
+          throw new AppError(
+            'A treatment stage with this sequence already exists. Please refresh the treatment stages and try again.',
+            409,
+            'STAGE_SEQUENCE_CONFLICT',
+          );
+        }
+      }
+
+      try {
+        stage = await this.repository.create({
+          episodeId: new Types.ObjectId(episodeId),
+          planItemId: data.plan_item_id.trim(),
+          toothNumber: data.tooth_number ?? episode.primary_tooth_number ?? null,
+          serviceId: data.service_id ? new Types.ObjectId(data.service_id) : null,
+          stageName: data.stage_name.trim(),
+          sequence,
+          assignedDoctorId: new Types.ObjectId(data.assigned_doctor_id),
+          assignedDoctorName: doctorName,
+          status: 'PLANNED',
+          plannedDate: data.planned_date ? new Date(data.planned_date) : null,
+          prostheticLabOrderId,
+          notes: data.notes?.trim() || null,
+          branchId: new Types.ObjectId(episode.branch_id),
+          departmentId: new Types.ObjectId(episode.department_id),
+          patientId: new Types.ObjectId(episode.patient_id),
+          createdBy: new Types.ObjectId(userId),
+          updatedBy: new Types.ObjectId(userId),
+        });
+        break;
+      } catch (err: unknown) {
+        const isDuplicateKey =
+          err &&
+          typeof err === 'object' &&
+          'code' in err &&
+          (err as { code: number }).code === 11000;
+
+        if (isDuplicateKey && isAutoSequence && attempts < maxAttempts) {
+          // Concurrent insert occurred; retry next sequence
+          continue;
+        }
+
+        if (isDuplicateKey) {
+          throw new AppError(
+            'A treatment stage with this sequence already exists. Please refresh the treatment stages and try again.',
+            409,
+            'STAGE_SEQUENCE_CONFLICT',
+          );
+        }
+
+        throw err;
+      }
+    }
+
+    if (!stage) {
+      throw new AppError(
+        'A treatment stage with this sequence already exists. Please refresh the treatment stages and try again.',
+        409,
+        'STAGE_SEQUENCE_CONFLICT',
+      );
+    }
 
     await this.patientRepository.auditClinicalEvent(
       'opd.dental_stage.created',
@@ -286,6 +424,16 @@ export class DentalStageService {
       );
     }
 
+    // Appointment requirement invariant:
+    // A stage cannot transition to IN_PROGRESS without a valid linked appointment.
+    if (data.status === 'IN_PROGRESS' && !stage.appointment_id) {
+      throw new AppError(
+        'A stage cannot transition to IN_PROGRESS without a valid scheduled appointment',
+        400,
+        'APPOINTMENT_REQUIRED',
+      );
+    }
+
     // Sequential Dependency Invariant (Rule 20):
     // Stage with sequence K cannot transition to SCHEDULED, IN_PROGRESS, or COMPLETED
     // unless all preceding stages (sequence < K) for the same plan item are COMPLETED (or CANCELLED).
@@ -350,6 +498,20 @@ export class DentalStageService {
         },
         userId,
       );
+
+      // If all stages for this treatment plan item are now completed, sync the treatment plan item status to COMPLETED
+      try {
+        const planItemStages = await this.repository.listByPlanItem(updated.episode_id, updated.plan_item_id);
+        const allItemStagesCompleted = planItemStages.length > 0 && planItemStages.every((s) => s.status === 'COMPLETED');
+        if (allItemStagesCompleted && isObjectId(updated.plan_item_id)) {
+          await OpdDentalExaminationModel.updateOne(
+            { 'treatmentPlanItems._id': new Types.ObjectId(updated.plan_item_id) },
+            { $set: { 'treatmentPlanItems.$.status': 'COMPLETED' } },
+          );
+        }
+      } catch {
+        // Non-fatal sync
+      }
 
       await this.evaluateEpisodeCompletion(updated.episode_id, userId);
     } else {
@@ -621,11 +783,71 @@ export class DentalStageService {
   }
 
   private async validatePrerequisites(stage: DentalTreatmentStage): Promise<void> {
+    // 1. Procedure-level prerequisite check (Generic Dependency Mechanism)
+    try {
+      if (isObjectId(stage.plan_item_id)) {
+        const planItemIdObj = new Types.ObjectId(stage.plan_item_id);
+        const exam = await OpdDentalExaminationModel.findOne({
+          'treatmentPlanItems._id': planItemIdObj,
+        }).lean();
+
+        if (exam?.treatmentPlanItems) {
+          const currentItem = exam.treatmentPlanItems.find(
+            (it) => it._id?.toString() === stage.plan_item_id,
+          );
+          if (currentItem) {
+            const allEpisodeStages = await this.repository.listByEpisode(stage.episode_id);
+            const evaluation = evaluateProcedurePrerequisites(
+              currentItem,
+              exam.treatmentPlanItems,
+              allEpisodeStages,
+            );
+            if (evaluation.isBlocked) {
+              throw new AppError(
+                `Waiting for "${evaluation.prerequisiteProcedureName || 'prerequisite procedure'}" to be completed before "${currentItem.procedureName}" stages can be scheduled or executed`,
+                400,
+                'PREREQUISITE_PROCEDURE_INCOMPLETE',
+              );
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      // Fallback: ignore lookup error
+    }
+
+    // 2. Stage-level sequential prerequisites (within same procedure)
     if (stage.sequence > 1) {
       const allStages = await this.repository.listByPlanItem(stage.episode_id, stage.plan_item_id);
+
+      // Look up procedure name to identify any invalid/incompatible legacy stages
+      let procedureName: string | null = null;
+      try {
+        if (isObjectId(stage.plan_item_id)) {
+          const planItemIdObj = new Types.ObjectId(stage.plan_item_id);
+          const exam = await OpdDentalExaminationModel.findOne({
+            'treatmentPlanItems._id': planItemIdObj,
+          }).lean();
+          const matchedItem = exam?.treatmentPlanItems?.find(
+            (it) => it._id?.toString() === stage.plan_item_id,
+          );
+          if (matchedItem?.procedureName) {
+            procedureName = matchedItem.procedureName;
+          }
+        }
+      } catch {
+        // Fallback: ignore lookup error
+      }
+
       const priorStages = allStages.filter((s) => s.sequence < stage.sequence);
 
       for (const prior of priorStages) {
+        // Skip incompatible legacy stages so they don't deadlock valid clinical stages
+        if (procedureName && !isStageCompatibleWithProcedure(procedureName, prior.stage_name)) {
+          continue;
+        }
+
         if (prior.status !== 'COMPLETED' && prior.status !== 'CANCELLED') {
           throw new AppError(
             `Prerequisite stage (Stage ${prior.sequence}: ${prior.stage_name}) must be completed before Stage ${stage.sequence} can be scheduled, started, or completed`,

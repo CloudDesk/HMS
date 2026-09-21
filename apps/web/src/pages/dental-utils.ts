@@ -1,5 +1,6 @@
 import { ICD10_DIAGNOSES, type Icd10Diagnosis } from '../data/icd10-diagnoses';
 import type { DepartmentResponse } from '../api/departments';
+import type { ServiceResponse } from '../api/services';
 import type {
   DentitionType,
   OpdVisitResponse,
@@ -45,6 +46,23 @@ export function isDentalLabService(service: { name: string; category?: string | 
     DENTAL_LAB_KEYWORDS_REGEX.test(service.name) ||
     Boolean(service.category && DENTAL_LAB_KEYWORDS_REGEX.test(service.category))
   );
+}
+
+export const DENTAL_PROCEDURE_KEYWORDS_REGEX =
+  /dental|tooth|teeth|root canal|rct|extraction|composite|restoration|filling|crown|bridge|prosthes|scaling|periodont|gingiv|implant|denture|fluoride|sealant|pulpotomy|pulpectomy|apicoectomy|orthodont|alginate|occlus|polishing/i;
+
+export const DENTAL_PROCEDURE_CATEGORIES_REGEX =
+  /dental|restorative|endodont|extraction|prosthodont|periodont|orthodont|oral surgery|pediatric dentist/i;
+
+export function isDentalProcedureService(service: {
+  name: string;
+  code?: string | null;
+  category?: string | null;
+}): boolean {
+  if (EXCLUDED_DENTAL_KEYWORDS_REGEX.test(service.name)) return false;
+  if (service.code && /^DENT/i.test(service.code)) return true;
+  if (service.category && DENTAL_PROCEDURE_CATEGORIES_REGEX.test(service.category)) return true;
+  return DENTAL_PROCEDURE_KEYWORDS_REGEX.test(service.name);
 }
 
 export function isDentalVisit(
@@ -496,3 +514,4 @@ export function resolveInitialDentition({
   const ageInYears = getPatientAgeInYears(dateOfBirth);
   return getDefaultDentitionForAge(ageInYears);
 }
+

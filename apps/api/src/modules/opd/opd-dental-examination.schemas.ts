@@ -180,6 +180,7 @@ export const dentalTreatmentPlanItemSchema = z
       .default(null),
     notes: z.string().trim().max(2000).nullable().optional().default(null),
     status: dentalTreatmentStatusSchema.optional().default('PROPOSED'),
+    depends_on_plan_item_id: z.string().trim().nullable().optional().default(null),
   })
   .strict();
 

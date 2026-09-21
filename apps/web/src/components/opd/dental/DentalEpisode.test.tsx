@@ -22,6 +22,7 @@ const mockApi = vi.hoisted(() => ({
   linkVisitToDentalEpisode: vi.fn(),
   updateDentalEpisodeStatus: vi.fn(),
   getPatientToothHistory: vi.fn(),
+  listDentalStages: vi.fn(),
 }));
 
 vi.mock('../../../api/opd', async (importOriginal) => {
@@ -44,6 +45,7 @@ vi.mock('../../../auth/useAuth', () => ({
 }));
 
 import type { PatientResponse } from '../../../api/patients';
+import type { DentalTreatmentStageResponse } from '../../../api/opd';
 
 const mockPatient = {
   id: 'patient-123',
@@ -84,11 +86,13 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
   let root: Root;
 
   beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     vi.clearAllMocks();
 
     mockApi.getDentalExamination.mockResolvedValue(mockExamData);
     mockApi.listPatientDentalEpisodes.mockResolvedValue([]);
     mockApi.getPatientToothHistory.mockResolvedValue([]);
+    mockApi.listDentalStages.mockResolvedValue([]);
 
     queryClient = new QueryClient({
       defaultOptions: {
@@ -110,50 +114,10 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
     queryClient.clear();
   });
 
-  it('1. When no tooth is selected, no episode context or start episode action is shown', async () => {
-    await act(async () => {
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patient={mockPatient} />
-        </QueryClientProvider>,
-      );
-    });
-
-    expect(container.textContent).not.toContain('Episode #DTE');
-    expect(container.textContent).not.toContain('Primary Tooth #');
-    expect(container.querySelector('[role="region"][aria-label="Dental Treatment Episode"]')).toBeNull();
-    expect(container.querySelector('[role="region"][aria-label*="Episode"]')).toBeNull();
-
-    // Select Tooth #25 -> Start Treatment Episode action appears specifically for Tooth #25
-    const tooth25Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 25') || b.textContent === '25',
-    );
-    expect(tooth25Btn).toBeDefined();
-    await act(async () => {
-      tooth25Btn?.click();
-    });
-    expect(container.textContent).toContain('Tooth #25');
-    expect(container.textContent).toContain('No treatment episode has been started for this tooth');
-
-    const startBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Start Treatment Episode'),
-    );
-    expect(startBtn).toBeDefined();
-
-    await act(async () => {
-      startBtn?.click();
-    });
-
-    // Check modal opened with tooth 25 prefilled
-    expect(container.textContent).toContain('Start Dental Treatment Episode');
-    const toothInput = container.querySelector<HTMLInputElement>('#ep-tooth');
-    expect(toothInput?.value).toBe('25');
-  });
-
-  it('2. Renders active episode banner and linked status when selecting primary tooth #16', async () => {
+  it('1. Open Dental Examination with no tooth selected -> Episode hidden (even with active patient episode)', async () => {
     const mockEpisode: DentalTreatmentEpisodeResponse = {
-      id: 'ep-1',
-      episode_number: 'DTE-2026-00001',
+      id: 'ep-24',
+      episode_number: 'DTE-2026-00002',
       patient_id: 'patient-123',
       patient_number: 'P-12345',
       patient_name: 'Jane Doe',
@@ -163,7 +127,7 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
       primary_doctor_name: 'Dr. Smile',
       branch_id: 'branch-1',
       department_id: 'dept-dental',
-      primary_tooth_number: 16,
+      primary_tooth_number: 24,
       diagnosis_name: 'Irreversible Pulpitis',
       status: 'ACTIVE',
       visit_ids: ['visit-1'],
@@ -182,44 +146,29 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
       );
     });
 
-    // When no tooth selected -> no episode
-    expect(container.textContent).not.toContain('Episode #DTE-2026-00001');
-
-    // Select Tooth #16 -> episode appears
-    const tooth16Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 16') || b.textContent === '16',
-    );
-    expect(tooth16Btn).toBeDefined();
-
-    await act(async () => {
-      tooth16Btn?.click();
-    });
-
-    expect(container.textContent).toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('ACTIVE');
-    expect(container.textContent).toContain('Primary Tooth #16');
-    expect(container.textContent).toContain('Irreversible Pulpitis');
-    expect(container.textContent).toContain('Dr. Smile');
-    expect(container.textContent).toContain('1 visit in journey');
+    // With no tooth selected, Episode indicator is completely hidden
+    expect(container.textContent).not.toContain('Episode #DTE');
+    expect(container.querySelector('[aria-label*="Episode Info"]')).toBeNull();
+    expect(container.querySelector('[role="region"][aria-label*="Episode"]')).toBeNull();
   });
 
-  it('3. Renders notice to link current visit when selecting tooth with active episode not yet linked', async () => {
+  it('2. Select a non-target tooth (Tooth #22 when episode is for #24) -> Episode hidden', async () => {
     const mockEpisode: DentalTreatmentEpisodeResponse = {
-      id: 'ep-1',
-      episode_number: 'DTE-2026-00001',
+      id: 'ep-24',
+      episode_number: 'DTE-2026-00002',
       patient_id: 'patient-123',
       patient_number: 'P-12345',
       patient_name: 'Jane Doe',
-      originating_visit_id: 'visit-0',
-      originating_visit_number: 'VIS-000',
+      originating_visit_id: 'visit-1',
+      originating_visit_number: 'VIS-001',
       primary_doctor_id: 'doc-1',
       primary_doctor_name: 'Dr. Smile',
       branch_id: 'branch-1',
       department_id: 'dept-dental',
-      primary_tooth_number: 16,
-      diagnosis_name: 'Root Canal Journey',
+      primary_tooth_number: 24,
+      diagnosis_name: 'Irreversible Pulpitis',
       status: 'ACTIVE',
-      visit_ids: ['visit-0'], // Does not contain visit-1
+      visit_ids: ['visit-1'],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -235,18 +184,366 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
       );
     });
 
-    const tooth16Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 16') || b.textContent === '16',
-    );
+    // Switch to Odontogram tab
+    const odontogramTab = container.querySelector<HTMLButtonElement>('#dental-subtab-odontogram');
     await act(async () => {
-      tooth16Btn?.click();
+      odontogramTab?.click();
     });
 
-    expect(container.textContent).toContain('Active Dental Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('Link This Visit to Episode');
+    // Select Tooth #22 (non-target tooth)
+    const tooth22Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('Tooth 22') || b.textContent?.includes('22'),
+    );
+    expect(tooth22Btn).toBeDefined();
+    await act(async () => {
+      tooth22Btn?.click();
+    });
+
+    // Episode indicator must remain hidden
+    expect(container.querySelector('[aria-label*="Episode Info"]')).toBeNull();
+    expect(container.querySelector('[role="region"][aria-label*="Episode"]')).toBeNull();
   });
 
-  it('4. Displays read-only previous visit findings when selecting tooth with historical findings', async () => {
+  it('3. Select Episode target tooth (#24) -> Episode visible; deselect tooth -> Episode disappears immediately', async () => {
+    const mockEpisode: DentalTreatmentEpisodeResponse = {
+      id: 'ep-24',
+      episode_number: 'DTE-2026-00002',
+      patient_id: 'patient-123',
+      patient_number: 'P-12345',
+      patient_name: 'Jane Doe',
+      originating_visit_id: 'visit-1',
+      originating_visit_number: 'VIS-001',
+      primary_doctor_id: 'doc-1',
+      primary_doctor_name: 'Dr. Smile',
+      branch_id: 'branch-1',
+      department_id: 'dept-dental',
+      primary_tooth_number: 24,
+      diagnosis_name: 'Irreversible Pulpitis',
+      status: 'ACTIVE',
+      visit_ids: ['visit-1'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    mockApi.listPatientDentalEpisodes.mockResolvedValue([mockEpisode]);
+    queryClient.setQueryData(opdKeys.patientDentalEpisodes('patient-123'), [mockEpisode]);
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patient={mockPatient} />
+        </QueryClientProvider>,
+      );
+    });
+
+    // Switch to Odontogram tab
+    const odontogramTab = container.querySelector<HTMLButtonElement>('#dental-subtab-odontogram');
+    await act(async () => {
+      odontogramTab?.click();
+    });
+
+    // Select target Tooth #24
+    const tooth24Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('Tooth 24') || b.textContent?.includes('24'),
+    );
+    expect(tooth24Btn).toBeDefined();
+    await act(async () => {
+      tooth24Btn?.click();
+    });
+
+    // 1. Episode indicator is now visible
+    const indicatorBtn = container.querySelector<HTMLButtonElement>('[aria-label*="Episode Info #DTE-2026-00002"]');
+    expect(indicatorBtn).not.toBeNull();
+    expect(indicatorBtn?.textContent).toContain('Episode');
+
+    // 2. Click indicator to open popover
+    await act(async () => {
+      indicatorBtn?.click();
+    });
+
+    const popover = container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]');
+    expect(popover).not.toBeNull();
+    expect(popover?.textContent).toContain('Episode #DTE-2026-00002');
+    expect(popover?.textContent).toContain('Status:');
+    expect(popover?.textContent).toContain('ACTIVE');
+    expect(popover?.textContent).toContain('Primary Tooth:');
+    expect(popover?.textContent).toContain('#24');
+
+    // 3. Deselect tooth (reset finding) -> Episode must disappear immediately
+    const resetBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Reset'),
+    );
+    if (resetBtn) {
+      await act(async () => {
+        resetBtn.click();
+      });
+    } else {
+      // If no finding to reset, select non-target tooth 23
+      const tooth23Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+        b.getAttribute('aria-label')?.includes('Tooth 23') || b.textContent?.includes('23'),
+      );
+      await act(async () => {
+        tooth23Btn?.click();
+      });
+    }
+
+    expect(container.querySelector('[aria-label*="Episode Info"]')).toBeNull();
+    expect(container.querySelector('[role="region"][aria-label*="Episode"]')).toBeNull();
+  });
+
+  it('4. ACTIVE episode with incomplete stages -> displays correct progress and remaining stages', async () => {
+    const mockEpisode: DentalTreatmentEpisodeResponse = {
+      id: 'ep-24',
+      episode_number: 'DTE-2026-00002',
+      patient_id: 'patient-123',
+      patient_number: 'P-12345',
+      patient_name: 'Jane Doe',
+      originating_visit_id: 'visit-1',
+      originating_visit_number: 'VIS-001',
+      primary_doctor_id: 'doc-1',
+      primary_doctor_name: 'Dr. Smile',
+      branch_id: 'branch-1',
+      department_id: 'dept-dental',
+      primary_tooth_number: 24,
+      diagnosis_name: 'Root Canal Treatment',
+      status: 'ACTIVE',
+      visit_ids: ['visit-1'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const mockStages: DentalTreatmentStageResponse[] = [
+      {
+        id: 'stage-1',
+        episode_id: 'ep-24',
+        plan_item_id: 'item-1',
+        tooth_number: 24,
+        stage_name: 'Access Opening & Pulpectomy',
+        sequence: 1,
+        assigned_doctor_id: 'doc-1',
+        assigned_doctor_name: 'Dr. Smile',
+        status: 'COMPLETED',
+        branch_id: 'branch-1',
+        department_id: 'dept-dental',
+        patient_id: 'patient-123',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'stage-2',
+        episode_id: 'ep-24',
+        plan_item_id: 'item-1',
+        tooth_number: 24,
+        stage_name: 'Biomechanical Preparation & Canal Shaping',
+        sequence: 2,
+        assigned_doctor_id: 'doc-1',
+        assigned_doctor_name: 'Dr. Smile',
+        status: 'SCHEDULED',
+        branch_id: 'branch-1',
+        department_id: 'dept-dental',
+        patient_id: 'patient-123',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'stage-3',
+        episode_id: 'ep-24',
+        plan_item_id: 'item-1',
+        tooth_number: 24,
+        stage_name: 'Obturation',
+        sequence: 3,
+        assigned_doctor_id: 'doc-1',
+        assigned_doctor_name: 'Dr. Smile',
+        status: 'PLANNED',
+        branch_id: 'branch-1',
+        department_id: 'dept-dental',
+        patient_id: 'patient-123',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+
+    mockApi.listPatientDentalEpisodes.mockResolvedValue([mockEpisode]);
+    mockApi.listDentalStages.mockResolvedValue(mockStages);
+    queryClient.setQueryData(opdKeys.patientDentalEpisodes('patient-123'), [mockEpisode]);
+    queryClient.setQueryData(opdKeys.dentalStages('ep-24'), mockStages);
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patient={mockPatient} />
+        </QueryClientProvider>,
+      );
+    });
+
+    // Switch to Odontogram tab & select target tooth 24
+    const odontogramTab = container.querySelector<HTMLButtonElement>('#dental-subtab-odontogram');
+    await act(async () => {
+      odontogramTab?.click();
+    });
+
+    const tooth24Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('Tooth 24') || b.textContent?.includes('24'),
+    );
+    await act(async () => {
+      tooth24Btn?.click();
+    });
+
+    const indicatorBtn = container.querySelector<HTMLButtonElement>('[aria-label*="Episode Info #DTE-2026-00002"]');
+    expect(indicatorBtn).not.toBeNull();
+
+    await act(async () => {
+      indicatorBtn?.click();
+    });
+
+    const popover = container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]');
+    expect(popover).not.toBeNull();
+    expect(popover?.textContent).toContain('Episode #DTE-2026-00002');
+    expect(popover?.textContent).toContain('Status:');
+    expect(popover?.textContent).toContain('ACTIVE');
+    expect(popover?.textContent).toContain('Primary Tooth:');
+    expect(popover?.textContent).toContain('#24');
+    expect(popover?.textContent).toContain('Progress:');
+    expect(popover?.textContent).toContain('1 / 3 stages');
+    expect(popover?.textContent).toContain('2 stages remaining');
+  });
+
+  it('5. COMPLETED episode -> popover displays "✓ All treatment completed"', async () => {
+    const mockEpisode: DentalTreatmentEpisodeResponse = {
+      id: 'ep-24',
+      episode_number: 'DTE-2026-00002',
+      patient_id: 'patient-123',
+      patient_number: 'P-12345',
+      patient_name: 'Jane Doe',
+      originating_visit_id: 'visit-1',
+      originating_visit_number: 'VIS-001',
+      primary_doctor_id: 'doc-1',
+      primary_doctor_name: 'Dr. Smile',
+      branch_id: 'branch-1',
+      department_id: 'dept-dental',
+      primary_tooth_number: 24,
+      diagnosis_name: 'Root Canal Treatment',
+      status: 'COMPLETED',
+      visit_ids: ['visit-1'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const mockStages: DentalTreatmentStageResponse[] = [
+      {
+        id: 'stage-1',
+        episode_id: 'ep-24',
+        plan_item_id: 'item-1',
+        tooth_number: 24,
+        stage_name: 'Access Opening',
+        sequence: 1,
+        assigned_doctor_id: 'doc-1',
+        assigned_doctor_name: 'Dr. Smile',
+        status: 'COMPLETED',
+        branch_id: 'branch-1',
+        department_id: 'dept-dental',
+        patient_id: 'patient-123',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+
+    mockApi.listPatientDentalEpisodes.mockResolvedValue([mockEpisode]);
+    mockApi.listDentalStages.mockResolvedValue(mockStages);
+    queryClient.setQueryData(opdKeys.patientDentalEpisodes('patient-123'), [mockEpisode]);
+    queryClient.setQueryData(opdKeys.dentalStages('ep-24'), mockStages);
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patient={mockPatient} />
+        </QueryClientProvider>,
+      );
+    });
+
+    const odontogramTab = container.querySelector<HTMLButtonElement>('#dental-subtab-odontogram');
+    await act(async () => {
+      odontogramTab?.click();
+    });
+
+    const tooth24Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('Tooth 24') || b.textContent?.includes('24'),
+    );
+    await act(async () => {
+      tooth24Btn?.click();
+    });
+
+    const indicatorBtn = container.querySelector<HTMLButtonElement>('[aria-label*="Episode Info #DTE-2026-00002"]');
+    await act(async () => {
+      indicatorBtn?.click();
+    });
+
+    const popover = container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]');
+    expect(popover).not.toBeNull();
+    expect(popover?.textContent).toContain('Status:');
+    expect(popover?.textContent).toContain('COMPLETED');
+    expect(popover?.textContent).toContain('✓ All treatment completed');
+  });
+
+  it('6. ACTIVE episode with no stages yet -> popover shows "Progress: No treatment stages yet"', async () => {
+    const mockEpisode: DentalTreatmentEpisodeResponse = {
+      id: 'ep-24',
+      episode_number: 'DTE-2026-00002',
+      patient_id: 'patient-123',
+      patient_number: 'P-12345',
+      patient_name: 'Jane Doe',
+      originating_visit_id: 'visit-1',
+      originating_visit_number: 'VIS-001',
+      primary_doctor_id: 'doc-1',
+      primary_doctor_name: 'Dr. Smile',
+      branch_id: 'branch-1',
+      department_id: 'dept-dental',
+      primary_tooth_number: 24,
+      diagnosis_name: 'Root Canal Treatment',
+      status: 'ACTIVE',
+      visit_ids: ['visit-1'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    mockApi.listPatientDentalEpisodes.mockResolvedValue([mockEpisode]);
+    mockApi.listDentalStages.mockResolvedValue([]);
+    queryClient.setQueryData(opdKeys.patientDentalEpisodes('patient-123'), [mockEpisode]);
+    queryClient.setQueryData(opdKeys.dentalStages('ep-24'), []);
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patient={mockPatient} />
+        </QueryClientProvider>,
+      );
+    });
+
+    const odontogramTab = container.querySelector<HTMLButtonElement>('#dental-subtab-odontogram');
+    await act(async () => {
+      odontogramTab?.click();
+    });
+
+    const tooth24Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('Tooth 24') || b.textContent?.includes('24'),
+    );
+    await act(async () => {
+      tooth24Btn?.click();
+    });
+
+    const indicatorBtn = container.querySelector<HTMLButtonElement>('[aria-label*="Episode Info #DTE-2026-00002"]');
+    await act(async () => {
+      indicatorBtn?.click();
+    });
+
+    const popover = container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]');
+    expect(popover).not.toBeNull();
+    expect(popover?.textContent).toContain('Status:');
+    expect(popover?.textContent).toContain('ACTIVE');
+    expect(popover?.textContent).toContain('Progress: No treatment stages yet');
+  });
+
+  it('7. Displays read-only previous visit findings when selecting tooth with historical findings', async () => {
     const mockHistory: HistoricalToothFinding[] = [
       {
         tooth_number: 16,
@@ -274,7 +571,12 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
       );
     });
 
-    // Find tooth 16 button
+    // Switch to Odontogram tab
+    const odontogramTab = container.querySelector<HTMLButtonElement>('#dental-subtab-odontogram');
+    await act(async () => {
+      odontogramTab?.click();
+    });
+
     const tooth16Btn = Array.from(container.querySelectorAll('button')).find((b) =>
       b.getAttribute('aria-label')?.includes('Tooth 16') || b.textContent?.includes('16'),
     );
@@ -284,15 +586,12 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
       tooth16Btn?.click();
     });
 
-    // Verify Previous Visit Findings appears in the ToothExaminationPanel
     expect(container.textContent).toContain('Previous Visit Findings');
     expect(container.textContent).toContain('Dr. Historical Smile');
     expect(container.textContent).toContain('Deep caries approaching pulp chamber');
-    expect(container.textContent).toContain('Caries / Decay');
-    expect(container.textContent).toContain('Pulpitis / RCT Needed');
   });
 
-  it('5. Strictly selected-tooth driven: no tooth -> no episode; select #22 -> episode #22 shown; select #25 -> #22 hidden & active conflict notice shown; select #22 -> restored', async () => {
+  it('8. Episode popover opens on hover and closes on mouse leave or click outside', async () => {
     const mockEpisode: DentalTreatmentEpisodeResponse = {
       id: 'ep-22',
       episode_number: 'DTE-2026-00001',
@@ -324,199 +623,46 @@ describe('Dental Treatment Episode & Cumulative Odontogram UI Tests', () => {
       );
     });
 
-    // 1. Initial state (no tooth selected): NO episode context is visible
-    expect(container.textContent).not.toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).not.toContain('Primary Tooth #22');
+    // Switch to Odontogram tab & select target tooth 22
+    const odontogramTab = container.querySelector<HTMLButtonElement>('#dental-subtab-odontogram');
+    await act(async () => {
+      odontogramTab?.click();
+    });
 
-    // 2. Select Tooth #22 -> episode banner is visible
     const tooth22Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 22') || b.textContent === '22',
+      b.getAttribute('aria-label')?.includes('Tooth 22') || b.textContent?.includes('22'),
     );
-    expect(tooth22Btn).toBeDefined();
-
     await act(async () => {
       tooth22Btn?.click();
     });
 
-    expect(container.textContent).toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('Primary Tooth #22');
-    expect(container.textContent).toContain('Root Canal Treatment');
+    const indicatorBtn = container.querySelector<HTMLButtonElement>('[aria-label*="Episode Info #DTE-2026-00001"]');
+    expect(indicatorBtn).not.toBeNull();
 
-    // 3. Select Tooth #25 -> #22 episode banner is HIDDEN; #25 shows active episode conflict notice (since #22 is ACTIVE)
-    const tooth25Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 25') || b.textContent === '25',
-    );
-    expect(tooth25Btn).toBeDefined();
-
+    // Hover to show
     await act(async () => {
-      tooth25Btn?.click();
+      indicatorBtn?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      indicatorBtn?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     });
+    expect(container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]')).not.toBeNull();
 
-    expect(container.textContent).not.toContain('Primary Tooth #25');
-    expect(container.textContent).toContain('An active treatment episode already exists for this patient');
-    expect(container.textContent).toContain('FDI #25');
-
-    // 4. Select Tooth #23 -> #22 episode card remains HIDDEN; #23 shows active conflict notice
-    const tooth23Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 23') || b.textContent === '23',
-    );
-    expect(tooth23Btn).toBeDefined();
-
+    // Mouse leave to hide
     await act(async () => {
-      tooth23Btn?.click();
+      indicatorBtn?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+      indicatorBtn?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
     });
+    expect(container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]')).toBeNull();
 
-    expect(container.textContent).toContain('An active treatment episode already exists for this patient');
-    expect(container.textContent).toContain('FDI #23');
-
-    // 5. Select Tooth #22 again -> episode banner reappears
+    // Click to pin open
     await act(async () => {
-      tooth22Btn?.click();
+      indicatorBtn?.click();
     });
+    expect(container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]')).not.toBeNull();
 
-    expect(container.textContent).toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('Primary Tooth #22');
-    expect(container.textContent).toContain('FDI #22');
-  });
-
-  it('6. Allows creating new treatment episode for #23 when #22 is COMPLETED, and #22 episode does not leak into #25 or #23', async () => {
-    const mockCompletedEpisode: DentalTreatmentEpisodeResponse = {
-      id: 'ep-22',
-      episode_number: 'DTE-2026-00001',
-      patient_id: 'patient-123',
-      patient_number: 'P-12345',
-      patient_name: 'Jane Doe',
-      originating_visit_id: 'visit-0',
-      originating_visit_number: 'VIS-000',
-      primary_doctor_id: 'doc-1',
-      primary_doctor_name: 'Dr. Smile',
-      branch_id: 'branch-1',
-      department_id: 'dept-dental',
-      primary_tooth_number: 22,
-      diagnosis_name: 'Root Canal Treatment',
-      status: 'COMPLETED',
-      visit_ids: ['visit-0'],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    mockApi.listPatientDentalEpisodes.mockResolvedValue([mockCompletedEpisode]);
-    queryClient.setQueryData(opdKeys.patientDentalEpisodes('patient-123'), [mockCompletedEpisode]);
-
-    const createdEpisode23: DentalTreatmentEpisodeResponse = {
-      id: 'ep-23',
-      episode_number: 'DTE-2026-00002',
-      patient_id: 'patient-123',
-      patient_number: 'P-12345',
-      patient_name: 'Jane Doe',
-      originating_visit_id: 'visit-1',
-      originating_visit_number: 'VIS-001',
-      primary_doctor_id: 'doc-1',
-      primary_doctor_name: 'Dr. Smile',
-      branch_id: 'branch-1',
-      department_id: 'dept-dental',
-      primary_tooth_number: 23,
-      diagnosis_name: 'Caries Management',
-      status: 'ACTIVE',
-      visit_ids: ['visit-1'],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    mockApi.createDentalEpisode = vi.fn().mockResolvedValue(createdEpisode23);
-
+    // Click outside to close
     await act(async () => {
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} patient={mockPatient} />
-        </QueryClientProvider>,
-      );
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     });
-
-    // 1. Initial state (no tooth selected) -> no episode context
-    expect(container.textContent).not.toContain('Episode #DTE-2026-00001');
-
-    // 2. Select #22 -> confirm DTE-2026-00001 is COMPLETED and primary tooth #22
-    const tooth22Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 22') || b.textContent === '22',
-    );
-    expect(tooth22Btn).toBeDefined();
-    await act(async () => {
-      tooth22Btn?.click();
-    });
-    expect(container.textContent).toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('COMPLETED');
-    expect(container.textContent).toContain('Primary Tooth #22');
-
-    // 3. Select #25 -> #22 episode is NOT shown; Start Treatment Episode is shown for Tooth #25
-    const tooth25Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 25') || b.textContent === '25',
-    );
-    expect(tooth25Btn).toBeDefined();
-    await act(async () => {
-      tooth25Btn?.click();
-    });
-
-    expect(container.textContent).not.toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('Tooth #25');
-    expect(container.textContent).toContain('No treatment episode has been started for this tooth');
-    expect(container.textContent).toContain('Start Treatment Episode');
-
-    // 4. Select #23 -> #22 episode is NOT shown; Start Treatment Episode is shown for Tooth #23
-    const tooth23Btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.getAttribute('aria-label')?.includes('Tooth 23') || b.textContent === '23',
-    );
-    expect(tooth23Btn).toBeDefined();
-    await act(async () => {
-      tooth23Btn?.click();
-    });
-
-    expect(container.textContent).not.toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('Tooth #23');
-    expect(container.textContent).toContain('No treatment episode has been started for this tooth');
-
-    // 5. Click Start Treatment Episode on #23 and submit
-    const startEpisodeBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Start Treatment Episode'),
-    );
-    expect(startEpisodeBtn).toBeDefined();
-
-    await act(async () => {
-      startEpisodeBtn?.click();
-    });
-    expect(container.textContent).toContain('Start Dental Treatment Episode');
-
-    // Confirm tooth input is prefilled with 23
-    const toothInput = container.querySelector<HTMLInputElement>('#ep-tooth');
-    expect(toothInput?.value).toBe('23');
-
-    // Submit the modal form
-    const createSubmitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Create Episode'),
-    );
-    await act(async () => {
-      createSubmitBtn?.click();
-    });
-
-    // 6. Confirm new episode created and update query cache
-    queryClient.setQueryData(opdKeys.patientDentalEpisodes('patient-123'), [
-      mockCompletedEpisode,
-      createdEpisode23,
-    ]);
-
-    // 7. Select #22 again -> confirm DTE-2026-00001 remains COMPLETED and unchanged
-    await act(async () => {
-      tooth22Btn?.click();
-    });
-    expect(container.textContent).toContain('Episode #DTE-2026-00001');
-    expect(container.textContent).toContain('COMPLETED');
-    expect(container.textContent).toContain('Primary Tooth #22');
-
-    // 8. Select #23 again -> confirm new #23 episode DTE-2026-00002 is displayed (ACTIVE)
-    await act(async () => {
-      tooth23Btn?.click();
-    });
-    expect(container.textContent).toContain('Episode #DTE-2026-00002');
-    expect(container.textContent).toContain('ACTIVE');
-    expect(container.textContent).toContain('Primary Tooth #23');
+    expect(container.querySelector('[role="region"][aria-label="Dental Treatment Episode Details"]')).toBeNull();
   });
 });

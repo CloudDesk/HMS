@@ -263,6 +263,7 @@ export type DentalTreatmentPlanItem = {
   estimated_cost?: number | null;
   notes?: string | null;
   status?: DentalTreatmentStatus;
+  depends_on_plan_item_id?: string | null;
 };
 
 export type DentalChairsideImage = {
