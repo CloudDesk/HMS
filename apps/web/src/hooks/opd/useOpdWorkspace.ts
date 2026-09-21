@@ -80,8 +80,8 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   );
 
   const { data: servicesData, isLoading: servicesLoading } = useServices(
-    { status: 'ACTIVE', limit: 100 },
-    Boolean(visitId && (canAccess('Administration', 'Services') || canAccess('OPD', 'OPD Clinical Orders')))
+    { status: 'ACTIVE', limit: 200 },
+    Boolean(visitId && (canAccess('Administration', 'Services') || canAccess('OPD', 'OPD Clinical Orders') || canAccess('OPD', 'OPD Consultation')))
   );
 
   const { data: documentsData, isLoading: documentsLoading } = usePatientDocuments(

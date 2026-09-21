@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import type {
   DentalStageStatus,
   DentalTreatmentPlanItem,
-  DentalTreatmentPriority,
   DentalTreatmentStageResponse,
   DentalTreatmentStatus,
   ToothFinding,
@@ -34,8 +33,6 @@ import { useDoctorsList } from '../../../hooks/doctors/useDoctors';
 import type { DoctorResponse } from '../../../api/doctors';
 import {
   COMMON_DENTAL_PROCEDURES,
-  PERMANENT_QUADRANTS,
-  PRIMARY_QUADRANTS,
   TOOTH_NAMES,
   getToothName,
 } from '../../../pages/dental-utils';
@@ -43,6 +40,125 @@ import { DentalStageScheduleModal } from './DentalStageScheduleModal';
 import { DentalProstheticLabModal } from './DentalProstheticLabModal';
 import { useEpisodeDentalLabOrders } from '../../../hooks/opd/useOpd';
 import styles from './DentalExamination.module.css';
+
+function formatDoctorName(name: string | undefined | null): string {
+  if (!name) return '';
+  const clean = name.replace(/^Dr\.?\s+/i, '').trim();
+  return clean ? `Dr. ${clean}` : '';
+}
+
+const DEFAULT_DENTAL_PROCEDURE_PRICES: Record<string, number> = {
+  'Root Canal Treatment': 12000,
+  'Root Canal Treatment (RCT)': 12000,
+  'Direct Composite Filling': 3500,
+  'Composite Restoration': 3500,
+  'Glass Ionomer Filling': 2000,
+  'Glass Ionomer Cement (GIC) Restoration': 2000,
+  'Crown': 18000,
+  'Zirconia Crown': 25000,
+  'Porcelain-Fused-to-Metal Crown': 15000,
+  'Dental Cleaning / Scaling': 3000,
+  'Scaling and Polishing': 3000,
+  'Scaling & Polishing (Prophylaxis)': 3000,
+  'Simple Tooth Extraction': 2500,
+  'Simple Dental Extraction': 2500,
+  'Surgical Extraction / Disimpaction': 8000,
+  'Dental Implant Placement': 65000,
+  'Post & Core Build-up': 5000,
+  'Complete Denture (Maxillary / Mandibular)': 25000,
+  'Removable Partial Denture': 12000,
+};
+
+export function isStageClinicallyCompatible(procedureName: string, stageName: string): boolean {
+  const p = (procedureName || '').toLowerCase();
+  const s = (stageName || '').toLowerCase();
+
+  const isExtractionProc = /extraction|exodontia|disimpaction|socket\b/i.test(p);
+  const isEndoProc = /root canal|rct|pulpectomy|pulpotomy|endodont/i.test(p);
+  const isProstheticProc = /crown|bridge|veneer|inlay|onlay|denture|prosthes/i.test(p);
+  const isRestorativeProc = /restoration|filling|composite|gic|amalgam|glass ionomer|cavity/i.test(p);
+  const isScalingProc = /scaling|prophylaxis|root planing|curettage|periodont/i.test(p);
+
+  const isExtractionStage = /extraction|exodontia|disimpaction|socket debridement/i.test(s);
+  const isEndoStage = /root canal|rct|pulpectomy|pulpotomy|canal instrumentation|canal shaping|canal obturation|working length/i.test(s);
+  const isProstheticStage = /crown measurement|crown impression|crown fitting|crown cementation|prosthetic lab|framework try-in|veneer impression/i.test(s);
+  const isRestorativeStage = /cavity preparation|caries excavation|composite.*restoration|gic.*restoration/i.test(s);
+  const isScalingStage = /ultrasonic scaling|subgingival curettage|root planing/i.test(s);
+
+  if (isExtractionProc && (isEndoStage || isProstheticStage || isRestorativeStage || isScalingStage)) {
+    return false;
+  }
+  if (isEndoProc && (isExtractionStage || isProstheticStage || isScalingStage)) {
+    return false;
+  }
+  if (isProstheticProc && (isExtractionStage || isEndoStage || isScalingStage)) {
+    return false;
+  }
+  if (isRestorativeProc && (isExtractionStage || isEndoStage || isProstheticStage)) {
+    return false;
+  }
+  if (isScalingProc && (isExtractionStage || isEndoStage || isProstheticStage || isRestorativeStage)) {
+    return false;
+  }
+
+  return true;
+}
+
+function getProcedureStageSuggestions(procedureName: string): string[] {
+  const p = (procedureName || '').toLowerCase();
+  if (/extraction|exodontia|disimpaction|socket\b/i.test(p)) {
+    return [
+      'Pre-Extraction Assessment & Local Anesthesia',
+      'Tooth Extraction & Socket Debridement',
+      'Hemostasis & Suture Placement',
+      'Post-Op Suture Removal & Review',
+    ];
+  }
+  if (/root canal|rct|pulpectomy|pulpotomy|endodont/i.test(p)) {
+    return [
+      'Access Opening & Pulp Extirpation',
+      'Canal Instrumentation & Shaping',
+      'Canal Obturation & Sealing',
+      'Core Build-up & Post',
+      'Post-RCT Clinical Review',
+    ];
+  }
+  if (/crown|bridge|prosthes|onlay|inlay|veneer/i.test(p)) {
+    return [
+      'Tooth Preparation & Gingival Retraction',
+      'Crown Measurement & Impression',
+      'Prosthetic Lab Fabrication',
+      'Crown Fitting & Cementation',
+    ];
+  }
+  if (/implant/i.test(p)) {
+    return [
+      'Implant Site Preparation & Placement',
+      'Osseointegration Review & Healing Cap',
+      'Abutment Placement & Impression',
+      'Implant Crown Delivery & Occlusion',
+    ];
+  }
+  if (/scaling|periodont|polishing|prophylaxis|curettage/i.test(p)) {
+    return [
+      'Full Mouth Ultrasonic Scaling',
+      'Subgingival Curettage & Root Planing',
+      'Periodontal Review & Polishing',
+    ];
+  }
+  if (/restoration|filling|composite|gic|amalgam/i.test(p)) {
+    return [
+      'Cavity Preparation & Excavation',
+      'Composite / GIC Restoration & Curing',
+      'Occlusion Finishing & Polishing',
+    ];
+  }
+  return [
+    'Clinical Preparation & Anesthesia',
+    'Primary Clinical Procedure Execution',
+    'Post-Op Review & Final Restoration',
+  ];
+}
 
 interface DentalTreatmentPlanSectionProps {
   items: DentalTreatmentPlanItem[];
@@ -102,9 +218,45 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [toothNumber, setToothNumber] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [procedureName, setProcedureName] = useState<string>('');
-  const [priority, setPriority] = useState<DentalTreatmentPriority>('ROUTINE');
   const [estimatedCost, setEstimatedCost] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [dependsOnPlanItemId, setDependsOnPlanItemId] = useState<string>('');
+  const [showAddTreatmentForm, setShowAddTreatmentForm] = useState<boolean>(false);
+
+  const catalogueServicesList = useMemo(() => {
+    const list: Array<{ id: string; name: string; standard_price: number }> = [];
+    const seenNames = new Set<string>();
+
+    for (const svc of departmentServices) {
+      if (svc.name && !seenNames.has(svc.name.toLowerCase())) {
+        seenNames.add(svc.name.toLowerCase());
+        list.push({
+          id: svc.id,
+          name: svc.name,
+          standard_price: svc.standard_price ?? 0,
+        });
+      }
+    }
+
+    for (const proc of COMMON_DENTAL_PROCEDURES) {
+      if (!seenNames.has(proc.toLowerCase())) {
+        seenNames.add(proc.toLowerCase());
+        const matchedPrice =
+          DEFAULT_DENTAL_PROCEDURE_PRICES[proc] ??
+          Object.entries(DEFAULT_DENTAL_PROCEDURE_PRICES).find(([k]) =>
+            proc.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(proc.toLowerCase())
+          )?.[1] ??
+          0;
+        list.push({
+          id: `dent-proc-${proc.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          name: proc,
+          standard_price: matchedPrice,
+        });
+      }
+    }
+
+    return list;
+  }, [departmentServices]);
 
   // Treatment Stages state
   const [expandedStageRows, setExpandedStageRows] = useState<Set<string>>(new Set());
@@ -185,8 +337,45 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [decisionReasonInput, setDecisionReasonInput] = useState<string>('');
   const [decisionMode, setDecisionMode] = useState<'view' | 'reject' | 'postpone'>('view');
 
+  const examinedTeeth = useMemo(() => {
+    return [...teeth].sort((a, b) => a.tooth_number - b.tooth_number);
+  }, [teeth]);
+
+  const examinedTeethNumbers = useMemo(() => {
+    return examinedTeeth.map((t) => t.tooth_number);
+  }, [examinedTeeth]);
+
+  const quotationTeeth = useMemo(() => {
+    const itemTeeth = Array.from(
+      new Set(
+        items
+          .map((it) => it.tooth_number)
+          .filter((tn): tn is number => typeof tn === 'number' && tn > 0),
+      ),
+    );
+    if (itemTeeth.length > 0) return itemTeeth;
+    if (primaryToothNumber) return [primaryToothNumber];
+    return [];
+  }, [items, primaryToothNumber]);
+
+  const candidatePrerequisites = useMemo(() => {
+    const parsedTooth = toothNumber ? Number(toothNumber) : null;
+    return items.filter((it) => {
+      if (parsedTooth !== null && it.tooth_number !== null && it.tooth_number !== parsedTooth) {
+        return false;
+      }
+      return true;
+    });
+  }, [items, toothNumber]);
+
+  const proposedItems = useMemo(
+    () => items.filter((it) => !it.status || it.status === 'PROPOSED'),
+    [items],
+  );
+
   const handleOpenQuotationModal = () => {
-    const defaultOptionItems: OptionDraftItem[] = items.map((it, idx) => {
+    const itemsToQuote = proposedItems.length > 0 ? proposedItems : items;
+    const defaultOptionItems: OptionDraftItem[] = itemsToQuote.map((it, idx) => {
       const matchedSvc = departmentServices.find(
         (s) => s.id === it.service_id || s.name.toLowerCase() === it.procedure_name.toLowerCase(),
       );
@@ -225,8 +414,59 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     setShowQuotationModal(true);
   };
 
+  const handleAddProposedItemToOption = (optId: string, item: DentalTreatmentPlanItem) => {
+    const matchedSvc = departmentServices.find(
+      (s) => s.id === item.service_id || s.name.toLowerCase() === item.procedure_name.toLowerCase(),
+    );
+    const price = matchedSvc ? matchedSvc.standard_price : (item.estimated_cost ?? 0);
+    setQuoteOptions((prev) =>
+      prev.map((opt) => {
+        if (opt.id !== optId) return opt;
+        return {
+          ...opt,
+          items: [
+            ...opt.items.filter((it) => it.procedure_name.trim() !== ''),
+            {
+              id: `opt-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              treatment_plan_item_id: item.id ?? undefined,
+              service_id: item.service_id || matchedSvc?.id || undefined,
+              procedure_name: item.procedure_name,
+              tooth_number: item.tooth_number ?? null,
+              quantity: 1,
+              unit_price: price,
+            },
+          ],
+        };
+      }),
+    );
+  };
+
+  const handleAddCatalogueServiceToOption = (optId: string, svc: ServiceResponse) => {
+    const defaultTooth = quotationTeeth[0] ?? examinedTeeth[0]?.tooth_number ?? null;
+    setQuoteOptions((prev) =>
+      prev.map((opt) => {
+        if (opt.id !== optId) return opt;
+        return {
+          ...opt,
+          items: [
+            ...opt.items.filter((it) => it.procedure_name.trim() !== ''),
+            {
+              id: `opt-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              service_id: svc.id,
+              procedure_name: svc.name,
+              tooth_number: defaultTooth,
+              quantity: 1,
+              unit_price: svc.standard_price > 0 ? svc.standard_price : 0,
+            },
+          ],
+        };
+      }),
+    );
+  };
+
   const handleAddOption = () => {
     const nextLetter = String.fromCharCode(65 + quoteOptions.length); // A, B, C...
+    const defaultTooth = quotationTeeth[0] ?? examinedTeeth[0]?.tooth_number ?? null;
     setQuoteOptions((prev) => [
       ...prev,
       {
@@ -239,7 +479,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
           {
             id: `opt-item-${Date.now()}`,
             procedure_name: '',
-            tooth_number: null,
+            tooth_number: defaultTooth,
             quantity: 1,
             unit_price: 0,
           },
@@ -260,6 +500,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   };
 
   const handleAddOptionItem = (optId: string) => {
+    const defaultTooth = quotationTeeth[0] ?? examinedTeeth[0]?.tooth_number ?? null;
     setQuoteOptions((prev) =>
       prev.map((opt) => {
         if (opt.id !== optId) return opt;
@@ -268,9 +509,9 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
           items: [
             ...opt.items,
             {
-              id: `opt-item-${Date.now()}-${Math.random()}`,
+              id: `opt-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               procedure_name: '',
-              tooth_number: null,
+              tooth_number: defaultTooth,
               quantity: 1,
               unit_price: 0,
             },
@@ -357,7 +598,11 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     setNewStagePlannedDate('');
   };
 
-  const handleSaveStage = async (planItemId: string, toothNum?: number | null, serviceId?: string | null) => {
+  const handleSaveStage = async (
+    planItemId: string,
+    toothNum?: number | null,
+    serviceId?: string | null,
+  ) => {
     const targetEpisodeId = episodeId ?? effectiveEpisodeId;
     if (!targetEpisodeId || !newStageName.trim() || !newStageDoctorId) return;
 
@@ -382,15 +627,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     handleCancelAddStage();
   };
 
-  const urgentCount = useMemo(() => {
-    return items.filter((it) => it.priority === 'URGENT' || it.priority === 'HIGH').length;
-  }, [items]);
-
-  const examinedTeethNumbers = useMemo(() => {
-    return teeth.map((t) => t.tooth_number);
-  }, [teeth]);
-
-  const handleSelectService = (service: ServiceResponse) => {
+  const handleSelectService = (service: { id: string; name: string; standard_price: number }) => {
     if (disabled) return;
     setSelectedServiceId(service.id);
     setProcedureName(service.name);
@@ -402,7 +639,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const handleCatalogueDropdownChange = (serviceId: string) => {
     setSelectedServiceId(serviceId);
     if (!serviceId) return;
-    const svc = departmentServices.find((s) => s.id === serviceId);
+    const svc = catalogueServicesList.find((s) => s.id === serviceId);
     if (svc) {
       setProcedureName(svc.name);
       if (svc.standard_price >= 0) {
@@ -415,16 +652,29 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     e.preventDefault();
     if (disabled || !procedureName.trim()) return;
 
+    const parsedTooth = toothNumber ? Number(toothNumber) : null;
+    if (parsedTooth !== null && !examinedTeethNumbers.includes(parsedTooth)) {
+      return;
+    }
+
+    const resolvedServiceId =
+      selectedServiceId && /^[a-f\d]{24}$/i.test(selectedServiceId)
+        ? selectedServiceId
+        : departmentServices.find(
+            (s) => s.id === selectedServiceId || s.name.toLowerCase() === procedureName.trim().toLowerCase(),
+          )?.id || null;
+
     const newItem: DentalTreatmentPlanItem = {
       id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      service_id: selectedServiceId || null,
-      tooth_number: toothNumber ? Number(toothNumber) : null,
+      service_id: resolvedServiceId,
+      tooth_number: parsedTooth,
       procedure_name: procedureName.trim(),
       surfaces: [],
-      priority,
+      priority: 'ROUTINE',
       estimated_cost: estimatedCost !== '' && !isNaN(Number(estimatedCost)) ? Number(estimatedCost) : null,
       notes: notes.trim() || null,
       status: 'PROPOSED',
+      depends_on_plan_item_id: dependsOnPlanItemId || null,
     };
 
     onChange([...items, newItem]);
@@ -433,20 +683,32 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     setToothNumber('');
     setSelectedServiceId('');
     setProcedureName('');
-    setPriority('ROUTINE');
     setEstimatedCost('');
     setNotes('');
+    setDependsOnPlanItemId('');
+    setShowAddTreatmentForm(false);
   };
 
-  const handleRemoveItem = (index: number) => {
+  const handleRemoveItem = (identifier: string | number) => {
     if (disabled) return;
-    onChange(items.filter((_, i) => i !== index));
+    if (typeof identifier === 'number') {
+      onChange(items.filter((_, i) => i !== identifier));
+    } else {
+      onChange(items.filter((it, idx) => (it.id ? it.id !== identifier : `plan-item-${idx}` !== identifier)));
+    }
   };
 
-  const handleStatusChange = (index: number, newStatus: DentalTreatmentStatus) => {
+  const handleStatusChange = (identifier: string | number, newStatus: DentalTreatmentStatus) => {
     if (disabled) return;
-    const updated = items.map((item, i) => (i === index ? { ...item, status: newStatus } : item));
+    const updated = items.map((item, i) => {
+      const matches = typeof identifier === 'number' ? i === identifier : (item.id === identifier || `plan-item-${i}` === identifier);
+      return matches ? { ...item, status: newStatus } : item;
+    });
     onChange(updated);
+  };
+
+  const handleAcceptItem = (identifier: string | number) => {
+    handleStatusChange(identifier, 'ACCEPTED');
   };
 
   // Financial summary calculations
@@ -539,23 +801,48 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
           </button>
           <h3 className={styles.cardTitle}>
             <i className="ph ph-calendar-check" style={{ color: '#7c3aed' }} />
-            Proposed Dental Treatment Plan &amp; Procedures
+            Dental Treatment Plan
           </h3>
           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
             ({items.length} Procedure{items.length === 1 ? '' : 's'})
           </span>
         </div>
 
-        {items.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.8rem' }}>
-            <span style={{ color: '#475569' }}>
-              Active/Accepted Value: <strong style={{ color: '#166534' }}>{formatCurrency(acceptedOrActiveCost)}</strong>
-            </span>
-            <span style={{ color: '#475569' }}>
-              Total Plan Value: <strong style={{ color: '#1e40af' }}>{formatCurrency(totalCost)}</strong>
-            </span>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          {items.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.8rem' }}>
+              <span style={{ color: '#475569' }}>
+                Active/Accepted Value: <strong style={{ color: '#166534' }}>{formatCurrency(acceptedOrActiveCost)}</strong>
+              </span>
+              <span style={{ color: '#475569' }}>
+                Total Plan Value: <strong style={{ color: '#1e40af' }}>{formatCurrency(totalCost)}</strong>
+              </span>
+            </div>
+          )}
+          {!disabled && (
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              style={{
+                fontSize: '0.78rem',
+                padding: '4px 12px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                background: '#7c3aed',
+                borderColor: '#7c3aed',
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAddTreatmentForm((prev) => !prev);
+              }}
+              title={showAddTreatmentForm ? 'Close treatment form' : 'Add new treatment procedure'}
+            >
+              <i className={`ph ${showAddTreatmentForm ? 'ph-x' : 'ph-plus'}`} />
+              {showAddTreatmentForm ? 'Close Form' : '+ Add Treatment'}
+            </button>
+          )}
+        </div>
       </div>
 
       {isExpanded && (
@@ -624,53 +911,284 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                 </span>
               </div>
             </div>
-
-            <div className={`${styles.treatmentKpiCard} ${urgentCount > 0 ? styles.kpiCardRed : styles.kpiCardAmber}`}>
-              <div className={styles.treatmentKpiIconWrapper}>
-                <i className={urgentCount > 0 ? 'ph ph-warning' : 'ph ph-clock'} />
-              </div>
-              <div className={styles.treatmentKpiContent}>
-                <span className={styles.treatmentKpiLabel}>Urgent Procedures</span>
-                <span className={styles.treatmentKpiValue} style={urgentCount > 0 ? { color: '#dc2626' } : undefined}>
-                  {urgentCount}
-                </span>
-                <span className={styles.treatmentKpiSubtext}>
-                  {urgentCount > 0 ? 'Requires priority clinical attention' : 'Standard clinical schedule'}
-                </span>
-              </div>
-            </div>
           </div>
 
-          {/* Planned Items Table */}
-          <div style={{ overflowX: 'auto' }}>
-            <table className={styles.treatmentTable}>
-              <thead>
-                <tr>
-                  <th style={{ width: '100px' }}>Site / Tooth</th>
-                  <th>Procedure Name &amp; Multi-Doctor Stages</th>
-                  <th style={{ width: '100px' }}>Priority</th>
-                  <th style={{ width: '110px' }}>Est. Cost</th>
-                  <th style={{ width: '140px' }}>Status</th>
-                  <th>Clinical Notes</th>
-                  <th style={{ minWidth: '170px' }}>Billing</th>
-                  {!disabled && <th style={{ width: '60px', textAlign: 'center' }}>Action</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {items.length === 0 ? (
+          {/* Inline [+ Add Treatment] Form inside Dental Treatment Plan */}
+          {!disabled && showAddTreatmentForm && (
+            <div
+              style={{
+                marginTop: '12px',
+                marginBottom: '16px',
+                padding: '14px 16px',
+                background: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #ddd6fe',
+                boxShadow: '0 1px 3px rgba(124, 58, 237, 0.06)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#6d28d9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="ph ph-plus-circle" /> Add Dental Treatment Procedure
+                </div>
+                <button
+                  type="button"
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem' }}
+                  onClick={() => setShowAddTreatmentForm(false)}
+                  title="Close form"
+                >
+                  <i className="ph ph-x" />
+                </button>
+              </div>
+
+              {/* Quick-add chips from Service Catalogue */}
+              {catalogueServicesList.length > 0 && (
+                <div
+                  style={{
+                    marginBottom: '12px',
+                    padding: '8px 12px',
+                    background: '#faf8ff',
+                    border: '1px dashed #c4b5fd',
+                    borderRadius: '6px',
+                  }}
+                >
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6d28d9', marginBottom: '6px' }}>
+                    <i className="ph ph-lightning" /> Quick-Select from Service Catalogue:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {catalogueServicesList.map((svc) => (
+                      <button
+                        key={svc.id}
+                        type="button"
+                        className={styles.chip}
+                        style={{ background: '#ede9fe', color: '#6d28d9', borderColor: '#ddd6fe', fontSize: '0.72rem', cursor: 'pointer' }}
+                        onClick={() => handleSelectService(svc)}
+                        title={svc.standard_price > 0 ? `Standard price: ${formatCurrency(svc.standard_price)}` : undefined}
+                      >
+                        {svc.name}
+                        {svc.standard_price > 0 && (
+                          <span style={{ fontSize: '0.675rem', opacity: 0.85, fontWeight: 700 }}>
+                            {' '}· {formatCurrency(svc.standard_price)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleAddItem}>
+                <div
+                  className={styles.treatmentFormGrid}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: candidatePrerequisites.length > 0
+                      ? '1.2fr 1.3fr 1.3fr 1.3fr 0.9fr 1.4fr auto'
+                      : '1.3fr 1.5fr 1.4fr 0.9fr 1.4fr auto',
+                    gap: '12px',
+                    alignItems: 'end',
+                    width: '100%',
+                  }}
+                >
+                  {/* Tooth Selector */}
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
+                    <label className={styles.label}>Tooth # (Examined Teeth)</label>
+                    <select
+                      className={styles.select}
+                      value={toothNumber}
+                      onChange={(e) => setToothNumber(e.target.value)}
+                    >
+                      <option value="">General / Full Mouth</option>
+                      {examinedTeeth.length > 0 ? (
+                        <optgroup label="Examined Teeth (Findings Recorded)">
+                           {examinedTeeth.map((t) => {
+                            const conditionList = [
+                              t.status && t.status !== 'PRESENT' ? t.status : '',
+                              ...(t.conditions || []),
+                            ]
+                              .filter(Boolean)
+                              .map((c) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase());
+                            const conditionStr = Array.from(new Set(conditionList)).join(', ');
+                            return (
+                              <option key={t.tooth_number} value={t.tooth_number}>
+                                Tooth #{t.tooth_number} — {TOOTH_NAMES[t.tooth_number] ?? getToothName(t.tooth_number)}
+                                {conditionStr ? ` (${conditionStr})` : ''}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      ) : (
+                        <option value="" disabled>
+                          No examined teeth available
+                        </option>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Service Catalogue Picker */}
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
+                    <label className={styles.label}>Service Catalogue</label>
+                    <select
+                      className={styles.select}
+                      value={selectedServiceId}
+                      onChange={(e) => handleCatalogueDropdownChange(e.target.value)}
+                    >
+                      <option value="">-- Select from Catalogue --</option>
+                      {catalogueServicesList.map((svc) => (
+                        <option key={svc.id} value={svc.id}>
+                          {svc.name} {svc.standard_price > 0 ? `(${formatCurrency(svc.standard_price)})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Procedure Name Input */}
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
+                    <label className={styles.label}>
+                      Procedure Name <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      list="dental-procedure-suggestions"
+                      placeholder="e.g. Composite Restoration, RCT..."
+                      className={styles.input}
+                      value={procedureName}
+                      onChange={(e) => {
+                        setProcedureName(e.target.value);
+                        const matchedSvc = catalogueServicesList.find(
+                          (s) => s.name.toLowerCase() === e.target.value.trim().toLowerCase(),
+                        );
+                        if (matchedSvc) {
+                          setSelectedServiceId(matchedSvc.id);
+                          if (matchedSvc.standard_price >= 0) {
+                            setEstimatedCost(matchedSvc.standard_price.toString());
+                          }
+                        } else {
+                          setSelectedServiceId('');
+                        }
+                      }}
+                      required
+                    />
+                    <datalist id="dental-procedure-suggestions">
+                      {catalogueServicesList.map((svc) => (
+                        <option key={svc.id} value={svc.name} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  {/* Prerequisite Procedure (Optional) */}
+                  {candidatePrerequisites.length > 0 && (
+                    <div className={styles.formGroup} style={{ minWidth: 0 }}>
+                      <label className={styles.label}>Depends On</label>
+                      <select
+                        className={styles.select}
+                        value={dependsOnPlanItemId}
+                        onChange={(e) => setDependsOnPlanItemId(e.target.value)}
+                        title="Select prerequisite procedure that must be COMPLETED before this procedure can be executed"
+                      >
+                        <option value="">None (Independent)</option>
+                        {candidatePrerequisites.map((cand, cIdx) => (
+                          <option key={cand.id ?? `cand-${cIdx}`} value={cand.id ?? cand.procedure_name}>
+                            {cand.tooth_number ? `#${cand.tooth_number} ` : ''}
+                            {cand.procedure_name} ({cand.status ?? 'PROPOSED'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+
+                  {/* Est. Cost */}
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
+                    <label className={styles.label}>Est. Cost</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      className={styles.input}
+                      value={estimatedCost}
+                      onChange={(e) => setEstimatedCost(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Clinical Treatment Notes */}
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
+                    <label className={styles.label}>Treatment Notes (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Shade A2, post & core..."
+                      className={styles.input}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <div style={{ alignSelf: 'end', minWidth: 'max-content', display: 'flex', gap: '6px' }}>
+                    <button
+                      type="submit"
+                      className={styles.btnPrimary}
+                      style={{
+                        height: '36px',
+                        whiteSpace: 'nowrap',
+                        padding: '0 14px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#7c3aed',
+                        borderColor: '#7c3aed',
+                      }}
+                    >
+                      <i className="ph ph-plus" /> Add Treatment
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Unified Dental Treatment Plan Table */}
+          {items.length === 0 ? (
+            <div
+              style={{
+                padding: '24px 20px',
+                textAlign: 'center',
+                background: '#f8fafc',
+                borderRadius: '8px',
+                border: '1px dashed #cbd5e1',
+                color: '#64748b',
+                fontSize: '0.85rem',
+                marginTop: '12px',
+              }}
+            >
+              <i className="ph ph-tooth" style={{ fontSize: '1.8rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }} />
+              No dental treatment procedures planned yet.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', marginTop: '12px' }}>
+              <table className={styles.treatmentTable}>
+                <thead>
                   <tr>
-                    <td colSpan={disabled ? 7 : 8} className={styles.emptyStateText}>
-                      No planned dental procedures recorded. Select procedures from the Service Catalogue or enter custom treatment items below.
-                    </td>
+                    <th style={{ width: '100px' }}>Site / Tooth</th>
+                    <th>Procedure Name &amp; Multi-Doctor Stages</th>
+                    <th style={{ width: '110px' }}>Est. Cost</th>
+                    <th style={{ width: '140px' }}>Status</th>
+                    <th>Clinical Notes</th>
+                    <th style={{ minWidth: '170px' }}>Billing</th>
+                    {!disabled && <th style={{ width: '80px', textAlign: 'center' }}>Action</th>}
                   </tr>
-                ) : (
-                  items.map((item, idx) => {
+                </thead>
+                <tbody>
+                  {items.map((item, idx) => {
                     const billingState = item.id ? billingStateByTreatmentItem.get(item.id) : undefined;
                     const cataloguePrice = item.service_id
                       ? departmentServices.find((service) => service.id === item.service_id)?.standard_price
                       : undefined;
                     const isPersisted = Boolean(item.id && /^[a-f\d]{24}$/i.test(item.id));
-                    const isStatusBillable = item.status !== 'DECLINED' && item.status !== 'CANCELLED';
+                    const isAcceptedOrActive = item.status === 'ACCEPTED' || item.status === 'IN_PROGRESS' || item.status === 'COMPLETED';
+                    const isProposed = item.status === 'PROPOSED' || !item.status;
+                    const isInactive = item.status === 'DECLINED' || item.status === 'CANCELLED';
+                    const isStatusBillable = item.status !== 'DECLINED' && item.status !== 'CANCELLED' && item.status !== 'PROPOSED';
                     const isBillingThisItem = billingTreatmentItemPending === item.id;
 
                     const itemStages = (item.id ? stagesByPlanItem.get(item.id) : undefined) ?? [];
@@ -679,7 +1197,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
                     return (
                       <React.Fragment key={item.id ?? `plan-item-${idx}`}>
-                        <tr>
+                        <tr style={isInactive ? { opacity: 0.65 } : undefined}>
                           <td style={{ fontWeight: 700, color: '#1e40af' }}>
                             {item.tooth_number ? (
                               <span
@@ -713,75 +1231,73 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               <span style={{ fontWeight: 600 }}>{item.procedure_name}</span>
-                              {item.service_id && (
+                              {/* Stages management indicator / toggle for accepted/active items */}
+                              {isAcceptedOrActive && (
+                                isPersisted ? (
+                                  <button
+                                    type="button"
+                                    className={styles.chip}
+                                    style={{
+                                      cursor: 'pointer',
+                                      fontSize: '0.725rem',
+                                      background: itemStages.length > 0 ? '#eff6ff' : '#f8fafc',
+                                      color: itemStages.length > 0 ? '#1d4ed8' : '#64748b',
+                                      borderColor: itemStages.length > 0 ? '#bfdbfe' : '#cbd5e1',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      padding: '2px 8px',
+                                      fontWeight: itemStages.length > 0 ? 600 : 500,
+                                    }}
+                                    onClick={() => item.id && toggleStageRow(item.id)}
+                                    title={
+                                      itemStages.length > 0
+                                        ? 'Toggle sequential treatment stages'
+                                        : 'Manage treatment stages for this procedure'
+                                    }
+                                  >
+                                    <i className="ph ph-git-merge" />
+                                    {itemStages.length > 0 ? `Stages (${itemStages.length})` : 'Stages available'}
+                                    <i className={`ph ph-caret-down ${isStagesExpanded ? styles.collapseChevronExpanded : ''}`} />
+                                  </button>
+                                ) : (
+                                  <span
+                                    style={{
+                                      fontSize: '0.725rem',
+                                      color: '#15803d',
+                                      background: '#f0fdf4',
+                                      border: '1px solid #bbf7d0',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      fontWeight: 500,
+                                    }}
+                                  >
+                                    <i className="ph ph-check-circle" /> Stages available
+                                  </span>
+                                )
+                              )}
+                              {isProposed && (
                                 <span
                                   style={{
-                                    fontSize: '0.675rem',
-                                    color: '#0284c7',
-                                    background: '#e0f2fe',
-                                    padding: '1px 5px',
-                                    borderRadius: '3px',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  Catalogue
-                                </span>
-                              )}
-                              {/* Treatment Stages indicator / toggle */}
-                              {isPersisted && (
-                                <button
-                                  type="button"
-                                  className={styles.chip}
-                                  style={{
-                                    cursor: 'pointer',
                                     fontSize: '0.725rem',
-                                    background: itemStages.length > 0 ? '#eff6ff' : '#f8fafc',
-                                    color: itemStages.length > 0 ? '#1d4ed8' : '#64748b',
-                                    borderColor: itemStages.length > 0 ? '#bfdbfe' : '#cbd5e1',
+                                    color: '#6d28d9',
+                                    background: '#f5f3ff',
+                                    border: '1px solid #ddd6fe',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
                                     display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '4px',
-                                    padding: '2px 8px',
-                                    fontWeight: itemStages.length > 0 ? 600 : 500,
+                                    gap: '3px',
+                                    fontWeight: 500,
                                   }}
-                                  onClick={() => item.id && toggleStageRow(item.id)}
-                                  title={
-                                    itemStages.length > 0
-                                      ? 'Toggle sequential treatment stages'
-                                      : 'Manage treatment stages for this procedure'
-                                  }
                                 >
-                                  <i className="ph ph-git-merge" />
-                                  {itemStages.length > 0 ? `Stages (${itemStages.length})` : '+ Manage Stages'}
-                                  <i className={`ph ph-caret-down ${isStagesExpanded ? styles.collapseChevronExpanded : ''}`} />
-                                </button>
+                                  <i className="ph ph-lock" /> Stages unlock upon acceptance
+                                </span>
                               )}
                             </div>
-                          </td>
-                          <td>
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '0.725rem',
-                                fontWeight: 700,
-                                background:
-                                  item.priority === 'URGENT' || item.priority === 'HIGH'
-                                    ? '#fee2e2'
-                                    : item.priority === 'ELECTIVE' || item.priority === 'LOW'
-                                    ? '#f3e8ff'
-                                    : '#dbeafe',
-                                color:
-                                  item.priority === 'URGENT' || item.priority === 'HIGH'
-                                    ? '#dc2626'
-                                    : item.priority === 'ELECTIVE' || item.priority === 'LOW'
-                                    ? '#7e22ce'
-                                    : '#1d4ed8',
-                              }}
-                            >
-                              {item.priority ?? 'ROUTINE'}
-                            </span>
                           </td>
                           <td style={{ fontWeight: 600 }}>
                             {cataloguePrice != null
@@ -791,42 +1307,21 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                               : '—'}
                           </td>
                           <td>
-                            {disabled ? (
-                              <span
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  padding: '3px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 700,
-                                  ...getStatusBadgeStyle(item.status),
-                                }}
-                              >
-                                {item.status ?? 'PROPOSED'}
-                              </span>
-                            ) : (
-                              <select
-                                className={styles.select}
-                                style={{
-                                  padding: '3px 8px',
-                                  fontSize: '0.775rem',
-                                  fontWeight: 600,
-                                  borderRadius: '4px',
-                                  ...getStatusBadgeStyle(item.status),
-                                }}
-                                value={item.status ?? 'PROPOSED'}
-                                onChange={(e) => handleStatusChange(idx, e.target.value as DentalTreatmentStatus)}
-                              >
-                                <option value="PROPOSED">Proposed</option>
-                                <option value="ACCEPTED">Accepted</option>
-                                <option value="IN_PROGRESS">In-Progress</option>
-                                <option value="COMPLETED">Completed</option>
-                                <option value="DECLINED">Declined</option>
-                                <option value="CANCELLED">Cancelled</option>
-                              </select>
-                            )}
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                ...getStatusBadgeStyle(item.status),
+                              }}
+                            >
+                              {item.status ?? 'PROPOSED'}
+                            </span>
                           </td>
                           <td style={{ fontSize: '0.8rem', color: '#64748b' }}>{item.notes ?? '—'}</td>
                           <td>
@@ -852,6 +1347,10 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                 </button>
                                 <small>{formatCurrency(billingState.unit_price)}</small>
                               </div>
+                            ) : isProposed ? (
+                              <span className={styles.billingMuted}>Awaiting acceptance</span>
+                            ) : isInactive ? (
+                              <span className={styles.billingMuted}>Not billable</span>
                             ) : billingStateLoading ? (
                               <span className={styles.billingMuted}>Checking billing…</span>
                             ) : !item.service_id ? (
@@ -886,7 +1385,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                   type="button"
                                   className={styles.btnSecondary}
                                   style={{ padding: '2px 6px', color: '#dc2626', borderColor: '#fecaca' }}
-                                  onClick={() => handleRemoveItem(idx)}
+                                  onClick={() => handleRemoveItem(item.id ?? idx)}
                                   title="Remove procedure"
                                 >
                                   <i className="ph ph-trash" />
@@ -897,823 +1396,573 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                         </tr>
 
                         {/* Nested Multi-Doctor Stages Drawer */}
-                        {isStagesExpanded && item.id && (
-                          <tr>
-                            <td colSpan={disabled ? 7 : 8} style={{ padding: 0 }}>
-                              <div className={styles.stagesDrawer}>
-                                <div className={styles.stagesHeader}>
-                                  <div className={styles.stagesHeaderTitle}>
-                                    <i className="ph ph-git-commit" style={{ color: '#2563eb' }} />
-                                    Treatment Stages &amp; Multi-Doctor Care
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>
-                                      ({itemStages.length} stage{itemStages.length === 1 ? '' : 's'} assigned)
-                                    </span>
-                                  </div>
-                                  {!disabled && (
-                                    <button
-                                      type="button"
-                                      className={styles.btnSecondary}
-                                      style={{ padding: '3px 8px', fontSize: '0.75rem' }}
-                                      onClick={() => handleOpenAddStage(item.id!)}
-                                    >
-                                      <i className="ph ph-plus" /> Add Stage
-                                    </button>
-                                  )}
-                                </div>
-
-                                {itemStages.length === 0 && !isAddingStage && (
-                                  <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>
-                                      No treatment stages created yet. Break this procedure down into multi-doctor stages (e.g. Stage 1 RCT by Endodontist, Stage 2 Crown Impression by Prosthodontist).
+                        {isStagesExpanded && item.id && isAcceptedOrActive && (
+                            <tr>
+                              <td colSpan={disabled ? 6 : 7} style={{ padding: 0 }}>
+                                <div className={styles.stagesDrawer}>
+                                  <div className={styles.stagesHeader}>
+                                    <div className={styles.stagesHeaderTitle}>
+                                      <i className="ph ph-git-commit" style={{ color: '#2563eb' }} />
+                                      Treatment Stages &amp; Multi-Doctor Care
+                                      <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>
+                                        ({itemStages.length} stage{itemStages.length === 1 ? '' : 's'} assigned)
+                                      </span>
                                     </div>
                                     {!disabled && (
-                                      <div>
-                                        <button
-                                          type="button"
-                                          className={styles.btnSecondary}
-                                          style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                          onClick={() => handleOpenAddStage(item.id!)}
-                                        >
-                                          <i className="ph ph-plus" /> Manage Stages
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                <div className={styles.stagesTimeline}>
-                                  {itemStages.map((stage) => {
-                                    const stageLabOrder = episodeLabOrders.find(
-                                      (lo) =>
-                                        lo.treatment_stage_id === stage.id ||
-                                        (stage.prosthetic_lab_order_id && lo.id === stage.prosthetic_lab_order_id)
-                                    );
-                                    const effectiveLabOrder =
-                                      stageLabOrder ||
-                                      episodeLabOrders.find(
-                                        (lo) =>
-                                          lo.treatment_plan_item_id &&
-                                          lo.treatment_plan_item_id === stage.plan_item_id &&
-                                          lo.status !== 'CANCELLED'
-                                      );
-                                    const isLabOrderPending = Boolean(
-                                      effectiveLabOrder &&
-                                        effectiveLabOrder.status !== 'READY' &&
-                                        effectiveLabOrder.status !== 'CANCELLED'
-                                    );
-                                    const isLabOrderReady = Boolean(
-                                      effectiveLabOrder && effectiveLabOrder.status === 'READY'
-                                    );
-
-                                    const nextFittingStage = itemStages.find(
-                                      (s) => s.sequence > stage.sequence && s.status !== 'CANCELLED'
-                                    );
-
-                                    // Check if prior non-cancelled stages are completed
-                                    const priorIncomplete = itemStages
-                                      .filter((s) => s.sequence < stage.sequence && s.status !== 'CANCELLED')
-                                      .some((s) => s.status !== 'COMPLETED');
-
-                                    const isCompleted = stage.status === 'COMPLETED';
-                                    const isInProgress = stage.status === 'IN_PROGRESS';
-
-                                    return (
-                                      <div
-                                        key={stage.id}
-                                        className={`${styles.stageCard} ${
-                                          isCompleted
-                                            ? styles.stageCardCompleted
-                                            : isInProgress
-                                            ? styles.stageCardInProgress
-                                            : ''
-                                        }`}
-                                      >
-                                        <div className={styles.stageMain}>
-                                          <div
-                                            className={`${styles.stageSequence} ${
-                                              isCompleted
-                                                ? styles.stageSequenceCompleted
-                                                : isInProgress
-                                                ? styles.stageSequenceInProgress
-                                                : ''
-                                            }`}
-                                          >
-                                            {isCompleted ? '✓' : stage.sequence}
-                                          </div>
-                                          <div className={styles.stageDetails}>
-                                            <div className={styles.stageName}>
-                                              Stage {stage.sequence}: {stage.stage_name}
-                                            </div>
-                                            <div className={styles.stageMeta}>
-                                              <span className={styles.stageDoctorChip}>
-                                                <i className="ph ph-stethoscope" style={{ color: '#2563eb' }} />
-                                                Dr. {stage.assigned_doctor_name}
-                                              </span>
-                                              {stage.appointment_id ? (
-                                                <span style={{ color: '#166534', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                  <i className="ph ph-calendar-check" /> Appointment: {stage.planned_date ? `${stage.planned_date} (Scheduled)` : 'Scheduled'}
-                                                </span>
-                                              ) : (
-                                                <span style={{ color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                  <i className="ph ph-calendar-blank" /> Appointment: Not scheduled
-                                                </span>
-                                              )}
-                                              {stage.notes && <span>{stage.notes}</span>}
-                                              {stage.completed_at && (
-                                                <span style={{ color: '#166534' }}>
-                                                  Completed on {new Date(stage.completed_at).toLocaleDateString()}
-                                                </span>
-                                              )}
-                                            </div>
-
-                                            {/* Phase 5D & Phase 7A: Lab READY banner */}
-                                            {isLabOrderReady && effectiveLabOrder && (
-                                              <div className={styles.stageLabReadyBanner} data-testid="stage-lab-ready-banner">
-                                                <i className="ph-fill ph-check-circle" style={{ color: '#16a34a', fontSize: '1.1rem', flexShrink: 0 }} />
-                                                <div style={{ flex: 1 }}>
-                                                  <div style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>
-                                                    <strong>Prosthetic Ready:</strong> {effectiveLabOrder.prosthetic_type}
-                                                    {effectiveLabOrder.tooth_number ? ` – Tooth #${effectiveLabOrder.tooth_number}` : ''} ({effectiveLabOrder.order_number}) is ready for clinical fitting &amp; cementation.
-                                                  </div>
-                                                  <div style={{ fontSize: '0.725rem', color: '#15803d', marginTop: '2px' }}>
-                                                    <strong>Next Clinical Step:</strong>{' '}
-                                                    {nextFittingStage
-                                                      ? `Stage ${nextFittingStage.sequence}: ${nextFittingStage.stage_name}`
-                                                      : 'Fitting / Cementation'}
-                                                  </div>
-                                                </div>
-                                                {effectiveLabOrder.ready_at && (
-                                                  <small style={{ color: '#15803d', marginLeft: 'auto', fontSize: '0.7rem', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                                                    Ready {new Date(effectiveLabOrder.ready_at).toLocaleDateString()}
-                                                  </small>
-                                                )}
-                                              </div>
-                                            )}
-
-                                            {/* Phase 5D: Lab Pending banner */}
-                                            {isLabOrderPending && effectiveLabOrder && (
-                                              <div className={styles.stageLabPendingBanner} data-testid="stage-lab-pending-banner">
-                                                <i className="ph ph-hourglass-high" style={{ color: '#d97706', fontSize: '1rem' }} />
-                                                <span style={{ fontSize: '0.75rem', color: '#92400e' }}>
-                                                  <strong>Lab Processing:</strong> {effectiveLabOrder.prosthetic_type} ({effectiveLabOrder.order_number}) is currently <strong>{effectiveLabOrder.status.replace('_', ' ')}</strong>. Awaiting READY before clinical completion.
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        <div className={styles.stageActionsArea}>
-                                          <span
-                                            style={{
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              gap: '3px',
-                                              padding: '2px 7px',
-                                              borderRadius: '4px',
-                                              fontSize: '0.725rem',
-                                              fontWeight: 700,
-                                              ...getStageStatusBadgeStyle(stage.status),
-                                            }}
-                                          >
-                                            {stage.status}
-                                          </span>
-
-                                          {/* Lab Order Badge / Trigger */}
-                                          {stageLabOrder ? (
-                                            <span
-                                              style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '2px 7px',
-                                                borderRadius: '4px',
-                                                fontSize: '0.725rem',
-                                                fontWeight: 600,
-                                                background:
-                                                  stageLabOrder.status === 'READY'
-                                                    ? '#dcfce7'
-                                                    : stageLabOrder.status === 'CANCELLED'
-                                                    ? '#fef2f2'
-                                                    : '#f5f3ff',
-                                                color:
-                                                  stageLabOrder.status === 'READY'
-                                                    ? '#166534'
-                                                    : stageLabOrder.status === 'CANCELLED'
-                                                    ? '#dc2626'
-                                                    : '#6d28d9',
-                                                border: `1px solid ${
-                                                  stageLabOrder.status === 'READY'
-                                                    ? '#86efac'
-                                                    : stageLabOrder.status === 'CANCELLED'
-                                                    ? '#fecaca'
-                                                    : '#ddd6fe'
-                                                }`,
-                                              }}
-                                              data-testid="stage-lab-order-badge"
-                                            >
-                                              <i className="ph ph-wrench" />
-                                              <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{stageLabOrder.order_number}</span>
-                                              <span>• {stageLabOrder.prosthetic_type}</span>
-                                              {stageLabOrder.status !== 'ORDERED' && (
-                                                <span style={{ fontSize: '0.675rem', fontWeight: 700, opacity: 0.9 }}>
-                                                  [{stageLabOrder.status}]
-                                                </span>
-                                              )}
-                                              <button
-                                                type="button"
-                                                style={{
-                                                  background: 'transparent',
-                                                  border: 'none',
-                                                  cursor: 'pointer',
-                                                  color: stageLabOrder.status === 'READY' ? '#166534' : '#5b21b6',
-                                                  padding: '0 2px',
-                                                  marginLeft: '2px',
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                }}
-                                                onClick={() => setViewLabOrderId(stageLabOrder.id)}
-                                                title="View Prosthetic Lab Order"
-                                              >
-                                                <i className="ph ph-eye" />
-                                              </button>
-                                            </span>
-                                          ) : (
-                                            !disabled && !isCompleted && stage.status !== 'CANCELLED' && (
-                                              <button
-                                                type="button"
-                                                className={styles.btnStageAction}
-                                                style={{ background: '#fdf4ff', color: '#a21caf', borderColor: '#f0abfc' }}
-                                                onClick={() => setLabOrderCreateStage(stage)}
-                                                title="Create Prosthetic Lab Order for this stage"
-                                                data-testid="stage-create-lab-order-btn"
-                                              >
-                                                <i className="ph ph-wrench" /> Lab Order
-                                              </button>
-                                            )
-                                          )}
-
-                                          {!disabled && !isCompleted && stage.status !== 'CANCELLED' && (
-                                            <>
-                                              {(stage.status === 'PLANNED' || stage.status === 'SCHEDULED') && (
-                                                <button
-                                                  type="button"
-                                                  className={`${styles.btnStageAction} ${styles.btnStageStart}`}
-                                                  disabled={priorIncomplete || isLabOrderPending}
-                                                  onClick={() =>
-                                                    updateStageStatusMutation.mutate({
-                                                      stageId: stage.id,
-                                                      payload: { status: 'IN_PROGRESS' },
-                                                    })
-                                                  }
-                                                  title={
-                                                    priorIncomplete
-                                                      ? 'Previous stage must be completed first'
-                                                      : isLabOrderPending
-                                                      ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before starting stage.`
-                                                      : 'Start stage'
-                                                  }
-                                                  data-testid={`stage-${stage.sequence}-start-btn`}
-                                                >
-                                                  <i className="ph ph-play" /> Start
-                                                </button>
-                                              )}
-
-                                              {stage.status === 'IN_PROGRESS' && (
-                                                <>
-                                                  <button
-                                                    type="button"
-                                                    className={`${styles.btnStageAction} ${styles.btnStageComplete}`}
-                                                    disabled={priorIncomplete || isLabOrderPending}
-                                                    onClick={() =>
-                                                      updateStageStatusMutation.mutate({
-                                                        stageId: stage.id,
-                                                        payload: { status: 'COMPLETED' },
-                                                      })
-                                                    }
-                                                    title={
-                                                      priorIncomplete
-                                                        ? 'Previous stage must be completed first'
-                                                        : isLabOrderPending
-                                                        ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before completing stage.`
-                                                        : 'Mark stage complete'
-                                                    }
-                                                    data-testid={`stage-${stage.sequence}-complete-btn`}
-                                                  >
-                                                    <i className="ph ph-check-circle" /> Complete
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    className={`${styles.btnStageAction} ${styles.btnStageHold}`}
-                                                    onClick={() =>
-                                                      updateStageStatusMutation.mutate({
-                                                        stageId: stage.id,
-                                                        payload: { status: 'ON_HOLD' },
-                                                      })
-                                                    }
-                                                    title="Put stage on hold"
-                                                  >
-                                                    <i className="ph ph-pause" /> Hold
-                                                  </button>
-                                                </>
-                                              )}
-
-                                              {stage.status === 'ON_HOLD' && (
-                                                <button
-                                                  type="button"
-                                                  className={`${styles.btnStageAction} ${styles.btnStageStart}`}
-                                                  onClick={() =>
-                                                    updateStageStatusMutation.mutate({
-                                                      stageId: stage.id,
-                                                      payload: { status: 'IN_PROGRESS' },
-                                                    })
-                                                  }
-                                                >
-                                                  <i className="ph ph-play" /> Resume
-                                                </button>
-                                              )}
-
-                                              {priorIncomplete && (stage.status === 'PLANNED' || stage.status === 'IN_PROGRESS') && (
-                                                <span className={styles.stagePrereqNotice}>
-                                                  <i className="ph ph-lock-key" /> Prior stage pending
-                                                </span>
-                                              )}
-
-                                              {isLabOrderPending && stage.status === 'IN_PROGRESS' && (
-                                                <span className={styles.stageLabPrereqNotice} data-testid="stage-lab-pending-notice">
-                                                  <i className="ph ph-hourglass-high" /> Lab: {stageLabOrder?.status} (awaiting Ready)
-                                                </span>
-                                              )}
-
-                                              {/* Doctor reassign selector */}
-                                              {doctors.length > 1 && (
-                                                <select
-                                                  className={styles.select}
-                                                  style={{ padding: '2px 6px', fontSize: '0.725rem' }}
-                                                  value={stage.assigned_doctor_id}
-                                                  onChange={(e) =>
-                                                    assignDoctorMutation.mutate({
-                                                      stageId: stage.id,
-                                                      payload: { doctor_id: e.target.value },
-                                                    })
-                                                  }
-                                                  title="Reassign doctor for this stage"
-                                                >
-                                                  {doctors.map((doc) => (
-                                                    <option key={doc.id} value={doc.id}>
-                                                      Dr. {doc.display_name || `${doc.first_name} ${doc.last_name}`.trim()} ({doc.specialization || 'Dental'})
-                                                    </option>
-                                                  ))}
-                                                </select>
-                                              )}
-
-                                              {/* Schedule appointment button for PLANNED stages */}
-                                              {stage.status === 'PLANNED' && !priorIncomplete && (
-                                                <button
-                                                  type="button"
-                                                  className={styles.btnStageAction}
-                                                  style={{
-                                                    background: isLabOrderPending ? '#f8fafc' : '#eff6ff',
-                                                    color: isLabOrderPending ? '#94a3b8' : '#1d4ed8',
-                                                    borderColor: isLabOrderPending ? '#e2e8f0' : '#bfdbfe',
-                                                    cursor: isLabOrderPending ? 'not-allowed' : 'pointer',
-                                                  }}
-                                                  disabled={isLabOrderPending}
-                                                  onClick={() => setScheduleModalStage(stage)}
-                                                  title={
-                                                    isLabOrderPending
-                                                      ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before scheduling.`
-                                                      : 'Schedule an appointment for this stage'
-                                                  }
-                                                  data-testid={`stage-${stage.sequence}-schedule-btn`}
-                                                >
-                                                  <i className="ph ph-calendar-plus" /> Schedule
-                                                </button>
-                                              )}
-
-                                              {/* Reschedule / cancel appointment for SCHEDULED stages */}
-                                              {stage.status === 'SCHEDULED' && stage.appointment_id && (
-                                                <>
-                                                  <span style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                    <i className="ph ph-calendar-check" /> Appt booked
-                                                  </span>
-                                                  <button
-                                                    type="button"
-                                                    className={styles.btnStageAction}
-                                                    style={{ background: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0' }}
-                                                    onClick={() => setViewAppointmentStageId(stage.id)}
-                                                    title="View linked appointment details"
-                                                  >
-                                                    <i className="ph ph-eye" /> View Appt
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    className={styles.btnStageAction}
-                                                    style={{ background: '#fefce8', color: '#92400e', borderColor: '#fde68a' }}
-                                                    onClick={() => setScheduleModalStage(stage)}
-                                                    title="Reschedule appointment"
-                                                  >
-                                                    <i className="ph ph-calendar-x" /> Reschedule
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
-                                                    onClick={() => setCancelConfirmStageId(stage.id)}
-                                                    title="Cancel appointment (stage returns to Planned)"
-                                                  >
-                                                    <i className="ph ph-x-circle" /> Cancel Appt
-                                                  </button>
-                                                </>
-                                              )}
-
-                                              {stage.status === 'PLANNED' && (
-                                                <button
-                                                  type="button"
-                                                  className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
-                                                  onClick={() => deleteStageMutation.mutate(stage.id)}
-                                                  title="Delete planned stage"
-                                                >
-                                                  <i className="ph ph-trash" />
-                                                </button>
-                                              )}
-                                            </>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                {/* Inline Form to Add Stage */}
-                                {isAddingStage && (
-                                  <div className={styles.addStageInlineBox}>
-                                    <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#1e3a8a', marginBottom: '8px' }}>
-                                      <i className="ph ph-plus-circle" /> Add New Treatment Stage (Step {itemStages.length + 1})
-                                    </div>
-
-                                    {/* Quick stage suggestions */}
-                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                                      {[
-                                        'Root Canal Treatment',
-                                        'Crown Measurement & Impression',
-                                        'Crown Fitting & Cementation',
-                                        'Core Build-up & Post',
-                                        'Initial Cleaning & Prep',
-                                        'Final Restoration & Polish',
-                                      ].map((suggestion) => (
-                                        <button
-                                          key={suggestion}
-                                          type="button"
-                                          className={styles.chip}
-                                          style={{ fontSize: '0.7rem', background: '#f0f9ff', color: '#0369a1', borderColor: '#bae6fd' }}
-                                          onClick={() => setNewStageName(suggestion)}
-                                        >
-                                          {suggestion}
-                                        </button>
-                                      ))}
-                                    </div>
-
-                                    <div className={styles.addStageGrid}>
-                                      <div>
-                                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>
-                                          Stage Name <span style={{ color: '#dc2626' }}>*</span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          className={styles.input}
-                                          style={{ fontSize: '0.8rem', padding: '4px 8px' }}
-                                          placeholder="e.g. Crown Impression & Shade Selection"
-                                          value={newStageName}
-                                          onChange={(e) => setNewStageName(e.target.value)}
-                                          required
-                                        />
-                                      </div>
-
-                                      <div>
-                                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>
-                                          Assigned Doctor <span style={{ color: '#dc2626' }}>*</span>
-                                        </label>
-                                        <select
-                                          className={styles.select}
-                                          style={{ fontSize: '0.8rem', padding: '4px 8px' }}
-                                          value={newStageDoctorId}
-                                          onChange={(e) => setNewStageDoctorId(e.target.value)}
-                                          required
-                                        >
-                                          {doctors.length === 0 && <option value="">-- No doctors found --</option>}
-                                          {doctors.map((doc) => (
-                                            <option key={doc.id} value={doc.id}>
-                                              Dr. {doc.display_name || `${doc.first_name} ${doc.last_name}`.trim()} ({doc.specialization || 'Dental'})
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
-
-                                      <div>
-                                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>
-                                          Planned Date (Optional)
-                                        </label>
-                                        <input
-                                          type="date"
-                                          className={styles.input}
-                                          style={{ fontSize: '0.8rem', padding: '4px 8px' }}
-                                          value={newStagePlannedDate}
-                                          onChange={(e) => setNewStagePlannedDate(e.target.value)}
-                                        />
-                                      </div>
-
-                                      <div>
-                                        <label className={styles.label} style={{ fontSize: '0.75rem' }}>
-                                          Notes (Optional)
-                                        </label>
-                                        <input
-                                          type="text"
-                                          className={styles.input}
-                                          style={{ fontSize: '0.8rem', padding: '4px 8px' }}
-                                          placeholder="e.g. Alginate impression, shade A2"
-                                          value={newStageNotes}
-                                          onChange={(e) => setNewStageNotes(e.target.value)}
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                       <button
                                         type="button"
                                         className={styles.btnSecondary}
-                                        style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                                        onClick={handleCancelAddStage}
+                                        style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                                        onClick={() => handleOpenAddStage(item.id!)}
                                       >
-                                        Cancel
+                                        <i className="ph ph-plus" /> Add Stage
                                       </button>
-                                      <button
-                                        type="button"
-                                        className={styles.btnPrimary}
-                                        style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                                        disabled={!newStageName.trim() || !newStageDoctorId || createStageMutation.isPending}
-                                        onClick={() => handleSaveStage(item.id!, item.tooth_number, item.service_id)}
-                                      >
-                                        {createStageMutation.isPending ? 'Saving...' : 'Add Stage'}
-                                      </button>
-                                    </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
 
-          {/* Add Treatment Item Form */}
-          {!disabled && (
-            <>
-              {/* Service Catalogue Quick-Add */}
-              {departmentServices.length > 0 && (
-                <div
-                  style={{
-                    marginTop: '16px',
-                    padding: '12px 14px',
-                    background: '#f0f9ff',
-                    border: '1px solid #bae6fd',
-                    borderRadius: '8px',
-                  }}
-                >
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0369a1', marginBottom: '8px' }}>
-                    <i className="ph ph-lightning" /> Quick-Add from Service Catalogue
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {departmentServices.map((svc) => (
-                      <button
-                        key={svc.id}
-                        type="button"
-                        className={styles.chip}
-                        style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}
-                        onClick={() => handleSelectService(svc)}
-                        title={svc.standard_price > 0 ? `Standard price: ${formatCurrency(svc.standard_price)}` : undefined}
-                      >
-                        {svc.name}
-                        {svc.standard_price > 0 && (
-                          <span style={{ fontSize: '0.7rem', opacity: 0.85, fontWeight: 600 }}>
-                            {' '}· {formatCurrency(svc.standard_price)}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                                  {itemStages.length === 0 && !isAddingStage && (
+                                    <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                      <div style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>
+                                        No treatment stages created yet. Break this procedure down into sequential clinical steps (e.g. for RCT: Access &amp; Pulp Extirpation, Canal Shaping, Obturation; for Crown: Prep &amp; Impression, Fitting).
+                                      </div>
+                                      {!disabled && (
+                                        <div>
+                                          <button
+                                            type="button"
+                                            className={styles.btnSecondary}
+                                            style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            onClick={() => handleOpenAddStage(item.id!)}
+                                          >
+                                            <i className="ph ph-plus" /> Manage Stages
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
 
-              <form
-                onSubmit={handleAddItem}
-                style={{
-                  marginTop: '16px',
-                  padding: '16px',
-                  background: '#f8fafc',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#334155', marginBottom: '12px' }}>
-                  Add Planned Dental Procedure
-                </div>
+                                  <div className={styles.stagesTimeline}>
+                                    {itemStages.map((stage) => {
+                                      const isStageCompatible = isStageClinicallyCompatible(item.procedure_name, stage.stage_name);
+                                      const stageLabOrder = episodeLabOrders.find(
+                                        (lo) =>
+                                          lo.treatment_stage_id === stage.id ||
+                                          (stage.prosthetic_lab_order_id && lo.id === stage.prosthetic_lab_order_id)
+                                      );
+                                      const effectiveLabOrder =
+                                        stageLabOrder ||
+                                        episodeLabOrders.find(
+                                          (lo) =>
+                                            lo.treatment_plan_item_id &&
+                                            lo.treatment_plan_item_id === stage.plan_item_id &&
+                                            lo.status !== 'CANCELLED'
+                                        );
+                                      const isLabOrderPending = Boolean(
+                                        effectiveLabOrder &&
+                                          effectiveLabOrder.status !== 'READY' &&
+                                          effectiveLabOrder.status !== 'CANCELLED'
+                                      );
 
-                <div
-                  className={`${styles.treatmentFormGrid} ${departmentServices.length === 0 ? styles.treatmentFormGridNoCatalogue : ''}`}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: departmentServices.length > 0
-                      ? '1.3fr 1.5fr 1.4fr 0.9fr 0.9fr 1.4fr auto'
-                      : '1.3fr 1.5fr 0.9fr 0.9fr 1.4fr auto',
-                    gap: '12px',
-                    alignItems: 'end',
-                    width: '100%',
-                  }}
-                >
-                  {/* Tooth Selector */}
-                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>Tooth # (Optional)</label>
-                    <select
-                      className={styles.select}
-                      value={toothNumber}
-                      onChange={(e) => setToothNumber(e.target.value)}
-                    >
-                      <option value="">General / Full Mouth</option>
-                      {examinedTeethNumbers.length > 0 && (
-                        <optgroup label="Teeth with Examination Findings">
-                          {examinedTeethNumbers.map((num) => (
-                            <option key={num} value={num}>
-                              Tooth #{num} - {TOOTH_NAMES[num] ?? getToothName(num)}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      <optgroup label="Permanent Upper Right (Q1: 18 – 11)">
-                        {PERMANENT_QUADRANTS.Q1_UPPER_RIGHT.map((num) => (
-                          <option key={num} value={num}>
-                            Tooth #{num} - {TOOTH_NAMES[num]}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Permanent Upper Left (Q2: 21 – 28)">
-                        {PERMANENT_QUADRANTS.Q2_UPPER_LEFT.map((num) => (
-                          <option key={num} value={num}>
-                            Tooth #{num} - {TOOTH_NAMES[num]}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Permanent Lower Left (Q3: 31 – 38)">
-                        {PERMANENT_QUADRANTS.Q3_LOWER_LEFT.map((num) => (
-                          <option key={num} value={num}>
-                            Tooth #{num} - {TOOTH_NAMES[num]}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Permanent Lower Right (Q4: 41 – 48)">
-                        {PERMANENT_QUADRANTS.Q4_LOWER_RIGHT.map((num) => (
-                          <option key={num} value={num}>
-                            Tooth #{num} - {TOOTH_NAMES[num]}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Primary / Pediatric Teeth (51 – 85)">
-                        {[
-                          ...PRIMARY_QUADRANTS.Q5_UPPER_RIGHT,
-                          ...PRIMARY_QUADRANTS.Q6_UPPER_LEFT,
-                          ...PRIMARY_QUADRANTS.Q7_LOWER_LEFT,
-                          ...PRIMARY_QUADRANTS.Q8_LOWER_RIGHT,
-                        ].map((num) => (
-                          <option key={num} value={num}>
-                            Tooth #{num} - {TOOTH_NAMES[num] || `Primary Tooth ${num}`}
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </div>
+                                      // Check if prior compatible non-cancelled stages are completed
+                                      const priorIncomplete = itemStages
+                                        .filter(
+                                          (s) =>
+                                            s.sequence < stage.sequence &&
+                                            s.status !== 'CANCELLED' &&
+                                            isStageClinicallyCompatible(item.procedure_name, s.stage_name),
+                                        )
+                                        .some((s) => s.status !== 'COMPLETED');
 
-                  {/* Service Catalogue Picker */}
-                  {departmentServices.length > 0 && (
-                    <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                      <label className={styles.label}>Service Catalogue</label>
-                      <select
-                        className={styles.select}
-                        value={selectedServiceId}
-                        onChange={(e) => handleCatalogueDropdownChange(e.target.value)}
-                      >
-                        <option value="">-- Select from Catalogue --</option>
-                        {departmentServices.map((svc) => (
-                          <option key={svc.id} value={svc.id}>
-                            {svc.name} {svc.standard_price > 0 ? `(${formatCurrency(svc.standard_price)})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                                      const isCompleted = stage.status === 'COMPLETED';
+                                      const isInProgress = stage.status === 'IN_PROGRESS';
 
-                  {/* Procedure Name Input */}
-                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>
-                      Procedure Name <span style={{ color: '#dc2626' }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      list="dental-procedure-suggestions"
-                      placeholder="e.g. Composite Restoration, RCT..."
-                      className={styles.input}
-                      value={procedureName}
-                      onChange={(e) => {
-                        setProcedureName(e.target.value);
-                        const matchedSvc = departmentServices.find(
-                          (s) => s.name.toLowerCase() === e.target.value.trim().toLowerCase(),
-                        );
-                        if (matchedSvc) {
-                          setSelectedServiceId(matchedSvc.id);
-                          if (matchedSvc.standard_price >= 0) {
-                            setEstimatedCost(matchedSvc.standard_price.toString());
-                          }
-                        } else {
-                          setSelectedServiceId('');
-                        }
-                      }}
-                      required
-                    />
-                    <datalist id="dental-procedure-suggestions">
-                      {departmentServices.map((svc) => (
-                        <option key={svc.id} value={svc.name} />
-                      ))}
-                      {COMMON_DENTAL_PROCEDURES.map((p: string) => (
-                        <option key={p} value={p} />
-                      ))}
-                    </datalist>
-                  </div>
+                                      return (
+                                        <div
+                                          key={stage.id}
+                                          className={`${styles.stageCard} ${
+                                            isCompleted
+                                              ? styles.stageCardCompleted
+                                              : isInProgress
+                                              ? styles.stageCardInProgress
+                                              : ''
+                                          }`}
+                                        >
+                                          <div className={styles.stageMain}>
+                                            <div
+                                              className={`${styles.stageSequence} ${
+                                                isCompleted
+                                                  ? styles.stageSeqCompleted
+                                                  : isInProgress
+                                                  ? styles.stageSeqInProgress
+                                                  : ''
+                                              }`}
+                                            >
+                                              {isCompleted ? <i className="ph ph-check" /> : stage.sequence}
+                                            </div>
 
-                  {/* Priority */}
-                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>Priority</label>
-                    <select
-                      className={styles.select}
-                      value={priority}
-                      onChange={(e) => setPriority(e.target.value as DentalTreatmentPriority)}
-                    >
-                      <option value="ROUTINE">Routine</option>
-                      <option value="URGENT">Urgent</option>
-                      <option value="ELECTIVE">Elective</option>
-                      <option value="HIGH">High</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="LOW">Low</option>
-                    </select>
-                  </div>
+                                            <div className={styles.stageDetails}>
+                                              <div className={styles.stageTitleRow}>
+                                                <span className={styles.stageName}>{stage.stage_name}</span>
+                                                {!isStageCompatible && (
+                                                  <span
+                                                    style={{
+                                                      fontSize: '0.675rem',
+                                                      fontWeight: 700,
+                                                      color: '#dc2626',
+                                                      background: '#fee2e2',
+                                                      padding: '1px 6px',
+                                                      borderRadius: '3px',
+                                                      border: '1px solid #fca5a5',
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      gap: '3px',
+                                                    }}
+                                                    title={`This stage does not belong to procedure "${item.procedure_name}". Only compatible clinical stages should be executed.`}
+                                                  >
+                                                    <i className="ph ph-warning-circle" /> Procedure mismatch
+                                                  </span>
+                                                )}
+                                              </div>
 
-                  {/* Est. Cost */}
-                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>Est. Cost</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      className={styles.input}
-                      value={estimatedCost}
-                      onChange={(e) => setEstimatedCost(e.target.value)}
-                    />
-                  </div>
+                                              <div className={styles.stageMeta}>
+                                                <span className={styles.stageDoctor}>
+                                                  <i className="ph ph-user" /> {formatDoctorName(stage.assigned_doctor_name)}
+                                                </span>
+                                                {stage.tooth_number && (
+                                                  <span className={styles.stageTooth}>
+                                                    <i className="ph ph-tooth" /> #{stage.tooth_number}
+                                                  </span>
+                                                )}
+                                                {stage.planned_date && (
+                                                  <span className={styles.stageDate}>
+                                                    <i className="ph ph-calendar" /> Planned: {stage.planned_date}
+                                                  </span>
+                                                )}
+                                                {stage.appointment_id && (
+                                                  <span
+                                                    className={styles.stageApptBadge}
+                                                    title="Appointment linked"
+                                                  >
+                                                    <i className="ph ph-calendar-check" /> Appt Scheduled
+                                                  </span>
+                                                )}
+                                              </div>
 
-                  {/* Clinical Treatment Notes */}
-                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>Treatment Notes (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Shade A2, post & core..."
-                      className={styles.input}
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                    />
-                  </div>
+                                              {stage.notes && (
+                                                <div className={styles.stageNotes}>
+                                                  <i className="ph ph-note" /> {stage.notes}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
 
-                  {/* Submit Button */}
-                  <div style={{ alignSelf: 'end', minWidth: 'max-content' }}>
-                    <button
-                      type="submit"
-                      className={styles.btnPrimary}
-                      style={{
-                        height: '36px',
-                        whiteSpace: 'nowrap',
-                        padding: '0 16px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <i className="ph ph-plus" /> Add to Plan
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </>
+                                          <div className={styles.stageActions}>
+                                            <span
+                                              style={{
+                                                display: 'inline-block',
+                                                padding: '2px 8px',
+                                                borderRadius: '4px',
+                                                fontSize: '0.725rem',
+                                                fontWeight: 700,
+                                                ...getStageStatusBadgeStyle(stage.status),
+                                              }}
+                                            >
+                                              {stage.status}
+                                            </span>
+
+                                            {/* Lab Order Badge / Trigger */}
+                                            {stageLabOrder ? (
+                                              <span
+                                                style={{
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '4px',
+                                                  padding: '2px 7px',
+                                                  borderRadius: '4px',
+                                                  fontSize: '0.725rem',
+                                                  fontWeight: 600,
+                                                  background:
+                                                    stageLabOrder.status === 'READY'
+                                                      ? '#dcfce7'
+                                                      : stageLabOrder.status === 'CANCELLED'
+                                                      ? '#fef2f2'
+                                                      : '#f5f3ff',
+                                                  color:
+                                                    stageLabOrder.status === 'READY'
+                                                      ? '#166534'
+                                                      : stageLabOrder.status === 'CANCELLED'
+                                                      ? '#dc2626'
+                                                      : '#6d28d9',
+                                                  border: `1px solid ${
+                                                    stageLabOrder.status === 'READY'
+                                                      ? '#86efac'
+                                                      : stageLabOrder.status === 'CANCELLED'
+                                                      ? '#fecaca'
+                                                      : '#ddd6fe'
+                                                  }`,
+                                                }}
+                                                data-testid="stage-lab-order-badge"
+                                              >
+                                                <i className="ph ph-wrench" />
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{stageLabOrder.order_number}</span>
+                                                <span>• {stageLabOrder.prosthetic_type}</span>
+                                                {stageLabOrder.status !== 'ORDERED' && (
+                                                  <span style={{ fontSize: '0.675rem', fontWeight: 700, opacity: 0.9 }}>
+                                                    [{stageLabOrder.status}]
+                                                  </span>
+                                                )}
+                                                <button
+                                                  type="button"
+                                                  style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    color: stageLabOrder.status === 'READY' ? '#166534' : '#5b21b6',
+                                                    padding: '0 2px',
+                                                    marginLeft: '2px',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                  }}
+                                                  onClick={() => setViewLabOrderId(stageLabOrder.id)}
+                                                  title="View Prosthetic Lab Order"
+                                                >
+                                                  <i className="ph ph-eye" />
+                                                </button>
+                                              </span>
+                                            ) : (
+                                              !disabled && !isCompleted && stage.status !== 'CANCELLED' && (
+                                                <button
+                                                  type="button"
+                                                  className={styles.btnStageAction}
+                                                  style={{ background: '#fdf4ff', color: '#a21caf', borderColor: '#f0abfc' }}
+                                                  onClick={() => setLabOrderCreateStage(stage)}
+                                                  title="Create Prosthetic Lab Order for this stage"
+                                                  data-testid="stage-create-lab-order-btn"
+                                                >
+                                                  <i className="ph ph-wrench" /> Lab Order
+                                                </button>
+                                              )
+                                            )}
+
+                                            {!disabled && !isCompleted && stage.status !== 'CANCELLED' && (
+                                              <>
+                                                {/* PLANNED: Only Schedule and Delete are available. Strictly no Start or Complete. */}
+                                                {stage.status === 'PLANNED' && (
+                                                  <>
+                                                    {!priorIncomplete ? (
+                                                      <button
+                                                        type="button"
+                                                        className={styles.btnStageAction}
+                                                        style={{
+                                                          background: isLabOrderPending ? '#f8fafc' : '#eff6ff',
+                                                          color: isLabOrderPending ? '#94a3b8' : '#1d4ed8',
+                                                          borderColor: isLabOrderPending ? '#e2e8f0' : '#bfdbfe',
+                                                          cursor: isLabOrderPending ? 'not-allowed' : 'pointer',
+                                                        }}
+                                                        disabled={isLabOrderPending}
+                                                        onClick={() => setScheduleModalStage(stage)}
+                                                        title={
+                                                          isLabOrderPending
+                                                            ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before scheduling.`
+                                                            : 'Schedule an appointment for this stage'
+                                                        }
+                                                        data-testid={`stage-${stage.sequence}-schedule-btn`}
+                                                      >
+                                                        <i className="ph ph-calendar-plus" /> Schedule
+                                                      </button>
+                                                    ) : (
+                                                      <span className={styles.stagePrereqNotice}>
+                                                        <i className="ph ph-lock-key" /> Prior stage pending
+                                                      </span>
+                                                    )}
+
+                                                    <button
+                                                      type="button"
+                                                      className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
+                                                      onClick={() => deleteStageMutation.mutate(stage.id)}
+                                                      title="Delete planned stage"
+                                                    >
+                                                      <i className="ph ph-trash" />
+                                                    </button>
+                                                  </>
+                                                )}
+
+                                                {/* SCHEDULED: Start is available once scheduled with appointment. View, Reschedule, Cancel. Strictly no Complete. */}
+                                                {stage.status === 'SCHEDULED' && (
+                                                  <>
+                                                    <button
+                                                      type="button"
+                                                      className={`${styles.btnStageAction} ${styles.btnStageStart}`}
+                                                      disabled={priorIncomplete || isLabOrderPending}
+                                                      onClick={() =>
+                                                        updateStageStatusMutation.mutate({
+                                                          stageId: stage.id,
+                                                          payload: { status: 'IN_PROGRESS' },
+                                                        })
+                                                      }
+                                                      title={
+                                                        priorIncomplete
+                                                          ? 'Previous stage must be completed first'
+                                                          : isLabOrderPending
+                                                          ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before starting stage.`
+                                                          : 'Start treatment stage'
+                                                      }
+                                                      data-testid={`stage-${stage.sequence}-start-btn`}
+                                                    >
+                                                      <i className="ph ph-play" /> Start
+                                                    </button>
+
+                                                    {stage.appointment_id ? (
+                                                      <>
+                                                        <button
+                                                          type="button"
+                                                          className={styles.btnStageAction}
+                                                          style={{ background: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0' }}
+                                                          onClick={() => setViewAppointmentStageId(stage.id)}
+                                                          title="View linked appointment details"
+                                                        >
+                                                          <i className="ph ph-eye" /> View Appt
+                                                        </button>
+                                                        <button
+                                                          type="button"
+                                                          className={styles.btnStageAction}
+                                                          style={{ background: '#fefce8', color: '#92400e', borderColor: '#fde68a' }}
+                                                          onClick={() => setScheduleModalStage(stage)}
+                                                          title="Reschedule appointment"
+                                                        >
+                                                          <i className="ph ph-calendar-x" /> Reschedule
+                                                        </button>
+                                                        <button
+                                                          type="button"
+                                                          className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
+                                                          onClick={() => setCancelConfirmStageId(stage.id)}
+                                                          title="Cancel appointment (stage returns to Planned)"
+                                                        >
+                                                          <i className="ph ph-x-circle" /> Cancel Appt
+                                                        </button>
+                                                      </>
+                                                    ) : (
+                                                      <button
+                                                        type="button"
+                                                        className={styles.btnStageAction}
+                                                        style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}
+                                                        onClick={() => setScheduleModalStage(stage)}
+                                                        title="Schedule an appointment for this stage"
+                                                        data-testid={`stage-${stage.sequence}-schedule-btn`}
+                                                      >
+                                                        <i className="ph ph-calendar-plus" /> Schedule
+                                                      </button>
+                                                    )}
+                                                  </>
+                                                )}
+
+                                                {/* IN_PROGRESS: Complete and Hold available. Strictly no Start. */}
+                                                {stage.status === 'IN_PROGRESS' && (
+                                                  <>
+                                                    <button
+                                                      type="button"
+                                                      className={`${styles.btnStageAction} ${styles.btnStageComplete}`}
+                                                      disabled={priorIncomplete || isLabOrderPending}
+                                                      onClick={() =>
+                                                        updateStageStatusMutation.mutate({
+                                                          stageId: stage.id,
+                                                          payload: { status: 'COMPLETED' },
+                                                        })
+                                                      }
+                                                      title={
+                                                        priorIncomplete
+                                                          ? 'Previous stage must be completed first'
+                                                          : isLabOrderPending
+                                                          ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before completing stage.`
+                                                          : 'Mark stage complete'
+                                                      }
+                                                      data-testid={`stage-${stage.sequence}-complete-btn`}
+                                                    >
+                                                      <i className="ph ph-check-circle" /> Complete
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      className={`${styles.btnStageAction} ${styles.btnStageHold}`}
+                                                      onClick={() =>
+                                                        updateStageStatusMutation.mutate({
+                                                          stageId: stage.id,
+                                                          payload: { status: 'ON_HOLD' },
+                                                        })
+                                                      }
+                                                      title="Put stage on hold"
+                                                    >
+                                                      <i className="ph ph-pause" /> Hold
+                                                    </button>
+                                                  </>
+                                                )}
+
+                                                {/* ON_HOLD: Resume available */}
+                                                {stage.status === 'ON_HOLD' && (
+                                                  <button
+                                                    type="button"
+                                                    className={`${styles.btnStageAction} ${styles.btnStageStart}`}
+                                                    onClick={() =>
+                                                      updateStageStatusMutation.mutate({
+                                                        stageId: stage.id,
+                                                        payload: { status: stage.appointment_id ? 'IN_PROGRESS' : 'SCHEDULED' },
+                                                      })
+                                                    }
+                                                  >
+                                                    <i className="ph ph-play" /> Resume
+                                                  </button>
+                                                )}
+
+                                                {isLabOrderPending && stage.status === 'IN_PROGRESS' && (
+                                                  <span className={styles.stageLabPrereqNotice} data-testid="stage-lab-pending-notice">
+                                                    <i className="ph ph-hourglass-high" /> Lab: {stageLabOrder?.status} (awaiting Ready)
+                                                  </span>
+                                                )}
+
+                                                {/* Doctor reassign selector */}
+                                                {doctors.length > 1 && (
+                                                  <select
+                                                    className={styles.select}
+                                                    style={{ padding: '2px 6px', fontSize: '0.725rem' }}
+                                                    value={stage.assigned_doctor_id}
+                                                    onChange={(e) =>
+                                                      assignDoctorMutation.mutate({
+                                                        stageId: stage.id,
+                                                        payload: { doctor_id: e.target.value },
+                                                      })
+                                                    }
+                                                    title="Reassign doctor for this stage"
+                                                  >
+                                                    {doctors.map((doc) => (
+                                                      <option key={doc.id} value={doc.id}>
+                                                        {formatDoctorName(doc.display_name || `${doc.first_name} ${doc.last_name}`)} ({doc.specialization || 'Dental'})
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Inline Form to Add Stage */}
+                                  {isAddingStage && (
+                                    <div className={styles.addStageInlineBox}>
+                                      <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#1e3a8a', marginBottom: '8px' }}>
+                                        <i className="ph ph-plus-circle" /> Add New Treatment Stage for "{item.procedure_name}" (Step {itemStages.length + 1})
+                                      </div>
+
+                                      {/* Quick stage suggestions contextual to procedure */}
+                                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                                        {getProcedureStageSuggestions(item.procedure_name).map((suggestion) => (
+                                          <button
+                                            key={suggestion}
+                                            type="button"
+                                            className={styles.chip}
+                                            style={{ fontSize: '0.7rem', background: '#f0f9ff', color: '#0369a1', borderColor: '#bae6fd' }}
+                                            onClick={() => setNewStageName(suggestion)}
+                                          >
+                                            {suggestion}
+                                          </button>
+                                        ))}
+                                      </div>
+
+                                      <div className={styles.addStageGrid}>
+                                        <div>
+                                          <label className={styles.label} style={{ fontSize: '0.75rem' }}>
+                                            Stage Name <span style={{ color: '#dc2626' }}>*</span>
+                                          </label>
+                                          <input
+                                            type="text"
+                                            className={styles.input}
+                                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                                            placeholder="e.g. Crown Impression & Shade Selection"
+                                            value={newStageName}
+                                            onChange={(e) => setNewStageName(e.target.value)}
+                                            required
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label className={styles.label} style={{ fontSize: '0.75rem' }}>
+                                            Assigned Doctor <span style={{ color: '#dc2626' }}>*</span>
+                                          </label>
+                                          <select
+                                            className={styles.select}
+                                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                                            value={newStageDoctorId}
+                                            onChange={(e) => setNewStageDoctorId(e.target.value)}
+                                            required
+                                          >
+                                            {doctors.length === 0 && <option value="">-- No doctors found --</option>}
+                                            {doctors.map((doc) => (
+                                              <option key={doc.id} value={doc.id}>
+                                                {formatDoctorName(doc.display_name || `${doc.first_name} ${doc.last_name}`)} ({doc.specialization || 'Dental'})
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+
+                                        <div>
+                                          <label className={styles.label} style={{ fontSize: '0.75rem' }}>
+                                            Planned Date (Optional)
+                                          </label>
+                                          <input
+                                            type="date"
+                                            className={styles.input}
+                                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                                            value={newStagePlannedDate}
+                                            onChange={(e) => setNewStagePlannedDate(e.target.value)}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label className={styles.label} style={{ fontSize: '0.75rem' }}>
+                                            Notes (Optional)
+                                          </label>
+                                          <input
+                                            type="text"
+                                            className={styles.input}
+                                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                                            placeholder="e.g. Alginate impression, shade A2"
+                                            value={newStageNotes}
+                                            onChange={(e) => setNewStageNotes(e.target.value)}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                        <button
+                                          type="button"
+                                          className={styles.btnSecondary}
+                                          style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                                          onClick={handleCancelAddStage}
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={styles.btnPrimary}
+                                          style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                                          disabled={!newStageName.trim() || !newStageDoctorId || createStageMutation.isPending}
+                                          onClick={() => handleSaveStage(item.id!, item.tooth_number, item.service_id)}
+                                        >
+                                          {createStageMutation.isPending ? 'Saving...' : 'Add Stage'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -1926,10 +2175,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               <h3 className={styles.quotationModalTitle}>
                 <i className="ph ph-receipt" style={{ color: '#0284c7' }} /> Generate Treatment Quotation
               </h3>
-              <p className={styles.quotationModalSubtitle}>
-                Create an immutable draft quotation for the patient with one or more treatment options using Service Catalogue standard pricing.
-              </p>
-              {(patientName || episodeNumber || primaryToothNumber) && (
+              {(patientName || episodeNumber || quotationTeeth.length > 0) && (
                 <div className={styles.quotationContextBadges}>
                   {patientName && (
                     <span className={styles.quotationContextBadge} title="Patient">
@@ -1941,9 +2187,9 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                       <i className="ph ph-hash" /> Episode #{episodeNumber}
                     </span>
                   )}
-                  {primaryToothNumber && (
-                    <span className={styles.quotationContextBadge} title="Primary Tooth">
-                      <i className="ph ph-tooth" /> Tooth #{primaryToothNumber} ({getToothName(primaryToothNumber)})
+                  {quotationTeeth.length > 0 && (
+                    <span className={styles.quotationContextBadge} title="Target Teeth">
+                      <i className="ph ph-tooth" /> Tooth #{quotationTeeth.join(', #')} ({quotationTeeth.map((tn) => TOOTH_NAMES[tn] ?? getToothName(tn)).join(', ')})
                     </span>
                   )}
                 </div>
@@ -1962,36 +2208,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
           {/* 2. SCROLLABLE BODY */}
           <div className={styles.quotationModalBody}>
-            {/* Quotation Details Card */}
-            <div className={styles.quotationCard}>
-              <div className={styles.quotationCardHeader}>
-                <h4 className={styles.quotationCardTitle}>
-                  <i className="ph ph-sliders" /> Quotation Details
-                </h4>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Valid Until (Optional)</label>
-                  <input
-                    type="date"
-                    className={styles.input}
-                    value={quoteValidUntil}
-                    onChange={(e) => setQuoteValidUntil(e.target.value)}
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Quotation Notes (Optional)</label>
-                  <input
-                    type="text"
-                    className={styles.input}
-                    value={quoteNotes}
-                    onChange={(e) => setQuoteNotes(e.target.value)}
-                    placeholder="e.g. Valid for 30 days, includes post-op check"
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Treatment Options Section */}
             <div className={styles.quotationOptionsSection}>
               <div className={styles.quotationOptionsHeader}>
@@ -2052,53 +2268,170 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                       )}
                     </div>
 
+                    {/* Quick-add proposed or catalogue items into this option */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+                      {proposedItems.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
+                            + Add Proposed:
+                          </span>
+                          {proposedItems.map((pi, idx) => (
+                            <button
+                              key={pi.id ?? idx}
+                              type="button"
+                              className={styles.chip}
+                              style={{ fontSize: '0.7rem', background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0', cursor: 'pointer' }}
+                              onClick={() => handleAddProposedItemToOption(opt.id, pi)}
+                              title="Add this proposed treatment to option"
+                            >
+                              + {pi.tooth_number ? `#${pi.tooth_number} ` : ''}{pi.procedure_name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {departmentServices.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
+                            + Add Catalogue:
+                          </span>
+                          <select
+                            className={styles.select}
+                            style={{ fontSize: '0.72rem', padding: '2px 6px', maxWidth: '180px' }}
+                            value=""
+                            onChange={(e) => {
+                              if (!e.target.value) return;
+                              const svc = departmentServices.find((s) => s.id === e.target.value);
+                              if (svc) handleAddCatalogueServiceToOption(opt.id, svc);
+                              e.target.value = '';
+                            }}
+                          >
+                            <option value="">-- Choose Procedure --</option>
+                            {departmentServices.map((svc) => (
+                              <option key={svc.id} value={svc.id}>
+                                {svc.name} ({formatCurrency(svc.standard_price)})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Items table for this option */}
                     <div className={styles.quotationOptionTableContainer}>
                       <table className={styles.quotationOptionTable}>
                         <thead>
                           <tr>
                             <th style={{ textAlign: 'left', width: '42%' }}>Procedure</th>
-                            <th style={{ textAlign: 'center', width: '12%' }}>Tooth #</th>
+                            <th style={{ textAlign: 'center', width: '14%' }}>Tooth #</th>
                             <th style={{ textAlign: 'center', width: '10%' }}>Qty</th>
-                            <th style={{ textAlign: 'right', width: '16%' }}>Unit Price</th>
-                            <th style={{ textAlign: 'right', width: '14%' }}>Total</th>
+                            <th style={{ textAlign: 'right', width: '15%' }}>Unit Price</th>
+                            <th style={{ textAlign: 'right', width: '13%' }}>Total</th>
                             <th style={{ textAlign: 'center', width: '6%' }}></th>
                           </tr>
                         </thead>
                         <tbody>
                           {opt.items.map((item) => {
                             const lineTotal = item.quantity * item.unit_price;
+                            const isInherited = Boolean(item.treatment_plan_item_id);
                             return (
                               <tr key={item.id}>
                                 <td>
-                                  <input
-                                    type="text"
-                                    value={item.procedure_name}
-                                    onChange={(e) => handleOptionItemChange(opt.id, item.id, 'procedure_name', e.target.value)}
-                                    placeholder="Procedure name"
-                                  />
+                                  {isInherited ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>{item.procedure_name}</strong>
+                                      <span
+                                        style={{
+                                          fontSize: '0.68rem',
+                                          padding: '1px 6px',
+                                          background: '#e0e7ff',
+                                          color: '#3730a3',
+                                          borderRadius: '4px',
+                                          fontWeight: 600,
+                                          whiteSpace: 'nowrap',
+                                        }}
+                                        title="Inherited directly from Treatment Plan"
+                                      >
+                                        Plan
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <input
+                                        type="text"
+                                        list={`proc-sugg-${opt.id}-${item.id}`}
+                                        className={styles.input}
+                                        style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                                        value={item.procedure_name}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          const matched = departmentServices.find((s) => s.name.toLowerCase() === val.trim().toLowerCase());
+                                          handleOptionItemChange(opt.id, item.id, 'procedure_name', val);
+                                          if (matched) {
+                                            handleOptionItemChange(opt.id, item.id, 'service_id', matched.id);
+                                            if (matched.standard_price >= 0) {
+                                              handleOptionItemChange(opt.id, item.id, 'unit_price', matched.standard_price);
+                                            }
+                                          }
+                                        }}
+                                        placeholder="Select or enter procedure"
+                                      />
+                                      <datalist id={`proc-sugg-${opt.id}-${item.id}`}>
+                                        {departmentServices.map((s) => (
+                                          <option key={s.id} value={s.name} />
+                                        ))}
+                                        {COMMON_DENTAL_PROCEDURES.map((p) => (
+                                          <option key={p} value={p} />
+                                        ))}
+                                      </datalist>
+                                    </div>
+                                  )}
                                 </td>
                                 <td style={{ textAlign: 'center' }}>
-                                  <input
-                                    type="number"
-                                    style={{ textAlign: 'center' }}
-                                    value={item.tooth_number ?? ''}
-                                    onChange={(e) =>
-                                      handleOptionItemChange(
-                                        opt.id,
-                                        item.id,
-                                        'tooth_number',
-                                        e.target.value ? parseInt(e.target.value, 10) : null,
-                                      )
-                                    }
-                                    placeholder="Tooth #"
-                                  />
+                                  {isInherited ? (
+                                    <span
+                                      className={styles.chip}
+                                      style={{
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        background: '#f8fafc',
+                                        color: '#334155',
+                                        borderColor: '#cbd5e1',
+                                        padding: '2px 8px',
+                                        display: 'inline-block',
+                                      }}
+                                    >
+                                      {item.tooth_number ? `#${item.tooth_number}` : 'Full Mouth'}
+                                    </span>
+                                  ) : (
+                                    <select
+                                      className={styles.select}
+                                      style={{ fontSize: '0.78rem', padding: '3px 6px', textAlign: 'center', width: '100%' }}
+                                      value={item.tooth_number ?? ''}
+                                      onChange={(e) =>
+                                        handleOptionItemChange(
+                                          opt.id,
+                                          item.id,
+                                          'tooth_number',
+                                          e.target.value ? parseInt(e.target.value, 10) : null,
+                                        )
+                                      }
+                                    >
+                                      <option value="">Full Mouth</option>
+                                      {examinedTeeth.map((t) => (
+                                        <option key={t.tooth_number} value={t.tooth_number}>
+                                          #{t.tooth_number}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
                                 </td>
                                 <td style={{ textAlign: 'center' }}>
                                   <input
                                     type="number"
                                     min="1"
-                                    style={{ textAlign: 'center' }}
+                                    className={styles.input}
+                                    style={{ textAlign: 'center', fontSize: '0.8rem', padding: '4px 6px' }}
                                     value={item.quantity}
                                     onChange={(e) =>
                                       handleOptionItemChange(
@@ -2115,7 +2448,8 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                     type="number"
                                     min="0"
                                     step="0.01"
-                                    style={{ textAlign: 'right' }}
+                                    className={styles.input}
+                                    style={{ textAlign: 'right', fontSize: '0.8rem', padding: '4px 8px' }}
                                     value={item.unit_price}
                                     onChange={(e) =>
                                       handleOptionItemChange(
@@ -2127,7 +2461,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                     }
                                   />
                                 </td>
-                                <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                                <td style={{ textAlign: 'right', fontWeight: 600, color: '#0f172a', fontSize: '0.85rem' }}>
                                   {formatCurrency(lineTotal)}
                                 </td>
                                 <td style={{ textAlign: 'center' }}>
@@ -2190,6 +2524,35 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                   </div>
                 );
               })}
+            </div>
+
+            {/* Quotation Details (Compact) */}
+            <div className={styles.quotationDetailsCompact}>
+              <div className={styles.quotationDetailsCompactHeader}>
+                <i className="ph ph-sliders" style={{ color: '#0284c7' }} />
+                <span>Quotation Details</span>
+              </div>
+              <div className={styles.quotationDetailsCompactFields}>
+                <div className={styles.quotationDetailsCompactField}>
+                  <label>Valid Until (Optional)</label>
+                  <input
+                    type="date"
+                    className={styles.input}
+                    value={quoteValidUntil}
+                    onChange={(e) => setQuoteValidUntil(e.target.value)}
+                  />
+                </div>
+                <div className={styles.quotationDetailsCompactField} style={{ flex: 1 }}>
+                  <label>Quotation Notes (Optional)</label>
+                  <input
+                    type="text"
+                    className={styles.input}
+                    value={quoteNotes}
+                    onChange={(e) => setQuoteNotes(e.target.value)}
+                    placeholder="e.g. Valid for 30 days, includes post-op check"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Comparison Overview Card */}

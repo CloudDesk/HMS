@@ -143,6 +143,19 @@ const duplicateKeyAppError = (error: MongoDuplicateKeyError) => {
     );
   }
 
+  if (
+    isDuplicateFromCollection(error, 'dental_treatment_stages') ||
+    (hasDuplicateField(error, 'episodeId') &&
+      hasDuplicateField(error, 'planItemId') &&
+      hasDuplicateField(error, 'sequence'))
+  ) {
+    return new AppError(
+      'A treatment stage with this sequence already exists. Please refresh the treatment stages and try again.',
+      409,
+      'STAGE_SEQUENCE_CONFLICT',
+    );
+  }
+
   return new AppError(
     'A record with the same unique details already exists.',
     409,

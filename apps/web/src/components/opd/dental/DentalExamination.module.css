@@ -105,42 +105,58 @@
 .statusBadgeDraft {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 9999px;
-  font-family: var(--dental-font-heading, 'Sora', sans-serif);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.85rem;
   background: var(--dental-watch-bg, #fef3c7);
   color: var(--dental-watch, #d97706);
   border: 1px solid var(--dental-watch-border, #fde68a);
+  cursor: help;
+  transition: transform 0.15s ease;
+}
+
+.statusBadgeDraft:hover {
+  transform: scale(1.08);
 }
 
 .statusBadgeCompleted {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 9999px;
-  font-family: var(--dental-font-heading, 'Sora', sans-serif);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.85rem;
   background: var(--dental-healthy-bg, #f0fdf4);
   color: var(--dental-healthy, #16a34a);
   border: 1px solid var(--dental-healthy-border, #bbf7d0);
+  cursor: help;
+  transition: transform 0.15s ease;
+}
+
+.statusBadgeCompleted:hover {
+  transform: scale(1.08);
 }
 
 .unsavedBadge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.85rem;
   background: #fef3c7;
   color: #92400e;
   border: 1px solid #fde68a;
+  cursor: help;
+  transition: transform 0.15s ease;
+}
+
+.unsavedBadge:hover {
+  transform: scale(1.08);
 }
 
 /* Read-only consultation context */
@@ -685,13 +701,13 @@
 .subTabBar {
   position: sticky;
   top: 0;
-  z-index: 8;
+  z-index: 20;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-  min-height: 58px;
-  overflow: hidden;
+  min-height: 52px;
+  overflow: visible;
   margin: 0;
   padding: 8px;
   border: 1px solid #dbe5f1;
@@ -1055,8 +1071,10 @@
 .clinicalRelationshipCard {
   background: #ffffff;
   padding: 0;
-  margin: 0;
+  margin: 0 0 12px 0;
   overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
 .softTissueCard {
@@ -1098,15 +1116,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 8px 14px;
   border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
 .clinicalRelationshipHeading {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -1114,55 +1133,160 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   background: #eff6ff;
   color: #2563eb;
-  font-size: 1.15rem;
+  font-size: 0.85rem;
   font-weight: 700;
 }
 
 .clinicalRelationshipHeading h3 {
   margin: 0;
   color: #0f172a;
-  font-size: 1rem;
-  line-height: 1.35;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .clinicalRelationshipHeading p {
-  margin: 3px 0 0;
+  margin: 1px 0 0;
   color: #64748b;
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+.compactPlanTableWrapper {
+  overflow-x: auto;
+  padding: 0;
+  background: #ffffff;
+}
+
+.compactPlanTable {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 0.78rem;
-  line-height: 1.45;
+  text-align: left;
 }
 
-.clinicalRelationshipList {
-  display: grid;
-  gap: 10px;
-  padding: 16px 20px;
+.compactPlanTable th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
-.generalDiagnosisRow {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.22fr) 1fr;
-  align-items: center;
-  gap: 18px;
-  padding: 13px 20px;
-  border-top: 1px solid #e2e8f0;
+.compactPlanTable td {
+  padding: 6px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  font-size: 0.78rem;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+
+.compactPlanTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.compactPlanTable tbody tr:hover {
   background: #f8fafc;
 }
 
-.generalDiagnosisRow span {
-  color: #475569;
-  font-size: 0.75rem;
+.toothNumberCell {
   font-weight: 700;
+  color: #1d4ed8;
+  white-space: nowrap;
+}
+
+.plannedItemsCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.plannedItemRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.planStatusAccepted {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.planStatusInProgress {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.planStatusCompleted {
+  background: #ede9fe;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.planStatusProposed {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.planStatusCancelled {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.textMuted {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.emptyTableState {
+  text-align: center;
+  padding: 14px !important;
+  color: #64748b;
+  font-style: italic;
+}
+
+.generalDiagnosisRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.72rem;
+}
+
+.generalDiagnosisRow span {
+  color: #64748b;
+  font-weight: 600;
 }
 
 .generalDiagnosisRow strong {
   color: #334155;
-  font-size: 0.8rem;
   font-weight: 600;
 }
 
@@ -2378,82 +2502,15 @@
   gap: 10px;
   margin-top: 8px;
 }
-.clinicalRelationship {
-  display: grid;
-  grid-template-columns: minmax(110px, 0.16fr) repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  align-items: start;
-  padding: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 9px;
-  background: #ffffff;
-  overflow-wrap: anywhere;
-}
-
-.clinicalRelationshipTooth,
-.clinicalRelationshipDetail {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-  min-width: 0;
-}
-
-.clinicalRelationshipTooth span,
-.clinicalRelationshipDetail > span {
-  color: #64748b;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.045em;
-  line-height: 1.3;
-  text-transform: uppercase;
-}
-
-.clinicalRelationshipTooth strong {
-  color: #1d4ed8;
-  font-size: 0.9rem;
-}
-
-.clinicalRelationshipDetail strong {
-  color: #1e293b;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.45;
-}
-
-.clinicalRelationshipDetail small {
-  color: #64748b;
-  font-size: 0.7rem;
-  line-height: 1.35;
-}
-
-@media (max-width: 900px) {
-  .clinicalRelationshipHeader {
-    align-items: stretch;
-    flex-direction: column;
+@media (max-width: 640px) {
+  .compactPlanTable th,
+  .compactPlanTable td {
+    padding: 5px 8px;
+    font-size: 0.72rem;
   }
-  .clinicalRelationshipHeader .btnSecondary {
-    align-self: flex-start;
-  }
-  .clinicalRelationship {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .clinicalRelationshipHeader,
-  .clinicalRelationshipList {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-  .clinicalRelationship {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .generalDiagnosisRow {
-    grid-template-columns: 1fr;
-    gap: 4px;
-    padding-left: 14px;
-    padding-right: 14px;
+  .planStatusBadge {
+    padding: 1px 4px;
+    font-size: 0.6rem;
   }
 }
 .treatmentFormGrid {
@@ -2826,33 +2883,164 @@
   cursor: not-allowed;
 }
 
-/* Dental Treatment Episode Banner & Card */
-.episodeCard {
-  background: #ffffff;
-  border-radius: var(--dental-radius-section, 12px);
-  border: 1px solid #e2e8f0;
-  padding: 12px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-shadow: var(--dental-shadow-card, 0 1px 3px rgba(0, 0, 0, 0.04));
+/* Dental Treatment Episode Indicator & Popover */
+/* Dental Treatment Episode Indicator & Compact Popover */
+.episodeIndicatorWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
-.episodeCardHeader {
+.episodeIndicatorBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  font-family: var(--dental-font-body, inherit);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.episodeIndicatorBtn:hover,
+.episodeIndicatorBtnActive {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0284c7;
+  box-shadow: 0 1px 3px rgba(3, 105, 161, 0.1);
+}
+
+.episodeIndicatorBtn i {
+  font-size: 0.95rem;
+  color: #0284c7;
+}
+
+.episodeIndicatorLabel {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.episodePopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  width: max-content;
+  min-width: 190px;
+  max-width: 260px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  padding: 8px 10px;
+  font-family: var(--dental-font-body, inherit);
+  font-size: 0.76rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: popoverFadeIn 0.12s ease-out;
+  pointer-events: auto;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.episodePopoverTitle {
+  font-family: var(--dental-font-heading, sans-serif);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 2px;
+}
+
+.episodePopoverRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  line-height: 1.4;
 }
 
-.episodeInfoGroup {
+.episodePopoverKey {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.episodePopoverVal {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.episodePopoverSuccessRow {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.episodePopoverSuccessText {
+  color: #16a34a;
+  font-weight: 600;
+  font-size: 0.74rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.episodePopoverProgressSection {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.episodePopoverProgressRow {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  line-height: 1.4;
 }
 
+.episodePopoverProgressText {
+  color: #64748b;
+  font-weight: 500;
+  font-size: 0.74rem;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.episodePopoverRemainingRow {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.episodePopoverRemainingText {
+  color: #475569;
+  font-style: italic;
+}
+
+/* Dental Treatment Episode Status Badges */
 .episodeNumberBadge {
   display: inline-flex;
   align-items: center;
@@ -3734,6 +3922,53 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
+.quotationDetailsCompact {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quotationDetailsCompactHeader {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quotationDetailsCompactFields {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quotationDetailsCompactField {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 180px;
+}
+
+.quotationDetailsCompactField label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0;
+}
+
+.quotationDetailsCompactField input {
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  height: 32px;
+}
+
 .quotationCardHeader {
   display: flex;
   align-items: center;
@@ -4182,4 +4417,80 @@
   padding-top: 4px;
   margin-top: 2px;
 }
+
+/* Treatment Plan & Proposal Separated Layout */
+.treatmentSubSection {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.treatmentSubSectionActive {
+  border-color: #bbf7d0;
+  background: #fcfdfc;
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.05);
+}
+
+.treatmentSubSectionProposed {
+  border-color: #ddd6fe;
+  background: #faf8ff;
+  box-shadow: 0 1px 3px rgba(124, 58, 237, 0.04);
+}
+
+.treatmentSubSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.treatmentSubSectionTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.treatmentSubSectionTitle {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.treatmentSubSectionDesc {
+  font-size: 0.775rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.proposedQuotationBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+}
+
+.quotationProposedPreviewCard {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
 

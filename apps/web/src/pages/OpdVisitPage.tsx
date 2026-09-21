@@ -44,6 +44,7 @@ import {
 import {
   isDentalImagingService,
   isDentalLabService,
+  isDentalProcedureService,
   isDentalVisit,
   parseDentalDiagnoses,
 } from './dental-utils';
@@ -105,10 +106,8 @@ const WORKSPACE_TABS = [
 const DENTAL_WORKSPACE_TABS = [
   { id: '1', label: '1 Consultation', name: 'Consultation' },
   { id: 'dental', label: '2 Dental Examination', name: 'Dental Examination' },
-  { id: '2', label: '3 Diagnosis', name: 'Diagnosis' },
-  { id: '3', label: '4 Prescription', name: 'Prescription' },
-  { id: '4', label: '5 Referral', name: 'Referral' },
-  { id: '5', label: '6 Follow-up', name: 'Follow-up' },
+  { id: '2', label: '3 Prescription', name: 'Prescription' },
+  { id: '3', label: '4 Referral', name: 'Referral' },
 ] as const;
 
 const emptyVitalsForm: VitalsFormState = {
@@ -262,10 +261,18 @@ export function OpdVisitPage() {
   const activeWorkspaceTabs = isDental && feature.state.canViewConsultation ? DENTAL_WORKSPACE_TABS : WORKSPACE_TABS;
 
   useEffect(() => {
-    if (!isDental || (activeTab !== 'Lab Orders' && activeTab !== 'Imaging Orders')) return;
-    setActiveTab('Follow-up');
-    if (visit?.id) {
-      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=Follow-up`, { replace: true });
+    if (!isDental) return;
+    if (
+      activeTab === 'Lab Orders' ||
+      activeTab === 'Imaging Orders' ||
+      activeTab === 'Diagnosis' ||
+      activeTab === 'Follow-up'
+    ) {
+      const targetTab = activeTab === 'Follow-up' ? 'Referral' : 'Dental Examination';
+      setActiveTab(targetTab);
+      if (visit?.id) {
+        navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(targetTab)}`, { replace: true });
+      }
     }
   }, [activeTab, isDental, setActiveTab, visit?.id]);
 
@@ -370,14 +377,29 @@ export function OpdVisitPage() {
     [services],
   );
 
-  const dentalProcedureServices = useMemo(() => {
-    return (services || []).filter(
-      (s) =>
-        s.service_type === 'PROCEDURE' &&
-        s.status === 'ACTIVE' &&
-        s.department_id === visit?.department_id,
+  const dentalDepartmentIds = useMemo(() => {
+    return new Set(
+      departments
+        .filter((d) => /dental/i.test(d.name) || /dent/i.test(d.code))
+        .map((d) => d.id),
     );
-  }, [services, visit?.department_id]);
+  }, [departments]);
+
+  const dentalProcedureServices = useMemo(() => {
+    return (services || []).filter((s) => {
+      if (s.service_type !== 'PROCEDURE' || s.status !== 'ACTIVE') return false;
+      if (visit?.department_id && String(s.department_id) === String(visit.department_id)) {
+        return true;
+      }
+      if (dentalDepartmentIds.has(s.department_id)) {
+        return true;
+      }
+      if (isDentalProcedureService(s)) {
+        return true;
+      }
+      return false;
+    });
+  }, [services, visit?.department_id, dentalDepartmentIds]);
 
   // Sub-tab 2: Diagnosis State
   const [dxSearchTerm, setDxSearchTerm] = useState('');
@@ -833,7 +855,12 @@ export function OpdVisitPage() {
   };
 
   const handleNextStep = (nextTab: string) => {
-    const resolvedNextTab = isDental && nextTab === 'Lab Orders' ? 'Referral' : nextTab;
+    let resolvedNextTab = nextTab;
+    if (isDental) {
+      if (nextTab === 'Diagnosis') resolvedNextTab = 'Dental Examination';
+      else if (nextTab === 'Lab Orders' || nextTab === 'Imaging Orders') resolvedNextTab = 'Prescription';
+      else if (nextTab === 'Follow-up') resolvedNextTab = 'Referral';
+    }
     void saveConsultationDraft();
     setActiveTab(resolvedNextTab);
     if (visit?.id) {
@@ -1437,6 +1464,11 @@ export function OpdVisitPage() {
                       renderImaging={renderDentalImaging}
                       renderLab={renderDentalLab}
                       diagnoses={selectedDiagnoses}
+                      onAddDiagnosis={handleAddDiagnosis}
+                      onRemoveDiagnosis={handleRemoveDiagnosis}
+                      assessment={consultationForm.assessment}
+                      onAssessmentChange={(val) => setConsultationForm((c) => ({ ...c, assessment: val }))}
+                      onNextStep={handleNextStep}
                       billingStates={feature.state.dentalBillingStates}
                       billingStateLoading={feature.state.dentalBillingLoading}
                       billingStateError={feature.state.dentalBillingError}
@@ -1462,8 +1494,6 @@ export function OpdVisitPage() {
                       }}
                       onOpenDiagnosis={(tooth) => {
                         setDiagnosisTooth(tooth);
-                        setActiveTab('Diagnosis');
-                        navigate(`/opd/consultation?id=${visit.id}&tab=Diagnosis`, { replace: true });
                       }}
                     />
                   </div>
@@ -1583,6 +1613,9 @@ export function OpdVisitPage() {
                     setReferralReason={setReferralReason}
                     setReferralSpecialty={setReferralSpecialty}
                     uniqueSpecialties={uniqueSpecialties}
+                    isDental={isDental}
+                    onCompleteConsultation={completeConsultation}
+                    isVisitCompleted={isVisitCompleted}
                   />
                 ) : null}
 

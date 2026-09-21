@@ -242,18 +242,16 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
       stageButton?.click();
     });
 
-    // Stage 1 (sequence 1) should have an enabled Start button
+    // Stage 1 (sequence 1) should have an enabled Schedule button, and no Start button
     const buttons = Array.from(container.querySelectorAll('button'));
     const startButtons = buttons.filter((b) => b.textContent?.trim() === 'Start');
-    expect(startButtons.length).toBe(2);
+    expect(startButtons.length).toBe(0);
 
-    // Stage 1 start button should NOT be disabled
-    expect(startButtons[0]!.hasAttribute('disabled')).toBe(false);
+    const scheduleButtons = buttons.filter((b) => b.textContent?.trim() === 'Schedule');
+    expect(scheduleButtons.length).toBe(1);
+    expect(scheduleButtons[0]!.hasAttribute('disabled')).toBe(false);
 
-    // Stage 2 start button SHOULD be disabled because Stage 1 is still PLANNED
-    expect(startButtons[1]!.hasAttribute('disabled')).toBe(true);
-
-    // Should render "Prior stage pending" lock indicator for Stage 2
+    // Stage 2 schedule button is replaced by Prior stage pending lock indicator
     expect(container.textContent).toContain('Prior stage pending');
   });
 
@@ -902,7 +900,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
       stageBtn?.click();
     });
 
-    // Check Stage 1 is PLANNED with Start & Schedule actions
+    // Check Stage 1 is PLANNED with Schedule action and no Start action
     expect(container.textContent).toContain('Stage 1: RCT and Ceramic Crown');
     expect(container.textContent).toContain('Dr. Alice Endo');
     expect(container.textContent).toContain('PLANNED');
@@ -910,13 +908,13 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     const startBtn = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent?.trim() === 'Start',
     );
-    expect(startBtn).toBeTruthy();
-    expect(startBtn?.hasAttribute('disabled')).toBe(false);
+    expect(startBtn).toBeUndefined();
 
     const scheduleBtn = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent?.trim() === 'Schedule',
     );
     expect(scheduleBtn).toBeTruthy();
+    expect(scheduleBtn?.hasAttribute('disabled')).toBe(false);
   });
 });
 

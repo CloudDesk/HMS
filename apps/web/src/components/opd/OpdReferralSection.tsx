@@ -19,6 +19,9 @@ export type OpdReferralSectionProps = {
   saveConsultationDraft: () => void;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
+  isDental?: boolean;
+  onCompleteConsultation?: () => void;
+  isVisitCompleted?: boolean;
 };
 
 export function OpdReferralSection({
@@ -35,6 +38,9 @@ export function OpdReferralSection({
   saveConsultationDraft,
   handleNextStep,
   canEdit,
+  isDental = false,
+  onCompleteConsultation,
+  isVisitCompleted = false,
 }: OpdReferralSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -130,14 +136,27 @@ export function OpdReferralSection({
               Save Draft
             </button>
           )}
-          <button
-            className="doc-btn primary"
-            onClick={() => handleNextStep('Follow-up')}
-            type="button"
-          >
-            Next: Follow-up
-            <i aria-hidden="true" className="ph ph-arrow-right" />
-          </button>
+          {isDental ? (
+            canEdit && onCompleteConsultation && !isVisitCompleted && (
+              <button
+                className="doc-btn primary"
+                onClick={onCompleteConsultation}
+                type="button"
+              >
+                <i aria-hidden="true" className="ph ph-check-circle" />
+                Complete Consultation
+              </button>
+            )
+          ) : (
+            <button
+              className="doc-btn primary"
+              onClick={() => handleNextStep('Follow-up')}
+              type="button"
+            >
+              Next: Follow-up
+              <i aria-hidden="true" className="ph ph-arrow-right" />
+            </button>
+          )}
         </div>
       </div>
     </article>

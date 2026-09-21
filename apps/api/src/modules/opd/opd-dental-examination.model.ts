@@ -50,6 +50,7 @@ export type DentalTreatmentPlanItemFields = {
   estimatedCost?: number | null;
   notes?: string | null;
   status?: DentalTreatmentStatus;
+  dependsOnPlanItemId?: string | null;
 };
 
 export type OpdDentalExaminationFields = {
@@ -160,6 +161,7 @@ const treatmentPlanItemSchema = new Schema<DentalTreatmentPlanItemFields>(
       default: 'PROPOSED',
       trim: true,
     },
+    dependsOnPlanItemId: { type: String, default: null, trim: true },
   },
   { _id: true },
 );

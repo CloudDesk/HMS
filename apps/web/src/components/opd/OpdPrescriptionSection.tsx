@@ -85,84 +85,6 @@ export function OpdPrescriptionSection({
           </div>
         </div>
 
-        {/* Diagnosis Summary Section */}
-        <div
-          style={{
-            marginBottom: '1.25rem',
-            padding: '0.85rem 1rem',
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: selectedDiagnoses.length > 0 ? '0.5rem' : '0',
-            }}
-          >
-            <span
-              style={{
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                color: '#334155',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-              }}
-            >
-              <i className="ph ph-stethoscope" style={{ color: '#2563eb' }} />
-              Diagnosis Summary
-            </span>
-            <button
-              onClick={() => setActiveTab('Diagnosis')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#2563eb',
-                fontSize: '0.78rem',
-                cursor: 'pointer',
-                fontWeight: 500,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-              }}
-              type="button"
-            >
-              Edit Diagnosis <i className="ph ph-arrow-right" />
-            </button>
-          </div>
-          {selectedDiagnoses.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>
-              No diagnosis selected yet. You can add ICD-10 diagnoses in the Diagnosis tab.
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {selectedDiagnoses.map((dx) => (
-                <span
-                  key={dx.code}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.25rem 0.65rem',
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    borderRadius: '16px',
-                    color: '#1e40af',
-                    fontSize: '0.78rem',
-                    fontWeight: 500,
-                  }}
-                >
-                  <strong>{dx.code}</strong> • {dx.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
         {canEdit && (
           <div className="doc-form-grid three" style={{ gap: '0.75rem', marginBottom: '0.75rem' }}>
             <label className="doc-field" htmlFor="medicine-search-sel">
@@ -293,21 +215,21 @@ export function OpdPrescriptionSection({
             {!['3 Days', '5 Days', '7 Days', '10 Days', '14 Days', '30 Days', 'Ongoing'].includes(
               medicationForm.duration
             ) && (
-              <>
-                <div />
-                <label className="doc-field" htmlFor="custom-duration-input">
-                  <span>
-                    Custom Duration <span style={{ color: '#ef4444' }}>*</span>
-                  </span>
-                  <input
-                    id="custom-duration-input"
-                    onChange={(e) => setMedicationForm((m) => ({ ...m, duration: e.target.value }))}
-                    placeholder="e.g. 21 Days, 6 Weeks, 2 Months"
-                    value={medicationForm.duration}
-                  />
-                </label>
-                <div />
-              </>
+              <label
+                className="doc-field full"
+                htmlFor="custom-duration-input"
+                style={{ gridColumn: '1 / -1' }}
+              >
+                <span>
+                  Custom Duration <span style={{ color: '#ef4444' }}>*</span>
+                </span>
+                <input
+                  id="custom-duration-input"
+                  onChange={(e) => setMedicationForm((m) => ({ ...m, duration: e.target.value }))}
+                  placeholder="e.g. 21 Days, 6 Weeks, 2 Months"
+                  value={medicationForm.duration}
+                />
+              </label>
             )}
           </div>
         )}
@@ -420,19 +342,7 @@ export function OpdPrescriptionSection({
           </table>
         </div>
 
-        <div className="doc-form-grid two" style={{ marginTop: '1.25rem' }}>
-          <label className="doc-field" htmlFor="rx-follow-up-date">
-            <span>Follow-up Date</span>
-            <input
-              id="rx-follow-up-date"
-              onChange={(e) =>
-                setPrescriptionForm((prev) => ({ ...prev, follow_up_date: e.target.value }))
-              }
-              type="date"
-              value={prescriptionForm.follow_up_date}
-              disabled={!canEdit}
-            />
-          </label>
+        <div className="doc-form-grid two" style={{ marginTop: '1.25rem', gap: '1rem' }}>
           <label className="doc-field" htmlFor="rx-doctor-instructions">
             <span>Doctor Instructions</span>
             <textarea
@@ -444,12 +354,12 @@ export function OpdPrescriptionSection({
                 }))
               }
               placeholder="Clinical instructions for pharmacy dispensing..."
-              rows={2}
+              rows={3}
               value={prescriptionForm.doctor_instructions}
               disabled={!canEdit}
             />
           </label>
-          <label className="doc-field full" htmlFor="rx-patient-instructions">
+          <label className="doc-field" htmlFor="rx-patient-instructions">
             <span>Patient Instructions</span>
             <textarea
               id="rx-patient-instructions"
@@ -460,7 +370,7 @@ export function OpdPrescriptionSection({
                 }))
               }
               placeholder="Patient counseling notes, lifestyle advice, diet restrictions..."
-              rows={2}
+              rows={3}
               value={prescriptionForm.patient_instructions}
               disabled={!canEdit}
             />

@@ -81,6 +81,7 @@ const toDomainPlanItem = (item: DentalTreatmentPlanItemFields): DentalTreatmentP
   estimated_cost: item.estimatedCost ?? null,
   notes: item.notes ?? null,
   status: item.status ?? 'PROPOSED',
+  depends_on_plan_item_id: item.dependsOnPlanItemId ?? null,
 });
 
 const toDentalExamination = (record: OpdDentalExaminationLean): OpdDentalExamination => ({
@@ -98,8 +99,8 @@ const toDentalExamination = (record: OpdDentalExaminationLean): OpdDentalExamina
   status: record.status,
   dental_history: toDomainHistory(record.dentalHistory),
   soft_tissue: toDomainSoftTissue(record.softTissue),
-  teeth: (record.teeth ?? []).map(toDomainTooth),
-  treatment_plan_items: (record.treatmentPlanItems ?? []).map(toDomainPlanItem),
+  teeth: record.teeth?.map(toDomainTooth) ?? [],
+  treatment_plan_items: record.treatmentPlanItems?.map(toDomainPlanItem) ?? [],
   completed_at: record.completedAt ?? null,
   created_by: record.createdBy?.toString() ?? null,
   updated_by: record.updatedBy?.toString() ?? null,
@@ -156,6 +157,7 @@ const toPersistencePlanItem = (item: DentalTreatmentPlanItem): DentalTreatmentPl
   estimatedCost: item.estimated_cost ?? null,
   notes: item.notes ?? null,
   status: item.status ?? 'PROPOSED',
+  dependsOnPlanItemId: item.depends_on_plan_item_id ?? null,
 });
 
 export class OpdDentalExaminationRepository {

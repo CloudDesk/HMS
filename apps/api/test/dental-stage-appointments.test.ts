@@ -916,6 +916,17 @@ describe('Dental Stage Appointment Scheduling Integration Tests (Phase 3)', () =
     expect(stage4).toBeTruthy();
 
     await app.inject({
+      method: 'POST',
+      url: `/api/opd/dental/stages/${stage4.id}/schedule`,
+      headers: { authorization: `Bearer ${doctorToken}` },
+      payload: {
+        appointment_date: '2026-11-10',
+        start_time: '14:00',
+        duration_minutes: 30,
+      },
+    });
+
+    await app.inject({
       method: 'PATCH',
       url: `/api/opd/dental/stages/${stage4.id}/status`,
       headers: { authorization: `Bearer ${doctorToken}` },
@@ -980,7 +991,17 @@ describe('Dental Stage Appointment Scheduling Integration Tests (Phase 3)', () =
       },
     });
 
-    // Complete Stage 1
+    // Schedule and Complete Stage 1
+    await app.inject({
+      method: 'POST',
+      url: `/api/opd/dental/stages/${s1Id}/schedule`,
+      headers: { authorization: `Bearer ${doctorToken}` },
+      payload: {
+        appointment_date: '2026-11-12',
+        start_time: '10:00',
+        duration_minutes: 30,
+      },
+    });
     await app.inject({
       method: 'PATCH',
       url: `/api/opd/dental/stages/${s1Id}/status`,
@@ -1043,7 +1064,17 @@ describe('Dental Stage Appointment Scheduling Integration Tests (Phase 3)', () =
     });
     const s2Id = s2Res.json().data.id;
 
-    // Complete Stage 1
+    // Schedule and Complete Stage 1
+    await app.inject({
+      method: 'POST',
+      url: `/api/opd/dental/stages/${s1Id}/schedule`,
+      headers: { authorization: `Bearer ${doctorToken}` },
+      payload: {
+        appointment_date: '2026-11-12',
+        start_time: '10:00',
+        duration_minutes: 30,
+      },
+    });
     await app.inject({
       method: 'PATCH',
       url: `/api/opd/dental/stages/${s1Id}/status`,
@@ -1063,8 +1094,8 @@ describe('Dental Stage Appointment Scheduling Integration Tests (Phase 3)', () =
       url: `/api/opd/dental/stages/${s2Id}/schedule`,
       headers: { authorization: `Bearer ${doctorToken}` },
       payload: {
-        appointment_date: '2026-11-05',
-        start_time: '10:00',
+        appointment_date: '2026-11-12',
+        start_time: '11:00',
         duration_minutes: 30,
       },
     });
@@ -1104,6 +1135,17 @@ describe('Dental Stage Appointment Scheduling Integration Tests (Phase 3)', () =
       },
     });
     const s1Id = s1Res.json().data.id;
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/opd/dental/stages/${s1Id}/schedule`,
+      headers: { authorization: `Bearer ${doctorToken}` },
+      payload: {
+        appointment_date: '2026-11-12',
+        start_time: '10:00',
+        duration_minutes: 30,
+      },
+    });
 
     await app.inject({
       method: 'PATCH',
