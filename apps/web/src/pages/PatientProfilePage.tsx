@@ -35,7 +35,6 @@ const tabs = [
   'Imaging',
   'Documents',
   'Billing',
-  'Consent',
 ] as const;
 
 const calculateAge = (dob: string) => {
@@ -67,10 +66,17 @@ export function PatientProfilePage() {
     isSuperAdministrator(user.roles) ||
     hasPermission(user.permissions, { module: 'Appointments', screen: 'Appointment Booking', action: 'Create' })
   ));
+  const canViewConsent = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Patients', screen: 'Consent', action: 'View' })
+  ));
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
   const searchParams = new URLSearchParams(search);
-  const initialTab = (searchParams.get('tab') as PatientProfileTab) || 'Overview';
+  const requestedTab = searchParams.get('tab');
+  const initialTab: PatientProfileTab = tabs.includes(requestedTab as (typeof tabs)[number])
+    ? requestedTab as PatientProfileTab
+    : 'Overview';
   const feature = usePatientProfileFeature(requestedPatientId, initialTab);
 
   const {
@@ -114,7 +120,6 @@ export function PatientProfilePage() {
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState<ApiPatientDocumentType>('CLINICAL');
   const [docCategory, setDocCategory] = useState('PDF');
-  const [uploadMode, setUploadMode] = useState<'DOCUMENT' | 'CONSENT'>('DOCUMENT');
   const [documentReviewTarget, setDocumentReviewTarget] = useState<PatientDocumentResponse | null>(null);
   const [documentReviewDecision, setDocumentReviewDecision] = useState<'VERIFIED' | 'REJECTED'>('VERIFIED');
   const [documentReviewNotes, setDocumentReviewNotes] = useState('');
@@ -154,7 +159,7 @@ export function PatientProfilePage() {
         if (!file) continue;
         const title = stagedFiles.length > 1 ? `${docName.trim()} (${index + 1})` : docName.trim();
         if (!requestedPatientId) throw new Error('No patient selected.');
-        await handleUploadDocument({ document_type: uploadMode === 'CONSENT' ? 'CONSENT' : docType, title, file });
+        await handleUploadDocument({ document_type: docType, title, file });
       }
       setUploadModalOpen(false);
       setStagedFiles([]);
@@ -304,12 +309,6 @@ export function PatientProfilePage() {
                 <span className="divider">•</span>
                 <span><i className="ph ph-phone" /> {patient.phone || 'Phone not recorded'}</span>
                 <span className="divider">•</span>
-                <span><i className="ph ph-envelope" /> {patient.email || 'Email not recorded'}</span>
-                <span className="divider">•</span>
-                <span><i className="ph ph-map-pin" /> {[patient.address.line1, patient.address.city, patient.address.country].filter(Boolean).join(', ') || 'Address not recorded'}</span>
-                <span className="divider">•</span>
-                <span><i className="ph ph-drop" /> Blood: {patient.blood_group || 'Not recorded'}</span>
-                <span className="divider">•</span>
                 <span><i className="ph ph-clock" /> Registered {formatDate(patient.created_at)}</span>
               </div>
             </div>
@@ -349,6 +348,11 @@ export function PatientProfilePage() {
             <button className="doc-btn" onClick={() => setShowCardModal(true)} type="button">
               <i className="ph ph-identification-card" aria-hidden="true" /> View Card
             </button>
+            {canViewConsent ? (
+              <button className="doc-btn" onClick={() => navigate(`/patients/consent?id=${encodeURIComponent(patient.id)}`)} type="button">
+                <i className="ph ph-file-lock" aria-hidden="true" /> Consent Management
+              </button>
+            ) : null}
           </div>
         </section>
 
@@ -374,8 +378,7 @@ export function PatientProfilePage() {
           canEditAllDetails={canEditAllDetails}
           formatCurrency={formatMoney}
           onDownloadDocument={handleDownloadDocument}
-          onOpenUpload={(mode) => {
-            setUploadMode(mode);
+          onOpenUpload={() => {
             setUploadModalOpen(true);
           }}
           onReviewDocument={openDocumentReview}
@@ -406,7 +409,7 @@ export function PatientProfilePage() {
         open={uploadModalOpen}
         stagedFiles={stagedFiles}
         submitting={submittingUpload}
-        uploadMode={uploadMode}
+        uploadMode="DOCUMENT"
       />
 
       <Modal

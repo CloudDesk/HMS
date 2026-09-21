@@ -1622,6 +1622,10 @@ body.modal-open {
   width: min(100%, 1040px);
 }
 
+.modal-box.xlarge {
+  width: min(100%, 1280px);
+}
+
 .modal-header,
 .modal-footer {
   display: flex;

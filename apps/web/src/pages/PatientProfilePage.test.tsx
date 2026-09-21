@@ -43,6 +43,12 @@ vi.mock('../auth/useAuth', () => ({
           screen: 'Appointment Booking',
           action: 'Create',
         },
+        {
+          code: 'Patients_Consent_View',
+          module: 'Patients',
+          screen: 'Consent',
+          action: 'View',
+        },
       ],
     },
   }),
@@ -144,6 +150,8 @@ describe('PatientProfilePage feature-hook rendering', () => {
     expect(container.textContent).toContain('Asha Rao');
     expect(container.textContent).toContain('MRN-MRN-001');
     expect(container.textContent).toContain('Book Appointment');
+    expect(container.textContent).toContain('Consent Management');
+    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent?.trim() === 'Consent')).toBe(false);
   });
 
   it('preserves patient-profile loading and error states', async () => {

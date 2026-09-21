@@ -2,13 +2,12 @@
 import { toast } from 'sonner';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
-import { navigate, useAppLocation } from '../../routing/navigation';
+import { useAppLocation } from '../../routing/navigation';
 import {
   type ApiPatientConsentStatus,
   type PatientDocumentResponse,
 } from '../../api/patients';
 import {
-  usePatientsList,
   usePatientDetails,
   usePatientDocuments,
   useUploadPatientDocument,
@@ -38,9 +37,7 @@ export function usePatientConsentFeature() {
   const canEdit = can('Attach');
   const canVerify = can('Verify');
 
-  const { data: listRes } = usePatientsList({ status: 'ACTIVE', limit: 100 });
-  const patients = listRes?.data || [];
-  const patientId = requestedPatientId || patients[0]?.id || null;
+  const patientId = requestedPatientId;
 
   const { data: patient, isLoading: loadingPatient } = usePatientDetails(patientId);
   const { data: templates = [], isLoading: loadingTemplates } = useConsentTemplates({ branch_id: patient?.registration_branch_id ?? '', status: 'ACTIVE' }, canView && Boolean(patient?.registration_branch_id));
@@ -53,10 +50,6 @@ export function usePatientConsentFeature() {
   const downloadDoc = useDownloadPatientDocument();
   const replaceDoc = useReplacePatientDocument();
   const verifyDoc = useVerifyPatientConsent();
-
-  const handlePatientChange = (id: string) => {
-    navigate(`/patients/consent?id=${encodeURIComponent(id)}`);
-  };
 
   const handleDownload = async (document: PatientDocumentResponse) => {
     if (!patient) return;
@@ -170,7 +163,6 @@ export function usePatientConsentFeature() {
   return {
     state: {
       patient,
-      patients,
       consents,
       templates,
       loading,
@@ -184,7 +176,6 @@ export function usePatientConsentFeature() {
       canVerify,
     },
     actions: {
-      handlePatientChange,
       handleUpload,
       handleDownload,
       handleView,

@@ -17,14 +17,13 @@ import { patientInitials } from './opd-utils';
 import { formatDate, patientFullName, calculatePatientAge } from './patient-utils';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
 import { useHospitalSettings } from '../hooks/settings/useSettings';
+import { PatientRegistrationPage } from './PatientRegistrationPage';
 
 
 type ColumnVisibility = {
   gender: boolean;
   age: boolean;
   phone: boolean;
-  lastVisit: boolean;
-  registeredDate: boolean;
   status: boolean;
 };
 
@@ -32,8 +31,6 @@ const defaultColumns: ColumnVisibility = {
   gender: true,
   age: true,
   phone: true,
-  lastVisit: true,
-  registeredDate: true,
   status: true,
 };
 
@@ -108,6 +105,7 @@ export function PatientSearchPage() {
   const [, setActiveMenuId] = useState<string | null>(null);
   // Edit Patient Modal State
   const [editingPatient, setEditingPatient] = useState<PatientResponse | null>(null);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: '',
     lastName: '',
@@ -320,22 +318,22 @@ export function PatientSearchPage() {
 
             <div className="patient-search-actions-group">
               <button
-                className="patient-search-btn-secondary"
+                aria-label={showAdvancedFilters ? 'Hide advanced filters' : 'Show advanced filters'}
+                className="patient-search-btn-secondary patient-search-btn-icon"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                 title={showAdvancedFilters ? 'Hide Advanced Filters' : 'Show Advanced Filters'}
                 type="button"
               >
                 <i className="ph ph-funnel" aria-hidden="true" />
-                {showAdvancedFilters ? 'Less' : 'Filters'}
               </button>
               <button
-                className="patient-search-btn-secondary"
+                aria-label="Reset filters"
+                className="patient-search-btn-secondary patient-search-btn-icon"
                 onClick={handleResetFilters}
                 title="Reset Filters"
                 type="button"
               >
                 <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" />
-                Reset
               </button>
               <button className="patient-search-btn-search" type="submit">
                 <i className="ph ph-magnifying-glass" aria-hidden="true" />
@@ -411,7 +409,7 @@ export function PatientSearchPage() {
             {canCreatePatient ? (
               <button
                 className="doc-btn primary"
-                onClick={() => navigate('/patients/register')}
+                onClick={() => setRegistrationOpen(true)}
                 type="button"
               >
                 <i className="ph ph-plus" aria-hidden="true" />
@@ -446,12 +444,10 @@ export function PatientSearchPage() {
             <thead>
               <tr>
                 <th>MRN</th>
-                <th>PATIENT NAME</th>
+                <th className="patient-directory-name-cell">PATIENT NAME</th>
                 {columns.gender ? <th>GENDER</th> : null}
                 {columns.age ? <th>AGE</th> : null}
                 {columns.phone ? <th>PHONE</th> : null}
-                {columns.lastVisit ? <th>LAST VISIT</th> : null}
-                {columns.registeredDate ? <th>REGISTERED DATE</th> : null}
                 {columns.status ? <th>STATUS</th> : null}
                 <th className="align-right">ACTIONS</th>
               </tr>
@@ -490,19 +486,14 @@ export function PatientSearchPage() {
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="emp-id" data-label="MRN">{patient.patient_number}</td>
-                      <td data-label="Patient name">
+                      <td className="patient-directory-name-cell" data-label="Patient name">
                         <div className="user-cell-info">
-                          <strong style={{ color: '#0f172a' }}>{fullName}</strong>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            {patient.email || 'Email not recorded'}
-                          </span>
+                          <strong className="patient-directory-name" title={fullName}>{fullName}</strong>
                         </div>
                       </td>
                       {columns.gender ? <td data-label="Gender">{patient.gender}</td> : null}
                       {columns.age ? <td data-label="Age">{age}</td> : null}
                       {columns.phone ? <td data-label="Phone">{patient.phone || 'Not recorded'}</td> : null}
-                      {columns.lastVisit ? <td data-label="Last visit">Not available</td> : null}
-                      {columns.registeredDate ? <td data-label="Registered date">{formatDate(patient.created_at)}</td> : null}
                       {columns.status ? (
                         <td data-label="Status">
                           <span
@@ -586,6 +577,25 @@ export function PatientSearchPage() {
           </div>
         </div>
       </section>
+
+      <Modal
+        className="patient-registration-modal"
+        onClose={() => setRegistrationOpen(false)}
+        open={registrationOpen}
+        size="xlarge"
+        title="Register Patient"
+      >
+        {registrationOpen ? (
+          <PatientRegistrationPage
+            embedded
+            onCancel={() => setRegistrationOpen(false)}
+            onRegistered={(patient) => {
+              setRegistrationOpen(false);
+              navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`);
+            }}
+          />
+        ) : null}
+      </Modal>
 
       {/* Edit Patient Modal */}
       <Modal onClose={() => setEditingPatient(null)} open={Boolean(editingPatient)} size="large" title="Edit Patient">
