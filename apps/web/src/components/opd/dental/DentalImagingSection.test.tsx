@@ -443,7 +443,7 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     await render(35, true, true, 'ep-1');
     await settle();
 
-    expect(container.textContent).toContain('Immediate Chairside Imaging');
+    expect(container.textContent).toContain('Chairside Images');
     expect(container.textContent).not.toContain('Upload Chairside Image');
     expect(container.textContent).not.toContain('Capture Image');
     expect(container.textContent).not.toContain('+ Add X-Ray / Scan');

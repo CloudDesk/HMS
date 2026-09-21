@@ -236,7 +236,7 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
     <section className={styles.section} aria-label="Dental imaging">
       <header className={styles.imagingPageHeader}>
         <h2><i className="ph ph-image-square" /> Imaging</h2>
-        <p>View chairside images and formal radiology investigations for this patient.</p>
+        <p>View images taken during this visit and radiology reports for this patient.</p>
       </header>
       {/* =========================================================
           1. IMMEDIATE CHAIRSIDE IMAGING (ALL CONSULTATION SCANS)
@@ -246,9 +246,9 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
           <div>
             <h3 className={styles.chairsideTitle}>
               <i className="ph ph-camera" style={{ color: '#2563eb' }} />
-              Immediate Chairside Imaging
+              Chairside Images
             </h3>
-            <p>Immediate chairside image capture during dental consultation.</p>
+            <p>Images captured by the dental team during this consultation.</p>
           </div>
           <span className={styles.imageCountBadge}>{allVisitChairsideImages.length} {allVisitChairsideImages.length === 1 ? 'Image' : 'Images'}</span>
         </div>

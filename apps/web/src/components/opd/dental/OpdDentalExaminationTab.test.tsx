@@ -390,6 +390,25 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(container.textContent).toContain('Severe jaw pain and swelling on right side');
     expect(container.textContent).toContain('Pain started 3 days ago after chewing hard food');
     expect(container.textContent).toContain('Dental-Specific Complaint');
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab
+            visitId="visit-1"
+            canEdit={false}
+            consultation={{
+              ...mockConsultation,
+              status: 'COMPLETED',
+              completed_at: '2026-09-07T11:00:00.000Z',
+            }}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(container.textContent).toContain('Consultation Completed · Read Only');
+    expect(container.textContent).not.toContain('Draft In-Progress');
   });
 
   it('renders service catalogue quick-add procedure chips in treatment plan and auto-fills price', async () => {

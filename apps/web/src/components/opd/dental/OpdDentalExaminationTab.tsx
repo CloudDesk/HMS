@@ -107,6 +107,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const completeMutation = useCompleteOpdDentalExamination({ notifyOnError: false, notifyOnSuccess: false });
 
   const isCompleted = dentalExam?.status === 'COMPLETED';
+  const isConsultationCompleted = consultation?.status === 'COMPLETED';
   const isReadOnly = !canEdit || isCompleted;
   const isSaving = saveDraftMutation.isPending || completeMutation.isPending;
   const controlsDisabled = isReadOnly || isSaving;
@@ -690,6 +691,10 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         {isCompleted ? (
           <span className={styles.statusBadgeCompleted}>
             <i className="ph ph-check-circle-fill" /> Completed &amp; Locked
+          </span>
+        ) : isConsultationCompleted ? (
+          <span className={styles.statusBadgeCompleted}>
+            <i className="ph ph-lock-key" /> Consultation Completed · Read Only
           </span>
         ) : (
           <>
