@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { env } from '../../config/env.js';
 import { AppError } from '../errors/app-error.js';
 
@@ -26,12 +27,18 @@ const sanitizeFileName = (fileName: string) => {
 };
 
 export class PatientDocumentStorageService {
-  private readonly rootDirectory = path.resolve(env.storage.localPatientDocumentsPath);
+  private readonly rootDirectory = path.isAbsolute(env.storage.localPatientDocumentsPath)
+    ? env.storage.localPatientDocumentsPath
+    : path.resolve(
+        fileURLToPath(new URL('../../../', import.meta.url)),
+        env.storage.localPatientDocumentsPath,
+      );
+  private readonly legacyRootDirectory = path.resolve(env.storage.localPatientDocumentsPath);
 
-  private resolveStoragePath(storageKey: string) {
-    const resolvedPath = path.resolve(this.rootDirectory, ...storageKey.split('/'));
+  private resolveStoragePath(storageKey: string, rootDirectory = this.rootDirectory) {
+    const resolvedPath = path.resolve(rootDirectory, ...storageKey.split('/'));
     const isInsideRoot =
-      resolvedPath === this.rootDirectory || resolvedPath.startsWith(`${this.rootDirectory}${path.sep}`);
+      resolvedPath === rootDirectory || resolvedPath.startsWith(`${rootDirectory}${path.sep}`);
 
     if (!isInsideRoot) {
       throw new AppError('Patient document storage key is invalid', 400, 'INVALID_STORAGE_KEY');
@@ -52,8 +59,17 @@ export class PatientDocumentStorageService {
 
   async download(storageKey: string): Promise<DownloadedPatientDocument> {
     const storagePath = this.resolveStoragePath(storageKey);
-    const data = await readFile(storagePath).catch((error: unknown) => {
+    const legacyStoragePath = this.resolveStoragePath(storageKey, this.legacyRootDirectory);
+    const data = await readFile(storagePath).catch(async (error: unknown) => {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        if (legacyStoragePath !== storagePath) {
+          return readFile(legacyStoragePath).catch((legacyError: unknown) => {
+            if (legacyError instanceof Error && 'code' in legacyError && legacyError.code === 'ENOENT') {
+              throw new AppError('Stored patient document file was not found', 404, 'DOCUMENT_FILE_NOT_FOUND');
+            }
+            throw legacyError;
+          });
+        }
         throw new AppError('Stored patient document file was not found', 404, 'DOCUMENT_FILE_NOT_FOUND');
       }
 
@@ -68,6 +84,7 @@ export class PatientDocumentStorageService {
 
   async deleteIfExists(storageKey: string) {
     const storagePath = this.resolveStoragePath(storageKey);
+    const legacyStoragePath = this.resolveStoragePath(storageKey, this.legacyRootDirectory);
 
     await unlink(storagePath).catch((error: unknown) => {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -76,5 +93,12 @@ export class PatientDocumentStorageService {
 
       throw error;
     });
+
+    if (legacyStoragePath !== storagePath) {
+      await unlink(legacyStoragePath).catch((error: unknown) => {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return;
+        throw error;
+      });
+    }
   }
 }
