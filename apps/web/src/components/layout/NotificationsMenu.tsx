@@ -19,7 +19,7 @@ export function NotificationsMenu({ notifications }: { notifications: ReturnType
         <i className="ph ph-bell-simple-slash" aria-hidden="true" />
         <strong>No notifications</strong><span>You’re all caught up.</span>
       </div>}
-      {query.data?.data.map((notification) => {
+      {query.data?.data?.map((notification) => {
         const date = parseISO(notification.created_at);
         const icon =
           notification.type === 'REFERRAL'
@@ -48,7 +48,7 @@ export function NotificationsMenu({ notifications }: { notifications: ReturnType
             aria-label={`Mark ${notification.title} as read`} title="Unread — mark as read" onClick={() => void markRead(notification.id)}>●</button>}
         </article>;
       })}
-      {total > (query.data?.data.length ?? 0) && <p className={styles.muted}>Showing the latest 10 unread notifications. Marking these read reveals earlier items.</p>}
+      {total > (query.data?.data?.length ?? 0) && <p className={styles.muted}>Showing the latest 10 unread notifications. Marking these read reveals earlier items.</p>}
     </div>
   </>;
 }

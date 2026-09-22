@@ -29,7 +29,7 @@ export function SidebarUtilityBar() {
   const headingId = useId();
   const panelId = useId();
   const name = user?.fullName || user?.username || 'User';
-  const role = user?.roles.map((item) => item.name).join(', ') || 'No role assigned';
+  const role = user?.roles?.map((item) => item.name).join(', ') || 'No role assigned';
   const initials = name.split(' ').slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';
 
   const close = useCallback(() => {

@@ -147,6 +147,17 @@ export class DentalStageService {
             (it) => it._id?.toString() === data.plan_item_id,
           );
           if (matchedItem) {
+            if (
+              episode.primary_tooth_number != null &&
+              matchedItem.toothNumber != null &&
+              matchedItem.toothNumber !== episode.primary_tooth_number
+            ) {
+              throw new AppError(
+                `Treatment plan procedure for tooth #${matchedItem.toothNumber} does not belong to episode #${episode.episode_number} (Tooth #${episode.primary_tooth_number})`,
+                400,
+                'EPISODE_TOOTH_MISMATCH',
+              );
+            }
             if (matchedItem.status === 'PROPOSED') {
               throw new AppError(
                 'Treatment stages can only be created for accepted active treatment procedures. Please accept the treatment quotation or confirm the procedure first.',

@@ -701,28 +701,40 @@ export class DentalQuotationService {
     const createdStageIds: string[] = [];
     if (this.stageRepository && episode.status !== 'COMPLETED' && episode.status !== 'CANCELLED') {
       for (const planItemId of synchronizedPlanItemIds) {
+        const item = currentPlanItems.find((pi) => pi._id?.toString() === planItemId);
+        if (!item) continue;
+
+        // A Treatment Plan Item belongs to this episode only if:
+        // 1. Episode is general (no primary tooth number), OR
+        // 2. The item's tooth number matches the episode's primary tooth number.
+        const matchesEpisodeTooth =
+          episode.primary_tooth_number == null ||
+          (item.toothNumber != null && item.toothNumber === episode.primary_tooth_number);
+
+        if (!matchesEpisodeTooth) {
+          // Procedure does NOT belong to this episode - do not link to this episode and do not inherit this episode's doctor
+          continue;
+        }
+
         const existingStages = await this.stageRepository.listByPlanItem(episodeId, planItemId);
         if (existingStages.length === 0) {
-          const item = currentPlanItems.find((pi) => pi._id?.toString() === planItemId);
-          if (item) {
-            const createdStage = await this.stageRepository.create({
-              episodeId: new Types.ObjectId(episode.id),
-              planItemId,
-              toothNumber: item.toothNumber ?? null,
-              serviceId: item.serviceId && isObjectId(item.serviceId) ? new Types.ObjectId(item.serviceId) : null,
-              stageName: item.procedureName,
-              sequence: 1,
-              assignedDoctorId: new Types.ObjectId(episode.primary_doctor_id),
-              assignedDoctorName: episode.primary_doctor_name,
-              status: 'PLANNED',
-              branchId: new Types.ObjectId(episode.branch_id),
-              departmentId: new Types.ObjectId(episode.department_id),
-              patientId: new Types.ObjectId(episode.patient_id),
-              createdBy: new Types.ObjectId(userId),
-              updatedBy: new Types.ObjectId(userId),
-            });
-            createdStageIds.push(createdStage.id);
-          }
+          const createdStage = await this.stageRepository.create({
+            episodeId: new Types.ObjectId(episode.id),
+            planItemId,
+            toothNumber: item.toothNumber ?? null,
+            serviceId: item.serviceId && isObjectId(item.serviceId) ? new Types.ObjectId(item.serviceId) : null,
+            stageName: item.procedureName,
+            sequence: 1,
+            assignedDoctorId: new Types.ObjectId(episode.primary_doctor_id),
+            assignedDoctorName: episode.primary_doctor_name,
+            status: 'PLANNED',
+            branchId: new Types.ObjectId(episode.branch_id),
+            departmentId: new Types.ObjectId(episode.department_id),
+            patientId: new Types.ObjectId(episode.patient_id),
+            createdBy: new Types.ObjectId(userId),
+            updatedBy: new Types.ObjectId(userId),
+          });
+          createdStageIds.push(createdStage.id);
         }
       }
     }

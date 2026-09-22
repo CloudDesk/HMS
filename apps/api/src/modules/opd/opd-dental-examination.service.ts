@@ -341,13 +341,29 @@ export class OpdDentalExaminationService {
       }
     }
 
+    const submittedItemsById = new Map(
+      data.treatment_plan_items.flatMap((item) => (item.id ? [[item.id, item] as const] : [])),
+    );
+
+    for (const [existingId, existingItem] of existingItemsById.entries()) {
+      if (
+        (existingItem.status === 'ACCEPTED' ||
+          existingItem.status === 'IN_PROGRESS' ||
+          existingItem.status === 'COMPLETED') &&
+        !submittedItemsById.has(existingId)
+      ) {
+        throw new AppError(
+          `Cannot delete a ${existingItem.status.toLowerCase()} treatment procedure. Only proposed procedures can be deleted.`,
+          400,
+          'ACCEPTED_TREATMENT_IMMUTABLE',
+        );
+      }
+    }
+
     const existingIds = [...existingItemsById.keys()];
     const billedItems = await this.billingRepository.listDentalTreatmentBillingStates(existingIds);
     if (billedItems.length === 0) return;
 
-    const submittedItemsById = new Map(
-      data.treatment_plan_items.flatMap((item) => (item.id ? [[item.id, item] as const] : [])),
-    );
     for (const billingState of billedItems) {
       const existingItem = existingItemsById.get(billingState.treatment_item_id);
       const submittedItem = submittedItemsById.get(billingState.treatment_item_id);

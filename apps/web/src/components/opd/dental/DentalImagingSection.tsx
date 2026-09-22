@@ -59,9 +59,9 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
   const allVisitChairsideImages = chairside.allVisitImages;
   const otherEpisodeOrders = feature.episodeOrders.filter((epOrder) => epOrder.id !== order.data?.id);
   const formalOrderRows = [
-    ...(order.data ? order.data.items.map((item, index) => ({ order: order.data!, item, index })) : []),
+    ...(order.data?.items ?? []).map((item, index) => ({ order: order.data!, item, index })),
     ...otherEpisodeOrders.flatMap((episodeOrder) =>
-      episodeOrder.items.map((item, index) => ({ order: episodeOrder, item, index })),
+      (episodeOrder.items ?? []).map((item, index) => ({ order: episodeOrder, item, index })),
     ),
   ];
   const visibleFormalOrderRows = formalOrderRows.filter(({ order: rowOrder, item }) => {

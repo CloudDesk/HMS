@@ -691,6 +691,15 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
   const handleRemoveItem = (identifier: string | number) => {
     if (disabled) return;
+    const targetItem =
+      typeof identifier === 'number'
+        ? items[identifier]
+        : items.find((it, idx) => (it.id ? it.id === identifier : `plan-item-${idx}` === identifier));
+
+    if (targetItem && targetItem.status !== 'PROPOSED') {
+      return; // Protected: only PROPOSED procedures can be deleted
+    }
+
     if (typeof identifier === 'number') {
       onChange(items.filter((_, i) => i !== identifier));
     } else {
@@ -1380,16 +1389,18 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                             <td style={{ textAlign: 'center' }}>
                               {billingState ? (
                                 <span className={styles.billingMuted}>Invoice linked</span>
-                              ) : (
+                              ) : item.status === 'PROPOSED' ? (
                                 <button
                                   type="button"
                                   className={styles.btnSecondary}
                                   style={{ padding: '2px 6px', color: '#dc2626', borderColor: '#fecaca' }}
                                   onClick={() => handleRemoveItem(item.id ?? idx)}
-                                  title="Remove procedure"
+                                  title="Remove proposed procedure"
                                 >
                                   <i className="ph ph-trash" />
                                 </button>
+                              ) : (
+                                <span className={styles.billingMuted} title="Accepted treatment procedures cannot be deleted">—</span>
                               )}
                             </td>
                           )}
@@ -1555,291 +1566,291 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                             </div>
                                           </div>
 
-                                          <div className={styles.stageActions}>
-                                            <span
-                                              style={{
-                                                display: 'inline-block',
-                                                padding: '2px 8px',
-                                                borderRadius: '4px',
-                                                fontSize: '0.725rem',
-                                                fontWeight: 700,
-                                                ...getStageStatusBadgeStyle(stage.status),
-                                              }}
-                                            >
-                                              {stage.status}
-                                            </span>
-
-                                            {/* Lab Order Badge / Trigger */}
-                                            {stageLabOrder ? (
+                                          <div className={styles.stageRightCol}>
+                                            <div className={styles.stageStatusRow}>
                                               <span
-                                                style={{
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  gap: '4px',
-                                                  padding: '2px 7px',
-                                                  borderRadius: '4px',
-                                                  fontSize: '0.725rem',
-                                                  fontWeight: 600,
-                                                  background:
-                                                    stageLabOrder.status === 'READY'
-                                                      ? '#dcfce7'
-                                                      : stageLabOrder.status === 'CANCELLED'
-                                                      ? '#fef2f2'
-                                                      : '#f5f3ff',
-                                                  color:
-                                                    stageLabOrder.status === 'READY'
-                                                      ? '#166534'
-                                                      : stageLabOrder.status === 'CANCELLED'
-                                                      ? '#dc2626'
-                                                      : '#6d28d9',
-                                                  border: `1px solid ${
-                                                    stageLabOrder.status === 'READY'
-                                                      ? '#86efac'
-                                                      : stageLabOrder.status === 'CANCELLED'
-                                                      ? '#fecaca'
-                                                      : '#ddd6fe'
-                                                  }`,
-                                                }}
-                                                data-testid="stage-lab-order-badge"
+                                                className={styles.stageStatusBadge}
+                                                style={getStageStatusBadgeStyle(stage.status)}
                                               >
-                                                <i className="ph ph-wrench" />
-                                                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{stageLabOrder.order_number}</span>
-                                                <span>• {stageLabOrder.prosthetic_type}</span>
-                                                {stageLabOrder.status !== 'ORDERED' && (
-                                                  <span style={{ fontSize: '0.675rem', fontWeight: 700, opacity: 0.9 }}>
-                                                    [{stageLabOrder.status}]
-                                                  </span>
-                                                )}
-                                                <button
-                                                  type="button"
+                                                {stage.status}
+                                              </span>
+                                            </div>
+
+                                            <div className={styles.stageActionsArea}>
+                                              {/* Lab Order Badge / Trigger */}
+                                              {stageLabOrder ? (
+                                                <span
                                                   style={{
-                                                    background: 'transparent',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    color: stageLabOrder.status === 'READY' ? '#166534' : '#5b21b6',
-                                                    padding: '0 2px',
-                                                    marginLeft: '2px',
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
+                                                    gap: '4px',
+                                                    height: '28px',
+                                                    boxSizing: 'border-box',
+                                                    padding: '0 8px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '0.725rem',
+                                                    fontWeight: 600,
+                                                    background:
+                                                      stageLabOrder.status === 'READY'
+                                                        ? '#dcfce7'
+                                                        : stageLabOrder.status === 'CANCELLED'
+                                                        ? '#fef2f2'
+                                                        : '#f5f3ff',
+                                                    color:
+                                                      stageLabOrder.status === 'READY'
+                                                        ? '#166534'
+                                                        : stageLabOrder.status === 'CANCELLED'
+                                                        ? '#dc2626'
+                                                        : '#6d28d9',
+                                                    border: `1px solid ${
+                                                      stageLabOrder.status === 'READY'
+                                                        ? '#86efac'
+                                                        : stageLabOrder.status === 'CANCELLED'
+                                                        ? '#fecaca'
+                                                        : '#ddd6fe'
+                                                    }`,
                                                   }}
-                                                  onClick={() => setViewLabOrderId(stageLabOrder.id)}
-                                                  title="View Prosthetic Lab Order"
+                                                  data-testid="stage-lab-order-badge"
                                                 >
-                                                  <i className="ph ph-eye" />
-                                                </button>
-                                              </span>
-                                            ) : (
-                                              !disabled && !isCompleted && stage.status !== 'CANCELLED' && (
-                                                <button
-                                                  type="button"
-                                                  className={styles.btnStageAction}
-                                                  style={{ background: '#fdf4ff', color: '#a21caf', borderColor: '#f0abfc' }}
-                                                  onClick={() => setLabOrderCreateStage(stage)}
-                                                  title="Create Prosthetic Lab Order for this stage"
-                                                  data-testid="stage-create-lab-order-btn"
-                                                >
-                                                  <i className="ph ph-wrench" /> Lab Order
-                                                </button>
-                                              )
-                                            )}
+                                                  <i className="ph ph-wrench" />
+                                                  <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{stageLabOrder.order_number}</span>
+                                                  <span>• {stageLabOrder.prosthetic_type}</span>
+                                                  {stageLabOrder.status !== 'ORDERED' && (
+                                                    <span style={{ fontSize: '0.675rem', fontWeight: 700, opacity: 0.9 }}>
+                                                      [{stageLabOrder.status}]
+                                                    </span>
+                                                  )}
+                                                  <button
+                                                    type="button"
+                                                    style={{
+                                                      background: 'transparent',
+                                                      border: 'none',
+                                                      cursor: 'pointer',
+                                                      color: stageLabOrder.status === 'READY' ? '#166534' : '#5b21b6',
+                                                      padding: '0 2px',
+                                                      marginLeft: '2px',
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                    }}
+                                                    onClick={() => setViewLabOrderId(stageLabOrder.id)}
+                                                    title="View Prosthetic Lab Order"
+                                                  >
+                                                    <i className="ph ph-eye" />
+                                                  </button>
+                                                </span>
+                                              ) : (
+                                                !disabled && !isCompleted && stage.status !== 'CANCELLED' && (
+                                                  <button
+                                                    type="button"
+                                                    className={styles.btnStageAction}
+                                                    style={{ background: '#fdf4ff', color: '#a21caf', borderColor: '#f0abfc' }}
+                                                    onClick={() => setLabOrderCreateStage(stage)}
+                                                    title="Create Prosthetic Lab Order for this stage"
+                                                    data-testid="stage-create-lab-order-btn"
+                                                  >
+                                                    <i className="ph ph-wrench" /> Lab Order
+                                                  </button>
+                                                )
+                                              )}
 
-                                            {!disabled && !isCompleted && stage.status !== 'CANCELLED' && (
-                                              <>
-                                                {/* PLANNED: Only Schedule and Delete are available. Strictly no Start or Complete. */}
-                                                {stage.status === 'PLANNED' && (
-                                                  <>
-                                                    {!priorIncomplete ? (
+                                              {!disabled && !isCompleted && stage.status !== 'CANCELLED' && (
+                                                <>
+                                                  {/* PLANNED: Only Schedule and Delete are available. Strictly no Start or Complete. */}
+                                                  {stage.status === 'PLANNED' && (
+                                                    <>
+                                                      {!priorIncomplete ? (
+                                                        <button
+                                                          type="button"
+                                                          className={styles.btnStageAction}
+                                                          style={{
+                                                            background: isLabOrderPending ? '#f8fafc' : '#eff6ff',
+                                                            color: isLabOrderPending ? '#94a3b8' : '#1d4ed8',
+                                                            borderColor: isLabOrderPending ? '#e2e8f0' : '#bfdbfe',
+                                                            cursor: isLabOrderPending ? 'not-allowed' : 'pointer',
+                                                          }}
+                                                          disabled={isLabOrderPending}
+                                                          onClick={() => setScheduleModalStage(stage)}
+                                                          title={
+                                                            isLabOrderPending
+                                                              ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before scheduling.`
+                                                              : 'Schedule an appointment for this stage'
+                                                          }
+                                                          data-testid={`stage-${stage.sequence}-schedule-btn`}
+                                                        >
+                                                          <i className="ph ph-calendar-plus" /> Schedule
+                                                        </button>
+                                                      ) : (
+                                                        <span className={styles.stagePrereqNotice}>
+                                                          <i className="ph ph-lock-key" /> Prior stage pending
+                                                        </span>
+                                                      )}
+
                                                       <button
                                                         type="button"
-                                                        className={styles.btnStageAction}
-                                                        style={{
-                                                          background: isLabOrderPending ? '#f8fafc' : '#eff6ff',
-                                                          color: isLabOrderPending ? '#94a3b8' : '#1d4ed8',
-                                                          borderColor: isLabOrderPending ? '#e2e8f0' : '#bfdbfe',
-                                                          cursor: isLabOrderPending ? 'not-allowed' : 'pointer',
-                                                        }}
-                                                        disabled={isLabOrderPending}
-                                                        onClick={() => setScheduleModalStage(stage)}
-                                                        title={
-                                                          isLabOrderPending
-                                                            ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before scheduling.`
-                                                            : 'Schedule an appointment for this stage'
-                                                        }
-                                                        data-testid={`stage-${stage.sequence}-schedule-btn`}
+                                                        className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
+                                                        onClick={() => deleteStageMutation.mutate(stage.id)}
+                                                        title="Delete planned stage"
                                                       >
-                                                        <i className="ph ph-calendar-plus" /> Schedule
+                                                        <i className="ph ph-trash" />
                                                       </button>
-                                                    ) : (
-                                                      <span className={styles.stagePrereqNotice}>
-                                                        <i className="ph ph-lock-key" /> Prior stage pending
-                                                      </span>
-                                                    )}
+                                                    </>
+                                                  )}
 
-                                                    <button
-                                                      type="button"
-                                                      className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
-                                                      onClick={() => deleteStageMutation.mutate(stage.id)}
-                                                      title="Delete planned stage"
-                                                    >
-                                                      <i className="ph ph-trash" />
-                                                    </button>
-                                                  </>
-                                                )}
+                                                  {/* SCHEDULED: Start is available once scheduled with appointment. View, Reschedule, Cancel. Strictly no Complete. */}
+                                                  {stage.status === 'SCHEDULED' && (
+                                                    <>
+                                                      <button
+                                                        type="button"
+                                                        className={`${styles.btnStageAction} ${styles.btnStageStart}`}
+                                                        disabled={priorIncomplete || isLabOrderPending}
+                                                        onClick={() =>
+                                                          updateStageStatusMutation.mutate({
+                                                            stageId: stage.id,
+                                                            payload: { status: 'IN_PROGRESS' },
+                                                          })
+                                                        }
+                                                        title={
+                                                          priorIncomplete
+                                                            ? 'Previous stage must be completed first'
+                                                            : isLabOrderPending
+                                                            ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before starting stage.`
+                                                            : 'Start treatment stage'
+                                                        }
+                                                        data-testid={`stage-${stage.sequence}-start-btn`}
+                                                      >
+                                                        <i className="ph ph-play" /> Start
+                                                      </button>
 
-                                                {/* SCHEDULED: Start is available once scheduled with appointment. View, Reschedule, Cancel. Strictly no Complete. */}
-                                                {stage.status === 'SCHEDULED' && (
-                                                  <>
+                                                      {stage.appointment_id ? (
+                                                        <>
+                                                          <button
+                                                            type="button"
+                                                            className={styles.btnStageAction}
+                                                            style={{ background: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0' }}
+                                                            onClick={() => setViewAppointmentStageId(stage.id)}
+                                                            title="View linked appointment details"
+                                                          >
+                                                            <i className="ph ph-eye" /> View Appt
+                                                          </button>
+                                                          <button
+                                                            type="button"
+                                                            className={styles.btnStageAction}
+                                                            style={{ background: '#fefce8', color: '#92400e', borderColor: '#fde68a' }}
+                                                            onClick={() => setScheduleModalStage(stage)}
+                                                            title="Reschedule appointment"
+                                                          >
+                                                            <i className="ph ph-calendar-x" /> Reschedule
+                                                          </button>
+                                                          <button
+                                                            type="button"
+                                                            className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
+                                                            onClick={() => setCancelConfirmStageId(stage.id)}
+                                                            title="Cancel appointment (stage returns to Planned)"
+                                                          >
+                                                            <i className="ph ph-x-circle" /> Cancel Appt
+                                                          </button>
+                                                        </>
+                                                      ) : (
+                                                        <button
+                                                          type="button"
+                                                          className={styles.btnStageAction}
+                                                          style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}
+                                                          onClick={() => setScheduleModalStage(stage)}
+                                                          title="Schedule an appointment for this stage"
+                                                          data-testid={`stage-${stage.sequence}-schedule-btn`}
+                                                        >
+                                                          <i className="ph ph-calendar-plus" /> Schedule
+                                                        </button>
+                                                      )}
+                                                    </>
+                                                  )}
+
+                                                  {/* IN_PROGRESS: Complete and Hold available. Strictly no Start. */}
+                                                  {stage.status === 'IN_PROGRESS' && (
+                                                    <>
+                                                      <button
+                                                        type="button"
+                                                        className={`${styles.btnStageAction} ${styles.btnStageComplete}`}
+                                                        disabled={priorIncomplete || isLabOrderPending}
+                                                        onClick={() =>
+                                                          updateStageStatusMutation.mutate({
+                                                            stageId: stage.id,
+                                                            payload: { status: 'COMPLETED' },
+                                                          })
+                                                        }
+                                                        title={
+                                                          priorIncomplete
+                                                            ? 'Previous stage must be completed first'
+                                                            : isLabOrderPending
+                                                            ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before completing stage.`
+                                                            : 'Mark stage complete'
+                                                        }
+                                                        data-testid={`stage-${stage.sequence}-complete-btn`}
+                                                      >
+                                                        <i className="ph ph-check-circle" /> Complete
+                                                      </button>
+                                                      <button
+                                                        type="button"
+                                                        className={`${styles.btnStageAction} ${styles.btnStageHold}`}
+                                                        onClick={() =>
+                                                          updateStageStatusMutation.mutate({
+                                                            stageId: stage.id,
+                                                            payload: { status: 'ON_HOLD' },
+                                                          })
+                                                        }
+                                                        title="Put stage on hold"
+                                                      >
+                                                        <i className="ph ph-pause" /> Hold
+                                                      </button>
+                                                    </>
+                                                  )}
+
+                                                  {/* ON_HOLD: Resume available */}
+                                                  {stage.status === 'ON_HOLD' && (
                                                     <button
                                                       type="button"
                                                       className={`${styles.btnStageAction} ${styles.btnStageStart}`}
-                                                      disabled={priorIncomplete || isLabOrderPending}
                                                       onClick={() =>
                                                         updateStageStatusMutation.mutate({
                                                           stageId: stage.id,
-                                                          payload: { status: 'IN_PROGRESS' },
+                                                          payload: { status: stage.appointment_id ? 'IN_PROGRESS' : 'SCHEDULED' },
                                                         })
                                                       }
-                                                      title={
-                                                        priorIncomplete
-                                                          ? 'Previous stage must be completed first'
-                                                          : isLabOrderPending
-                                                          ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before starting stage.`
-                                                          : 'Start treatment stage'
-                                                      }
-                                                      data-testid={`stage-${stage.sequence}-start-btn`}
                                                     >
-                                                      <i className="ph ph-play" /> Start
+                                                      <i className="ph ph-play" /> Resume
                                                     </button>
+                                                  )}
 
-                                                    {stage.appointment_id ? (
-                                                      <>
-                                                        <button
-                                                          type="button"
-                                                          className={styles.btnStageAction}
-                                                          style={{ background: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0' }}
-                                                          onClick={() => setViewAppointmentStageId(stage.id)}
-                                                          title="View linked appointment details"
-                                                        >
-                                                          <i className="ph ph-eye" /> View Appt
-                                                        </button>
-                                                        <button
-                                                          type="button"
-                                                          className={styles.btnStageAction}
-                                                          style={{ background: '#fefce8', color: '#92400e', borderColor: '#fde68a' }}
-                                                          onClick={() => setScheduleModalStage(stage)}
-                                                          title="Reschedule appointment"
-                                                        >
-                                                          <i className="ph ph-calendar-x" /> Reschedule
-                                                        </button>
-                                                        <button
-                                                          type="button"
-                                                          className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
-                                                          onClick={() => setCancelConfirmStageId(stage.id)}
-                                                          title="Cancel appointment (stage returns to Planned)"
-                                                        >
-                                                          <i className="ph ph-x-circle" /> Cancel Appt
-                                                        </button>
-                                                      </>
-                                                    ) : (
-                                                      <button
-                                                        type="button"
-                                                        className={styles.btnStageAction}
-                                                        style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}
-                                                        onClick={() => setScheduleModalStage(stage)}
-                                                        title="Schedule an appointment for this stage"
-                                                        data-testid={`stage-${stage.sequence}-schedule-btn`}
-                                                      >
-                                                        <i className="ph ph-calendar-plus" /> Schedule
-                                                      </button>
-                                                    )}
-                                                  </>
-                                                )}
+                                                  {isLabOrderPending && stage.status === 'IN_PROGRESS' && (
+                                                    <span className={styles.stageLabPrereqNotice} data-testid="stage-lab-pending-notice">
+                                                      <i className="ph ph-hourglass-high" /> Lab: {stageLabOrder?.status} (awaiting Ready)
+                                                    </span>
+                                                  )}
 
-                                                {/* IN_PROGRESS: Complete and Hold available. Strictly no Start. */}
-                                                {stage.status === 'IN_PROGRESS' && (
-                                                  <>
-                                                    <button
-                                                      type="button"
-                                                      className={`${styles.btnStageAction} ${styles.btnStageComplete}`}
-                                                      disabled={priorIncomplete || isLabOrderPending}
-                                                      onClick={() =>
-                                                        updateStageStatusMutation.mutate({
+                                                  {/* Doctor reassign selector */}
+                                                  {doctors.length > 1 && (
+                                                    <select
+                                                      className={styles.select}
+                                                      style={{ height: '28px', padding: '0 6px', fontSize: '0.725rem', boxSizing: 'border-box' }}
+                                                      value={stage.assigned_doctor_id}
+                                                      onChange={(e) =>
+                                                        assignDoctorMutation.mutate({
                                                           stageId: stage.id,
-                                                          payload: { status: 'COMPLETED' },
+                                                          payload: { doctor_id: e.target.value },
                                                         })
                                                       }
-                                                      title={
-                                                        priorIncomplete
-                                                          ? 'Previous stage must be completed first'
-                                                          : isLabOrderPending
-                                                          ? `Prosthetic lab order (${stageLabOrder?.order_number}) is ${stageLabOrder?.status}. Must be READY before completing stage.`
-                                                          : 'Mark stage complete'
-                                                      }
-                                                      data-testid={`stage-${stage.sequence}-complete-btn`}
+                                                      title="Reassign doctor for this stage"
                                                     >
-                                                      <i className="ph ph-check-circle" /> Complete
-                                                    </button>
-                                                    <button
-                                                      type="button"
-                                                      className={`${styles.btnStageAction} ${styles.btnStageHold}`}
-                                                      onClick={() =>
-                                                        updateStageStatusMutation.mutate({
-                                                          stageId: stage.id,
-                                                          payload: { status: 'ON_HOLD' },
-                                                        })
-                                                      }
-                                                      title="Put stage on hold"
-                                                    >
-                                                      <i className="ph ph-pause" /> Hold
-                                                    </button>
-                                                  </>
-                                                )}
-
-                                                {/* ON_HOLD: Resume available */}
-                                                {stage.status === 'ON_HOLD' && (
-                                                  <button
-                                                    type="button"
-                                                    className={`${styles.btnStageAction} ${styles.btnStageStart}`}
-                                                    onClick={() =>
-                                                      updateStageStatusMutation.mutate({
-                                                        stageId: stage.id,
-                                                        payload: { status: stage.appointment_id ? 'IN_PROGRESS' : 'SCHEDULED' },
-                                                      })
-                                                    }
-                                                  >
-                                                    <i className="ph ph-play" /> Resume
-                                                  </button>
-                                                )}
-
-                                                {isLabOrderPending && stage.status === 'IN_PROGRESS' && (
-                                                  <span className={styles.stageLabPrereqNotice} data-testid="stage-lab-pending-notice">
-                                                    <i className="ph ph-hourglass-high" /> Lab: {stageLabOrder?.status} (awaiting Ready)
-                                                  </span>
-                                                )}
-
-                                                {/* Doctor reassign selector */}
-                                                {doctors.length > 1 && (
-                                                  <select
-                                                    className={styles.select}
-                                                    style={{ padding: '2px 6px', fontSize: '0.725rem' }}
-                                                    value={stage.assigned_doctor_id}
-                                                    onChange={(e) =>
-                                                      assignDoctorMutation.mutate({
-                                                        stageId: stage.id,
-                                                        payload: { doctor_id: e.target.value },
-                                                      })
-                                                    }
-                                                    title="Reassign doctor for this stage"
-                                                  >
-                                                    {doctors.map((doc) => (
-                                                      <option key={doc.id} value={doc.id}>
-                                                        {formatDoctorName(doc.display_name || `${doc.first_name} ${doc.last_name}`)} ({doc.specialization || 'Dental'})
-                                                      </option>
-                                                    ))}
-                                                  </select>
-                                                )}
-                                              </>
-                                            )}
+                                                      {doctors.map((doc) => (
+                                                        <option key={doc.id} value={doc.id}>
+                                                          {formatDoctorName(doc.display_name || `${doc.first_name} ${doc.last_name}`)} ({doc.specialization || 'Dental'})
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                  )}
+                                                </>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
                                       );

@@ -10,13 +10,13 @@ export function UserMenu({ onBranch, onSignOut, onNavigate }: { onBranch: () => 
   const name = user?.fullName || user?.username || 'User';
   const branches = user?.branches ?? [];
   const branch = branches.find((item) => item.id === activeBranchId) ?? branches[0];
-  const showBranch = branches.length > 0 || !user?.roles.some((role) => role.code === 'SUPER_ADMIN');
+  const showBranch = branches.length > 0 || !user?.roles?.some((role) => role.code === 'SUPER_ADMIN');
   return <div className={styles.scrollBody}>
     <div className={styles.identity}>
       <span className={styles.avatar}>{name.split(' ').slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')}
         {status === 'authenticated' && <span className={styles.sessionDot} role="img" aria-label="Active session" />}
       </span>
-      <div><strong>{name}</strong><span>{user?.roles.map((role) => role.name).join(', ') || 'No role assigned'}</span>{user?.email && <span>{user.email}</span>}</div>
+      <div><strong>{name}</strong><span>{user?.roles?.map((role) => role.name).join(', ') || 'No role assigned'}</span>{user?.email && <span>{user.email}</span>}</div>
     </div>
     {showBranch && <button className={styles.menuAction} type="button" onClick={onBranch}>
       <i className="ph ph-buildings" aria-hidden="true" /><span>{branch?.name ?? 'No assigned branch'}</span><i className="ph ph-caret-right" aria-hidden="true" />

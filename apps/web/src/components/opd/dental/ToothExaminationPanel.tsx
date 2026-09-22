@@ -454,20 +454,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         </div>
       </div>
 
-      {/* Immediate Tooth Imaging Subsection inside the selected tooth panel */}
-      {imagingContent ? (
-        imagingContent
-      ) : visitId ? (
-        <ToothImagingPanelSection
-          selectedToothNumber={selectedToothNumber}
-          visitId={visitId}
-          episodeId={episodeId}
-          canEdit={canEdit && !disabled}
-          consultationCompleted={consultationCompleted}
-          disabled={disabled}
-        />
-      ) : null}
-
       {additionalContent}
       </>}
 

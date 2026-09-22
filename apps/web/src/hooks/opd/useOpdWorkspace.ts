@@ -76,11 +76,11 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   const branchId = visitData?.branch_id || '';
   const { data: inventoryData, isLoading: inventoryLoading } = usePharmacyInventoryList(
     { branch_id: branchId, limit: 100 },
-    Boolean(branchId && (!activeTab || activeTab === 'Prescription') && (canAccess('Pharmacy', 'Medicine Inventory') || canAccess('OPD', 'OPD Prescription')))
+    Boolean(branchId && (!activeTab || activeTab === 'Prescription') && canAccess('Pharmacy', 'Medicine Inventory'))
   );
 
   const { data: servicesData, isLoading: servicesLoading } = useServices(
-    { status: 'ACTIVE', limit: 200 },
+    { status: 'ACTIVE', limit: 100 },
     Boolean(visitId && (canAccess('Administration', 'Services') || canAccess('OPD', 'OPD Clinical Orders') || canAccess('OPD', 'OPD Consultation')))
   );
 
