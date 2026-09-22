@@ -9,6 +9,7 @@ import { getToothName, isDentalImagingService, PERMANENT_QUADRANTS, PRIMARY_QUAD
 import { getOpdErrorMessage } from '../../../pages/opd-utils';
 import { Modal } from '../../ui/Modal';
 import { DentalImageViewerModal, type ViewerAttachmentItem } from './DentalImageViewerModal';
+import { AuthenticatedMediaImage } from '../../ui/AuthenticatedMediaImage';
 import styles from './DentalClinicalOrders.module.css';
 
 interface ToothImagingPanelSectionProps {
@@ -286,8 +287,8 @@ export const ToothImagingPanelSection: React.FC<ToothImagingPanelSectionProps> =
                   position: 'relative',
                 }}
               >
-                <img
-                  src={getAuthenticatedMediaUrl(img.file_url)}
+                <AuthenticatedMediaImage
+                  src={img.file_url || opdApi.getDentalChairsideImageDownloadUrl(img.id)}
                   alt={img.file_name}
                   style={{
                     width: '100%',

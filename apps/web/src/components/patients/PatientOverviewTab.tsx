@@ -30,8 +30,6 @@ export function PatientOverviewTab({ patient, prescriptions, timeline, formatCur
           <span className="value">{patient.patient_number}</span>
           <span className="label">Address</span>
           <span className="value">{[patient.address.line1, patient.address.city, patient.address.country].filter(Boolean).join(', ') || 'Not recorded'}</span>
-          <span className="label">Preferred Language</span>
-          <span className="value">English</span>
         </div>
       </article>
 

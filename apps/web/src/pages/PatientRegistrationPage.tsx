@@ -144,7 +144,17 @@ function RegistrationSection({ children, description, number, title }: Registrat
   );
 }
 
-export function PatientRegistrationPage() {
+type PatientRegistrationPageProps = {
+  embedded?: boolean;
+  onCancel?: () => void;
+  onRegistered?: (patient: PatientResponse) => void;
+};
+
+export function PatientRegistrationPage({
+  embedded = false,
+  onCancel,
+  onRegistered,
+}: PatientRegistrationPageProps = {}) {
   const [form, setForm] = useState<PatientFormState>(emptyPatientForm);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState('');
@@ -212,7 +222,9 @@ export function PatientRegistrationPage() {
     try {
       const patient = await registerPatient(toPatientPayload(form));
       showToast(`Patient ${patient.patient_number} registered successfully.`);
-      if (saveMode === 'continue') {
+      if (onRegistered) {
+        onRegistered(patient);
+      } else if (saveMode === 'continue') {
         navigate(`/patients/documents?id=${encodeURIComponent(patient.id)}`);
       } else {
         navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`);
@@ -236,16 +248,23 @@ export function PatientRegistrationPage() {
   };
   const age = calculateAge(form.dateOfBirth);
   const showParentGuardian = age !== null && age < 16;
+  const cancelRegistration = () => {
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+    navigate('/patients/search');
+  };
 
   return (
     <>
-      <div className="patient-content">
-        <div className="patient-page-header">
+      <div className={embedded ? 'patient-registration-embedded' : 'patient-content'}>
+        {!embedded ? <div className="patient-page-header">
 
-          <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
+          <button className="doc-btn" onClick={cancelRegistration} type="button">
             <i className="ph ph-arrow-left" aria-hidden="true" /> Back
           </button>
-        </div>
+        </div> : null}
 
         <div className="patient-registration">
           {formError && (
@@ -599,7 +618,7 @@ export function PatientRegistrationPage() {
             </RegistrationSection>
 
             <div className="patient-registration-actions">
-              <button className="doc-btn" disabled={submitting} onClick={() => navigate('/patients/search')} type="button">
+              <button className="doc-btn" disabled={submitting} onClick={cancelRegistration} type="button">
                 Cancel
               </button>
               <button className="doc-btn primary" disabled={submitting || !form.consent} name="saveMode" type="submit" value="save">

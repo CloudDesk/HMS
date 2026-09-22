@@ -9,6 +9,7 @@ import type { PatientDocumentResponse } from '../../../api/patients';
 import styles from './DentalClinicalOrders.module.css';
 import { Modal } from '../../ui/Modal';
 import { DentalImageViewerModal, type ViewerAttachmentItem } from './DentalImageViewerModal';
+import { AuthenticatedMediaImage } from '../../ui/AuthenticatedMediaImage';
 
 type Props = DentalImagingFeatureInput & { selectedTooth: number | null };
 
@@ -185,13 +186,10 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
       </div>
 
       <div className={styles.chairsideCardBody}>
-        <img
-          src={getAuthenticatedMediaUrl(img.file_url)}
+        <AuthenticatedMediaImage
+          src={img.file_url || opdApi.getDentalChairsideImageDownloadUrl(img.id)}
           alt={img.file_name}
           className={styles.chairsideThumb}
-          onError={(e) => {
-            (e.currentTarget as HTMLElement).style.display = 'none';
-          }}
         />
         <div className={styles.chairsideMeta}>
           <span className={styles.chairsideFileName} title={img.file_name}>
@@ -288,7 +286,7 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
                     </span>
                   </div>
                   <div className={styles.chairsideCardBody}>
-                    <img src={getAuthenticatedMediaUrl(img.file_url)} alt={img.file_name} className={styles.chairsideThumb} />
+                    <AuthenticatedMediaImage src={img.file_url || opdApi.getDentalChairsideImageDownloadUrl(img.id)} alt={img.file_name} className={styles.chairsideThumb} />
                     <div className={styles.chairsideMeta}>
                       <span className={styles.chairsideFileName}>{img.file_name}</span>
                       <span className={styles.chairsideDoctor}>Visit {img.visit_number} · Dr. {img.doctor_name}</span>

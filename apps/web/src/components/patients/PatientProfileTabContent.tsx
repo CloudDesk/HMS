@@ -17,7 +17,7 @@ type PatientProfileTabContentProps = {
   state: PatientProfileFeature['state'];
   actions: PatientProfileFeature['actions'];
   formatCurrency: (value: number) => string;
-  onOpenUpload: (mode: 'DOCUMENT' | 'CONSENT') => void;
+  onOpenUpload: () => void;
   onViewPrescription: (prescription: OpdPrescriptionResponse) => void;
   onViewLabOrder: (order: DiagnosticOrder) => void;
   onViewImagingOrder: (order: DiagnosticOrder) => void;
@@ -69,7 +69,6 @@ export function PatientProfileTabContent({
     labOrders,
     imagingOrders,
     documents,
-    consents,
     billingInvoices,
     doctors: doctorsList,
     filters: { timeline: timelineFilters, visits: visitsFilters, appointments: appointmentFilters },
@@ -329,7 +328,7 @@ export function PatientProfileTabContent({
       {activeTab === 'Documents' ? (
         <>
           <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="doc-btn primary" onClick={() => onOpenUpload('DOCUMENT')} type="button"><i className="ph ph-upload-simple" aria-hidden="true" /> Upload Document</button>
+            <button className="doc-btn primary" onClick={onOpenUpload} type="button"><i className="ph ph-upload-simple" aria-hidden="true" /> Upload Document</button>
           </div>
           {documents.length === 0 ? (
             <EmptyRecords message="No uploaded documents found for this patient." />
@@ -414,23 +413,6 @@ export function PatientProfileTabContent({
         )
       ) : null}
 
-      {activeTab === 'Consent' ? (
-        <>
-          <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="doc-btn primary" onClick={() => onOpenUpload('CONSENT')} type="button"><i className="ph ph-upload-simple" aria-hidden="true" /> Upload Consent</button>
-          </div>
-          {consents.length === 0 ? (
-            <EmptyRecords message="No consent forms found for this patient." />
-          ) : (
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead><tr><th>DATE</th><th>CONSENT</th><th>SIGNED BY</th><th>STATUS</th><th>VALID UNTIL</th></tr></thead>
-                <tbody>{consents.map((consent) => <tr key={consent.id}><td>{formatDate(consent.created_at)}</td><td><strong>{consent.title}</strong></td><td>{consent.signed_by_name || 'Not recorded'}</td><td>{consent.consent_status || 'Not recorded'}</td><td>{consent.valid_until ? formatDate(consent.valid_until) : 'Not recorded'}</td></tr>)}</tbody>
-              </table>
-            </div>
-          )}
-        </>
-      ) : null}
     </section>
   );
 }

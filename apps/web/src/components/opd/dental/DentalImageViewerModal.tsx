@@ -4,6 +4,7 @@ import type { ImagingAttachment } from '../../../api/imaging';
 import { imagingApi } from '../../../api/imaging';
 import { getAuthenticatedMediaUrl } from '../../../api/client';
 import styles from './DentalImageViewerModal.module.css';
+import { AuthenticatedMediaImage } from '../../ui/AuthenticatedMediaImage';
 
 export type ViewerAttachmentItem = {
   id: string;
@@ -192,7 +193,7 @@ export function DentalImageViewerModal({
             style={{ transform: `scale(${zoom})` }}
             data-testid="dental-image-canvas"
           >
-            <img
+            <AuthenticatedMediaImage
               src={downloadUrl}
               alt={attachment.file_name}
               className={styles.viewerImage}

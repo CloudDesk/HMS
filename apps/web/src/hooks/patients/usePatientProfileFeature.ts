@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import { useAppointmentsList } from '../appointments/useAppointments';
@@ -30,8 +30,7 @@ export type PatientProfileTab =
   | 'Lab Results'
   | 'Imaging'
   | 'Documents'
-  | 'Billing'
-  | 'Consent';
+  | 'Billing';
 
 export function usePatientProfileFeature(patientId: string | null, initialTab: PatientProfileTab = 'Overview') {
   const { user } = useAuth();
@@ -93,7 +92,7 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
   const documentsQuery = usePatientDocuments(
     patientId,
     { limit: 50 },
-    (activeTab === 'Documents' || activeTab === 'Consent') && Boolean(patientId)
+    activeTab === 'Documents' && Boolean(patientId)
   );
 
   // Billing
@@ -103,10 +102,6 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
   );
 
   const doctorsQuery = useDoctorsList({ limit: 100, status: 'ACTIVE' }, activeTab === 'Appointments');
-
-  const consents = useMemo(() => {
-    return documentsQuery.data?.data.filter((d) => d.document_type === 'CONSENT') || [];
-  }, [documentsQuery.data]);
 
   // Mutations
   const updatePatient = useUpdatePatient();
@@ -167,8 +162,6 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
 
       documents: documentsQuery.data?.data ?? [],
       loadingDocuments: documentsQuery.isLoading,
-
-      consents,
 
       billingInvoices: billingInvoicesQuery.data?.data ?? [],
       loadingBillingInvoices: billingInvoicesQuery.isLoading,

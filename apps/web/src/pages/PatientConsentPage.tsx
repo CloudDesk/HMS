@@ -6,6 +6,7 @@ import { formatDate, patientFullName } from './patient-utils';
 import { patientInitials } from './opd-utils';
 import { toast } from 'sonner';
 import { usePatientConsentFeature } from '../hooks/patients/usePatientConsentFeature';
+import { navigate } from '../routing/navigation';
 
 const statusLabels: Record<string, string> = {
   NOT_REQUIRED: 'Not Required',
@@ -21,10 +22,9 @@ const fileAccept = '.pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx';
 
 export function PatientConsentPage() {
   const {
-    state: { patient, patients, consents, templates, loading, isSubmitting },
+    state: { patient, consents, templates, loading, isSubmitting },
     capabilities: { canCreate, canDelete, canView, canEdit, canVerify },
     actions: {
-      handlePatientChange,
       handleUpload,
       handleDownload,
       handleView,
@@ -86,19 +86,21 @@ export function PatientConsentPage() {
     <>
       <div className="appointment-page">
         <section className="appointment-page-header">
-          <div className="appointment-page-title"><h2>Consent Management</h2><p>Manage stored patient authorization files</p></div>
+          <div className="consent-page-heading">
+            <button
+              aria-label="Back to patient details"
+              className="doc-btn consent-back-button"
+              disabled={!patient}
+              onClick={() => patient && navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
+              title="Back to patient details"
+              type="button"
+            >
+              <i className="ph ph-arrow-left" aria-hidden="true" />
+              Back
+            </button>
+            <div className="appointment-page-title"><h2>Consent Management</h2><p>Manage stored patient authorization files</p></div>
+          </div>
           <div className="appointment-page-actions">
-            <div className="doc-field consent-patient-switch">
-              <label htmlFor="consent-patient-switch">Patient</label>
-              <select
-                id="consent-patient-switch"
-                onChange={(event) => handlePatientChange(event.target.value)}
-                value={patient?.id ?? ''}
-              >
-                <option value="">Select patient</option>
-                {patients.map((item) => <option key={item.id} value={item.id}>{patientFullName(item)} - {item.patient_number}</option>)}
-              </select>
-            </div>
             <button className="doc-btn primary" disabled={!patient || !canCreate} onClick={() => { setUploadOpen(true); setSignedByName(patient ? patientFullName(patient) : ''); }} type="button">
               <i className="ph ph-upload-simple" aria-hidden="true" /> Upload Consent
             </button>
