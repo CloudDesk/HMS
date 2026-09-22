@@ -552,6 +552,43 @@ export class PatientRepository {
     return descriptions;
   }
 
+  async listAllDocuments(patientId: string, query: PatientDocumentListQuery = {}) {
+    const filter: Record<string, unknown> = {
+      patientId: new Types.ObjectId(patientId),
+      status: 'ACTIVE',
+    };
+    if (query.document_type) {
+      filter.documentType = query.document_type;
+    }
+    if (query.visit_id) {
+      filter.visitId = new Types.ObjectId(query.visit_id);
+    }
+    if (query.admission_id) filter.admissionId = new Types.ObjectId(query.admission_id);
+    if (query.procedure_id) filter.procedureId = new Types.ObjectId(query.procedure_id);
+    if (query.context_type) filter.contextType = query.context_type;
+
+    const documents = await PatientDocumentModel.find(filter)
+      .sort({ createdAt: -1 })
+      .lean<PatientDocumentLean[]>();
+
+    const userIds = documents.flatMap((document) => [
+      ...(document.uploadedBy ? [document.uploadedBy] : []),
+      ...(document.reviewedBy ? [document.reviewedBy] : []),
+    ]);
+    const users = await UserModel.find({ _id: { $in: userIds } })
+      .select({ fullName: 1 })
+      .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
+    const userNames = new Map(users.map((user) => [user._id.toString(), user.fullName]));
+
+    return documents.map((document) =>
+      toPatientDocument(
+        document,
+        document.uploadedBy ? userNames.get(document.uploadedBy.toString()) ?? null : null,
+        document.reviewedBy ? userNames.get(document.reviewedBy.toString()) ?? null : null,
+      ),
+    );
+  }
+
   async listDocuments(patientId: string, query: PatientDocumentListQuery = {}) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;

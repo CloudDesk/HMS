@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from '../../config/env.js';
@@ -45,6 +45,22 @@ export class PatientDocumentStorageService {
     }
 
     return resolvedPath;
+  }
+
+  async exists(storageKey: string): Promise<boolean> {
+    try {
+      const storagePath = this.resolveStoragePath(storageKey);
+      await access(storagePath);
+      return true;
+    } catch {
+      try {
+        const legacyStoragePath = this.resolveStoragePath(storageKey, this.legacyRootDirectory);
+        await access(legacyStoragePath);
+        return true;
+      } catch {
+        return false;
+      }
+    }
   }
 
   async uploadPatientDocument(input: UploadPatientDocumentInput) {

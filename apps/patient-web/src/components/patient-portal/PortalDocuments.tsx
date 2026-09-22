@@ -103,13 +103,18 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
   };
 
   const view = async (document: PortalDocument) => {
+    const previewWindow = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    if (!previewWindow) {
+      toast.error('Allow pop-ups to view this document.');
+      return;
+    }
     try {
       const result = await patientPortalApi.downloadDocument(patientId, document.id);
       const url = URL.createObjectURL(result.blob);
-      const opened = window.open(url, '_blank', 'noopener,noreferrer');
-      if (!opened) toast.error('Allow pop-ups to view this document.');
+      previewWindow.location.href = url;
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
+      previewWindow.close();
       toast.error(error instanceof Error ? error.message : 'Document preview failed.');
     }
   };

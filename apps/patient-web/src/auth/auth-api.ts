@@ -73,6 +73,7 @@ export const authApi = {
       auth: false,
       method: 'POST',
       retryOnUnauthorized: false,
+      body: {},
       schema: authSessionSchema,
     }),
   logout: () =>

@@ -157,7 +157,29 @@ export class PatientService {
     if (query.visit_id && !Types.ObjectId.isValid(query.visit_id)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
-    return this.repository.listDocuments(patientId, query);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    const allDocuments = await this.repository.listAllDocuments(patientId, query);
+    const existingFlags = await Promise.all(
+      allDocuments.map((doc) => this.documentStorage.exists(doc.storage_key)),
+    );
+    const availableDocuments = allDocuments.filter((_, index) => existingFlags[index]);
+
+    const total = availableDocuments.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const offset = (page - 1) * limit;
+    const paginated = availableDocuments.slice(offset, offset + limit);
+
+    return {
+      data: paginated,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   }
 
   async uploadDocumentForPortal(patientId: string, data: UploadPatientDocumentDTO, userId: string) {
