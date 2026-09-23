@@ -257,9 +257,10 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const [newEpisodeDiagnosis, setNewEpisodeDiagnosis] = useState('');
   const [newEpisodeNotes, setNewEpisodeNotes] = useState('');
 
-  const openCreateEpisodeModal = () => {
-    setNewEpisodeTooth(selectedToothNumber ? String(selectedToothNumber) : '');
-    const toothDx = selectedToothNumber ? diagnoses.find((d) => d.tooth_number === selectedToothNumber) : null;
+  const openCreateEpisodeModal = (toothNum?: number | null) => {
+    const targetTooth = toothNum !== undefined ? toothNum : selectedToothNumber;
+    setNewEpisodeTooth(targetTooth ? String(targetTooth) : '');
+    const toothDx = targetTooth ? diagnoses.find((d) => d.tooth_number === targetTooth) : null;
     const generalDx = diagnoses[0];
     const initialDxName = toothDx?.name || generalDx?.name || consultation?.chief_complaint || '';
     setNewEpisodeDiagnosis(initialDxName);

@@ -18,7 +18,7 @@ services:
       - key: LOG_LEVEL
         value: info
       - key: CORS_ORIGIN
-        value: https://hms-sit-3bc2e.web.app,https://hms-web-c0717.web.app
+        value: https://hms-sit-3bc2e.web.app,https://hms-web-c0717.web.app,https://hms-patient-web.web.app,https://hms-patient-web.firebaseapp.com
       - key: COOKIE_SECURE
         value: "true"
       - key: COOKIE_SAME_SITE

@@ -69,7 +69,7 @@ type ConsultationFormState = {
   allergies: string;
   physical_examination: string;
   assessment: string;
-  treatment_plan: string;
+  treatment_plan?: string;
   doctor_notes: string;
 };
 
@@ -295,7 +295,7 @@ export function OpdVisitPage() {
             history_present_illness: consultationForm.history_present_illness.trim() || null,
             past_history: consultationForm.past_history.trim() || null,
             physical_examination: consultationForm.physical_examination.trim() || null,
-            treatment_plan: consultationForm.treatment_plan.trim() || null,
+            treatment_plan: consultationForm.treatment_plan?.trim() || null,
           },
           referral: {
             referral_type: 'INTERNAL',
@@ -792,7 +792,7 @@ export function OpdVisitPage() {
         history_present_illness: consultationForm.history_present_illness.trim() || null,
         past_history: consultationForm.past_history.trim() || null,
         physical_examination: consultationForm.physical_examination.trim() || null,
-        treatment_plan: consultationForm.treatment_plan.trim() || null,
+        treatment_plan: consultationForm.treatment_plan?.trim() || null,
       };
       await feature.actions.saveWorkspaceDraft({
         consultation: payload,
@@ -893,7 +893,7 @@ export function OpdVisitPage() {
         history_present_illness: consultationForm.history_present_illness.trim() || null,
         past_history: consultationForm.past_history.trim() || null,
         physical_examination: consultationForm.physical_examination.trim() || null,
-        treatment_plan: consultationForm.treatment_plan.trim() || null,
+        treatment_plan: consultationForm.treatment_plan?.trim() || null,
       };
       await feature.actions.saveWorkspaceDraft({ consultation: consultationPayload });
 
@@ -938,7 +938,7 @@ export function OpdVisitPage() {
         history_present_illness: consultationForm.history_present_illness.trim() || null,
         past_history: consultationForm.past_history.trim() || null,
         physical_examination: consultationForm.physical_examination.trim() || null,
-        treatment_plan: consultationForm.treatment_plan.trim() || null,
+        treatment_plan: consultationForm.treatment_plan?.trim() || null,
       };
 
       const prescriptionPayload =

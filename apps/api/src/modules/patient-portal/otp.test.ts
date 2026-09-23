@@ -100,6 +100,53 @@ describe('patient OTP challenge security', () => {
     expect(await OtpChallengeModel.countDocuments({ phone: normalizedPhone })).toBe(1);
   });
 
+  it('regression: verifies the delivered code for 9999988888 after a rejected duplicate request', async () => {
+    await service.request(' 99999 88888 ', metadata);
+    const code = extractOtp(sms.lastMessage);
+    const challenge = await OtpChallengeModel.findOne({ phone: '9999988888' }).lean();
+    expect(challenge?.otpHash).toBe(createHash('sha256').update(`9999988888:${code}`).digest('hex'));
+    await expect(service.request('9999988888', metadata)).rejects.toMatchObject({ code: 'AUTH_RATE_LIMITED' });
+    await expect(service.verifyAndConsume('9999988888', code)).resolves.toMatchObject({ phone: '9999988888' });
+    await expect(service.verifyAndConsume('9999988888', code)).rejects.toMatchObject({ code: 'INVALID_OTP' });
+  });
+
+  it('allows only one concurrent OTP request and preserves its delivered code', async () => {
+    const results = await Promise.allSettled([
+      service.request(phone, metadata), service.request(phone, metadata),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(await OtpChallengeModel.countDocuments({ phone: normalizedPhone })).toBe(1);
+    await expect(service.verifyAndConsume(phone, extractOtp(sms.lastMessage))).resolves.toMatchObject({ phone: normalizedPhone });
+  });
+
+  it('uses the exact TTL boundary independently of timezone notation', async () => {
+    let now = new Date('2030-01-01T05:30:00+05:30');
+    const timed = new PatientOtpService(new PatientOtpRepository(), sms, {
+      demoEnabled: false, demoOtp: '', ttlSeconds: 300, now: () => now,
+    });
+    await timed.request(phone, metadata);
+    const code = extractOtp(sms.lastMessage);
+    const challenge = await OtpChallengeModel.findOne({ phone: normalizedPhone }).lean();
+    expect(challenge?.expiresAt.toISOString()).toBe('2030-01-01T00:05:00.000Z');
+    now = new Date('2030-01-01T00:04:59.999Z');
+    await expect(timed.assertValidForPendingFlow(phone, code)).resolves.toBeUndefined();
+    now = new Date('2030-01-01T00:05:00.000Z');
+    await expect(timed.verifyAndConsume(phone, code)).rejects.toMatchObject({ code: 'INVALID_OTP' });
+  });
+
+  it('normalizes formatting but never guesses a country code or merges different identities', async () => {
+    await service.request(' +27 82 123 4567 ', metadata);
+    const code = extractOtp(sms.lastMessage);
+    await expect(service.verifyAndConsume('27821234567', code)).resolves.toMatchObject({ phone: normalizedPhone });
+    await service.request('9999988888', metadata);
+    await expect(service.verifyAndConsume('+919999988888', extractOtp(sms.lastMessage))).rejects.toMatchObject({ code: 'INVALID_OTP' });
+  });
+
+  it('does not treat 1234 as a universal test code', async () => {
+    await createChallenge({ otp: '4821' });
+    await expect(service.verifyAndConsume(phone, '1234')).rejects.toMatchObject({ code: 'INVALID_OTP' });
+  });
+
   it('allows a resend after the configured cooldown and invalidates the previous challenge', async () => {
     let now = new Date('2030-01-01T00:00:00.000Z');
     const limited = new PatientOtpService(new PatientOtpRepository(), sms, {

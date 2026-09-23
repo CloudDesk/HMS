@@ -21,13 +21,6 @@ process.on('SIGTERM', closeGracefully);
 try {
   await connectDatabase();
   await seedDatabase();
-  await services.administrationDashboard.refresh();
-  dashboardRefreshTimer = setInterval(() => {
-    services.administrationDashboard.refresh().catch((error: unknown) => {
-      app.log.error({ error }, 'Administration dashboard snapshot refresh failed');
-    });
-  }, 300_000);
-  dashboardRefreshTimer.unref();
   const database = await services.database.healthCheck();
   app.log.info(
     {
@@ -37,6 +30,17 @@ try {
   );
 
   await app.listen({ host: env.app.host, port: env.app.port });
+
+  services.administrationDashboard.refresh().catch((error: unknown) => {
+    app.log.error({ error }, 'Initial administration dashboard snapshot refresh failed');
+  });
+
+  dashboardRefreshTimer = setInterval(() => {
+    services.administrationDashboard.refresh().catch((error: unknown) => {
+      app.log.error({ error }, 'Administration dashboard snapshot refresh failed');
+    });
+  }, 300_000);
+  dashboardRefreshTimer.unref();
 } catch (error) {
   app.log.error(error);
   await closeDatabase().catch(() => undefined);

@@ -6,7 +6,7 @@ export type ConsultationFormState = {
   allergies: string;
   physical_examination: string;
   assessment: string;
-  treatment_plan: string;
+  treatment_plan?: string;
   doctor_notes: string;
 };
 
@@ -102,7 +102,7 @@ export function OpdConsultationSection({
         <div className="opd-form-section-head">
           <div>
             <h3>Examination &amp; Assessment</h3>
-            <p>Document physical findings and treatment plan</p>
+            <p>Document physical findings and assessment</p>
           </div>
         </div>
         <div className="doc-form-grid two">
@@ -125,18 +125,6 @@ export function OpdConsultationSection({
               onChange={(e) => setConsultationForm((c) => ({ ...c, assessment: e.target.value }))}
               rows={3}
               value={consultationForm.assessment}
-              disabled={!canEdit}
-            />
-          </label>
-          <label className="doc-field full" htmlFor="treatment-plan">
-            <span>Treatment Plan &amp; Advice</span>
-            <textarea
-              id="treatment-plan"
-              onChange={(e) =>
-                setConsultationForm((c) => ({ ...c, treatment_plan: e.target.value }))
-              }
-              rows={3}
-              value={consultationForm.treatment_plan}
               disabled={!canEdit}
             />
           </label>

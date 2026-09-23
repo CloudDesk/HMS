@@ -1,11 +1,37 @@
 ﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../errors/app-error.js';
-import { HttpSmsService, MockSmsService, maskPhoneNumber, type SmsService } from './sms.service.js';
+import { createSmsService, HttpSmsService, MockSmsService, maskPhoneNumber, type SmsService } from './sms.service.js';
 import { PatientOtpService } from '../../modules/patient-portal/patient-otp.service.js';
 import type { PatientOtpRepository } from '../../modules/patient-portal/patient-otp.repository.js';
 import type { AuthRateLimitRepository } from '../../modules/auth/auth-rate-limit.repository.js';
 
 describe('M-014: SMS Logging and Failure Handling', () => {
+  describe('SMS provider configuration', () => {
+    it.each([
+      { provider: 'MOCK', url: '', apiKey: '' },
+      { provider: 'HTTP', url: '', apiKey: 'test-key' },
+      { provider: 'HTTP', url: 'https://gateway.example/send', apiKey: '' },
+      { provider: 'HTTP', url: 'invalid-url', apiKey: 'test-key' },
+      { provider: 'HTTP', url: 'http://gateway.example/send', apiKey: 'test-key' },
+      { provider: 'TYPO', url: 'https://gateway.example/send', apiKey: 'test-key' },
+    ])('rejects production delivery for invalid configuration $provider $url', async (configuration) => {
+      const service = createSmsService(configuration, true);
+      expect(service).not.toBeInstanceOf(MockSmsService);
+      await expect(service.sendSms('9999988888', 'test message')).rejects.toMatchObject({
+        code: 'SMS_NOT_CONFIGURED', statusCode: 503,
+      });
+    });
+
+    it('selects the configured HTTP sender and permits mocks only outside production', () => {
+      expect(createSmsService({ provider: ' http ', url: 'https://gateway.example/send', apiKey: 'test-key' }, true)).toBeInstanceOf(HttpSmsService);
+      expect(createSmsService({ provider: 'MOCK', url: '', apiKey: '' }, false)).toBeInstanceOf(MockSmsService);
+    });
+
+    it('does not silently mock an incomplete HTTP configuration in SIT either', async () => {
+      await expect(createSmsService({ provider: 'HTTP', url: '', apiKey: '' }, false)
+        .sendSms('9999988888', 'test message')).rejects.toMatchObject({ code: 'SMS_NOT_CONFIGURED' });
+    });
+  });
   describe('maskPhoneNumber', () => {
     it('masks full phone numbers without exposing full sequence', () => {
       expect(maskPhoneNumber('+27821234567')).toBe('+27***567');

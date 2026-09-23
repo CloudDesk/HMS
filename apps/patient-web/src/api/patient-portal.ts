@@ -3,6 +3,8 @@ import { apiClient } from './client';
 import {
   appointmentCreatedSchema,
   createPublicListSchema,
+  dentalQuotationSchema,
+  dentalQuotationsListSchema,
   guardianUpdatedSchema,
   patientPortalContextSchema,
   patientPortalOverviewSchema,
@@ -24,6 +26,9 @@ export type PatientPortalContext = z.infer<typeof patientPortalContextSchema>;
 export type PortalAppointment = z.infer<typeof portalAppointmentSchema>;
 export type PortalDocument = z.infer<typeof portalDocumentSchema>;
 export type PortalInvoiceDetails = z.infer<typeof portalInvoiceDetailsSchema>;
+export type PortalDentalQuotation = z.infer<typeof dentalQuotationSchema>;
+export type PortalDentalQuotationOption = PortalDentalQuotation['options'][number];
+export type PortalDentalQuotationItem = PortalDentalQuotation['items'][number];
 export type PublicBranch = z.infer<typeof publicBranchSchema>;
 export type PublicDepartment = z.infer<typeof publicDepartmentSchema>;
 export type PublicService = z.infer<typeof publicServiceSchema>;
@@ -282,6 +287,36 @@ export const patientPortalApi = {
     return apiClient.request<{ id: string; username: string; email: string; status: string }>(
       '/patient-portal/accounts',
       { method: 'POST', body: input, schema: provisionAccountSchema },
+    );
+  },
+  dentalQuotations(patientId: string) {
+    return apiClient.request<PortalDentalQuotation[]>(
+      `/opd/dental/quotations/patient/${encodeURIComponent(patientId)}`,
+      { schema: dentalQuotationsListSchema },
+    );
+  },
+  dentalQuotation(quotationId: string) {
+    return apiClient.request<PortalDentalQuotation>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}`,
+      { schema: dentalQuotationSchema },
+    );
+  },
+  acceptDentalQuotation(quotationId: string, payload: { selected_option_id: string; notes?: string }) {
+    return apiClient.request<PortalDentalQuotation>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}/accept`,
+      { method: 'POST', body: payload, schema: dentalQuotationSchema },
+    );
+  },
+  rejectDentalQuotation(quotationId: string, payload: { reason?: string }) {
+    return apiClient.request<PortalDentalQuotation>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}/reject`,
+      { method: 'POST', body: payload, schema: dentalQuotationSchema },
+    );
+  },
+  postponeDentalQuotation(quotationId: string, payload: { reason?: string }) {
+    return apiClient.request<PortalDentalQuotation>(
+      `/opd/dental/quotations/${encodeURIComponent(quotationId)}/postpone`,
+      { method: 'POST', body: payload, schema: dentalQuotationSchema },
     );
   },
 };

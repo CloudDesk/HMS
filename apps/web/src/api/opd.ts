@@ -469,7 +469,7 @@ export type ScheduleDentalStagePayload = {
   start_time: string;
   utc_datetime?: string;
   duration_minutes: number;
-  reason?: string | null;
+  priority?: 'ROUTINE' | 'URGENT';
   notes?: string | null;
 };
 

@@ -1,4 +1,6 @@
-import type { PatientPortalOverview } from '../../../api/patient-portal';
+import { useQuery } from '@tanstack/react-query';
+import { patientPortalApi, type PatientPortalOverview } from '../../../api/patient-portal';
+import { portalQueryKeys } from '../../../api/query-keys';
 import { Empty } from '../Empty';
 import { label, fullName } from '../../../utils/formatters';
 import type { PortalTab } from '../../../hooks/usePatientPortal';
@@ -11,6 +13,15 @@ type OverviewTabProps = {
   setAppointmentScope: (scope: 'upcoming' | 'past') => void;
 };
 
+function formatDoctorName(name?: string) {
+  if (!name) return 'Dentist';
+  const trimmed = name.trim();
+  if (/^dr\.?\s+/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `Dr. ${trimmed}`;
+}
+
 export function OverviewTab({
   data,
   patientAge,
@@ -19,6 +30,16 @@ export function OverviewTab({
   setAppointmentScope,
 }: OverviewTabProps) {
   const patient = data.patient;
+
+  const { data: quotations = [] } = useQuery({
+    queryKey: portalQueryKeys.dentalQuotations(patient.id),
+    queryFn: () => patientPortalApi.dentalQuotations(patient.id),
+    enabled: Boolean(patient.id),
+  });
+
+  const pendingQuote = quotations.find(
+    (q) => q.status === 'SENT' || q.status === 'POSTPONED',
+  );
 
   return (
     <>
@@ -46,6 +67,69 @@ export function OverviewTab({
           </span>
         </div>
       </section>
+
+      {pendingQuote && (
+        <section
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            padding: '1.15rem 1.4rem',
+            margin: '0 0 1.5rem',
+            background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            border: '1px solid #bfdbfe',
+            borderRadius: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <span
+              style={{
+                display: 'grid',
+                placeItems: 'center',
+                width: '44px',
+                height: '44px',
+                borderRadius: '12px',
+                background: '#2563eb',
+                color: '#ffffff',
+                fontSize: '1.4rem',
+                flex: 'none',
+              }}
+            >
+              <i className="ph ph-tooth" />
+            </span>
+            <div>
+              <strong style={{ display: 'block', fontSize: '1rem', color: '#1e3a8a' }}>
+                Dental Treatment Quotation ({pendingQuote.quotation_number}) Available for Review
+              </strong>
+              <small style={{ color: '#1d4ed8', fontSize: '0.82rem' }}>
+                {formatDoctorName(pendingQuote.doctor_name)} has presented {pendingQuote.options?.length || 1} treatment option(s). Please review and choose your preferred treatment plan.
+              </small>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTab('billing')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              padding: '0.6rem 1.15rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: '#2563eb',
+              color: '#ffffff',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flex: 'none',
+            }}
+          >
+            Review & Respond <i className="ph ph-arrow-right" />
+          </button>
+        </section>
+      )}
 
       <section className="portal-summary-grid">
         <article>

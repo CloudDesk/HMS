@@ -19,6 +19,7 @@
     "build:api": "npm run build --workspace=@hms/api",
     "build:web": "npm run build --workspace=@hms/web",
     "build:patient": "npm run build --workspace=@hms/patient-web",
+    "deploy:patient": "npm run build:patient && firebase deploy --config firebase.patient.json --project hms-patient-web --only hosting --non-interactive",
     "start:api": "npm run start --workspace=@hms/api",
     "preview:web": "npm run preview --workspace=@hms/web",
     "preview:patient": "npm run preview --workspace=@hms/patient-web",

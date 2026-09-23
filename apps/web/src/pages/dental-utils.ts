@@ -1,6 +1,5 @@
 import { ICD10_DIAGNOSES, type Icd10Diagnosis } from '../data/icd10-diagnoses';
 import type { DepartmentResponse } from '../api/departments';
-import type { ServiceResponse } from '../api/services';
 import type {
   DentitionType,
   OpdVisitResponse,

@@ -82,13 +82,34 @@ export class HttpSmsService implements SmsService {
   }
 }
 
-export const createSmsService = (): SmsService => {
-  const provider = env.sms?.provider ?? 'MOCK';
-  const url = env.sms?.url ?? '';
-  const apiKey = env.sms?.apiKey ?? '';
+export const createSmsService = (
+  configuration = env.sms,
+  production = env.app.environment === 'prod' || process.env.NODE_ENV === 'production',
+): SmsService => {
+  const provider = configuration.provider.trim().toUpperCase();
+  const url = configuration.url.trim();
+  const apiKey = configuration.apiKey.trim();
+  let validUrl = false;
+  try {
+    const protocol = new URL(url).protocol;
+    validUrl = protocol === 'https:' || (!production && protocol === 'http:');
+  } catch {
+    // Missing or malformed gateway URLs must never silently select a mock sender.
+  }
 
-  if (provider === 'HTTP' && url) {
+  if (provider === 'HTTP' && validUrl && apiKey) {
     return new HttpSmsService(url, apiKey);
   }
-  return new MockSmsService();
+  if (provider === 'MOCK' && !production) return new MockSmsService();
+
+  // Keep other API domains available, but fail OTP delivery explicitly.
+  return {
+    async sendSms() {
+      throw new AppError(
+        'SMS verification is temporarily unavailable. Please contact hospital support.',
+        503,
+        'SMS_NOT_CONFIGURED',
+      );
+    },
+  };
 };

@@ -2,6 +2,46 @@
 
 Hospital Management System monorepo.
 
+## Patient web deployment
+
+The patient app deploys to Firebase Hosting project `hms-patient-web`:
+
+```bash
+npm run deploy:patient
+```
+
+This builds `apps/patient-web` in prod mode and deploys using `firebase.patient.json`.
+Firebase CLI must be installed and signed in with access to the project.
+The patient site is https://hms-patient-web.web.app.
+The staff app keeps its existing `firebase.json` and default project `hms-web-c0717`.
+
+The patient production API URL is configured in `apps/patient-web/.env.prod`.
+The hosted API must allow `https://hms-patient-web.web.app` and
+`https://hms-patient-web.firebaseapp.com` in its `CORS_ORIGIN` configuration.
+If the API host changes, update both the production API URL and the Firebase
+Hosting Content-Security-Policy `connect-src` value. Netlify is no longer the
+patient frontend deployment path.
+
+### Patient OTP delivery
+
+On the Render API service, configure `SMS_GATEWAY_PROVIDER=HTTP`,
+`SMS_GATEWAY_URL` (an HTTPS SMS gateway endpoint), and `SMS_GATEWAY_API_KEY`
+(a secret stored in Render, never committed). The existing gateway adapter sends
+`POST { "to": "<mobile>", "message": "<SMS content>" }` with a Bearer API key;
+the gateway must implement that contract. Save the environment settings and
+redeploy the API. Firebase frontend deployment does not configure SMS delivery.
+
+Production must not use the mock sender. Missing/invalid delivery configuration
+returns `503 SMS_NOT_CONFIGURED` instead of reporting that an SMS was sent.
+`MOCK` is available only in dev/test and captures messages in memory without
+delivering them. It does not make `1234` a valid code. Demo OTP configuration is
+explicitly prohibited in production; do not enable it to work around delivery.
+
+Use the latest received four-digit SMS code. Defaults are a five-minute expiry,
+a 60-second resend cooldown, and three incorrect attempts per challenge.
+Request and verification must use the same number, including the same country
+code: formatting is stripped, but no default country code is inferred.
+
 ## Stack
 
 - Frontend: React, TypeScript, Vite

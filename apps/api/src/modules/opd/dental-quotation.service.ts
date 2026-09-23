@@ -7,6 +7,7 @@ import { ServiceRepository } from '../services/service.repository.js';
 import { SettingsRepository } from '../settings/settings.repository.js';
 import { UserModel } from '../users/user.model.js';
 import { SequenceService } from '../../shared/sequence/sequence.service.js';
+import { PatientAccessGrantModel } from '../patient-portal/patient-access-grant.model.js';
 
 const isObjectId = (value: string | null | undefined) =>
   Boolean(value && Types.ObjectId.isValid(value));
@@ -304,6 +305,10 @@ export class DentalQuotationService {
         return quotation;
       }
       throw new AppError('Quotation has already been accepted with a different option', 400, 'INVALID_STATE');
+    }
+
+    if (quotation.status === 'DRAFT') {
+      throw new AppError('Cannot accept a quotation that has not been sent to the patient', 400, 'INVALID_STATE');
     }
 
     if (quotation.status === 'REJECTED' || quotation.status === 'EXPIRED') {
@@ -620,88 +625,137 @@ export class DentalQuotationService {
     const episode = await this.episodeRepository.getById(episodeId);
     if (!episode) return;
 
-    const examFilter = {
+    const patientObjectId = new Types.ObjectId(episode.patient_id);
+
+    const examFilter: Record<string, unknown> = {
       $or: [
         { episodeId: episodeObjectId },
-        { visitId: { $in: episode.visit_ids.map((v) => new Types.ObjectId(v)) } },
-        { visitId: new Types.ObjectId(episode.originating_visit_id) },
+        { patientId: patientObjectId },
+        ...(episode.visit_ids && episode.visit_ids.length > 0
+          ? [{ visitId: { $in: episode.visit_ids.map((v) => new Types.ObjectId(v)) } }]
+          : []),
+        ...(episode.originating_visit_id && isObjectId(episode.originating_visit_id)
+          ? [{ visitId: new Types.ObjectId(episode.originating_visit_id) }]
+          : []),
       ],
       deletedAt: null,
     };
 
-    const exam = await OpdDentalExaminationModel.findOne(examFilter).sort({ updatedAt: -1 });
-    if (!exam) return;
+    const exams = await OpdDentalExaminationModel.find(examFilter).sort({ updatedAt: -1 });
+    if (!exams || exams.length === 0) return;
 
-    const currentPlanItems: DentalTreatmentPlanItemFields[] = exam.treatmentPlanItems ?? [];
     const synchronizedPlanItemIds: string[] = [];
+    const matchedOptItemIds = new Set<string>();
 
-    for (const optItem of selectedOption.items) {
-      let matchedIndex = -1;
+    for (const exam of exams) {
+      let isExamModified = false;
+      const currentPlanItems: DentalTreatmentPlanItemFields[] = exam.treatmentPlanItems ?? [];
 
-      // 1. Try matching by treatmentPlanItemId if specified
-      if (optItem.treatment_plan_item_id) {
-        matchedIndex = currentPlanItems.findIndex(
-          (pi) => pi._id?.toString() === optItem.treatment_plan_item_id,
-        );
+      for (const optItem of selectedOption.items) {
+        let matchedIndex = -1;
+
+        // 1. Try matching by treatmentPlanItemId if specified
+        if (optItem.treatment_plan_item_id && isObjectId(optItem.treatment_plan_item_id)) {
+          matchedIndex = currentPlanItems.findIndex(
+            (pi) => pi._id?.toString() === optItem.treatment_plan_item_id,
+          );
+        }
+
+        // 2. Try matching by serviceId + toothNumber
+        if (matchedIndex === -1 && optItem.service_id && isObjectId(optItem.service_id)) {
+          matchedIndex = currentPlanItems.findIndex(
+            (pi) =>
+              pi.serviceId?.toString() === optItem.service_id &&
+              (pi.toothNumber ?? null) === (optItem.tooth_number ?? null),
+          );
+        }
+
+        // 3. Try matching by procedureName + toothNumber
+        if (matchedIndex === -1 && optItem.procedure_name) {
+          matchedIndex = currentPlanItems.findIndex(
+            (pi) =>
+              pi.procedureName.toLowerCase().trim() === optItem.procedure_name.toLowerCase().trim() &&
+              (pi.toothNumber ?? null) === (optItem.tooth_number ?? null),
+          );
+        }
+
+        if (matchedIndex !== -1 && currentPlanItems[matchedIndex]) {
+          const existing = currentPlanItems[matchedIndex]!;
+          if (existing.status !== 'ACCEPTED') {
+            existing.status = 'ACCEPTED';
+            isExamModified = true;
+          }
+          if (optItem.unit_price !== undefined && existing.estimatedCost !== optItem.unit_price) {
+            existing.estimatedCost = optItem.unit_price;
+            isExamModified = true;
+          }
+          if (optItem.tooth_number !== undefined && existing.toothNumber !== (optItem.tooth_number ?? null)) {
+            existing.toothNumber = optItem.tooth_number ?? null;
+            isExamModified = true;
+          }
+          if (optItem.service_id && !existing.serviceId) {
+            existing.serviceId = optItem.service_id;
+            isExamModified = true;
+          }
+          if (existing._id) {
+            synchronizedPlanItemIds.push(existing._id.toString());
+          }
+          if (optItem.id) {
+            matchedOptItemIds.add(optItem.id);
+          }
+        }
       }
 
-      // 2. Try matching by serviceId + toothNumber
-      if (matchedIndex === -1 && optItem.service_id) {
-        matchedIndex = currentPlanItems.findIndex(
-          (pi) =>
-            pi.serviceId?.toString() === optItem.service_id &&
-            (pi.toothNumber ?? null) === (optItem.tooth_number ?? null),
-        );
-      }
-
-      // 3. Try matching by procedureName + toothNumber
-      if (matchedIndex === -1 && optItem.procedure_name) {
-        matchedIndex = currentPlanItems.findIndex(
-          (pi) =>
-            pi.procedureName.toLowerCase().trim() === optItem.procedure_name.toLowerCase().trim() &&
-            (pi.toothNumber ?? null) === (optItem.tooth_number ?? null),
-        );
-      }
-
-      if (matchedIndex !== -1 && currentPlanItems[matchedIndex]) {
-        const existing = currentPlanItems[matchedIndex]!;
-        existing.status = 'ACCEPTED';
-        existing.estimatedCost = optItem.unit_price;
-        if (optItem.tooth_number !== undefined) {
-          existing.toothNumber = optItem.tooth_number ?? null;
-        }
-        if (optItem.service_id && !existing.serviceId) {
-          existing.serviceId = optItem.service_id;
-        }
-        if (existing._id) {
-          synchronizedPlanItemIds.push(existing._id.toString());
-        }
-      } else {
-        const newId = new Types.ObjectId();
-        currentPlanItems.push({
-          _id: newId,
-          serviceId: optItem.service_id ?? null,
-          toothNumber: optItem.tooth_number ?? null,
-          procedureName: optItem.procedure_name,
-          surfaces: [],
-          priority: 'ROUTINE',
-          estimatedCost: optItem.unit_price,
-          notes: optItem.notes ?? null,
-          status: 'ACCEPTED',
-        });
-        synchronizedPlanItemIds.push(newId.toString());
+      if (isExamModified) {
+        exam.markModified('treatmentPlanItems');
+        exam.updatedBy = new Types.ObjectId(userId);
+        await exam.save();
       }
     }
 
-    exam.treatmentPlanItems = currentPlanItems;
-    exam.updatedBy = new Types.ObjectId(userId);
-    await exam.save();
+    // For any option item not matched in existing examinations, append to primary examination
+    const primaryExam = exams[0];
+    if (primaryExam) {
+      let primaryModified = false;
+      const primaryItems: DentalTreatmentPlanItemFields[] = primaryExam.treatmentPlanItems ?? [];
+
+      for (const optItem of selectedOption.items) {
+        const isMatched =
+          (optItem.id && matchedOptItemIds.has(optItem.id)) ||
+          (optItem.treatment_plan_item_id && synchronizedPlanItemIds.includes(optItem.treatment_plan_item_id));
+
+        if (!isMatched) {
+          const newId = new Types.ObjectId();
+          primaryItems.push({
+            _id: newId,
+            serviceId: optItem.service_id ?? null,
+            toothNumber: optItem.tooth_number ?? null,
+            procedureName: optItem.procedure_name,
+            surfaces: [],
+            priority: 'ROUTINE',
+            estimatedCost: optItem.unit_price,
+            notes: optItem.notes ?? null,
+            status: 'ACCEPTED',
+          });
+          synchronizedPlanItemIds.push(newId.toString());
+          primaryModified = true;
+        }
+      }
+
+      if (primaryModified) {
+        primaryExam.treatmentPlanItems = primaryItems;
+        primaryExam.markModified('treatmentPlanItems');
+        primaryExam.updatedBy = new Types.ObjectId(userId);
+        await primaryExam.save();
+      }
+    }
 
     // Treatment Stage Activation / Linking
     const createdStageIds: string[] = [];
     if (this.stageRepository && episode.status !== 'COMPLETED' && episode.status !== 'CANCELLED') {
+      const allExamsItems = exams.flatMap((ex) => ex.treatmentPlanItems ?? []);
       for (const planItemId of synchronizedPlanItemIds) {
-        const item = currentPlanItems.find((pi) => pi._id?.toString() === planItemId);
+        const item = allExamsItems.find((pi) => pi._id?.toString() === planItemId);
         if (!item) continue;
 
         // A Treatment Plan Item belongs to this episode only if:
@@ -793,8 +847,33 @@ export class DentalQuotationService {
       throw new AppError('User not found', 404, 'NOT_FOUND');
     }
 
-    if (user.patientId && user.patientId.toString() !== patientId) {
-      throw new AppError('You are not authorized to view this patient\'s quotations', 403, 'FORBIDDEN');
+    const isPatientPortalUser = Boolean(
+      user.patientId ||
+      await RoleModel.exists({
+        _id: { $in: user.roleIds ?? [] },
+        code: { $in: ['PATIENT', 'GUARDIAN'] },
+        status: 'active',
+        deletedAt: null,
+      }),
+    );
+
+    if (isPatientPortalUser) {
+      const hasAccess =
+        (user.patientId && user.patientId.toString() === patientId) ||
+        Boolean(
+          await PatientAccessGrantModel.exists({
+            userId: user._id,
+            patientId: new Types.ObjectId(patientId),
+            status: 'VERIFIED',
+          }),
+        );
+
+      if (!hasAccess) {
+        throw new AppError('You are not authorized to view this patient\'s quotations', 403, 'FORBIDDEN');
+      }
+
+      const quotations = await this.repository.listByPatient(patientId);
+      return quotations.filter((q) => q.status !== 'DRAFT');
     }
 
     return await this.repository.listByPatient(patientId);
@@ -818,10 +897,34 @@ export class DentalQuotationService {
       throw new AppError('User not found', 404, 'NOT_FOUND');
     }
 
-    // If user is a patient user:
-    if (user.patientId) {
-      if (user.patientId.toString() !== quotation.patient_id) {
+    const isPatientPortalUser = Boolean(
+      user.patientId ||
+      await RoleModel.exists({
+        _id: { $in: user.roleIds ?? [] },
+        code: { $in: ['PATIENT', 'GUARDIAN'] },
+        status: 'active',
+        deletedAt: null,
+      }),
+    );
+
+    // If user is a patient portal user:
+    if (isPatientPortalUser) {
+      const hasAccess =
+        (user.patientId && user.patientId.toString() === quotation.patient_id) ||
+        Boolean(
+          await PatientAccessGrantModel.exists({
+            userId: user._id,
+            patientId: new Types.ObjectId(quotation.patient_id),
+            status: 'VERIFIED',
+          }),
+        );
+
+      if (!hasAccess) {
         throw new AppError('You are not authorized to access this patient quotation', 403, 'FORBIDDEN');
+      }
+
+      if (quotation.status === 'DRAFT') {
+        throw new AppError('Dental treatment quotation not found', 404, 'NOT_FOUND');
       }
       return;
     }

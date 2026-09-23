@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { type ApiAppointmentStatus, type AppointmentResponse } from '../api/appointments';
 import { navigate } from '../routing/navigation';
 import {
@@ -110,7 +110,17 @@ export function AppointmentDashboardPage() {
     [summary],
   );
   const trend = useMemo(() => buildTrend(appointments, dateTo || todayInputValue()), [appointments, dateTo]);
-  const maxTrend = Math.max(1, ...trend.map((point) => point.value));
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const maxTrendValue = Math.max(0, ...trend.map((point) => point.value));
+  const yStep = Math.max(1, Math.ceil(maxTrendValue / 4));
+  const yMax = yStep * 4;
+  const chartLeft = 45;
+  const chartRight = 665;
+  const chartTop = 25;
+  const chartBottom = 175;
+  const chartWidth = chartRight - chartLeft;
+  const chartHeight = chartBottom - chartTop;
+  const xStep = chartWidth / (trend.length - 1 || 1);
   const upcomingAppointments = appointments.filter((appointment) =>
     ['SCHEDULED', 'CONFIRMED', 'SKIPPED'].includes(appointment.status),
   );
@@ -154,26 +164,128 @@ export function AppointmentDashboardPage() {
               <p>Daily appointments for the current week</p>
             </div>
           </div>
-          {meta.total <= appointments.length ? <div className="doc-chart">
-            <svg className="doc-line-chart" viewBox="0 0 700 220" role="img" aria-label="Appointment trend chart">
-              {[0, 1, 2, 3, 4].map((line) => (
-                <line key={line} x1="30" x2="680" y1={30 + line * 38} y2={30 + line * 38} />
-              ))}
-              <polyline
-                points={trend
-                  .map((point, index) => `${30 + index * 108},${190 - (point.value / maxTrend) * 150}`)
-                  .join(' ')}
-              />
-              {trend.map((point, index) => (
-                <circle cx={30 + index * 108} cy={190 - (point.value / maxTrend) * 150} key={point.label} r="4" />
-              ))}
-            </svg>
-            <div className="doc-chart-axis">
-              {trend.map((point) => (
-                <span key={point.label}>{point.label}</span>
-              ))}
+          {meta.total <= appointments.length ? (
+            <div className="doc-chart doc-line-chart">
+              <svg
+                aria-label="Appointment trend chart"
+                preserveAspectRatio="none"
+                role="img"
+                style={{ display: 'block', height: '100%', width: '100%' }}
+                viewBox="0 0 700 220"
+              >
+                {[0, 1, 2, 3, 4].map((i) => {
+                  const y = chartTop + i * (chartHeight / 4);
+                  const tickValue = yMax - i * yStep;
+                  return (
+                    <g key={i}>
+                      <line
+                        stroke="#f1f5f9"
+                        strokeDasharray={i === 4 ? undefined : '4 4'}
+                        strokeWidth={i === 4 ? '1.5' : '1'}
+                        x1={chartLeft}
+                        x2={chartRight}
+                        y1={y}
+                        y2={y}
+                      />
+                      <text
+                        fill="#94a3b8"
+                        fontSize="11"
+                        fontWeight="500"
+                        textAnchor="end"
+                        x={chartLeft - 10}
+                        y={y + 4}
+                      >
+                        {tickValue}
+                      </text>
+                    </g>
+                  );
+                })}
+                <polyline
+                  fill="none"
+                  points={trend
+                    .map((point, index) => `${chartLeft + index * xStep},${chartBottom - (point.value / yMax) * chartHeight}`)
+                    .join(' ')}
+                  stroke="#2563eb"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                />
+                {trend.map((point, index) => {
+                  const cx = chartLeft + index * xStep;
+                  const cy = chartBottom - (point.value / yMax) * chartHeight;
+                  const isHovered = hoveredIndex === index;
+                  return (
+                    <g className="doc-chart-point" key={point.label}>
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        fill={isHovered ? '#2563eb' : '#ffffff'}
+                        r={isHovered ? 6 : 4}
+                        stroke="#2563eb"
+                        strokeWidth={isHovered ? 2.5 : 2}
+                        style={{ transition: 'all 0.15s ease' }}
+                      />
+                      <circle
+                        aria-label={`${point.label}: ${point.value} appointment${point.value === 1 ? '' : 's'}`}
+                        cx={cx}
+                        cy={cy}
+                        fill="transparent"
+                        onBlur={() => setHoveredIndex(null)}
+                        onFocus={() => setHoveredIndex(index)}
+                        onMouseEnter={() => setHoveredIndex(index)}
+                        onMouseLeave={() => setHoveredIndex(null)}
+                        r="14"
+                        style={{ cursor: 'pointer' }}
+                        tabIndex={0}
+                      >
+                        <title>{`${point.label}: ${point.value} appointment${point.value === 1 ? '' : 's'}`}</title>
+                      </circle>
+                      <text
+                        fill="#64748b"
+                        fontSize="11.5"
+                        fontWeight="500"
+                        textAnchor="middle"
+                        x={cx}
+                        y="202"
+                      >
+                        {point.label}
+                      </text>
+                    </g>
+                  );
+                })}
+                {hoveredIndex !== null && trend[hoveredIndex] && (() => {
+                  const pt = trend[hoveredIndex];
+                  const cx = chartLeft + hoveredIndex * xStep;
+                  const cy = chartBottom - (pt.value / yMax) * chartHeight;
+                  const tooltipX = Math.min(Math.max(cx, 75), 625);
+                  const tooltipY = cy < 55 ? cy + 28 : cy - 14;
+                  return (
+                    <g style={{ pointerEvents: 'none' }} transform={`translate(${tooltipX}, ${tooltipY})`}>
+                      <rect
+                        fill="#1e293b"
+                        height="24"
+                        opacity="0.95"
+                        rx="5"
+                        width="110"
+                        x="-55"
+                        y="-22"
+                      />
+                      <text
+                        fill="#ffffff"
+                        fontSize="11"
+                        fontWeight="500"
+                        textAnchor="middle"
+                        x="0"
+                        y="-6"
+                      >
+                        {pt.label}: {pt.value} {pt.value === 1 ? 'appointment' : 'appointments'}
+                      </text>
+                    </g>
+                  );
+                })()}
+              </svg>
             </div>
-          </div> : <div className="um-state-cell">Complete trend data is unavailable for paginated appointment results.</div>}
+          ) : <div className="um-state-cell">Complete trend data is unavailable for paginated appointment results.</div>}
         </article>
 
         <article className="doc-card">

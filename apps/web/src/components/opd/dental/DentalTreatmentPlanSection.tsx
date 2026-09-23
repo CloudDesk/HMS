@@ -1,12 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import type {
   DentalStageStatus,
   DentalTreatmentPlanItem,
   DentalTreatmentStageResponse,
-  DentalTreatmentStatus,
   ToothFinding,
   DentalTreatmentQuotationResponse,
+  DentalTreatmentEpisodeResponse,
+  DentalProstheticLabOrderResponse,
 } from '../../../api/opd';
+import { opdApi } from '../../../api/opd';
 import type { ServiceResponse } from '../../../api/services';
 import type {
   BillingInvoiceStatus,
@@ -14,10 +17,10 @@ import type {
 } from '../../../api/billing';
 import { useCurrencyFormatter } from '../../../api/useSettings';
 import {
+  opdKeys,
   useAssignDoctorToDentalStage,
   useCreateDentalStage,
   useDeleteDentalStage,
-  useDentalStages,
   useUpdateDentalStageStatus,
   useCancelDentalStageAppointment,
   useDentalStageAppointment,
@@ -38,7 +41,6 @@ import {
 } from '../../../pages/dental-utils';
 import { DentalStageScheduleModal } from './DentalStageScheduleModal';
 import { DentalProstheticLabModal } from './DentalProstheticLabModal';
-import { useEpisodeDentalLabOrders } from '../../../hooks/opd/useOpd';
 import styles from './DentalExamination.module.css';
 
 function formatDoctorName(name: string | undefined | null): string {
@@ -85,16 +87,16 @@ export function isStageClinicallyCompatible(procedureName: string, stageName: st
   const isRestorativeStage = /cavity preparation|caries excavation|composite.*restoration|gic.*restoration/i.test(s);
   const isScalingStage = /ultrasonic scaling|subgingival curettage|root planing/i.test(s);
 
-  if (isExtractionProc && (isEndoStage || isProstheticStage || isRestorativeStage || isScalingStage)) {
+  if (isExtractionProc && !isEndoProc && !isProstheticProc && !isRestorativeProc && (isEndoStage || isProstheticStage || isRestorativeStage || isScalingStage)) {
     return false;
   }
-  if (isEndoProc && (isExtractionStage || isProstheticStage || isScalingStage)) {
+  if (isEndoProc && !isProstheticProc && !isRestorativeProc && (isExtractionStage || isProstheticStage || isScalingStage)) {
     return false;
   }
-  if (isProstheticProc && (isExtractionStage || isEndoStage || isScalingStage)) {
+  if (isProstheticProc && !isEndoProc && (isExtractionStage || isEndoStage || isScalingStage)) {
     return false;
   }
-  if (isRestorativeProc && (isExtractionStage || isEndoStage || isProstheticStage)) {
+  if (isRestorativeProc && !isEndoProc && (isExtractionStage || isEndoStage || isProstheticStage)) {
     return false;
   }
   if (isScalingProc && (isExtractionStage || isEndoStage || isProstheticStage || isRestorativeStage)) {
@@ -182,7 +184,7 @@ interface DentalTreatmentPlanSectionProps {
   onCreateInvoice?: (treatmentItemId: string) => Promise<void>;
   onOpenInvoice?: (invoiceId: string) => void;
   /** Callback to trigger starting a treatment episode from diagnosis & plan context */
-  onStartEpisode?: () => void;
+  onStartEpisode?: (toothNumber?: number | null) => void;
   /** Patient display name for quotation modal header context */
   patientName?: string | null;
   /** Treatment Episode Number for quotation modal header context */
@@ -268,6 +270,54 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
   // Patient episodes fallback if episodeId is not explicitly passed
   const { data: patientEpisodes = [] } = usePatientDentalEpisodes(patientId ?? undefined);
+
+  const getEpisodeForItem = useCallback(
+    (toothNum?: number | null): DentalTreatmentEpisodeResponse | null => {
+      if (toothNum != null) {
+        const activeMatch = patientEpisodes.find(
+          (e) => e.primary_tooth_number === toothNum && e.status === 'ACTIVE',
+        );
+        if (activeMatch) return activeMatch;
+
+        const anyMatch = patientEpisodes.find(
+          (e) => e.primary_tooth_number === toothNum,
+        );
+        if (anyMatch) return anyMatch;
+      }
+
+      // If no tooth number or no tooth-specific episode found, check if the passed episodeId matches this tooth or is general
+      if (episodeId) {
+        const passed = patientEpisodes.find((e) => e.id === episodeId);
+        if (passed) {
+          if (toothNum != null && passed.primary_tooth_number === toothNum) {
+            return passed;
+          }
+          if (toothNum == null && passed.primary_tooth_number == null) {
+            return passed;
+          }
+          if (passed.primary_tooth_number == null) {
+            return passed;
+          }
+        } else if (!patientEpisodes.length) {
+          // If patientEpisodes haven't loaded or empty, fallback to passed episodeId if compatible
+          return { id: episodeId, episode_number: String(episodeNumber || 'EPISODE-1') } as DentalTreatmentEpisodeResponse;
+        }
+      }
+
+      // Fallback: active general episode
+      const activeGeneral = patientEpisodes.find(
+        (e) => e.primary_tooth_number == null && e.status === 'ACTIVE',
+      );
+      if (activeGeneral) return activeGeneral;
+
+      const anyGeneral = patientEpisodes.find((e) => e.primary_tooth_number == null);
+      if (anyGeneral) return anyGeneral;
+
+      return null;
+    },
+    [patientEpisodes, episodeId, episodeNumber],
+  );
+
   const effectiveEpisodeId = useMemo(() => {
     if (episodeId) return episodeId;
     const active = patientEpisodes.find((e) => e.status === 'ACTIVE');
@@ -275,18 +325,75 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     return patientEpisodes[0]?.id ?? null;
   }, [episodeId, patientEpisodes]);
 
+  // Aggregate episode IDs to query stages and lab orders across all patient episodes
+  const episodeIdsToQuery = useMemo(() => {
+    const ids = new Set<string>();
+    if (episodeId) ids.add(episodeId);
+    if (effectiveEpisodeId) ids.add(effectiveEpisodeId);
+    for (const ep of patientEpisodes) {
+      if (ep.id) ids.add(ep.id);
+    }
+    return Array.from(ids);
+  }, [episodeId, effectiveEpisodeId, patientEpisodes]);
+
   // Lab Order modal state
   const [labOrderCreateStage, setLabOrderCreateStage] = useState<DentalTreatmentStageResponse | null>(null);
   const [viewLabOrderId, setViewLabOrderId] = useState<string | null>(null);
-  const { data: episodeLabOrders = [] } = useEpisodeDentalLabOrders(effectiveEpisodeId);
+
+  const episodeLabOrderQueries = useQueries({
+    queries: episodeIdsToQuery.map((epId) => ({
+      queryKey: opdKeys.episodeDentalLabOrders(epId),
+      queryFn: () => opdApi.getEpisodeDentalLabOrders(epId),
+      enabled: Boolean(epId),
+    })),
+  });
+
+  const episodeLabOrders: DentalProstheticLabOrderResponse[] = useMemo(() => {
+    const list: DentalProstheticLabOrderResponse[] = [];
+    const seen = new Set<string>();
+    for (const res of episodeLabOrderQueries) {
+      if (res.data) {
+        for (const order of res.data) {
+          if (!seen.has(order.id)) {
+            seen.add(order.id);
+            list.push(order);
+          }
+        }
+      }
+    }
+    return list;
+  }, [episodeLabOrderQueries]);
 
   // Scheduling modal state
   const [scheduleModalStage, setScheduleModalStage] = useState<DentalTreatmentStageResponse | null>(null);
   const [cancelConfirmStageId, setCancelConfirmStageId] = useState<string | null>(null);
   const [viewAppointmentStageId, setViewAppointmentStageId] = useState<string | null>(null);
 
-  // Queries & Mutations
-  const { data: allStages = [] } = useDentalStages(effectiveEpisodeId);
+  // Queries & Mutations across all episodes
+  const episodeStagesQueries = useQueries({
+    queries: episodeIdsToQuery.map((epId) => ({
+      queryKey: opdKeys.dentalStages(epId),
+      queryFn: () => opdApi.listDentalStages(epId),
+      enabled: Boolean(epId),
+    })),
+  });
+
+  const allStages: DentalTreatmentStageResponse[] = useMemo(() => {
+    const list: DentalTreatmentStageResponse[] = [];
+    const seen = new Set<string>();
+    for (const res of episodeStagesQueries) {
+      if (res.data) {
+        for (const stage of res.data) {
+          if (!seen.has(stage.id)) {
+            seen.add(stage.id);
+            list.push(stage);
+          }
+        }
+      }
+    }
+    return list;
+  }, [episodeStagesQueries]);
+
   const { data: stageAppointmentData, isLoading: stageAppointmentLoading } = useDentalStageAppointment(viewAppointmentStageId);
   const { data: doctorsData } = useDoctorsList(departmentId ? { department_id: departmentId } : {});
   const doctors: DoctorResponse[] = useMemo(() => doctorsData?.data ?? [], [doctorsData]);
@@ -294,7 +401,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const createStageMutation = useCreateDentalStage();
   const assignDoctorMutation = useAssignDoctorToDentalStage();
   const updateStageStatusMutation = useUpdateDentalStageStatus();
-  const deleteStageMutation = useDeleteDentalStage(effectiveEpisodeId ?? undefined);
+  const deleteStageMutation = useDeleteDentalStage();
   const cancelAppointmentMutation = useCancelDentalStageAppointment();
 
   // Quotation state & queries
@@ -603,15 +710,21 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     toothNum?: number | null,
     serviceId?: string | null,
   ) => {
-    const targetEpisodeId = episodeId ?? effectiveEpisodeId;
-    if (!targetEpisodeId || !newStageName.trim() || !newStageDoctorId) return;
+    const targetEpisode = getEpisodeForItem(toothNum);
+    if (!targetEpisode) {
+      if (onStartEpisode) {
+        onStartEpisode(toothNum);
+      }
+      return;
+    }
+    if (!newStageName.trim() || !newStageDoctorId) return;
 
     const activeLabOrder = episodeLabOrders.find(
       (lo) => lo.treatment_plan_item_id === planItemId && lo.status !== 'CANCELLED',
     );
 
     await createStageMutation.mutateAsync({
-      episodeId: targetEpisodeId,
+      episodeId: targetEpisode.id,
       payload: {
         plan_item_id: planItemId,
         stage_name: newStageName.trim(),
@@ -705,19 +818,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     } else {
       onChange(items.filter((it, idx) => (it.id ? it.id !== identifier : `plan-item-${idx}` !== identifier)));
     }
-  };
-
-  const handleStatusChange = (identifier: string | number, newStatus: DentalTreatmentStatus) => {
-    if (disabled) return;
-    const updated = items.map((item, i) => {
-      const matches = typeof identifier === 'number' ? i === identifier : (item.id === identifier || `plan-item-${i}` === identifier);
-      return matches ? { ...item, status: newStatus } : item;
-    });
-    onChange(updated);
-  };
-
-  const handleAcceptItem = (identifier: string | number) => {
-    handleStatusChange(identifier, 'ACCEPTED');
   };
 
   // Financial summary calculations
@@ -886,7 +986,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                 type="button"
                 className={styles.btnSecondary}
                 style={{ fontSize: '0.78rem', padding: '4px 10px' }}
-                onClick={onStartEpisode}
+                onClick={() => onStartEpisode?.()}
               >
                 <i className="ph ph-plus-circle" /> Start Treatment Episode
               </button>
@@ -3201,6 +3301,27 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                           {
                             onSuccess: (updated) => {
                               setSelectedQuotation(updated);
+                              const acceptedOption = updated.options?.find(
+                                (o) => o.id === updated.selected_option_id,
+                              );
+                              if (acceptedOption && items.length > 0) {
+                                const updatedPlanItems = items.map((pi) => {
+                                  const isIncluded = acceptedOption.items.some(
+                                    (optIt) =>
+                                      (optIt.treatment_plan_item_id && optIt.treatment_plan_item_id === pi.id) ||
+                                      (optIt.service_id && pi.service_id && optIt.service_id === pi.service_id && (optIt.tooth_number ?? null) === (pi.tooth_number ?? null)) ||
+                                      (optIt.procedure_name.toLowerCase().trim() === pi.procedure_name.toLowerCase().trim() && (optIt.tooth_number ?? null) === (pi.tooth_number ?? null)),
+                                  );
+                                  if (isIncluded && pi.status !== 'ACCEPTED') {
+                                    return {
+                                      ...pi,
+                                      status: 'ACCEPTED' as const,
+                                    };
+                                  }
+                                  return pi;
+                                });
+                                onChange(updatedPlanItems);
+                              }
                             },
                           },
                         );

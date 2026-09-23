@@ -3,6 +3,7 @@ import type { PatientPortalOverview } from '../../../api/patient-portal';
 import { Empty } from '../Empty';
 import { Pagination } from '../Pagination';
 import { date, label, money } from '../../../utils/formatters';
+import { PortalDentalQuotations } from '../PortalDentalQuotations';
 
 type BillingTabProps = {
   data: PatientPortalOverview;
@@ -12,6 +13,7 @@ type BillingTabProps = {
 const PAGE_SIZE = 5;
 
 export function BillingTab({ data, setSelectedInvoice }: BillingTabProps) {
+  const [billingSection, setBillingSection] = useState<'invoices' | 'quotations'>('invoices');
   const [currentPage, setCurrentPage] = useState(1);
 
   const billingTotals = data.invoices.reduce(
@@ -32,13 +34,36 @@ export function BillingTab({ data, setSelectedInvoice }: BillingTabProps) {
     <section className="portal-page-section portal-billing-page">
       <header>
         <div>
-          <p>Financial records</p>
-          <h1>Billing</h1>
-          <span>See what was billed, what has been paid, and whether anything remains due.</span>
+          <p>Financial & Treatment records</p>
+          <h1>Billing & Quotations</h1>
+          <span>Review hospital invoices, payments, and proposed dental treatment quotations.</span>
         </div>
       </header>
 
-      {data.invoices.length ? (
+      <div className="portal-appointment-toolbar" style={{ marginBottom: '1.25rem' }}>
+        <div className="portal-appointment-tabs" role="tablist" aria-label="Billing sections">
+          <button
+            aria-selected={billingSection === 'invoices'}
+            className={billingSection === 'invoices' ? 'active' : ''}
+            onClick={() => setBillingSection('invoices')}
+            type="button"
+          >
+            <i className="ph ph-receipt" /> Hospital Invoices ({data.invoices.length})
+          </button>
+          <button
+            aria-selected={billingSection === 'quotations'}
+            className={billingSection === 'quotations' ? 'active' : ''}
+            onClick={() => setBillingSection('quotations')}
+            type="button"
+          >
+            <i className="ph ph-tooth" /> Treatment Quotations
+          </button>
+        </div>
+      </div>
+
+      {billingSection === 'quotations' ? (
+        <PortalDentalQuotations patientId={data.patient.id} />
+      ) : data.invoices.length ? (
         <>
           <div className="portal-billing-summary">
             <article>

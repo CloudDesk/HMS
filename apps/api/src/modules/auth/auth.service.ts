@@ -290,9 +290,9 @@ export class AuthService {
       if (record?.userId === userId) {
         await this.repository.revokeRefreshToken(record.id);
       }
-    } else {
-      await this.repository.revokeAllRefreshTokensForUser(userId);
     }
+
+
 
     await this.repository.audit('auth.logout.succeeded', {
       ...metadata,

@@ -95,4 +95,10 @@ export const portalQueryKeys = {
 
   rescheduleEligibility: (appointmentId: string) =>
     ['patient-portal-reschedule-eligibility', appointmentId] as const,
+
+  dentalQuotations: (patientId: string) =>
+    ['patient-portal-dental-quotations', patientId] as const,
+
+  dentalQuotation: (quotationId: string) =>
+    ['patient-portal-dental-quotation', quotationId] as const,
 };

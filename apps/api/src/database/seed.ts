@@ -345,18 +345,28 @@ export const seedDatabase = async () => {
     [{ $set: { branchIds: ['$branchId'] } }, { $unset: 'branchId' }],
   );
 
-  const categories = new Map<string, Types.ObjectId>();
-  for (const category of [
+  const categoryDefinitions = [
     { code: 'SYSTEM', name: 'System Management', description: 'System level configurations' },
     { code: 'CLINICAL', name: 'Clinical Operations', description: 'Patient, OPD, and clinical workflow permissions' },
     { code: 'FINANCE', name: 'Finance Operations', description: 'Billing and payment permissions' },
-  ]) {
-    const record = await PermissionCategoryModel.findOneAndUpdate(
-      { code: category.code },
-      { $set: category },
-      { upsert: true, returnDocument: 'after' },
-    );
-    categories.set(category.code, record._id);
+  ] as const;
+
+  const categories = new Map<string, Types.ObjectId>();
+  const existingCategories = await PermissionCategoryModel.find({
+    code: { $in: categoryDefinitions.map((c) => c.code) },
+  }).lean();
+  for (const cat of existingCategories) {
+    categories.set(cat.code, cat._id as Types.ObjectId);
+  }
+  for (const category of categoryDefinitions) {
+    if (!categories.has(category.code)) {
+      const record = await PermissionCategoryModel.findOneAndUpdate(
+        { code: category.code },
+        { $set: category },
+        { upsert: true, returnDocument: 'after' },
+      );
+      categories.set(category.code, record._id as Types.ObjectId);
+    }
   }
 
   const groupNames: Record<string, string> = {
@@ -365,38 +375,104 @@ export const seedDatabase = async () => {
     LABORATORY: 'Laboratory', IMAGING: 'Imaging', BILLING: 'Billing', SURGERY: 'Surgery', EMERGENCY: 'Emergency',
   };
   const groups = new Map<string, Types.ObjectId>();
+  const expectedGroupCodes = Array.from(new Set(permissionDefinitions.map((d) => d.group)));
+  const existingGroups = await PermissionGroupModel.find({
+    code: { $in: expectedGroupCodes },
+  }).lean();
+  for (const group of existingGroups) {
+    for (const [catCode, catId] of categories.entries()) {
+      if (String(catId) === String(group.categoryId)) {
+        groups.set(`${catCode}:${group.code}`, group._id as Types.ObjectId);
+      }
+    }
+  }
   for (const definition of permissionDefinitions) {
     const groupKey = `${definition.category}:${definition.group}`;
     if (groups.has(groupKey)) continue;
+    const categoryId = categories.get(definition.category);
     const record = await PermissionGroupModel.findOneAndUpdate(
-      { categoryId: categories.get(definition.category), code: definition.group },
+      { categoryId, code: definition.group },
       { $set: { name: groupNames[definition.group] } },
       { upsert: true, returnDocument: 'after' },
     );
-    groups.set(groupKey, record._id);
+    groups.set(groupKey, record._id as Types.ObjectId);
   }
 
   const permissionsByCode = new Map<string, Types.ObjectId>();
+  const allPermissionCodes = permissionDefinitions.map(
+    (definition) => definition.code ?? code(definition.module, definition.screen, definition.action),
+  );
+  const existingPermissions = await PermissionModel.find({
+    code: { $in: allPermissionCodes },
+    status: 'active',
+    deletedAt: null,
+  }).lean();
+  const existingPermissionsMap = new Map(existingPermissions.map((p) => [p.code, p]));
+
+  const bulkOps: Array<{
+    updateOne: {
+      filter: { code: string };
+      update: { $set: Record<string, unknown> };
+      upsert: boolean;
+    };
+  }> = [];
+
   for (const definition of permissionDefinitions) {
     const generatedCode = definition.code ?? code(definition.module, definition.screen, definition.action);
-    const existing = await PermissionModel.findOne({ code: generatedCode }).select('_id').lean();
-    const record = await PermissionModel.findOneAndUpdate(
-      { code: generatedCode },
-      { $set: {
-        name: `${definition.screen} ${definition.action}`,
-        module: definition.module,
-        screen: definition.screen,
-        action: definition.action,
-        type: 'system',
-        status: 'active',
-        categoryId: categories.get(definition.category),
-        groupId: groups.get(`${definition.category}:${definition.group}`),
-        deletedAt: null,
-      } },
-      { upsert: true, returnDocument: 'after' },
-    );
-    if (!existing) changes.permissionsCreated.push(generatedCode);
-    permissionsByCode.set(generatedCode, record._id);
+    const existing = existingPermissionsMap.get(generatedCode);
+    const categoryId = categories.get(definition.category);
+    const groupId = groups.get(`${definition.category}:${definition.group}`);
+    const expectedName = `${definition.screen} ${definition.action}`;
+
+    if (
+      existing &&
+      existing.name === expectedName &&
+      existing.module === definition.module &&
+      existing.screen === definition.screen &&
+      existing.action === definition.action &&
+      existing.type === 'system' &&
+      existing.status === 'active' &&
+      String(existing.categoryId) === String(categoryId) &&
+      String(existing.groupId) === String(groupId) &&
+      existing.deletedAt === null
+    ) {
+      permissionsByCode.set(generatedCode, existing._id as Types.ObjectId);
+    } else {
+      bulkOps.push({
+        updateOne: {
+          filter: { code: generatedCode },
+          update: {
+            $set: {
+              name: expectedName,
+              module: definition.module,
+              screen: definition.screen,
+              action: definition.action,
+              type: 'system',
+              status: 'active',
+              categoryId,
+              groupId,
+              deletedAt: null,
+            },
+          },
+          upsert: true,
+        },
+      });
+      if (!existing) {
+        changes.permissionsCreated.push(generatedCode);
+      }
+    }
+  }
+
+  if (bulkOps.length > 0) {
+    await PermissionModel.bulkWrite(bulkOps);
+    const missingPermissions = await PermissionModel.find({
+      code: { $in: allPermissionCodes },
+      status: 'active',
+      deletedAt: null,
+    }).select('_id code').lean();
+    for (const record of missingPermissions) {
+      permissionsByCode.set(record.code, record._id as Types.ObjectId);
+    }
   }
 
   const legacyCodes = ['MANAGE_BRANCHES', 'MANAGE_DEPARTMENTS', 'MANAGE_ROLES', 'MANAGE_SERVICES', 'MANAGE_USERS'];
@@ -429,55 +505,88 @@ export const seedDatabase = async () => {
   const activeSystemPermissionIds = await PermissionModel.distinct('_id', {
     type: 'system', status: 'active', deletedAt: null,
   });
-  const superAdmin = await RoleModel.findOne({ code: 'SUPER_ADMIN' }).select('_id permissionIds').lean();
-  const superAdminRole = await RoleModel.findOneAndUpdate(
-    { code: 'SUPER_ADMIN' },
-    { $set: {
-      name: 'Super Administrator',
-      description: 'Restricted platform/bootstrap break-glass access',
-      type: 'system', status: 'active', deletedAt: null,
-      permissionIds: activeSystemPermissionIds,
-    } },
-    { upsert: true, returnDocument: 'after' },
-  );
-  if (!superAdmin) changes.rolesCreated.push('SUPER_ADMIN');
-  else if (!sameIds(superAdmin.permissionIds ?? [], activeSystemPermissionIds)) changes.rolesReconciled.push('SUPER_ADMIN');
+
+  const allRoleCodes = ['SUPER_ADMIN', ...roleDefinitions.map((r) => r.code)];
+  const existingRoles = await RoleModel.find({ code: { $in: allRoleCodes } }).lean();
+  const existingRolesMap = new Map(existingRoles.map((r) => [r.code, r]));
+
+  const superAdmin = existingRolesMap.get('SUPER_ADMIN');
+  let superAdminRoleId: Types.ObjectId;
+  if (
+    superAdmin &&
+    superAdmin.status === 'active' &&
+    superAdmin.type === 'system' &&
+    !superAdmin.deletedAt &&
+    sameIds(superAdmin.permissionIds ?? [], activeSystemPermissionIds)
+  ) {
+    superAdminRoleId = superAdmin._id as Types.ObjectId;
+  } else {
+    const superAdminRole = await RoleModel.findOneAndUpdate(
+      { code: 'SUPER_ADMIN' },
+      {
+        $set: {
+          name: 'Super Administrator',
+          description: 'Restricted platform/bootstrap break-glass access',
+          type: 'system',
+          status: 'active',
+          deletedAt: null,
+          permissionIds: activeSystemPermissionIds,
+        },
+      },
+      { upsert: true, returnDocument: 'after' },
+    );
+    superAdminRoleId = superAdminRole._id as Types.ObjectId;
+    if (!superAdmin) changes.rolesCreated.push('SUPER_ADMIN');
+    else changes.rolesReconciled.push('SUPER_ADMIN');
+  }
 
   const roleIdsByCode = new Map<string, Types.ObjectId>();
-  roleIdsByCode.set('SUPER_ADMIN', superAdminRole._id);
+  roleIdsByCode.set('SUPER_ADMIN', superAdminRoleId);
+
   for (const definition of roleDefinitions) {
     const requiredIds = definition.permissionCodes.map((permissionCodeValue) => {
       const id = permissionsByCode.get(permissionCodeValue);
       if (!id) throw new Error(`Seed permission is missing: ${permissionCodeValue}`);
       return id;
     });
-    const existing = await RoleModel.findOne({ code: definition.code }).select('_id permissionIds').lean();
-    const role = await RoleModel.findOneAndUpdate(
-      { code: definition.code },
-      {
-        $set: {
-          name: definition.name,
-          type: 'system',
-          status: 'active',
-          deletedAt: null,
-          permissionIds: requiredIds,
+    const existing = existingRolesMap.get(definition.code);
+    if (
+      existing &&
+      existing.name === definition.name &&
+      existing.type === 'system' &&
+      existing.status === 'active' &&
+      !existing.deletedAt &&
+      sameIds(existing.permissionIds ?? [], requiredIds)
+    ) {
+      roleIdsByCode.set(definition.code, existing._id as Types.ObjectId);
+    } else {
+      const role = await RoleModel.findOneAndUpdate(
+        { code: definition.code },
+        {
+          $set: {
+            name: definition.name,
+            type: 'system',
+            status: 'active',
+            deletedAt: null,
+            permissionIds: requiredIds,
+          },
         },
-      },
-      { upsert: true, returnDocument: 'after' },
-    );
-    roleIdsByCode.set(definition.code, role._id);
-    if (!existing) changes.rolesCreated.push(definition.code);
-    else if (!sameIds(existing.permissionIds ?? [], requiredIds)) changes.rolesReconciled.push(definition.code);
+        { upsert: true, returnDocument: 'after' },
+      );
+      roleIdsByCode.set(definition.code, role._id as Types.ObjectId);
+      if (!existing) changes.rolesCreated.push(definition.code);
+      else changes.rolesReconciled.push(definition.code);
+    }
   }
 
   const existingAdmin = await UserModel.findOne({ username: /^admin$/i }).select('_id roleIds deletedAt').lean();
   if (existingAdmin) {
-    const needsSuperAdmin = !(existingAdmin.roleIds ?? []).some((id) => String(id) === String(superAdminRole._id));
+    const needsSuperAdmin = !(existingAdmin.roleIds ?? []).some((id) => String(id) === String(superAdminRoleId));
     const needsRestore = Boolean(existingAdmin.deletedAt);
     if (needsSuperAdmin || needsRestore) {
       await UserModel.updateOne(
         { _id: existingAdmin._id },
-        { $addToSet: { roleIds: superAdminRole._id }, $set: { deletedAt: null } },
+        { $addToSet: { roleIds: superAdminRoleId }, $set: { deletedAt: null } },
       );
       changes.usersReconciled.push('admin');
     }
@@ -486,68 +595,73 @@ export const seedDatabase = async () => {
     if (!adminPassword) throw new Error('HMS_SEED_ADMIN_PASSWORD is required to create the bootstrap administrator');
     await UserModel.create({
       username: 'admin', email: 'admin@hms.com', fullName: 'System Administrator',
-      passwordHash: await hashPassword(adminPassword), roleIds: [superAdminRole._id], status: 'active',
+      passwordHash: await hashPassword(adminPassword), roleIds: [superAdminRoleId], status: 'active',
     });
     changes.usersCreated.push('admin');
   }
 
-  const branchCodes = [...new Set(initialUsers.map((user) => user.branchCode))];
-  const activeBranches = await BranchModel.find({
-    code: { $in: branchCodes }, status: 'ACTIVE', deletedAt: null,
-  }).lean();
-  const branchesByCode = new Map(activeBranches.map((branch) => [branch.code, branch]));
-  const missingBranchCodes = branchCodes.filter((branchCode) => !branchesByCode.has(branchCode));
-  if (missingBranchCodes.length > 0) {
-    throw new Error(`Active seed branches are missing: ${missingBranchCodes.join(', ')}`);
-  }
+  const initialUsernames = initialUsers.map((u) => new RegExp(`^${u.username}$`, 'i'));
+  const existingUsers = await UserModel.find({ username: { $in: initialUsernames } })
+    .select('_id username').lean();
+  const existingUsernameSet = new Set(existingUsers.map((u) => u.username.toLowerCase()));
+  const missingUsers = initialUsers.filter((u) => !existingUsernameSet.has(u.username.toLowerCase()));
 
-  const activeDepartments = await DepartmentModel.find({
-    branchIds: { $in: activeBranches.map((branch) => branch._id) }, status: 'ACTIVE', deletedAt: null,
-  }).sort({ name: 1, _id: 1 }).lean();
-
-  const operationalPassword = process.env.HMS_SEED_OPERATIONAL_PASSWORD ??
-    (process.env.APP_ENV === 'prod' ? undefined : 'HmsPhase1Dev123!');
-  for (const userSeed of initialUsers) {
-    const roleId = roleIdsByCode.get(userSeed.roleCode)!;
-    const existingUser = await UserModel.findOne({ username: new RegExp(`^${userSeed.username}$`, 'i') })
-      .select('_id').lean();
-    if (existingUser) continue;
-
-    const branch = branchesByCode.get(userSeed.branchCode)!;
-    const department = activeDepartments.find((item) =>
-      item.branchIds.map(id => String(id)).includes(String(branch._id)) &&
-      userSeed.departmentTerms.some((term) => `${item.code} ${item.name}`.toLowerCase().includes(term)));
-    if (!department) {
-      console.warn(`[Seeder Warning] An active ${userSeed.departmentTerms.join('/')} department is required in branch ${userSeed.branchCode} to seed ${userSeed.username}`);
-      continue;
+  if (missingUsers.length > 0) {
+    const branchCodes = [...new Set(missingUsers.map((user) => user.branchCode))];
+    const activeBranches = await BranchModel.find({
+      code: { $in: branchCodes }, status: 'ACTIVE', deletedAt: null,
+    }).lean();
+    const branchesByCode = new Map(activeBranches.map((branch) => [branch.code, branch]));
+    const missingBranchCodes = branchCodes.filter((branchCode) => !branchesByCode.has(branchCode));
+    if (missingBranchCodes.length > 0) {
+      throw new Error(`Active seed branches are missing: ${missingBranchCodes.join(', ')}`);
     }
 
-    if (!operationalPassword) {
-      throw new Error('HMS_SEED_OPERATIONAL_PASSWORD is required to create Phase 1 operational users');
+    const activeDepartments = await DepartmentModel.find({
+      branchIds: { $in: activeBranches.map((branch) => branch._id) }, status: 'ACTIVE', deletedAt: null,
+    }).sort({ name: 1, _id: 1 }).lean();
+
+    const operationalPassword = process.env.HMS_SEED_OPERATIONAL_PASSWORD ??
+      (process.env.APP_ENV === 'prod' ? undefined : 'HmsPhase1Dev123!');
+    for (const userSeed of missingUsers) {
+      const roleId = roleIdsByCode.get(userSeed.roleCode)!;
+      const branch = branchesByCode.get(userSeed.branchCode)!;
+      const department = activeDepartments.find((item) =>
+        item.branchIds.map(id => String(id)).includes(String(branch._id)) &&
+        userSeed.departmentTerms.some((term) => `${item.code} ${item.name}`.toLowerCase().includes(term)));
+      if (!department) {
+        console.warn(`[Seeder Warning] An active ${userSeed.departmentTerms.join('/')} department is required in branch ${userSeed.branchCode} to seed ${userSeed.username}`);
+        continue;
+      }
+
+      if (!operationalPassword) {
+        throw new Error('HMS_SEED_OPERATIONAL_PASSWORD is required to create Phase 1 operational users');
+      }
+      await UserModel.create({
+        username: userSeed.username,
+        email: `${userSeed.username}@seed.hms.local`,
+        fullName: userSeed.fullName,
+        employeeCode: userSeed.employeeCode,
+        jobTitle: userSeed.fullName.replace('Initial ', ''),
+        employeeType: 'Development seed',
+        passwordHash: await hashPassword(operationalPassword),
+        roleIds: [roleId], branchIds: [branch._id], departmentIds: [department._id],
+        status: 'active',
+      });
+      changes.usersCreated.push(userSeed.username);
     }
-    await UserModel.create({
-      username: userSeed.username,
-      email: `${userSeed.username}@seed.hms.local`,
-      fullName: userSeed.fullName,
-      employeeCode: userSeed.employeeCode,
-      jobTitle: userSeed.fullName.replace('Initial ', ''),
-      employeeType: 'Development seed',
-      passwordHash: await hashPassword(operationalPassword),
-      roleIds: [roleId], branchIds: [branch._id], departmentIds: [department._id],
-      status: 'active',
-    });
-    changes.usersCreated.push(userSeed.username);
   }
 
   const changed = serviceTypeBackfill.modifiedCount > 0 || departmentBranchBackfill.modifiedCount > 0 || Object.values(changes).some((items) => items.length > 0);
   if (changed) {
+    const allBranchCodes = [...new Set(initialUsers.map((user) => user.branchCode))];
     await AuditLogModel.create({
       eventType: 'rbac.phase1_seed_reconciled',
       metadataJson: {
         ...changes,
         serviceTypesBackfilled: serviceTypeBackfill.modifiedCount,
         departmentBranchScopesBackfilled: departmentBranchBackfill.modifiedCount,
-        branchCodes,
+        branchCodes: allBranchCodes,
       },
     });
   }

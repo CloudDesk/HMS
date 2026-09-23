@@ -214,7 +214,7 @@ export const DentalStageScheduleModal: React.FC<DentalStageScheduleModalProps> =
         start_time: selectedSlot,
         utc_datetime: utcDatetime,
         duration_minutes: durationMinutes,
-        reason: reason || null,
+        notes: reason || null,
       };
       scheduleMutation.mutate(
         { stageId: stage.id, payload },

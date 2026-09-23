@@ -416,3 +416,65 @@ export const provisionAccountSchema = z.object({
   email: z.string(),
   status: z.string(),
 });
+
+export const dentalQuotationItemSchema = z.object({
+  id: z.string().optional(),
+  treatment_plan_item_id: z.string().nullable().optional().transform((v) => v ?? null),
+  service_id: z.string().nullable().optional().transform((v) => v ?? null),
+  procedure_name: z.string(),
+  tooth_number: z.number().nullable().optional().transform((v) => v ?? null),
+  quantity: z.number(),
+  unit_price: z.number(),
+  discount_amount: z.number().default(0),
+  tax_amount: z.number().default(0),
+  line_total: z.number(),
+  notes: z.string().nullable().optional().transform((v) => v ?? null),
+});
+
+export const dentalQuotationOptionSchema = z.object({
+  id: z.string().optional(),
+  name: z.string(),
+  description: z.string().nullable().optional().transform((v) => v ?? null),
+  sequence: z.number(),
+  items: z.array(dentalQuotationItemSchema).default([]),
+  subtotal: z.number(),
+  discount_amount: z.number().default(0),
+  tax_amount: z.number().default(0),
+  total: z.number(),
+});
+
+export const dentalQuotationSchema = z.object({
+  id: z.string(),
+  quotation_number: z.string(),
+  patient_id: z.string(),
+  patient_number: z.string(),
+  patient_name: z.string(),
+  treatment_episode_id: z.string(),
+  treatment_episode_number: z.string().nullable().optional().transform((v) => v ?? null),
+  doctor_id: z.string(),
+  doctor_name: z.string(),
+  branch_id: z.string(),
+  department_id: z.string(),
+  status: z.enum(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'POSTPONED', 'EXPIRED']),
+  currency: z.string().default('KES'),
+  subtotal: z.number(),
+  discount_amount: z.number().default(0),
+  tax_amount: z.number().default(0),
+  total: z.number(),
+  items: z.array(dentalQuotationItemSchema).default([]),
+  options: z.array(dentalQuotationOptionSchema).default([]),
+  selected_option_id: z.string().nullable().optional().transform((v) => v ?? null),
+  selected_option_name: z.string().nullable().optional().transform((v) => v ?? null),
+  accepted_at: z.string().nullable().optional().transform((v) => v ?? null),
+  accepted_by: z.string().nullable().optional().transform((v) => v ?? null),
+  decision_reason: z.string().nullable().optional().transform((v) => v ?? null),
+  decision_at: z.string().nullable().optional().transform((v) => v ?? null),
+  sent_at: z.string().nullable().optional().transform((v) => v ?? null),
+  sent_by: z.string().nullable().optional().transform((v) => v ?? null),
+  notes: z.string().nullable().optional().transform((v) => v ?? null),
+  valid_until: z.string().nullable().optional().transform((v) => v ?? null),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const dentalQuotationsListSchema = z.array(dentalQuotationSchema);

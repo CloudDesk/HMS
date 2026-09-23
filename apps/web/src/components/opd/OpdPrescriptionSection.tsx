@@ -48,8 +48,6 @@ export type OpdPrescriptionSectionProps = {
 };
 
 export function OpdPrescriptionSection({
-  selectedDiagnoses,
-  setActiveTab,
   masterMedicines,
   medicationForm,
   setMedicationForm,

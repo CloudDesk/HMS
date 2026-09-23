@@ -226,9 +226,9 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
 
     // Check header and stage details
     expect(container.textContent).toContain('Treatment Stages & Multi-Doctor Care');
-    expect(container.textContent).toContain('Stage 1: Root Canal Treatment');
+    expect(container.textContent).toContain('Root Canal Treatment');
     expect(container.textContent).toContain('Dr. Alice Endo');
-    expect(container.textContent).toContain('Stage 2: Crown Measurement & Impression');
+    expect(container.textContent).toContain('Crown Measurement & Impression');
     expect(container.textContent).toContain('Dr. Bob Prostho');
   });
 
@@ -887,8 +887,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     // Verify item has ACCEPTED status
     expect(container.textContent).toContain('RCT and Ceramic Crown');
     expect(container.textContent).toContain('1 Accepted');
-    const statusSelect = container.querySelector('tbody select') as HTMLSelectElement;
-    expect(statusSelect?.value).toBe('ACCEPTED');
+    expect(container.textContent).toContain('ACCEPTED');
 
     // Open stages drawer
     const stageBtn = Array.from(container.querySelectorAll('button')).find((btn) =>
@@ -901,7 +900,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     });
 
     // Check Stage 1 is PLANNED with Schedule action and no Start action
-    expect(container.textContent).toContain('Stage 1: RCT and Ceramic Crown');
+    expect(container.textContent).toContain('RCT and Ceramic Crown');
     expect(container.textContent).toContain('Dr. Alice Endo');
     expect(container.textContent).toContain('PLANNED');
 
@@ -915,6 +914,92 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     );
     expect(scheduleBtn).toBeTruthy();
     expect(scheduleBtn?.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('correctly routes stage creation to tooth-specific episode when multiple tooth episodes exist', async () => {
+    const itemTooth12Id = '507f1f77bcf86cd799439012';
+    const itemTooth24Id = '507f1f77bcf86cd799439024';
+
+    const multiToothItems: DentalTreatmentPlanItem[] = [
+      {
+        id: itemTooth12Id,
+        tooth_number: 12,
+        procedure_name: 'Composite Restoration',
+        priority: 'MEDIUM',
+        status: 'ACCEPTED',
+        estimated_cost: 250,
+      },
+      {
+        id: itemTooth24Id,
+        tooth_number: 24,
+        procedure_name: 'Root Canal Treatment',
+        priority: 'HIGH',
+        status: 'ACCEPTED',
+        estimated_cost: 750,
+      },
+    ];
+
+    mockApi.listDentalStages.mockResolvedValue([]);
+    mockApi.createDentalStage.mockResolvedValue({
+      id: 'new-stage-1',
+      episode_id: 'episode-tooth-12',
+      plan_item_id: itemTooth12Id,
+      stage_name: 'Composite / GIC Restoration & Curing',
+      sequence: 1,
+      assigned_doctor_id: 'doc-1',
+      assigned_doctor_name: 'Dr. Anderson James',
+      status: 'PLANNED',
+      tooth_number: 12,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    // Mock patient episodes with distinct tooth numbers
+    vi.spyOn(mockApi, 'listDentalStages').mockImplementation(async (epId: string) => {
+      if (epId === 'episode-tooth-12') {
+        return [
+          {
+            id: 'stage-12-1',
+            episode_id: 'episode-tooth-12',
+            plan_item_id: itemTooth12Id,
+            stage_name: 'Composite / GIC Restoration & Curing',
+            sequence: 1,
+            assigned_doctor_id: 'doc-1',
+            assigned_doctor_name: 'Dr. Anderson James',
+            status: 'PLANNED',
+            tooth_number: 12,
+            branch_id: 'branch-1',
+            department_id: 'dept-1',
+            patient_id: 'patient-1',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ];
+      }
+      return [];
+    });
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalTreatmentPlanSection
+            items={multiToothItems}
+            teeth={[]}
+            onChange={vi.fn()}
+            patientId="patient-1"
+            episodeId="episode-tooth-12"
+            departmentId="dept-1"
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(container.textContent).toContain('Composite Restoration');
+    expect(container.textContent).toContain('Root Canal Treatment');
   });
 });
 

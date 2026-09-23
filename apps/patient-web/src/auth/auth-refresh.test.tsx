@@ -1,5 +1,6 @@
 import { act, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // @vitest-environment jsdom
@@ -33,6 +34,7 @@ const jsonResponse = <T,>(data: T) => new Response(JSON.stringify({ data }), {
 
 describe('patient refresh-cookie frontend contract', () => {
   beforeEach(() => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     sessionStorage.clear();
     localStorage.clear();
     tokenStorage.clear();
@@ -98,7 +100,7 @@ describe('patient refresh-cookie frontend contract', () => {
     }
 
     await act(async () => {
-      root.render(<AuthProvider><Observer /></AuthProvider>);
+      root.render(<QueryClientProvider client={new QueryClient()}><AuthProvider><Observer /></AuthProvider></QueryClientProvider>);
       await Promise.resolve();
       await Promise.resolve();
     });

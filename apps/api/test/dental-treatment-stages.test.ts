@@ -213,7 +213,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Tests', () => {
       primaryDoctorName: 'Dr. Alice Endo',
       branchId: new Types.ObjectId(branchId),
       departmentId: new Types.ObjectId(dentalDeptId),
-      primaryToothNumber: 16,
+      primaryToothNumber: null,
       status: 'ACTIVE',
       visitIds: [new Types.ObjectId(visitId)],
     });

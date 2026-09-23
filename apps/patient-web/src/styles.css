@@ -2948,6 +2948,19 @@ button {
   background: #fff;
 }
 
+.patient-modal-footer {
+  position: relative;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  padding: 12px 24px;
+  border-top: 1px solid var(--patient-border);
+  background: #fff;
+  z-index: 2;
+}
+
 .patient-modal-panel .portal-booking-form > section,
 .patient-modal-panel .portal-form-section,
 .portal-form-section {

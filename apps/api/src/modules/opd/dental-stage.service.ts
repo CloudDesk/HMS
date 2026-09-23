@@ -53,16 +53,16 @@ export function isStageCompatibleWithProcedure(procedureName: string, stageName:
   const isRestorativeStage = /cavity preparation|caries excavation|composite.*restoration|gic.*restoration/i.test(s);
   const isScalingStage = /ultrasonic scaling|subgingival curettage|root planing/i.test(s);
 
-  if (isExtractionProc && (isEndoStage || isProstheticStage || isRestorativeStage || isScalingStage)) {
+  if (isExtractionProc && !isEndoProc && !isProstheticProc && !isRestorativeProc && (isEndoStage || isProstheticStage || isRestorativeStage || isScalingStage)) {
     return false;
   }
-  if (isEndoProc && (isExtractionStage || isProstheticStage || isScalingStage)) {
+  if (isEndoProc && !isProstheticProc && !isRestorativeProc && (isExtractionStage || isProstheticStage || isScalingStage)) {
     return false;
   }
-  if (isProstheticProc && (isExtractionStage || isEndoStage || isScalingStage)) {
+  if (isProstheticProc && !isEndoProc && (isExtractionStage || isEndoStage || isScalingStage)) {
     return false;
   }
-  if (isRestorativeProc && (isExtractionStage || isEndoStage || isProstheticStage)) {
+  if (isRestorativeProc && !isEndoProc && (isExtractionStage || isEndoStage || isProstheticStage)) {
     return false;
   }
   if (isScalingProc && (isExtractionStage || isEndoStage || isProstheticStage || isRestorativeStage)) {
