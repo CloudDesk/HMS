@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { env } from '../../config/env.js';
+import { assertPatientPortalDemoOtpConfiguration, env } from '../../config/env.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { SmsService } from '../../shared/services/sms.service.js';
 import type { RequestMetadata } from '../users/user.types.js';
@@ -62,7 +62,12 @@ export class PatientOtpService {
       demoOtp: env.auth.patientPortalDemoOtp,
     },
     private readonly rateLimits = new AuthRateLimitRepository(),
-  ) {}
+  ) {
+    assertPatientPortalDemoOtpConfiguration({
+      enabled: options.demoEnabled,
+      otp: options.demoOtp,
+    });
+  }
 
   async request(phone: string, metadata: RequestMetadata) {
     const normalizedPhone = normalizePatientOtpIdentity(phone);
@@ -74,7 +79,7 @@ export class PatientOtpService {
       throw new AppError('Too many authentication requests. Try again later.', 429, 'AUTH_RATE_LIMITED');
     }
     await this.enforceRequestLimits(normalizedPhone, metadata, now);
-    const code = randomInt(1000, 10000).toString();
+    const code = this.options.demoEnabled ? this.options.demoOtp : randomInt(1000, 10000).toString();
     await this.repository.invalidateActive(normalizedPhone, now);
     const challenge = await this.repository.create({
       phone: normalizedPhone,
@@ -85,10 +90,12 @@ export class PatientOtpService {
       userAgent: metadata.userAgent ?? null,
     });
 
-    await this.sms.sendSms(
-      phone.trim(),
-      `Your HMS verification code is: ${code}. It is valid for ${Math.ceil(this.ttlSeconds() / 60)} minutes.`,
-    );
+    if (!this.options.demoEnabled) {
+      await this.sms.sendSms(
+        phone.trim(),
+        `Your HMS verification code is: ${code}. It is valid for ${Math.ceil(this.ttlSeconds() / 60)} minutes.`,
+      );
+    }
 
     return { success: true, resendAvailableAt: challenge.resendAvailableAt };
   }
@@ -96,10 +103,6 @@ export class PatientOtpService {
   async verifyAndConsume(phone: string, otp: string, metadata?: RequestMetadata): Promise<PatientOtpVerification> {
     const normalizedPhone = normalizePatientOtpIdentity(phone);
     await this.enforceVerificationLimits(normalizedPhone, metadata, this.now());
-    if (this.isDemoOtp(otp)) {
-      return this.verification(normalizedPhone, 'demo');
-    }
-
     const now = this.now();
     const { challengeId, candidateHash } = await this.assertChallengeValid(
       normalizedPhone,
@@ -121,7 +124,6 @@ export class PatientOtpService {
   async assertValidForPendingFlow(phone: string, otp: string, metadata?: RequestMetadata) {
     const normalizedPhone = normalizePatientOtpIdentity(phone);
     await this.enforceVerificationLimits(normalizedPhone, metadata, this.now());
-    if (this.isDemoOtp(otp)) return;
     await this.assertChallengeValid(normalizedPhone, otp, this.now());
   }
 
@@ -187,10 +189,6 @@ export class PatientOtpService {
       throw this.invalidOtp();
     }
     return { challengeId: challenge.id, candidateHash };
-  }
-
-  private isDemoOtp(otp: string) {
-    return this.options.demoEnabled && securelyEqual(this.options.demoOtp, otp);
   }
 
   private async enforceRequestLimits(normalizedPhone: string, metadata: RequestMetadata, now: Date) {

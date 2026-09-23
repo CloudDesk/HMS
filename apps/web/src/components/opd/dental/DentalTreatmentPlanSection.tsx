@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import type {
   DentalStageStatus,
@@ -191,6 +191,8 @@ interface DentalTreatmentPlanSectionProps {
   episodeNumber?: string | number | null;
   /** Primary tooth number for quotation modal header context */
   primaryToothNumber?: number | null;
+  /** Patient dental treatment episodes */
+  episodes?: DentalTreatmentEpisodeResponse[];
 }
 
 export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProps> = ({
@@ -214,6 +216,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   patientName = null,
   episodeNumber = null,
   primaryToothNumber = null,
+  episodes: episodesProp = [],
 }) => {
   const formatCurrency = useCurrencyFormatter();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -268,73 +271,77 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [newStageNotes, setNewStageNotes] = useState('');
   const [newStagePlannedDate, setNewStagePlannedDate] = useState('');
 
+  const parseToothNumber = (val: unknown): number | null => {
+    if (val === null || val === undefined || val === '') return null;
+    const num = typeof val === 'number' ? val : parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+    return Number.isFinite(num) ? num : null;
+  };
+
   // Patient episodes fallback if episodeId is not explicitly passed
   const { data: patientEpisodes = [] } = usePatientDentalEpisodes(patientId ?? undefined);
 
   const getEpisodeForItem = useCallback(
-    (toothNum?: number | null): DentalTreatmentEpisodeResponse | null => {
-      if (toothNum != null) {
-        const activeMatch = patientEpisodes.find(
-          (e) => e.primary_tooth_number === toothNum && e.status === 'ACTIVE',
-        );
-        if (activeMatch) return activeMatch;
+    (toothNum?: number | string | null): DentalTreatmentEpisodeResponse | null => {
+      const targetTooth = parseToothNumber(toothNum);
+      const episodeList = episodesProp && episodesProp.length > 0 ? episodesProp : patientEpisodes;
 
-        const anyMatch = patientEpisodes.find(
-          (e) => e.primary_tooth_number === toothNum,
+      // 1. Priority A: Active episode explicitly matching this tooth
+      if (targetTooth !== null) {
+        const activeToothMatch = episodeList.find(
+          (e) => parseToothNumber(e.primary_tooth_number) === targetTooth && e.status === 'ACTIVE',
         );
-        if (anyMatch) return anyMatch;
+        if (activeToothMatch) return activeToothMatch;
       }
 
-      // If no tooth number or no tooth-specific episode found, check if the passed episodeId matches this tooth or is general
+      // 2. Priority B: Active general episode (no primary tooth number)
+      const activeGeneralMatch = episodeList.find(
+        (e) => parseToothNumber(e.primary_tooth_number) === null && e.status === 'ACTIVE',
+      );
+      if (activeGeneralMatch) return activeGeneralMatch;
+
+      // 3. Priority C: Any active episode for the patient (patient-level active episode architecture)
+      const anyActiveEpisode = episodeList.find((e) => e.status === 'ACTIVE');
+      if (anyActiveEpisode) return anyActiveEpisode;
+
+      // 4. Priority D: Check if passed episodeId is active
       if (episodeId) {
-        const passed = patientEpisodes.find((e) => e.id === episodeId);
-        if (passed) {
-          if (toothNum != null && passed.primary_tooth_number === toothNum) {
-            return passed;
-          }
-          if (toothNum == null && passed.primary_tooth_number == null) {
-            return passed;
-          }
-          if (passed.primary_tooth_number == null) {
-            return passed;
-          }
-        } else if (!patientEpisodes.length) {
-          // If patientEpisodes haven't loaded or empty, fallback to passed episodeId if compatible
-          return { id: episodeId, episode_number: String(episodeNumber || 'EPISODE-1') } as DentalTreatmentEpisodeResponse;
+        const passed = episodeList.find((e) => e.id === episodeId);
+        if (passed && passed.status === 'ACTIVE') {
+          return passed;
+        } else if (!episodeList.length) {
+          return {
+            id: episodeId,
+            episode_number: String(episodeNumber || 'DTE-1'),
+            primary_tooth_number: parseToothNumber(primaryToothNumber),
+            status: 'ACTIVE',
+          } as DentalTreatmentEpisodeResponse;
         }
       }
 
-      // Fallback: active general episode
-      const activeGeneral = patientEpisodes.find(
-        (e) => e.primary_tooth_number == null && e.status === 'ACTIVE',
-      );
-      if (activeGeneral) return activeGeneral;
-
-      const anyGeneral = patientEpisodes.find((e) => e.primary_tooth_number == null);
-      if (anyGeneral) return anyGeneral;
-
       return null;
     },
-    [patientEpisodes, episodeId, episodeNumber],
+    [patientEpisodes, episodesProp, episodeId, episodeNumber, primaryToothNumber],
   );
 
   const effectiveEpisodeId = useMemo(() => {
     if (episodeId) return episodeId;
-    const active = patientEpisodes.find((e) => e.status === 'ACTIVE');
+    const all = episodesProp && episodesProp.length > 0 ? episodesProp : patientEpisodes;
+    const active = all.find((e) => e.status === 'ACTIVE');
     if (active) return active.id;
-    return patientEpisodes[0]?.id ?? null;
-  }, [episodeId, patientEpisodes]);
+    return all[0]?.id ?? null;
+  }, [episodeId, episodesProp, patientEpisodes]);
 
   // Aggregate episode IDs to query stages and lab orders across all patient episodes
   const episodeIdsToQuery = useMemo(() => {
     const ids = new Set<string>();
     if (episodeId) ids.add(episodeId);
     if (effectiveEpisodeId) ids.add(effectiveEpisodeId);
-    for (const ep of patientEpisodes) {
+    const all = episodesProp && episodesProp.length > 0 ? episodesProp : patientEpisodes;
+    for (const ep of all) {
       if (ep.id) ids.add(ep.id);
     }
     return Array.from(ids);
-  }, [episodeId, effectiveEpisodeId, patientEpisodes]);
+  }, [episodeId, effectiveEpisodeId, episodesProp, patientEpisodes]);
 
   // Lab Order modal state
   const [labOrderCreateStage, setLabOrderCreateStage] = useState<DentalTreatmentStageResponse | null>(null);
@@ -397,6 +404,12 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const { data: stageAppointmentData, isLoading: stageAppointmentLoading } = useDentalStageAppointment(viewAppointmentStageId);
   const { data: doctorsData } = useDoctorsList(departmentId ? { department_id: departmentId } : {});
   const doctors: DoctorResponse[] = useMemo(() => doctorsData?.data ?? [], [doctorsData]);
+
+  useEffect(() => {
+    if (doctors.length > 0 && !newStageDoctorId) {
+      setNewStageDoctorId(doctors[0].id);
+    }
+  }, [doctors, newStageDoctorId]);
 
   const createStageMutation = useCreateDentalStage();
   const assignDoctorMutation = useAssignDoctorToDentalStage();
@@ -684,7 +697,14 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     });
   };
 
-  const handleOpenAddStage = (itemId: string) => {
+  const handleOpenAddStage = (itemId: string, toothNum?: number | string | null) => {
+    const targetEpisode = getEpisodeForItem(toothNum);
+    if (!targetEpisode) {
+      if (onStartEpisode) {
+        onStartEpisode(parseToothNumber(toothNum));
+      }
+      return;
+    }
     setAddingStageForItem(itemId);
     setNewStageName('');
     setNewStageNotes('');
@@ -707,17 +727,18 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
   const handleSaveStage = async (
     planItemId: string,
-    toothNum?: number | null,
+    toothNum?: number | string | null,
     serviceId?: string | null,
   ) => {
     const targetEpisode = getEpisodeForItem(toothNum);
     if (!targetEpisode) {
       if (onStartEpisode) {
-        onStartEpisode(toothNum);
+        onStartEpisode(parseToothNumber(toothNum));
       }
       return;
     }
-    if (!newStageName.trim() || !newStageDoctorId) return;
+    const effectiveDoctorId = newStageDoctorId || doctors?.[0]?.id || '';
+    if (!newStageName.trim() || !effectiveDoctorId) return;
 
     const activeLabOrder = episodeLabOrders.find(
       (lo) => lo.treatment_plan_item_id === planItemId && lo.status !== 'CANCELLED',
@@ -728,8 +749,8 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
       payload: {
         plan_item_id: planItemId,
         stage_name: newStageName.trim(),
-        assigned_doctor_id: newStageDoctorId,
-        tooth_number: toothNum ?? null,
+        assigned_doctor_id: effectiveDoctorId,
+        tooth_number: parseToothNumber(toothNum),
         service_id: serviceId ?? null,
         planned_date: newStagePlannedDate || null,
         prosthetic_lab_order_id: activeLabOrder?.id ?? null,
@@ -963,7 +984,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
           ) : null}
 
           {/* Episode initiation prompt in treatment planning context */}
-          {!episodeId && onStartEpisode && !disabled && (
+          {!effectiveEpisodeId && onStartEpisode && !disabled && (
             <div
               style={{
                 display: 'flex',
@@ -1524,7 +1545,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                         type="button"
                                         className={styles.btnSecondary}
                                         style={{ padding: '3px 8px', fontSize: '0.75rem' }}
-                                        onClick={() => handleOpenAddStage(item.id!)}
+                                        onClick={() => handleOpenAddStage(item.id!, item.tooth_number)}
                                       >
                                         <i className="ph ph-plus" /> Add Stage
                                       </button>
@@ -1542,7 +1563,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                             type="button"
                                             className={styles.btnSecondary}
                                             style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                            onClick={() => handleOpenAddStage(item.id!)}
+                                            onClick={() => handleOpenAddStage(item.id!, item.tooth_number)}
                                           >
                                             <i className="ph ph-plus" /> Manage Stages
                                           </button>
@@ -1960,8 +1981,20 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                   {/* Inline Form to Add Stage */}
                                   {isAddingStage && (
                                     <div className={styles.addStageInlineBox}>
-                                      <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#1e3a8a', marginBottom: '8px' }}>
-                                        <i className="ph ph-plus-circle" /> Add New Treatment Stage for "{item.procedure_name}" (Step {itemStages.length + 1})
+                                      <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#1e3a8a', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                                        <span>
+                                          <i className="ph ph-plus-circle" /> Add New Treatment Stage for "{item.procedure_name}" (Step {itemStages.length + 1})
+                                        </span>
+                                        {(() => {
+                                          const ep = getEpisodeForItem(item.tooth_number);
+                                          if (!ep) return null;
+                                          return (
+                                            <span style={{ fontSize: '0.72rem', color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '4px', border: '1px solid #bae6fd', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                              <i className="ph ph-folder-notch-open" /> Episode: {ep.episode_number}
+                                              {ep.primary_tooth_number != null ? ` · Tooth #${ep.primary_tooth_number}` : ' · General'}
+                                            </span>
+                                          );
+                                        })()}
                                       </div>
 
                                       {/* Quick stage suggestions contextual to procedure */}
@@ -2056,7 +2089,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                           type="button"
                                           className={styles.btnPrimary}
                                           style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                                          disabled={!newStageName.trim() || !newStageDoctorId || createStageMutation.isPending}
+                                          disabled={!newStageName.trim() || !(newStageDoctorId || doctors?.[0]?.id) || createStageMutation.isPending}
                                           onClick={() => handleSaveStage(item.id!, item.tooth_number, item.service_id)}
                                         >
                                           {createStageMutation.isPending ? 'Saving...' : 'Add Stage'}

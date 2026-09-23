@@ -120,26 +120,15 @@ assertRefreshCookieConfiguration({
 export const assertPatientPortalDemoOtpConfiguration = (input: {
   enabled: boolean;
   otp: string;
-  production: boolean;
 }) => {
   if (input.enabled && !/^\d{4}$/.test(input.otp)) {
     throw new Error('PATIENT_PORTAL_DEMO_OTP must be exactly four digits when demo OTP is enabled');
-  }
-  if (input.production && (input.enabled || input.otp)) {
-    throw new Error('Patient portal demo OTP configuration is not allowed in production');
   }
 };
 
 assertPatientPortalDemoOtpConfiguration({
   enabled: patientPortalDemoOtpEnabled,
   otp: patientPortalDemoOtp,
-  production: productionEnvironment,
-});
-
-assertPatientPortalDemoOtpConfiguration({
-  enabled: patientPortalDemoOtpEnabled,
-  otp: patientPortalDemoOtp,
-  production: productionEnvironment,
 });
 
 export const resolveAllowedCorsOrigins = (origins: string[]): string[] => {
@@ -374,8 +363,4 @@ export const env = {
 
 if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {
   throw new Error('JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET are required');
-}
-
-if (env.app.environment === 'prod' && env.auth.patientPortalDemoOtp) {
-  throw new Error('PATIENT_PORTAL_DEMO_OTP must not be configured in production');
 }

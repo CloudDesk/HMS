@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { assertPatientPortalDemoOtpConfiguration } from '../../config/env.js';
-import type { SmsService } from '../../shared/services/sms.service.js';
+import { createSmsService, type SmsService } from '../../shared/services/sms.service.js';
 import { AuthRepository } from '../auth/auth.repository.js';
 import { AuthService } from '../auth/auth.service.js';
 import { RefreshTokenModel } from '../auth/refresh-token.model.js';
@@ -333,27 +333,58 @@ describe('patient OTP challenge security', () => {
     expect(await RefreshTokenModel.countDocuments()).toBe(1);
   });
 
-  it('allows only an explicitly configured demo OTP in non-production configuration', async () => {
+  it('persists the configured static code without SMS and verifies it once for the supplied mobile', async () => {
     const demoService = new PatientOtpService(
       new PatientOtpRepository(),
       sms,
       { demoEnabled: true, demoOtp: '1234' },
     );
 
-    await expect(demoService.verifyAndConsume(phone, '1234')).resolves.toMatchObject({
-      phone: normalizedPhone,
-      challengeId: 'demo',
-    });
-    await expect(demoService.verifyAndConsume(phone, '0000')).rejects.toMatchObject({
+    await expect(demoService.verifyAndConsume('9999988888', '1234')).rejects.toMatchObject({ code: 'INVALID_OTP' });
+    await demoService.request('9999988888', metadata);
+    const challenge = await OtpChallengeModel.findOne({ phone: '9999988888' }).lean();
+    expect(challenge?.otpHash).toBe(createHash('sha256').update('9999988888:1234').digest('hex'));
+    expect(sms.lastMessage).toBe('');
+    await expect(demoService.verifyAndConsume(phone, '1234')).rejects.toMatchObject({ code: 'INVALID_OTP' });
+    await expect(demoService.verifyAndConsume('9999988888', '0000')).rejects.toMatchObject({
       code: 'INVALID_OTP',
     });
+    await expect(demoService.verifyAndConsume('9999988888', '1234')).resolves.toMatchObject({ phone: '9999988888', challengeId: String(challenge?._id) });
+    await expect(demoService.verifyAndConsume('9999988888', '1234')).rejects.toMatchObject({ code: 'INVALID_OTP' });
   });
 
-  it('rejects demo OTP configuration in production', () => {
+  it('preserves expiry, attempt limits and resend limits in static mode', async () => {
+    let now = new Date('2030-01-01T00:00:00Z');
+    const staticService = new PatientOtpService(new PatientOtpRepository(), sms, {
+      demoEnabled: true, demoOtp: '1234', ttlSeconds: 300, maxVerificationAttempts: 3, now: () => now,
+    });
+    await staticService.request(phone, metadata);
+    await expect(staticService.request(phone, metadata)).rejects.toMatchObject({ code: 'AUTH_RATE_LIMITED' });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(staticService.verifyAndConsume(phone, '0000')).rejects.toMatchObject({ code: 'INVALID_OTP' });
+    }
+    await expect(staticService.verifyAndConsume(phone, '1234')).rejects.toMatchObject({ code: 'MAX_ATTEMPTS_EXCEEDED' });
+    now = new Date(now.getTime() + 61_000);
+    await staticService.request(phone, metadata);
+    now = new Date(now.getTime() + 300_000);
+    await expect(staticService.assertValidForPendingFlow(phone, '1234')).rejects.toMatchObject({ code: 'INVALID_OTP' });
+    await expect(staticService.verifyAndConsume(phone, '1234')).rejects.toMatchObject({ code: 'INVALID_OTP' });
+  });
+
+  it('needs no gateway in static mode but rejects missing gateway configuration in real mode', async () => {
+    const unavailableSms = createSmsService({ provider: 'HTTP', url: '', apiKey: '' }, false);
+    const staticService = new PatientOtpService(new PatientOtpRepository(), unavailableSms, { demoEnabled: true, demoOtp: '1234' });
+    await expect(staticService.request('9999988888', metadata)).resolves.toMatchObject({ success: true });
+    const realService = new PatientOtpService(new PatientOtpRepository(), unavailableSms, { demoEnabled: false, demoOtp: '' });
+    await expect(realService.request(phone, metadata)).rejects.toMatchObject({ code: 'SMS_NOT_CONFIGURED' });
+  });
+
+  it('allows explicitly configured static OTP independently of shared deployment mode', () => {
     expect(() => assertPatientPortalDemoOtpConfiguration({
       enabled: true,
       otp: '1234',
-      production: true,
-    })).toThrow('not allowed in production');
+    })).not.toThrow();
+    expect(() => assertPatientPortalDemoOtpConfiguration({ enabled: true, otp: '' })).toThrow('exactly four digits');
+    expect(() => assertPatientPortalDemoOtpConfiguration({ enabled: true, otp: '12345' })).toThrow('exactly four digits');
   });
 });

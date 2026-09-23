@@ -61,7 +61,8 @@ Focused automated results: API OTP/SMS/session suites passed 49 tests in
 three files; patient frontend login/auth suites passed 14 tests in four files.
 Logs: otp-focused-tests.log and otp-frontend-tests.log (ignored local files).
 
-Patient-web typecheck, lint and production build passed. API typecheck passed.
+Patient-web typecheck, lint and production build passed. API typecheck and build
+passed. Staff-web lint passed; its build failed with the same type error below.
 Full API lint found one error outside this change:
 apps/api/test/dental-quotation-patient-portal-sync.test.ts:49, unused
 planItemScalingId. It reported no errors in the OTP/SMS files.

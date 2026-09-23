@@ -31,11 +31,12 @@ On the Render API service, configure `SMS_GATEWAY_PROVIDER=HTTP`,
 the gateway must implement that contract. Save the environment settings and
 redeploy the API. Firebase frontend deployment does not configure SMS delivery.
 
-Production must not use the mock sender. Missing/invalid delivery configuration
-returns `503 SMS_NOT_CONFIGURED` instead of reporting that an SMS was sent.
-`MOCK` is available only in dev/test and captures messages in memory without
-delivering them. It does not make `1234` a valid code. Demo OTP configuration is
-explicitly prohibited in production; do not enable it to work around delivery.
+The owner-requested shared Render setup uses `PATIENT_PORTAL_DEMO_OTP_ENABLED=true`
+and `PATIENT_PORTAL_DEMO_OTP=1234`, without changing APP_ENV or NODE_ENV. This
+patient-only setting stores and verifies the static code normally and skips SMS.
+It does not prove mobile ownership. See PATIENT_OTP_STATIC_MODE.md.
+With the flag disabled, missing/invalid delivery configuration returns
+`503 SMS_NOT_CONFIGURED`; real mode requires a configured HTTP SMS gateway.
 
 Use the latest received four-digit SMS code. Defaults are a five-minute expiry,
 a 60-second resend cooldown, and three incorrect attempts per challenge.

@@ -100,8 +100,6 @@ export const createSmsService = (
   if (provider === 'HTTP' && validUrl && apiKey) {
     return new HttpSmsService(url, apiKey);
   }
-  if (provider === 'MOCK' && !production) return new MockSmsService();
-
   // Keep other API domains available, but fail OTP delivery explicitly.
   return {
     async sendSms() {

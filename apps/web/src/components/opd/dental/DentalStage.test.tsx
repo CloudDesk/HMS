@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DentalTreatmentPlanSection } from './DentalTreatmentPlanSection';
-import type { DentalTreatmentPlanItem, DentalTreatmentStageResponse } from '../../../api/opd';
+import type { DentalTreatmentPlanItem, DentalTreatmentStageResponse, DentalTreatmentEpisodeResponse } from '../../../api/opd';
 import type { DoctorListResponse } from '../../../api/doctors';
 
 const mockApi = vi.hoisted(() => ({
@@ -21,6 +21,7 @@ const mockApi = vi.hoisted(() => ({
   acceptDentalQuotation: vi.fn(),
   rejectDentalQuotation: vi.fn(),
   postponeDentalQuotation: vi.fn(),
+  listPatientDentalEpisodes: vi.fn(),
 }));
 
 const mockDoctorsApi = vi.hoisted(() => ({
@@ -1000,6 +1001,288 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
 
     expect(container.textContent).toContain('Composite Restoration');
     expect(container.textContent).toContain('Root Canal Treatment');
+  });
+
+  it('1 & 5. One active episode for patient (e.g. Tooth #24) + procedure on Tooth #12 -> Add Stage uses existing episode', async () => {
+    const onStartEpisode = vi.fn();
+    const activeEpisode24: DentalTreatmentEpisodeResponse = {
+      id: 'episode-dte-00002',
+      episode_number: 'DTE-2026-00002',
+      patient_id: 'patient-1',
+      primary_tooth_number: 24,
+      status: 'ACTIVE',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    mockApi.listDentalStages.mockResolvedValue([]);
+    mockApi.listPatientDentalEpisodes.mockResolvedValue([activeEpisode24]);
+    mockApi.createDentalStage.mockResolvedValue({
+      id: 'stage-12-new',
+      episode_id: 'episode-dte-00002',
+      plan_item_id: planItemId,
+      stage_name: 'Composite Restoration Prep',
+      assigned_doctor_id: 'doc-1',
+      status: 'PLANNED',
+      tooth_number: 12,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const item12: DentalTreatmentPlanItem = {
+      id: planItemId,
+      tooth_number: 12,
+      procedure_name: 'Composite Restoration',
+      priority: 'HIGH',
+      status: 'ACCEPTED',
+      estimated_cost: 25000,
+    };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalTreatmentPlanSection
+            items={[item12]}
+            teeth={[]}
+            onChange={vi.fn()}
+            patientId="patient-1"
+            episodes={[activeEpisode24]}
+            departmentId="dept-1"
+            onStartEpisode={onStartEpisode}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // 1. Expand stages drawer
+    const expandBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Stages available') || b.textContent?.includes('Stages ('),
+    );
+    expect(expandBtn).toBeTruthy();
+    await act(async () => {
+      expandBtn?.click();
+    });
+
+    // 2. Open inline Add Stage form
+    const addStageBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Add Stage') || b.textContent?.includes('Manage Stages'),
+    );
+    expect(addStageBtn).toBeTruthy();
+    await act(async () => {
+      addStageBtn?.click();
+    });
+
+    // Verify episode context is shown in the inline form
+    expect(container.textContent).toContain('DTE-2026-00002');
+
+    // Fill in stage name
+    const stageInput = container.querySelector<HTMLInputElement>('input[placeholder*="Crown Impression"]');
+    if (stageInput) {
+      await act(async () => {
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        if (nativeSetter) {
+          nativeSetter.call(stageInput, 'Composite Restoration Prep');
+        } else {
+          stageInput.value = 'Composite Restoration Prep';
+        }
+        stageInput.dispatchEvent(new Event('input', { bubbles: true }));
+        stageInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    // Submit stage
+    const submitBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Add Stage' && b.className.includes('btnPrimary'),
+    );
+    expect(submitBtn).toBeTruthy();
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    // Verify stage was created on the existing active episode (DTE-2026-00002) and onStartEpisode was NOT called
+    expect(onStartEpisode).not.toHaveBeenCalled();
+    expect(mockApi.createDentalStage).toHaveBeenCalledWith(
+      'episode-dte-00002',
+      expect.objectContaining({
+        plan_item_id: planItemId,
+        stage_name: 'Composite Restoration Prep',
+        tooth_number: 12,
+      }),
+    );
+  });
+
+  it('2 & 4. One active episode for patient + procedure on Tooth #24 -> Add Stage uses existing episode and never opens Create Episode', async () => {
+    const onStartEpisode = vi.fn();
+    const activeEpisode24: DentalTreatmentEpisodeResponse = {
+      id: 'episode-dte-00002',
+      episode_number: 'DTE-2026-00002',
+      patient_id: 'patient-1',
+      primary_tooth_number: 24,
+      status: 'ACTIVE',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    mockApi.listDentalStages.mockResolvedValue([]);
+    mockApi.listPatientDentalEpisodes.mockResolvedValue([activeEpisode24]);
+    mockApi.createDentalStage.mockResolvedValue({
+      id: 'stage-24-new',
+      episode_id: 'episode-dte-00002',
+      plan_item_id: planItemId,
+      stage_name: 'Root Canal Obturation',
+      assigned_doctor_id: 'doc-1',
+      status: 'PLANNED',
+      tooth_number: 24,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const item24: DentalTreatmentPlanItem = {
+      id: planItemId,
+      tooth_number: 24,
+      procedure_name: 'Root Canal Treatment',
+      priority: 'HIGH',
+      status: 'ACCEPTED',
+      estimated_cost: 35000,
+    };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalTreatmentPlanSection
+            items={[item24]}
+            teeth={[]}
+            onChange={vi.fn()}
+            patientId="patient-1"
+            episodes={[activeEpisode24]}
+            departmentId="dept-1"
+            onStartEpisode={onStartEpisode}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // 1. Expand stages drawer
+    const expandBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Stages available') || b.textContent?.includes('Stages ('),
+    );
+    await act(async () => {
+      expandBtn?.click();
+    });
+
+    // 2. Open inline Add Stage form
+    const addStageBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Add Stage') || b.textContent?.includes('Manage Stages'),
+    );
+    await act(async () => {
+      addStageBtn?.click();
+    });
+
+    const stageInput = container.querySelector<HTMLInputElement>('input[placeholder*="Crown Impression"]');
+    if (stageInput) {
+      await act(async () => {
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        if (nativeSetter) {
+          nativeSetter.call(stageInput, 'Root Canal Obturation');
+        } else {
+          stageInput.value = 'Root Canal Obturation';
+        }
+        stageInput.dispatchEvent(new Event('input', { bubbles: true }));
+        stageInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Add Stage' && b.className.includes('btnPrimary'),
+    );
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    // Should use the existing active episode and NOT trigger onStartEpisode
+    expect(onStartEpisode).not.toHaveBeenCalled();
+    expect(mockApi.createDentalStage).toHaveBeenCalledWith(
+      'episode-dte-00002',
+      expect.objectContaining({
+        plan_item_id: planItemId,
+        stage_name: 'Root Canal Obturation',
+        tooth_number: 24,
+      }),
+    );
+  });
+
+  it('3 & 6. No active episode (e.g. only COMPLETED episode) -> Create Episode flow is opened and no duplicate stage created', async () => {
+    const onStartEpisode = vi.fn();
+    const completedEpisode: DentalTreatmentEpisodeResponse = {
+      id: 'episode-tooth-12-closed',
+      episode_number: 'DTE-2026-00001',
+      patient_id: 'patient-1',
+      primary_tooth_number: 12,
+      status: 'COMPLETED',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    mockApi.listDentalStages.mockResolvedValue([]);
+    mockApi.listPatientDentalEpisodes.mockResolvedValue([completedEpisode]);
+
+    const item12: DentalTreatmentPlanItem = {
+      id: planItemId,
+      tooth_number: 12,
+      procedure_name: 'Bridge',
+      priority: 'HIGH',
+      status: 'ACCEPTED',
+      estimated_cost: 40000,
+    };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalTreatmentPlanSection
+            items={[item12]}
+            teeth={[]}
+            onChange={vi.fn()}
+            patientId="patient-1"
+            episodes={[completedEpisode]}
+            departmentId="dept-1"
+            onStartEpisode={onStartEpisode}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // 1. Expand stages drawer
+    const expandBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Stages available') || b.textContent?.includes('Stages ('),
+    );
+    await act(async () => {
+      expandBtn?.click();
+    });
+
+    // 2. Open inline Add Stage form
+    const addStageBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Add Stage') || b.textContent?.includes('Manage Stages'),
+    );
+    await act(async () => {
+      addStageBtn?.click();
+    });
+
+    // Because there is NO active episode, onStartEpisode should be triggered with Tooth #12
+    expect(onStartEpisode).toHaveBeenCalledWith(12);
+    expect(mockApi.createDentalStage).not.toHaveBeenCalled();
   });
 });
 

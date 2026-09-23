@@ -887,6 +887,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         onCreateInvoice={onCreateInvoice}
         onOpenInvoice={onOpenInvoice}
         patientId={patientId}
+        episodes={episodes}
         episodeId={
           dentalExam?.episode_id ??
           episodeForSelectedTooth?.id ??

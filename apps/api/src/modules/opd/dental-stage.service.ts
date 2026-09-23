@@ -147,15 +147,22 @@ export class DentalStageService {
             (it) => it._id?.toString() === data.plan_item_id,
           );
           if (matchedItem) {
+            if (exam.patientId && exam.patientId.toString() !== episode.patient_id.toString()) {
+              throw new AppError(
+                'Treatment plan procedure does not belong to the patient of this episode',
+                400,
+                'EPISODE_PATIENT_MISMATCH',
+              );
+            }
             if (
-              episode.primary_tooth_number != null &&
+              data.tooth_number != null &&
               matchedItem.toothNumber != null &&
-              matchedItem.toothNumber !== episode.primary_tooth_number
+              data.tooth_number !== matchedItem.toothNumber
             ) {
               throw new AppError(
-                `Treatment plan procedure for tooth #${matchedItem.toothNumber} does not belong to episode #${episode.episode_number} (Tooth #${episode.primary_tooth_number})`,
+                `Treatment stage tooth #${data.tooth_number} does not match procedure tooth #${matchedItem.toothNumber}`,
                 400,
-                'EPISODE_TOOTH_MISMATCH',
+                'PROCEDURE_TOOTH_MISMATCH',
               );
             }
             if (matchedItem.status === 'PROPOSED') {

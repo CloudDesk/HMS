@@ -22,9 +22,13 @@ describe('M-014: SMS Logging and Failure Handling', () => {
       });
     });
 
-    it('selects the configured HTTP sender and permits mocks only outside production', () => {
+    it('selects the configured HTTP sender', () => {
       expect(createSmsService({ provider: ' http ', url: 'https://gateway.example/send', apiKey: 'test-key' }, true)).toBeInstanceOf(HttpSmsService);
-      expect(createSmsService({ provider: 'MOCK', url: '', apiKey: '' }, false)).toBeInstanceOf(MockSmsService);
+    });
+
+    it('does not use a mock sender for real OTP delivery in development', async () => {
+      await expect(createSmsService({ provider: 'MOCK', url: '', apiKey: '' }, false)
+        .sendSms('9999988888', 'test message')).rejects.toMatchObject({ code: 'SMS_NOT_CONFIGURED' });
     });
 
     it('does not silently mock an incomplete HTTP configuration in SIT either', async () => {
