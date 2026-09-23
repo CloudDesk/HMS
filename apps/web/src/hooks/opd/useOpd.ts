@@ -612,8 +612,8 @@ export function useCreateDentalLabOrder() {
     onSuccess: async (data) => {
       toast.success(`Dental Lab Order ${data.order_number} created successfully.`);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: opdKeys.episodeDentalLabOrders(data.treatment_episode_id) }),
-        queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages', data.treatment_episode_id] }),
+        queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-episode-lab-orders'] }),
+        queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages'] }),
         queryClient.invalidateQueries({ queryKey: opdKeys.dentalLabOrder(data.id) }),
       ]);
     },
@@ -635,7 +635,8 @@ export function useUpdateDentalLabOrderStatus() {
       toast.success(`Dental Lab Order status updated to ${data.status}.`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: opdKeys.dentalLabOrder(data.id) }),
-        queryClient.invalidateQueries({ queryKey: opdKeys.episodeDentalLabOrders(data.treatment_episode_id) }),
+        queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-episode-lab-orders'] }),
+        queryClient.invalidateQueries({ queryKey: [...opdKeys.all, 'dental-stages'] }),
       ]);
     },
     onError: (error) => toast.error(getOpdErrorMessage(error)),

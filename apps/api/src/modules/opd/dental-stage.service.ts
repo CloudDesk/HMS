@@ -136,6 +136,7 @@ export class DentalStageService {
 
     // Clinical Consistency Check
     let procedureName: string | null = null;
+    let matchedItemToothNumber: number | null = null;
     try {
       if (isObjectId(data.plan_item_id)) {
         const planItemIdObj = new Types.ObjectId(data.plan_item_id);
@@ -147,6 +148,7 @@ export class DentalStageService {
             (it) => it._id?.toString() === data.plan_item_id,
           );
           if (matchedItem) {
+            matchedItemToothNumber = matchedItem.toothNumber ?? null;
             if (exam.patientId && exam.patientId.toString() !== episode.patient_id.toString()) {
               throw new AppError(
                 'Treatment plan procedure does not belong to the patient of this episode',
@@ -254,7 +256,7 @@ export class DentalStageService {
         stage = await this.repository.create({
           episodeId: new Types.ObjectId(episodeId),
           planItemId: data.plan_item_id.trim(),
-          toothNumber: data.tooth_number ?? episode.primary_tooth_number ?? null,
+          toothNumber: data.tooth_number ?? matchedItemToothNumber ?? episode.primary_tooth_number ?? null,
           serviceId: data.service_id ? new Types.ObjectId(data.service_id) : null,
           stageName: data.stage_name.trim(),
           sequence,

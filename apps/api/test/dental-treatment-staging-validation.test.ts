@@ -280,7 +280,7 @@ describe('Dental Treatment Staging Procedure Validation & Isolation Tests', () =
     expect(body.sequence).toBe(1);
   });
 
-  it('3. Rejects adding Tooth #12 plan procedure to Tooth #24 Episode with EPISODE_TOOTH_MISMATCH', async () => {
+  it('3. Successfully adds Stage for Tooth #12 procedure under Tooth #24 Episode (cross-tooth single episode)', async () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/opd/dental/episodes/${episodeTooth24Id}/stages`,
@@ -293,20 +293,22 @@ describe('Dental Treatment Staging Procedure Validation & Isolation Tests', () =
       },
     });
 
-    expect(res.statusCode).toBe(400);
-    const err = res.json();
-    expect(err.code || err.error?.code).toBe('EPISODE_TOOTH_MISMATCH');
-    expect(err.message || err.error?.message).toContain('Treatment plan procedure for tooth #12 does not belong to episode #2026-00002 (Tooth #24)');
+    expect(res.statusCode).toBe(200);
+    const body = res.json().data;
+    expect(body.plan_item_id).toBe(planItemTooth12Id);
+    expect(body.tooth_number).toBe(12);
+    expect(body.episode_id).toBe(episodeTooth24Id);
+    expect(body.stage_name).toBe('Composite / GIC Restoration & Curing');
   });
 
-  it('4. Rejects adding Tooth #24 plan procedure to Tooth #12 Episode with EPISODE_TOOTH_MISMATCH', async () => {
+  it('4. Rejects adding stage when stage tooth_number does not match procedure tooth_number', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: `/api/opd/dental/episodes/${episodeTooth12Id}/stages`,
+      url: `/api/opd/dental/episodes/${episodeTooth24Id}/stages`,
       headers: { authorization: `Bearer ${doctorToken}` },
       payload: {
-        plan_item_id: planItemTooth24Id,
-        stage_name: 'Canal Instrumentation & Shaping',
+        plan_item_id: planItemTooth12Id,
+        stage_name: 'Composite / GIC Restoration & Curing',
         assigned_doctor_id: doctorId,
         tooth_number: 24,
       },
@@ -314,23 +316,11 @@ describe('Dental Treatment Staging Procedure Validation & Isolation Tests', () =
 
     expect(res.statusCode).toBe(400);
     const err = res.json();
-    expect(err.code || err.error?.code).toBe('EPISODE_TOOTH_MISMATCH');
-    expect(err.message || err.error?.message).toContain('Treatment plan procedure for tooth #24 does not belong to episode #2026-00001 (Tooth #12)');
+    expect(err.code || err.error?.code).toBe('PROCEDURE_TOOTH_MISMATCH');
+    expect(err.message || err.error?.message).toContain('Treatment stage tooth #24 does not match procedure tooth #12');
   });
 
-  it('5. Queries listStages for Tooth #12 episode and verifies Tooth #24 stages are not included', async () => {
-    const res12 = await app.inject({
-      method: 'GET',
-      url: `/api/opd/dental/episodes/${episodeTooth12Id}/stages`,
-      headers: { authorization: `Bearer ${doctorToken}` },
-    });
-
-    expect(res12.statusCode).toBe(200);
-    const stages12 = res12.json().data;
-    expect(stages12.length).toBe(1);
-    expect(stages12[0].tooth_number).toBe(12);
-    expect(stages12[0].plan_item_id).toBe(planItemTooth12Id);
-
+  it('5. Queries listStages for Tooth #24 episode and returns stages for both Tooth #24 and Tooth #12', async () => {
     const res24 = await app.inject({
       method: 'GET',
       url: `/api/opd/dental/episodes/${episodeTooth24Id}/stages`,
@@ -339,8 +329,8 @@ describe('Dental Treatment Staging Procedure Validation & Isolation Tests', () =
 
     expect(res24.statusCode).toBe(200);
     const stages24 = res24.json().data;
-    expect(stages24.length).toBe(1);
-    expect(stages24[0].tooth_number).toBe(24);
-    expect(stages24[0].plan_item_id).toBe(planItemTooth24Id);
+    expect(stages24.length).toBe(2);
+    expect(stages24.some((s: any) => s.tooth_number === 24 && s.plan_item_id === planItemTooth24Id)).toBe(true);
+    expect(stages24.some((s: any) => s.tooth_number === 12 && s.plan_item_id === planItemTooth12Id)).toBe(true);
   });
 });

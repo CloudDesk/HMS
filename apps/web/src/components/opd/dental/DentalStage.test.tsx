@@ -1005,7 +1005,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
 
   it('1 & 5. One active episode for patient (e.g. Tooth #24) + procedure on Tooth #12 -> Add Stage uses existing episode', async () => {
     const onStartEpisode = vi.fn();
-    const activeEpisode24: DentalTreatmentEpisodeResponse = {
+    const activeEpisode24 = {
       id: 'episode-dte-00002',
       episode_number: 'DTE-2026-00002',
       patient_id: 'patient-1',
@@ -1013,7 +1013,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+    } as unknown as DentalTreatmentEpisodeResponse;
 
     mockApi.listDentalStages.mockResolvedValue([]);
     mockApi.listPatientDentalEpisodes.mockResolvedValue([activeEpisode24]);
@@ -1118,7 +1118,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
 
   it('2 & 4. One active episode for patient + procedure on Tooth #24 -> Add Stage uses existing episode and never opens Create Episode', async () => {
     const onStartEpisode = vi.fn();
-    const activeEpisode24: DentalTreatmentEpisodeResponse = {
+    const activeEpisode24 = {
       id: 'episode-dte-00002',
       episode_number: 'DTE-2026-00002',
       patient_id: 'patient-1',
@@ -1126,7 +1126,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+    } as unknown as DentalTreatmentEpisodeResponse;
 
     mockApi.listDentalStages.mockResolvedValue([]);
     mockApi.listPatientDentalEpisodes.mockResolvedValue([activeEpisode24]);
@@ -1222,7 +1222,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
 
   it('3 & 6. No active episode (e.g. only COMPLETED episode) -> Create Episode flow is opened and no duplicate stage created', async () => {
     const onStartEpisode = vi.fn();
-    const completedEpisode: DentalTreatmentEpisodeResponse = {
+    const completedEpisode = {
       id: 'episode-tooth-12-closed',
       episode_number: 'DTE-2026-00001',
       patient_id: 'patient-1',
@@ -1230,7 +1230,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
       status: 'COMPLETED',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    };
+    } as unknown as DentalTreatmentEpisodeResponse;
 
     mockApi.listDentalStages.mockResolvedValue([]);
     mockApi.listPatientDentalEpisodes.mockResolvedValue([completedEpisode]);

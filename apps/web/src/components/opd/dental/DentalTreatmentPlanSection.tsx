@@ -406,7 +406,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const doctors: DoctorResponse[] = useMemo(() => doctorsData?.data ?? [], [doctorsData]);
 
   useEffect(() => {
-    if (doctors.length > 0 && !newStageDoctorId) {
+    if (doctors.length > 0 && !newStageDoctorId && doctors[0]?.id) {
       setNewStageDoctorId(doctors[0].id);
     }
   }, [doctors, newStageDoctorId]);

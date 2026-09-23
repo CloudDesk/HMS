@@ -188,18 +188,10 @@ export const DentalStageScheduleModal: React.FC<DentalStageScheduleModalProps> =
     e.preventDefault();
     if (!selectedSlot) return;
 
-    let utcDatetime: string | undefined;
-    try {
-      utcDatetime = new Date(`${date}T${selectedSlot}:00`).toISOString();
-    } catch {
-      utcDatetime = undefined;
-    }
-
     if (isReschedule) {
       const payload: RescheduleDentalStagePayload = {
         appointment_date: date,
         start_time: selectedSlot,
-        utc_datetime: utcDatetime,
         duration_minutes: durationMinutes,
         reschedule_reason: reason || null,
       };
@@ -212,7 +204,6 @@ export const DentalStageScheduleModal: React.FC<DentalStageScheduleModalProps> =
         doctor_id: selectedDoctorId !== stage.assigned_doctor_id ? selectedDoctorId : undefined,
         appointment_date: date,
         start_time: selectedSlot,
-        utc_datetime: utcDatetime,
         duration_minutes: durationMinutes,
         notes: reason || null,
       };

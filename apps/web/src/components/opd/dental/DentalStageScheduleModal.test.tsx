@@ -196,11 +196,11 @@ describe('DentalStageScheduleModal', () => {
       doctor_id: undefined,
       appointment_date: '2026-09-24',
       start_time: '11:30',
-      utc_datetime: expect.any(String),
       duration_minutes: 60,
       notes: 'First visit composite restoration for cavity on tooth 12',
     });
-    // Ensure "reason" is not sent
+    // Ensure browser-local utc_datetime and unrecognized "reason" are not sent
+    expect(firstCall[1]).not.toHaveProperty('utc_datetime');
     expect(firstCall[1]).not.toHaveProperty('reason');
     expect(onClose).toHaveBeenCalled();
   });
