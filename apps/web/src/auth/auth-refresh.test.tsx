@@ -223,8 +223,8 @@ describe('web auth token refresh and concurrent request handling', () => {
       await act(async () => {
         root.render(<QueryClientProvider client={queryClient}><AuthProvider><Observer /></AuthProvider></QueryClientProvider>);
       });
-      expect(container.textContent).toContain('unauthenticated');
-      expect(container.textContent).toContain('Please try again');
+      expect(container.textContent).toBe('unauthenticated: ');
+      expect(container.textContent).not.toContain('Please try again');
       expect(clear).not.toHaveBeenCalled();
       expect(fetch).toHaveBeenCalledTimes(1);
       expect(vi.mocked(fetch).mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);

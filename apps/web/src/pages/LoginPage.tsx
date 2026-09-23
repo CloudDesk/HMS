@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../api/api-error';
 import { SessionExpiredNotice } from '../components/SessionExpiredNotice';
 import { useAuth } from '../auth/useAuth';
@@ -12,6 +12,16 @@ export function LoginPage() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStartingService, setIsStartingService] = useState(false);
+  const wakeTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (wakeTimerRef.current) {
+        window.clearTimeout(wakeTimerRef.current);
+      }
+    };
+  }, []);
 
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const showExpiredNotice = status === 'session-expired' || query.get('reason') === 'session-expired';
@@ -27,6 +37,10 @@ export function LoginPage() {
     }
 
     setIsSubmitting(true);
+    setIsStartingService(false);
+    wakeTimerRef.current = window.setTimeout(() => {
+      setIsStartingService(true);
+    }, 2500);
 
     try {
       await login(identifier.trim(), password);
@@ -37,6 +51,11 @@ export function LoginPage() {
         setFormError('We could not complete the sign in request. Please try again.');
       }
     } finally {
+      if (wakeTimerRef.current) {
+        window.clearTimeout(wakeTimerRef.current);
+        wakeTimerRef.current = null;
+      }
+      setIsStartingService(false);
       setIsSubmitting(false);
     }
   };
@@ -62,6 +81,12 @@ export function LoginPage() {
         </div>
 
         <SessionExpiredNotice visible={showExpiredNotice} />
+
+        {isStartingService ? (
+          <div className="auth-alert auth-alert--warning" role="status">
+            Starting the authentication service. This may take a moment...
+          </div>
+        ) : null}
 
         {errorMessage ? (
           <div className="auth-alert auth-alert--error" role="alert">

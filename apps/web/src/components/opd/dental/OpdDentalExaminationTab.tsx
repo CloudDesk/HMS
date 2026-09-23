@@ -3,7 +3,6 @@ import type { Icd10Diagnosis } from '../../../data/icd10-diagnoses';
 import type {
   DentalHistory,
   DentalTreatmentPlanItem,
-  DentitionType,
   OpdConsultationResponse,
   OpdDentalExaminationResponse,
   SaveOpdDentalExaminationPayload,
@@ -133,31 +132,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       }),
     [effectiveDob, dentalExam?.teeth, isCompleted],
   );
-
-  const [currentDentition, setCurrentDentition] = useState<DentitionType>(defaultDentition);
-  const userOverriddenDentitionRef = useRef(false);
-  const lastVisitIdRef = useRef(visitId);
-
-  // When visitId changes (e.g. switching patient/visit), reset manual override and recalculate default
-  useEffect(() => {
-    if (lastVisitIdRef.current !== visitId) {
-      lastVisitIdRef.current = visitId;
-      userOverriddenDentitionRef.current = false;
-      setCurrentDentition(defaultDentition);
-    }
-  }, [visitId, defaultDentition]);
-
-  // When defaultDentition resolves/updates on initial data load, sync if user hasn't overridden
-  useEffect(() => {
-    if (!userOverriddenDentitionRef.current) {
-      setCurrentDentition(defaultDentition);
-    }
-  }, [defaultDentition]);
-
-  const handleDentitionChange = (newDentition: DentitionType) => {
-    userOverriddenDentitionRef.current = true;
-    setCurrentDentition(newDentition);
-  };
 
   const [selectedToothNumber, setSelectedToothNumber] = useState<number | null>(null);
   const [diagnosisModalOpen, setDiagnosisModalOpen] = useState(false);
@@ -724,9 +698,8 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             selectedToothNumber={selectedToothNumber}
             onSelectTooth={(num) => setSelectedToothNumber(num)}
             disabled={isSaving}
-            dentition={currentDentition}
             defaultDentition={defaultDentition}
-            onDentitionChange={handleDentitionChange}
+            dentition={defaultDentition}
             patientAge={patientAge}
             showLegend
           />

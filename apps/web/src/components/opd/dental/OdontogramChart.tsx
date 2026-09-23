@@ -11,7 +11,6 @@ interface OdontogramChartProps {
   disabled?: boolean;
   defaultDentition?: DentitionType;
   dentition?: DentitionType;
-  onDentitionChange?: (dentition: DentitionType) => void;
   patientAge?: number | null;
   visibleArches?: 'both' | 'upper' | 'lower';
   showLegend?: boolean;
@@ -207,7 +206,6 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
   disabled = false,
   defaultDentition = 'PERMANENT',
   dentition: controlledDentition,
-  onDentitionChange,
   patientAge = null,
   visibleArches = 'both',
   showLegend = true,
@@ -230,78 +228,53 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
   const dentitionView = controlledDentition ?? internalDentition;
   const primary = dentitionView === 'PRIMARY';
 
-  const handleSelectDentition = (type: DentitionType) => {
-    if (controlledDentition === undefined) {
-      setInternalDentition(type);
-    }
-    onDentitionChange?.(type);
-  };
-
   const renderArch = (arch: Arch) => {
     const numbers = archTeeth(dentitionView, arch);
-    return <section className={styles.jawSection} aria-label={`${arch === 'upper' ? 'Maxillary upper' : 'Mandibular lower'} arch`}>
-      <header className={styles.jawHeader}><strong>{arch === 'upper' ? 'Maxillary Arch' : 'Mandibular Arch'}<span>{arch === 'upper' ? '(Upper)' : '(Lower)'}</span></strong></header>
-      <div className={styles.jawOrientation}><span>Patient right</span><span>Patient left</span></div>
-      <div className={styles.jawStage}>
-        <GumArtwork arch={arch} />
-        <GroupGuide primary={primary} arch={arch} />
-        {numbers.map((number) => <ToothButton key={number} toothNumber={number} arch={arch}
-          finding={teeth.find((item) => item.tooth_number === number)}
-          hasHistory={historyTeethSet.has(number)}
-          selected={selectedToothNumber === number}
-          disabled={disabled} onSelect={onSelectTooth} />)}
-      </div>
-    </section>;
+    return (
+      <section
+        className={styles.jawSection}
+        aria-label={`${arch === 'upper' ? 'Maxillary upper' : 'Mandibular lower'} arch`}
+      >
+        <header className={styles.jawHeader}>
+          <strong>
+            {arch === 'upper' ? 'Maxillary Arch' : 'Mandibular Arch'}
+            <span>{arch === 'upper' ? '(Upper)' : '(Lower)'}</span>
+          </strong>
+        </header>
+        <div className={styles.jawOrientation}>
+          <span>Patient right</span>
+          <span>Patient left</span>
+        </div>
+        <div className={styles.jawStage}>
+          <GumArtwork arch={arch} />
+          <GroupGuide primary={primary} arch={arch} />
+          {numbers.map((number) => (
+            <ToothButton
+              key={number}
+              toothNumber={number}
+              arch={arch}
+              finding={teeth.find((item) => item.tooth_number === number)}
+              hasHistory={historyTeethSet.has(number)}
+              selected={selectedToothNumber === number}
+              disabled={disabled}
+              onSelect={onSelectTooth}
+            />
+          ))}
+        </div>
+      </section>
+    );
   };
-  // Age-aware dentition control:
-  // - Adult (patientAge known, defaultDentition=PERMANENT): read-only indicator, no tab group.
-  // - Pediatric (patientAge known, defaultDentition=PRIMARY): two buttons; dentist may override to Permanent.
-  // - Unknown age (patientAge null): two buttons, existing behaviour.
-  const isAdultAutoMode = patientAge !== null && defaultDentition === 'PERMANENT';
-  const isPediatricAutoMode = patientAge !== null && defaultDentition === 'PRIMARY';
 
   const renderDentitionControl = () => {
-    if (isAdultAutoMode) {
-      // Read-only indicator — not a tab group
+    if (primary) {
       return (
-        <div className={styles.dentitionIndicator} aria-label="Dentition type: Permanent Dentition (automatically determined)">
-          <i className="ph ph-user" aria-hidden="true" />
-          <span>Permanent Dentition (Adult — 32 Teeth)</span>
-          <span
-            className={styles.dentitionAutoBadge}
-            title={`Automatically selected based on patient age (${patientAge} years)`}
-          >
-            ✓ Auto ({patientAge}y)
-          </span>
-        </div>
-      );
-    }
-
-    // Pediatric auto mode: both buttons rendered; Primary is active; dentist may override.
-    // Unknown age: both buttons rendered; existing interactive tab group.
-    return (
-      <div className={styles.odontogramTabs} role="tablist" aria-label="Dentition type">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={!primary}
-          className={`${styles.odontogramTabBtn} ${!primary ? styles.odontogramTabBtnActive : ''}`}
-          onClick={() => handleSelectDentition('PERMANENT')}
-        >
-          <i className="ph ph-user" aria-hidden="true" />
-          <span>Permanent Dentition (Adult — 32 Teeth)</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={primary}
-          className={`${styles.odontogramTabBtn} ${primary ? styles.odontogramTabBtnActive : ''}`}
-          onClick={() => handleSelectDentition('PRIMARY')}
-          title={isPediatricAutoMode ? `Recommended for patient age (${patientAge} yrs)` : undefined}
+        <div
+          className={styles.dentitionIndicator}
+          aria-label="Dentition type: Primary / Deciduous (automatically determined)"
         >
           <i className="ph ph-baby" aria-hidden="true" />
           <span>Primary / Deciduous (Pediatric — 20 Teeth)</span>
-          {isPediatricAutoMode && (
+          {patientAge !== null && (
             <span
               className={styles.dentitionAutoBadge}
               title={`Automatically selected based on patient age (${patientAge} years)`}
@@ -309,7 +282,25 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
               ✓ Auto ({patientAge}y)
             </span>
           )}
-        </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={styles.dentitionIndicator}
+        aria-label="Dentition type: Permanent Dentition (automatically determined)"
+      >
+        <i className="ph ph-user" aria-hidden="true" />
+        <span>Permanent Dentition (Adult — 32 Teeth)</span>
+        {patientAge !== null && (
+          <span
+            className={styles.dentitionAutoBadge}
+            title={`Automatically selected based on patient age (${patientAge} years)`}
+          >
+            ✓ Auto ({patientAge}y)
+          </span>
+        )}
       </div>
     );
   };

@@ -1301,13 +1301,19 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(controls).toHaveLength(20);
     expect(container.textContent).toContain('✓ Auto (7y)');
 
-    const pediatricTab = Array.from(container.querySelectorAll('button')).find((item) =>
-      item.textContent?.includes('Primary / Deciduous'),
+    const indicator = container.querySelector('[aria-label="Dentition type: Primary / Deciduous (automatically determined)"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator?.textContent).toContain('Primary / Deciduous');
+
+    // No interactive dentition tab buttons or switcher controls should be rendered
+    const dentitionTabBtn = Array.from(container.querySelectorAll('button')).find((item) =>
+      item.getAttribute('role') === 'tab' && (item.textContent?.includes('Primary') || item.textContent?.includes('Permanent')),
     );
-    expect(pediatricTab?.getAttribute('aria-selected')).toBe('true');
+    expect(dentitionTabBtn).toBeUndefined();
+    expect(container.querySelector('[aria-label="Dentition type"]')).toBeNull();
   });
 
-  it('allows manual dentition override and preserves the dentist selection', async () => {
+  it('renders only age-determined dentition without any manual dentition switching control', async () => {
     const today = new Date();
     const pediatricDob = new Date(today.getFullYear() - 8, today.getMonth(), today.getDate()).toISOString();
 
@@ -1319,20 +1325,14 @@ describe('OpdDentalExaminationTab Component', () => {
       );
     });
 
-    // Starts in pediatric mode (20 teeth)
+    // Renders 20 pediatric teeth exclusively
     expect(container.querySelectorAll<HTMLButtonElement>('[data-fdi]')).toHaveLength(20);
 
-    // Dentist manually overrides to Permanent Dentition
-    const permanentTab = Array.from(container.querySelectorAll('button')).find((item) =>
+    // No Permanent Dentition button or switcher is rendered
+    const permanentBtn = Array.from(container.querySelectorAll('button')).find((item) =>
       item.textContent?.includes('Permanent Dentition'),
     );
-    await act(async () => {
-      permanentTab?.click();
-    });
-
-    // Now renders 32 adult teeth
-    expect(container.querySelectorAll<HTMLButtonElement>('[data-fdi]')).toHaveLength(32);
-    expect(permanentTab?.getAttribute('aria-selected')).toBe('true');
+    expect(permanentBtn).toBeUndefined();
   });
 
   it('handles missing or invalid date of birth safely by defaulting to Permanent Dentition without guessing', async () => {

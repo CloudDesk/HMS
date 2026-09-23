@@ -77,7 +77,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return null;
         }
 
-        setAuthError(getFriendlyAuthMessage(error));
         throw error;
       })
       .finally(() => {
@@ -162,7 +161,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         // Leave the HttpOnly cookie intact so a reload can restore the session,
         // but stop blocking the UI when verification fails or times out.
-        setAuthError(getFriendlyAuthMessage(error));
+        // Background session restoration should silently transition to unauthenticated
+        // so the login screen does not show a false error banner.
         setStatus('unauthenticated');
       }
     };

@@ -41,8 +41,8 @@ describe('anatomical Dental odontogram', () => {
     expect(upper?.querySelector('[data-tooth-group="Premolars"]')?.getAttribute('d')).toBe('M142 125 H132 V182 H142 M132 153.5 h-4');
     expect(lower?.querySelector('[data-tooth-group="Premolars"]')?.getAttribute('d')).toBe('M142 178 H132 V235 H142 M132 206.5 h-4');
     expect(lower?.querySelector('[data-tooth-group="Canine"]')?.getAttribute('d')).toBe('M142 248 H132 V268 H142 M132 258 h-4');
-    const primary = Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.includes('Primary / Deciduous'));
-    await act(async () => primary?.click());
+
+    await act(async () => root.render(<OdontogramChart teeth={findings} selectedToothNumber={null} onSelectTooth={() => {}} defaultDentition="PRIMARY" />));
     expect(container.querySelectorAll('[data-tooth-group]')).toHaveLength(10);
     expect(container.querySelector('[data-tooth-group="Premolars"]')).toBeNull();
   });
@@ -62,9 +62,7 @@ describe('anatomical Dental odontogram', () => {
   });
 
   it('renders all 20 primary teeth with the same anatomical arch model', async () => {
-    await act(async () => root.render(<ControlledChart />));
-    const primary = Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.includes('Primary / Deciduous'));
-    await act(async () => primary?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await act(async () => root.render(<OdontogramChart teeth={findings} selectedToothNumber={null} onSelectTooth={() => {}} defaultDentition="PRIMARY" />));
     const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
     expect(controls).toHaveLength(20);
     expect(Array.from(controls).map((item) => Number(item.dataset.fdi))).toEqual([
@@ -90,12 +88,8 @@ describe('anatomical Dental odontogram', () => {
   });
 
   it('mirrors tooth positions and rotations across both arches for every dentition', async () => {
-    await act(async () => root.render(<ControlledChart />));
     for (const primary of [false, true]) {
-      if (primary) {
-        const tab = Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.includes('Primary / Deciduous'));
-        await act(async () => tab?.click());
-      }
+      await act(async () => root.render(<OdontogramChart teeth={findings} selectedToothNumber={null} onSelectTooth={() => {}} defaultDentition={primary ? 'PRIMARY' : 'PERMANENT'} />));
       for (let position = 1; position <= (primary ? 5 : 8); position++) {
         const numbers = primary ? [50, 60, 80, 70] : [10, 20, 40, 30];
         const controls = numbers.map((base) => container.querySelector<HTMLButtonElement>(`[data-fdi="${base + position}"]`));
@@ -143,10 +137,14 @@ describe('anatomical Dental odontogram', () => {
     const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
     expect(controls).toHaveLength(20);
     expect(container.textContent).toContain('✓ Auto (7y)');
-    const primaryTab = Array.from(container.querySelectorAll('button')).find((item) =>
-      item.textContent?.includes('Primary / Deciduous'),
+    const indicator = container.querySelector('[aria-label="Dentition type: Primary / Deciduous (automatically determined)"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator?.textContent).toContain('Primary / Deciduous');
+    // No tab buttons rendered
+    const tabBtn = Array.from(container.querySelectorAll('button')).find((item) =>
+      item.getAttribute('role') === 'tab',
     );
-    expect(primaryTab?.getAttribute('aria-selected')).toBe('true');
+    expect(tabBtn).toBeUndefined();
   });
 
   it('renders adult dentition (32 teeth) and auto badge when defaultDentition is PERMANENT with patientAge', async () => {
@@ -171,7 +169,7 @@ describe('anatomical Dental odontogram', () => {
     expect(indicator?.textContent).toContain('Permanent Dentition');
     // No selectable tab buttons should be rendered for adults
     const adultTabBtn = Array.from(container.querySelectorAll('button')).find((item) =>
-      item.getAttribute('role') === 'tab' && item.textContent?.includes('Permanent Dentition'),
+      item.getAttribute('role') === 'tab',
     );
     expect(adultTabBtn).toBeUndefined();
   });
