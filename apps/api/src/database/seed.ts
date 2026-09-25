@@ -117,6 +117,10 @@ const permissionDefinitions: PermissionDefinition[] = [
   ...expandPermissions('Billing', {
     Invoices: ['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'],
   }, 'FINANCE', 'BILLING'),
+  ...expandPermissions('Insurance', {
+    Configuration: ['View', 'Manage'],
+    Providers: ['View', 'Create', 'Edit', 'Activate'],
+  }, 'FINANCE', 'INSURANCE'),
   ...expandPermissions('Reports', { 'Phase 2 Reports': ['View'] }, 'FINANCE', 'REPORTS'),
   ...['View', 'Edit', 'Export'].map((action) => ({
     ...permission('Administration', 'Settings', action, 'SYSTEM', 'ADMINISTRATION'),
@@ -146,6 +150,8 @@ const administratorPermissionCodes = [
   ...['View', 'Create', 'Edit', 'Export', 'Provision Login'].map((action) => code('Doctors', 'Doctor Directory', action)),
   ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
   code('Billing', 'Invoices', 'View'),
+  ...['View', 'Manage'].map((action) => code('Insurance', 'Configuration', action)),
+  ...['View', 'Create', 'Edit', 'Activate'].map((action) => code('Insurance', 'Providers', action)),
   code('Reports', 'Phase 2 Reports', 'View'),
 ];
 
@@ -362,7 +368,7 @@ export const seedDatabase = async () => {
   const groupNames: Record<string, string> = {
     ADMINISTRATION: 'Administration', PATIENTS: 'Patients', DOCTORS: 'Doctors',
     APPOINTMENTS: 'Appointments', OPD: 'OPD', PHARMACY: 'Pharmacy',
-    LABORATORY: 'Laboratory', IMAGING: 'Imaging', BILLING: 'Billing', SURGERY: 'Surgery', EMERGENCY: 'Emergency',
+    LABORATORY: 'Laboratory', IMAGING: 'Imaging', BILLING: 'Billing', INSURANCE: 'Insurance', SURGERY: 'Surgery', EMERGENCY: 'Emergency',
   };
   const groups = new Map<string, Types.ObjectId>();
   for (const definition of permissionDefinitions) {

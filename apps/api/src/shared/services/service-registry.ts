@@ -76,6 +76,8 @@ import { EmergencyRepository } from '../../modules/emergency/emergency.repositor
 import { EmergencyService } from '../../modules/emergency/emergency.service.js';
 import { AdvancePaymentRepository } from '../../modules/advance-payment/advance-payment.repository.js';
 import { AdvancePaymentService } from '../../modules/advance-payment/advance-payment.service.js';
+import { InsuranceRepository } from '../../modules/insurance/insurance.repository.js';
+import { InsuranceService } from '../../modules/insurance/insurance.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -119,6 +121,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const emergencyRepository = new EmergencyRepository(sequenceService);
   const advancePaymentRepository = new AdvancePaymentRepository();
   const advancePaymentService = new AdvancePaymentService(advancePaymentRepository);
+  const insuranceService = new InsuranceService(new InsuranceRepository());
   const patientDocumentStorageService = new PatientDocumentStorageService();
   const sms = createSmsService();
   const authRateLimits = new AuthRateLimitRepository();
@@ -277,5 +280,6 @@ export const createServiceRegistry = (): ServiceRegistry => {
       appointmentService,
     ),
     advancePayment: advancePaymentService,
+    insurance: insuranceService,
   };
 };
