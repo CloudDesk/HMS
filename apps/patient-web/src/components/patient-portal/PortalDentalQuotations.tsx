@@ -5,6 +5,7 @@ import { portalQueryKeys } from '../../api/query-keys';
 import { Empty } from './Empty';
 import { date, label, money } from '../../utils/formatters';
 import { PortalQuotationDetailModal } from './modals/PortalQuotationDetailModal';
+import { downloadPortalDentalQuotationPdf } from '../../utils/dental-pdf';
 
 type PortalDentalQuotationsProps = {
   patientId: string;
@@ -154,22 +155,50 @@ export function PortalDentalQuotations({ patientId }: PortalDentalQuotationsProp
                         ? 'Quotation was declined.'
                         : 'Decision is pending.'}
                 </small>
-                <button
-                  type="button"
-                  onClick={() => setSelectedQuotation(quote)}
-                  style={
-                    isPending
-                      ? {
-                          background: 'var(--patient-primary)',
-                          color: '#ffffff',
-                          borderColor: 'var(--patient-primary)',
-                        }
-                      : undefined
-                  }
-                >
-                  <i className={`ph ${isPending ? 'ph-cursor-click' : 'ph-eye'}`} />
-                  {isPending ? 'Review Options & Respond' : 'View Quotation Details'}
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadPortalDentalQuotationPdf({
+                        quotation: quote,
+                        patientId,
+                      });
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.5rem 0.85rem',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#334155',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                    title="Download quotation PDF"
+                  >
+                    <i className="ph ph-file-pdf" />
+                    Download PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuotation(quote)}
+                    style={
+                      isPending
+                        ? {
+                            background: 'var(--patient-primary)',
+                            color: '#ffffff',
+                            borderColor: 'var(--patient-primary)',
+                          }
+                        : undefined
+                    }
+                  >
+                    <i className={`ph ${isPending ? 'ph-cursor-click' : 'ph-eye'}`} />
+                    {isPending ? 'Review Options & Respond' : 'View Quotation Details'}
+                  </button>
+                </div>
               </footer>
             </article>
           );

@@ -103,13 +103,17 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
   };
 
   const view = async (document: PortalDocument) => {
-    const previewWindow = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    // noopener/noreferrer makes open() return null even when the tab opens.
+    // Retain the handle, then sever the blank tab's opener before loading data.
+    const previewWindow = window.open('about:blank', '_blank');
     if (!previewWindow) {
       toast.error('Allow pop-ups to view this document.');
       return;
     }
     try {
+      previewWindow.opener = null;
       const result = await patientPortalApi.downloadDocument(patientId, document.id);
+      if (previewWindow.closed) return;
       const url = URL.createObjectURL(result.blob);
       previewWindow.location.href = url;
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);

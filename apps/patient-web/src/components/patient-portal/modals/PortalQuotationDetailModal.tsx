@@ -9,6 +9,7 @@ import {
 } from '../../../api/patient-portal';
 import { portalQueryKeys } from '../../../api/query-keys';
 import { date, label, money } from '../../../utils/formatters';
+import { downloadPortalDentalQuotationPdf } from '../../../utils/dental-pdf';
 
 type PortalQuotationDetailModalProps = {
   quotation: PortalDentalQuotation | null;
@@ -126,6 +127,14 @@ export function PortalQuotationDetailModal({
           ? 'cancelled'
           : 'scheduled';
 
+  const handleDownload = () => {
+    if (!activeQuotation) return;
+    downloadPortalDentalQuotationPdf({
+      quotation: activeQuotation,
+      patientId,
+    });
+  };
+
   const modalFooter = (
     <div
       style={{
@@ -200,6 +209,27 @@ export function PortalQuotationDetailModal({
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button
+          type="button"
+          onClick={handleDownload}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            padding: '0.55rem 0.85rem',
+            borderRadius: '6px',
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            color: '#334155',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+          title="Download quotation PDF"
+        >
+          <i className="ph ph-file-pdf" />
+          Download PDF
+        </button>
         <button
           type="button"
           onClick={onClose}

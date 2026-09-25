@@ -1284,6 +1284,92 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     expect(onStartEpisode).toHaveBeenCalledWith(12);
     expect(mockApi.createDentalStage).not.toHaveBeenCalled();
   });
+
+  it('Quick Suggestions: displays suggestions dynamically based on Procedure Name, handles case-insensitivity, limits to 8, and populates form on click', async () => {
+    const onChange = vi.fn();
+    mockApi.listDentalStages.mockResolvedValue([]);
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalTreatmentPlanSection
+            items={[]}
+            teeth={[]}
+            onChange={onChange}
+            patientId="patient-1"
+            episodeId="episode-1"
+            departmentId="dept-1"
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    // 1. Reveal Add Treatment form
+    const addBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Add Treatment') || b.textContent?.includes('+ Add Procedure'),
+    );
+    expect(addBtn).toBeTruthy();
+    await act(async () => {
+      addBtn?.click();
+    });
+
+    // 2. Empty Procedure Name: Quick Suggestions section is NOT displayed
+    expect(container.querySelector('[data-testid="dental-quick-suggestions"]')).toBeNull();
+
+    const procedureInput = container.querySelector('input[placeholder*="Composite Restoration"]') as HTMLInputElement;
+    expect(procedureInput).not.toBeNull();
+
+    // 3. Type "Crown" into Procedure Name input
+    await act(async () => {
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      nativeSetter?.call(procedureInput, 'Crown');
+      procedureInput.dispatchEvent(new Event('input', { bubbles: true }));
+      procedureInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Quick Suggestions are now visible
+    const suggestionsSection = container.querySelector('[data-testid="dental-quick-suggestions"]');
+    expect(suggestionsSection).not.toBeNull();
+    expect(suggestionsSection?.textContent).toContain('Crown');
+    expect(suggestionsSection?.textContent).not.toContain('Wisdom Tooth Extraction');
+    expect(suggestionsSection?.textContent).not.toContain('Root Canal Treatment');
+
+    // 4. Case-insensitive matching: type "root canal"
+    await act(async () => {
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      nativeSetter?.call(procedureInput, 'root canal');
+      procedureInput.dispatchEvent(new Event('input', { bubbles: true }));
+      procedureInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(suggestionsSection?.textContent).toContain('Root Canal Treatment');
+    expect(suggestionsSection?.textContent).not.toContain('Crown');
+
+    // 5. Clicking a suggestion populates Procedure Name and Est. Cost without creating treatment
+    const rctChip = Array.from(suggestionsSection?.querySelectorAll('button') || []).find((b) =>
+      b.textContent?.includes('Root Canal Treatment'),
+    );
+    expect(rctChip).toBeTruthy();
+
+    await act(async () => {
+      rctChip?.click();
+    });
+
+    expect(procedureInput.value).toContain('Root Canal');
+    const costInput = container.querySelector('input[type="number"]') as HTMLInputElement;
+    expect(costInput).not.toBeNull();
+    expect(Number(costInput.value)).toBeGreaterThan(0);
+    // onChange not called until "Add Treatment" button is clicked
+    expect(onChange).not.toHaveBeenCalled();
+
+    // 6. Typing non-matching term shows "No matching procedures found."
+    await act(async () => {
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      nativeSetter?.call(procedureInput, 'NonExistentProcedure12345');
+      procedureInput.dispatchEvent(new Event('input', { bubbles: true }));
+      procedureInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('No matching procedures found.');
+  });
 });
-
-

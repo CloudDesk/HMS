@@ -41,6 +41,7 @@ import {
 } from '../../../pages/dental-utils';
 import { DentalStageScheduleModal } from './DentalStageScheduleModal';
 import { DentalProstheticLabModal } from './DentalProstheticLabModal';
+import { downloadDentalStagesPdf, downloadDentalQuotationPdf } from '../../../utils/dental-pdf';
 import styles from './DentalExamination.module.css';
 
 function formatDoctorName(name: string | undefined | null): string {
@@ -228,6 +229,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [dependsOnPlanItemId, setDependsOnPlanItemId] = useState<string>('');
   const [showAddTreatmentForm, setShowAddTreatmentForm] = useState<boolean>(false);
 
+
   const catalogueServicesList = useMemo(() => {
     const list: Array<{ id: string; name: string; standard_price: number }> = [];
     const seenNames = new Set<string>();
@@ -262,6 +264,14 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
     return list;
   }, [departmentServices]);
+
+  const filteredSuggestions = useMemo(() => {
+    const query = procedureName.trim().toLowerCase();
+    if (!query) return [];
+    return catalogueServicesList
+      .filter((svc) => svc.name.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [procedureName, catalogueServicesList]);
 
   // Treatment Stages state
   const [expandedStageRows, setExpandedStageRows] = useState<Set<string>>(new Set());
@@ -456,6 +466,38 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [selectedDecisionOptionId, setSelectedDecisionOptionId] = useState<string>('');
   const [decisionReasonInput, setDecisionReasonInput] = useState<string>('');
   const [decisionMode, setDecisionMode] = useState<'view' | 'reject' | 'postpone'>('view');
+
+  const [viewingStagesSummaryItem, setViewingStagesSummaryItem] = useState<{
+    item: DentalTreatmentPlanItem;
+    stages: DentalTreatmentStageResponse[];
+  } | null>(null);
+
+  const handleDownloadStagesSummary = useCallback(
+    (item: DentalTreatmentPlanItem, stages: DentalTreatmentStageResponse[]) => {
+      downloadDentalStagesPdf({
+        item,
+        stages,
+        episodeLabOrders,
+        patientName,
+        patientId,
+        episodeNumber,
+      });
+    },
+    [episodeLabOrders, episodeNumber, patientId, patientName],
+  );
+
+  const handleDownloadQuotation = useCallback(
+    (q: DentalTreatmentQuotationResponse) => {
+      downloadDentalQuotationPdf({
+        quotation: q,
+        patientName,
+        patientId,
+        episodeNumber,
+        formatCurrency,
+      });
+    },
+    [episodeNumber, formatCurrency, patientId, patientName],
+  );
 
   const examinedTeeth = useMemo(() => {
     return [...teeth].sort((a, b) => a.tooth_number - b.tooth_number);
@@ -1070,42 +1112,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                 </button>
               </div>
 
-              {/* Quick-add chips from Service Catalogue */}
-              {catalogueServicesList.length > 0 && (
-                <div
-                  style={{
-                    marginBottom: '12px',
-                    padding: '8px 12px',
-                    background: '#faf8ff',
-                    border: '1px dashed #c4b5fd',
-                    borderRadius: '6px',
-                  }}
-                >
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6d28d9', marginBottom: '6px' }}>
-                    <i className="ph ph-lightning" /> Quick-Select from Service Catalogue:
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {catalogueServicesList.map((svc) => (
-                      <button
-                        key={svc.id}
-                        type="button"
-                        className={styles.chip}
-                        style={{ background: '#ede9fe', color: '#6d28d9', borderColor: '#ddd6fe', fontSize: '0.72rem', cursor: 'pointer' }}
-                        onClick={() => handleSelectService(svc)}
-                        title={svc.standard_price > 0 ? `Standard price: ${formatCurrency(svc.standard_price)}` : undefined}
-                      >
-                        {svc.name}
-                        {svc.standard_price > 0 && (
-                          <span style={{ fontSize: '0.675rem', opacity: 0.85, fontWeight: 700 }}>
-                            {' '}· {formatCurrency(svc.standard_price)}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <form onSubmit={handleAddItem}>
                 <div
                   className={styles.treatmentFormGrid}
@@ -1178,7 +1184,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     </label>
                     <input
                       type="text"
-                      list="dental-procedure-suggestions"
                       placeholder="e.g. Composite Restoration, RCT..."
                       className={styles.input}
                       value={procedureName}
@@ -1198,11 +1203,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                       }}
                       required
                     />
-                    <datalist id="dental-procedure-suggestions">
-                      {catalogueServicesList.map((svc) => (
-                        <option key={svc.id} value={svc.name} />
-                      ))}
-                    </datalist>
                   </div>
 
                   {/* Prerequisite Procedure (Optional) */}
@@ -1273,6 +1273,68 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     </button>
                   </div>
                 </div>
+
+                {/* Dynamic Quick Suggestions below the row, filtered by Procedure Name */}
+                {procedureName.trim().length > 0 && (
+                  <div
+                    style={{
+                      marginTop: '12px',
+                      padding: '8px 12px',
+                      background: '#faf8ff',
+                      border: '1px dashed #c4b5fd',
+                      borderRadius: '6px',
+                    }}
+                    data-testid="dental-quick-suggestions"
+                  >
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: '#6d28d9',
+                        marginBottom: filteredSuggestions.length > 0 ? '6px' : 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
+                      <i className="ph ph-lightning" /> Quick Suggestions
+                    </div>
+                    {filteredSuggestions.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {filteredSuggestions.map((svc) => (
+                          <button
+                            key={svc.id}
+                            type="button"
+                            className={styles.chip}
+                            style={{
+                              background: '#ede9fe',
+                              color: '#6d28d9',
+                              borderColor: '#ddd6fe',
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            onClick={() => handleSelectService(svc)}
+                            title={svc.standard_price > 0 ? `Standard price: ${formatCurrency(svc.standard_price)}` : undefined}
+                          >
+                            <span>{svc.name}</span>
+                            {svc.standard_price > 0 && (
+                              <span style={{ fontSize: '0.675rem', opacity: 0.85, fontWeight: 700 }}>
+                                {' '}· {formatCurrency(svc.standard_price)}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>
+                        No matching procedures found.
+                      </div>
+                    )}
+                  </div>
+                )}
               </form>
             </div>
           )}
@@ -1540,16 +1602,42 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                         ({itemStages.length} stage{itemStages.length === 1 ? '' : 's'} assigned)
                                       </span>
                                     </div>
-                                    {!disabled && (
-                                      <button
-                                        type="button"
-                                        className={styles.btnSecondary}
-                                        style={{ padding: '3px 8px', fontSize: '0.75rem' }}
-                                        onClick={() => handleOpenAddStage(item.id!, item.tooth_number)}
-                                      >
-                                        <i className="ph ph-plus" /> Add Stage
-                                      </button>
-                                    )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      {itemStages.length > 0 && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            className={styles.btnSecondary}
+                                            style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            onClick={() => setViewingStagesSummaryItem({ item, stages: itemStages })}
+                                            title="View treatment stages summary"
+                                            data-testid="view-stages-summary-btn"
+                                          >
+                                            <i className="ph ph-eye" /> View Summary
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={styles.btnSecondary}
+                                            style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            onClick={() => handleDownloadStagesSummary(item, itemStages)}
+                                            title="Download treatment stages PDF summary"
+                                            data-testid="download-stages-summary-btn"
+                                          >
+                                            <i className="ph ph-file-pdf" /> Download PDF
+                                          </button>
+                                        </>
+                                      )}
+                                      {!disabled && (
+                                        <button
+                                          type="button"
+                                          className={styles.btnSecondary}
+                                          style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                                          onClick={() => handleOpenAddStage(item.id!, item.tooth_number)}
+                                        >
+                                          <i className="ph ph-plus" /> Add Stage
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {itemStages.length === 0 && !isAddingStage && (
@@ -1571,6 +1659,60 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                       )}
                                     </div>
                                   )}
+
+                                  {(() => {
+                                      const itemLabOrder = episodeLabOrders.find(
+                                        (lo) =>
+                                          (lo.treatment_plan_item_id && lo.treatment_plan_item_id === item.id) ||
+                                          itemStages.some((stg) => stg.id === lo.treatment_stage_id || (stg.prosthetic_lab_order_id && stg.prosthetic_lab_order_id === lo.id))
+                                      );
+                                      if (!itemLabOrder || itemLabOrder.status === 'CANCELLED') return null;
+                                      if (itemLabOrder.status === 'READY') {
+                                        return (
+                                          <div
+                                            style={{
+                                              background: '#f0fdf4',
+                                              border: '1px solid #86efac',
+                                              borderRadius: '6px',
+                                              padding: '8px 12px',
+                                              fontSize: '0.75rem',
+                                              color: '#166534',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'space-between',
+                                              marginBottom: '8px',
+                                            }}
+                                            data-testid="stage-lab-ready-banner"
+                                          >
+                                            <div>
+                                              <strong>Prosthetic Ready:</strong> {itemLabOrder.order_number} ({itemLabOrder.prosthetic_type}) is ready for clinical fitting &amp; cementation.
+                                              <span style={{ marginLeft: '6px', color: '#15803d' }}>Next Clinical Step: Complete fitting stage.</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div
+                                          style={{
+                                            background: '#fffbeb',
+                                            border: '1px solid #fed7aa',
+                                            borderRadius: '6px',
+                                            padding: '8px 12px',
+                                            fontSize: '0.75rem',
+                                            color: '#9a3412',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            marginBottom: '8px',
+                                          }}
+                                          data-testid="stage-lab-pending-banner"
+                                        >
+                                          <div>
+                                            <strong>Lab Processing:</strong> {itemLabOrder.order_number} ({itemLabOrder.prosthetic_type}) is {itemLabOrder.status.replace('_', ' ')}. Awaiting READY before clinical completion.
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
 
                                   <div className={styles.stagesTimeline}>
                                     {itemStages.map((stage) => {
@@ -1704,13 +1846,15 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                                   style={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '4px',
+                                                    gap: '5px',
                                                     height: '28px',
                                                     boxSizing: 'border-box',
-                                                    padding: '0 8px',
+                                                    padding: '0 10px',
                                                     borderRadius: '6px',
-                                                    fontSize: '0.725rem',
+                                                    fontSize: '0.75rem',
                                                     fontWeight: 600,
+                                                    whiteSpace: 'nowrap',
+                                                    flexShrink: 0,
                                                     background:
                                                       stageLabOrder.status === 'READY'
                                                         ? '#dcfce7'
@@ -1864,7 +2008,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                                           </button>
                                                           <button
                                                             type="button"
-                                                            className={`${styles.btnStageAction} ${styles.btnStageDelete}`}
+                                                            className={`${styles.btnStageAction} ${styles.btnStageCancelAppt}`}
                                                             onClick={() => setCancelConfirmStageId(stage.id)}
                                                             title="Cancel appointment (stage returns to Planned)"
                                                           >
@@ -2271,7 +2415,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                             <button
                               type="button"
                               className={styles.btnSecondary}
-                              style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                              style={{ fontSize: '0.75rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                               onClick={() => {
                                 setSelectedQuotation(q);
                                 setSelectedDecisionOptionId(
@@ -2281,8 +2425,19 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                 setDecisionReasonInput('');
                                 setDecisionMode('view');
                               }}
+                              data-testid={`view-quotation-${q.id}`}
                             >
                               <i className="ph ph-eye" /> {q.status === 'SENT' ? 'Decide' : 'View'}
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.btnSecondary}
+                              style={{ fontSize: '0.75rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => handleDownloadQuotation(q)}
+                              title="Download quotation PDF"
+                              data-testid={`download-quotation-${q.id}`}
+                            >
+                              <i className="ph ph-file-pdf" /> Download PDF
                             </button>
                             {q.status === 'DRAFT' && !disabled && (
                               <button
@@ -3291,6 +3446,16 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               >
                 Close
               </button>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => handleDownloadQuotation(selectedQuotation)}
+                title="Download quotation PDF"
+                data-testid="modal-download-quotation-btn"
+              >
+                <i className="ph ph-file-pdf" /> Download PDF
+              </button>
 
               {/* DRAFT: Send to Patient button */}
               {selectedQuotation.status === 'DRAFT' && !disabled && (
@@ -3423,6 +3588,148 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                 </>
               )}
             </div>
+          </div>
+        </div>
+      </div>
+    )}
+ 
+    {/* Treatment Stages Summary Modal */}
+    {viewingStagesSummaryItem && (
+      <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Treatment Stages Summary">
+        <div className={styles.modalContent} style={{ maxWidth: '820px', width: '92%' }}>
+          <div className={styles.modalHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.05rem', color: '#0f172a' }}>
+              <i className="ph ph-list-numbers" style={{ color: '#2563eb' }} />
+              Treatment Stages &amp; Multi-Doctor Summary
+            </h3>
+            <button
+              type="button"
+              onClick={() => setViewingStagesSummaryItem(null)}
+              className={styles.modalClose}
+              style={{ background: 'transparent', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#64748b' }}
+              data-testid="close-stages-summary-modal-btn"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className={styles.modalBody} style={{ padding: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+              <div>
+                <div style={{ fontSize: '0.725rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Procedure</div>
+                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{viewingStagesSummaryItem.item.procedure_name}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.725rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Tooth Site</div>
+                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>
+                  Tooth #{viewingStagesSummaryItem.item.tooth_number ?? '—'} {viewingStagesSummaryItem.item.tooth_number ? `(${getToothName(viewingStagesSummaryItem.item.tooth_number)})` : ''}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.725rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Stages Assigned</div>
+                <div style={{ fontWeight: 700, color: '#2563eb', fontSize: '0.9rem' }}>{viewingStagesSummaryItem.stages.length} Clinical Steps</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.725rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Procedure Status</div>
+                <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.9rem' }}>{viewingStagesSummaryItem.item.status || 'ACTIVE'}</div>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+              <table className={styles.table} style={{ width: '100%', fontSize: '0.825rem', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                    <th style={{ padding: '8px 10px', textAlign: 'center' }}>Stage #</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Stage Name</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Tooth</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Assigned Doctor</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Planned Date</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Scheduled Appt</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left' }}>Lab Order</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewingStagesSummaryItem.stages.map((stg, idx) => {
+                    const stageLabOrder = episodeLabOrders.find(
+                      (lo) => lo.treatment_stage_id === stg.id || (stg.prosthetic_lab_order_id && lo.id === stg.prosthetic_lab_order_id)
+                    );
+                    return (
+                      <tr key={stg.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700 }}>
+                          #{stg.sequence || idx + 1}
+                        </td>
+                        <td style={{ padding: '8px 10px', fontWeight: 600, color: '#0f172a' }}>
+                          {stg.stage_name}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#475569' }}>
+                          Tooth #{stg.tooth_number ?? viewingStagesSummaryItem.item.tooth_number ?? '—'}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#334155' }}>
+                          {stg.assigned_doctor_name || '—'}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              background: stg.status === 'COMPLETED' ? '#dcfce7' : stg.status === 'IN_PROGRESS' ? '#dbeafe' : '#f1f5f9',
+                              color: stg.status === 'COMPLETED' ? '#166534' : stg.status === 'IN_PROGRESS' ? '#1e40af' : '#475569',
+                            }}
+                          >
+                            {stg.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#64748b' }}>
+                          {stg.planned_date || (stg.created_at ? new Date(stg.created_at).toLocaleDateString() : '—')}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#334155' }}>
+                          {stg.appointment_id ? (
+                            <span style={{ fontWeight: 600, color: '#0284c7' }}>
+                              Appt #{stg.appointment_id.slice(-6)}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#64748b' }}>
+                          {stageLabOrder ? (
+                            <span style={{ fontWeight: 600, color: '#6b21a8' }}>
+                              {stageLabOrder.order_number} ({stageLabOrder.prosthetic_type}) · {stageLabOrder.status}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className={styles.modalFooter} style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '12px 16px', borderTop: '1px solid #e2e8f0' }}>
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={() => handleDownloadStagesSummary(viewingStagesSummaryItem.item, viewingStagesSummaryItem.stages)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              title="Download stages PDF summary"
+              data-testid="modal-download-stages-summary-btn"
+            >
+              <i className="ph ph-file-pdf" /> Download PDF Summary
+            </button>
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={() => setViewingStagesSummaryItem(null)}
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

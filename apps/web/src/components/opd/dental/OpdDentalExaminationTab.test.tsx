@@ -450,7 +450,7 @@ describe('OpdDentalExaminationTab Component', () => {
       );
     });
 
-    // Click + Add Treatment to reveal the form and quick-select chips
+    // Click + Add Treatment to reveal the form
     const addBtn = Array.from(container.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('+ Add Treatment'),
     );
@@ -458,8 +458,27 @@ describe('OpdDentalExaminationTab Component', () => {
       addBtn?.click();
     });
 
-    expect(container.textContent).toContain('Quick-Select from Service Catalogue');
+    // When Procedure Name is empty, Quick Suggestions are NOT displayed
+    expect(container.textContent).not.toContain('Quick Suggestions');
+
+    const procedureInput = container.querySelector('input[placeholder*="Composite Restoration"]') as HTMLInputElement;
+    expect(procedureInput).not.toBeNull();
+
+    // Type "root canal" into Procedure Name input
+    await act(async () => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      nativeInputValueSetter?.call(procedureInput, 'root canal');
+      procedureInput.dispatchEvent(new Event('input', { bubbles: true }));
+      procedureInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Now Quick Suggestions header and matching suggestions appear
+    expect(container.textContent).toContain('Quick Suggestions');
     expect(container.textContent).toContain('Root Canal Treatment (RCT)');
+    expect(container.textContent).not.toContain('Fluoride Treatment');
 
     const chipButton = Array.from(container.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('Root Canal Treatment (RCT)'),
@@ -470,7 +489,6 @@ describe('OpdDentalExaminationTab Component', () => {
       chipButton?.click();
     });
 
-    const procedureInput = container.querySelector('input[placeholder*="Composite Restoration"]') as HTMLInputElement;
     expect(procedureInput?.value).toBe('Root Canal Treatment (RCT)');
 
     const costInput = container.querySelector('input[type="number"]') as HTMLInputElement;

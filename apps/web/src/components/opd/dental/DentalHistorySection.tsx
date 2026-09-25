@@ -150,14 +150,14 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           </div>
         </div>
         {alertsList.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
             {allergyAlerts.length > 0 && (
-              <span className={styles.activeAllergyBadge} title="Active allergies recorded">
+              <span className={styles.medicalAlertBadgeAllergy} title="Active allergies recorded">
                 <i className="ph ph-warning-diamond-fill" />
                 {allergyAlerts.length} Allergy Alert{allergyAlerts.length > 1 ? 's' : ''}
               </span>
             )}
-            <span className={styles.statusBadgeDraft} style={{ background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }}>
+            <span className={styles.medicalAlertBadge}>
               <i className="ph ph-warning" />
               {alertsList.length} Medical Alert{alertsList.length > 1 ? 's' : ''} Active
             </span>

@@ -98,39 +98,6 @@ export function OpdConsultationSection({
         </div>
       </section>
 
-      <section className="opd-form-section">
-        <div className="opd-form-section-head">
-          <div>
-            <h3>Examination &amp; Assessment</h3>
-            <p>Document physical findings and assessment</p>
-          </div>
-        </div>
-        <div className="doc-form-grid two">
-          <label className="doc-field" htmlFor="physical-examination">
-            <span>Physical Examination</span>
-            <textarea
-              id="physical-examination"
-              onChange={(e) =>
-                setConsultationForm((c) => ({ ...c, physical_examination: e.target.value }))
-              }
-              rows={3}
-              value={consultationForm.physical_examination}
-              disabled={!canEdit}
-            />
-          </label>
-          <label className="doc-field" htmlFor="assessment">
-            <span>Assessment / Impression</span>
-            <textarea
-              id="assessment"
-              onChange={(e) => setConsultationForm((c) => ({ ...c, assessment: e.target.value }))}
-              rows={3}
-              value={consultationForm.assessment}
-              disabled={!canEdit}
-            />
-          </label>
-        </div>
-      </section>
-
       <div className="opd-sticky-actions">
         <span className="opd-autosave saved">
           <i aria-hidden="true" className="ph ph-check-circle" />
