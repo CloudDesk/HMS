@@ -15,7 +15,7 @@ decisions are approved.
 
 **Phase 0: COMPLETE — architecture decisions accepted.**
 
-**Phase 1A: IN PROGRESS — Kamesh backend Slice 1 complete; later slices not started.**
+**Phase 1A: IN PROGRESS — Kamesh backend Slices 1, 2, and 3 complete; later slices not started.**
 
 **Finance Foundation: REQUIRED — separate shared-HMS workstream.**
 
@@ -37,9 +37,10 @@ doc/insurance/INSURANCE_V1_PHASE0_FIELD_AND_API_CONTRACT_DRAFT.md
 doc/insurance/PHASE_0_VERIFICATION.md
 ```
 
-Kamesh Phase 1A Slice 1 now implements backend operating configuration,
-Insurance Provider, and effective-dated Provider-to-Branch mapping. Payer,
-contract, scheme, policy, member and approval-foundation slices have not
+Kamesh Phase 1A Slices 1, 2, and 3 now implement backend operating
+configuration, Insurance Provider, effective-dated Provider-to-Branch
+mapping, Payer master/lifecycle, and the non-monetary Provider/Payer
+approval foundation. Contract, scheme, policy, and member slices have not
 started.
 
 ## 2. Permanent Ownership Boundary

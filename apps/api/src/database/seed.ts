@@ -120,6 +120,9 @@ const permissionDefinitions: PermissionDefinition[] = [
   ...expandPermissions('Insurance', {
     Configuration: ['View', 'Manage'],
     Providers: ['View', 'Create', 'Edit', 'Activate'],
+    Payers: ['View', 'Create', 'Edit', 'Activate'],
+    Contracts: ['View', 'Create', 'Edit', 'Submit', 'Activate'],
+    Approvals: ['View', 'Configure', 'Request', 'Decide'],
   }, 'FINANCE', 'INSURANCE'),
   ...expandPermissions('Reports', { 'Phase 2 Reports': ['View'] }, 'FINANCE', 'REPORTS'),
   ...['View', 'Edit', 'Export'].map((action) => ({
@@ -152,6 +155,9 @@ const administratorPermissionCodes = [
   code('Billing', 'Invoices', 'View'),
   ...['View', 'Manage'].map((action) => code('Insurance', 'Configuration', action)),
   ...['View', 'Create', 'Edit', 'Activate'].map((action) => code('Insurance', 'Providers', action)),
+  ...['View', 'Create', 'Edit', 'Activate'].map((action) => code('Insurance', 'Payers', action)),
+  ...['View', 'Create', 'Edit', 'Submit', 'Activate'].map((action) => code('Insurance', 'Contracts', action)),
+  ...['View', 'Configure', 'Request', 'Decide'].map((action) => code('Insurance', 'Approvals', action)),
   code('Reports', 'Phase 2 Reports', 'View'),
 ];
 
