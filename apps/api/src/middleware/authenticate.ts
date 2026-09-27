@@ -18,5 +18,7 @@ export const authenticate =
       throw new AppError('Authentication required', 401, 'AUTHENTICATION_REQUIRED');
     }
 
-    request.user = await services.auth.authenticateAccessToken(token);
+    request.user = header?.startsWith('Bearer ')
+      ? await services.auth.authenticateAccessToken(token)
+      : await services.auth.authenticateAccessToken(token, 'query');
   };

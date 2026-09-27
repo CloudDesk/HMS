@@ -1,0 +1,61 @@
+import type { SessionManager } from '../auth/session-manager';
+import {
+  portalNotificationSchema,
+  portalNotificationsListResponseSchema,
+  type PortalNotification,
+  type PortalNotificationsListResponse,
+} from './contracts';
+
+export class NotificationsApi {
+  constructor(private readonly sessionManager: SessionManager) {}
+
+  async listNotifications(
+    isRead?: boolean,
+    page = 1,
+    limit = 50
+  ): Promise<PortalNotificationsListResponse> {
+    const query: Record<string, string> = {
+      page: String(page),
+      limit: String(limit),
+    };
+    if (isRead !== undefined) {
+      query.is_read = String(isRead);
+    }
+
+    const response = await this.sessionManager.authenticatedRequest(
+      '/notifications/me',
+      portalNotificationsListResponseSchema,
+      { query }
+    );
+
+    return portalNotificationsListResponseSchema.parse(response);
+  }
+
+  async getUnreadCount(): Promise<number> {
+    const response = await this.sessionManager.authenticatedRequest(
+      '/notifications/me',
+      portalNotificationsListResponseSchema,
+      {
+        query: {
+          is_read: 'false',
+          limit: '1',
+        },
+      }
+    );
+
+    const parsed = portalNotificationsListResponseSchema.parse(response);
+    return parsed.meta.total;
+  }
+
+  async markAsRead(notificationId: string): Promise<PortalNotification> {
+    const response = await this.sessionManager.authenticatedRequest(
+      `/notifications/${encodeURIComponent(notificationId)}/read`,
+      portalNotificationSchema,
+      {
+        method: 'PATCH',
+      }
+    );
+
+    return portalNotificationSchema.parse(response);
+  }
+}

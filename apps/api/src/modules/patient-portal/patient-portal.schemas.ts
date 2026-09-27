@@ -338,12 +338,13 @@ export const patientPortalAppointmentsResponseSchema = apiResponseSchema({
     data: { type: 'array', items: portalAppointmentItemSchema },
     meta: {
       type: 'object',
-      required: ['page', 'limit', 'total', 'total_pages'],
-      additionalProperties: false,
+      required: ['page', 'limit', 'total'],
+      additionalProperties: true,
       properties: {
         page: { type: 'integer' },
         limit: { type: 'integer' },
         total: { type: 'integer' },
+        totalPages: { type: 'integer' },
         total_pages: { type: 'integer' },
       },
     },

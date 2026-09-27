@@ -44,6 +44,7 @@ export type AuthUserRecord = {
 };
 
 export type RefreshTokenRecord = {
+  nativeSessionId?: string;
   id: string;
   userId: string;
   tokenHash: string;

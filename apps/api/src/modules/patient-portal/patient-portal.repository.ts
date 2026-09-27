@@ -19,18 +19,22 @@ import { PatientAccessGrantModel, type PatientAccessRelationship } from './patie
 import { GuardianProfileModel, type GuardianRelationship } from './guardian-profile.model.js';
 import { buildPhoneMongoFilter } from '../../utils/phone.js';
 
+const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const objectId = (value?: string | null) => (value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined);
 const validObjectIds = (values: unknown[]) =>
   [...new Set(values.map((v) => (v ? String(v) : null)).filter((v): v is string => Boolean(v && Types.ObjectId.isValid(v))))].map(
     (v) => new Types.ObjectId(v),
   );
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const pageMeta = (page: number, limit: number, total: number) => ({
-  page,
-  limit,
-  total,
-  totalPages: Math.max(1, Math.ceil(total / limit)),
-});
+const pageMeta = (page: number, limit: number, total: number) => {
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  return {
+    page,
+    limit,
+    total,
+    totalPages,
+    total_pages: totalPages,
+  };
+};
 
 type PortalAppointmentHistoryItem = {
   id: string;

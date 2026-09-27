@@ -1,0 +1,6 @@
+# Copy to .env.local inside this workspace. All values are PUBLIC, never secrets.
+EXPO_PUBLIC_HMS_ENV=development
+# Android emulator. Physical device: replace host with the development machine LAN IP.
+# iOS simulator: http://127.0.0.1:4000/api
+EXPO_PUBLIC_HMS_API_URL=http://10.0.2.2:4000/api
+# staging and production require an explicitly supplied HTTPS /api URL.

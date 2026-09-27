@@ -14,6 +14,7 @@ import { AuthRepository } from './auth.repository.js';
 import type { AuthUserRecord, RequestMetadata } from './auth.types.js';
 import { AuthRateLimitRepository } from './auth-rate-limit.repository.js';
 import type { SettingsService } from '../settings/settings.service.js';
+import { NativeSessionService } from './native-session.service.js';
 
 type TokenPair = {
   accessToken: string;
@@ -84,6 +85,7 @@ export class AuthService {
     private readonly rateLimits = new AuthRateLimitRepository(),
     private readonly rateLimitOptions: AuthRateLimitOptions = {},
     private readonly settings?: Pick<SettingsService, 'getRuntimeUserPreferences'>,
+    readonly nativeSessions = new NativeSessionService(),
   ) {}
 
   async getPasswordPolicy() {
@@ -195,6 +197,7 @@ export class AuthService {
     phone: string,
     verification: PatientOtpVerification,
     metadata: RequestMetadata,
+    issueTokens?: (user: AuthUserRecord) => Promise<TokenPair>,
   ) {
     const invalidCredentials = (message = 'Invalid mobile number or verification code') => new AppError(
       message,
@@ -238,7 +241,7 @@ export class AuthService {
 
     await this.repository.clearFailedLogin(user.id);
     const freshUser = (await this.repository.findUserById(user.id)) ?? user;
-    const tokens = await this.issueTokenPair(freshUser);
+    const tokens = await (issueTokens ? issueTokens(freshUser) : this.issueTokenPair(freshUser));
 
     await this.repository.audit('auth.patient_otp.succeeded', {
       ...metadata,
@@ -253,7 +256,7 @@ export class AuthService {
     const tokenHash = sha256(input.refreshToken);
     const refreshToken = await this.repository.findRefreshTokenByHash(tokenHash);
 
-    if (!refreshToken || refreshToken.revokedAt || refreshToken.expiresAt.getTime() <= Date.now()) {
+    if (!refreshToken || refreshToken.nativeSessionId || refreshToken.revokedAt || refreshToken.expiresAt.getTime() <= Date.now()) {
       await this.repository.audit('auth.refresh.failed', {
         ...metadata,
         metadata: { reason: 'invalid_refresh_token' },
@@ -287,7 +290,7 @@ export class AuthService {
   async logout(userId: string, refreshToken: string | undefined, metadata: RequestMetadata) {
     if (refreshToken) {
       const record = await this.repository.findRefreshTokenByHash(sha256(refreshToken));
-      if (record?.userId === userId) {
+      if (record?.userId === userId && !record.nativeSessionId) {
         await this.repository.revokeRefreshToken(record.id);
       }
     }
@@ -303,8 +306,14 @@ export class AuthService {
     return { ok: true };
   }
 
-  async authenticateAccessToken(token: string) {
+  async authenticateAccessToken(token: string, transport: 'header' | 'query' = 'header') {
     const payload = verifyJwt(token, env.auth.accessTokenSecret);
+    if (payload.aud !== undefined || payload.sid !== undefined) {
+      if (transport !== 'header' || payload.aud !== 'hms-patient-mobile' || !payload.sid) {
+        throw new AppError('Authentication required', 401, 'AUTHENTICATION_REQUIRED');
+      }
+      await this.nativeSessions.authenticate(payload.sid, payload.sub);
+    }
     const user = await this.repository.findUserById(payload.sub);
 
     if (!user || user.status === 'inactive' || isLocked(user)) {

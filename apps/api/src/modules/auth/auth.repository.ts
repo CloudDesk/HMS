@@ -181,6 +181,7 @@ export class AuthRepository {
       id: token._id.toString(),
       userId: token.userId.toString(),
       tokenHash: token.token,
+      nativeSessionId: token.native?.sessionId.toString(),
       expiresAt: token.expiresAt,
       revokedAt: (token as { revokedAt?: Date }).revokedAt ?? null,
       replacedByTokenId: (token as { replacedByTokenId?: string }).replacedByTokenId ?? null,

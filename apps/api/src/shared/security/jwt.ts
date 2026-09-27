@@ -11,6 +11,8 @@ export type JwtPayload = {
   username: string;
   iat: number;
   exp: number;
+  aud?: 'hms-patient-mobile';
+  sid?: string;
 };
 
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
