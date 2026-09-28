@@ -499,11 +499,21 @@ export class PatientPortalService {
     if (!patientId || patientId !== input.patient_id) {
       throw new AppError('You cannot book an appointment for this patient', 403, 'PATIENT_ACCESS_DENIED');
     }
+    const chiefComplaint = input.consultation_intake?.chief_complaint?.trim() || null;
+    const reason = input.reason?.trim() || chiefComplaint || null;
     return this.appointments.createForPortal({
       ...input,
       patient_id: patientId,
       priority: 'ROUTINE',
       notes: null,
+      reason,
+      consultation_intake: input.consultation_intake ? {
+        chief_complaint: chiefComplaint,
+        history_present_illness: input.consultation_intake.history_present_illness?.trim() || null,
+        past_history: input.consultation_intake.past_history?.trim() || null,
+        family_history: input.consultation_intake.family_history?.trim() || null,
+        allergies: input.consultation_intake.allergies?.trim() || null,
+      } : null,
     }, userId);
   }
 

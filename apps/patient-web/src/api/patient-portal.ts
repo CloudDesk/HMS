@@ -232,9 +232,9 @@ export const patientPortalApi = {
     start_time: string;
     duration_minutes: number;
     visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE';
-    reason: string;
-    consultation_intake: {
-      chief_complaint: string;
+    reason?: string | null;
+    consultation_intake?: {
+      chief_complaint?: string | null;
       history_present_illness?: string | null;
       past_history?: string | null;
       family_history?: string | null;

@@ -257,8 +257,31 @@ h3, h4 { font-size: var(--font-size-subheading); }
   font-weight: 700;
 }
 
-.required-asterisk {
-  color: #ef4444;
+/* Universal Required Asterisk Red Color Styles */
+.required-asterisk,
+.required,
+label .required-asterisk,
+label .required,
+span.required,
+span.required-asterisk,
+label > span > b,
+label b,
+.portal-form-grid label b,
+.portal-form-grid label span b,
+.portal-form-grid label > span > b,
+.patient-login-form label b,
+.patient-login-form label span b,
+.portal-dialog-body label b,
+.portal-dialog-body label span b,
+.portal-dialog-body label > span > b,
+.portal-field label b,
+.portal-field label span b,
+.form-group label b,
+.form-group label span b {
+  color: #ef4444 !important;
+  font-weight: 700 !important;
+  margin-left: 0.18rem;
+  display: inline-block;
 }
 
 .patient-login-input {

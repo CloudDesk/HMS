@@ -196,7 +196,7 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
           <div className="portal-document-form-grid">
             <label>
               <span>
-                Category <b>*</b>
+                Category <span className="required-asterisk">*</span>
               </span>
               <select
                 onChange={(event) => setDocumentType(event.target.value as typeof documentType)}

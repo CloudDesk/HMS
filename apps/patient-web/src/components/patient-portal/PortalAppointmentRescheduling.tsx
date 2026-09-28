@@ -198,7 +198,7 @@ export function PortalAppointmentRescheduling({
         <div className="portal-form-grid">
           <label>
             <span>
-              Branch <b>*</b>
+              Branch <span className="required-asterisk">*</span>
             </span>
             <select
               {...form.register('branch_id', {
@@ -252,7 +252,7 @@ export function PortalAppointmentRescheduling({
           </label>
           <label>
             <span>
-              Department <b>*</b>
+              Department <span className="required-asterisk">*</span>
             </span>
             <select
               disabled={!branchId || departments.isLoading || departments.isError}
@@ -307,7 +307,7 @@ export function PortalAppointmentRescheduling({
           </label>
           <label className="wide">
             <span>
-              Doctor <b>*</b>
+              Doctor <span className="required-asterisk">*</span>
             </span>
             <select
               disabled={!departmentId || doctors.isLoading || doctors.isError}
@@ -371,7 +371,7 @@ export function PortalAppointmentRescheduling({
         <div className="portal-form-grid portal-date-options">
           <label>
             <span>
-              New date <b>*</b>
+              New date <span className="required-asterisk">*</span>
             </span>
             <input
               min={today}

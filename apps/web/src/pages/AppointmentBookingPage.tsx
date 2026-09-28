@@ -41,7 +41,7 @@ const bookingSchema = z.object({
   start_time: z.string().min(1, 'Time slot is required'),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY']),
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
-  reason: z.string().trim().min(3, 'Chief complaint is required'),
+  reason: z.string().trim().optional(),
   notes: z.string().optional(),
   history_present_illness: z.string().optional(),
   past_history: z.string().optional(),
@@ -236,7 +236,7 @@ clearErrors('start_time');
         reason: data.reason?.trim() || null,
         notes: data.notes?.trim() || null,
         consultation_intake: {
-          chief_complaint: data.reason.trim(),
+          chief_complaint: data.reason?.trim() || null,
           history_present_illness: data.history_present_illness?.trim() || null,
           past_history: data.past_history?.trim() || null,
           family_history: data.family_history?.trim() || null,

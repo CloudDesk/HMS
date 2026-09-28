@@ -6523,10 +6523,25 @@ fieldset.form-field {
    ───────────────────────────────────────────────────────────── */
 
 .required-asterisk,
+.required,
+span.required,
+span.required-asterisk,
 label .required-asterisk,
+label .required,
+label span.required,
+label span.required-asterisk,
 .doc-field label .required-asterisk,
-.form-group label .required-asterisk {
-  color: #dc2626 !important;
+.doc-field label .required,
+.doc-field label b,
+.form-group label .required-asterisk,
+.form-group label .required,
+.form-group label b,
+.form-field label .required-asterisk,
+.form-field label .required,
+.form-field label b,
+label b,
+label span b {
+  color: #ef4444 !important;
   font-weight: 800 !important;
   margin-left: 0.2rem !important;
   display: inline-block;

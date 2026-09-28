@@ -196,14 +196,14 @@ const bookAppointmentSchema = z.object({
   start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   duration_minutes: z.number().int().min(5).max(240),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
-  reason: z.string().trim().min(3).max(500),
+  reason: z.string().trim().max(500).optional().nullable(),
   consultation_intake: z.object({
-    chief_complaint: z.string().trim().min(3).max(4000),
+    chief_complaint: z.string().trim().max(4000).optional().nullable(),
     history_present_illness: z.string().trim().max(4000).optional().nullable(),
     past_history: z.string().trim().max(4000).optional().nullable(),
     family_history: z.string().trim().max(4000).optional().nullable(),
     allergies: z.string().trim().max(4000).optional().nullable(),
-  }),
+  }).optional().nullable(),
 });
 type BookAppointmentBody = z.infer<typeof bookAppointmentSchema>;
 
