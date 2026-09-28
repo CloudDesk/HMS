@@ -15,6 +15,8 @@ import { relationshipLabel } from '../../portal/formatters';
 import { NotificationsApi } from '../../notifications/notifications-api';
 import { PatientCard } from '../components/PatientCard';
 import { PatientContextSelector } from '../components/PatientContextSelector';
+import { EmptyState } from '../components/EmptyState';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 import type { MainTab } from '../components/BottomNavBar';
 
 interface HomeScreenProps {
@@ -61,7 +63,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
   const handleLogout = () => {
     Alert.alert(
       'Sign Out',
-      'Are you sure you want to sign out of your patient portal session?',
+      'Are you sure you want to sign out of MyCare?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -78,8 +80,8 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
   if (isLoading && !isRefreshing && !overview) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0284C7" />
-        <Text style={styles.loadingText}>Loading patient dashboard…</Text>
+        <ActivityIndicator size="small" color={colors.brand.primary} />
+        <Text style={styles.loadingText}>Loading health dashboard...</Text>
       </View>
     );
   }
@@ -87,14 +89,13 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
   if (error && !overview) {
     return (
       <View style={styles.errorContainer}>
-        <View style={styles.errorIconCircle}>
-          <Text style={styles.errorIconText}>⚠️</Text>
-        </View>
-        <Text style={styles.errorTitle}>Unable to Load Dashboard</Text>
-        <Text style={styles.errorMessage}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={refresh}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
+        <EmptyState
+          icon="⚠️"
+          title="Unable to Load Dashboard"
+          description={error}
+          actionLabel="Try Again"
+          onAction={refresh}
+        />
       </View>
     );
   }
@@ -105,6 +106,18 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
     ? relationshipLabel(selectedPatient.relationship)
     : undefined;
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const patientDisplayName =
+    selectedPatient?.full_name?.split(' ')[0] ??
+    context?.account.full_name?.split(' ')[0] ??
+    'Patient';
+
   return (
     <ScrollView
       contentContainerStyle={styles.container}
@@ -112,26 +125,27 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
         <RefreshControl
           refreshing={isRefreshing}
           onRefresh={refresh}
-          colors={['#0284C7']}
-          tintColor="#0284C7"
+          colors={[colors.brand.primary]}
+          tintColor={colors.brand.primary}
         />
       }
     >
-      {/* Top Header */}
+      {/* Top App Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome back,</Text>
-          <Text style={styles.headerName}>
-            {context?.account.full_name ?? selectedPatient?.full_name ?? 'Patient'}
+        <View style={styles.greetingContainer}>
+          <Text style={styles.greetingText}>{getGreeting()},</Text>
+          <Text style={styles.headerName} numberOfLines={1}>
+            {patientDisplayName}
           </Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={styles.notifIconBtn}
+            style={styles.headerIconBtn}
             onPress={() => onNavigateTab('notifications')}
+            activeOpacity={0.7}
             accessibilityLabel="Notifications"
           >
-            <Text style={styles.notifIconText}>🔔</Text>
+            <Text style={styles.headerIconText}>🔔</Text>
             {unreadNotifsCount > 0 ? (
               <View style={styles.notifBadge}>
                 <Text style={styles.notifBadgeText}>
@@ -142,11 +156,12 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.signOutIconBtn}
+            style={styles.headerIconBtn}
             onPress={handleLogout}
+            activeOpacity={0.7}
             accessibilityLabel="Sign Out"
           >
-            <Text style={styles.signOutIconText}>🚪</Text>
+            <Text style={styles.headerIconText}>🚪</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -163,42 +178,120 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
         </View>
       )}
 
+      {/* Quick Access Services */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Healthcare Services</Text>
+        <View style={styles.servicesGrid}>
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => onNavigateTab('appointments')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.serviceIconCircle, { backgroundColor: colors.brand.primaryLight }]}>
+              <Text style={styles.serviceEmoji}>📅</Text>
+            </View>
+            <Text style={styles.serviceTitle}>Appointments</Text>
+            <Text style={styles.serviceSubtitle}>Book & view visits</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => onNavigateTab('prescriptions')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.serviceIconCircle, { backgroundColor: '#F3E8FF' }]}>
+              <Text style={styles.serviceEmoji}>💊</Text>
+            </View>
+            <Text style={styles.serviceTitle}>Medicines</Text>
+            <Text style={styles.serviceSubtitle}>Prescriptions & doses</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => onNavigateTab('records')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.serviceIconCircle, { backgroundColor: '#DCFCE7' }]}>
+              <Text style={styles.serviceEmoji}>📋</Text>
+            </View>
+            <Text style={styles.serviceTitle}>Medical Records</Text>
+            <Text style={styles.serviceSubtitle}>Lab & imaging results</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => onNavigateTab('billing')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.serviceIconCircle, { backgroundColor: '#FEF9C3' }]}>
+              <Text style={styles.serviceEmoji}>🧾</Text>
+            </View>
+            <Text style={styles.serviceTitle}>Billing</Text>
+            <Text style={styles.serviceSubtitle}>Invoices & receipts</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => onNavigateTab('documents')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.serviceIconCircle, { backgroundColor: '#E0E7FF' }]}>
+              <Text style={styles.serviceEmoji}>📁</Text>
+            </View>
+            <Text style={styles.serviceTitle}>Documents</Text>
+            <Text style={styles.serviceSubtitle}>Files & health records</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => onNavigateTab('dental')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.serviceIconCircle, { backgroundColor: '#CCFBF1' }]}>
+              <Text style={styles.serviceEmoji}>🦷</Text>
+            </View>
+            <Text style={styles.serviceTitle}>Dental Care</Text>
+            <Text style={styles.serviceSubtitle}>Treatment plans</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Health Overview Summary Cards */}
       {summary ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Health Overview</Text>
+          <Text style={styles.sectionTitle}>Overview</Text>
           <View style={styles.summaryGrid}>
             <TouchableOpacity
               style={styles.summaryCard}
               onPress={() => onNavigateTab('appointments')}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={styles.summaryValue}>{summary.upcoming_appointments}</Text>
-              <Text style={styles.summaryLabel}>Upcoming Appointments</Text>
+              <Text style={styles.summaryLabel}>Upcoming Visits</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.summaryCard}
               onPress={() => onNavigateTab('records')}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={styles.summaryValue}>{summary.verified_lab_results}</Text>
-              <Text style={styles.summaryLabel}>Verified Lab Tests</Text>
+              <Text style={styles.summaryLabel}>Lab Reports</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.summaryCard}
               onPress={() => onNavigateTab('records')}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={styles.summaryValue}>{summary.verified_imaging_reports}</Text>
-              <Text style={styles.summaryLabel}>Imaging Reports</Text>
+              <Text style={styles.summaryLabel}>Imaging Scans</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.summaryCard}
               onPress={() => onNavigateTab('billing')}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text
                 style={[
@@ -208,124 +301,9 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
               >
                 {summary.outstanding_invoices}
               </Text>
-              <Text style={styles.summaryLabel}>Outstanding Invoices</Text>
+              <Text style={styles.summaryLabel}>Pending Invoices</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      ) : null}
-
-      {/* Quick Services Navigation */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Portal Services</Text>
-        <View style={styles.servicesGrid}>
-          <TouchableOpacity
-            style={styles.serviceItem}
-            onPress={() => onNavigateTab('profile')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#E0F2FE' }]}>
-              <Text style={styles.serviceEmoji}>👤</Text>
-            </View>
-            <Text style={styles.serviceName}>My Profile</Text>
-            <Text style={styles.serviceDesc}>View identity & contacts</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.serviceItem}
-            onPress={() => onNavigateTab('appointments')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#FEF3C7' }]}>
-              <Text style={styles.serviceEmoji}>📅</Text>
-            </View>
-            <Text style={styles.serviceName}>Appointments</Text>
-            <Text style={styles.serviceDesc}>Schedules & visits</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.serviceItem}
-            onPress={() => onNavigateTab('records')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#DCFCE7' }]}>
-              <Text style={styles.serviceEmoji}>📋</Text>
-            </View>
-            <Text style={styles.serviceName}>Medical Records</Text>
-            <Text style={styles.serviceDesc}>Labs, imaging & history</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.serviceItem}
-            onPress={() => onNavigateTab('prescriptions')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#F3E8FF' }]}>
-              <Text style={styles.serviceEmoji}>💊</Text>
-            </View>
-            <Text style={styles.serviceName}>Prescriptions</Text>
-            <Text style={styles.serviceDesc}>Medicines & dosages</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.serviceItem}
-            onPress={() => onNavigateTab('billing')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#FEF9C3' }]}>
-              <Text style={styles.serviceEmoji}>🧾</Text>
-            </View>
-            <Text style={styles.serviceName}>Billing & Invoices</Text>
-            <Text style={styles.serviceDesc}>Bills, payments & balances</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.serviceItem}
-            onPress={() => onNavigateTab('documents')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#E0E7FF' }]}>
-              <Text style={styles.serviceEmoji}>📁</Text>
-            </View>
-            <Text style={styles.serviceName}>My Documents</Text>
-            <Text style={styles.serviceDesc}>Insurance, files & forms</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.serviceItem}
-            onPress={() => onNavigateTab('dental')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#CCFBF1' }]}>
-              <Text style={styles.serviceEmoji}>🦷</Text>
-            </View>
-            <Text style={styles.serviceName}>Dental Plans</Text>
-            <Text style={styles.serviceDesc}>Treatment quotations & options</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Account Info Footer */}
-      {context?.account ? (
-        <View style={styles.accountCard}>
-          <Text style={styles.accountCardTitle}>Account Information</Text>
-          <View style={styles.accountRow}>
-            <Text style={styles.accountLabel}>Account Type</Text>
-            <Text style={styles.accountValue}>
-              {context.account.type === 'GUARDIAN' ? 'Parent / Guardian' : 'Patient Account'}
-            </Text>
-          </View>
-          {context.account.phone ? (
-            <View style={styles.accountRow}>
-              <Text style={styles.accountLabel}>Registered Phone</Text>
-              <Text style={styles.accountValue}>{context.account.phone}</Text>
-            </View>
-          ) : null}
-          {context.account.email ? (
-            <View style={styles.accountRow}>
-              <Text style={styles.accountLabel}>Email</Text>
-              <Text style={styles.accountValue}>{context.account.email}</Text>
-            </View>
-          ) : null}
         </View>
       ) : null}
     </ScrollView>
@@ -334,247 +312,173 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    backgroundColor: '#F8FAFC',
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
+    backgroundColor: colors.neutral.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 24,
+    padding: spacing.xl,
+    backgroundColor: colors.neutral.background,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    marginTop: spacing.md,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.medium,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 24,
-  },
-  errorIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  errorIconText: {
-    fontSize: 24,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  errorMessage: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+    padding: spacing.xl,
+    backgroundColor: colors.neutral.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
+    paddingTop: spacing.xs,
   },
-  greeting: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
+  greetingContainer: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.medium,
   },
   headerName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: typography.size.xl,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    letterSpacing: -0.3,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
-  notifIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.neutral.surface,
+    borderWidth: 1,
+    borderColor: colors.border.default,
     alignItems: 'center',
-    position: 'relative',
+    justifyContent: 'center',
+    ...shadows.subtle,
   },
-  notifIconText: {
-    fontSize: 16,
+  headerIconText: {
+    fontSize: 18,
   },
   notifBadge: {
     position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#EF4444',
-    borderRadius: 9,
+    top: -4,
+    right: -4,
+    backgroundColor: colors.status.danger,
+    borderRadius: radius.full,
     minWidth: 18,
     height: 18,
-    paddingHorizontal: 4,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.neutral.surface,
   },
   notifBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  signOutIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  signOutIconText: {
-    fontSize: 16,
+    color: colors.text.inverse,
+    fontSize: 10,
+    fontWeight: typography.weight.bold,
   },
   emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 20,
+    borderColor: colors.border.default,
+    alignItems: 'center',
+    marginBottom: spacing.xl,
   },
   emptyCardText: {
-    color: '#64748B',
-    fontSize: 14,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  summaryValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0284C7',
-    marginBottom: 4,
-  },
-  alertValue: {
-    color: '#DC2626',
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+    letterSpacing: -0.2,
   },
   servicesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: spacing.md,
   },
-  serviceItem: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
+  serviceCard: {
+    width: '47.5%',
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border.default,
+    ...shadows.subtle,
   },
   serviceIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    marginBottom: spacing.md,
   },
   serviceEmoji: {
-    fontSize: 18,
+    fontSize: 20,
   },
-  serviceName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 2,
+  serviceTitle: {
+    fontSize: typography.size.sm + 1,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xxs,
   },
-  serviceDesc: {
-    fontSize: 11,
-    color: '#94A3B8',
+  serviceSubtitle: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
   },
-  accountCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 4,
-  },
-  accountCardTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  accountRow: {
+  summaryGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
+    flexWrap: 'wrap',
+    gap: spacing.md,
   },
-  accountLabel: {
-    fontSize: 12,
-    color: '#64748B',
+  summaryCard: {
+    width: '47.5%',
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    ...shadows.subtle,
   },
-  accountValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1E293B',
+  summaryValue: {
+    fontSize: typography.size.xxl,
+    fontWeight: typography.weight.bold,
+    color: colors.brand.primaryDark,
+    marginBottom: spacing.xxs,
+  },
+  alertValue: {
+    color: colors.status.danger,
+  },
+  summaryLabel: {
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.medium,
   },
 });

@@ -1,7 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import type { PortalPatientDetail } from '../../portal/contracts';
 import { calculateAge } from '../../portal/formatters';
+import { StatusBadge } from './StatusBadge';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 interface PatientCardProps {
   patient: PortalPatientDetail;
@@ -19,12 +21,12 @@ export function PatientCard({ patient, relationship }: PatientCardProps) {
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
         <View style={styles.mainInfo}>
-          <Text style={styles.name}>
+          <Text style={styles.name} numberOfLines={1}>
             {patient.first_name} {patient.middle_name ? `${patient.middle_name} ` : ''}
             {patient.last_name}
           </Text>
           <View style={styles.mrnRow}>
-            <Text style={styles.mrnLabel}>MRN:</Text>
+            <Text style={styles.mrnLabel}>MRN</Text>
             <Text style={styles.mrnValue}>{patient.patient_number}</Text>
           </View>
         </View>
@@ -41,7 +43,7 @@ export function PatientCard({ patient, relationship }: PatientCardProps) {
         <View style={styles.chip}>
           <Text style={styles.chipLabel}>Age / Gender</Text>
           <Text style={styles.chipValue}>
-            {age} {age === 1 ? 'yr' : 'yrs'}, {patient.gender}
+            {age} {age === 1 ? 'yr' : 'yrs'} • {patient.gender}
           </Text>
         </View>
 
@@ -54,11 +56,13 @@ export function PatientCard({ patient, relationship }: PatientCardProps) {
           </View>
         ) : null}
 
-        <View style={styles.chip}>
+        <View style={styles.chipStatus}>
           <Text style={styles.chipLabel}>Status</Text>
-          <Text style={[styles.chipValue, styles.statusActive]}>
-            {patient.status.toUpperCase()}
-          </Text>
+          <StatusBadge
+            label={patient.status}
+            variant={patient.status.toUpperCase() === 'ACTIVE' ? 'success' : 'neutral'}
+            size="sm"
+          />
         </View>
       </View>
     </View>
@@ -67,15 +71,13 @@ export function PatientCard({ patient, relationship }: PatientCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#0369A1',
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: '#0369A1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 20,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    marginBottom: spacing.xl,
+    ...shadows.card,
   },
   topRow: {
     flexDirection: 'row',
@@ -84,88 +86,90 @@ const styles = StyleSheet.create({
   avatar: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: radius.md,
+    backgroundColor: colors.brand.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    marginRight: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.brand.accent,
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    color: colors.brand.primaryDark,
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
     letterSpacing: 0.5,
   },
   mainInfo: {
     flex: 1,
   },
   name: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 3,
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    letterSpacing: -0.2,
   },
   mrnRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: spacing.xxs,
   },
   mrnLabel: {
-    fontSize: 12,
-    color: '#BAE6FD',
-    marginRight: 4,
-    fontWeight: '500',
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
+    fontWeight: typography.weight.semibold,
+    marginRight: spacing.xs,
+    textTransform: 'uppercase',
   },
   mrnValue: {
-    fontSize: 12,
-    color: '#F0F9FF',
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   relationshipBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   relationshipText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    marginVertical: 14,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing.md,
   },
   chipsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   chip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    flex: 1,
+  },
+  chipStatus: {
+    alignItems: 'flex-end',
   },
   chipLabel: {
-    fontSize: 10,
-    color: '#BAE6FD',
-    marginBottom: 2,
-    textTransform: 'uppercase',
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
+    marginBottom: spacing.xxs,
+    fontWeight: typography.weight.medium,
   },
   chipValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.primary,
   },
   bloodGroup: {
-    color: '#FEF08A',
-  },
-  statusActive: {
-    color: '#86EFAC',
+    color: colors.status.danger,
+    fontWeight: typography.weight.bold,
   },
 });

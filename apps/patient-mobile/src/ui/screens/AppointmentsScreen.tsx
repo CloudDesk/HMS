@@ -17,13 +17,32 @@ import { PatientContextSelector } from '../components/PatientContextSelector';
 import {
   AppointmentDetailsModal,
   formatVisitType,
-  statusColor,
 } from '../components/AppointmentDetailsModal';
 import { BookAppointmentModal } from '../components/BookAppointmentModal';
 import { RescheduleAppointmentModal } from '../components/RescheduleAppointmentModal';
-
 import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
+import { EmptyState } from '../components/EmptyState';
+import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
 import { friendlyError } from '../../api/errors';
+import { colors, radius, shadows, spacing, typography } from '../theme';
+
+const getStatusVariant = (status: string): StatusVariant => {
+  switch (status.toUpperCase()) {
+    case 'CONFIRMED':
+    case 'COMPLETED':
+      return 'success';
+    case 'SCHEDULED':
+      return 'info';
+    case 'IN_PROGRESS':
+    case 'SKIPPED':
+      return 'warning';
+    case 'CANCELLED':
+    case 'NO_SHOW':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+};
 
 export function AppointmentsScreen() {
   const { manager } = useAuth();
@@ -98,17 +117,17 @@ export function AppointmentsScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => fetchAppointments(true)}
-            colors={['#0284C7']}
-            tintColor="#0284C7"
+            colors={[colors.brand.primary]}
+            tintColor={colors.brand.primary}
           />
         }
       >
         {/* Header Title & Book Button */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerTitleContainer}>
             <Text style={styles.title}>Appointments</Text>
             <Text style={styles.subtitle}>
-              Manage consultations for {selectedPatient?.full_name ?? 'selected patient'}
+              Manage consultations for {selectedPatient?.full_name ?? 'selected profile'}
             </Text>
           </View>
           <TouchableOpacity
@@ -148,8 +167,8 @@ export function AppointmentsScreen() {
         {/* Loading State */}
         {isLoading && !isRefreshing ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#0284C7" />
-            <Text style={styles.loadingText}>Loading {scope} appointments…</Text>
+            <ActivityIndicator size="small" color={colors.brand.primary} />
+            <Text style={styles.loadingText}>Loading {scope} appointments...</Text>
           </View>
         ) : null}
 
@@ -166,33 +185,23 @@ export function AppointmentsScreen() {
 
         {/* Empty State */}
         {!isLoading && !error && appointments.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📅</Text>
-            <Text style={styles.emptyTitle}>
-              {scope === 'upcoming' ? 'No Upcoming Appointments' : 'No Past Appointments'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {scope === 'upcoming'
+          <EmptyState
+            icon="📅"
+            title={scope === 'upcoming' ? 'No Upcoming Appointments' : 'No Past Appointments'}
+            description={
+              scope === 'upcoming'
                 ? 'You do not have any scheduled appointments for this profile.'
-                : 'No historical consultation records found.'}
-            </Text>
-            {scope === 'upcoming' ? (
-              <TouchableOpacity
-                style={styles.bookNowBtn}
-                onPress={() => setIsBookingOpen(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.bookNowBtnText}>Book an Appointment</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
+                : 'No historical consultation records found.'
+            }
+            actionLabel={scope === 'upcoming' ? 'Book an Appointment' : undefined}
+            onAction={scope === 'upcoming' ? () => setIsBookingOpen(true) : undefined}
+          />
         ) : null}
 
         {/* Appointments List */}
         {!isLoading && !error && appointments.length > 0 ? (
           <View style={styles.listContainer}>
             {appointments.map((apt) => {
-              const colors = statusColor(apt.status);
               const canReschedule = ['SCHEDULED', 'CONFIRMED', 'NO_SHOW', 'SKIPPED'].includes(
                 apt.status
               );
@@ -202,18 +211,17 @@ export function AppointmentsScreen() {
                   key={apt.id}
                   style={styles.card}
                   onPress={() => setViewingAppointment(apt)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.75}
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
                       <Text style={styles.doctorName}>{apt.doctor_name}</Text>
                       <Text style={styles.specialization}>{apt.doctor_specialization}</Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-                      <Text style={[styles.statusText, { color: colors.text }]}>
-                        {apt.status.replace(/_/g, ' ')}
-                      </Text>
-                    </View>
+                    <StatusBadge
+                      label={apt.status.replace(/_/g, ' ')}
+                      variant={getStatusVariant(apt.status)}
+                    />
                   </View>
 
                   <View style={styles.cardDivider} />
@@ -222,7 +230,7 @@ export function AppointmentsScreen() {
                     <View style={styles.detailRow}>
                       <Text style={styles.detailIcon}>📅</Text>
                       <Text style={styles.detailText}>
-                        {apt.appointment_date} · {apt.start_time} - {apt.end_time}
+                        {apt.appointment_date} • {apt.start_time} - {apt.end_time}
                       </Text>
                     </View>
                     {apt.branch?.name ? (
@@ -252,7 +260,7 @@ export function AppointmentsScreen() {
                           <Text style={styles.actionRescheduleText}>Reschedule</Text>
                         </TouchableOpacity>
                       ) : null}
-                      <Text style={styles.detailsChevron}>View Details →</Text>
+                      <Text style={styles.viewDetailsText}>View Details →</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -262,24 +270,22 @@ export function AppointmentsScreen() {
         ) : null}
       </ScrollView>
 
-      {/* Appointment Details Modal */}
+      {/* Appointment Modals */}
       <AppointmentDetailsModal
         appointment={viewingAppointment}
         onClose={() => setViewingAppointment(null)}
-        onReschedule={(apt) => {
+        onReschedule={(apt: PortalAppointment) => {
           setViewingAppointment(null);
           setReschedulingAppointment(apt);
         }}
       />
 
-      {/* Book Appointment Modal */}
       <BookAppointmentModal
         visible={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
         onBooked={handleBookingSuccess}
       />
 
-      {/* Reschedule Appointment Modal */}
       <RescheduleAppointmentModal
         appointment={reschedulingAppointment}
         onClose={() => setReschedulingAppointment(null)}
@@ -292,165 +298,96 @@ export function AppointmentsScreen() {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
   },
   container: {
-    flexGrow: 1,
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
+    paddingTop: spacing.xs,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginRight: spacing.md,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: typography.size.xl,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
   bookBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 8,
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: colors.brand.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    ...shadows.subtle,
   },
   bookBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
+    color: colors.text.inverse,
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.bold,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.xxs,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: spacing.sm + 2,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   tabButtonActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    backgroundColor: colors.neutral.surface,
+    ...shadows.subtle,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.medium,
+    color: colors.text.secondary,
   },
   tabTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
   },
   centerContainer: {
-    paddingVertical: 48,
+    paddingVertical: spacing.xxxl,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    marginTop: spacing.md,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
   },
-  errorIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  errorMessage: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    marginBottom: 16,
-  },
-  retryBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  emptyContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 8,
-  },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 18,
-  },
-  bookNowBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  bookNowBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+  errorDiagnosticWrapper: {
+    width: '100%',
   },
   listContainer: {
-    gap: 12,
+    gap: spacing.lg,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    borderColor: colors.border.default,
+    ...shadows.card,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -459,89 +396,75 @@ const styles = StyleSheet.create({
   },
   cardHeaderLeft: {
     flex: 1,
-    marginRight: 10,
+    marginRight: spacing.sm,
   },
   doctorName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: typography.size.md + 1,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
   specialization: {
-    fontSize: 13,
-    color: '#0284C7',
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
   cardDivider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 12,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing.md,
   },
   cardDetails: {
-    gap: 6,
+    gap: spacing.sm,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   detailIcon: {
-    fontSize: 13,
-    marginRight: 8,
+    fontSize: 14,
+    marginRight: spacing.sm,
+    width: 20,
   },
   detailText: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '500',
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 10,
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
+    borderTopColor: colors.border.subtle,
   },
   appointmentNum: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '600',
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
+    fontFamily: 'monospace',
+    fontWeight: typography.weight.semibold,
   },
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   actionRescheduleBtn: {
-    backgroundColor: '#F0F9FF',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.xs,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: colors.border.default,
   },
   actionRescheduleText: {
-    fontSize: 12,
-    color: '#0284C7',
-    fontWeight: '600',
+    fontSize: typography.size.xs,
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.semibold,
   },
-  detailsChevron: {
-    fontSize: 12,
-    color: '#0284C7',
-    fontWeight: '600',
-  },
-  errorDiagnosticWrapper: {
-    width: '100%',
-    maxWidth: 360,
+  viewDetailsText: {
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primary,
+    fontWeight: typography.weight.semibold,
   },
 });

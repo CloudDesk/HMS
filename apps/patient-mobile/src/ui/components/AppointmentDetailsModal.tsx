@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native';
 import type { PortalAppointment } from '../../appointments/contracts';
+import { StatusBadge, type StatusVariant } from './StatusBadge';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 interface AppointmentDetailsModalProps {
   appointment: PortalAppointment | null;
@@ -19,24 +21,43 @@ interface AppointmentDetailsModalProps {
 export function statusColor(status: PortalAppointment['status']): { bg: string; text: string } {
   switch (status) {
     case 'SCHEDULED':
-      return { bg: '#E0F2FE', text: '#0369A1' };
+      return { bg: colors.brand.primaryLight, text: colors.brand.primaryDark };
     case 'CONFIRMED':
-      return { bg: '#DCFCE7', text: '#15803D' };
+      return { bg: colors.status.successBg, text: colors.status.success };
     case 'CHECKED_IN':
-      return { bg: '#FEF3C7', text: '#B45309' };
+      return { bg: colors.status.warningBg, text: colors.status.warning };
     case 'COMPLETED':
-      return { bg: '#F1F5F9', text: '#475569' };
+      return { bg: colors.neutral.surfaceSubtle, text: colors.text.secondary };
     case 'CANCELLED':
-      return { bg: '#FEE2E2', text: '#B91C1C' };
+      return { bg: colors.status.dangerBg, text: colors.status.danger };
     case 'RESCHEDULED':
       return { bg: '#F3E8FF', text: '#7E22CE' };
     case 'NO_SHOW':
     case 'SKIPPED':
-      return { bg: '#FFEDD5', text: '#C2410C' };
+      return { bg: colors.status.warningBg, text: colors.status.warning };
     default:
-      return { bg: '#F1F5F9', text: '#475569' };
+      return { bg: colors.neutral.surfaceSubtle, text: colors.text.secondary };
   }
 }
+
+const getStatusBadgeVariant = (status: PortalAppointment['status']): StatusVariant => {
+  switch (status) {
+    case 'CONFIRMED':
+    case 'COMPLETED':
+      return 'success';
+    case 'SCHEDULED':
+      return 'info';
+    case 'CHECKED_IN':
+    case 'SKIPPED':
+    case 'RESCHEDULED':
+      return 'warning';
+    case 'CANCELLED':
+    case 'NO_SHOW':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+};
 
 export function formatVisitType(type: string): string {
   switch (type) {
@@ -58,7 +79,6 @@ export function AppointmentDetailsModal({
 }: AppointmentDetailsModalProps) {
   if (!appointment) return null;
 
-  const colors = statusColor(appointment.status);
   const canReschedule = ['SCHEDULED', 'CONFIRMED', 'NO_SHOW', 'SKIPPED'].includes(
     appointment.status
   );
@@ -67,7 +87,7 @@ export function AppointmentDetailsModal({
     <Modal
       visible={Boolean(appointment)}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>
@@ -78,20 +98,21 @@ export function AppointmentDetailsModal({
                 <View>
                   <Text style={styles.headerTitle}>Appointment Details</Text>
                   <Text style={styles.appointmentNumber}>
-                    {appointment.appointment_number}
+                    #{appointment.appointment_number}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
                   <Text style={styles.closeBtnText}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={styles.scrollContent}>
                 {/* Status Badge */}
-                <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-                  <Text style={[styles.statusText, { color: colors.text }]}>
-                    {appointment.status.replace(/_/g, ' ')}
-                  </Text>
+                <View style={styles.badgeRow}>
+                  <StatusBadge
+                    label={appointment.status.replace(/_/g, ' ')}
+                    variant={getStatusBadgeVariant(appointment.status)}
+                  />
                 </View>
 
                 {/* Doctor and Clinic Info */}
@@ -99,61 +120,51 @@ export function AppointmentDetailsModal({
                   <Text style={styles.sectionLabel}>Doctor & Speciality</Text>
                   <Text style={styles.doctorName}>{appointment.doctor_name}</Text>
                   <Text style={styles.specialization}>
-                    {appointment.doctor_specialization}
+                    {appointment.doctor_specialization || 'Consultant Specialist'}
                   </Text>
                 </View>
 
-                {/* Schedule Info */}
+                {/* Date & Time */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Date & Time</Text>
-                  <View style={styles.row}>
-                    <Text style={styles.infoIcon}>📅</Text>
-                    <Text style={styles.infoValue}>{appointment.appointment_date}</Text>
-                  </View>
-                  <View style={styles.row}>
-                    <Text style={styles.infoIcon}>⏰</Text>
-                    <Text style={styles.infoValue}>
-                      {appointment.start_time} – {appointment.end_time} (
-                      {appointment.duration_minutes} mins)
-                    </Text>
-                  </View>
+                  <Text style={styles.sectionLabel}>Schedule</Text>
+                  <Text style={styles.scheduleText}>
+                    📅 {appointment.appointment_date}
+                  </Text>
+                  <Text style={styles.scheduleText}>
+                    ⏰ {appointment.start_time} - {appointment.end_time}
+                  </Text>
                 </View>
 
-                {/* Location */}
-                {appointment.branch ? (
+                {/* Hospital Location */}
+                {appointment.branch?.name ? (
                   <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Hospital Location</Text>
-                    <View style={styles.row}>
-                      <Text style={styles.infoIcon}>📍</Text>
-                      <Text style={styles.infoValue}>
-                        {appointment.branch.name}
-                        {appointment.branch.city ? ` · ${appointment.branch.city}` : ''}
-                      </Text>
-                    </View>
-                    {appointment.branch.address ? (
-                      <Text style={styles.subAddress}>
-                        {appointment.branch.address}
+                    <Text style={styles.sectionLabel}>Hospital Facility</Text>
+                    <Text style={styles.locationText}>{appointment.branch.name}</Text>
+                    {appointment.branch.address || appointment.branch.city ? (
+                      <Text style={styles.addressText}>
+                        {[appointment.branch.address, appointment.branch.city]
+                          .filter(Boolean)
+                          .join(', ')}
                       </Text>
                     ) : null}
                   </View>
                 ) : null}
 
-                {/* Visit Type & Reason */}
+                {/* Visit Type */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Visit Purpose</Text>
-                  <View style={styles.row}>
-                    <Text style={styles.infoIcon}>🩺</Text>
-                    <Text style={styles.infoValue}>
-                      {formatVisitType(appointment.visit_type)}
-                    </Text>
-                  </View>
+                  <Text style={styles.sectionLabel}>Visit Information</Text>
+                  <Text style={styles.visitTypeText}>
+                    Type: {formatVisitType(appointment.visit_type)}
+                  </Text>
                   {appointment.reason ? (
-                    <Text style={styles.reasonBox}>{appointment.reason}</Text>
+                    <Text style={styles.reasonText}>
+                      Reason: {appointment.reason}
+                    </Text>
                   ) : null}
                 </View>
               </ScrollView>
 
-              {/* Actions Footer */}
+              {/* Action Buttons */}
               <View style={styles.footer}>
                 {canReschedule && onReschedule ? (
                   <TouchableOpacity
@@ -167,13 +178,8 @@ export function AppointmentDetailsModal({
                     <Text style={styles.rescheduleBtnText}>Reschedule Visit</Text>
                   </TouchableOpacity>
                 ) : null}
-
-                <TouchableOpacity
-                  style={styles.doneBtn}
-                  onPress={onClose}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.doneBtnText}>Close</Text>
+                <TouchableOpacity style={styles.dismissBtn} onPress={onClose} activeOpacity={0.8}>
+                  <Text style={styles.dismissBtnText}>Close</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -188,146 +194,141 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.xl,
+    width: '100%',
+    maxWidth: 400,
     maxHeight: '85%',
-    paddingBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    ...shadows.modal,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
+    alignItems: 'flex-start',
+    padding: spacing.xl,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.border.subtle,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
   appointmentNumber: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
+    marginTop: spacing.xxs,
+    fontFamily: 'monospace',
   },
   closeBtn: {
-    padding: 6,
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeBtnText: {
-    fontSize: 18,
-    color: '#64748B',
-    fontWeight: '600',
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.bold,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: spacing.xl,
+    gap: spacing.lg,
   },
-  statusBadge: {
+  badgeRow: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   section: {
-    marginBottom: 16,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.md,
   },
   sectionLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: typography.weight.bold,
+    color: colors.text.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 6,
+    marginBottom: spacing.xs,
   },
   doctorName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
   specialization: {
-    fontSize: 13,
-    color: '#0284C7',
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primaryDark,
+    marginTop: spacing.xxs,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
+  department: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
-  infoIcon: {
-    fontSize: 14,
-    marginRight: 8,
+  scheduleText: {
+    fontSize: typography.size.sm,
+    color: colors.text.primary,
+    fontWeight: typography.weight.medium,
+    marginTop: spacing.xxs,
   },
-  infoValue: {
-    fontSize: 14,
-    color: '#1E293B',
-    fontWeight: '500',
+  locationText: {
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.primary,
   },
-  subAddress: {
-    fontSize: 12,
-    color: '#64748B',
-    marginLeft: 22,
-    marginTop: 2,
+  addressText: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
-  reasonBox: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 18,
+  visitTypeText: {
+    fontSize: typography.size.sm,
+    color: colors.text.primary,
+    fontWeight: typography.weight.medium,
+  },
+  reasonText: {
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    gap: 8,
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+    gap: spacing.sm,
   },
   rescheduleBtn: {
-    backgroundColor: '#E0F2FE',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    borderRadius: 10,
-    paddingVertical: 12,
+    backgroundColor: colors.brand.primary,
+    borderRadius: radius.md,
+    height: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   rescheduleBtnText: {
-    color: '#0284C7',
-    fontSize: 14,
-    fontWeight: '700',
+    color: colors.text.inverse,
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.bold,
   },
-  doneBtn: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    paddingVertical: 12,
+  dismissBtn: {
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    height: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  doneBtnText: {
-    color: '#475569',
-    fontSize: 14,
-    fontWeight: '600',
+  dismissBtnText: {
+    color: colors.text.secondary,
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
   },
 });

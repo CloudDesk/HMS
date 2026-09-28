@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,13 +11,16 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { BrandLogo } from '../components/BrandLogo';
 import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export function OtpScreen() {
   const { state, verifyOtp, requestOtp, backToPhone } = useAuth();
   const [otp, setOtp] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
+  const inputRef = useRef<TextInput>(null);
 
   const phone = state.phone ?? '';
   const isSubmitting = state.status === 'requestingOtp';
@@ -58,6 +61,8 @@ export function OtpScreen() {
     await requestOtp(phone);
   };
 
+  const digits = [otp[0] ?? '', otp[1] ?? '', otp[2] ?? '', otp[3] ?? ''];
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -66,63 +71,84 @@ export function OtpScreen() {
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>✉️</Text>
-            </View>
-            <Text style={styles.title}>Verification Code</Text>
+            <BrandLogo size="md" />
+            <Text style={styles.title}>Verify your MyCare account</Text>
             <Text style={styles.subtitle}>
-              Enter the 4-digit code sent to{'\n'}
-              <Text style={styles.phoneHighlight}>{phone || 'your phone'}</Text>
+              Enter the 4-digit verification code sent to{'\n'}
+              <Text style={styles.phoneHighlight}>{phone || 'your mobile number'}</Text>
             </Text>
           </View>
 
           {state.errorDetails || displayError ? (
-            <ErrorDiagnosticView
-              error={state.errorDetails ?? displayError}
-              onDismiss={localError ? () => setLocalError(null) : undefined}
-            />
+            <View style={styles.errorContainer}>
+              <ErrorDiagnosticView
+                error={state.errorDetails ?? displayError}
+                onDismiss={localError ? () => setLocalError(null) : undefined}
+              />
+            </View>
           ) : null}
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>4-Digit Code</Text>
-            <TextInput
-              style={styles.otpInput}
-              placeholder="1234"
-              placeholderTextColor="#94A3B8"
-              keyboardType="number-pad"
-              maxLength={4}
-              autoFocus
-              value={otp}
-              onChangeText={(text) => {
-                const numeric = text.replace(/\D/g, '');
-                setOtp(numeric);
-                if (localError) setLocalError(null);
-              }}
-              editable={!isSubmitting}
-            />
-            <Text style={styles.hint}>Development testing code: 1234</Text>
-          </View>
+          {/* OTP Digit Boxes */}
+          <TouchableOpacity
+            style={styles.otpBoxesContainer}
+            activeOpacity={1}
+            onPress={() => inputRef.current?.focus()}
+          >
+            {digits.map((digit, index) => {
+              const isFilled = Boolean(digit);
+              const isCurrent = otp.length === index;
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.otpBox,
+                    isFilled && styles.otpBoxFilled,
+                    isCurrent && styles.otpBoxActive,
+                  ]}
+                >
+                  <Text style={styles.otpDigitText}>{digit}</Text>
+                </View>
+              );
+            })}
+          </TouchableOpacity>
+
+          {/* Hidden text input for native keyboard handling */}
+          <TextInput
+            ref={inputRef}
+            style={styles.hiddenInput}
+            keyboardType="number-pad"
+            maxLength={4}
+            autoFocus
+            value={otp}
+            onChangeText={(text) => {
+              const numeric = text.replace(/\D/g, '');
+              setOtp(numeric);
+              if (localError) setLocalError(null);
+            }}
+            editable={!isSubmitting}
+          />
 
           <TouchableOpacity
-            style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
+            style={[styles.primaryButton, (isSubmitting || otp.length < 4) && styles.buttonDisabled]}
             onPress={handleVerify}
-            disabled={isSubmitting}
-            activeOpacity={0.8}
+            disabled={isSubmitting || otp.length < 4}
+            activeOpacity={0.85}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color={colors.text.inverse} size="small" />
             ) : (
               <Text style={styles.primaryButtonText}>Verify & Sign In</Text>
             )}
           </TouchableOpacity>
 
-          <View style={styles.actionRow}>
+          <View style={styles.resendSection}>
+            <Text style={styles.resendPrompt}>Didn't receive the code?</Text>
             {secondsRemaining > 0 ? (
               <Text style={styles.cooldownText}>
                 Resend code in <Text style={styles.timerHighlight}>{secondsRemaining}s</Text>
               </Text>
             ) : (
-              <TouchableOpacity onPress={handleResend} disabled={isSubmitting}>
+              <TouchableOpacity onPress={handleResend} disabled={isSubmitting} activeOpacity={0.7}>
                 <Text style={styles.linkText}>Resend Code</Text>
               </TouchableOpacity>
             )}
@@ -132,8 +158,9 @@ export function OtpScreen() {
             style={styles.backButton}
             onPress={backToPhone}
             disabled={isSubmitting}
+            activeOpacity={0.7}
           >
-            <Text style={styles.backButtonText}>← Change Phone Number</Text>
+            <Text style={styles.backButtonText}>← Change Mobile Number</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -144,142 +171,132 @@ export function OtpScreen() {
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.neutral.background,
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: spacing.xl,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xxl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border.default,
+    ...shadows.card,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  iconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#E0F2FE',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  iconText: {
-    fontSize: 24,
+    marginBottom: spacing.xl,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: typography.lineHeight.normal,
   },
   phoneHighlight: {
-    fontWeight: '600',
-    color: '#0F172A',
+    fontWeight: typography.weight.bold,
+    color: colors.brand.primaryDark,
   },
-  errorBanner: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+  errorContainer: {
+    marginBottom: spacing.lg,
   },
-  errorText: {
-    color: '#B91C1C',
-    fontSize: 13,
-    lineHeight: 18,
+  otpBoxesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.xxl,
+    marginTop: spacing.sm,
   },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  otpInput: {
-    backgroundColor: '#F8FAFC',
+  otpBox: {
+    width: 52,
+    height: 56,
+    borderRadius: radius.md,
     borderWidth: 1.5,
-    borderColor: '#0284C7',
-    borderRadius: 12,
-    paddingVertical: 14,
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-    letterSpacing: 8,
-  },
-  hint: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  primaryButton: {
-    backgroundColor: '#0284C7',
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderColor: colors.border.default,
+    backgroundColor: colors.neutral.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: 16,
+  },
+  otpBoxFilled: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.neutral.surface,
+  },
+  otpBoxActive: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.brand.primarySubtle,
+  },
+  otpDigitText: {
+    fontSize: typography.size.xxl,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+  },
+  hiddenInput: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
+  primaryButton: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: radius.md,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.subtle,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    color: colors.text.inverse,
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
+    letterSpacing: 0.2,
   },
-  actionRow: {
+  resendSection: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  resendPrompt: {
+    fontSize: typography.size.xs + 1,
+    color: colors.text.muted,
+    marginBottom: spacing.xs,
   },
   cooldownText: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.medium,
   },
   timerHighlight: {
-    fontWeight: '600',
-    color: '#0284C7',
+    fontWeight: typography.weight.bold,
+    color: colors.brand.primaryDark,
   },
   linkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0284C7',
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.bold,
+    color: colors.brand.primary,
   },
   backButton: {
+    marginTop: spacing.lg,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   backButtonText: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.medium,
   },
 });

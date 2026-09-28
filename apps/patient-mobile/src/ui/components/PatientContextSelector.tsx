@@ -9,18 +9,19 @@ import {
 } from 'react-native';
 import { usePatient } from '../../portal/PatientContext';
 import { relationshipLabel } from '../../portal/formatters';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export function PatientContextSelector() {
   const { context, selectedPatient, switchPatient } = usePatient();
   const [modalOpen, setModalOpen] = useState(false);
 
   if (!context || context.patients.length <= 1) {
-    // Only one patient profile (Self) — show simple context badge
     if (!selectedPatient) return null;
     return (
       <View style={styles.singleContextBadge}>
+        <View style={styles.badgeDot} />
         <Text style={styles.singleContextText}>
-          👤 {selectedPatient.full_name} ({relationshipLabel(selectedPatient.relationship)})
+          {selectedPatient.full_name} ({relationshipLabel(selectedPatient.relationship)})
         </Text>
       </View>
     );
@@ -38,10 +39,10 @@ export function PatientContextSelector() {
       <TouchableOpacity
         style={styles.selectorButton}
         onPress={() => setModalOpen(true)}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
       >
         <View style={styles.selectorLeft}>
-          <Text style={styles.selectorLabel}>Viewing Patient:</Text>
+          <Text style={styles.selectorLabel}>ACTIVE PROFILE</Text>
           <Text style={styles.selectorName} numberOfLines={1}>
             {selectedPatient?.full_name ?? 'Select Patient'}
           </Text>
@@ -52,7 +53,7 @@ export function PatientContextSelector() {
               {selectedPatient ? relationshipLabel(selectedPatient.relationship) : ''}
             </Text>
           </View>
-          <Text style={styles.arrowIcon}>▼</Text>
+          <Text style={styles.arrowIcon}>▾</Text>
         </View>
       </TouchableOpacity>
 
@@ -67,17 +68,20 @@ export function PatientContextSelector() {
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Switch Patient Context</Text>
+                  <View>
+                    <Text style={styles.modalTitle}>Switch Profile</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Select a family member to view their records
+                    </Text>
+                  </View>
                   <TouchableOpacity
                     onPress={() => setModalOpen(false)}
                     style={styles.closeButton}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.closeButtonText}>✕</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.modalSubtitle}>
-                  Select a registered family member to view their records and appointments.
-                </Text>
 
                 <View style={styles.patientList}>
                   {context.patients.map((patient) => {
@@ -99,7 +103,12 @@ export function PatientContextSelector() {
                         onPress={() => void handleSelect(patient.id)}
                         activeOpacity={0.7}
                       >
-                        <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
+                        <View
+                          style={[
+                            styles.avatar,
+                            isSelected && styles.avatarSelected,
+                          ]}
+                        >
                           <Text
                             style={[
                               styles.avatarText,
@@ -118,13 +127,12 @@ export function PatientContextSelector() {
                           >
                             {patient.full_name}
                           </Text>
-                          <Text style={styles.patientMeta}>
-                            MRN: {patient.patient_number} ·{' '}
-                            {relationshipLabel(patient.relationship)}
+                          <Text style={styles.patientRel}>
+                            {relationshipLabel(patient.relationship)} • MRN: {patient.patient_number}
                           </Text>
                         </View>
                         {isSelected ? (
-                          <View style={styles.checkBadge}>
+                          <View style={styles.checkCircle}>
                             <Text style={styles.checkText}>✓</Text>
                           </View>
                         ) : null}
@@ -143,176 +151,189 @@ export function PatientContextSelector() {
 
 const styles = StyleSheet.create({
   singleContextBadge: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.brand.primarySubtle,
+    borderWidth: 1,
+    borderColor: colors.brand.primaryLight,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.lg,
     alignSelf: 'flex-start',
-    marginBottom: 16,
+  },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.brand.primary,
+    marginRight: spacing.sm,
   },
   singleContextText: {
-    fontSize: 12,
-    color: '#475569',
-    fontWeight: '500',
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.semibold,
   },
   selectorButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#E0F2FE',
+    backgroundColor: colors.neutral.surface,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 16,
+    borderColor: colors.border.default,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.xl,
+    ...shadows.subtle,
   },
   selectorLeft: {
     flex: 1,
-    marginRight: 8,
   },
   selectorLabel: {
-    fontSize: 11,
-    color: '#0369A1',
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontSize: 10,
+    color: colors.text.muted,
+    fontWeight: typography.weight.bold,
     letterSpacing: 0.5,
+    marginBottom: spacing.xxs,
   },
   selectorName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0C4A6E',
-    marginTop: 1,
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
   selectorRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
   tag: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   tagText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.semibold,
+    textTransform: 'uppercase',
   },
   arrowIcon: {
-    fontSize: 10,
-    color: '#0369A1',
-    marginLeft: 2,
+    fontSize: 14,
+    color: colors.text.muted,
+    fontWeight: typography.weight.bold,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.xl,
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.xl,
     width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    maxWidth: 380,
+    padding: spacing.xl,
+    ...shadows.modal,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+    marginBottom: spacing.lg,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  closeButtonText: {
-    fontSize: 16,
-    color: '#64748B',
-    fontWeight: '600',
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
   modalSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    lineHeight: 18,
-    marginBottom: 16,
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.bold,
   },
   patientList: {
-    gap: 8,
+    gap: spacing.sm,
   },
   patientItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 10,
+    padding: spacing.md,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
+    borderColor: colors.border.default,
+    backgroundColor: colors.neutral.surface,
   },
   patientItemSelected: {
-    borderColor: '#0284C7',
-    backgroundColor: '#F0F9FF',
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.brand.primarySubtle,
   },
   avatar: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
+    borderRadius: radius.full,
+    backgroundColor: colors.neutral.surfaceSubtle,
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
   avatarSelected: {
-    backgroundColor: '#0284C7',
+    backgroundColor: colors.brand.primary,
   },
   avatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#475569',
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.bold,
+    color: colors.text.secondary,
   },
   avatarTextSelected: {
-    color: '#FFFFFF',
+    color: colors.text.inverse,
   },
   patientInfo: {
     flex: 1,
   },
   patientName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontSize: typography.size.sm + 1,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.primary,
   },
   patientNameSelected: {
-    color: '#0284C7',
-    fontWeight: '700',
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
   },
-  patientMeta: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
+  patientRel: {
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
+    marginTop: spacing.xxs,
   },
-  checkBadge: {
+  checkCircle: {
     width: 24,
     height: 24,
-    borderRadius: 12,
-    backgroundColor: '#0284C7',
-    justifyContent: 'center',
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   checkText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    color: colors.text.inverse,
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.bold,
   },
 });

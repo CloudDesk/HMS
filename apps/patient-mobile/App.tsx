@@ -25,6 +25,7 @@ import { NotificationsScreen } from './src/ui/screens/NotificationsScreen';
 import { ProfileScreen } from './src/ui/screens/ProfileScreen';
 import { ErrorScreen } from './src/ui/screens/ErrorScreen';
 import { BottomNavBar, type MainTab } from './src/ui/components/BottomNavBar';
+import { colors } from './src/ui/theme';
 
 function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState<MainTab>('home');
@@ -131,11 +132,11 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
   },
   authenticatedContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
   },
   tabContent: {
     flex: 1,

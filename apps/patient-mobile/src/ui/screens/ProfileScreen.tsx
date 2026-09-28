@@ -13,6 +13,9 @@ import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
 import { calculateAge, relationshipLabel } from '../../portal/formatters';
 import { PatientContextSelector } from '../components/PatientContextSelector';
+import { EmptyState } from '../components/EmptyState';
+import { StatusBadge } from '../components/StatusBadge';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 import type { MainTab } from '../components/BottomNavBar';
 
 interface ProfileScreenProps {
@@ -34,7 +37,7 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
   const handleLogout = () => {
     Alert.alert(
       'Sign Out',
-      'Are you sure you want to sign out of your patient portal session?',
+      'Are you sure you want to sign out of MyCare?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -51,8 +54,8 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
   if (isLoading && !isRefreshing && !overview) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0284C7" />
-        <Text style={styles.loadingText}>Loading patient profile…</Text>
+        <ActivityIndicator size="small" color={colors.brand.primary} />
+        <Text style={styles.loadingText}>Loading profile details...</Text>
       </View>
     );
   }
@@ -60,14 +63,13 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
   if (error && !overview) {
     return (
       <View style={styles.errorContainer}>
-        <View style={styles.errorIconCircle}>
-          <Text style={styles.errorIconText}>⚠️</Text>
-        </View>
-        <Text style={styles.errorTitle}>Unable to Load Profile</Text>
-        <Text style={styles.errorMessage}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={refresh}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
+        <EmptyState
+          icon="⚠️"
+          title="Unable to Load Profile"
+          description={error}
+          actionLabel="Try Again"
+          onAction={refresh}
+        />
       </View>
     );
   }
@@ -101,44 +103,47 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
         <RefreshControl
           refreshing={isRefreshing}
           onRefresh={refresh}
-          colors={['#0284C7']}
-          tintColor="#0284C7"
+          colors={[colors.brand.primary]}
+          tintColor={colors.brand.primary}
         />
       }
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Patient Profile</Text>
-        <TouchableOpacity
-          style={styles.signOutBtn}
-          onPress={handleLogout}
-          accessibilityLabel="Sign Out"
-        >
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Profile</Text>
+        <Text style={styles.headerSubtitle}>
+          Patient identity & hospital records
+        </Text>
       </View>
 
-      {/* Patient Context Selector */}
+      {/* Patient Switcher */}
       <PatientContextSelector />
 
-      {/* Identity Banner */}
+      {/* Profile Overview Card */}
       {patient ? (
-        <View style={styles.identityCard}>
+        <View style={styles.heroCard}>
           <View style={styles.avatarLarge}>
-            <Text style={styles.avatarLargeText}>{initials}</Text>
+            <Text style={styles.avatarTextLarge}>{initials}</Text>
           </View>
-          <Text style={styles.patientFullName}>
+          <Text style={styles.heroName}>
             {patient.first_name} {patient.middle_name ? `${patient.middle_name} ` : ''}
             {patient.last_name}
           </Text>
-          <View style={styles.mrnBadge}>
-            <Text style={styles.mrnBadgeText}>MRN: {patient.patient_number}</Text>
+          <Text style={styles.heroMrn}>MRN: {patient.patient_number}</Text>
+          <View style={styles.heroBadgeRow}>
+            <StatusBadge
+              label={patient.status}
+              variant={patient.status.toUpperCase() === 'ACTIVE' ? 'success' : 'neutral'}
+              size="sm"
+            />
+            {selectedPatient?.relationship ? (
+              <View style={styles.relBadge}>
+                <Text style={styles.relBadgeText}>
+                  {relationshipLabel(selectedPatient.relationship)}
+                </Text>
+              </View>
+            ) : null}
           </View>
-          {selectedPatient ? (
-            <Text style={styles.relationshipSub}>
-              Account Context: {relationshipLabel(selectedPatient.relationship)}
-            </Text>
-          ) : null}
         </View>
       ) : null}
 
@@ -148,18 +153,11 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
           <Text style={styles.cardTitle}>Personal Information</Text>
 
           <View style={styles.row}>
-            <Text style={styles.label}>First Name</Text>
-            <Text style={styles.value}>{patient.first_name}</Text>
-          </View>
-          {patient.middle_name ? (
-            <View style={styles.row}>
-              <Text style={styles.label}>Middle Name</Text>
-              <Text style={styles.value}>{patient.middle_name}</Text>
-            </View>
-          ) : null}
-          <View style={styles.row}>
-            <Text style={styles.label}>Last Name</Text>
-            <Text style={styles.value}>{patient.last_name}</Text>
+            <Text style={styles.label}>Full Legal Name</Text>
+            <Text style={styles.value}>
+              {patient.first_name} {patient.middle_name ? `${patient.middle_name} ` : ''}
+              {patient.last_name}
+            </Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Date of Birth</Text>
@@ -183,10 +181,6 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
               </Text>
             </View>
           ) : null}
-          <View style={styles.row}>
-            <Text style={styles.label}>Record Status</Text>
-            <Text style={[styles.value, styles.capitalize]}>{patient.status.toLowerCase()}</Text>
-          </View>
         </View>
       ) : null}
 
@@ -261,14 +255,6 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
               <Text style={styles.value}>{context.account.phone}</Text>
             </View>
           ) : null}
-          {guardianProfile.identification?.type ? (
-            <View style={styles.row}>
-              <Text style={styles.label}>ID Document</Text>
-              <Text style={styles.value}>
-                {guardianProfile.identification.type}: {guardianProfile.identification.number ?? '—'}
-              </Text>
-            </View>
-          ) : null}
         </View>
       ) : null}
 
@@ -291,264 +277,285 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
 
       {/* Shortcuts */}
       {onNavigateTab ? (
-        <>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>More Services</Text>
+
           <TouchableOpacity
-            style={styles.card}
+            style={styles.actionCard}
             onPress={() => onNavigateTab('billing')}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text style={styles.cardTitle}>Hospital Invoices & Billing</Text>
-                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                  View bills, itemized receipts & payment history
-                </Text>
-              </View>
-              <Text style={{ fontSize: 16, color: '#0284C7', fontWeight: '700' }}>→</Text>
+            <View style={styles.actionCardLeft}>
+              <Text style={styles.actionCardTitle}>Hospital Invoices & Billing</Text>
+              <Text style={styles.actionCardSubtitle}>
+                View statements, receipts & outstanding balance
+              </Text>
             </View>
+            <Text style={styles.actionCardArrow}>→</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.card}
+            style={styles.actionCard}
             onPress={() => onNavigateTab('documents')}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text style={styles.cardTitle}>My Documents</Text>
-                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                  Medical records, insurance files & uploaded documents
-                </Text>
-              </View>
-              <Text style={{ fontSize: 16, color: '#0284C7', fontWeight: '700' }}>→</Text>
+            <View style={styles.actionCardLeft}>
+              <Text style={styles.actionCardTitle}>My Documents</Text>
+              <Text style={styles.actionCardSubtitle}>
+                Medical records, insurance files & uploads
+              </Text>
             </View>
+            <Text style={styles.actionCardArrow}>→</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.card}
+            style={styles.actionCard}
             onPress={() => onNavigateTab('dental')}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text style={styles.cardTitle}>Dental Treatment Plans</Text>
-                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                  Dental quotations, proposed procedures & treatment options
-                </Text>
-              </View>
-              <Text style={{ fontSize: 16, color: '#0284C7', fontWeight: '700' }}>→</Text>
+            <View style={styles.actionCardLeft}>
+              <Text style={styles.actionCardTitle}>Dental Treatment Plans</Text>
+              <Text style={styles.actionCardSubtitle}>
+                Dental quotations & proposed care options
+              </Text>
             </View>
+            <Text style={styles.actionCardArrow}>→</Text>
           </TouchableOpacity>
-        </>
+        </View>
       ) : null}
 
       {/* Read-Only Notice */}
       <View style={styles.noticeBox}>
         <Text style={styles.noticeText}>
-          ℹ️ To update your registered phone number or legal medical details, please contact hospital reception.
+          To update your registered mobile number or medical records, please contact hospital reception.
         </Text>
       </View>
+
+      {/* Sign Out Button */}
+      <TouchableOpacity
+        style={styles.signOutButton}
+        onPress={handleLogout}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    backgroundColor: '#F8FAFC',
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
+    backgroundColor: colors.neutral.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 24,
+    padding: spacing.xl,
+    backgroundColor: colors.neutral.background,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    marginTop: spacing.md,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.medium,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 24,
-  },
-  errorIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  errorIconText: {
-    fontSize: 24,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  errorMessage: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+    padding: spacing.xl,
+    backgroundColor: colors.neutral.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
+    paddingTop: spacing.xs,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: typography.size.xl,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    letterSpacing: -0.3,
   },
-  signOutBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
+  headerSubtitle: {
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
-  signOutText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#DC2626',
-  },
-  identityCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+  heroCard: {
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    borderColor: colors.border.default,
+    marginBottom: spacing.xl,
+    ...shadows.card,
   },
   avatarLarge: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    backgroundColor: '#0284C7',
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.brand.accent,
   },
-  avatarLargeText: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  avatarTextLarge: {
+    fontSize: typography.size.xxl,
+    fontWeight: typography.weight.bold,
+    color: colors.brand.primaryDark,
   },
-  patientFullName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-    marginBottom: 6,
+  heroName: {
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xxs,
   },
-  mrnBadge: {
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginBottom: 6,
+  heroMrn: {
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    fontFamily: 'monospace',
+    marginBottom: spacing.md,
   },
-  mrnBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0369A1',
-    letterSpacing: 0.5,
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  relationshipSub: {
-    fontSize: 12,
-    color: '#64748B',
+  relBadge: {
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  relBadgeText: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.semibold,
+    textTransform: 'uppercase',
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 14,
+    borderColor: colors.border.default,
+    marginBottom: spacing.lg,
+    ...shadows.subtle,
   },
   cardTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    fontSize: typography.size.sm + 1,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+    letterSpacing: -0.2,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    alignItems: 'flex-start',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
   },
   label: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    fontWeight: typography.weight.medium,
     flex: 1,
-    marginRight: 8,
   },
   value: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-    flex: 1.5,
+    fontSize: typography.size.sm,
+    color: colors.text.primary,
+    fontWeight: typography.weight.semibold,
+    flex: 1.2,
     textAlign: 'right',
   },
   addressValue: {
-    lineHeight: 18,
+    fontSize: typography.size.xs + 1,
+    lineHeight: typography.lineHeight.normal,
   },
   capitalize: {
     textTransform: 'capitalize',
   },
   bloodGroupText: {
-    color: '#DC2626',
-    fontWeight: '700',
+    color: colors.status.danger,
+    fontWeight: typography.weight.bold,
+  },
+  section: {
+    marginTop: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    marginBottom: spacing.md,
+    ...shadows.subtle,
+  },
+  actionCardLeft: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  actionCardTitle: {
+    fontSize: typography.size.sm + 1,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xxs,
+  },
+  actionCardSubtitle: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+  },
+  actionCardArrow: {
+    fontSize: typography.size.lg,
+    color: colors.brand.primary,
+    fontWeight: typography.weight.bold,
   },
   noticeBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.xl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 14,
-    marginTop: 4,
-    marginBottom: 12,
+    borderColor: colors.border.subtle,
   },
   noticeText: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 18,
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
     textAlign: 'center',
+    lineHeight: typography.lineHeight.normal,
+  },
+  signOutButton: {
+    backgroundColor: colors.status.dangerBg,
+    borderWidth: 1,
+    borderColor: colors.status.dangerBorder,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
+  },
+  signOutText: {
+    color: colors.status.danger,
+    fontSize: typography.size.sm + 1,
+    fontWeight: typography.weight.bold,
   },
 });

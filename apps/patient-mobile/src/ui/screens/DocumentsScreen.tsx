@@ -16,18 +16,36 @@ import {
   formatFileSize,
   getDocumentTypeIcon,
   getDocumentTypeLabel,
-  getReviewStatusBadge,
   type PortalDocument,
   type PortalDocumentType,
 } from '../../documents/contracts';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import { DocumentDetailsModal } from '../components/DocumentDetailsModal';
+import { AppHeader } from '../components/AppHeader';
+import { EmptyState } from '../components/EmptyState';
+import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 type DocumentFilterTab = 'ALL' | PortalDocumentType;
 
 interface DocumentsScreenProps {
   onNavigateBack?: () => void;
 }
+
+const getReviewBadgeVariant = (status?: string): StatusVariant => {
+  switch (status?.toUpperCase()) {
+    case 'APPROVED':
+    case 'VERIFIED':
+      return 'success';
+    case 'PENDING':
+    case 'UNDER_REVIEW':
+      return 'warning';
+    case 'REJECTED':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+};
 
 export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
   const { manager } = useAuth();
@@ -72,7 +90,6 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
     [api, selectedPatientId]
   );
 
-  // Clear stale documents immediately on patient context change
   useEffect(() => {
     setDocuments([]);
     setSelectedDoc(null);
@@ -101,52 +118,41 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
 
   return (
     <View style={styles.screenContainer}>
+      <AppHeader
+        title="Documents & Files"
+        subtitle={`Clinical and administrative records for ${selectedPatient?.full_name ?? 'selected profile'}`}
+        onBack={onNavigateBack}
+      />
+
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => loadDocuments(true)}
-            colors={['#0284C7']}
-            tintColor="#0284C7"
+            colors={[colors.brand.primary]}
+            tintColor={colors.brand.primary}
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          {onNavigateBack ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={onNavigateBack}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.backButtonText}>←</Text>
-            </TouchableOpacity>
-          ) : null}
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.screenTitle}>My Documents</Text>
-            <Text style={styles.screenSubtitle}>
-              Access medical records, insurance forms & health files
-            </Text>
-          </View>
-        </View>
-
-        {/* Patient Context Selector */}
+        {/* Patient Switcher */}
         <PatientContextSelector />
 
-        {/* Category Tabs */}
-        <View style={styles.filterTabs}>
+        {/* Category Filter Chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'ALL' && styles.filterTabActive,
-            ]}
+            style={[styles.filterChip, activeFilter === 'ALL' && styles.filterChipActive]}
             onPress={() => setActiveFilter('ALL')}
+            activeOpacity={0.7}
           >
             <Text
               style={[
-                styles.filterTabText,
-                activeFilter === 'ALL' && styles.filterTabTextActive,
+                styles.filterChipText,
+                activeFilter === 'ALL' && styles.filterChipTextActive,
               ]}
             >
               All ({documents.length})
@@ -154,16 +160,14 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'CLINICAL' && styles.filterTabActive,
-            ]}
+            style={[styles.filterChip, activeFilter === 'CLINICAL' && styles.filterChipActive]}
             onPress={() => setActiveFilter('CLINICAL')}
+            activeOpacity={0.7}
           >
             <Text
               style={[
-                styles.filterTabText,
-                activeFilter === 'CLINICAL' && styles.filterTabTextActive,
+                styles.filterChipText,
+                activeFilter === 'CLINICAL' && styles.filterChipTextActive,
               ]}
             >
               Clinical ({clinicalCount})
@@ -171,16 +175,14 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'INSURANCE' && styles.filterTabActive,
-            ]}
+            style={[styles.filterChip, activeFilter === 'INSURANCE' && styles.filterChipActive]}
             onPress={() => setActiveFilter('INSURANCE')}
+            activeOpacity={0.7}
           >
             <Text
               style={[
-                styles.filterTabText,
-                activeFilter === 'INSURANCE' && styles.filterTabTextActive,
+                styles.filterChipText,
+                activeFilter === 'INSURANCE' && styles.filterChipTextActive,
               ]}
             >
               Insurance ({insuranceCount})
@@ -188,139 +190,103 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'OTHER' && styles.filterTabActive,
-            ]}
+            style={[styles.filterChip, activeFilter === 'OTHER' && styles.filterChipActive]}
             onPress={() => setActiveFilter('OTHER')}
+            activeOpacity={0.7}
           >
             <Text
               style={[
-                styles.filterTabText,
-                activeFilter === 'OTHER' && styles.filterTabTextActive,
+                styles.filterChipText,
+                activeFilter === 'OTHER' && styles.filterChipTextActive,
               ]}
             >
               Other ({otherCount})
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
+
+        {/* Loading State */}
+        {isLoading && !isRefreshing ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="small" color={colors.brand.primary} />
+            <Text style={styles.loadingText}>Loading documents...</Text>
+          </View>
+        ) : null}
+
+        {/* Error State */}
+        {error && !isLoading ? (
+          <EmptyState
+            icon="⚠️"
+            title="Unable to Load Documents"
+            description={error}
+            actionLabel="Try Again"
+            onAction={() => loadDocuments()}
+          />
+        ) : null}
+
+        {/* Empty State */}
+        {!isLoading && !error && filteredDocuments.length === 0 ? (
+          <EmptyState
+            icon="📁"
+            title="No Documents Found"
+            description={
+              activeFilter === 'ALL'
+                ? 'No uploaded or hospital-issued documents available for this patient profile.'
+                : `No ${getDocumentTypeLabel(activeFilter as PortalDocumentType)} documents found.`
+            }
+          />
+        ) : null}
 
         {/* Documents List */}
-        {isLoading && !isRefreshing ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#0284C7" />
-            <Text style={styles.loadingText}>Loading documents…</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorTitle}>Unable to Load Documents</Text>
-            <Text style={styles.errorMessage}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => loadDocuments(false)}
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredDocuments.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📁</Text>
-            <Text style={styles.emptyTitle}>
-              {activeFilter === 'CLINICAL'
-                ? 'No Clinical Records'
-                : activeFilter === 'INSURANCE'
-                ? 'No Insurance Documents'
-                : activeFilter === 'OTHER'
-                ? 'No Other Files'
-                : 'No Documents on File'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {activeFilter === 'ALL'
-                ? `Hospital documents and uploaded health files for ${
-                    selectedPatient?.full_name ?? 'this patient'
-                  } will appear here.`
-                : `No ${activeFilter.toLowerCase()} documents found for this patient.`}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.docsList}>
-            {filteredDocuments.map((doc) => {
-              const reviewBadge = getReviewStatusBadge(doc.review_status);
-              const typeIcon = getDocumentTypeIcon(doc.document_type);
-              const typeLabel = getDocumentTypeLabel(doc.document_type);
-
-              return (
-                <View key={doc.id} style={styles.docCard}>
-                  <View style={styles.docCardHead}>
-                    <View style={styles.iconCircle}>
-                      <Text style={styles.docIcon}>{typeIcon}</Text>
-                    </View>
-                    <View style={styles.docHeadInfo}>
-                      <Text style={styles.docCategory}>{typeLabel}</Text>
-                      <Text style={styles.docTitle}>{doc.title}</Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor: reviewBadge.bg,
-                          borderColor: reviewBadge.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.statusBadgeText, { color: reviewBadge.text }]}
-                      >
-                        {reviewBadge.label}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.metaRow}>
-                    <Text style={styles.metaText}>
-                      📄 {doc.file_name} • {formatFileSize(doc.file_size_bytes)}
-                    </Text>
-                    <Text style={styles.metaText}>
-                      📅 {formatDocumentDate(doc.created_at)}
+        {!isLoading && !error && filteredDocuments.length > 0 ? (
+          <View style={styles.listContainer}>
+            {filteredDocuments.map((doc) => (
+              <TouchableOpacity
+                key={doc.id}
+                style={styles.card}
+                onPress={() => setSelectedDoc(doc)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.docIconCircle}>
+                    <Text style={styles.docIconEmoji}>
+                      {getDocumentTypeIcon(doc.document_type)}
                     </Text>
                   </View>
-
-                  {doc.provider_name ? (
-                    <Text style={styles.providerText}>
-                      🏥 Facility: {doc.provider_name}
+                  <View style={styles.docTitleBlock}>
+                    <Text style={styles.docName} numberOfLines={1}>
+                      {doc.title || doc.file_name}
                     </Text>
+                    <Text style={styles.docMeta}>
+                      {getDocumentTypeLabel(doc.document_type)} • {formatFileSize(doc.file_size_bytes)}
+                    </Text>
+                  </View>
+                  {doc.review_status ? (
+                    <StatusBadge
+                      label={doc.review_status}
+                      variant={getReviewBadgeVariant(doc.review_status)}
+                      size="sm"
+                    />
                   ) : null}
-
-                  <View style={styles.docCardFooter}>
-                    <Text style={styles.sourceText}>
-                      Source:{' '}
-                      {doc.source === 'HOSPITAL'
-                        ? 'Hospital Record'
-                        : doc.source === 'GUARDIAN'
-                        ? 'Guardian'
-                        : 'Patient'}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.viewDetailsButton}
-                      onPress={() => setSelectedDoc(doc)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.viewDetailsText}>View Details →</Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
-              );
-            })}
+
+                <View style={styles.cardDivider} />
+
+                <View style={styles.cardFooter}>
+                  <Text style={styles.docDate}>📅 {formatDocumentDate(doc.created_at)}</Text>
+                  <Text style={styles.viewDocText}>View Details →</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
+        ) : null}
       </ScrollView>
 
-      {/* Details Modal */}
+      {/* Document Details Modal */}
       <DocumentDetailsModal
+        document={selectedDoc}
         visible={Boolean(selectedDoc)}
         onClose={() => setSelectedDoc(null)}
-        document={selectedDoc}
       />
     </View>
   );
@@ -329,241 +295,105 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
   },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+  container: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+  filterScroll: {
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+    paddingVertical: spacing.xxs,
   },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+  filterChip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.neutral.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    borderColor: colors.border.default,
   },
-  backButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+  filterChipActive: {
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
+    ...shadows.subtle,
   },
-  headerTitleWrap: {
-    flex: 1,
+  filterChipText: {
+    fontSize: typography.size.xs + 1,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.secondary,
   },
-  screenTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+  filterChipTextActive: {
+    color: colors.text.inverse,
   },
-  screenSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
-  },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  filterTabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  filterTabText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  filterTabTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
-  },
-  loadingContainer: {
-    padding: 40,
+  centerContainer: {
+    paddingVertical: spacing.xxxl,
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    marginTop: spacing.md,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
   },
-  errorCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
+  listContainer: {
+    gap: spacing.lg,
+  },
+  card: {
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    marginVertical: 12,
+    borderColor: colors.border.default,
+    ...shadows.card,
   },
-  errorIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#991B1B',
-    marginBottom: 4,
-  },
-  errorMessage: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  emptyContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  docsList: {
-    gap: 12,
-  },
-  docCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  docCardHead: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0F9FF',
+  docIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.brand.primarySubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: spacing.md,
   },
-  docIcon: {
-    fontSize: 18,
+  docIconEmoji: {
+    fontSize: 20,
   },
-  docHeadInfo: {
+  docTitleBlock: {
     flex: 1,
+    marginRight: spacing.sm,
   },
-  docCategory: {
-    fontSize: 10,
-    color: '#0284C7',
-    fontWeight: '700',
-    textTransform: 'uppercase',
+  docName: {
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
-  docTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 1,
+  docMeta: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
+  cardDivider: {
+    height: 1,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing.md,
   },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  metaRow: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 6,
-    padding: 8,
-    gap: 4,
-    marginBottom: 8,
-  },
-  metaText: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  providerText: {
-    fontSize: 11,
-    color: '#475569',
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  docCardFooter: {
+  cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
   },
-  sourceText: {
-    fontSize: 11,
-    color: '#94A3B8',
+  docDate: {
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
   },
-  viewDetailsButton: {
-    backgroundColor: '#F0F9FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  viewDetailsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0284C7',
+  viewDocText: {
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primary,
+    fontWeight: typography.weight.semibold,
   },
 });

@@ -21,6 +21,9 @@ import {
   LabResultDetailsModal,
 } from '../components/LabResultDetailsModal';
 import { ImagingReportDetailsModal } from '../components/ImagingReportDetailsModal';
+import { EmptyState } from '../components/EmptyState';
+import { StatusBadge } from '../components/StatusBadge';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export function RecordsScreen() {
   const { manager } = useAuth();
@@ -65,7 +68,6 @@ export function RecordsScreen() {
     [api, selectedPatientId]
   );
 
-  // Clear data immediately when patient context changes to prevent stale leak
   useEffect(() => {
     setLabResults([]);
     setImagingReports([]);
@@ -82,24 +84,24 @@ export function RecordsScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => loadData(true)}
-            colors={['#0284C7']}
-            tintColor="#0284C7"
+            colors={[colors.brand.primary]}
+            tintColor={colors.brand.primary}
           />
         }
       >
         {/* Header Title */}
         <View style={styles.header}>
-          <Text style={styles.title}>Reports & Results</Text>
+          <Text style={styles.title}>Medical Records</Text>
           <Text style={styles.subtitle}>
-            Verified diagnostic laboratory test results and radiology imaging reports for{' '}
-            {selectedPatient?.full_name ?? 'selected patient'}
+            Diagnostic lab test results and radiology scans for{' '}
+            {selectedPatient?.full_name ?? 'selected profile'}
           </Text>
         </View>
 
         {/* Patient Switcher */}
         <PatientContextSelector />
 
-        {/* Section Tabs (Laboratory / Imaging) */}
+        {/* Section Tabs */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'lab' && styles.tabButtonActive]}
@@ -107,7 +109,7 @@ export function RecordsScreen() {
             activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeTab === 'lab' && styles.tabTextActive]}>
-              Lab Tests ({labResults.length})
+              Lab Results ({labResults.length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -116,7 +118,7 @@ export function RecordsScreen() {
             activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeTab === 'imaging' && styles.tabTextActive]}>
-              Imaging ({imagingReports.length})
+              Imaging Scans ({imagingReports.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -124,94 +126,71 @@ export function RecordsScreen() {
         {/* Loading State */}
         {isLoading && !isRefreshing ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#0284C7" />
-            <Text style={styles.loadingText}>Loading verified records…</Text>
+            <ActivityIndicator size="small" color={colors.brand.primary} />
+            <Text style={styles.loadingText}>Loading medical records...</Text>
           </View>
         ) : null}
 
         {/* Error State */}
         {error && !isLoading ? (
-          <View style={styles.centerContainer}>
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorTitle}>Unable to Load</Text>
-            <Text style={styles.errorMessage}>{error}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
-              <Text style={styles.retryBtnText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="⚠️"
+            title="Unable to Load Records"
+            description={error}
+            actionLabel="Try Again"
+            onAction={() => loadData()}
+          />
         ) : null}
 
-        {/* Laboratory Section Content */}
+        {/* Lab Results Tab Content */}
         {!isLoading && !error && activeTab === 'lab' ? (
           labResults.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>🧪</Text>
-              <Text style={styles.emptyTitle}>No Verified Lab Results</Text>
-              <Text style={styles.emptySubtitle}>
-                Verified laboratory results will appear here once released by the lab team.
-              </Text>
-            </View>
+            <EmptyState
+              icon="🧪"
+              title="No Lab Results Available"
+              description="Verified laboratory reports will be listed here once released by the lab."
+            />
           ) : (
             <View style={styles.listContainer}>
               {labResults.map((result) => {
-                const title =
-                  result.result_items.map((item) => item.serviceName).join(', ') ||
-                  'Laboratory Test';
+                const serviceNames = result.result_items.map((i) => i.serviceName).join(', ') || 'Diagnostic Panel';
 
                 return (
                   <TouchableOpacity
                     key={result.id}
                     style={styles.card}
                     onPress={() => setSelectedLabResult(result)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.75}
                   >
                     <View style={styles.cardHeader}>
                       <View style={styles.cardHeaderLeft}>
-                        <Text style={styles.recordTitle} numberOfLines={2}>
-                          {title}
-                        </Text>
-                        <Text style={styles.dateText}>
-                          📅 Verified on {formatDateTime(result.verified_at)}
-                        </Text>
+                        <Text style={styles.testName} numberOfLines={1}>{serviceNames}</Text>
+                        <Text style={styles.reportNum}>Verified on {formatDateTime(result.verified_at)}</Text>
                       </View>
-                      <View style={styles.verifiedBadge}>
-                        <Text style={styles.verifiedBadgeText}>VERIFIED</Text>
-                      </View>
+                      <StatusBadge label="VERIFIED" variant="success" size="sm" />
                     </View>
 
-                    {/* Parameter Items Summary */}
-                    {result.result_items.length > 0 ? (
-                      <View style={styles.paramsSummary}>
-                        {result.result_items.slice(0, 3).map((item, idx) => (
-                          <View key={`${item.serviceName}-${idx}`} style={styles.paramRow}>
-                            <Text style={styles.paramName} numberOfLines={1}>
-                              {item.serviceName}
-                            </Text>
-                            <Text style={styles.paramValue}>
-                              {item.value}
-                              {item.unit ? ` ${item.unit}` : ''}
-                            </Text>
-                          </View>
-                        ))}
-                        {result.result_items.length > 3 ? (
-                          <Text style={styles.moreParamsText}>
-                            +{result.result_items.length - 3} more parameters
-                          </Text>
-                        ) : null}
-                      </View>
-                    ) : null}
+                    <View style={styles.cardDivider} />
 
-                    {result.remarks ? (
-                      <Text style={styles.remarksSnippet} numberOfLines={1}>
-                        💬 {result.remarks}
-                      </Text>
-                    ) : null}
+                    <View style={styles.cardDetails}>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailIcon}>🔬</Text>
+                        <Text style={styles.detailText}>
+                          {result.result_items.length} parameter{result.result_items.length === 1 ? '' : 's'} analysed
+                        </Text>
+                      </View>
+                      {result.remarks ? (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailIcon}>📝</Text>
+                          <Text style={styles.detailText} numberOfLines={1}>
+                            {result.remarks}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
 
                     <View style={styles.cardFooter}>
-                      <Text style={styles.itemsCountText}>
-                        {result.result_items.length}{' '}
-                        {result.result_items.length === 1 ? 'parameter' : 'parameters'}
-                      </Text>
+                      <Text style={styles.sampleId}>Entered: {formatDateTime(result.entered_at)}</Text>
                       <Text style={styles.viewDetailsText}>View Full Report →</Text>
                     </View>
                   </TouchableOpacity>
@@ -221,16 +200,14 @@ export function RecordsScreen() {
           )
         ) : null}
 
-        {/* Imaging Section Content */}
+        {/* Imaging Reports Tab Content */}
         {!isLoading && !error && activeTab === 'imaging' ? (
           imagingReports.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>🩻</Text>
-              <Text style={styles.emptyTitle}>No Verified Imaging Reports</Text>
-              <Text style={styles.emptySubtitle}>
-                Verified radiology imaging reports will appear here once released by the imaging team.
-              </Text>
-            </View>
+            <EmptyState
+              icon="🩻"
+              title="No Imaging Reports"
+              description="Radiology scans (X-Ray, MRI, CT) will appear here once finalized by the radiologist."
+            />
           ) : (
             <View style={styles.listContainer}>
               {imagingReports.map((report) => (
@@ -238,36 +215,38 @@ export function RecordsScreen() {
                   key={report.id}
                   style={styles.card}
                   onPress={() => setSelectedImagingReport(report)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.75}
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
-                      <Text style={styles.recordTitle}>Diagnostic Imaging Report</Text>
-                      <Text style={styles.dateText}>
-                        📅 Verified on {formatDateTime(report.verified_at)}
+                      <Text style={styles.testName}>Diagnostic Imaging Scan</Text>
+                      <Text style={styles.reportNum}>Verified on {formatDateTime(report.verified_at)}</Text>
+                    </View>
+                    <StatusBadge label="VERIFIED" variant="success" size="sm" />
+                  </View>
+
+                  <View style={styles.cardDivider} />
+
+                  <View style={styles.cardDetails}>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailIcon}>📋</Text>
+                      <Text style={styles.detailText} numberOfLines={2}>
+                        Impression: {report.impression || 'Review report for findings'}
                       </Text>
                     </View>
-                    <View style={styles.verifiedBadge}>
-                      <Text style={styles.verifiedBadgeText}>VERIFIED</Text>
-                    </View>
+                    {report.recommendations ? (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailIcon}>💡</Text>
+                        <Text style={styles.detailText} numberOfLines={1}>
+                          Recommendations: {report.recommendations}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
-
-                  <View style={styles.impressionSnippet}>
-                    <Text style={styles.impressionLabel}>Impression:</Text>
-                    <Text style={styles.impressionSnippetText} numberOfLines={2}>
-                      {report.impression}
-                    </Text>
-                  </View>
-
-                  {report.recommendations ? (
-                    <Text style={styles.recommendationSnippet} numberOfLines={1}>
-                      💡 Recommendation: {report.recommendations}
-                    </Text>
-                  ) : null}
 
                   <View style={styles.cardFooter}>
-                    <Text style={styles.itemsCountText}>Radiology Report</Text>
-                    <Text style={styles.viewDetailsText}>View Full Report →</Text>
+                    <Text style={styles.sampleId}>Entered: {formatDateTime(report.entered_at)}</Text>
+                    <Text style={styles.viewDetailsText}>View Findings →</Text>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -276,13 +255,12 @@ export function RecordsScreen() {
         ) : null}
       </ScrollView>
 
-      {/* Lab Result Details Modal */}
+      {/* Detail Modals */}
       <LabResultDetailsModal
         result={selectedLabResult}
         onClose={() => setSelectedLabResult(null)}
       />
 
-      {/* Imaging Report Details Modal */}
       <ImagingReportDetailsModal
         report={selectedImagingReport}
         onClose={() => setSelectedImagingReport(null)}
@@ -294,249 +272,132 @@ export function RecordsScreen() {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
   },
   container: {
-    flexGrow: 1,
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
   header: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
+    paddingTop: spacing.xs,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: typography.size.xl,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-    lineHeight: 18,
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.xxs,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: spacing.sm + 2,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   tabButtonActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    backgroundColor: colors.neutral.surface,
+    ...shadows.subtle,
   },
   tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: typography.size.xs + 1,
+    fontWeight: typography.weight.medium,
+    color: colors.text.secondary,
   },
   tabTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
   },
   centerContainer: {
-    paddingVertical: 48,
+    paddingVertical: spacing.xxxl,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
-  },
-  errorIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  errorMessage: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    marginBottom: 16,
-  },
-  retryBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  emptyContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 8,
-  },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
+    marginTop: spacing.md,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
   },
   listContainer: {
-    gap: 12,
+    gap: spacing.lg,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    borderColor: colors.border.default,
+    ...shadows.card,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
   },
   cardHeaderLeft: {
     flex: 1,
-    marginRight: 10,
+    marginRight: spacing.sm,
   },
-  recordTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-    lineHeight: 20,
+  testName: {
+    fontSize: typography.size.md + 1,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
-  dateText: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 3,
-    fontWeight: '500',
+  reportNum: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
-  verifiedBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  cardDivider: {
+    height: 1,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing.md,
   },
-  verifiedBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#15803D',
+  cardDetails: {
+    gap: spacing.sm,
   },
-  paramsSummary: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#EDF2F7',
-    marginBottom: 10,
-    gap: 6,
-  },
-  paramRow: {
+  detailRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  paramName: {
-    fontSize: 12,
-    color: '#475569',
+  detailIcon: {
+    fontSize: 14,
+    marginRight: spacing.sm,
+    width: 20,
+  },
+  detailText: {
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
     flex: 1,
-    marginRight: 8,
-  },
-  paramValue: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  moreParamsText: {
-    fontSize: 11,
-    color: '#0284C7',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  remarksSnippet: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 10,
-    fontStyle: 'italic',
-  },
-  impressionSnippet: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    marginBottom: 10,
-  },
-  impressionLabel: {
-    fontSize: 11,
-    color: '#0369A1',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  impressionSnippetText: {
-    fontSize: 13,
-    color: '#0369A1',
-    fontWeight: '500',
-    lineHeight: 18,
-  },
-  recommendationSnippet: {
-    fontSize: 12,
-    color: '#166534',
-    marginBottom: 10,
-    fontWeight: '500',
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 10,
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
+    borderTopColor: colors.border.subtle,
   },
-  itemsCountText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+  sampleId: {
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
   },
   viewDetailsText: {
-    fontSize: 12,
-    color: '#0284C7',
-    fontWeight: '600',
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primary,
+    fontWeight: typography.weight.semibold,
   },
 });

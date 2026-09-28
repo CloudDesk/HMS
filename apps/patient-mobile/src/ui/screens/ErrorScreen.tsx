@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export function ErrorScreen() {
   const { state, retry, logout } = useAuth();
@@ -47,10 +48,10 @@ export function ErrorScreen() {
           style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
           onPress={handleAction}
           disabled={isBusy}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
           {isBusy ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
+            <ActivityIndicator color={colors.text.inverse} size="small" />
           ) : (
             <Text style={styles.primaryButtonText}>{getButtonText()}</Text>
           )}
@@ -61,8 +62,9 @@ export function ErrorScreen() {
             style={styles.secondaryButton}
             onPress={logout}
             disabled={isBusy}
+            activeOpacity={0.75}
           >
-            <Text style={styles.secondaryButtonText}>Sign In with Phone Instead</Text>
+            <Text style={styles.secondaryButtonText}>Sign In with Mobile Instead</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -73,76 +75,75 @@ export function ErrorScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing.xl,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xxl,
     alignItems: 'center',
     width: '100%',
     maxWidth: 380,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+    borderColor: colors.border.default,
+    ...shadows.card,
   },
   iconCircle: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FEF3C7',
+    borderRadius: radius.full,
+    backgroundColor: colors.status.warningBg,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.status.warningBorder,
   },
   iconText: {
     fontSize: 24,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
     textAlign: 'center',
   },
   message: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: typography.lineHeight.normal,
+    marginBottom: spacing.xl,
   },
   primaryButton: {
-    backgroundColor: '#0284C7',
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    backgroundColor: colors.brand.primary,
+    borderRadius: radius.md,
+    height: 48,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: spacing.md,
+    ...shadows.subtle,
   },
   buttonDisabled: {
-    opacity: 0.7,
+    opacity: 0.65,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+    color: colors.text.inverse,
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
   },
   secondaryButton: {
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
   },
   secondaryButtonText: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '500',
+    color: colors.brand.primary,
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
   },
 });

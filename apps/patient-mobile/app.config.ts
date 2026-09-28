@@ -1,11 +1,38 @@
 import type { ExpoConfig } from 'expo/config';
 
-const config: ExpoConfig = {
-  name: 'HMS Patient', slug: 'hms-patient-mobile', version: '0.1.0',
+const config: ExpoConfig & {
+  splash?: {
+    image?: string;
+    resizeMode?: 'contain' | 'cover' | 'native';
+    backgroundColor?: string;
+  };
+} = {
+  name: 'MyCare',
+  slug: 'hms-patient-mobile',
+  version: '0.1.0',
   owner: 'hmsapps',
-  orientation: 'portrait', userInterfaceStyle: 'light', platforms: ['android', 'ios'],
-  ios: { bundleIdentifier: 'com.hms.patient.dev', supportsTablet: true },
-  android: { package: 'com.hms.patient.dev', allowBackup: false },
+  orientation: 'portrait',
+  userInterfaceStyle: 'light',
+  platforms: ['android', 'ios'],
+  icon: './assets/icon.png',
+  splash: {
+    image: './assets/splash.png',
+    resizeMode: 'contain',
+    backgroundColor: '#FFFFFF',
+  },
+  ios: {
+    bundleIdentifier: 'com.hms.patient.dev',
+    supportsTablet: true,
+    icon: './assets/icon.png',
+  },
+  android: {
+    package: 'com.hms.patient.dev',
+    allowBackup: false,
+    adaptiveIcon: {
+      foregroundImage: './assets/adaptive-icon.png',
+      backgroundColor: '#FFFFFF',
+    },
+  },
   plugins: [['expo-secure-store', { configureAndroidBackup: true }], 'expo-dev-client'],
   extra: {
     eas: {
@@ -13,4 +40,5 @@ const config: ExpoConfig = {
     },
   },
 };
+
 export default config;

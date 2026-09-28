@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export type MainTab =
   | 'home'
@@ -18,85 +19,34 @@ interface BottomNavBarProps {
 }
 
 export function BottomNavBar({ activeTab, onTabChange }: BottomNavBarProps) {
+  const tabs: { key: MainTab; label: string; icon: string }[] = [
+    { key: 'home', label: 'Home', icon: '🏠' },
+    { key: 'appointments', label: 'Visits', icon: '📅' },
+    { key: 'records', label: 'Records', icon: '📋' },
+    { key: 'prescriptions', label: 'Medicines', icon: '💊' },
+    { key: 'profile', label: 'Profile', icon: '👤' },
+  ];
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'home' && styles.tabActive]}
-        onPress={() => onTabChange('home')}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.tabIcon, activeTab === 'home' && styles.tabIconActive]}>
-          🏠
-        </Text>
-        <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabLabelActive]}>
-          Home
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'appointments' && styles.tabActive]}
-        onPress={() => onTabChange('appointments')}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.tabIcon, activeTab === 'appointments' && styles.tabIconActive]}>
-          📅
-        </Text>
-        <Text
-          style={[styles.tabLabel, activeTab === 'appointments' && styles.tabLabelActive]}
-        >
-          Visits
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'records' && styles.tabActive]}
-        onPress={() => onTabChange('records')}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.tabIcon, activeTab === 'records' && styles.tabIconActive]}>
-          📋
-        </Text>
-        <Text
-          style={[styles.tabLabel, activeTab === 'records' && styles.tabLabelActive]}
-        >
-          Records
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'prescriptions' && styles.tabActive]}
-        onPress={() => onTabChange('prescriptions')}
-        activeOpacity={0.7}
-      >
-        <Text
-          style={[styles.tabIcon, activeTab === 'prescriptions' && styles.tabIconActive]}
-        >
-          💊
-        </Text>
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'prescriptions' && styles.tabLabelActive,
-          ]}
-        >
-          Medicines
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.tab, activeTab === 'profile' && styles.tabActive]}
-        onPress={() => onTabChange('profile')}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.tabIcon, activeTab === 'profile' && styles.tabIconActive]}>
-          👤
-        </Text>
-        <Text
-          style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}
-        >
-          Profile
-        </Text>
-      </TouchableOpacity>
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.key;
+        return (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, isActive && styles.tabActive]}
+            onPress={() => onTabChange(tab.key)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabIcon, isActive && styles.tabIconActive]}>
+              {tab.icon}
+            </Text>
+            <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -104,44 +54,41 @@ export function BottomNavBar({ activeTab, onTabChange }: BottomNavBarProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surface,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    borderTopColor: colors.border.default,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
     justifyContent: 'space-around',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 4,
+    alignItems: 'center',
+    ...shadows.subtle,
   },
   tab: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    minWidth: 54,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    minWidth: 58,
   },
   tabActive: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: colors.brand.primarySubtle,
   },
   tabIcon: {
     fontSize: 18,
     marginBottom: 2,
-    opacity: 0.6,
+    opacity: 0.65,
   },
   tabIconActive: {
     opacity: 1,
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.medium,
+    color: colors.text.secondary,
   },
   tabLabelActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
   },
 });

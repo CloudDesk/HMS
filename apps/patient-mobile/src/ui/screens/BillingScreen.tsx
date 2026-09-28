@@ -15,18 +15,35 @@ import {
   formatCurrency,
   formatInvoiceDate,
   getInvoiceStatusLabel,
-  getInvoiceStatusStyle,
   type PortalInvoiceDetails,
   type PortalInvoiceSummaryItem,
 } from '../../billing/contracts';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import { InvoiceDetailsModal } from '../components/InvoiceDetailsModal';
+import { AppHeader } from '../components/AppHeader';
+import { EmptyState } from '../components/EmptyState';
+import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 type FilterTab = 'all' | 'outstanding' | 'paid';
 
 interface BillingScreenProps {
   onNavigateBack?: () => void;
 }
+
+const getInvoiceBadgeVariant = (status: string): StatusVariant => {
+  switch (status.toUpperCase()) {
+    case 'PAID':
+      return 'success';
+    case 'PARTIALLY_PAID':
+      return 'warning';
+    case 'UNPAID':
+    case 'OVERDUE':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+};
 
 export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
   const { manager } = useAuth();
@@ -77,7 +94,6 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
     [billingApi, selectedPatientId]
   );
 
-  // Clear stale data and reload immediately on patient context change
   useEffect(() => {
     setInvoices([]);
     setSelectedInvoiceSummary(null);
@@ -106,7 +122,7 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
         const msg =
           err instanceof Error
             ? err.message
-            : 'Unable to load detailed invoice receipt.';
+            : 'Unable to load itemized invoice details.';
         setModalError(msg);
       } finally {
         setIsModalLoading(false);
@@ -115,342 +131,217 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
     [billingApi, selectedPatientId]
   );
 
-  const handleCloseModal = () => {
-    setSelectedInvoiceSummary(null);
-    setInvoiceDetails(null);
-    setModalError(null);
-  };
+  // Calculate totals
+  const totalBilled = invoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0);
+  const totalPaid = invoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0);
+  const totalOutstanding = invoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0);
 
-  const handleRetryModal = () => {
-    if (selectedInvoiceSummary) {
-      void handleOpenInvoice(selectedInvoiceSummary);
-    }
-  };
-
-  // Financial aggregates calculated from authoritative invoice amounts
-  const financialTotals = useMemo(() => {
-    return invoices.reduce(
-      (totals, inv) => ({
-        billed: totals.billed + inv.total_amount,
-        paid: totals.paid + inv.paid_amount,
-        due: totals.due + inv.balance_amount,
-      }),
-      { billed: 0, paid: 0, due: 0 }
-    );
-  }, [invoices]);
-
-  const filteredInvoices = useMemo(() => {
+  const filteredInvoices = invoices.filter((inv) => {
     if (activeFilter === 'outstanding') {
-      return invoices.filter((inv) => inv.balance_amount > 0);
+      return inv.balance_amount > 0;
     }
     if (activeFilter === 'paid') {
-      return invoices.filter(
-        (inv) => inv.balance_amount <= 0 || inv.status === 'PAID'
-      );
+      return inv.balance_amount === 0 || inv.status === 'PAID';
     }
-    return invoices;
-  }, [invoices, activeFilter]);
-
-  const outstandingCount = useMemo(
-    () => invoices.filter((inv) => inv.balance_amount > 0).length,
-    [invoices]
-  );
-  const paidCount = useMemo(
-    () =>
-      invoices.filter((inv) => inv.balance_amount <= 0 || inv.status === 'PAID')
-        .length,
-    [invoices]
-  );
+    return true;
+  });
 
   return (
     <View style={styles.screenContainer}>
+      <AppHeader
+        title="Billing & Invoices"
+        subtitle={`Financial statements for ${selectedPatient?.full_name ?? 'selected profile'}`}
+        onBack={onNavigateBack}
+      />
+
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => loadBillingData(true)}
-            colors={['#0284C7']}
-            tintColor="#0284C7"
+            colors={[colors.brand.primary]}
+            tintColor={colors.brand.primary}
           />
         }
       >
-        {/* Screen Header */}
-        <View style={styles.header}>
-          {onNavigateBack ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={onNavigateBack}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.backButtonText}>←</Text>
-            </TouchableOpacity>
-          ) : null}
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.screenTitle}>Billing & Invoices</Text>
-            <Text style={styles.screenSubtitle}>
-              Review hospital bills, payment records & outstanding amounts
-            </Text>
-          </View>
-        </View>
-
-        {/* Patient Context Selector */}
+        {/* Patient Switcher */}
         <PatientContextSelector />
 
-        {/* Financial Summary Aggregates */}
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryCardIcon}>🧾</Text>
-            <Text style={styles.summaryCardLabel}>Total Billed</Text>
-            <Text style={styles.summaryCardValue}>
-              {formatCurrency(financialTotals.billed)}
-            </Text>
-          </View>
-
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryCardIcon}>✅</Text>
-            <Text style={styles.summaryCardLabel}>Total Paid</Text>
-            <Text style={[styles.summaryCardValue, styles.paidValueColor]}>
-              {formatCurrency(financialTotals.paid)}
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.summaryCard,
-              financialTotals.due > 0
-                ? styles.dueSummaryCard
-                : styles.settledSummaryCard,
-            ]}
-          >
-            <Text style={styles.summaryCardIcon}>
-              {financialTotals.due > 0 ? '⚠️' : '🛡️'}
-            </Text>
-            <Text style={styles.summaryCardLabel}>
-              {financialTotals.due > 0 ? 'Amount Due' : 'Account Status'}
-            </Text>
-            <Text
-              style={[
-                styles.summaryCardValue,
-                financialTotals.due > 0
-                  ? styles.dueValueColor
-                  : styles.settledValueColor,
-              ]}
-            >
-              {financialTotals.due > 0
-                ? formatCurrency(financialTotals.due)
-                : 'Paid in full'}
-            </Text>
+        {/* Financial Summary Card */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Account Balance Summary</Text>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryColLabel}>Total Billed</Text>
+              <Text style={styles.summaryColValue}>{formatCurrency(totalBilled)}</Text>
+            </View>
+            <View style={styles.summaryColDivider} />
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryColLabel}>Paid</Text>
+              <Text style={[styles.summaryColValue, { color: colors.status.success }]}>
+                {formatCurrency(totalPaid)}
+              </Text>
+            </View>
+            <View style={styles.summaryColDivider} />
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryColLabel}>Outstanding</Text>
+              <Text
+                style={[
+                  styles.summaryColValue,
+                  totalOutstanding > 0 ? { color: colors.status.danger } : undefined,
+                ]}
+              >
+                {formatCurrency(totalOutstanding)}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Filter Segment Tabs */}
-        <View style={styles.filterTabs}>
+        {/* Filter Tabs */}
+        <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'all' && styles.filterTabActive,
-            ]}
+            style={[styles.tabButton, activeFilter === 'all' && styles.tabButtonActive]}
             onPress={() => setActiveFilter('all')}
+            activeOpacity={0.7}
           >
-            <Text
-              style={[
-                styles.filterTabText,
-                activeFilter === 'all' && styles.filterTabTextActive,
-              ]}
-            >
-              All Invoices ({invoices.length})
+            <Text style={[styles.tabText, activeFilter === 'all' && styles.tabTextActive]}>
+              All ({invoices.length})
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'outstanding' && styles.filterTabActive,
-            ]}
+            style={[styles.tabButton, activeFilter === 'outstanding' && styles.tabButtonActive]}
             onPress={() => setActiveFilter('outstanding')}
+            activeOpacity={0.7}
           >
             <Text
               style={[
-                styles.filterTabText,
-                activeFilter === 'outstanding' && styles.filterTabTextActive,
+                styles.tabText,
+                activeFilter === 'outstanding' && styles.tabTextActive,
               ]}
             >
-              Outstanding ({outstandingCount})
+              Outstanding ({invoices.filter((i) => i.balance_amount > 0).length})
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'paid' && styles.filterTabActive,
-            ]}
+            style={[styles.tabButton, activeFilter === 'paid' && styles.tabButtonActive]}
             onPress={() => setActiveFilter('paid')}
+            activeOpacity={0.7}
           >
-            <Text
-              style={[
-                styles.filterTabText,
-                activeFilter === 'paid' && styles.filterTabTextActive,
-              ]}
-            >
-              Paid ({paidCount})
+            <Text style={[styles.tabText, activeFilter === 'paid' && styles.tabTextActive]}>
+              Settled ({invoices.filter((i) => i.balance_amount === 0 || i.status === 'PAID').length})
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Loading State */}
+        {isLoading && !isRefreshing ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="small" color={colors.brand.primary} />
+            <Text style={styles.loadingText}>Loading hospital invoices...</Text>
+          </View>
+        ) : null}
+
+        {/* Error State */}
+        {error && !isLoading ? (
+          <EmptyState
+            icon="⚠️"
+            title="Unable to Load Invoices"
+            description={error}
+            actionLabel="Try Again"
+            onAction={() => loadBillingData()}
+          />
+        ) : null}
 
         {/* Invoices List */}
-        {isLoading && !isRefreshing ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#0284C7" />
-            <Text style={styles.loadingText}>Loading hospital invoices…</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorTitle}>Unable to Load Invoices</Text>
-            <Text style={styles.errorMessage}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => loadBillingData(false)}
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredInvoices.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🧾</Text>
-            <Text style={styles.emptyTitle}>
-              {activeFilter === 'outstanding'
-                ? 'No Outstanding Invoices'
-                : activeFilter === 'paid'
-                ? 'No Paid Invoices'
-                : 'No Invoices Issued'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {activeFilter === 'outstanding'
-                ? `All issued invoices for ${selectedPatient?.full_name ?? 'this patient'} have been settled.`
-                : activeFilter === 'paid'
-                ? 'Settled hospital invoices will appear here once paid.'
-                : 'Hospital billing invoices will appear here once issued by the hospital.'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.invoicesList}>
-            {filteredInvoices.map((inv) => {
-              const isPaid = inv.balance_amount <= 0 || inv.status === 'PAID';
-              const progress =
-                inv.total_amount > 0
-                  ? Math.min(
-                      100,
-                      Math.round((inv.paid_amount / inv.total_amount) * 100)
-                    )
-                  : 100;
-              const statusStyle = getInvoiceStatusStyle(inv.status);
+        {!isLoading && !error && filteredInvoices.length === 0 ? (
+          <EmptyState
+            icon="🧾"
+            title="No Invoices Found"
+            description={
+              activeFilter === 'outstanding'
+                ? 'Great news! You have no outstanding bills pending payment.'
+                : 'No invoice records available for this patient profile.'
+            }
+          />
+        ) : null}
 
-              return (
-                <View key={inv.id} style={styles.invoiceCard}>
-                  {/* Card Head */}
-                  <View style={styles.cardHead}>
-                    <View style={styles.iconCircle}>
-                      <Text style={styles.cardHeadIcon}>🧾</Text>
-                    </View>
-                    <View style={styles.cardHeadInfo}>
-                      <Text style={styles.invoiceNumber}>{inv.invoice_number}</Text>
-                      <Text style={styles.invoiceDate}>
-                        Issued {formatInvoiceDate(inv.invoice_date)}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor: statusStyle.bg,
-                          borderColor: statusStyle.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.statusBadgeText, { color: statusStyle.text }]}
-                      >
-                        {getInvoiceStatusLabel(inv.status)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Amounts Grid */}
-                  <View style={styles.amountsGrid}>
-                    <View style={styles.amountItem}>
-                      <Text style={styles.amountLabel}>Total Billed</Text>
-                      <Text style={styles.amountValue}>
-                        {formatCurrency(inv.total_amount)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.amountItem}>
-                      <Text style={styles.amountLabel}>Paid</Text>
-                      <Text style={[styles.amountValue, styles.amountPaidValue]}>
-                        {formatCurrency(inv.paid_amount)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.amountItem}>
-                      <Text style={styles.amountLabel}>
-                        {isPaid ? 'Status' : 'Amount Due'}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.amountValue,
-                          isPaid ? styles.amountSettledValue : styles.amountDueValue,
-                        ]}
-                      >
-                        {isPaid ? 'Paid in full' : formatCurrency(inv.balance_amount)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Payment Progress Bar */}
-                  <View style={styles.progressBarContainer}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        {
-                          width: `${progress}%`,
-                          backgroundColor: isPaid ? '#16A34A' : '#0284C7',
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  {/* Card Footer */}
-                  <View style={styles.cardFooter}>
-                    <Text style={styles.footerNote}>
-                      {isPaid
-                        ? 'No payment currently required.'
-                        : `${formatCurrency(inv.balance_amount)} outstanding.`}
+        {!isLoading && !error && filteredInvoices.length > 0 ? (
+          <View style={styles.listContainer}>
+            {filteredInvoices.map((inv) => (
+              <TouchableOpacity
+                key={inv.id}
+                style={styles.card}
+                onPress={() => void handleOpenInvoice(inv)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderLeft}>
+                    <Text style={styles.invoiceNumber}>Invoice #{inv.invoice_number}</Text>
+                    <Text style={styles.invoiceDate}>
+                      📅 {formatInvoiceDate(inv.invoice_date)}
                     </Text>
-                    <TouchableOpacity
-                      style={styles.viewDetailsButton}
-                      onPress={() => void handleOpenInvoice(inv)}
-                      activeOpacity={0.7}
+                  </View>
+                  <StatusBadge
+                    label={getInvoiceStatusLabel(inv.status)}
+                    variant={getInvoiceBadgeVariant(inv.status)}
+                  />
+                </View>
+
+                <View style={styles.cardDivider} />
+
+                <View style={styles.amountGrid}>
+                  <View style={styles.amountCol}>
+                    <Text style={styles.amountLabel}>Total Bill</Text>
+                    <Text style={styles.amountValue}>{formatCurrency(inv.total_amount)}</Text>
+                  </View>
+                  <View style={styles.amountCol}>
+                    <Text style={styles.amountLabel}>Paid</Text>
+                    <Text style={[styles.amountValue, { color: colors.status.success }]}>
+                      {formatCurrency(inv.paid_amount)}
+                    </Text>
+                  </View>
+                  <View style={styles.amountCol}>
+                    <Text style={styles.amountLabel}>Balance</Text>
+                    <Text
+                      style={[
+                        styles.amountValue,
+                        inv.balance_amount > 0 ? { color: colors.status.danger } : undefined,
+                      ]}
                     >
-                      <Text style={styles.viewDetailsText}>View Invoice →</Text>
-                    </TouchableOpacity>
+                      {formatCurrency(inv.balance_amount)}
+                    </Text>
                   </View>
                 </View>
-              );
-            })}
+
+                <View style={styles.cardFooter}>
+                  <Text style={styles.itemsCount}>
+                    {inv.balance_amount > 0 ? 'Payment Due' : 'Fully Paid'}
+                  </Text>
+                  <Text style={styles.viewDetailsText}>View Statement →</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Invoice Details Modal */}
       <InvoiceDetailsModal
-        visible={Boolean(selectedInvoiceSummary)}
-        onClose={handleCloseModal}
         invoice={invoiceDetails}
         isLoading={isModalLoading}
         error={modalError}
-        onRetry={handleRetryModal}
+        visible={Boolean(selectedInvoiceSummary)}
+        onClose={() => {
+          setSelectedInvoiceSummary(null);
+          setInvoiceDetails(null);
+          setModalError(null);
+        }}
+        onRetry={() => {
+          if (selectedInvoiceSummary) {
+            void handleOpenInvoice(selectedInvoiceSummary);
+          }
+        }}
       />
     </View>
   );
@@ -459,317 +350,161 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
   },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+  container: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+  summaryCard: {
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    borderColor: colors.border.default,
+    marginBottom: spacing.xl,
+    ...shadows.card,
   },
-  backButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  headerTitleWrap: {
-    flex: 1,
-  },
-  screenTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  screenSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
+  summaryTitle: {
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.bold,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.md,
   },
   summaryGrid: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  dueSummaryCard: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
-  },
-  settledSummaryCard: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-  },
-  summaryCardIcon: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  summaryCardLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  summaryCardValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  paidValueColor: {
-    color: '#16A34A',
-  },
-  dueValueColor: {
-    color: '#DC2626',
-  },
-  settledValueColor: {
-    color: '#166534',
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
-  },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: 8,
+    justifyContent: 'space-between',
   },
-  filterTabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+  summaryCol: {
+    flex: 1,
+    alignItems: 'center',
   },
-  filterTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
+  summaryColDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border.subtle,
   },
-  filterTabTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+  summaryColLabel: {
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
+    marginBottom: spacing.xxs,
   },
-  loadingContainer: {
-    padding: 40,
+  summaryColValue: {
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.xxs,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    alignItems: 'center',
+    borderRadius: radius.sm,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.neutral.surface,
+    ...shadows.subtle,
+  },
+  tabText: {
+    fontSize: typography.size.xs + 1,
+    fontWeight: typography.weight.medium,
+    color: colors.text.secondary,
+  },
+  tabTextActive: {
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
+  },
+  centerContainer: {
+    paddingVertical: spacing.xxxl,
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    marginTop: spacing.md,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
   },
-  errorCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
+  listContainer: {
+    gap: spacing.lg,
+  },
+  card: {
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    marginVertical: 12,
+    borderColor: colors.border.default,
+    ...shadows.card,
   },
-  errorIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#991B1B',
-    marginBottom: 4,
-  },
-  errorMessage: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  emptyContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  invoicesList: {
-    gap: 12,
-  },
-  invoiceCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  cardHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0F9FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  cardHeadIcon: {
-    fontSize: 18,
-  },
-  cardHeadInfo: {
-    flex: 1,
-  },
-  invoiceNumber: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  invoiceDate: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  amountsGrid: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
+    alignItems: 'flex-start',
   },
-  amountItem: {
+  cardHeaderLeft: {
     flex: 1,
+    marginRight: spacing.sm,
+  },
+  invoiceNumber: {
+    fontSize: typography.size.md + 1,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
+  },
+  invoiceDate: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing.md,
+  },
+  amountGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  amountCol: {
+    alignItems: 'center',
   },
   amountLabel: {
     fontSize: 10,
-    color: '#64748B',
-    fontWeight: '600',
+    color: colors.text.muted,
     textTransform: 'uppercase',
-    marginBottom: 2,
+    fontWeight: typography.weight.semibold,
+    marginBottom: spacing.xxs,
   },
   amountValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  amountPaidValue: {
-    color: '#0284C7',
-  },
-  amountDueValue: {
-    color: '#DC2626',
-  },
-  amountSettledValue: {
-    color: '#166534',
-  },
-  progressBarContainer: {
-    height: 4,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 2,
+    fontSize: typography.size.sm + 1,
+    fontWeight: typography.weight.bold,
+    color: colors.text.primary,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
   },
-  footerNote: {
-    fontSize: 11,
-    color: '#64748B',
-    flex: 1,
-    marginRight: 8,
-  },
-  viewDetailsButton: {
-    backgroundColor: '#F0F9FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+  itemsCount: {
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
   },
   viewDetailsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0284C7',
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primary,
+    fontWeight: typography.weight.semibold,
   },
 });

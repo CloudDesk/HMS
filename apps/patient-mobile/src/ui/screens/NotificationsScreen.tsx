@@ -13,13 +13,15 @@ import { usePatient } from '../../portal/PatientContext';
 import { NotificationsApi } from '../../notifications/notifications-api';
 import {
   formatNotificationTime,
-  getNotificationDestination,
   getNotificationTypeIcon,
   getNotificationTypeLabel,
   type PortalNotification,
 } from '../../notifications/contracts';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import { NotificationDetailsModal } from '../components/NotificationDetailsModal';
+import { AppHeader } from '../components/AppHeader';
+import { EmptyState } from '../components/EmptyState';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 import type { MainTab } from '../components/BottomNavBar';
 
 type FilterMode = 'ALL' | 'UNREAD';
@@ -77,7 +79,6 @@ export function NotificationsScreen({
     [api, selectedPatientId]
   );
 
-  // Clear stale notifications immediately on patient context change
   useEffect(() => {
     setNotifications([]);
     setSelectedNotif(null);
@@ -95,20 +96,21 @@ export function NotificationsScreen({
           prev.map((n) => (n.id === item.id ? updated : n))
         );
       } catch {
-        // Optimistic fallback or silent ignore
+        // Optimistic fallback
       }
     }
   };
 
-  const handleMarkAllAsRead = async () => {
-    const unreadItems = notifications.filter((n) => !n.is_read);
-    if (unreadItems.length === 0) return;
-
-    // Optimistically update
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-
-    // Send mark as read requests
-    await Promise.allSettled(unreadItems.map((n) => api.markAsRead(n.id)));
+  const handleMarkAllRead = async () => {
+    try {
+      const unreadList = notifications.filter((n) => !n.is_read);
+      await Promise.all(unreadList.map((n) => api.markAsRead(n.id)));
+      setNotifications((prev) =>
+        prev.map((n) => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
+      );
+    } catch {
+      // Optimistic fallback
+    }
   };
 
   const unreadCount = useMemo(
@@ -125,187 +127,143 @@ export function NotificationsScreen({
 
   return (
     <View style={styles.screenContainer}>
+      <AppHeader
+        title="Notifications"
+        subtitle={`Care updates & alerts for ${selectedPatient?.full_name ?? 'selected profile'}`}
+        onBack={onNavigateBack}
+        rightAction={
+          unreadCount > 0 ? (
+            <TouchableOpacity onPress={handleMarkAllRead} activeOpacity={0.7}>
+              <Text style={styles.markAllText}>Mark all read</Text>
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
+
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => loadNotifications(true)}
-            colors={['#0284C7']}
-            tintColor="#0284C7"
+            colors={[colors.brand.primary]}
+            tintColor={colors.brand.primary}
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          {onNavigateBack ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={onNavigateBack}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.backButtonText}>←</Text>
-            </TouchableOpacity>
-          ) : null}
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.screenTitle}>Notifications</Text>
-            <Text style={styles.screenSubtitle}>
-              Alerts, queue calls & hospital notices
-            </Text>
-          </View>
-          {unreadCount > 0 ? (
-            <TouchableOpacity
-              style={styles.markAllBtn}
-              onPress={handleMarkAllAsRead}
-            >
-              <Text style={styles.markAllBtnText}>Mark all read</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {/* Patient Context Selector */}
+        {/* Patient Switcher */}
         <PatientContextSelector />
 
         {/* Filter Tabs */}
-        <View style={styles.filterTabs}>
+        <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'ALL' && styles.filterTabActive,
-            ]}
+            style={[styles.tabButton, activeFilter === 'ALL' && styles.tabButtonActive]}
             onPress={() => setActiveFilter('ALL')}
+            activeOpacity={0.7}
           >
-            <Text
-              style={[
-                styles.filterTabText,
-                activeFilter === 'ALL' && styles.filterTabTextActive,
-              ]}
-            >
+            <Text style={[styles.tabText, activeFilter === 'ALL' && styles.tabTextActive]}>
               All ({notifications.length})
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[
-              styles.filterTab,
-              activeFilter === 'UNREAD' && styles.filterTabActive,
-            ]}
+            style={[styles.tabButton, activeFilter === 'UNREAD' && styles.tabButtonActive]}
             onPress={() => setActiveFilter('UNREAD')}
+            activeOpacity={0.7}
           >
-            <Text
-              style={[
-                styles.filterTabText,
-                activeFilter === 'UNREAD' && styles.filterTabTextActive,
-              ]}
-            >
+            <Text style={[styles.tabText, activeFilter === 'UNREAD' && styles.tabTextActive]}>
               Unread ({unreadCount})
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Notifications List */}
+        {/* Loading State */}
         {isLoading && !isRefreshing ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#0284C7" />
-            <Text style={styles.loadingText}>Loading notifications…</Text>
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="small" color={colors.brand.primary} />
+            <Text style={styles.loadingText}>Loading notifications...</Text>
           </View>
-        ) : error ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorTitle}>Unable to Load Notifications</Text>
-            <Text style={styles.errorMessage}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => loadNotifications(false)}
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredNotifications.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🔔</Text>
-            <Text style={styles.emptyTitle}>
-              {activeFilter === 'UNREAD'
-                ? 'No Unread Notifications'
-                : 'No Notifications'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {activeFilter === 'UNREAD'
-                ? 'You have caught up with all patient alerts and messages.'
-                : `Hospital alerts and notifications for ${
-                    selectedPatient?.full_name ?? 'this patient'
-                  } will appear here.`}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.notifsList}>
-            {filteredNotifications.map((notif) => {
-              const typeIcon = getNotificationTypeIcon(notif.type);
-              const typeLabel = getNotificationTypeLabel(notif.type);
-              const destination = getNotificationDestination(notif.type);
+        ) : null}
 
-              return (
-                <TouchableOpacity
-                  key={notif.id}
-                  style={[
-                    styles.notifCard,
-                    !notif.is_read && styles.notifCardUnread,
-                  ]}
-                  onPress={() => void handleOpenNotification(notif)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.cardHeader}>
-                    <View style={styles.iconCircle}>
-                      <Text style={styles.notifIcon}>{typeIcon}</Text>
-                    </View>
-                    <View style={styles.headInfo}>
-                      <Text style={styles.typeLabel}>{typeLabel}</Text>
+        {/* Error State */}
+        {error && !isLoading ? (
+          <EmptyState
+            icon="⚠️"
+            title="Unable to Load Notifications"
+            description={error}
+            actionLabel="Try Again"
+            onAction={() => loadNotifications()}
+          />
+        ) : null}
+
+        {/* Empty State */}
+        {!isLoading && !error && filteredNotifications.length === 0 ? (
+          <EmptyState
+            icon="🔔"
+            title="No Notifications"
+            description={
+              activeFilter === 'UNREAD'
+                ? 'All caught up! You have no unread notifications.'
+                : 'Care alerts, appointment reminders, and report updates will appear here.'
+            }
+          />
+        ) : null}
+
+        {/* Notifications List */}
+        {!isLoading && !error && filteredNotifications.length > 0 ? (
+          <View style={styles.listContainer}>
+            {filteredNotifications.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.card,
+                  !item.is_read && styles.cardUnread,
+                ]}
+                onPress={() => void handleOpenNotification(item)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.notifIconCircle}>
+                    <Text style={styles.notifIconEmoji}>
+                      {getNotificationTypeIcon(item.type)}
+                    </Text>
+                  </View>
+                  <View style={styles.notifContent}>
+                    <View style={styles.titleRow}>
                       <Text
                         style={[
-                          styles.titleText,
-                          !notif.is_read && styles.titleTextUnread,
+                          styles.notifTitle,
+                          !item.is_read && styles.notifTitleUnread,
                         ]}
                         numberOfLines={1}
                       >
-                        {notif.title}
+                        {item.title}
                       </Text>
+                      {!item.is_read ? <View style={styles.unreadDot} /> : null}
                     </View>
-                    <View style={styles.metaCol}>
-                      {!notif.is_read ? <View style={styles.unreadDot} /> : null}
+                    <Text style={styles.notifMessage} numberOfLines={2}>
+                      {item.message}
+                    </Text>
+                    <View style={styles.notifFooter}>
+                      <Text style={styles.typeBadge}>
+                        {getNotificationTypeLabel(item.type)}
+                      </Text>
                       <Text style={styles.timeText}>
-                        {formatNotificationTime(notif.created_at)}
+                        {formatNotificationTime(item.created_at)}
                       </Text>
                     </View>
                   </View>
-
-                  <Text style={styles.messageSnippet} numberOfLines={2}>
-                    {notif.message}
-                  </Text>
-
-                  {destination && onNavigateTab ? (
-                    <View style={styles.actionRow}>
-                      <TouchableOpacity
-                        style={styles.directActionBtn}
-                        onPress={() => onNavigateTab(destination.tab)}
-                      >
-                        <Text style={styles.directActionText}>
-                          {destination.label} →
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
+        ) : null}
       </ScrollView>
 
-      {/* Detail Modal */}
+      {/* Notification Details Modal */}
       <NotificationDetailsModal
+        notification={selectedNotif}
         visible={Boolean(selectedNotif)}
         onClose={() => setSelectedNotif(null)}
-        notification={selectedNotif}
         onNavigateTab={onNavigateTab}
       />
     </View>
@@ -315,247 +273,129 @@ export function NotificationsScreen({
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
   },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+  container: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
-  header: {
+  markAllText: {
+    fontSize: typography.size.xs + 1,
+    color: colors.brand.primary,
+    fontWeight: typography.weight.bold,
+  },
+  tabContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.xxs,
+    marginBottom: spacing.xl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    borderColor: colors.border.default,
   },
-  backButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  headerTitleWrap: {
+  tabButton: {
     flex: 1,
-  },
-  screenTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  screenSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  markAllBtn: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  markAllBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
-  },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 8,
+    paddingVertical: spacing.sm + 2,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
-  filterTabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+  tabButtonActive: {
+    backgroundColor: colors.neutral.surface,
+    ...shadows.subtle,
   },
-  filterTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
+  tabText: {
+    fontSize: typography.size.xs + 1,
+    fontWeight: typography.weight.medium,
+    color: colors.text.secondary,
   },
-  filterTabTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+  tabTextActive: {
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
   },
-  loadingContainer: {
-    padding: 40,
+  centerContainer: {
+    paddingVertical: spacing.xxxl,
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#64748B',
+    marginTop: spacing.md,
+    fontSize: typography.size.sm,
+    color: colors.text.secondary,
   },
-  errorCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
+  listContainer: {
+    gap: spacing.md,
+  },
+  card: {
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    marginVertical: 12,
+    borderColor: colors.border.default,
+    ...shadows.subtle,
   },
-  errorIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#991B1B',
-    marginBottom: 4,
-  },
-  errorMessage: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  emptyContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  notifsList: {
-    gap: 12,
-  },
-  notifCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  notifCardUnread: {
-    backgroundColor: '#F0F9FF',
-    borderColor: '#BAE6FD',
+  cardUnread: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.brand.primarySubtle,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+  notifIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.neutral.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: spacing.md,
   },
-  notifIcon: {
+  notifIconEmoji: {
     fontSize: 18,
   },
-  headInfo: {
+  notifContent: {
     flex: 1,
   },
-  typeLabel: {
-    fontSize: 10,
-    color: '#0284C7',
-    fontWeight: '700',
-    textTransform: 'uppercase',
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xxs,
   },
-  titleText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginTop: 1,
+  notifTitle: {
+    fontSize: typography.size.sm + 1,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.primary,
+    flex: 1,
   },
-  titleTextUnread: {
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  metaCol: {
-    alignItems: 'flex-end',
-    gap: 4,
+  notifTitleUnread: {
+    fontWeight: typography.weight.bold,
+    color: colors.brand.primaryDark,
   },
   unreadDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: '#0284C7',
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.primary,
+    marginLeft: spacing.xs,
+  },
+  notifMessage: {
+    fontSize: typography.size.xs + 1,
+    color: colors.text.secondary,
+    lineHeight: typography.lineHeight.normal,
+    marginBottom: spacing.sm,
+  },
+  notifFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  typeBadge: {
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
+    fontWeight: typography.weight.medium,
   },
   timeText: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  messageSnippet: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-  },
-  actionRow: {
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    alignItems: 'flex-start',
-  },
-  directActionBtn: {
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  directActionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
+    fontSize: 10,
+    color: colors.text.muted,
   },
 });

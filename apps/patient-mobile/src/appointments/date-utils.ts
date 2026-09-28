@@ -42,7 +42,7 @@ export function getQuickDateOptions(todayStr: string) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     const dateStr = formatToDateString(d);
-    let label = '';
+    let label: string;
     if (i === 0) label = 'Today';
     else if (i === 1) label = 'Tomorrow';
     else {
