@@ -123,7 +123,7 @@ describe('Patient Profile Photo End-to-End Unit Tests', () => {
       } as unknown as { _id: Types.ObjectId; patientNumber: string });
 
       const buffer = Buffer.from('new-photo-bytes');
-      const result = await portalService.uploadProfilePhoto(userId, primaryPatientId, {
+      const result = await portalService.replaceProfilePhoto(userId, primaryPatientId, {
         fileName: 'selfie.jpg',
         mimeType: 'image/jpeg',
         data: buffer,
@@ -137,7 +137,7 @@ describe('Patient Profile Photo End-to-End Unit Tests', () => {
 
     it('denies upload if user does not have access to patient record', async () => {
       await expect(
-        portalService.uploadProfilePhoto(userId, unlinkedPatientId, {
+        portalService.replaceProfilePhoto(userId, unlinkedPatientId, {
           fileName: 'photo.jpg',
           mimeType: 'image/jpeg',
           data: Buffer.from('image-bytes'),
