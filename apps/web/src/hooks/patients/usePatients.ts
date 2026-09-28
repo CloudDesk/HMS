@@ -51,6 +51,10 @@ export function usePatientsList(params: PatientListParams, enabled = true) {
     queryKey: patientsKeys.list(params),
     queryFn: () => patientsApi.list(params),
     enabled,
+    // Profile photos can be changed from the separately hosted patient portal.
+    // Refresh the directory when staff return to this window so its versioned
+    // photo URL is updated without requiring a manual page reload.
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -59,6 +63,7 @@ export function usePatientDetails(id: string | null, enabled = true) {
     queryKey: id ? patientsKeys.detail(id) : patientsKeys.details(),
     queryFn: () => patientsApi.getById(id!),
     enabled: enabled && Boolean(id),
+    refetchOnWindowFocus: true,
   });
 }
 

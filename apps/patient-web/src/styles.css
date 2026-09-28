@@ -5510,3 +5510,471 @@ footer#contact span {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Portal Consent Form Modal & Captured Signature Styles
+   ========================================================================== */
+
+.portal-consent-modal-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 0.25rem 0;
+}
+
+.portal-consent-modal-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.1rem 1.35rem;
+}
+
+.portal-consent-type-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #0284c7;
+  background: #e0f2fe;
+  padding: 0.2rem 0.55rem;
+  border-radius: 5px;
+  margin-bottom: 0.35rem;
+}
+
+.portal-consent-modal-banner h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.portal-consent-meta-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.portal-consent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.portal-consent-badge--signed {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.portal-consent-badge--pending {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.portal-consent-doc-container {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.portal-consent-doc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.portal-consent-doc-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.portal-consent-ext-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.portal-consent-ext-link:hover {
+  text-decoration: underline;
+}
+
+.portal-consent-doc-body {
+  min-height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+}
+
+.portal-consent-iframe {
+  width: 100%;
+  height: 480px;
+  border: none;
+  background: #fff;
+}
+
+.portal-consent-image-box {
+  max-height: 520px;
+  overflow: auto;
+  padding: 1rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.portal-consent-image-box img {
+  max-width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.portal-consent-loading-box,
+.portal-consent-generic-box,
+.portal-consent-error-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.portal-consent-generic-box i,
+.portal-consent-error-box i {
+  font-size: 2.5rem;
+  color: #94a3b8;
+}
+
+.portal-consent-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  background: #0284c7;
+  color: #fff;
+  border-radius: 7px;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+/* Captured Patient Signature Box */
+.portal-consent-signature-box {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.portal-consent-signature-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.portal-consent-signature-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.portal-consent-sig-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.portal-consent-signature-title-group h4 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.portal-consent-signature-title-group p {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.portal-consent-replace-sig-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.portal-consent-replace-sig-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.portal-consent-replace-sig-btn input {
+  display: none;
+}
+
+.portal-consent-signature-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 1.5rem;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.15rem;
+}
+
+.portal-consent-signature-image-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.85rem;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.portal-consent-sig-banner-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+  width: 100%;
+  text-align: left;
+}
+
+.portal-consent-sig-image-holder {
+  width: 100%;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+}
+
+.portal-consent-sig-image-holder img {
+  max-width: 100%;
+  max-height: 80px;
+  object-fit: contain;
+  filter: contrast(1.15);
+}
+
+.portal-consent-sig-fallback {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #64748b;
+}
+
+.portal-consent-sig-line {
+  width: 85%;
+  border-top: 1px dashed #94a3b8;
+  margin-top: 0.4rem;
+  padding-top: 0.25rem;
+  text-align: center;
+}
+
+.portal-consent-sig-line span {
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.portal-consent-signature-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.9rem;
+  align-content: center;
+}
+
+.portal-consent-sig-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.portal-consent-sig-item small {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.portal-consent-sig-item strong {
+  font-size: 0.86rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.portal-consent-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #16a34a !important;
+  font-weight: 700 !important;
+}
+
+.portal-consent-signature-empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+}
+
+.portal-consent-empty-sig-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.portal-consent-empty-sig-content i {
+  font-size: 2rem;
+  color: #94a3b8;
+}
+
+.portal-consent-empty-sig-content strong {
+  display: block;
+  font-size: 0.92rem;
+  color: #1e293b;
+  margin-bottom: 0.2rem;
+}
+
+.portal-consent-empty-sig-content p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.portal-consent-upload-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.15rem;
+  background: #0284c7;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.portal-consent-upload-cta input {
+  display: none;
+}
+
+.portal-consent-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.portal-consent-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.15rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.portal-consent-btn-outline:hover {
+  background: #f8fafc;
+}
+
+.portal-consent-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.35rem;
+  border: none;
+  border-radius: 8px;
+  background: #0284c7;
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.portal-consent-btn-primary:hover {
+  background: #0369a1;
+}
+
+@media (max-width: 640px) {
+  .portal-consent-modal-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .portal-consent-signature-card {
+    grid-template-columns: 1fr;
+  }
+  .portal-consent-signature-empty-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

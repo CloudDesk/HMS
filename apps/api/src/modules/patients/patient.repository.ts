@@ -37,6 +37,7 @@ import { OpdReferralModel, type OpdReferralFields } from '../opd/opd-referral.mo
 
 type PatientLean = PatientDocumentFields & { _id: Types.ObjectId };
 type PatientDocumentLean = PatientDocumentMetadataFields & { _id: Types.ObjectId };
+type PatientProfilePhotoReference = { id: string; version: string };
 type PatientTimelineEventLean = PatientTimelineEventFields & { _id: Types.ObjectId };
 type OpdVisitTimelineLean = OpdVisitFields & { _id: Types.ObjectId };
 type OpdConsultationTimelineLean = OpdConsultationFields & { _id: Types.ObjectId };
@@ -61,7 +62,7 @@ const canonicalConsentStatus = (value: string | null | undefined) => {
   return value as PatientDocument['consent_status'];
 };
 
-const toPatient = (patient: PatientLean, photoDocumentId?: string | null): Patient => ({
+const toPatient = (patient: PatientLean, profilePhoto?: PatientProfilePhotoReference | null): Patient => ({
   id: patient._id.toString(),
   patient_number: patient.patientNumber,
   first_name: patient.firstName ?? null,
@@ -88,8 +89,13 @@ const toPatient = (patient: PatientLean, photoDocumentId?: string | null): Patie
   registration_branch_id: patient.registrationBranchId?.toString() ?? null,
   blood_group: patient.bloodGroup ?? null,
   status: patient.status,
-  photo_document_id: photoDocumentId ?? null,
-  photo_url: photoDocumentId ? `/api/patients/${patient._id.toString()}/photo` : null,
+  photo_document_id: profilePhoto?.id ?? null,
+  // The endpoint always serves the latest active profile-photo document. Include
+  // its update timestamp in the URL so creating or replacing a photo changes the
+  // cache key used by the admin workspace, directory, and patient card.
+  photo_url: profilePhoto
+    ? `/api/patients/${patient._id.toString()}/photo?v=${encodeURIComponent(profilePhoto.version)}`
+    : null,
   notes: patient.notes ?? null,
   created_by: patient.createdBy?.toString() ?? null,
   updated_by: patient.updatedBy?.toString() ?? null,
@@ -120,6 +126,8 @@ const toPatientDocument = (
   storage_key: document.storageKey,
   description: document.description ?? null,
   consent_status: document.consentStatus ?? null,
+  form_responses: document.formResponses ?? null,
+  digital_signatures: (document.digitalSignatures as any) ?? null,
 
   consent_kind: document.consentKind ?? null,
   signed_at: document.signedAt ?? null,
@@ -265,7 +273,7 @@ export class PatientRepository {
     ]);
 
     const patientIds = data.map((patient) => patient._id);
-    const photoMap = new Map<string, string>();
+    const photoMap = new Map<string, PatientProfilePhotoReference>();
     if (patientIds.length > 0) {
       const photos = await PatientDocumentModel.find({
         patientId: { $in: patientIds },
@@ -273,13 +281,16 @@ export class PatientRepository {
         status: 'ACTIVE',
       })
         .sort({ createdAt: -1 })
-        .select('_id patientId')
-        .lean<{ _id: Types.ObjectId; patientId: Types.ObjectId }[]>();
+        .select('_id patientId updatedAt')
+        .lean<Array<{ _id: Types.ObjectId; patientId: Types.ObjectId; updatedAt: Date }>>();
 
       for (const photo of photos) {
         const pid = photo.patientId.toString();
         if (!photoMap.has(pid)) {
-          photoMap.set(pid, photo._id.toString());
+          photoMap.set(pid, {
+            id: photo._id.toString(),
+            version: new Date(photo.updatedAt).getTime().toString(),
+          });
         }
       }
     }
@@ -307,10 +318,13 @@ export class PatientRepository {
       status: 'ACTIVE',
     })
       .sort({ createdAt: -1 })
-      .select('_id')
-      .lean<{ _id: Types.ObjectId }>();
+      .select('_id updatedAt')
+      .lean<{ _id: Types.ObjectId; updatedAt: Date }>();
 
-    return toPatient(patient, photoDoc ? photoDoc._id.toString() : null);
+    return toPatient(patient, photoDoc ? {
+      id: photoDoc._id.toString(),
+      version: new Date(photoDoc.updatedAt).getTime().toString(),
+    } : null);
   }
 
   async findProfilePhotoDocument(patientId: string): Promise<PatientDocument | null> {
@@ -394,10 +408,13 @@ export class PatientRepository {
       status: 'ACTIVE',
     })
       .sort({ createdAt: -1 })
-      .select('_id')
-      .lean<{ _id: Types.ObjectId }>();
+      .select('_id updatedAt')
+      .lean<{ _id: Types.ObjectId; updatedAt: Date }>();
 
-    return toPatient(patient, photoDoc ? photoDoc._id.toString() : null);
+    return toPatient(patient, photoDoc ? {
+      id: photoDoc._id.toString(),
+      version: new Date(photoDoc.updatedAt).getTime().toString(),
+    } : null);
   }
 
   async syncPortalOwnerPhone(patientId: string, phone: string | null) {
@@ -728,6 +745,8 @@ export class PatientRepository {
       reviewStatus: data.review_status ?? 'NOT_REQUIRED',
       documentDate: data.document_date ? new Date(data.document_date) : null,
       providerName: nullableString(data.provider_name),
+      formResponses: data.form_responses ?? null,
+      digitalSignatures: data.digital_signatures ?? null,
       uploadedBy: new Types.ObjectId(userId),
       verifiedBy: null,
       verifiedAt: null,
@@ -828,6 +847,35 @@ export class PatientRepository {
       { $set: { consentStatus: 'VERIFIED', verifiedBy: new Types.ObjectId(userId), verifiedAt: new Date() } },
       { returnDocument: 'after', lean: true },
     ).lean<PatientDocumentLean>();
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async attachConsentSignature(
+    patientId: string,
+    consentDocumentId: string,
+    signatureDocumentId: string,
+    signedByName: string,
+    signedAt: Date = new Date(),
+  ) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(consentDocumentId),
+        patientId: new Types.ObjectId(patientId),
+        documentType: 'CONSENT',
+        status: 'ACTIVE',
+      },
+      {
+        $set: {
+          consentStatus: 'SIGNED',
+          signedAt,
+          signedByName,
+          contextId: new Types.ObjectId(signatureDocumentId),
+          reviewStatus: 'PENDING',
+        },
+      },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientDocumentLean>();
+
     return document ? toPatientDocument(document) : undefined;
   }
 

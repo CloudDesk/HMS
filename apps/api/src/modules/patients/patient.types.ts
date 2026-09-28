@@ -39,6 +39,8 @@ export type Patient = {
   created_by: string | null;
   updated_by: string | null;
   created_at: Date;
+  form_responses?: Record<string, unknown> | null;
+  digital_signatures?: ConsentDigitalSignature[] | null;
   updated_at: Date;
 };
 
@@ -79,6 +81,28 @@ export type PatientDocumentReviewStatus = 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED
 export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED' | 'ATTACHED' | 'VERIFIED';
 export type PatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
+
+export type ConsentDigitalSignature = {
+  signer_type: 'PATIENT' | 'GUARDIAN' | 'DOCTOR' | 'WITNESS';
+  signer_name: string;
+  signature_data: string;
+  signed_at?: string;
+};
+
+export type SubmitStructuredConsentDTO = {
+  branch_id: string;
+  template_id: string;
+  context_type: PatientConsentContextType;
+  context_id: string;
+  visit_id?: string | null;
+  procedure_id?: string | null;
+  admission_id?: string | null;
+  form_responses: Record<string, unknown>;
+  signatures: ConsentDigitalSignature[];
+  declaration_accepted?: boolean;
+  notes?: string | null;
+};
+
 export type PatientDocument = {
   id: string;
   patient_id: string;
@@ -118,6 +142,8 @@ export type PatientDocument = {
   verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  form_responses?: Record<string, unknown> | null;
+  digital_signatures?: ConsentDigitalSignature[] | null;
 };
 
 export type CreatePatientDocumentDTO = {
@@ -145,6 +171,8 @@ export type CreatePatientDocumentDTO = {
   review_status?: PatientDocumentReviewStatus;
   document_date?: string | null;
   provider_name?: string | null;
+  form_responses?: Record<string, unknown> | null;
+  digital_signatures?: ConsentDigitalSignature[] | null;
 };
 
 export type PatientDocumentListQuery = {

@@ -3,6 +3,8 @@ import type { ConsentContextType, ConsentTemplate, ConsentTemplateStatus } from 
 import { Modal } from '../components/ui/Modal';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { useConsentTemplatesFeature } from '../hooks/consents/useConsentTemplatesFeature';
+import { ConsentFormBuilderModal } from '../components/consents/form-builder/ConsentFormBuilderModal';
+import { toast } from 'sonner';
 
 type TemplateForm = {
   code: string;
@@ -19,8 +21,41 @@ const empty: TemplateForm = {
   category: '',
   context_type: 'PATIENT',
   mandatory: false,
-  status: 'ACTIVE',
+  status: 'DRAFT',
 };
+
+const commonCategories = [
+  'General Treatment Consent',
+  'Patient Consent',
+  'Procedure Consent',
+  'Surgery Consent',
+  'Admission Consent',
+  'Discharge Consent',
+  'Anesthesia Consent',
+  'Blood Transfusion Consent',
+  'Diagnostic Consent',
+  'Medication Consent',
+];
+
+function formatErrorMessage(err: unknown, fallback: string): string {
+  if (!err) return fallback;
+  const msg = (err as any)?.message;
+  if (typeof msg === 'string') {
+    const trimmed = msg.trim();
+    if (trimmed.startsWith('[') && trimmed.includes('"message"')) {
+      try {
+        const issues = JSON.parse(trimmed);
+        if (Array.isArray(issues) && issues.length > 0) {
+          return issues.map((i: any) => `${i.path?.join('.') ? `[${i.path.join('.')}] ` : ''}${i.message || 'Validation error'}`).join(', ');
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return msg;
+  }
+  return fallback;
+}
 
 export function ConsentTemplatesPage() {
   const {
@@ -28,9 +63,14 @@ export function ConsentTemplatesPage() {
     capabilities,
     actions,
   } = useConsentTemplatesFeature();
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ConsentTemplate | null>(null);
   const [form, setForm] = useState<TemplateForm>(empty);
+  const [modalBranchId, setModalBranchId] = useState<string>('');
+
+  // Form Builder state
+  const [builderTemplate, setBuilderTemplate] = useState<ConsentTemplate | null>(null);
 
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -40,27 +80,66 @@ export function ConsentTemplatesPage() {
     return templates.slice(start, start + pageSize);
   }, [templates, page, pageSize]);
 
-  const start = (item?: ConsentTemplate) => {
-    setEditing(item ?? null);
-    setForm(
-      item
-        ? {
-            code: item.code,
-            name: item.name,
-            category: item.category,
-            context_type: item.context_type,
-            mandatory: item.mandatory,
-            status: item.status,
-          }
-        : empty,
-    );
+  const startCreate = () => {
+    setEditing(null);
+    setForm(empty);
+    setModalBranchId(branchId || branches[0]?.id || '');
     setOpen(true);
   };
 
-  const submit = async (event: FormEvent) => {
+  const startEdit = (item: ConsentTemplate) => {
+    setEditing(item);
+    setForm({
+      code: item.code,
+      name: item.name,
+      category: item.category,
+      context_type: item.context_type,
+      mandatory: item.mandatory,
+      status: item.status,
+    });
+    setModalBranchId(item.branch_id || branchId || branches[0]?.id || '');
+    setOpen(true);
+  };
+
+  const openFormBuilder = (item: ConsentTemplate) => {
+    setBuilderTemplate(item);
+  };
+
+  const handleNextToBuilder = async (event: FormEvent) => {
     event.preventDefault();
-    await actions.save({ branch_id: branchId, ...form }, editing);
-    setOpen(false);
+    const effectiveBranchId = modalBranchId || branchId;
+    if (!effectiveBranchId || !/^[a-f\d]{24}$/i.test(effectiveBranchId)) {
+      toast.error('Please select a valid hospital branch.');
+      return;
+    }
+    try {
+      const saved = await actions.save(
+        {
+          branch_id: effectiveBranchId,
+          ...form,
+          code: form.code.trim().toUpperCase(),
+          status: form.status || 'DRAFT',
+        },
+        editing,
+      );
+      setOpen(false);
+      if (saved) {
+        setBuilderTemplate(saved);
+      }
+    } catch (err: unknown) {
+      toast.error(formatErrorMessage(err, 'Failed to save template information.'));
+    }
+  };
+
+  const handleCreateNewVersion = async (templateId: string, targetBranchId?: string) => {
+    try {
+      const next = await actions.createNextVersion(templateId, targetBranchId);
+      if (next) {
+        setBuilderTemplate(next);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create new version.');
+    }
   };
 
   return (
@@ -93,7 +172,7 @@ export function ConsentTemplatesPage() {
             <button
               className="doc-btn primary"
               disabled={!branchId || !capabilities.canCreate}
-              onClick={() => start()}
+              onClick={startCreate}
               type="button"
             >
               <i className="ph ph-plus" /> Add Template
@@ -147,23 +226,65 @@ export function ConsentTemplatesPage() {
                           <span className="status-badge status-active">No</span>
                         )}
                       </td>
-                      <td>v{item.version}</td>
                       <td>
-                        <span className={`doc-status ${item.status === 'ACTIVE' ? 'active' : 'inactive'}`}>
+                        <span style={{ fontWeight: 700, color: '#0284c7' }}>v{item.version}</span>
+                      </td>
+                      <td>
+                        <span
+                          className={`doc-status ${
+                            item.status === 'ACTIVE'
+                              ? 'active'
+                              : item.status === 'DRAFT'
+                              ? 'pending'
+                              : 'inactive'
+                          }`}
+                        >
                           {item.status}
                         </span>
                       </td>
                       <td>
-                        {capabilities.canEdit ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {/* Configure Form Builder */}
                           <button
-                            className="doc-icon-action"
-                            onClick={() => start(item)}
-                            title="Edit"
+                            className="doc-btn compact"
+                            onClick={() => openFormBuilder(item)}
+                            style={{
+                              fontSize: '0.74rem',
+                              padding: '4px 8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            title="Open Form Builder to configure sections and fields"
                             type="button"
                           >
-                            <i className="ph ph-pencil" />
+                            <i className="ph ph-sliders-horizontal" /> Configure Form
                           </button>
-                        ) : null}
+
+                          {/* Edit Metadata */}
+                          {capabilities.canEdit && item.status !== 'ACTIVE' ? (
+                            <button
+                              className="doc-icon-action"
+                              onClick={() => startEdit(item)}
+                              title="Edit Template Information"
+                              type="button"
+                            >
+                              <i className="ph ph-pencil" />
+                            </button>
+                          ) : null}
+
+                          {/* Create New Version from Published Template */}
+                          {capabilities.canCreate && item.status === 'ACTIVE' ? (
+                            <button
+                              className="doc-icon-action"
+                              onClick={() => handleCreateNewVersion(item.id)}
+                              title={`Create new version (v${item.version + 1}) to edit`}
+                              type="button"
+                            >
+                              <i className="ph ph-git-branch" />
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -221,23 +342,90 @@ export function ConsentTemplatesPage() {
         </section>
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Consent Template' : 'Add Consent Template'}>
-        <form className="modal-form" onSubmit={(e) => void submit(e)}>
+      {/* Step 1: Template Information Modal */}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editing ? 'Edit Consent Template Information' : 'Add Consent Template — Step 1: Information'}
+      >
+        <form className="modal-form" onSubmit={handleNextToBuilder}>
           <div className="doc-form-grid">
             <div className="doc-field">
-              <label>Code</label>
-              <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
+              <label>
+                Branch <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select
+                disabled={Boolean(editing)}
+                value={modalBranchId || branchId}
+                onChange={(e) => {
+                  setModalBranchId(e.target.value);
+                  actions.setBranchId(e.target.value);
+                }}
+                required
+              >
+                {branches.length === 0 ? (
+                  <option value="">No branches available</option>
+                ) : (
+                  branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
+
             <div className="doc-field">
-              <label>Name</label>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <label>
+                Code <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                disabled={Boolean(editing)}
+                placeholder="e.g. CONSENT-OPD-001"
+                required
+                style={{ textTransform: 'uppercase' }}
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+              />
+              <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                Unique code. Cannot be changed once published.
+              </small>
             </div>
+
             <div className="doc-field">
-              <label>Category</label>
-              <input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+              <label>
+                Name <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                placeholder="e.g. General OPD Treatment Consent"
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </div>
+
             <div className="doc-field">
-              <label>Context</label>
+              <label>
+                Category <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                list="consent-categories-list"
+                placeholder="e.g. Treatment Consent"
+                required
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              />
+              <datalist id="consent-categories-list">
+                {commonCategories.map((cat) => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
+            </div>
+
+            <div className="doc-field">
+              <label>
+                Context <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <select
                 value={form.context_type}
                 onChange={(e) => setForm({ ...form, context_type: e.target.value as ConsentContextType })}
@@ -247,35 +435,78 @@ export function ConsentTemplatesPage() {
                 <option value="ADMISSION">Admission</option>
               </select>
             </div>
+
             <div className="doc-field">
-              <label>Status</label>
+              <label>Initial Status</label>
               <select
+                disabled={!editing}
                 value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value as 'ACTIVE' | 'INACTIVE' })}
+                onChange={(e) => setForm({ ...form, status: e.target.value as ConsentTemplateStatus })}
               >
+                <option value="DRAFT">Draft</option>
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
               </select>
             </div>
-            <label className="form-checkbox">
-              <input
-                checked={form.mandatory}
-                onChange={(e) => setForm({ ...form, mandatory: e.target.checked })}
-                type="checkbox"
-              />{' '}
-              Mandatory before confirmation
-            </label>
+
+            <div className="doc-field" style={{ gridColumn: 'span 2' }}>
+              <label className="form-checkbox" style={{ cursor: 'pointer' }}>
+                <input
+                  checked={form.mandatory}
+                  onChange={(e) => setForm({ ...form, mandatory: e.target.checked })}
+                  type="checkbox"
+                />{' '}
+                <strong>Mandatory before confirmation</strong>
+              </label>
+              <small style={{ color: '#64748b', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
+                If enabled, clinical procedures or admission confirmation will be blocked until signed.
+              </small>
+            </div>
           </div>
-          <div className="modal-actions">
+
+          <div className="modal-actions" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.25rem' }}>
             <button className="doc-btn" onClick={() => setOpen(false)} type="button">
               Cancel
             </button>
             <button className="doc-btn primary" disabled={saving} type="submit">
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? 'Saving...' : editing ? 'Save & Open Builder' : 'Next: Build Consent Form →'}
             </button>
           </div>
         </form>
       </Modal>
+
+      {/* Step 2: Consent Form Builder Modal */}
+      {builderTemplate && (
+        <ConsentFormBuilderModal
+          branchId={builderTemplate.branch_id || branchId}
+          onClose={() => {
+            setBuilderTemplate(null);
+            actions.refetch();
+          }}
+          onCreateNewVersion={
+            capabilities.canCreate
+              ? async () => {
+                  await handleCreateNewVersion(builderTemplate.id, builderTemplate.branch_id || branchId);
+                }
+              : undefined
+          }
+          onPublish={async () => {
+            const bId = builderTemplate.branch_id || branchId;
+            await actions.publish(builderTemplate.id, bId);
+            setBuilderTemplate((prev) => (prev ? { ...prev, status: 'ACTIVE' } : null));
+            actions.refetch();
+          }}
+          onSaveFormDefinition={async (definition) => {
+            const bId = builderTemplate.branch_id || branchId;
+            await actions.saveFormDefinition(builderTemplate.id, definition, bId);
+            setBuilderTemplate((prev) => (prev ? { ...prev, form_definition: definition } : null));
+            actions.refetch();
+          }}
+          open={Boolean(builderTemplate)}
+          saving={saving}
+          template={builderTemplate}
+        />
+      )}
     </>
   );
 }

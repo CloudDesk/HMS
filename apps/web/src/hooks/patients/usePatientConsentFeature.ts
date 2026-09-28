@@ -16,7 +16,8 @@ import {
   useReplacePatientDocument,
   useVerifyPatientConsent,
 } from './usePatients';
-import { useConsentTemplates } from '../consents/useConsents';
+import { useConsentTemplates, useCompleteStructuredConsent } from '../consents/useConsents';
+import type { ConsentDigitalSignature } from '../../api/consents';
 import type { ConsentContextType } from '../../api/consents';
 import { getPatientErrorMessage } from '../../pages/patient-utils';
 
@@ -50,6 +51,7 @@ export function usePatientConsentFeature() {
   const downloadDoc = useDownloadPatientDocument();
   const replaceDoc = useReplacePatientDocument();
   const verifyDoc = useVerifyPatientConsent();
+  const completeStructuredDoc = useCompleteStructuredConsent();
 
   const handleDownload = async (document: PatientDocumentResponse) => {
     if (!patient) return;
@@ -160,13 +162,39 @@ export function usePatientConsentFeature() {
     toast.success('Consent verified.');
   };
 
+  const handleCompleteStructuredConsent = async (payload: {
+    templateId: string;
+    contextType?: ConsentContextType;
+    contextId?: string;
+    formResponses: Record<string, unknown>;
+    signatures: ConsentDigitalSignature[];
+    declarationAccepted?: boolean;
+    notes?: string;
+  }) => {
+    if (!patient || !patient.registration_branch_id) return;
+    await completeStructuredDoc.mutateAsync({
+      patientId: patient.id,
+      payload: {
+        branch_id: patient.registration_branch_id,
+        template_id: payload.templateId,
+        context_type: payload.contextType ?? 'PATIENT',
+        context_id: payload.contextId ?? patient.id,
+        form_responses: payload.formResponses,
+        signatures: payload.signatures,
+        declaration_accepted: payload.declarationAccepted,
+        notes: payload.notes,
+      },
+    });
+    toast.success('Consent form submitted and verified.');
+  };
+
   return {
     state: {
       patient,
       consents,
       templates,
       loading,
-      isSubmitting: uploadDoc.isPending || replaceDoc.isPending,
+      isSubmitting: uploadDoc.isPending || replaceDoc.isPending || completeStructuredDoc.isPending,
     },
     capabilities: {
       canCreate,
@@ -182,6 +210,7 @@ export function usePatientConsentFeature() {
       handleDelete,
       handleReplace,
       handleVerify,
+      handleCompleteStructuredConsent,
     },
   };
 }

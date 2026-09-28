@@ -246,7 +246,7 @@ export class PatientPortalService {
       throw new AppError('The selected document is not a consent form', 400, 'INVALID_CONSENT_DOCUMENT');
     }
     const context = await this.context(userId);
-    return this.patients.uploadDocumentForPortal(patientId, {
+    const signatureDocument = await this.patients.uploadDocumentForPortal(patientId, {
       document_type: 'CONSENT',
       title: `Signature for ${consent.title}`,
       file_name: fileName,
@@ -266,6 +266,16 @@ export class PatientPortalService {
       review_status: 'PENDING',
       data,
     }, userId);
+
+    await this.patients.updateConsentDocumentSignature(
+      patientId,
+      consent.id,
+      signatureDocument.id,
+      context.account.full_name,
+      new Date(),
+    );
+
+    return signatureDocument;
   }
 
   async downloadDocument(userId: string, requestedPatientId: string, documentId: string) {
