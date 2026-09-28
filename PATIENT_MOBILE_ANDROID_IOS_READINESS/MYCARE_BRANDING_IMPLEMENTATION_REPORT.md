@@ -1,91 +1,87 @@
-# PATIENT MOBILE — "MYCARE" BRANDING IMPLEMENTATION REPORT
+# PATIENT MOBILE — MYCARE BRANDING IMPLEMENTATION REPORT
 
-**Date:** 2026-09-27  
+**Date:** 2026-09-28  
 **Workspace:** `@hms/patient-mobile`  
 **Target Platform:** Android & iOS  
 
 ---
 
-## 1. User-Facing Branding
+## 1. Branding
 
 - **Old Product Name:** `HMS Patient`
 - **New Product Name:** `MyCare`
-- **Tagline:** `Your care, connected.`
+- **Approved Tagline:** `Your care, connected.`
 
 ---
 
-## 2. Updated Areas & Files
+## 2. Assets & Production Mapping
 
-| Component / Configuration | File Path | Previous Text / Setting | Updated Text / Setting |
+All approved production branding assets provided in `branding-assets/` have been inspected and placed into the production `assets/` directory:
+
+| Provided Source Asset | Production Asset Path | Dimensions / Format | Purpose / Usage |
 |---|---|---|---|
-| **Expo App Name / Display Name** | `apps/patient-mobile/app.config.ts` | `name: 'HMS Patient'` | `name: 'MyCare'` |
-| **Android App Label** | `apps/patient-mobile/app.config.ts` | Displays "HMS Patient" | Displays "MyCare" (via `name`) |
-| **iOS Display Name** | `apps/patient-mobile/app.config.ts` | Displays "HMS Patient" | Displays "MyCare" (via `name`) |
-| **Brand Logo Component** | `apps/patient-mobile/src/ui/components/BrandLogo.tsx` | `<Text>HMS Patient</Text>` | `<Text>MyCare</Text>` |
-| **OTP Verification Screen** | `apps/patient-mobile/src/ui/screens/OtpScreen.tsx` | `Verify your mobile number` | `Verify your MyCare account` |
-| **Home Screen Sign Out** | `apps/patient-mobile/src/ui/screens/HomeScreen.tsx` | `Are you sure you want to sign out of HMS Patient?` | `Are you sure you want to sign out of MyCare?` |
-| **Profile Screen Sign Out** | `apps/patient-mobile/src/ui/screens/ProfileScreen.tsx` | `Are you sure you want to sign out of HMS Patient?` | `Are you sure you want to sign out of MyCare?` |
-| **Splash Screen Branding** | `apps/patient-mobile/assets/splash.png` & `BrandLogo` | Minimal graphical cross emblem | Pure graphical healthcare emblem with "MyCare" |
+| `mycare-icon.png` | `apps/patient-mobile/assets/icon.png` | 1024×1024 RGBA | Full application icon with clean white background for general Expo/iOS launcher |
+| `mycare-adaptive-foreground.png` | `apps/patient-mobile/assets/adaptive-icon.png` | 1024×1024 RGBA | Android adaptive icon foreground layer with safe-area padding |
+| `mycare-adaptive-background.png` | `apps/patient-mobile/assets/adaptive-background.png` | 1024×1024 Solid White | Android adaptive icon background layer |
+| `mycare-splash-logo.png` | `apps/patient-mobile/assets/splash.png` | 1024×1024 RGBA | Minimal splash screen branding logo with clean background |
+| `mycare-logo-transparent.png` | `apps/patient-mobile/assets/logo.png` | 1024×1024 RGBA (Alpha) | In-app master transparent logo rendered in `BrandLogo.tsx` across authentication and header views |
 
 ---
 
-## 3. Brand References Classification & Inventory
+## 3. User-Facing Changes & Updated Components
 
-All occurrences across `apps/patient-mobile` were audited and classified:
+1. **Expo Application Name / Launcher Label (`app.config.ts`)**
+   - User-facing name: `MyCare`
+   - Android Adaptive Icon: configured with `foregroundImage`, `backgroundImage`, and `backgroundColor: '#FFFFFF'`
+   - Splash Image: configured with `splash.png` and `#FFFFFF` background
 
-### A. USER-FACING PRODUCT BRANDING (Updated to "MyCare")
-- `app.config.ts`: App name -> `MyCare`
-- `BrandLogo.tsx`: Title -> `MyCare`
-- `OtpScreen.tsx`: Header -> `Verify your MyCare account`
-- `HomeScreen.tsx`: Sign-out modal prompt -> `Are you sure you want to sign out of MyCare?`
-- `ProfileScreen.tsx`: Sign-out modal prompt -> `Are you sure you want to sign out of MyCare?`
+2. **Brand Emblem Component (`src/ui/components/BrandLogo.tsx`)**
+   - Displays the official master MyCare transparent logo (`assets/logo.png`)
+   - Product typography: `MyCare`
+   - Healthcare tagline: `Your care, connected.`
 
-### B. INTERNAL TECHNICAL IDENTIFIERS (Preserved 100% Unchanged)
-- **NPM Package:** `@hms/patient-mobile` in `package.json`
-- **Directory Path:** `apps/patient-mobile/`
-- **Expo Slug:** `hms-patient-mobile` in `app.config.ts`
-- **Expo Owner:** `hmsapps` in `app.config.ts`
+3. **Authentication Screens (`LoginScreen.tsx` & `OtpScreen.tsx`)**
+   - `LoginScreen.tsx`: Displays `BrandLogo` with "MyCare" and "Access your appointments, records and care information"
+   - `OtpScreen.tsx`: Header displays "Verify your MyCare account"
+
+4. **Home & Profile Screens (`HomeScreen.tsx` & `ProfileScreen.tsx`)**
+   - Sign-out dialog: "Are you sure you want to sign out of MyCare?"
+
+5. **Diagnostic Error View (`ErrorDiagnosticView.tsx`)**
+   - Friendly error handling with diagnostic reference badges; technical details remain safe and isolated.
+
+---
+
+## 4. Internal Technical Identity (100% Unchanged)
+
+The internal technical infrastructure and naming remain strictly untouched:
+
+- **Package Name:** `@hms/patient-mobile`
+- **Directory Workspace:** `apps/patient-mobile`
+- **Expo Project Slug:** `hms-patient-mobile`
+- **Expo Owner:** `hmsapps`
 - **EAS Project ID:** `07adcdc9-76ef-4b20-a4e7-2392688a4e2c`
 - **Android Package / ID:** `com.hms.patient.dev`
 - **iOS Bundle Identifier:** `com.hms.patient.dev`
-- **Environment Variables:** `EXPO_PUBLIC_HMS_ENV`, `EXPO_PUBLIC_HMS_API_URL` in `eas.json` and `src/config/config.ts`
-- **Storage Keys & Keychain:** `hms.patient.native-session.v1`, `hms.patient.mobile`, `hms-installation.json` in `src/storage/native-storage.ts`
-- **Technical Diagnostics:** `--- HMS Mobile Diagnostic Info ---` in `src/api/errors.ts`
-
-### C. TEST FIXTURES & DATA (Preserved Unchanged)
-- `src/portal/patient-context.test.ts`: `patient_number: 'HMS-2026-000001'`
-- `src/portal/portal-api.test.ts`: `patient_number: 'HMS-2026-000001'`
-- `src/documents/contracts.test.ts`: `provider_name: 'HMS Central Hospital'`
-- `src/documents/documents-api.test.ts`: `provider_name: 'HMS Diagnostics'`
-- `src/billing/billing-api.test.ts`: `email: 'info@hms.local'`
+- **Render Backend URL:** `https://hms-api-atok.onrender.com/api`
+- **Backend Routes & Contracts:** Unchanged
+- **Authentication & Session Logic:** Unchanged (fixed OTP `1234` support preserved)
 
 ---
 
-## 4. Internal Identity & Invariant Confirmations
+## 5. Validation Results
 
-- **`@hms/patient-mobile`**: UNCHANGED
-- **`apps/patient-mobile`**: UNCHANGED
-- **HMS API URL (`https://hms-api-atok.onrender.com/api`)**: UNCHANGED
-- **Backend Routes & Contracts**: UNCHANGED
-- **EAS Project Identity (`@hmsapps/hms-patient-mobile`)**: UNCHANGED
-- **Package & Bundle IDs (`com.hms.patient.dev`)**: UNCHANGED
-- **Authentication & Session Logic**: UNCHANGED
-- **Fixed OTP `1234` Support**: UNCHANGED
-
----
-
-## 5. Verification Results
-
-| Check | Command | Result | Details |
+| Test / Check | Command | Status | Result Details |
 |---|---|---|---|
-| **Unit Tests** | `npm test --workspace=@hms/patient-mobile` | **PASS (100%)** | 23 test files passed, 133 tests passed |
-| **TypeScript Typecheck** | `npm run typecheck --workspace=@hms/patient-mobile` | **PASS** | 0 errors |
-| **ESLint** | `npm run lint --workspace=@hms/patient-mobile` | **PASS** | 0 errors, 0 warnings |
-| **Patient Web Protection** | `git diff -- apps/patient-web` | **PASS** | 0 changes (clean) |
+| **Mobile Tests** | `npm test --workspace=@hms/patient-mobile` | **PASS** | 23 test suites passed, 133 tests passed (100%) |
+| **TypeScript Typecheck** | `npm run typecheck --workspace=@hms/patient-mobile` | **PASS** | 0 errors (`tsc --noEmit`) |
+| **ESLint** | `npm run lint --workspace=@hms/patient-mobile` | **PASS** | 0 errors, 0 warnings (`eslint .`) |
+| **Patient Web Protection** | `git diff -- apps/patient-web` | **PASS** | 0 changes (completely clean and untouched) |
+| **Backend Protection** | `git diff -- apps/api` | **PASS** | 0 changes (clean and untouched) |
 
 ---
 
-## 6. EAS Build Protection
+## 6. EAS Build Status
 
 > **EAS cloud build NOT executed.**  
-> Zero EAS build credits or cloud builds were consumed during this branding update.
+> Zero EAS build credits or cloud builds were consumed during this task.

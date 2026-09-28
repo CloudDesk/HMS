@@ -30,6 +30,7 @@ const config: ExpoConfig & {
     allowBackup: false,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
+      backgroundImage: './assets/adaptive-background.png',
       backgroundColor: '#FFFFFF',
     },
   },

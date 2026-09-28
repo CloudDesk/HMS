@@ -1,54 +1,25 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { colors, spacing, typography } from '../theme';
 
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg';
   showSubtitle?: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const logoSource = require('../../../assets/logo.png');
+
 export function BrandLogo({ size = 'md', showSubtitle = false }: BrandLogoProps) {
-  const iconSize = size === 'sm' ? 36 : size === 'lg' ? 64 : 48;
-  const badgeRadius = size === 'sm' ? radius.sm : size === 'lg' ? radius.lg : radius.md;
-  const crossSize = size === 'sm' ? 18 : size === 'lg' ? 32 : 24;
-  const crossBar = size === 'sm' ? 4 : size === 'lg' ? 8 : 6;
+  const iconSize = size === 'sm' ? 40 : size === 'lg' ? 80 : 56;
 
   return (
     <View style={styles.container}>
-      <View
-        style={[
-          styles.emblemContainer,
-          {
-            width: iconSize,
-            height: iconSize,
-            borderRadius: badgeRadius,
-          },
-        ]}
-      >
-        {/* Horizontal bar of medical cross */}
-        <View
-          style={[
-            styles.crossBar,
-            {
-              width: crossSize,
-              height: crossBar,
-              borderRadius: crossBar / 2,
-            },
-          ]}
-        />
-        {/* Vertical bar of medical cross */}
-        <View
-          style={[
-            styles.crossBar,
-            styles.crossBarVertical,
-            {
-              width: crossBar,
-              height: crossSize,
-              borderRadius: crossBar / 2,
-            },
-          ]}
-        />
-      </View>
+      <Image
+        source={logoSource}
+        style={[styles.logoImage, { width: iconSize, height: iconSize }]}
+        resizeMode="contain"
+      />
 
       <View style={styles.textContainer}>
         <View style={styles.titleRow}>
@@ -69,19 +40,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emblemContainer: {
-    backgroundColor: colors.brand.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    ...shadows.card,
-  },
-  crossBar: {
-    backgroundColor: '#FFFFFF',
-    position: 'absolute',
-  },
-  crossBarVertical: {
-    position: 'absolute',
+  logoImage: {
+    marginBottom: spacing.xs,
   },
   textContainer: {
     alignItems: 'center',
@@ -105,7 +65,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: typography.size.sm,
     color: colors.text.secondary,
-    marginTop: spacing.xs,
+    marginTop: spacing.xxs,
     fontWeight: typography.weight.medium,
   },
 });
