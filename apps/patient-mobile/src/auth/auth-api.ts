@@ -52,7 +52,11 @@ export class AuthApi {
   }
   async refresh(refreshToken: string): Promise<NativeSession> {
     try {
-      return await this.transport.request(`${prefix}/refresh`, sessionResponseSchema, { method: 'POST', body: { refreshToken } });
+      return await this.transport.request(`${prefix}/refresh`, sessionResponseSchema, {
+        method: 'POST',
+        body: { refreshToken },
+        timeoutMs: 15_000,
+      });
     } catch (error) {
       if (error instanceof ApiFailure && error.status === 404) {
         throw new ApiFailure('auth', 401, 'INVALID_REFRESH_TOKEN');

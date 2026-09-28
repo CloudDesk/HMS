@@ -216,6 +216,37 @@ export class PatientService {
     }
   }
 
+  async uploadProfilePhotoFile(patientId: string, data: { fileName: string; mimeType: string; data: Buffer }) {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/heic', 'image/heif'];
+    if (!allowedMimeTypes.includes(data.mimeType.toLowerCase())) {
+      throw new AppError('Only JPEG, PNG, WEBP, or HEIC image files are supported', 400, 'INVALID_IMAGE_TYPE');
+    }
+    const maxSizeBytes = 5 * 1024 * 1024;
+    if (data.data.byteLength > maxSizeBytes) {
+      throw new AppError('Profile photo must be 5MB or smaller', 400, 'IMAGE_TOO_LARGE');
+    }
+    const { storageKey } = await this.documentStorage.uploadPatientDocument({
+      patientId,
+      fileName: data.fileName || 'profile-photo.jpg',
+      mimeType: data.mimeType,
+      data: data.data,
+    });
+    return {
+      storageKey,
+      mimeType: data.mimeType,
+      fileSizeBytes: data.data.byteLength,
+      uploadedAt: new Date(),
+    };
+  }
+
+  async downloadProfilePhotoFile(storageKey: string) {
+    return this.documentStorage.download(storageKey);
+  }
+
+  async deleteProfilePhotoFile(storageKey: string) {
+    await this.documentStorage.deleteIfExists(storageKey);
+  }
+
   async downloadDocumentForPortal(patientId: string, documentId: string) {
     const document = await this.getActiveDocument(patientId, documentId);
     const storedFile = await this.documentStorage.download(document.storage_key);

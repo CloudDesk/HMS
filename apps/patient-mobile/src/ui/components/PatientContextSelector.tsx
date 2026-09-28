@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { usePatient } from '../../portal/PatientContext';
 import { relationshipLabel } from '../../portal/formatters';
+import { Avatar } from './Avatar';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export function PatientContextSelector() {
@@ -16,15 +17,7 @@ export function PatientContextSelector() {
   const [modalOpen, setModalOpen] = useState(false);
 
   if (!context || context.patients.length <= 1) {
-    if (!selectedPatient) return null;
-    return (
-      <View style={styles.singleContextBadge}>
-        <View style={styles.badgeDot} />
-        <Text style={styles.singleContextText}>
-          {selectedPatient.full_name} ({relationshipLabel(selectedPatient.relationship)})
-        </Text>
-      </View>
-    );
+    return null;
   }
 
   const handleSelect = async (patientId: string) => {
@@ -86,12 +79,6 @@ export function PatientContextSelector() {
                 <View style={styles.patientList}>
                   {context.patients.map((patient) => {
                     const isSelected = patient.id === selectedPatient?.id;
-                    const initials = patient.full_name
-                      .split(' ')
-                      .slice(0, 2)
-                      .map((p) => p[0])
-                      .join('')
-                      .toUpperCase();
 
                     return (
                       <TouchableOpacity
@@ -103,21 +90,12 @@ export function PatientContextSelector() {
                         onPress={() => void handleSelect(patient.id)}
                         activeOpacity={0.7}
                       >
-                        <View
-                          style={[
-                            styles.avatar,
-                            isSelected && styles.avatarSelected,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.avatarText,
-                              isSelected && styles.avatarTextSelected,
-                            ]}
-                          >
-                            {initials}
-                          </Text>
-                        </View>
+                        <Avatar
+                          name={patient.full_name}
+                          photoUrl={patient.profile_photo_url}
+                          size={40}
+                          style={styles.avatarMargin}
+                        />
                         <View style={styles.patientInfo}>
                           <Text
                             style={[
@@ -286,25 +264,8 @@ const styles = StyleSheet.create({
     borderColor: colors.brand.primary,
     backgroundColor: colors.brand.primarySubtle,
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    backgroundColor: colors.neutral.surfaceSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarMargin: {
     marginRight: spacing.md,
-  },
-  avatarSelected: {
-    backgroundColor: colors.brand.primary,
-  },
-  avatarText: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.bold,
-    color: colors.text.secondary,
-  },
-  avatarTextSelected: {
-    color: colors.text.inverse,
   },
   patientInfo: {
     flex: 1,

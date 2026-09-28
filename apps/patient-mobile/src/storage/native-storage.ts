@@ -14,8 +14,20 @@ export function createNativeStorage(): PrivateStorage {
     readSecret: () => SecureStore.getItemAsync(key, options),
     writeSecret: (value) => SecureStore.setItemAsync(key, value, options),
     deleteSecret: () => SecureStore.deleteItemAsync(key, options),
-    readMarker: async () => marker.exists ? marker.text() : null,
-    writeMarker: async (value) => { marker.write(value); },
+    readMarker: async () => {
+      try {
+        return marker.exists ? marker.text() : null;
+      } catch {
+        return null;
+      }
+    },
+    writeMarker: async (value) => {
+      try {
+        marker.write(value);
+      } catch {
+        // Safe silent fallback if file cannot be written
+      }
+    },
     randomId: randomUUID,
   };
 }

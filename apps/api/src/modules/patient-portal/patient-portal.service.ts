@@ -205,6 +205,66 @@ export class PatientPortalService {
     return this.patients.downloadDocumentForPortal(patientId, documentId);
   }
 
+  async uploadProfilePhoto(
+    userId: string,
+    requestedPatientId: string,
+    data: { fileName: string; mimeType: string; data: Buffer },
+  ) {
+    const patientId = await this.repository.resolveAccessiblePatientId(userId, requestedPatientId);
+    if (!patientId || patientId !== requestedPatientId) {
+      throw new AppError('You do not have access to this patient record', 403, 'PATIENT_ACCESS_DENIED');
+    }
+
+    const previousPhoto = await this.repository.getPatientProfilePhoto(patientId);
+    const uploaded = await this.patients.uploadProfilePhotoFile(patientId, data);
+    try {
+      await this.repository.updatePatientProfilePhoto(userId, patientId, uploaded);
+      if (previousPhoto?.storageKey) {
+        await this.patients.deleteProfilePhotoFile(previousPhoto.storageKey);
+      }
+      return {
+        success: true,
+        patient_id: patientId,
+        profile_photo_url: `/api/patient-portal/patients/${patientId}/profile-photo?v=${uploaded.uploadedAt.getTime()}`,
+      };
+    } catch (error) {
+      await this.patients.deleteProfilePhotoFile(uploaded.storageKey);
+      throw error;
+    }
+  }
+
+  async getProfilePhoto(userId: string, requestedPatientId: string) {
+    const patientId = await this.repository.resolveAccessiblePatientId(userId, requestedPatientId);
+    if (!patientId || patientId !== requestedPatientId) {
+      throw new AppError('You do not have access to this patient record', 403, 'PATIENT_ACCESS_DENIED');
+    }
+
+    const photo = await this.repository.getPatientProfilePhoto(patientId);
+    if (!photo) {
+      throw new AppError('Profile photo not found', 404, 'PROFILE_PHOTO_NOT_FOUND');
+    }
+
+    const file = await this.patients.downloadProfilePhotoFile(photo.storageKey);
+    return {
+      data: file.data,
+      contentType: file.contentType ?? photo.mimeType,
+    };
+  }
+
+  async deleteProfilePhoto(userId: string, requestedPatientId: string) {
+    const patientId = await this.repository.resolveAccessiblePatientId(userId, requestedPatientId);
+    if (!patientId || patientId !== requestedPatientId) {
+      throw new AppError('You do not have access to this patient record', 403, 'PATIENT_ACCESS_DENIED');
+    }
+
+    const previousPhoto = await this.repository.getPatientProfilePhoto(patientId);
+    if (previousPhoto?.storageKey) {
+      await this.patients.deleteProfilePhotoFile(previousPhoto.storageKey);
+    }
+    await this.repository.deletePatientProfilePhoto(userId, patientId);
+    return { success: true, patient_id: patientId };
+  }
+
   async register(input: RegisterInput, metadata: RequestMetadata) {
     if (input.accountType === 'PATIENT' && await this.repository.hasPatientMatchingContact(input.email, input.phone)) {
       throw new AppError(
@@ -424,7 +484,10 @@ export class PatientPortalService {
 
   async bookAppointment(
     userId: string,
-    input: Pick<CreateAppointmentDTO, 'patient_id' | 'doctor_id' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'reason'>,
+    input: Pick<
+      CreateAppointmentDTO,
+      'patient_id' | 'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'reason' | 'clinical_history'
+    >,
   ) {
     const patientId = await this.repository.resolveAccessiblePatientId(userId, input.patient_id);
     if (!patientId || patientId !== input.patient_id) {
@@ -436,6 +499,18 @@ export class PatientPortalService {
       priority: 'ROUTINE',
       notes: null,
     }, userId);
+  }
+
+  async getPreConsultation(userId: string, appointmentId: string) {
+    const appointment = await this.appointments.getForPortal(appointmentId);
+    if (!appointment) {
+      throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+    }
+    const patientId = await this.repository.resolveAccessiblePatientId(userId, appointment.patient_id);
+    if (!patientId || patientId !== appointment.patient_id) {
+      throw new AppError('You cannot view clinical history for this appointment', 403, 'PATIENT_ACCESS_DENIED');
+    }
+    return this.appointments.getPreConsultationByAppointmentId(appointmentId);
   }
 
   async provision(input: ProvisionInput, actorUserId: string, metadata: RequestMetadata) {

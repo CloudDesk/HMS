@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateAge, relationshipLabel } from './formatters';
+import { calculateAge, formatDateOfBirth, relationshipLabel } from './formatters';
 
 describe('Formatters & Business Logic Helpers', () => {
   describe('calculateAge', () => {
@@ -39,6 +39,23 @@ describe('Formatters & Business Logic Helpers', () => {
 
     it('returns original string if unrecognized', () => {
       expect(relationshipLabel('OTHER_RELATION')).toBe('OTHER_RELATION');
+    });
+  });
+
+  describe('formatDateOfBirth', () => {
+    it('formats ISO timestamp to DD-MM-YYYY', () => {
+      expect(formatDateOfBirth('1990-01-01T00:00:00.000Z')).toBe('01-01-1990');
+      expect(formatDateOfBirth('1985-12-25T14:30:00.000Z')).toBe('25-12-1985');
+    });
+
+    it('formats short YYYY-MM-DD date to DD-MM-YYYY', () => {
+      expect(formatDateOfBirth('1990-05-15')).toBe('15-05-1990');
+    });
+
+    it('handles null, undefined, or empty values gracefully', () => {
+      expect(formatDateOfBirth(null)).toBe('Not recorded');
+      expect(formatDateOfBirth(undefined)).toBe('Not recorded');
+      expect(formatDateOfBirth('')).toBe('Not recorded');
     });
   });
 });

@@ -16,17 +16,18 @@
     "export:native": "expo export --platform android --platform ios --output-dir dist"
   },
   "dependencies": {
+    "@hookform/resolvers": "5.7.1",
     "expo": "57.0.25",
-    "expo-dev-client": "57.0.19",
-    "expo-secure-store": "57.0.4",
     "expo-crypto": "57.0.3",
-    "expo-network": "57.0.2",
+    "expo-dev-client": "57.0.19",
     "expo-file-system": "57.0.7",
+    "expo-image-picker": "^57.0.20",
+    "expo-network": "57.0.2",
+    "expo-secure-store": "57.0.4",
     "react": "19.2.3",
+    "react-hook-form": "7.85.0",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "5.7.0",
-    "react-hook-form": "7.85.0",
-    "@hookform/resolvers": "5.7.1",
     "zod": "4.4.3"
   },
   "devDependencies": {

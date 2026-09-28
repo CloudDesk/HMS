@@ -36,6 +36,14 @@ export class OpdConsultationService {
     return this.repository.getByVisit(visitId);
   }
 
+  async getPreConsultation(visitId: string, userId: string) {
+    const visit = await this.getVisit(visitId, userId);
+    if (!visit.appointment_id) {
+      return null;
+    }
+    return this.appointmentRepository.getPatientPreConsultationByAppointmentId(visit.appointment_id);
+  }
+
   async saveDraft(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
     await this.dentalExaminations.validateAssessment(visit, data.assessment, userId);

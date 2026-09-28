@@ -319,15 +319,26 @@ export class AppointmentService {
     userId: string,
     enforceBranchScope: boolean,
   ) {
-    if (!data.utc_datetime) {
-      throw new AppError('UTC datetime is required for new appointments', 400, 'VALIDATION_ERROR');
-    }
     const settings = await this.settingsRepository.get();
     const tz = settings.localization.timezone;
-    const appointmentUtc = new Date(data.utc_datetime);
 
-    const appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
-    const startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
+    let appointmentUtc: Date;
+    let appointmentDateStr: string;
+    let startTimeStr: string;
+
+    if (data.utc_datetime) {
+      appointmentUtc = new Date(data.utc_datetime);
+      appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
+      startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
+    } else if (data.appointment_date && data.start_time) {
+      appointmentDateStr = data.appointment_date;
+      startTimeStr = data.start_time;
+      const [hours = 0, minutes = 0] = data.start_time.split(':').map(Number);
+      const [year = 1970, month = 1, day = 1] = data.appointment_date.split('-').map(Number);
+      appointmentUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+    } else {
+      throw new AppError('UTC datetime is required for new appointments', 400, 'VALIDATION_ERROR');
+    }
 
     const appointmentDate = this.validateAppointmentDate(appointmentDateStr);
     const endTime = this.validateAppointmentWindow(startTimeStr, data.duration_minutes);
@@ -396,6 +407,34 @@ export class AppointmentService {
         session,
       );
 
+      if (data.clinical_history) {
+        const ch = data.clinical_history;
+        const hasData = Boolean(
+          ch.chief_complaint?.trim() ||
+          ch.history_present_illness?.trim() ||
+          ch.past_medical_history?.trim() ||
+          ch.family_history?.trim() ||
+          ch.allergies?.trim()
+        );
+
+        if (hasData) {
+          await this.repository.savePatientPreConsultation(
+            {
+              patientId: createdAppointment.patient_id,
+              appointmentId: createdAppointment.id,
+              doctorId: createdAppointment.doctor_id,
+              chiefComplaint: ch.chief_complaint,
+              historyPresentIllness: ch.history_present_illness,
+              pastMedicalHistory: ch.past_medical_history,
+              familyHistory: ch.family_history,
+              allergies: ch.allergies,
+            },
+            userId,
+            session,
+          );
+        }
+      }
+
       await this.repository.auditCreated(createdAppointment, userId, session);
       await this.patientRepository.addTimelineEvent(
         createdAppointment.patient_id,
@@ -409,6 +448,11 @@ export class AppointmentService {
       );
       return createdAppointment;
     });
+  }
+
+  async getPreConsultationByAppointmentId(appointmentId: string) {
+    this.validateId(appointmentId, 'Appointment id is invalid');
+    return this.repository.getPatientPreConsultationByAppointmentId(appointmentId);
   }
 
   async update(id: string, data: UpdateAppointmentDTO, userId: string) {

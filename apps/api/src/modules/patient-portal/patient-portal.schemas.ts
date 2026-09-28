@@ -83,6 +83,7 @@ export const patientPortalContextResponseSchema = apiResponseSchema({
           gender: { type: 'string' },
           relationship: { type: 'string', enum: ['SELF', 'PARENT', 'LEGAL_GUARDIAN'] },
           is_primary: { type: 'boolean' },
+          profile_photo_url: { type: ['string', 'null'] },
           preferred_branch: {
             anyOf: [
               { type: 'null' },
@@ -127,6 +128,7 @@ export const patientPortalOverviewResponseSchema = apiResponseSchema({
         address: { type: 'object', additionalProperties: true },
         emergency_contact: { type: 'object', additionalProperties: true },
         blood_group: { type: ['string', 'null'] },
+        profile_photo_url: { type: ['string', 'null'] },
         status: { type: 'string' },
         created_at: { type: 'string' },
       },
@@ -470,4 +472,26 @@ export const patientPortalDocumentsResponseSchema = apiResponseSchema({
     },
   },
 });
+
+export const patientPortalProfilePhotoResponseSchema = apiResponseSchema({
+  type: 'object',
+  required: ['success', 'patient_id', 'profile_photo_url'],
+  additionalProperties: false,
+  properties: {
+    success: { type: 'boolean' },
+    patient_id: { type: 'string' },
+    profile_photo_url: { type: 'string' },
+  },
+});
+
+export const patientPortalProfilePhotoDeleteResponseSchema = apiResponseSchema({
+  type: 'object',
+  required: ['success', 'patient_id'],
+  additionalProperties: false,
+  properties: {
+    success: { type: 'boolean' },
+    patient_id: { type: 'string' },
+  },
+});
+
 

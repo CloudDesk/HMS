@@ -8,6 +8,7 @@ export const portalPatientSchema = z.object({
   gender: z.string(),
   relationship: z.enum(['SELF', 'PARENT', 'LEGAL_GUARDIAN']),
   is_primary: z.boolean(),
+  profile_photo_url: z.string().nullable().optional(),
   preferred_branch: z
     .object({
       id: z.string(),
@@ -66,6 +67,7 @@ export const portalPatientDetailSchema = z.object({
     .nullable()
     .optional(),
   blood_group: z.string().nullable().optional(),
+  profile_photo_url: z.string().nullable().optional(),
   status: z.string(),
   created_at: z.string(),
 });

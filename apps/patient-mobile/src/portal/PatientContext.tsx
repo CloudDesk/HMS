@@ -25,6 +25,8 @@ interface PatientContextValue {
   error: string | null;
   refresh: () => Promise<void>;
   switchPatient: (patientId: string) => Promise<void>;
+  uploadPhoto: (patientId: string, file: { uri: string; name?: string; type?: string }) => Promise<void>;
+  deletePhoto: (patientId: string) => Promise<void>;
   portalApi: PortalApi;
 }
 
@@ -131,6 +133,64 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     await loadData(true);
   }, [loadData]);
 
+  const uploadPhoto = useCallback(
+    async (patientId: string, file: { uri: string; name?: string; type?: string }) => {
+      const result = await portalApi.uploadProfilePhoto(patientId, file);
+      // Immediately update local context and overview state
+      setContext((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          patients: prev.patients.map((p) =>
+            p.id === patientId ? { ...p, profile_photo_url: result.profile_photo_url } : p
+          ),
+        };
+      });
+      setOverview((prev) => {
+        if (!prev || prev.patient.id !== patientId) return prev;
+        return {
+          ...prev,
+          patient: {
+            ...prev.patient,
+            profile_photo_url: result.profile_photo_url,
+          },
+        };
+      });
+      // Background full refresh
+      void loadData(true);
+    },
+    [portalApi, loadData]
+  );
+
+  const deletePhoto = useCallback(
+    async (patientId: string) => {
+      await portalApi.deleteProfilePhoto(patientId);
+      // Immediately clear local context and overview state
+      setContext((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          patients: prev.patients.map((p) =>
+            p.id === patientId ? { ...p, profile_photo_url: null } : p
+          ),
+        };
+      });
+      setOverview((prev) => {
+        if (!prev || prev.patient.id !== patientId) return prev;
+        return {
+          ...prev,
+          patient: {
+            ...prev.patient,
+            profile_photo_url: null,
+          },
+        };
+      });
+      // Background full refresh
+      void loadData(true);
+    },
+    [portalApi, loadData]
+  );
+
   const selectedPatient = useMemo(() => {
     if (!context || !selectedPatientId) return null;
     return context.patients.find((p) => p.id === selectedPatientId) ?? null;
@@ -146,6 +206,8 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     error,
     refresh,
     switchPatient,
+    uploadPhoto,
+    deletePhoto,
     portalApi,
   };
 

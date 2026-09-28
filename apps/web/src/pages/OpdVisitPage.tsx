@@ -4,9 +4,11 @@ import type { SaveBillingInvoiceItem } from '../api/billing';
 import { DentalImagingSection } from '../components/opd/dental/DentalImagingSection';
 import { DentalLabSection } from '../components/opd/dental/DentalLabSection';
 import {
+  opdApi,
   type ApiClinicalOrderPriority,
   type OpdConsultationResponse,
   type OpdPrescriptionResponse,
+  type PatientPreConsultationResponse,
   type SaveOpdConsultationPayload,
   type SaveOpdPrescriptionPayload,
 } from '../api/opd';
@@ -215,6 +217,26 @@ export function OpdVisitPage() {
   const [vitalsForm, setVitalsForm] = useState<VitalsFormState>(emptyVitalsForm);
 
   const [consultationForm, setConsultationForm] = useState<ConsultationFormState>(emptyConsultationForm);
+  const [preConsultation, setPreConsultation] = useState<PatientPreConsultationResponse | null>(null);
+
+  useEffect(() => {
+    if (!visit?.id) {
+      setPreConsultation(null);
+      return;
+    }
+    let active = true;
+    void opdApi
+      .getPreConsultation(visit.id)
+      .then((data) => {
+        if (active) setPreConsultation(data);
+      })
+      .catch(() => {
+        if (active) setPreConsultation(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [visit?.id]);
 
   const [prescriptionForm, setPrescriptionForm] = useState<PrescriptionFormState>(emptyPrescriptionForm);
   const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
@@ -1431,6 +1453,7 @@ export function OpdVisitPage() {
                     consultationForm={consultationForm}
                     handleNextStep={handleNextStep}
                     nextTab={isDental ? 'Dental Examination' : 'Diagnosis'}
+                    preConsultation={preConsultation}
                     saveConsultationDraft={saveConsultationDraft}
                     setConsultationForm={setConsultationForm}
                   />

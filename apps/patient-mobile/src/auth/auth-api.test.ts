@@ -90,7 +90,7 @@ describe('AuthApi', () => {
     expect(mockTransport.request).toHaveBeenCalledWith(
       '/patient-portal/mobile/auth/refresh',
       expect.anything(),
-      { method: 'POST', body: { refreshToken } }
+      { method: 'POST', body: { refreshToken }, timeoutMs: 15_000 }
     );
   });
 

@@ -113,4 +113,43 @@ describe('OpdConsultationSection Component', () => {
     });
     expect(props.handleNextStep).toHaveBeenCalledWith('Dental Examination');
   });
+
+  it('renders Patient-Reported Information when preConsultation data exists', () => {
+    renderComponent({
+      preConsultation: {
+        id: 'pre-1',
+        patient_id: 'pat-1',
+        appointment_id: 'apt-1',
+        doctor_id: 'doc-1',
+        chief_complaint: 'Severe throbbing headache for 2 days',
+        history_present_illness: 'Started abruptly after work, sensitivity to bright lights',
+        past_medical_history: 'Hypertension on Amlodipine',
+        family_history: 'Mother had migraines',
+        allergies: 'Penicillin allergy',
+        submitted_at: '2026-09-28T10:00:00.000Z',
+        created_at: '2026-09-28T10:00:00.000Z',
+        updated_at: '2026-09-28T10:00:00.000Z',
+      },
+    });
+
+    expect(container?.textContent).toContain('Patient-Reported Information');
+    expect(container?.textContent).toContain('Pre-Consultation (Mobile)');
+    expect(container?.textContent).toContain('Read Only');
+    expect(container?.textContent).toContain('Severe throbbing headache for 2 days');
+    expect(container?.textContent).toContain('Started abruptly after work, sensitivity to bright lights');
+    expect(container?.textContent).toContain('Hypertension on Amlodipine');
+    expect(container?.textContent).toContain('Mother had migraines');
+    expect(container?.textContent).toContain('Penicillin allergy');
+
+    // Doctor consultation section remains distinct
+    expect(container?.textContent).toContain("Doctor's Clinical Consultation");
+  });
+
+  it('renders empty state when preConsultation is null', () => {
+    renderComponent({ preConsultation: null });
+
+    expect(container?.textContent).toContain('Patient-Reported Information');
+    expect(container?.textContent).toContain('No patient-reported pre-consultation history provided.');
+  });
 });
+

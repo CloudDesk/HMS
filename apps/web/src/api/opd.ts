@@ -582,6 +582,21 @@ export type OpdPrescriptionResponse = {
   updated_at: string;
 };
 
+export type PatientPreConsultationResponse = {
+  id: string;
+  patient_id: string;
+  appointment_id: string;
+  doctor_id: string | null;
+  chief_complaint: string | null;
+  history_present_illness: string | null;
+  past_medical_history: string | null;
+  family_history: string | null;
+  allergies: string | null;
+  submitted_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type SaveOpdPrescriptionPayload = {
   items: Omit<OpdPrescriptionItemResponse, 'id'>[];
   follow_up_date?: string | null;
@@ -824,6 +839,12 @@ export const opdApi = {
   getConsultation(visitId: string) {
     return apiClient.request<OpdConsultationResponse | null>(
       `/opd/visits/${encodeURIComponent(visitId)}/consultation`,
+    );
+  },
+
+  getPreConsultation(visitId: string) {
+    return apiClient.request<PatientPreConsultationResponse | null>(
+      `/opd/visits/${encodeURIComponent(visitId)}/pre-consultation`,
     );
   },
 

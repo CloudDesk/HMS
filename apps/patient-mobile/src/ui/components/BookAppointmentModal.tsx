@@ -15,15 +15,20 @@ import { friendlyError } from '../../api/errors';
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
 import { AppointmentsApi } from '../../appointments/appointments-api';
-import type {
-  PublicBranch,
-  PublicDepartment,
-  PublicDoctor,
-  PublicDoctorSlots,
-  SlotItem,
+import {
+  emptyClinicalHistory,
+  type PublicBranch,
+  type PublicDepartment,
+  type PublicDoctor,
+  type PublicDoctorSlots,
+  type SlotItem,
+  type ClinicalHistoryFormState,
 } from '../../appointments/contracts';
 import { AppointmentDatePicker, formatToDateString } from './AppointmentDatePicker';
 import { ErrorDiagnosticView } from './ErrorDiagnosticView';
+
+export type { ClinicalHistoryFormState };
+export { emptyClinicalHistory };
 
 interface BookAppointmentModalProps {
   visible: boolean;
@@ -60,6 +65,11 @@ export function BookAppointmentModal({
   );
   const [reason, setReason] = useState<string>('');
 
+  // Optional Clinical History State
+  const [isClinicalHistoryExpanded, setIsClinicalHistoryExpanded] = useState<boolean>(false);
+  const [clinicalHistory, setClinicalHistory] =
+    useState<ClinicalHistoryFormState>(emptyClinicalHistory);
+
   // Catalogue data
   const [branches, setBranches] = useState<PublicBranch[]>([]);
   const [departments, setDepartments] = useState<PublicDepartment[]>([]);
@@ -80,6 +90,14 @@ export function BookAppointmentModal({
     return context?.patients.find((p) => p.id === patientId) ?? selectedPatient ?? null;
   }, [context, patientId, selectedPatient]);
 
+  const handleClose = () => {
+    setIsClinicalHistoryExpanded(false);
+    setClinicalHistory(emptyClinicalHistory);
+    setErrorMessage(null);
+    setErrorObj(null);
+    onClose();
+  };
+
   // Sync state on modal open or patient selection
   useEffect(() => {
     if (visible) {
@@ -89,6 +107,8 @@ export function BookAppointmentModal({
       setSelectedSlot(null);
       setSlotData(null);
       setReason('');
+      setIsClinicalHistoryExpanded(false);
+      setClinicalHistory(emptyClinicalHistory);
       setErrorMessage(null);
       setErrorObj(null);
     }
@@ -151,6 +171,8 @@ export function BookAppointmentModal({
     setDoctors([]);
     setSelectedSlot(null);
     setSlotData(null);
+    setIsClinicalHistoryExpanded(false);
+    setClinicalHistory(emptyClinicalHistory);
   };
 
   // When branch selection changes, reset downstream fields and load departments
@@ -282,7 +304,9 @@ export function BookAppointmentModal({
       setErrorMessage('Please select an available appointment time slot.');
       return;
     }
-    if (!reason.trim() || reason.trim().length < 3) {
+
+    const effectiveReason = reason.trim() || clinicalHistory.chiefComplaint.trim();
+    if (!effectiveReason || effectiveReason.length < 3) {
       setErrorMessage('Please provide a reason for the visit (at least 3 characters).');
       return;
     }
@@ -290,6 +314,28 @@ export function BookAppointmentModal({
     setIsSubmitting(true);
     try {
       const duration = minutesBetween(selectedSlot.start_time, selectedSlot.end_time);
+      const [hours = 0, minutes = 0] = selectedSlot.start_time.split(':').map(Number);
+      const [year = 1970, month = 1, day = 1] = appointmentDate.split('-').map(Number);
+      const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+
+      const hasClinicalData = Boolean(
+        clinicalHistory.chiefComplaint.trim() ||
+        clinicalHistory.historyPresentIllness.trim() ||
+        clinicalHistory.pastMedicalHistory.trim() ||
+        clinicalHistory.familyHistory.trim() ||
+        clinicalHistory.allergies.trim()
+      );
+
+      const clinicalHistoryPayload = hasClinicalData
+        ? {
+            chief_complaint: clinicalHistory.chiefComplaint.trim() || undefined,
+            history_present_illness: clinicalHistory.historyPresentIllness.trim() || undefined,
+            past_medical_history: clinicalHistory.pastMedicalHistory.trim() || undefined,
+            family_history: clinicalHistory.familyHistory.trim() || undefined,
+            allergies: clinicalHistory.allergies.trim() || undefined,
+          }
+        : undefined;
+
       const result = await appointmentsApi.bookAppointment({
         patient_id: patientId,
         doctor_id: doctorId,
@@ -297,7 +343,9 @@ export function BookAppointmentModal({
         start_time: selectedSlot.start_time,
         duration_minutes: duration > 0 ? duration : 15,
         visit_type: visitType,
-        reason: reason.trim(),
+        reason: effectiveReason,
+        utc_datetime: utcDate.toISOString(),
+        clinical_history: clinicalHistoryPayload,
       });
 
       Alert.alert(
@@ -308,7 +356,7 @@ export function BookAppointmentModal({
             text: 'View Appointments',
             onPress: () => {
               onBooked();
-              onClose();
+              handleClose();
             },
           },
         ]
@@ -326,15 +374,15 @@ export function BookAppointmentModal({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
             <View style={styles.card}>
               <View style={styles.header}>
                 <Text style={styles.headerTitle}>Book an Appointment</Text>
-                <TouchableOpacity onPress={onClose} disabled={isSubmitting} style={styles.closeBtn}>
+                <TouchableOpacity onPress={handleClose} disabled={isSubmitting} style={styles.closeBtn}>
                   <Text style={styles.closeBtnText}>✕</Text>
                 </TouchableOpacity>
               </View>
@@ -612,13 +660,156 @@ export function BookAppointmentModal({
                   />
                   <Text style={styles.charCount}>{reason.length}/500</Text>
                 </View>
+
+                {/* 9. Optional Clinical History */}
+                <View style={styles.clinicalHistoryCard}>
+                  <View style={styles.clinicalHistoryHeader}>
+                    <View style={styles.clinicalHistoryTitleRow}>
+                      <Text style={styles.clinicalHistoryTitle}>Clinical History</Text>
+                      <View style={styles.optionalBadge}>
+                        <Text style={styles.optionalBadgeText}>Optional</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setIsClinicalHistoryExpanded((prev) => !prev)}
+                      style={styles.toggleBtn}
+                      disabled={isSubmitting}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        isClinicalHistoryExpanded
+                          ? 'Collapse clinical history'
+                          : 'Expand clinical history'
+                      }
+                    >
+                      <Text style={styles.toggleBtnText}>
+                        {isClinicalHistoryExpanded ? 'Hide ▲' : '+ Add Details ▼'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.clinicalHistorySubtitle}>
+                    Provide additional health context for your doctor ahead of your visit.
+                  </Text>
+
+                  {isClinicalHistoryExpanded && (
+                    <View style={styles.clinicalFieldsContainer}>
+                      {/* 1. Chief Complaint */}
+                      <View style={styles.clinicalFieldGroup}>
+                        <Text style={styles.clinicalFieldLabel}>Chief Complaint</Text>
+                        <TextInput
+                          style={[styles.input, styles.clinicalTextArea]}
+                          value={clinicalHistory.chiefComplaint}
+                          onChangeText={(text) =>
+                            setClinicalHistory((prev) => ({ ...prev, chiefComplaint: text }))
+                          }
+                          placeholder="What is the main reason for your visit?"
+                          placeholderTextColor="#94A3B8"
+                          multiline
+                          numberOfLines={2}
+                          maxLength={500}
+                          editable={!isSubmitting}
+                        />
+                        <Text style={styles.charCount}>
+                          {clinicalHistory.chiefComplaint.length}/500
+                        </Text>
+                      </View>
+
+                      {/* 2. History of Present Illness */}
+                      <View style={styles.clinicalFieldGroup}>
+                        <Text style={styles.clinicalFieldLabel}>History of Present Illness</Text>
+                        <TextInput
+                          style={[styles.input, styles.clinicalTextArea]}
+                          value={clinicalHistory.historyPresentIllness}
+                          onChangeText={(text) =>
+                            setClinicalHistory((prev) => ({ ...prev, historyPresentIllness: text }))
+                          }
+                          placeholder="Tell us about your current symptoms or concern."
+                          placeholderTextColor="#94A3B8"
+                          multiline
+                          numberOfLines={2}
+                          maxLength={500}
+                          editable={!isSubmitting}
+                        />
+                        <Text style={styles.charCount}>
+                          {clinicalHistory.historyPresentIllness.length}/500
+                        </Text>
+                      </View>
+
+                      {/* 3. Past Medical History */}
+                      <View style={styles.clinicalFieldGroup}>
+                        <Text style={styles.clinicalFieldLabel}>Past Medical History</Text>
+                        <TextInput
+                          style={[styles.input, styles.clinicalTextArea]}
+                          value={clinicalHistory.pastMedicalHistory}
+                          onChangeText={(text) =>
+                            setClinicalHistory((prev) => ({ ...prev, pastMedicalHistory: text }))
+                          }
+                          placeholder="Previous illnesses, conditions, surgeries, or treatments."
+                          placeholderTextColor="#94A3B8"
+                          multiline
+                          numberOfLines={2}
+                          maxLength={500}
+                          editable={!isSubmitting}
+                        />
+                        <Text style={styles.charCount}>
+                          {clinicalHistory.pastMedicalHistory.length}/500
+                        </Text>
+                      </View>
+
+                      {/* 4. Family History */}
+                      <View style={styles.clinicalFieldGroup}>
+                        <Text style={styles.clinicalFieldLabel}>Family History</Text>
+                        <TextInput
+                          style={[styles.input, styles.clinicalTextArea]}
+                          value={clinicalHistory.familyHistory}
+                          onChangeText={(text) =>
+                            setClinicalHistory((prev) => ({ ...prev, familyHistory: text }))
+                          }
+                          placeholder="Relevant medical conditions in your family."
+                          placeholderTextColor="#94A3B8"
+                          multiline
+                          numberOfLines={2}
+                          maxLength={500}
+                          editable={!isSubmitting}
+                        />
+                        <Text style={styles.charCount}>
+                          {clinicalHistory.familyHistory.length}/500
+                        </Text>
+                      </View>
+
+                      {/* 5. Allergies / Sensitivities */}
+                      <View style={styles.clinicalFieldGroup}>
+                        <Text style={styles.clinicalFieldLabel}>Allergies / Sensitivities</Text>
+                        <TextInput
+                          style={[styles.input, styles.clinicalTextArea]}
+                          value={clinicalHistory.allergies}
+                          onChangeText={(text) =>
+                            setClinicalHistory((prev) => ({
+                              ...prev,
+                              allergies: text,
+                            }))
+                          }
+                          placeholder="Medicines, food, or other known allergies or sensitivities."
+                          placeholderTextColor="#94A3B8"
+                          multiline
+                          numberOfLines={2}
+                          maxLength={500}
+                          editable={!isSubmitting}
+                        />
+                        <Text style={styles.charCount}>
+                          {clinicalHistory.allergies.length}/500
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
               </ScrollView>
 
               {/* Submit / Cancel Actions */}
               <View style={styles.footer}>
                 <TouchableOpacity
                   style={styles.cancelBtn}
-                  onPress={onClose}
+                  onPress={handleClose}
                   disabled={isSubmitting}
                 >
                   <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -783,6 +974,81 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     textAlign: 'right',
     marginTop: 4,
+  },
+  clinicalHistoryCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 16,
+  },
+  clinicalHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  clinicalHistoryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clinicalHistoryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  optionalBadge: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  optionalBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  clinicalHistorySubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 8,
+  },
+  toggleBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#E0F2FE',
+  },
+  toggleBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  clinicalFieldsContainer: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingTop: 12,
+    gap: 12,
+  },
+  clinicalFieldGroup: {
+    marginBottom: 2,
+  },
+  clinicalFieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 4,
+  },
+  clinicalTextArea: {
+    minHeight: 56,
+    backgroundColor: '#FFFFFF',
+    textAlignVertical: 'top',
   },
   slotGrid: {
     flexDirection: 'row',

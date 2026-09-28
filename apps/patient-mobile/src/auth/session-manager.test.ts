@@ -198,10 +198,10 @@ describe('SessionManager', () => {
     expect(saved.status).toBe('ready');
   });
 
-  it('marks credential uncertain and disallows blind replay on ambiguous server 500 failure', async () => {
+  it('preserves stored credential when refresh fails due to timeout (Render cold-start)', async () => {
     await store.initialize();
     const initialSession: SavedSession = {
-      refreshToken: 'm'.repeat(64),
+      refreshToken: 't'.repeat(64),
       sessionId: '507f1f77bcf86cd799439011',
       expiresAt: '2026-10-02T10:00:00.000Z',
       installationId: store.installationId,
@@ -210,21 +210,85 @@ describe('SessionManager', () => {
     };
     await store.save(initialSession);
 
-    mockApi.refresh.mockRejectedValue(new ApiFailure('server', 500));
+    mockApi.refresh.mockRejectedValue(
+      new ApiFailure({
+        category: 'TIMEOUT',
+        kind: 'network',
+        code: 'TIMEOUT',
+      })
+    );
 
     const manager = createManager();
     await manager.start();
 
-    // Must move to error with reauth recovery
     expect(manager.getSnapshot().status).toBe('error');
-    expect(manager.getSnapshot().recovery).toBe('reauth');
+    expect(manager.getSnapshot().recovery).toBe('restore');
 
-    // Stored session has uncertain status
+    // Stored credential preserved as ready
     const saved = JSON.parse((await storage.readSecret()) ?? '{}');
-    expect(saved.status).toBe('uncertain');
+    expect(saved.refreshToken).toBe('t'.repeat(64));
+    expect(saved.status).toBe('ready');
   });
 
-  it('clears storage and sets unauthenticated on definitive auth rejection (401)', async () => {
+  it('preserves stored credential when refresh fails due to network error', async () => {
+    await store.initialize();
+    const initialSession: SavedSession = {
+      refreshToken: 'n'.repeat(64),
+      sessionId: '507f1f77bcf86cd799439011',
+      expiresAt: '2026-10-02T10:00:00.000Z',
+      installationId: store.installationId,
+      apiBaseUrl,
+      status: 'ready',
+    };
+    await store.save(initialSession);
+
+    mockApi.refresh.mockRejectedValue(
+      new ApiFailure({
+        category: 'NETWORK_ERROR',
+        kind: 'network',
+        code: 'NETWORK_ERROR',
+      })
+    );
+
+    const manager = createManager();
+    await manager.start();
+
+    expect(manager.getSnapshot().status).toBe('error');
+    expect(manager.getSnapshot().recovery).toBe('restore');
+
+    const saved = JSON.parse((await storage.readSecret()) ?? '{}');
+    expect(saved.refreshToken).toBe('n'.repeat(64));
+    expect(saved.status).toBe('ready');
+  });
+
+  it('preserves stored credential and sets restore state on HTTP 502/503/504 gateway errors', async () => {
+    for (const status of [502, 503, 504]) {
+      await store.initialize();
+      const initialSession: SavedSession = {
+        refreshToken: 'g'.repeat(64),
+        sessionId: '507f1f77bcf86cd799439011',
+        expiresAt: '2026-10-02T10:00:00.000Z',
+        installationId: store.installationId,
+        apiBaseUrl,
+        status: 'ready',
+      };
+      await store.save(initialSession);
+
+      mockApi.refresh.mockRejectedValue(new ApiFailure('server', status));
+
+      const manager = createManager();
+      await manager.start();
+
+      expect(manager.getSnapshot().status).toBe('error');
+      expect(manager.getSnapshot().recovery).toBe('restore');
+
+      const saved = JSON.parse((await storage.readSecret()) ?? '{}');
+      expect(saved.refreshToken).toBe('g'.repeat(64));
+      expect(saved.status).toBe('ready');
+    }
+  });
+
+  it('clears storage and sets unauthenticated on definitive auth rejection (401 INVALID_REFRESH_TOKEN)', async () => {
     await store.initialize();
     const initialSession: SavedSession = {
       refreshToken: 'k'.repeat(64),
@@ -243,6 +307,82 @@ describe('SessionManager', () => {
 
     expect(manager.getSnapshot().status).toBe('unauthenticated');
     expect(await storage.readSecret()).toBeNull();
+  });
+
+  it('clears storage and sets unauthenticated on 403 SESSION_REVOKED', async () => {
+    await store.initialize();
+    const initialSession: SavedSession = {
+      refreshToken: 'v'.repeat(64),
+      sessionId: '507f1f77bcf86cd799439011',
+      expiresAt: '2026-10-02T10:00:00.000Z',
+      installationId: store.installationId,
+      apiBaseUrl,
+      status: 'ready',
+    };
+    await store.save(initialSession);
+
+    mockApi.refresh.mockRejectedValue(new ApiFailure('auth', 403, 'SESSION_REVOKED'));
+
+    const manager = createManager();
+    await manager.start();
+
+    expect(manager.getSnapshot().status).toBe('unauthenticated');
+    expect(await storage.readSecret()).toBeNull();
+  });
+
+  it('allows user to retry connection after a timeout and successfully authenticate', async () => {
+    await store.initialize();
+    const initialSession: SavedSession = {
+      refreshToken: 'r'.repeat(64),
+      sessionId: '507f1f77bcf86cd799439011',
+      expiresAt: '2026-10-02T10:00:00.000Z',
+      installationId: store.installationId,
+      apiBaseUrl,
+      status: 'ready',
+    };
+    await store.save(initialSession);
+
+    // First attempt fails with timeout (cold start)
+    mockApi.refresh.mockRejectedValueOnce(
+      new ApiFailure({ category: 'TIMEOUT', kind: 'network', code: 'TIMEOUT' })
+    );
+
+    const manager = createManager();
+    await manager.start();
+
+    expect(manager.getSnapshot().status).toBe('error');
+    expect(manager.getSnapshot().recovery).toBe('restore');
+
+    // Second attempt (user clicks Retry Connection) succeeds
+    const rotatedSession = createSampleSession('w'.repeat(64), 'retried.jwt');
+    mockApi.refresh.mockResolvedValueOnce(rotatedSession);
+
+    await manager.retry();
+
+    expect(manager.getSnapshot().status).toBe('authenticated');
+    expect(manager.getSnapshot().user?.fullName).toBe('John Patient');
+  });
+
+  it('recovers in-flight status to ready on startup without permanently latching into uncertain', async () => {
+    await store.initialize();
+    const inFlightSession: SavedSession = {
+      refreshToken: 'f'.repeat(64),
+      sessionId: '507f1f77bcf86cd799439011',
+      expiresAt: '2026-10-02T10:00:00.000Z',
+      installationId: store.installationId,
+      apiBaseUrl,
+      status: 'in-flight',
+    };
+    await store.save(inFlightSession);
+
+    const rotatedSession = createSampleSession('g'.repeat(64), 'recovered.jwt');
+    mockApi.refresh.mockResolvedValue(rotatedSession);
+
+    const manager = createManager();
+    await manager.start();
+
+    expect(manager.getSnapshot().status).toBe('authenticated');
+    expect(mockApi.refresh).toHaveBeenCalledWith('f'.repeat(64));
   });
 
   it('performs single-flight refresh when multiple callers request refresh concurrently', async () => {

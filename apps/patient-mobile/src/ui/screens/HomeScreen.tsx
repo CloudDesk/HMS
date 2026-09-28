@@ -26,7 +26,6 @@ interface HomeScreenProps {
 export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
   const { logout, manager } = useAuth();
   const {
-    context,
     selectedPatient,
     selectedPatientId,
     overview,
@@ -113,11 +112,6 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
     return 'Good evening';
   };
 
-  const patientDisplayName =
-    selectedPatient?.full_name?.split(' ')[0] ??
-    context?.account.full_name?.split(' ')[0] ??
-    'Patient';
-
   return (
     <ScrollView
       contentContainerStyle={styles.container}
@@ -134,9 +128,6 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
       <View style={styles.header}>
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingText}>{getGreeting()},</Text>
-          <Text style={styles.headerName} numberOfLines={1}>
-            {patientDisplayName}
-          </Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -347,11 +338,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   greetingText: {
-    fontSize: typography.size.xs + 1,
-    color: colors.text.secondary,
-    fontWeight: typography.weight.medium,
-  },
-  headerName: {
     fontSize: typography.size.xl,
     fontWeight: typography.weight.bold,
     color: colors.text.primary,

@@ -1,3 +1,5 @@
+import type { PatientPreConsultationResponse } from '../../api/opd';
+
 export type ConsultationFormState = {
   chief_complaint: string;
   history_present_illness: string;
@@ -17,6 +19,7 @@ export type OpdConsultationSectionProps = {
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
   nextTab?: string;
+  preConsultation?: PatientPreConsultationResponse | null;
 };
 
 export function OpdConsultationSection({
@@ -26,14 +29,250 @@ export function OpdConsultationSection({
   handleNextStep,
   canEdit,
   nextTab = 'Diagnosis',
+  preConsultation,
 }: OpdConsultationSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
+      {/* Patient-Reported Information (Read-Only) */}
+      <section
+        className="opd-form-section patient-reported-section"
+        style={{
+          marginBottom: '1.5rem',
+          background: '#f8fafc',
+          padding: '1rem 1.25rem',
+          borderRadius: '0.5rem',
+          border: '1px solid #e2e8f0',
+        }}
+      >
+        <div
+          className="opd-form-section-head"
+          style={{
+            marginBottom: '0.75rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#0f172a' }}>
+                Patient-Reported Information
+              </h3>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  background: '#e0f2fe',
+                  color: '#0369a1',
+                  padding: '0.125rem 0.5rem',
+                  borderRadius: '0.25rem',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Pre-Consultation (Mobile)
+              </span>
+            </div>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#64748b' }}>
+              {preConsultation?.submitted_at
+                ? `Submitted by patient on ${new Date(preConsultation.submitted_at).toLocaleDateString()} at ${new Date(preConsultation.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                : 'Information provided by the patient during appointment booking'}
+            </p>
+          </div>
+          <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
+            Read Only
+          </span>
+        </div>
+
+        {preConsultation &&
+        (preConsultation.chief_complaint ||
+          preConsultation.history_present_illness ||
+          preConsultation.past_medical_history ||
+          preConsultation.family_history ||
+          preConsultation.allergies) ? (
+          <div className="doc-form-grid two" style={{ gap: '0.75rem' }}>
+            {preConsultation.chief_complaint ? (
+              <div
+                className="doc-field"
+                style={{
+                  background: '#ffffff',
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #cbd5e1',
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    color: '#475569',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Chief Complaint
+                </span>
+                <p
+                  style={{
+                    margin: '0.25rem 0 0',
+                    fontSize: '0.875rem',
+                    color: '#1e293b',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {preConsultation.chief_complaint}
+                </p>
+              </div>
+            ) : null}
+            {preConsultation.history_present_illness ? (
+              <div
+                className="doc-field"
+                style={{
+                  background: '#ffffff',
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #cbd5e1',
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    color: '#475569',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  History of Present Illness
+                </span>
+                <p
+                  style={{
+                    margin: '0.25rem 0 0',
+                    fontSize: '0.875rem',
+                    color: '#1e293b',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {preConsultation.history_present_illness}
+                </p>
+              </div>
+            ) : null}
+            {preConsultation.past_medical_history ? (
+              <div
+                className="doc-field"
+                style={{
+                  background: '#ffffff',
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #cbd5e1',
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    color: '#475569',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Past Medical History
+                </span>
+                <p
+                  style={{
+                    margin: '0.25rem 0 0',
+                    fontSize: '0.875rem',
+                    color: '#1e293b',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {preConsultation.past_medical_history}
+                </p>
+              </div>
+            ) : null}
+            {preConsultation.family_history ? (
+              <div
+                className="doc-field"
+                style={{
+                  background: '#ffffff',
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #cbd5e1',
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    color: '#475569',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Family History
+                </span>
+                <p
+                  style={{
+                    margin: '0.25rem 0 0',
+                    fontSize: '0.875rem',
+                    color: '#1e293b',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {preConsultation.family_history}
+                </p>
+              </div>
+            ) : null}
+            {preConsultation.allergies ? (
+              <div
+                className="doc-field full"
+                style={{
+                  background: '#ffffff',
+                  padding: '0.625rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #fecdd3',
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    color: '#be123c',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Allergies / Sensitivities
+                </span>
+                <p
+                  style={{
+                    margin: '0.25rem 0 0',
+                    fontSize: '0.875rem',
+                    color: '#9f1239',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {preConsultation.allergies}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: '0.75rem',
+              background: '#ffffff',
+              borderRadius: '0.375rem',
+              border: '1px dashed #cbd5e1',
+              textAlign: 'center',
+            }}
+          >
+            <span style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
+              No patient-reported pre-consultation history provided.
+            </span>
+          </div>
+        )}
+      </section>
+
       <section className="opd-form-section">
         <div className="opd-form-section-head">
           <div>
-            <h3>Clinical History</h3>
-            <p>Document presenting complaint and relevant clinical history</p>
+            <h3>Doctor's Clinical Consultation</h3>
+            <p>Document presenting complaint and clinical consultation findings</p>
           </div>
         </div>
         <div className="doc-form-grid two">

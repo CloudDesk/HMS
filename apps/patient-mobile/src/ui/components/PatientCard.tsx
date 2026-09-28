@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import type { PortalPatientDetail } from '../../portal/contracts';
 import { calculateAge } from '../../portal/formatters';
+import { Avatar } from './Avatar';
 import { StatusBadge } from './StatusBadge';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 
@@ -11,19 +12,21 @@ interface PatientCardProps {
 }
 
 export function PatientCard({ patient, relationship }: PatientCardProps) {
-  const initials = `${patient.first_name[0] ?? ''}${patient.last_name[0] ?? ''}`.toUpperCase();
   const age = calculateAge(patient.date_of_birth);
+  const fullName = `${patient.first_name} ${patient.middle_name ? `${patient.middle_name} ` : ''}${patient.last_name}`;
 
   return (
     <View style={styles.card}>
       <View style={styles.topRow}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+        <Avatar
+          name={fullName}
+          photoUrl={patient.profile_photo_url}
+          size={48}
+          style={styles.avatarMargin}
+        />
         <View style={styles.mainInfo}>
           <Text style={styles.name} numberOfLines={1}>
-            {patient.first_name} {patient.middle_name ? `${patient.middle_name} ` : ''}
-            {patient.last_name}
+            {fullName}
           </Text>
           <View style={styles.mrnRow}>
             <Text style={styles.mrnLabel}>MRN</Text>
@@ -83,22 +86,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.brand.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
+  avatarMargin: {
     marginRight: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.brand.accent,
-  },
-  avatarText: {
-    color: colors.brand.primaryDark,
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 0.5,
   },
   mainInfo: {
     flex: 1,

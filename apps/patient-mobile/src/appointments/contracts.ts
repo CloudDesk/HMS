@@ -126,6 +126,16 @@ export const bookAppointmentInputSchema = z.object({
   duration_minutes: z.number().int().min(5).max(240).default(15),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
   reason: z.string().min(3, 'Provide a reason (minimum 3 characters).').max(500),
+  utc_datetime: z.string().optional(),
+  clinical_history: z
+    .object({
+      chief_complaint: z.string().trim().max(500).optional(),
+      history_present_illness: z.string().trim().max(500).optional(),
+      past_medical_history: z.string().trim().max(500).optional(),
+      family_history: z.string().trim().max(500).optional(),
+      allergies: z.string().trim().max(500).optional(),
+    })
+    .optional(),
 });
 
 export const appointmentCreatedSchema = z.object({
@@ -147,6 +157,24 @@ export const rescheduleAppointmentInputSchema = z.object({
   duration_minutes: z.number().int().min(5).max(240).default(15),
 });
 
+export const clinicalHistorySchema = z.object({
+  chiefComplaint: z.string().max(500).default(''),
+  historyPresentIllness: z.string().max(500).default(''),
+  pastMedicalHistory: z.string().max(500).default(''),
+  familyHistory: z.string().max(500).default(''),
+  allergies: z.string().max(500).default(''),
+});
+
+export type ClinicalHistoryFormState = z.infer<typeof clinicalHistorySchema>;
+
+export const emptyClinicalHistory: ClinicalHistoryFormState = {
+  chiefComplaint: '',
+  historyPresentIllness: '',
+  pastMedicalHistory: '',
+  familyHistory: '',
+  allergies: '',
+};
+
 export type PortalAppointment = z.infer<typeof portalAppointmentSchema>;
 export type PortalAppointmentsResponse = z.infer<typeof portalAppointmentsResponseSchema>;
 export type PublicBranch = z.infer<typeof publicBranchSchema>;
@@ -158,3 +186,4 @@ export type BookAppointmentInput = z.infer<typeof bookAppointmentInputSchema>;
 export type AppointmentCreated = z.infer<typeof appointmentCreatedSchema>;
 export type RescheduleEligibility = z.infer<typeof rescheduleEligibilitySchema>;
 export type RescheduleAppointmentInput = z.infer<typeof rescheduleAppointmentInputSchema>;
+

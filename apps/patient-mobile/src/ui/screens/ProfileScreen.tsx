@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
-import { calculateAge, relationshipLabel } from '../../portal/formatters';
+import { calculateAge, formatDateOfBirth, relationshipLabel } from '../../portal/formatters';
+import { Avatar } from '../components/Avatar';
 import { PatientContextSelector } from '../components/PatientContextSelector';
+import { ProfilePhotoModal } from '../components/ProfilePhotoModal';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
 import { colors, radius, shadows, spacing, typography } from '../theme';
@@ -32,7 +34,11 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
     isRefreshing,
     error,
     refresh,
+    uploadPhoto,
+    deletePhoto,
   } = usePatient();
+
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -92,60 +98,74 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
     : '';
 
   const emergency = patient?.emergency_contact;
-  const initials = patient
-    ? `${patient.first_name[0] ?? ''}${patient.last_name[0] ?? ''}`.toUpperCase()
+  const patientFullName = patient
+    ? `${patient.first_name} ${patient.middle_name ? `${patient.middle_name} ` : ''}${patient.last_name}`
     : '—';
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={refresh}
-          colors={[colors.brand.primary]}
-          tintColor={colors.brand.primary}
-        />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Profile</Text>
-        <Text style={styles.headerSubtitle}>
-          Patient identity & hospital records
-        </Text>
-      </View>
-
-      {/* Patient Switcher */}
-      <PatientContextSelector />
-
-      {/* Profile Overview Card */}
-      {patient ? (
-        <View style={styles.heroCard}>
-          <View style={styles.avatarLarge}>
-            <Text style={styles.avatarTextLarge}>{initials}</Text>
-          </View>
-          <Text style={styles.heroName}>
-            {patient.first_name} {patient.middle_name ? `${patient.middle_name} ` : ''}
-            {patient.last_name}
+    <>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refresh}
+            colors={[colors.brand.primary]}
+            tintColor={colors.brand.primary}
+          />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>My Profile</Text>
+          <Text style={styles.headerSubtitle}>
+            Patient identity & hospital records
           </Text>
-          <Text style={styles.heroMrn}>MRN: {patient.patient_number}</Text>
-          <View style={styles.heroBadgeRow}>
-            <StatusBadge
-              label={patient.status}
-              variant={patient.status.toUpperCase() === 'ACTIVE' ? 'success' : 'neutral'}
-              size="sm"
-            />
-            {selectedPatient?.relationship ? (
-              <View style={styles.relBadge}>
-                <Text style={styles.relBadgeText}>
-                  {relationshipLabel(selectedPatient.relationship)}
-                </Text>
-              </View>
-            ) : null}
-          </View>
         </View>
-      ) : null}
+
+        {/* Patient Switcher */}
+        <PatientContextSelector />
+
+        {/* Profile Overview Card */}
+        {patient ? (
+          <View style={styles.heroCard}>
+            <View style={styles.avatarSection}>
+              <Avatar
+                name={patientFullName}
+                photoUrl={patient.profile_photo_url}
+                size={80}
+                showEditBadge
+                onPress={() => setPhotoModalOpen(true)}
+              />
+              <TouchableOpacity
+                style={styles.changePhotoBtn}
+                onPress={() => setPhotoModalOpen(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.changePhotoText}>
+                  {patient.profile_photo_url ? 'Change Photo' : 'Add Photo'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.heroName}>{patientFullName}</Text>
+            <Text style={styles.heroMrn}>MRN: {patient.patient_number}</Text>
+            <View style={styles.heroBadgeRow}>
+              <StatusBadge
+                label={patient.status}
+                variant={patient.status.toUpperCase() === 'ACTIVE' ? 'success' : 'neutral'}
+                size="sm"
+              />
+              {selectedPatient?.relationship ? (
+                <View style={styles.relBadge}>
+                  <Text style={styles.relBadgeText}>
+                    {relationshipLabel(selectedPatient.relationship)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
 
       {/* Personal Information */}
       {patient ? (
@@ -161,7 +181,7 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Date of Birth</Text>
-            <Text style={styles.value}>{patient.date_of_birth}</Text>
+            <Text style={styles.value}>{formatDateOfBirth(patient.date_of_birth)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Age</Text>
@@ -340,6 +360,26 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    {patient ? (
+      <ProfilePhotoModal
+        visible={photoModalOpen}
+        onClose={() => setPhotoModalOpen(false)}
+        patientName={patientFullName}
+        currentPhotoUrl={patient.profile_photo_url}
+        onUploadPhoto={async (file) => {
+          await uploadPhoto(patient.id, file);
+        }}
+        onDeletePhoto={
+          patient.profile_photo_url
+            ? async () => {
+                await deletePhoto(patient.id);
+              }
+            : undefined
+        }
+      />
+    ) : null}
+  </>
   );
 }
 
@@ -394,21 +434,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     ...shadows.card,
   },
-  avatarLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.full,
-    backgroundColor: colors.brand.primaryLight,
-    justifyContent: 'center',
+  avatarSection: {
     alignItems: 'center',
     marginBottom: spacing.md,
-    borderWidth: 1.5,
-    borderColor: colors.brand.accent,
   },
-  avatarTextLarge: {
-    fontSize: typography.size.xxl,
-    fontWeight: typography.weight.bold,
+  changePhotoBtn: {
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.primaryLight,
+  },
+  changePhotoText: {
+    fontSize: typography.size.xs,
     color: colors.brand.primaryDark,
+    fontWeight: typography.weight.semibold,
   },
   heroName: {
     fontSize: typography.size.lg,

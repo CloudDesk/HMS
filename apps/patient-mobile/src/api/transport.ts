@@ -15,10 +15,11 @@ export class MobileTransport {
     path: string,
     schema: z.ZodType<T>,
     options: {
-      method?: 'GET' | 'POST' | 'PATCH';
+      method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
       body?: unknown;
       accessToken?: string;
       query?: Record<string, string | number | boolean | undefined | null>;
+      timeoutMs?: number;
     } = {}
   ): Promise<T> {
     const method = options.method ?? 'GET';
@@ -35,12 +36,13 @@ export class MobileTransport {
       });
     }
 
+    const effectiveTimeout = options.timeoutMs ?? this.timeoutMs;
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, this.timeoutMs);
+    }, effectiveTimeout);
 
     let response: Response;
     try {
@@ -93,6 +95,87 @@ export class MobileTransport {
       clearTimeout(timer);
     }
 
+    return this.parseResponse(response, schema, path, method);
+  }
+
+  async uploadMultipart<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    formData: FormData,
+    options: {
+      accessToken?: string;
+      timeoutMs?: number;
+    } = {}
+  ): Promise<T> {
+    if (!/^\/[a-zA-Z0-9/_-]+$/.test(path)) {
+      throw new ApiFailure({
+        category: 'HTTP_400',
+        kind: 'validation',
+        code: 'INVALID_PATH',
+        endpoint: path,
+        method: 'POST',
+        userMessage: 'Invalid request path.',
+      });
+    }
+
+    const effectiveTimeout = options.timeoutMs ?? this.timeoutMs;
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, effectiveTimeout);
+
+    let response: Response;
+    try {
+      const url = `${this.config.apiBaseUrl}${path}`;
+      response = await this.fetcher(url, {
+        method: 'POST',
+        credentials: 'omit',
+        redirect: 'error',
+        headers: {
+          Accept: 'application/json',
+          ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
+        },
+        body: formData,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof ApiFailure) throw error;
+      if (timedOut || (error instanceof Error && error.name === 'AbortError')) {
+        throw new ApiFailure({
+          category: 'TIMEOUT',
+          kind: 'network',
+          status: 408,
+          code: 'TIMEOUT',
+          endpoint: path,
+          method: 'POST',
+          retryable: true,
+          originalError: error,
+        });
+      }
+      throw new ApiFailure({
+        category: 'NETWORK_ERROR',
+        kind: 'network',
+        code: 'NETWORK_ERROR',
+        endpoint: path,
+        method: 'POST',
+        retryable: true,
+        originalError: error,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    return this.parseResponse(response, schema, path, 'POST');
+  }
+
+  private async parseResponse<T>(
+    response: Response,
+    schema: z.ZodType<T>,
+    path: string,
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  ): Promise<T> {
     const headerRequestId =
       typeof response.headers?.get === 'function'
         ? response.headers.get('x-request-id') ?? response.headers.get('X-Request-Id') ?? undefined

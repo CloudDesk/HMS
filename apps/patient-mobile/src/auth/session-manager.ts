@@ -41,9 +41,19 @@ export class SessionManager {
       this.saved = saved;
       if (!saved) { this.set({ status: 'unauthenticated' }); return; }
       if (Date.parse(saved.expiresAt) <= this.now()) { await this.invalidate(); return; }
+      if (saved.status === 'in-flight') {
+        saved.status = 'ready';
+        try {
+          await this.store.save(saved);
+        } catch {
+          // ignore storage error on in-flight reset
+        }
+      }
       if (saved.status !== 'ready') { this.uncertain(); return; }
       await this.refresh();
-    } catch { this.storageError(); }
+    } catch {
+      this.set({ status: 'unauthenticated' });
+    }
   }
   async requestOtp(rawPhone: string) {
     if (!['unauthenticated', 'otpVerification'].includes(this.state.status)) return;
@@ -138,14 +148,47 @@ export class SessionManager {
       return this.access?.value ?? null;
     } catch (error) {
       if (generation !== this.generation) return null;
-      if (error instanceof ApiFailure && error.kind === 'auth') { await this.invalidate(); return null; }
-      if (error instanceof ApiFailure && error.status === 429 && error.code === 'AUTH_RATE_LIMITED') {
-        try { await this.store.save(saved); this.saved = saved;
-          this.set({ status: 'error', recovery: 'restore', message: friendlyError(error) });
-        } catch { this.storageError(); }
-      } else {
-        this.saved = { ...pending, status: 'uncertain' };
-        try { await this.store.save(this.saved); this.uncertain(); } catch { this.storageError(); }
+      if (
+        error instanceof ApiFailure &&
+        (error.kind === 'auth' || error.status === 401 || error.status === 403 || error.status === 404)
+      ) {
+        await this.invalidate();
+        return null;
+      }
+      if (
+        error instanceof ApiFailure &&
+        (error.kind === 'network' ||
+          error.kind === 'offline' ||
+          error.category === 'TIMEOUT' ||
+          error.category === 'NETWORK_ERROR' ||
+          error.code === 'TIMEOUT' ||
+          error.code === 'NETWORK_ERROR' ||
+          error.status === 429 ||
+          error.status === 502 ||
+          error.status === 503 ||
+          error.status === 504 ||
+          (typeof error.status === 'number' && error.status >= 500 && error.status <= 504))
+      ) {
+        try {
+          await this.store.save(saved);
+          this.saved = saved;
+          this.set({
+            status: 'error',
+            recovery: 'restore',
+            message: friendlyError(error),
+            errorDetails: error,
+          });
+        } catch {
+          this.storageError();
+        }
+        return null;
+      }
+      this.saved = { ...pending, status: 'uncertain' };
+      try {
+        await this.store.save(this.saved);
+        this.uncertain();
+      } catch {
+        this.storageError();
       }
       return null;
     }
@@ -175,7 +218,7 @@ export class SessionManager {
     if (this.state.status === 'authenticated') await this.accessToken();
   }
   async authenticatedRequest<T>(path: string, schema: z.ZodType<T>, options?: {
-    method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; query?: Record<string, string | number | boolean | undefined | null>;
+    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; query?: Record<string, string | number | boolean | undefined | null>;
   }): Promise<T> {
     const token = await this.accessToken();
     if (!token) throw new ApiFailure('auth');
@@ -187,6 +230,19 @@ export class SessionManager {
     } catch (error) {
       if (generation === this.generation && error instanceof ApiFailure && error.status === 401) await this.invalidate();
       throw error; // No blind replay, especially for future non-idempotent mutations.
+    }
+  }
+  async authenticatedMultipartRequest<T>(path: string, schema: z.ZodType<T>, formData: FormData): Promise<T> {
+    const token = await this.accessToken();
+    if (!token) throw new ApiFailure('auth');
+    const generation = this.generation;
+    try {
+      const result = await this.transport.uploadMultipart(path, schema, formData, { accessToken: token });
+      if (generation !== this.generation) throw new ApiFailure('auth');
+      return result;
+    } catch (error) {
+      if (generation === this.generation && error instanceof ApiFailure && error.status === 401) await this.invalidate();
+      throw error;
     }
   }
   async logout() {

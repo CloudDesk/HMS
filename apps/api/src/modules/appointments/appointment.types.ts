@@ -100,6 +100,30 @@ export type CreateAppointmentDTO = {
   reason?: string | null;
   notes?: string | null;
   dental_context?: AppointmentDentalContext | null;
+  clinical_history?: PatientPreConsultationDTO | null;
+};
+
+export type PatientPreConsultationDTO = {
+  chief_complaint?: string | null;
+  history_present_illness?: string | null;
+  past_medical_history?: string | null;
+  family_history?: string | null;
+  allergies?: string | null;
+};
+
+export type PatientPreConsultation = {
+  id: string;
+  patient_id: string;
+  appointment_id: string;
+  doctor_id: string | null;
+  chief_complaint: string | null;
+  history_present_illness: string | null;
+  past_medical_history: string | null;
+  family_history: string | null;
+  allergies: string | null;
+  submitted_at: Date;
+  created_at: Date;
+  updated_at: Date;
 };
 
 export type UpdateAppointmentDTO = Partial<
@@ -113,3 +137,4 @@ export type UpdateAppointmentStatusDTO = {
   status: AppointmentStatus;
   notes?: string | null;
 };
+

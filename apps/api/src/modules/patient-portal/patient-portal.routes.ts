@@ -16,6 +16,8 @@ import {
   patientPortalDocumentsResponseSchema,
   patientPortalInvoiceDetailResponseSchema,
   patientPortalOverviewResponseSchema,
+  patientPortalProfilePhotoDeleteResponseSchema,
+  patientPortalProfilePhotoResponseSchema,
   patientPortalSessionResponseSchema,
   patientOtpRequestResponseSchema,
   patientOtpVerifyResponseSchema,
@@ -172,6 +174,14 @@ type PublicListQuery = z.input<typeof publicListQuerySchema>;
 const slotsQuerySchema = z.object({ date: z.string().date() });
 type SlotsQuery = z.infer<typeof slotsQuerySchema>;
 
+const portalClinicalHistorySchema = z.object({
+  chief_complaint: z.string().trim().max(500).nullable().optional(),
+  history_present_illness: z.string().trim().max(500).nullable().optional(),
+  past_medical_history: z.string().trim().max(500).nullable().optional(),
+  family_history: z.string().trim().max(500).nullable().optional(),
+  allergies: z.string().trim().max(500).nullable().optional(),
+});
+
 const bookAppointmentSchema = z.object({
   patient_id: z.string().min(1),
   doctor_id: z.string().min(1),
@@ -180,6 +190,8 @@ const bookAppointmentSchema = z.object({
   duration_minutes: z.number().int().min(5).max(240),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
   reason: z.string().trim().min(3).max(500),
+  utc_datetime: z.string().optional(),
+  clinical_history: portalClinicalHistorySchema.optional(),
 });
 type BookAppointmentBody = z.infer<typeof bookAppointmentSchema>;
 
@@ -508,6 +520,48 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     return reply.header('content-type', download.contentType).header('content-disposition', `attachment; filename="${safePortalFileName(download.document.file_name)}"`).send(download.data);
   });
 
+  app.post<{ Params: { patientId: string } }>(
+    '/api/patient-portal/patients/:patientId/profile-photo',
+    {
+      preHandler: authenticate(services),
+      schema: { response: { 200: patientPortalProfilePhotoResponseSchema, 201: patientPortalProfilePhotoResponseSchema } },
+    },
+    async (request, reply) => {
+      const file = await request.file();
+      if (!file) throw new AppError('Choose a photo to upload', 400, 'PHOTO_REQUIRED');
+      const data = await file.toBuffer();
+      const result = await services.patientPortal.uploadProfilePhoto(request.user!.id, request.params.patientId, {
+        fileName: file.filename,
+        mimeType: file.mimetype,
+        data,
+      });
+      return reply.status(200).send(ok(result));
+    },
+  );
+
+  app.get<{ Params: { patientId: string } }>(
+    '/api/patient-portal/patients/:patientId/profile-photo',
+    { preHandler: authenticate(services) },
+    async (request, reply) => {
+      const photo = await services.patientPortal.getProfilePhoto(request.user!.id, request.params.patientId);
+      return reply
+        .header('content-type', photo.contentType)
+        .header('cache-control', 'private, max-age=3600')
+        .send(photo.data);
+    },
+  );
+
+  app.delete<{ Params: { patientId: string } }>(
+    '/api/patient-portal/patients/:patientId/profile-photo',
+    {
+      preHandler: authenticate(services),
+      schema: { response: { 200: patientPortalProfilePhotoDeleteResponseSchema } },
+    },
+    async (request) => {
+      return ok(await services.patientPortal.deleteProfilePhoto(request.user!.id, request.params.patientId));
+    },
+  );
+
   app.patch<{ Params: { patientId: string }; Body: UpdatePatientProfileBody }>('/api/patient-portal/patients/:patientId', { preHandler: authenticate(services) }, async (request) => {
     const parsed = updatePatientProfileSchema.safeParse(request.body);
     if (!parsed.success) throw new AppError('Invalid patient profile details', 400, 'VALIDATION_ERROR');
@@ -607,6 +661,9 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
 
   app.get<{ Params: { id: string } }>('/api/patient-portal/appointments/:id/reschedule-eligibility', { preHandler: authenticate(services) }, async (request) =>
     ok(await services.patientPortal.rescheduleEligibility(request.user!.id, request.params.id)));
+
+  app.get<{ Params: { id: string } }>('/api/patient-portal/appointments/:id/pre-consultation', { preHandler: authenticate(services) }, async (request) =>
+    ok(await services.patientPortal.getPreConsultation(request.user!.id, request.params.id)));
 
   app.patch<{ Params: { id: string }; Body: RescheduleAppointmentBody }>('/api/patient-portal/appointments/:id/reschedule', { preHandler: authenticate(services) }, async (request) => {
     const input = rescheduleAppointmentSchema.parse(request.body);

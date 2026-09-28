@@ -32,6 +32,12 @@ export type PatientDocumentFields = {
   parentGuardian?: string | null;
   registrationBranchId?: Types.ObjectId | null;
   bloodGroup?: string | null;
+  profilePhoto?: {
+    storageKey: string;
+    mimeType: string;
+    fileSizeBytes: number;
+    uploadedAt: Date;
+  } | null;
   status: PatientStatus;
   notes?: string | null;
   createdBy?: Types.ObjectId;
@@ -68,6 +74,15 @@ const patientSchema = new Schema<PatientDocumentFields>(
     parentGuardian: { type: String, default: null },
     registrationBranchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
     bloodGroup: { type: String, default: null },
+    profilePhoto: {
+      type: {
+        storageKey: { type: String, required: true },
+        mimeType: { type: String, required: true },
+        fileSizeBytes: { type: Number, required: true },
+        uploadedAt: { type: Date, required: true },
+      },
+      default: null,
+    },
     status: { type: String, enum: ['ACTIVE', 'INACTIVE', 'DECEASED'], default: 'ACTIVE', required: true },
     notes: { type: String, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },

@@ -24,6 +24,17 @@ export const registerOpdConsultationRoutes = async (app: FastifyInstance, servic
     async (request) => ok(await services.opdConsultations.getByVisit(request.params.visitId, request.user!.id)),
   );
 
+  app.get<{ Params: OpdConsultationVisitParams }>(
+    '/api/opd/visits/:visitId/pre-consultation',
+    {
+      preHandler: requirePermission(services, 'OPD', 'OPD Consultation', 'View'),
+      schema: {
+        params: opdConsultationVisitParamsSchema,
+      },
+    },
+    async (request) => ok(await services.opdConsultations.getPreConsultation(request.params.visitId, request.user!.id)),
+  );
+
   app.put<{ Params: OpdConsultationVisitParams; Body: SaveOpdConsultationDTO }>(
     '/api/opd/visits/:visitId/consultation',
     {

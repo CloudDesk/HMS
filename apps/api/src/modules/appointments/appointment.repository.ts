@@ -1,6 +1,7 @@
 import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { DentalTreatmentStageModel } from '../opd/dental-stage.model.js';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
+import { PatientPreConsultationModel, type PatientPreConsultationFields } from './patient-pre-consultation.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { executeTransaction } from '../../shared/database/transaction.js';
@@ -12,6 +13,7 @@ import type {
   AppointmentDashboardSummary,
   AppointmentListQuery,
   CreateAppointmentDTO,
+  PatientPreConsultation,
   UpdateAppointmentDTO,
   UpdateAppointmentStatusDTO,
 } from './appointment.types.js';
@@ -97,6 +99,23 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   updated_by: appointment.updatedBy?.toString() ?? null,
   created_at: appointment.createdAt,
   updated_at: appointment.updatedAt,
+});
+
+const toPatientPreConsultation = (
+  doc: PatientPreConsultationFields & { _id: Types.ObjectId },
+): PatientPreConsultation => ({
+  id: doc._id.toString(),
+  patient_id: doc.patientId.toString(),
+  appointment_id: doc.appointmentId.toString(),
+  doctor_id: doc.doctorId?.toString() ?? null,
+  chief_complaint: doc.chiefComplaint ?? null,
+  history_present_illness: doc.historyPresentIllness ?? null,
+  past_medical_history: doc.pastMedicalHistory ?? null,
+  family_history: doc.familyHistory ?? null,
+  allergies: doc.allergies ?? null,
+  submitted_at: doc.submittedAt,
+  created_at: doc.createdAt,
+  updated_at: doc.updatedAt,
 });
 
 const sortColumnMap = {
@@ -675,4 +694,55 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
     const query = AppointmentModel.countDocuments();
     return session ? query.session(session) : query;
   }
+
+  async savePatientPreConsultation(
+    data: {
+      patientId: string;
+      appointmentId: string;
+      doctorId?: string | null;
+      chiefComplaint?: string | null;
+      historyPresentIllness?: string | null;
+      pastMedicalHistory?: string | null;
+      familyHistory?: string | null;
+      allergies?: string | null;
+    },
+    userId?: string,
+    session?: ClientSession,
+  ): Promise<PatientPreConsultation> {
+    const doc = await PatientPreConsultationModel.findOneAndUpdate(
+      { appointmentId: toObjectId(data.appointmentId) },
+      {
+        $set: {
+          patientId: toObjectId(data.patientId),
+          appointmentId: toObjectId(data.appointmentId),
+          doctorId: data.doctorId ? toObjectId(data.doctorId) : null,
+          chiefComplaint: nullableString(data.chiefComplaint),
+          historyPresentIllness: nullableString(data.historyPresentIllness),
+          pastMedicalHistory: nullableString(data.pastMedicalHistory),
+          familyHistory: nullableString(data.familyHistory),
+          allergies: nullableString(data.allergies),
+          submittedAt: new Date(),
+          updatedBy: userId ? toObjectId(userId) : undefined,
+        },
+        $setOnInsert: {
+          createdBy: userId ? toObjectId(userId) : undefined,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true, session },
+    ).lean<PatientPreConsultationFields & { _id: Types.ObjectId }>();
+
+    return toPatientPreConsultation(doc!);
+  }
+
+  async getPatientPreConsultationByAppointmentId(
+    appointmentId: string,
+  ): Promise<PatientPreConsultation | null> {
+    const doc = await PatientPreConsultationModel.findOne({
+      appointmentId: toObjectId(appointmentId),
+      deletedAt: null,
+    }).lean<PatientPreConsultationFields & { _id: Types.ObjectId }>();
+
+    return doc ? toPatientPreConsultation(doc) : null;
+  }
 }
+
