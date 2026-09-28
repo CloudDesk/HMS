@@ -178,7 +178,6 @@ describe('OpdDentalExaminationTab Component', () => {
     const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('button[id^="dental-subtab-"][role="tab"]'));
     expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([
       'General Examination',
-      'Oral Examination',
       'Odontogram',
       'Imaging',
       'Laboratory',
@@ -187,7 +186,6 @@ describe('OpdDentalExaminationTab Component', () => {
 
     const odontogramPanel = container.querySelector<HTMLElement>('#dental-subtab-panel-odontogram');
     const historyPanel = container.querySelector<HTMLElement>('#dental-subtab-panel-history');
-    const oralExaminationPanel = container.querySelector<HTMLElement>('#dental-subtab-panel-oral-examination');
     expect(odontogramPanel?.hidden).toBe(true);
     expect(historyPanel?.hidden).toBe(false);
 
@@ -199,23 +197,14 @@ describe('OpdDentalExaminationTab Component', () => {
 
     await act(async () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
-        .find((button) => button.textContent?.includes('Next: Oral Examination'))
-        ?.click();
-    });
-
-    expect(api.saveDentalExaminationDraft).toHaveBeenCalledTimes(1);
-    expect(oralExaminationPanel?.hidden).toBe(false);
-    expect(historyPanel?.hidden).toBe(true);
-
-    await act(async () => {
-      Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
         .find((button) => button.textContent?.includes('Next: Odontogram'))
         ?.click();
     });
 
+    expect(api.saveDentalExaminationDraft).toHaveBeenCalledTimes(1);
     expect(odontogramPanel?.hidden).toBe(false);
-    expect(oralExaminationPanel?.hidden).toBe(true);
     expect(historyPanel?.hidden).toBe(true);
+    expect(odontogramPanel?.querySelector('#oral-exam-soft-tissues')).not.toBeNull();
 
     for (const [label, panelId] of [
       ['Next: Imaging', '#dental-subtab-panel-imaging'],
