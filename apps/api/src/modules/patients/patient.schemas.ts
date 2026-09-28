@@ -161,7 +161,7 @@ export const patientResponseDataSchema = {
   required: [
     'id', 'patient_number', 'first_name', 'middle_name', 'last_name', 'date_of_birth', 'gender',
     'phone', 'email', 'address', 'emergency_contact', 'parent_guardian', 'registration_branch_id',
-    'blood_group', 'status', 'notes', 'created_by', 'updated_by', 'created_at', 'updated_at',
+    'blood_group', 'status', 'photo_document_id', 'photo_url', 'notes', 'created_by', 'updated_by', 'created_at', 'updated_at',
   ],
   additionalProperties: false,
   properties: {
@@ -180,6 +180,8 @@ export const patientResponseDataSchema = {
     registration_branch_id: { type: ['string', 'null'] },
     blood_group: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DECEASED'] },
+    photo_document_id: { type: ['string', 'null'] },
+    photo_url: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
     created_by: { type: ['string', 'null'] },
     updated_by: { type: ['string', 'null'] },

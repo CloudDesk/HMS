@@ -200,6 +200,46 @@ describe('M-007 patient appointment pagination', () => {
     expect(response.json()).toMatchObject({ error: { code: 'PATIENT_ACCESS_DENIED' } });
   });
 
+  it('serializes successful appointment pagination using the public totalPages contract', async () => {
+    const role = await RoleModel.create({ code: 'PATIENT', name: 'Patient', permissionIds: [], status: 'active' });
+    const patient = await PatientModel.create({
+      _id: patientAId,
+      patientNumber: 'HMS-2026-700003',
+      firstName: 'Patient',
+      lastName: 'Pagination',
+      dateOfBirth: localDay(-10_000),
+      gender: 'UNKNOWN',
+      status: 'ACTIVE',
+    });
+    const user = await UserModel.create({
+      username: 'm007.patient.pagination',
+      email: 'm007.patient.pagination@example.test',
+      fullName: 'Patient Pagination',
+      passwordHash: 'unused',
+      patientId: patient._id,
+      roleIds: [role._id],
+      branchIds: [],
+      departmentIds: [],
+      status: 'active',
+    });
+    await createAppointment({ number: 'APT-M007-SERIALIZED', daysFromToday: -1 });
+    const token = signJwt({ sub: user._id.toString(), username: user.username }, env.auth.accessTokenSecret, 300);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/patient-portal/appointments?patient_id=${patient._id.toString()}&scope=past&page=1&limit=10`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      data: {
+        data: [expect.objectContaining({ appointment_number: 'APT-M007-SERIALIZED' })],
+        meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      },
+    });
+  });
+
   it('uses aggregation instead of unbounded model find calls for history pagination', async () => {
     await createAppointment({ number: 'APT-M007-AGG', daysFromToday: -1 });
     const appointmentFind = vi.spyOn(AppointmentModel, 'find');

@@ -25,6 +25,10 @@ export const getPatientErrorMessage = (error: unknown) => {
     if (error.status >= 500) return 'The patient service is unavailable. Please try again shortly.';
     return error.message;
   }
+  if (error instanceof TypeError && /fetch|network/i.test(error.message)) {
+    return 'The API connection was interrupted. Confirm the local API is running and try again.';
+  }
+  if (error instanceof Error && error.message) return error.message;
   return 'An unexpected error occurred while processing the patient record.';
 };
 
@@ -124,10 +128,14 @@ export function useUploadPatientDocument(options: PatientMutationNotificationOpt
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UploadPatientDocumentPayload }) =>
       patientDocumentsService.upload(id, payload),
-    onSuccess: async (_, { id }) => {
-      await queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() });
-      await queryClient.invalidateQueries({ queryKey: patientsKeys.history(id) });
-      await queryClient.invalidateQueries({ queryKey: patientsKeys.timeline(id, {}) });
+    onSuccess: (_, { id }) => {
+      // Refresh related views without changing an already-successful upload into
+      // a mutation error when a background query is temporarily unavailable.
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: patientsKeys.documentsAll() }),
+        queryClient.invalidateQueries({ queryKey: patientsKeys.history(id) }),
+        queryClient.invalidateQueries({ queryKey: patientsKeys.timeline(id, {}) }),
+      ]).catch(() => undefined);
     },
     onError: (error) => {
       if (options.notifyOnError !== false) toast.error(getPatientErrorMessage(error));

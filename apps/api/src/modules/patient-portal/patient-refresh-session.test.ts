@@ -16,7 +16,7 @@ const otp = '4821';
 
 const cookieHeader = (header: string | string[] | undefined) => {
   const values = Array.isArray(header) ? header : header ? [header] : [];
-  return values.find((value) => value.startsWith('hms-refresh-token=')) ?? '';
+  return values.find((value) => value.startsWith('hms-patient-refresh-token=')) ?? '';
 };
 
 const requestCookie = (header: string | string[] | undefined) => cookieHeader(header).split(';')[0] ?? '';
@@ -87,10 +87,10 @@ describe('patient refresh session cookie contract', () => {
 
     expect(response.statusCode).toBe(200);
     const setCookie = cookieHeader(response.headers['set-cookie']);
-    expect(setCookie).toContain('hms-refresh-token=');
+    expect(setCookie).toContain('hms-patient-refresh-token=');
     expect(setCookie.toLowerCase()).toContain('httponly');
     expect(setCookie.toLowerCase()).toContain('samesite=lax');
-    expect(setCookie.toLowerCase()).toContain('path=/api/auth');
+    expect(setCookie.toLowerCase()).toContain('path=/api/patient-portal/auth');
     expect(setCookie.toLowerCase()).toContain('max-age=');
     expect(response.body).not.toContain('refreshToken');
     expect(response.body).not.toContain('refreshExpiresIn');
@@ -101,7 +101,7 @@ describe('patient refresh session cookie contract', () => {
     const originalCookie = requestCookie(login.headers['set-cookie']);
     const response = await app.inject({
       method: 'POST',
-      url: '/api/auth/refresh',
+      url: '/api/patient-portal/auth/refresh',
       headers: { cookie: originalCookie },
       payload: {},
     });
@@ -111,16 +111,16 @@ describe('patient refresh session cookie contract', () => {
     expect(response.body).not.toContain('refreshToken');
     expect(requestCookie(response.headers['set-cookie'])).not.toBe(originalCookie);
 
-    const reuse = await app.inject({ method: 'POST', url: '/api/auth/refresh', headers: { cookie: originalCookie }, payload: {} });
+    const reuse = await app.inject({ method: 'POST', url: '/api/patient-portal/auth/refresh', headers: { cookie: originalCookie }, payload: {} });
     expect(reuse.statusCode).toBe(401);
   });
 
   it('rejects missing and invalid refresh cookies', async () => {
-    const missing = await app.inject({ method: 'POST', url: '/api/auth/refresh', payload: {} });
+    const missing = await app.inject({ method: 'POST', url: '/api/patient-portal/auth/refresh', payload: {} });
     const invalid = await app.inject({
       method: 'POST',
-      url: '/api/auth/refresh',
-      headers: { cookie: 'hms-refresh-token=invalid-token' },
+      url: '/api/patient-portal/auth/refresh',
+      headers: { cookie: 'hms-patient-refresh-token=invalid-token' },
       payload: {},
     });
 
@@ -128,11 +128,37 @@ describe('patient refresh session cookie contract', () => {
     expect(invalid.statusCode).toBe(401);
   });
 
+  it('keeps patient cookies out of staff refresh and rejects legacy patient sessions there', async () => {
+    const login = await loginPatient();
+    const patientCookie = requestCookie(login.headers['set-cookie']);
+    const tokenValue = patientCookie.split('=')[1];
+
+    const isolated = await app.inject({
+      method: 'POST',
+      url: '/api/auth/refresh',
+      headers: { cookie: patientCookie },
+      payload: {},
+    });
+    expect(isolated.statusCode).toBe(401);
+
+    const legacySharedCookie = `hms-refresh-token=${tokenValue}`;
+    const legacyAttempt = await app.inject({
+      method: 'POST',
+      url: '/api/auth/refresh',
+      headers: { cookie: legacySharedCookie },
+      payload: {},
+    });
+    expect(legacyAttempt.statusCode).toBe(403);
+    expect(legacyAttempt.json<{ error: { code: string } }>().error.code).toBe(
+      'PATIENT_PORTAL_ACCOUNT',
+    );
+  });
+
   it('rejects expired and revoked refresh sessions', async () => {
     const expiredLogin = await loginPatient();
     await RefreshTokenModel.updateMany({}, { $set: { expiresAt: new Date(Date.now() - 1_000) } });
     const expired = await app.inject({
-      method: 'POST', url: '/api/auth/refresh',
+      method: 'POST', url: '/api/patient-portal/auth/refresh',
       headers: { cookie: requestCookie(expiredLogin.headers['set-cookie']) }, payload: {},
     });
     expect(expired.statusCode).toBe(401);
@@ -141,7 +167,7 @@ describe('patient refresh session cookie contract', () => {
     const revokedLogin = await loginPatient();
     await RefreshTokenModel.updateMany({}, { $set: { revokedAt: new Date() } }, { strict: false });
     const revoked = await app.inject({
-      method: 'POST', url: '/api/auth/refresh',
+      method: 'POST', url: '/api/patient-portal/auth/refresh',
       headers: { cookie: requestCookie(revokedLogin.headers['set-cookie']) }, payload: {},
     });
     expect(revoked.statusCode).toBe(401);
@@ -153,14 +179,14 @@ describe('patient refresh session cookie contract', () => {
     const cookie = requestCookie(login.headers['set-cookie']);
     const logout = await app.inject({
       method: 'POST',
-      url: '/api/auth/logout',
+      url: '/api/patient-portal/auth/logout',
       headers: { authorization: `Bearer ${body.data.tokens.accessToken}`, cookie },
       payload: {},
     });
 
     expect(logout.statusCode).toBe(200);
     expect(cookieHeader(logout.headers['set-cookie']).toLowerCase()).toContain('max-age=0');
-    const refresh = await app.inject({ method: 'POST', url: '/api/auth/refresh', headers: { cookie }, payload: {} });
+    const refresh = await app.inject({ method: 'POST', url: '/api/patient-portal/auth/refresh', headers: { cookie }, payload: {} });
     expect(refresh.statusCode).toBe(401);
   });
 
@@ -186,7 +212,7 @@ describe('patient refresh session cookie contract', () => {
     expect(cookieHeader(signup.headers['set-cookie']).toLowerCase()).toContain('httponly');
     expect(signup.body).not.toContain('refreshToken');
     const refresh = await app.inject({
-      method: 'POST', url: '/api/auth/refresh',
+      method: 'POST', url: '/api/patient-portal/auth/refresh',
       headers: { cookie: requestCookie(signup.headers['set-cookie']) }, payload: {},
     });
     expect(refresh.statusCode).toBe(200);
@@ -213,7 +239,7 @@ describe('patient refresh session cookie contract', () => {
     expect(cookieHeader(activation.headers['set-cookie']).toLowerCase()).toContain('httponly');
     expect(activation.body).not.toContain('refreshToken');
     const refresh = await app.inject({
-      method: 'POST', url: '/api/auth/refresh',
+      method: 'POST', url: '/api/patient-portal/auth/refresh',
       headers: { cookie: requestCookie(activation.headers['set-cookie']) }, payload: {},
     });
     expect(refresh.statusCode).toBe(200);
@@ -247,7 +273,7 @@ describe('patient refresh session cookie contract', () => {
     expect(cookieHeader(activation.headers['set-cookie']).toLowerCase()).toContain('httponly');
     expect(activation.body).not.toContain('refreshToken');
     const refresh = await app.inject({
-      method: 'POST', url: '/api/auth/refresh',
+      method: 'POST', url: '/api/patient-portal/auth/refresh',
       headers: { cookie: requestCookie(activation.headers['set-cookie']) }, payload: {},
     });
     expect(refresh.statusCode).toBe(200);

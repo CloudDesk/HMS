@@ -107,7 +107,7 @@ describe('patient refresh-cookie frontend contract', () => {
 
     expect(observedStatus).toBe('authenticated');
     expect(tokenStorage.getAccessToken()).toBe('access-token');
-    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain('/auth/refresh');
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain('/patient-portal/auth/refresh');
 
     await act(async () => root.unmount());
     container.remove();

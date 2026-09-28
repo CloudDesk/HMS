@@ -3,11 +3,12 @@ import { apiClient } from '../../api/client';
 
 type AuthenticatedMediaImageProps = Omit<ComponentPropsWithoutRef<'img'>, 'src'> & {
   src?: string | null;
+  onLoad?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 };
 
 const transparentPixel = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 
-export function AuthenticatedMediaImage({ src, onError, ...props }: AuthenticatedMediaImageProps) {
+export function AuthenticatedMediaImage({ src, onError, onLoad, ...props }: AuthenticatedMediaImageProps) {
   const [displaySrc, setDisplaySrc] = useState(src ?? transparentPixel);
   const [loadFailed, setLoadFailed] = useState(false);
 
@@ -25,9 +26,10 @@ export function AuthenticatedMediaImage({ src, onError, ...props }: Authenticate
         objectUrl = URL.createObjectURL(blob);
         setDisplaySrc(objectUrl);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!disposed) {
           setLoadFailed(true);
+          onError?.(err as any);
         }
       });
 
@@ -42,10 +44,13 @@ export function AuthenticatedMediaImage({ src, onError, ...props }: Authenticate
       {...props}
       src={displaySrc}
       data-media-unavailable={loadFailed || !src ? 'true' : undefined}
+      onLoad={onLoad}
       onError={(event) => {
-        setLoadFailed(true);
-        setDisplaySrc(transparentPixel);
-        onError?.(event);
+        if (displaySrc.startsWith('blob:') || displaySrc.startsWith('data:')) {
+          setLoadFailed(true);
+          setDisplaySrc(transparentPixel);
+          onError?.(event);
+        }
       }}
     />
   );

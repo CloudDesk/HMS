@@ -179,7 +179,7 @@ export const portalAppointmentSchema = z.object({
 export const portalDocumentSchema = z.object({
   id: z.string(),
   patient_id: z.string(),
-  document_type: z.enum(['INSURANCE', 'CLINICAL', 'OTHER']),
+  document_type: z.enum(['IDENTITY', 'INSURANCE', 'CLINICAL', 'CONSENT', 'OTHER']),
   title: z.string(),
   file_name: z.string(),
   mime_type: z.string(),
@@ -187,6 +187,15 @@ export const portalDocumentSchema = z.object({
   description: z.string().nullable().optional().transform((v) => v ?? null),
   source: z.enum(['HOSPITAL', 'PATIENT', 'GUARDIAN']),
   review_status: z.enum(['NOT_REQUIRED', 'PENDING', 'VERIFIED', 'REJECTED']),
+  context_id: z.string().nullable().optional().transform((v) => v ?? null),
+  consent_kind: z.string().nullable().optional().transform((v) => v ?? null),
+  consent_status: z
+    .enum(['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED', 'ATTACHED', 'VERIFIED'])
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
+  signed_at: z.string().nullable().optional().transform((v) => v ?? null),
+  signed_by_name: z.string().nullable().optional().transform((v) => v ?? null),
   document_date: z.string().nullable().optional().transform((v) => v ?? null),
   provider_name: z.string().nullable().optional().transform((v) => v ?? null),
   created_at: z.string(),
@@ -429,6 +438,8 @@ export const dentalQuotationItemSchema = z.object({
   tax_amount: z.number().default(0),
   line_total: z.number(),
   notes: z.string().nullable().optional().transform((v) => v ?? null),
+  reference_video_url: z.string().nullable().optional(),
+  reference_video_title: z.string().nullable().optional(),
 });
 
 export const dentalQuotationOptionSchema = z.object({

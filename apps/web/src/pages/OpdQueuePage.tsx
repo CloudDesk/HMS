@@ -128,22 +128,32 @@ export function OpdQueuePage() {
       {error ? <div className="form-error-banner">{getOpdErrorMessage(error)}</div> : null}
       <section className="doc-card">
         <div className="doc-card-header"><div><h3>Consultation Queue</h3><p>{isLoading ? 'Loading queue...' : `${clinicianVisits.length} clinical visits`}</p></div></div>
-        <div className="doc-table-wrap appointment-queue-table-wrap">
+        <div className="doc-table-wrap opd-queue-table-wrap">
           <table className="doc-table opd-queue-table">
             <colgroup>
-              <col style={{ width: isDoctorUser ? '8%' : '7%' }} />
-              <col style={{ width: isDoctorUser ? '24%' : '25%' }} />
-              {!isDoctorUser ? <col style={{ width: '20%' }} /> : null}
-              <col style={{ width: isDoctorUser ? '12%' : '9%' }} />
-              <col style={{ width: isDoctorUser ? '16%' : '12%' }} />
-              <col style={{ width: isDoctorUser ? '21%' : '14%' }} />
-              <col style={{ width: isDoctorUser ? '19%' : '13%' }} />
+              <col style={{ width: isDoctorUser ? '10%' : '8%' }} />
+              <col style={{ width: isDoctorUser ? '32%' : '26%' }} />
+              {!isDoctorUser ? <col style={{ width: '18%' }} /> : null}
+              <col style={{ width: isDoctorUser ? '12%' : '10%' }} />
+              <col style={{ width: isDoctorUser ? '14%' : '12%' }} />
+              <col style={{ width: isDoctorUser ? '16%' : '13%' }} />
+              <col style={{ width: isDoctorUser ? '16%' : '13%' }} />
             </colgroup>
-            <thead><tr><th>Token</th><th>Patient &amp; Visit</th>{!isDoctorUser ? <th>Doctor</th> : null}<th>Wait</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Patient &amp; Visit</th>
+                {!isDoctorUser ? <th>Doctor</th> : null}
+                <th>Wait</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th className="align-right" style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={isDoctorUser ? 6 : 7} style={{ padding: '2.5rem 1rem' }}>
+                  <td colSpan={isDoctorUser ? 6 : 7} style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
                     <MedicalLoader
                       text="Loading doctor queue..."
                       subtext="Retrieving consultation waiting queue"
@@ -151,7 +161,19 @@ export function OpdQueuePage() {
                   </td>
                 </tr>
               ) : clinicianVisits.length === 0 ? (
-                <tr><td className="um-state-cell" colSpan={isDoctorUser ? 6 : 7}>No patients are ready for consultation for the selected filters.</td></tr>
+                <tr>
+                  <td className="um-state-cell opd-empty-state-cell" colSpan={isDoctorUser ? 6 : 7}>
+                    <div className="opd-empty-state-wrapper">
+                      <div className="opd-empty-state-icon">
+                        <i className="ph ph-users-three" aria-hidden="true" />
+                      </div>
+                      <strong className="opd-empty-state-title">No patients ready for consultation</strong>
+                      <p className="opd-empty-state-text">
+                        There are currently no patients waiting in the consultation queue for the selected filters.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
               ) : paginatedVisits.map((visit, index) => {
                 const globalIndex = (page - 1) * pageSize + index;
                 return (
@@ -162,7 +184,7 @@ export function OpdQueuePage() {
                   <td>{waitMinutes(visit)} min</td>
                   <td><span className={`doc-status ${visitPriorityClass(visit.priority)}`}>{opdVisitPriorityLabels[visit.priority]}</span></td>
                   <td><span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span></td>
-                  <td><div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
+                  <td className="align-right"><div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
                     {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED') && canEditConsultation && canEditVisit ? <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> Start Consultation</button> : null}
                     {visit.status === 'IN_CONSULTATION' && canViewConsultation ? <button className="doc-btn primary compact" onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)} type="button">Consultation</button> : null}
                     <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button"><i className="ph ph-arrow-square-out" aria-hidden="true" /></button>

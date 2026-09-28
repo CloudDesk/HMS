@@ -22,6 +22,10 @@ const schema = z.object({
   start_time: z.string().min(1, 'Select an available time.'),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
   reason: z.string().min(3, 'Provide a reason for the visit (minimum 3 characters).'),
+  history_present_illness: z.string().max(4000).optional(),
+  past_history: z.string().max(4000).optional(),
+  family_history: z.string().max(4000).optional(),
+  allergies: z.string().max(4000).optional(),
 });
 type BookingValues = z.infer<typeof schema>;
 
@@ -72,6 +76,10 @@ export function PortalAppointmentBooking({
       start_time: '',
       visit_type: 'NEW_CONSULTATION',
       reason: '',
+      history_present_illness: '',
+      past_history: '',
+      family_history: '',
+      allergies: '',
     },
   });
   const selectedPatientId = form.watch('patient_id');
@@ -222,6 +230,13 @@ export function PortalAppointmentBooking({
         start_time: values.start_time,
         visit_type: values.visit_type,
         reason: values.reason,
+        consultation_intake: {
+          chief_complaint: values.reason,
+          history_present_illness: values.history_present_illness || null,
+          past_history: values.past_history || null,
+          family_history: values.family_history || null,
+          allergies: values.allergies || null,
+        },
         duration_minutes: minutesBetween(slot.start_time, slot.end_time),
       });
     },
@@ -572,14 +587,14 @@ export function PortalAppointmentBooking({
         <div className="portal-form-section-title">
           <span>3</span>
           <div>
-            <strong>Reason for visit</strong>
-            <small>This helps the care team prepare for your appointment.</small>
+            <strong>Basic consultation form</strong>
+            <small>Share your health concern before the appointment.</small>
           </div>
         </div>
         <div className="portal-form-grid">
           <label className="wide">
             <span>
-              Reason <b>*</b>
+              Chief complaint <b>*</b>
             </span>
             <textarea
               placeholder="Briefly describe the concern or service you need"
@@ -589,6 +604,22 @@ export function PortalAppointmentBooking({
             {form.formState.errors.reason ? (
               <small>{form.formState.errors.reason.message}</small>
             ) : null}
+          </label>
+          <label className="wide">
+            <span>History of present illness</span>
+            <textarea placeholder="When it started, symptoms and relevant details" rows={3} {...form.register('history_present_illness')} />
+          </label>
+          <label>
+            <span>Past medical history</span>
+            <textarea rows={3} {...form.register('past_history')} />
+          </label>
+          <label>
+            <span>Family history</span>
+            <textarea rows={3} {...form.register('family_history')} />
+          </label>
+          <label className="wide">
+            <span>Allergies / sensitivities</span>
+            <textarea rows={3} {...form.register('allergies')} />
           </label>
         </div>
       </section>

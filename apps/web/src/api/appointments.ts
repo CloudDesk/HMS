@@ -105,6 +105,13 @@ export type SaveAppointmentPayload = {
   priority?: ApiAppointmentPriority;
   reason?: string | null;
   notes?: string | null;
+  consultation_intake?: {
+    chief_complaint?: string | null;
+    history_present_illness?: string | null;
+    past_history?: string | null;
+    family_history?: string | null;
+    allergies?: string | null;
+  } | null;
 };
 export type UpdateAppointmentPayload = Partial<SaveAppointmentPayload> & { reschedule_reason?: string | null };
 

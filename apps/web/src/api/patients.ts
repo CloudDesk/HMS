@@ -37,6 +37,8 @@ export type PatientResponse = {
   registration_branch_id: string | null;
   blood_group: string | null;
   status: ApiPatientStatus;
+  photo_document_id?: string | null;
+  photo_url?: string | null;
   notes: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -271,7 +273,6 @@ export const patientsApi = {
     const formData = new FormData();
     formData.set('document_type', payload.document_type);
     formData.set('title', payload.title);
-    formData.set('file', payload.file);
     if (payload.visit_id) formData.set('visit_id', payload.visit_id);
     if (payload.admission_id) formData.set('admission_id', payload.admission_id);
     if (payload.procedure_id) formData.set('procedure_id', payload.procedure_id);
@@ -292,6 +293,9 @@ export const patientsApi = {
     if (payload.context_type) formData.set('context_type', payload.context_type);
     if (payload.context_id) formData.set('context_id', payload.context_id);
     if (payload.consent_kind) formData.set('consent_kind', payload.consent_kind);
+    // @fastify/multipart parses parts serially. Keep the file last so all metadata
+    // is available when the server begins processing the file stream.
+    formData.set('file', payload.file);
 
     return apiClient.request<PatientDocumentResponse>(`/patients/${encodeURIComponent(id)}/documents/upload`, {
       body: formData,
@@ -303,12 +307,12 @@ export const patientsApi = {
     const formData = new FormData();
     formData.set('document_type', payload.document_type);
     formData.set('title', payload.title);
-    formData.set('file', payload.file);
     if (payload.description) formData.set('description', payload.description);
     if (payload.consent_status) formData.set('consent_status', payload.consent_status);
     if (payload.signed_at) formData.set('signed_at', payload.signed_at);
     if (payload.valid_until) formData.set('valid_until', payload.valid_until);
     if (payload.signed_by_name) formData.set('signed_by_name', payload.signed_by_name);
+    formData.set('file', payload.file);
     return apiClient.request<PatientDocumentResponse>(
       `/patients/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}/upload`,
       { body: formData, method: 'PUT' },
@@ -346,6 +350,10 @@ export const patientsApi = {
       `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/consent/verify`,
       { method: 'PATCH' },
     );
+  },
+
+  getProfilePhotoUrl(patientId: string) {
+    return `/patients/${encodeURIComponent(patientId)}/photo`;
   },
 };
 

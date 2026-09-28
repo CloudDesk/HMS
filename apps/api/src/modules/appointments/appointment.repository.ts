@@ -82,6 +82,13 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   status: appointment.status,
   reason: appointment.reason ?? null,
   notes: appointment.notes ?? null,
+  consultation_intake: appointment.consultationIntake ? {
+    chief_complaint: appointment.consultationIntake.chiefComplaint ?? null,
+    history_present_illness: appointment.consultationIntake.historyPresentIllness ?? null,
+    past_history: appointment.consultationIntake.pastHistory ?? null,
+    family_history: appointment.consultationIntake.familyHistory ?? null,
+    allergies: appointment.consultationIntake.allergies ?? null,
+  } : null,
   dental_context: appointment.dentalContext ? {
     treatment_episode_id: appointment.dentalContext.treatmentEpisodeId?.toString() ?? null,
     treatment_stage_id: appointment.dentalContext.treatmentStageId?.toString() ?? null,
@@ -128,6 +135,15 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   status: 'SCHEDULED' as const,
   reason: nullableString(data.reason),
   notes: nullableString(data.notes),
+  ...(data.consultation_intake !== undefined ? {
+    consultationIntake: data.consultation_intake ? {
+      chiefComplaint: nullableString(data.consultation_intake.chief_complaint),
+      historyPresentIllness: nullableString(data.consultation_intake.history_present_illness),
+      pastHistory: nullableString(data.consultation_intake.past_history),
+      familyHistory: nullableString(data.consultation_intake.family_history),
+      allergies: nullableString(data.consultation_intake.allergies),
+    } : null,
+  } : {}),
   ...(data.dental_context !== undefined ? {
     dentalContext: data.dental_context ? {
       treatmentEpisodeId: data.dental_context.treatment_episode_id ? toObjectId(data.dental_context.treatment_episode_id) : null,
@@ -159,6 +175,15 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.priority !== undefined ? { priority: data.priority } : {}),
   ...(data.reason !== undefined ? { reason: nullableString(data.reason) } : {}),
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+  ...(data.consultation_intake !== undefined ? {
+    consultationIntake: data.consultation_intake ? {
+      chiefComplaint: nullableString(data.consultation_intake.chief_complaint),
+      historyPresentIllness: nullableString(data.consultation_intake.history_present_illness),
+      pastHistory: nullableString(data.consultation_intake.past_history),
+      familyHistory: nullableString(data.consultation_intake.family_history),
+      allergies: nullableString(data.consultation_intake.allergies),
+    } : null,
+  } : {}),
   ...(data.dental_context !== undefined ? {
     dentalContext: data.dental_context ? {
       treatmentEpisodeId: data.dental_context.treatment_episode_id ? toObjectId(data.dental_context.treatment_episode_id) : null,

@@ -64,6 +64,20 @@ const requireConsentPermission = async (
 const isPatientDocumentType = (value: string): value is PatientDocumentType => patientDocumentTypes.includes(value);
 const isPatientConsentStatus = (value: string): value is PatientConsentStatus => patientConsentStatuses.includes(value);
 
+// Template-facing context names are normalized to the canonical document values.
+export const normalizeConsentContextType = (
+  value: string | null,
+  admissionId: string | null,
+  procedureId: string | null,
+): import('./patient.types.js').PatientConsentContextType => {
+  if (value === 'PATIENT') return 'PATIENT';
+  if (value === 'ADMISSION' || value === 'INPATIENT_ADMISSION') return 'INPATIENT_ADMISSION';
+  if (value === 'PROCEDURE' || value === 'PROCEDURE_BOOKING') return 'PROCEDURE_BOOKING';
+  if (admissionId) return 'INPATIENT_ADMISSION';
+  if (procedureId) return 'PROCEDURE_BOOKING';
+  return 'PATIENT';
+};
+
 const readMultipartField = (fields: MultipartFields, name: string) => {
   const field = fields[name];
   const firstField = Array.isArray(field) ? field[0] : field;
@@ -115,6 +129,26 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
       },
     },
     async (request) => ok(await services.patients.getById(request.params.id, request.user!.id)),
+  );
+
+  app.get<{ Params: PatientIdParams }>(
+    '/api/patients/:id/photo',
+    {
+      preHandler: requirePermission(services, 'Patients', 'Patient Records', 'View'),
+      schema: {
+        params: patientIdParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const photo = await services.patients.getProfilePhoto(request.params.id, request.user!.id);
+      if (!photo) {
+        throw new AppError('Profile photo not found', 404, 'PROFILE_PHOTO_NOT_FOUND');
+      }
+      return reply
+        .header('content-type', photo.contentType)
+        .header('cache-control', 'private, max-age=3600')
+        .send(photo.data);
+    },
   );
 
   app.post<{ Body: CreatePatientDTO }>(
@@ -254,8 +288,7 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
         consent_category?: string; consent_version?: number;
       } = {};
       if (documentType === 'CONSENT') {
-        const rawContextType = contextType || (admissionId ? 'INPATIENT_ADMISSION' : procedureId ? 'PROCEDURE_BOOKING' : 'INPATIENT_ADMISSION');
-        const typedContext = rawContextType as import('./patient.types.js').PatientConsentContextType;
+        const typedContext = normalizeConsentContextType(contextType, admissionId, procedureId);
         const resolvedContextId = requestedContextId || admissionId || procedureId || request.params.id;
 
         if (templateId) {
@@ -300,8 +333,6 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
           signed_at: readMultipartField(file.fields, 'signed_at'),
           valid_until: readMultipartField(file.fields, 'valid_until'),
           signed_by_name: readMultipartField(file.fields, 'signed_by_name'),
-          context_type: readMultipartField(file.fields, 'context_type') as 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | undefined,
-          context_id: readMultipartField(file.fields, 'context_id'),
           consent_kind: readMultipartField(file.fields, 'consent_kind'),
           data,
         },

@@ -1,6 +1,7 @@
 import type { PatientResponse } from '../../api/patients';
 import { useHospitalSettings } from '../../hooks/settings/useSettings';
 import { patientInitials } from '../../pages/opd-utils';
+import { PatientAvatar } from './PatientAvatar';
 import { calculatePatientAge, formatDate, patientFullName } from '../../pages/patient-utils';
 import { Modal } from '../ui/Modal';
 
@@ -31,7 +32,11 @@ export function PatientCardModal({ open, patient, onClose }: PatientCardModalPro
             </div>
             <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '20px', textTransform: 'uppercase' }}>Patient ID</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '3px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>{patientInitials(patientFullName(patient))}</div>
+              <PatientAvatar
+                fullName={patientFullName(patient)}
+                photoUrl={patient.photo_url}
+                size="card"
+              />
               <div><div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(patient)}</div><span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>MRN-{patient.patient_number}</span></div>
             </div>
           </div>

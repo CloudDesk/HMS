@@ -11,7 +11,7 @@ import {
 
 export const authApi = {
   login: (identifier: string, password: string) =>
-    apiClient.request<AuthSession>('/auth/login', {
+    apiClient.request<AuthSession>('/patient-portal/auth/login', {
       auth: false,
       method: 'POST',
       body: { identifier, password },
@@ -69,7 +69,7 @@ export const authApi = {
       schema: authSessionSchema,
     }),
   refresh: () =>
-    apiClient.request<AuthSession>('/auth/refresh', {
+    apiClient.request<AuthSession>('/patient-portal/auth/refresh', {
       auth: false,
       method: 'POST',
       retryOnUnauthorized: false,
@@ -77,7 +77,7 @@ export const authApi = {
       schema: authSessionSchema,
     }),
   logout: () =>
-    apiClient.request('/auth/logout', {
+    apiClient.request('/patient-portal/auth/logout', {
       method: 'POST',
       retryOnUnauthorized: false,
       body: {},

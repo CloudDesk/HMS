@@ -5,6 +5,7 @@ import { Modal } from '../../ui/Modal';
 import {
   patientPortalApi,
   type PortalDentalQuotation,
+  type PortalDentalQuotationItem,
   type PortalDentalQuotationOption,
 } from '../../../api/patient-portal';
 import { portalQueryKeys } from '../../../api/query-keys';
@@ -15,6 +16,7 @@ type PortalQuotationDetailModalProps = {
   quotation: PortalDentalQuotation | null;
   patientId: string;
   onClose: () => void;
+  onViewProcedureVideo: (item: PortalDentalQuotationItem) => void;
 };
 
 function formatDoctorName(name?: string) {
@@ -30,6 +32,7 @@ export function PortalQuotationDetailModal({
   quotation,
   patientId,
   onClose,
+  onViewProcedureVideo,
 }: PortalQuotationDetailModalProps) {
   const queryClient = useQueryClient();
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
@@ -516,6 +519,18 @@ export function PortalQuotationDetailModal({
                               <small style={{ display: 'block', color: '#64748b' }}>
                                 {item.notes}
                               </small>
+                            )}
+                            {item.reference_video_url && (
+                              <button
+                                className="portal-reference-video-inline"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onViewProcedureVideo(item);
+                                }}
+                                type="button"
+                              >
+                                <i className="ph ph-play-circle" /> Reference video
+                              </button>
                             )}
                           </td>
                           <td>

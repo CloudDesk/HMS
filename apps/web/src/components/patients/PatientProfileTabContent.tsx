@@ -124,7 +124,7 @@ export function PatientProfileTabContent({
               <label>To</label>
               <input type="date" value={timelineFilters.to} onChange={(event) => { setTimelineFilters((previous) => ({ ...previous, to: event.target.value })); setTimelineMeta({ page: 1 }); }} />
             </div>
-            <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta({ page: 1 }); }}>Reset</button>
+            <button className="doc-btn" type="button" onClick={() => { setTimelineFilters({ from: '', to: '' }); setTimelineMeta({ page: 1 }); }}><i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset</button>
             {loadingTimeline && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
           </div>
           {timeline.length === 0 ? (
@@ -169,7 +169,7 @@ export function PatientProfileTabContent({
               <label>To</label>
               <input type="date" value={visitsFilters.date_to} onChange={(event) => { setVisitsFilters((previous) => ({ ...previous, date_to: event.target.value })); setVisitsMeta({ page: 1 }); }} />
             </div>
-            <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta({ page: 1 }); }}>Reset</button>
+            <button className="doc-btn" type="button" onClick={() => { setVisitsFilters({ date_from: '', date_to: '' }); setVisitsMeta({ page: 1 }); }}><i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset</button>
             {loadingVisits && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
           </div>
           {visitsData.length === 0 ? (
@@ -217,7 +217,7 @@ export function PatientProfileTabContent({
                 {doctorsList.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.display_name}</option>)}
               </select>
             </div>
-            <button className="doc-btn" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta({ page: 1 }); }}>Reset</button>
+            <button className="doc-btn" type="button" onClick={() => { setAppointmentFilters({ date_from: '', date_to: '', doctor_id: '' }); setAppointmentsMeta({ page: 1 }); }}><i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset</button>
             {loadingAppointments && <span style={{ color: '#64748b', fontSize: '0.875rem', alignSelf: 'center', marginLeft: 'auto' }}>Loading...</span>}
           </div>
           {appointments.length === 0 ? (

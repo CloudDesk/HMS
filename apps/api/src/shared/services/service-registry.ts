@@ -238,6 +238,15 @@ export const createServiceRegistry = (): ServiceRegistry => {
     sequenceService,
     dentalStageRepository,
   );
+  const opdVisitService = new OpdVisitService(
+    opdVisitRepository,
+    appointmentRepository,
+    patientRepository,
+    doctorRepository,
+    opdConsultationRepository,
+    sequenceService,
+    notificationService,
+  );
 
   return {
     database: {
@@ -256,15 +265,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
 
     appointments: appointmentService,
 
-    opdVisits: new OpdVisitService(
-      opdVisitRepository,
-      appointmentRepository,
-      patientRepository,
-      doctorRepository,
-      opdConsultationRepository,
-      sequenceService,
-      notificationService,
-    ),
+    opdVisits: opdVisitService,
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
     opdConsultations: new OpdConsultationService(
       opdConsultationRepository,
@@ -318,6 +319,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       doctorService,
       patientService,
       patientOtpService,
+      opdVisitService,
     ),
     sms,
     admissionsConfiguration: admissionsConfigurationService,

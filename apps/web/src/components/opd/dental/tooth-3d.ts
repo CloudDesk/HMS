@@ -149,7 +149,8 @@ export function parseAnatomicalToothObj(source: string, toothNumber: number): To
   return { positions: new Float32Array(positions), normals: new Float32Array(normals), surfaces: new Float32Array(surfaces) };
 }
 
-export function buildToothMesh(toothNumber: number): ToothMesh {
+export function buildToothMesh(toothNumber: number, options?: { crownOnly?: boolean }): ToothMesh {
+  const { crownOnly = false } = options ?? {};
   const tooth = toothNumber % 10;
   const anterior = tooth <= 3;
   const canine = tooth === 3;
@@ -191,11 +192,18 @@ export function buildToothMesh(toothNumber: number): ToothMesh {
     : profile([0.72, 0.89, 0.99, 1.01, 1, 0.97, 0.93, 0.89, 0.84], t);
   const neckHeight = (x: number, z: number) => -0.12 + 0.08 * z * z - 0.045 * x * x;
   const capHeight = (x: number, z: number) => {
-    if (canine) return 1.08 + 0.27 * (1 - Math.pow(Math.abs(x), 1.5)) - 0.045 * z * z;
-    if (anterior) return 1.17 - 0.07 * Math.pow(Math.abs(x), 6) + 0.012 * Math.cos(x * Math.PI * 3);
-    // Rounded cusps with a central depression; this is a schematic crown.
-    const cusp = (cx: number, cz: number) => Math.exp(-10 * ((x - cx) ** 2 + (z - cz) ** 2));
-    return 0.98 + 0.19 * (cusp(-0.55, 0.55) + cusp(0.55, 0.55) + cusp(-0.55, -0.55) + cusp(0.55, -0.55));
+    if (canine) return 1.10 + 0.28 * (1 - Math.pow(Math.abs(x), 1.5)) - 0.045 * z * z;
+    if (anterior) return 1.18 - 0.08 * Math.pow(Math.abs(x), 6) + 0.012 * Math.cos(x * Math.PI * 3);
+    const cusp = (cx: number, cz: number, h: number = 0.22, r: number = 12) => h * Math.exp(-r * ((x - cx) ** 2 + (z - cz) ** 2));
+    if (!molar) {
+      // Premolar: bicuspid table (buccal & lingual cusps + central groove depression)
+      return 0.96 + cusp(0, 0.48, 0.20, 11) + cusp(0, -0.48, 0.18, 11) - 0.06 * Math.exp(-25 * z * z);
+    }
+    // Molar: 4 cusps (mesiobuccal, distobuccal, mesiolingual, distolingual) + central fossa & cross fissures
+    return 0.94
+      + cusp(-0.48, 0.48, 0.22, 10) + cusp(0.48, 0.48, 0.20, 10)
+      + cusp(-0.48, -0.48, 0.21, 10) + cusp(0.48, -0.48, 0.19, 10)
+      - 0.05 * (Math.exp(-22 * x * x) + Math.exp(-22 * z * z));
   };
   const sideId = (angle: number) => {
     const x = Math.cos(angle), z = Math.sin(angle);
@@ -232,28 +240,49 @@ export function buildToothMesh(toothNumber: number): ToothMesh {
       triangle(p, q, r, 1); triangle(q, s, r, 1);
     }
   }
-  const rootCount = molar ? 2 : 1;
-  for (let root = 0; root < rootCount; root++) {
-    const rootPoint = (t: number, angle: number): Point => {
-      const sign = rootCount === 1 ? 0 : root === 0 ? -1 : 1;
-      const spread = sign * (0.23 + 0.17 * Math.sin(t * 1.7));
-      const radius = Math.max(0, profile([1, 1, 0.98, 0.95, 0.90, 0.84, 0.75, 0.62, 0.43, 0], t));
-      const rx = rootCount === 1 ? width * crownWidth(0) : width * 0.43;
-      const x = signedPower(Math.cos(angle)) * (1 - t) + Math.cos(angle) * t;
-      const z = signedPower(Math.sin(angle)) * (1 - t) + Math.sin(angle) * t;
-      const neck = rootCount === 1 ? neckHeight(x, z) : -0.1;
+  if (!crownOnly) {
+    const rootCount = molar ? 2 : 1;
+    for (let root = 0; root < rootCount; root++) {
+      const rootPoint = (t: number, angle: number): Point => {
+        const sign = rootCount === 1 ? 0 : root === 0 ? -1 : 1;
+        const spread = sign * (0.23 + 0.17 * Math.sin(t * 1.7));
+        const radius = Math.max(0, profile([1, 1, 0.98, 0.95, 0.90, 0.84, 0.75, 0.62, 0.43, 0], t));
+        const rx = rootCount === 1 ? width * crownWidth(0) : width * 0.43;
+        const x = signedPower(Math.cos(angle)) * (1 - t) + Math.cos(angle) * t;
+        const z = signedPower(Math.sin(angle)) * (1 - t) + Math.sin(angle) * t;
+        const neck = rootCount === 1 ? neckHeight(x, z) : -0.1;
+        return [
+          spread + x * rx * radius + 0.09 * t * t * t,
+          neck * (1 - t) + (-1.60 - (canine ? 0.13 : 0)) * t,
+          z * depth * crownDepth(0) * radius - 0.09 * t * t,
+        ];
+      };
+      for (let ring = 0; ring < 28; ring++) {
+        for (let i = 0; i < 64; i++) {
+          const a = i * Math.PI / 32, b = (i + 1) * Math.PI / 32;
+          const p = rootPoint(ring / 28, a), q = rootPoint(ring / 28, b);
+          const r = rootPoint((ring + 1) / 28, a), s = rootPoint((ring + 1) / 28, b);
+          triangle(p, q, r, 0); triangle(q, s, r, 0);
+        }
+      }
+    }
+  } else {
+    // Crown only: cleanly cap the cervical base across ring 0 (neck height)
+    const cervicalBasePoint = (radius: number, angle: number): Point => {
+      const x = signedPower(Math.cos(angle)), z = signedPower(Math.sin(angle));
+      const neck = neckHeight(x, z);
       return [
-        spread + x * rx * radius + 0.09 * t * t * t,
-        neck * (1 - t) + (-1.60 - (canine ? 0.13 : 0)) * t,
-        z * depth * crownDepth(0) * radius - 0.09 * t * t,
+        x * width * crownWidth(0) * radius,
+        neck - 0.04 * (1 - radius),
+        z * depth * crownDepth(0) * radius,
       ];
     };
-    for (let ring = 0; ring < 28; ring++) {
-      for (let i = 0; i < 64; i++) {
-        const a = i * Math.PI / 32, b = (i + 1) * Math.PI / 32;
-        const p = rootPoint(ring / 28, a), q = rootPoint(ring / 28, b);
-        const r = rootPoint((ring + 1) / 28, a), s = rootPoint((ring + 1) / 28, b);
-        triangle(p, q, r, 0); triangle(q, s, r, 0);
+    for (let ring = 0; ring < 12; ring++) {
+      for (let i = 0; i < segments; i++) {
+        const a = i * Math.PI * 2 / segments, b = (i + 1) * Math.PI * 2 / segments;
+        const p = cervicalBasePoint(ring / 12, a), q = cervicalBasePoint(ring / 12, b);
+        const r = cervicalBasePoint((ring + 1) / 12, a), s = cervicalBasePoint((ring + 1) / 12, b);
+        triangle(p, r, q, 0); triangle(q, r, s, 0);
       }
     }
   }

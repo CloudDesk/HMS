@@ -650,6 +650,15 @@ describe('ToothExaminationPanel refactored component', () => {
       );
     });
 
+    const imagingTab = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent === 'Imaging',
+    );
+    if (imagingTab) {
+      await act(async () => {
+        imagingTab.click();
+      });
+    }
+
     expect(container.textContent).toContain('Imaging · Tooth #22');
 
     const captureBtn = Array.from(container.querySelectorAll('button')).find((b) =>

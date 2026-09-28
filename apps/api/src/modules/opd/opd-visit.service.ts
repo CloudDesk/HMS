@@ -116,6 +116,22 @@ export class OpdVisitService {
     return this.createWalkInVisit(data, userId);
   }
 
+  async createFromPatientPortal(appointmentId: string, userId: string) {
+    this.validateId(appointmentId, 'Appointment id is invalid');
+    const appointment = await this.appointmentRepository.getById(appointmentId);
+    if (!appointment) {
+      throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+    }
+    if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
+      throw new AppError('Only a scheduled or confirmed appointment can be checked in', 409, 'APPOINTMENT_NOT_CHECK_IN_ELIGIBLE');
+    }
+    const appointmentDate = appointment.appointment_date?.toISOString().slice(0, 10);
+    if (appointmentDate !== todayUtc().toISOString().slice(0, 10)) {
+      throw new AppError('Self check-in is available only on the appointment date', 409, 'CHECK_IN_DATE_NOT_ELIGIBLE');
+    }
+    return this.createFromAppointment({ appointment_id: appointmentId }, userId, true);
+  }
+
   async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string) {
     const existing = await this.getById(id, userId);
     const scope = await this.repository.resolveBranchScope(userId, existing.branch_id);
@@ -226,9 +242,9 @@ export class OpdVisitService {
     return nextVisit;
   }
 
-  private async createFromAppointment(data: CreateOpdVisitDTO, userId: string) {
+  private async createFromAppointment(data: CreateOpdVisitDTO, userId: string, skipBranchScope = false) {
     this.validateId(data.appointment_id, 'Appointment id is invalid');
-    const scope = await this.appointmentRepository.resolveBranchScope(userId);
+    const scope = skipBranchScope ? undefined : await this.appointmentRepository.resolveBranchScope(userId);
     const appointment = await this.appointmentRepository.getById(data.appointment_id!, scope);
 
     if (!appointment) {
@@ -283,6 +299,13 @@ export class OpdVisitService {
       );
       if (checkedInAppointment && appointment.status !== checkedInAppointment.status) {
         await this.appointmentRepository.auditStatusTransition(checkedInAppointment, appointment.status, userId, session);
+      }
+      if (appointment.consultation_intake && Object.values(appointment.consultation_intake).some(Boolean)) {
+        await this.consultationRepository.saveForVisit({
+          visit,
+          status: 'DRAFT',
+          ...appointment.consultation_intake,
+        }, userId, session);
       }
       await this.addVisitCreatedTimeline(visit, userId, session);
       await this.repository.auditCreated(visit, userId, session);

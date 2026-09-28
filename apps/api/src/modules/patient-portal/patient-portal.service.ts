@@ -13,6 +13,7 @@ import type { UserService } from '../users/user.service.js';
 import { PatientPortalRepository } from './patient-portal.repository.js';
 import type { PatientAccessRelationship } from './patient-access-grant.model.js';
 import type { PatientOtpService } from './patient-otp.service.js';
+import type { OpdVisitService } from '../opd/opd-visit.service.js';
 
 type ProvisionInput = {
   patientId: string;
@@ -94,6 +95,7 @@ export class PatientPortalService {
     private readonly doctors: DoctorService,
     private readonly patients: PatientService,
     private readonly otp: PatientOtpService,
+    private readonly opdVisits: OpdVisitService,
   ) {}
 
   listPublicBranches(query: { page: number; limit: number; search?: string }) {
@@ -160,6 +162,15 @@ export class PatientPortalService {
     return this.appointments.getPortalRescheduleEligibility(appointment);
   }
 
+  async checkInAppointment(userId: string, appointmentId: string) {
+    const appointment = await this.appointments.getForPortal(appointmentId);
+    const patientId = await this.repository.resolveAccessiblePatientId(userId, appointment.patient_id);
+    if (!patientId || patientId !== appointment.patient_id) {
+      throw new AppError('You cannot check in this appointment', 403, 'PATIENT_ACCESS_DENIED');
+    }
+    return this.opdVisits.createFromPatientPortal(appointmentId, userId);
+  }
+
   async rescheduleAppointment(
     userId: string,
     appointmentId: string,
@@ -196,6 +207,64 @@ export class PatientPortalService {
       ...data,
       source: context.account.type === 'GUARDIAN' ? 'GUARDIAN' : 'PATIENT',
       review_status: 'PENDING',
+    }, userId);
+  }
+
+  async uploadProfilePhoto(userId: string, requestedPatientId: string, data: Buffer, fileName: string, mimeType: string) {
+    const patientId = await this.repository.resolveAccessiblePatientId(userId, requestedPatientId);
+    if (!patientId) throw new AppError('You do not have access to this patient record', 403, 'PATIENT_ACCESS_DENIED');
+    const context = await this.context(userId);
+    return this.patients.uploadDocumentForPortal(patientId, {
+      document_type: 'IDENTITY',
+      title: 'Profile photo',
+      file_name: fileName,
+      mime_type: mimeType,
+      file_size_bytes: data.byteLength,
+      description: 'Patient portal profile photo',
+      consent_kind: 'PROFILE_PHOTO',
+      source: context.account.type === 'GUARDIAN' ? 'GUARDIAN' : 'PATIENT',
+      review_status: 'NOT_REQUIRED',
+      data,
+    }, userId);
+  }
+
+  async uploadConsentSignature(
+    userId: string,
+    requestedPatientId: string,
+    consentDocumentId: string,
+    data: Buffer,
+    fileName: string,
+    mimeType: string,
+  ) {
+    const patientId = await this.repository.resolveAccessiblePatientId(userId, requestedPatientId);
+    if (!patientId) throw new AppError('You do not have access to this patient record', 403, 'PATIENT_ACCESS_DENIED');
+    if (!Types.ObjectId.isValid(consentDocumentId)) {
+      throw new AppError('Consent document id is invalid', 400, 'VALIDATION_ERROR');
+    }
+    const consent = await this.patients.getDocumentForPortal(patientId, consentDocumentId);
+    if (consent.document_type !== 'CONSENT' || consent.consent_kind === 'PATIENT_SIGNATURE') {
+      throw new AppError('The selected document is not a consent form', 400, 'INVALID_CONSENT_DOCUMENT');
+    }
+    const context = await this.context(userId);
+    return this.patients.uploadDocumentForPortal(patientId, {
+      document_type: 'CONSENT',
+      title: `Signature for ${consent.title}`,
+      file_name: fileName,
+      mime_type: mimeType,
+      file_size_bytes: data.byteLength,
+      description: `Patient signature attached to consent document ${consent.id}`,
+      context_type: 'PATIENT',
+      context_id: consent.id,
+      consent_template_id: consent.consent_template_id,
+      consent_category: consent.consent_category,
+      consent_version: consent.consent_version,
+      consent_status: 'SIGNED',
+      consent_kind: 'PATIENT_SIGNATURE',
+      signed_at: new Date().toISOString(),
+      signed_by_name: context.account.full_name,
+      source: context.account.type === 'GUARDIAN' ? 'GUARDIAN' : 'PATIENT',
+      review_status: 'PENDING',
+      data,
     }, userId);
   }
 
@@ -424,7 +493,7 @@ export class PatientPortalService {
 
   async bookAppointment(
     userId: string,
-    input: Pick<CreateAppointmentDTO, 'patient_id' | 'doctor_id' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'reason'>,
+    input: Pick<CreateAppointmentDTO, 'patient_id' | 'doctor_id' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'reason' | 'consultation_intake'>,
   ) {
     const patientId = await this.repository.resolveAccessiblePatientId(userId, input.patient_id);
     if (!patientId || patientId !== input.patient_id) {

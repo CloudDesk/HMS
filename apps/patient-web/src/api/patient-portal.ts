@@ -233,6 +233,13 @@ export const patientPortalApi = {
     duration_minutes: number;
     visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE';
     reason: string;
+    consultation_intake: {
+      chief_complaint: string;
+      history_present_illness?: string | null;
+      past_history?: string | null;
+      family_history?: string | null;
+      allergies?: string | null;
+    };
   }) {
     return apiClient.request<{ id: string; appointment_number: string; status: string }>(
       '/patient-portal/appointments',
@@ -256,6 +263,33 @@ export const patientPortalApi = {
     return apiClient.request<PublicList<PortalAppointment>>(
       `/patient-portal/appointments?${params}`,
       { schema: createPublicListSchema(portalAppointmentSchema) },
+    );
+  },
+  uploadProfilePhoto(patientId: string, file: File) {
+    const formData = new FormData();
+    formData.set('patient_id', patientId);
+    formData.set('file', file);
+    return apiClient.request<PortalDocument>('/patient-portal/profile-photo', {
+      method: 'POST',
+      body: formData,
+      schema: portalDocumentSchema,
+    });
+  },
+  uploadConsentSignature(patientId: string, consentDocumentId: string, file: File) {
+    const formData = new FormData();
+    formData.set('patient_id', patientId);
+    formData.set('consent_document_id', consentDocumentId);
+    formData.set('file', file);
+    return apiClient.request<PortalDocument>('/patient-portal/consent-signature', {
+      method: 'POST',
+      body: formData,
+      schema: portalDocumentSchema,
+    });
+  },
+  checkInAppointment(appointmentId: string) {
+    return apiClient.request<{ id: string; visit_number: string; status: string }>(
+      `/patient-portal/appointments/${encodeURIComponent(appointmentId)}/check-in`,
+      { method: 'POST' },
     );
   },
   rescheduleEligibility(appointmentId: string) {

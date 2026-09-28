@@ -1,4 +1,5 @@
 import type { PatientResponse } from '../../api/patients';
+import { PatientAvatar } from './PatientAvatar';
 import { patientInitials } from '../../pages/opd-utils';
 import { calculateAge, formatDate, patientFullName } from '../../pages/patient-utils';
 
@@ -13,9 +14,12 @@ export function PatientProfileHeader({ patient, onEdit, onBookAppointment, onVie
   return (
     <section className="profile-hero-card">
       <div className="profile-hero-left">
-        <div className="profile-hero-avatar">
-          <span>{patientInitials(patientFullName(patient))}</span>
-        </div>
+        <PatientAvatar
+          className="profile-hero-avatar"
+          fullName={patientFullName(patient)}
+          photoUrl={patient.photo_url}
+          size="hero"
+        />
         <div className="profile-hero-info">
           <div className="profile-hero-title">
             <h2>{patientFullName(patient)}</h2>

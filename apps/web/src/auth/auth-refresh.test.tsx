@@ -205,6 +205,67 @@ describe('web auth token refresh and concurrent request handling', () => {
     container.remove();
   });
 
+  it('rejects a patient identity returned during staff session restoration', async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const patientSession: AuthSession = {
+      user: {
+        ...mockUser,
+        id: 'patient-user-id',
+        username: 'patient@example.test',
+        fullName: 'Patient User',
+        patientId: 'patient-id',
+        roles: [{ id: 'patient-role-id', code: 'PATIENT', name: 'Patient' }],
+        permissions: [],
+      },
+      tokens: {
+        accessToken: 'patient-access-token',
+        tokenType: 'Bearer',
+        expiresIn: 900,
+      },
+    };
+    vi.mocked(fetch).mockImplementation((url) => {
+      if (String(url).includes('/auth/refresh')) {
+        return Promise.resolve(jsonResponse(patientSession));
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let observedStatus = '';
+    let observedUser: AuthUser | null = mockUser;
+
+    function Observer() {
+      const { status, user } = useAuth();
+      useEffect(() => {
+        observedStatus = status;
+        observedUser = user;
+      }, [status, user]);
+      return null;
+    }
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider><Observer /></AuthProvider>
+        </QueryClientProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(observedStatus).toBe('unauthenticated');
+    expect(observedUser).toBeNull();
+    expect(tokenStorage.getAccessToken()).toBeNull();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/auth/logout'))).toBe(true);
+
+    await act(async () => root.unmount());
+    queryClient.clear();
+    container.remove();
+  });
+
   it.each([
     new TypeError('Failed to fetch'),
     new DOMException('Request timed out', 'TimeoutError'),

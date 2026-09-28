@@ -7,6 +7,39 @@ export type Icd10Diagnosis = {
   notes?: string | null;
 };
 
+export const GV_BLACK_CLASSIFICATIONS: readonly Icd10Diagnosis[] = [
+  {
+    code: 'GVB-I',
+    name: 'Class I — Pits and fissures of posterior occlusal surfaces, molar buccal/lingual pits, or maxillary incisor lingual pits',
+    category: 'G.V. Black Cavity Classification',
+  },
+  {
+    code: 'GVB-II',
+    name: 'Class II — Proximal surfaces of posterior teeth (molars and premolars)',
+    category: 'G.V. Black Cavity Classification',
+  },
+  {
+    code: 'GVB-III',
+    name: 'Class III — Proximal surfaces of anterior teeth without incisal-angle involvement',
+    category: 'G.V. Black Cavity Classification',
+  },
+  {
+    code: 'GVB-IV',
+    name: 'Class IV — Proximal surfaces of anterior teeth with incisal-angle or edge involvement',
+    category: 'G.V. Black Cavity Classification',
+  },
+  {
+    code: 'GVB-V',
+    name: 'Class V — Cervical or gingival third of facial or lingual/palatal surfaces',
+    category: 'G.V. Black Cavity Classification',
+  },
+  {
+    code: 'GVB-VI',
+    name: 'Class VI — Incisal edges of anterior teeth or cusp tips of posterior teeth',
+    category: 'G.V. Black Cavity Classification',
+  },
+] as const;
+
 export function isDentalIcd10(code: string): boolean {
   return /^K0[0-8]|^K1[2-4]/i.test(code.trim());
 }

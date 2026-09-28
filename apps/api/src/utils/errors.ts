@@ -156,6 +156,14 @@ const duplicateKeyAppError = (error: MongoDuplicateKeyError) => {
     );
   }
 
+  if (isDuplicateFromCollection(error, 'roles') && hasDuplicateField(error, 'code')) {
+    return new AppError(
+      'Role code already exists',
+      409,
+      'DUPLICATE_ROLE_CODE',
+    );
+  }
+
   return new AppError(
     'A record with the same unique details already exists.',
     409,

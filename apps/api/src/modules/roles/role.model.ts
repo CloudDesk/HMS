@@ -21,7 +21,7 @@ export interface IRole extends Document {
 
 const roleSchema = new Schema<IRole>(
   {
-    code: { type: String, required: true, unique: true },
+    code: { type: String, required: true },
     name: { type: String, required: true },
     description: { type: String },
     type: { type: String, default: 'custom' },
@@ -32,7 +32,7 @@ const roleSchema = new Schema<IRole>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
-    deletedAt: { type: Date },
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true,
@@ -47,6 +47,7 @@ const roleSchema = new Schema<IRole>(
   },
 );
 
+roleSchema.index({ code: 1 }, { unique: true, partialFilterExpression: { deletedAt: null } });
 roleSchema.index({ name: 1 });
 
 export const RoleModel = mongoose.model<IRole>('Role', roleSchema);

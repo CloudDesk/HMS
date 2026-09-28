@@ -49,10 +49,11 @@ type CompleteWorkspaceInput = SaveWorkspaceDraftInput & {
 };
 
 export function useOpdVisitFeature() {
-  const { search } = useAppLocation();
+  const { pathname, search } = useAppLocation();
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
   const visitIdParam = searchParams.get('id') ?? '';
-  const initialTabParam = searchParams.get('tab') ?? 'Consultation';
+  const routeTab = pathname === '/opd/prescription' ? 'Prescription' : pathname === '/opd/referral' ? 'Referral' : null;
+  const initialTabParam = routeTab ?? searchParams.get('tab') ?? 'Consultation';
   const [activeVisitId, setActiveVisitId] = useState(visitIdParam);
   const [activeTab, setActiveTab] = useState<string>(() => {
     const match = WORKSPACE_TABS.find((tab) =>
@@ -89,6 +90,10 @@ export function useOpdVisitFeature() {
   useEffect(() => {
     if (visitIdParam && visitIdParam !== activeVisitId) setActiveVisitId(visitIdParam);
   }, [activeVisitId, visitIdParam]);
+
+  useEffect(() => {
+    if (routeTab) setActiveTab(routeTab);
+  }, [routeTab]);
 
   useEffect(() => {
     const firstVisit = recentVisits[0];
@@ -172,7 +177,12 @@ export function useOpdVisitFeature() {
   };
 
   const selectVisit = (visitId: string) => {
-    if (!navigate(`/opd/consultation?id=${encodeURIComponent(visitId)}`)) return;
+    const destination = routeTab === 'Prescription'
+      ? '/opd/prescription'
+      : routeTab === 'Referral'
+        ? '/opd/referral'
+        : '/opd/consultation';
+    if (!navigate(`${destination}?id=${encodeURIComponent(visitId)}`)) return;
     setActiveVisitId(visitId);
   };
 

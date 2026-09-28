@@ -1,3 +1,4 @@
+import '@fastify/cookie';
 import type { MultipartFields, MultipartValue } from '@fastify/multipart';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -7,8 +8,10 @@ import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
-  establishRefreshSession,
-  setRefreshSessionCookie,
+  clearPatientRefreshSessionCookie,
+  establishPatientRefreshSession,
+  PATIENT_REFRESH_COOKIE_NAME,
+  setPatientRefreshSessionCookie,
 } from '../auth/auth-session-cookie.js';
 import {
   patientPortalAppointmentsResponseSchema,
@@ -28,6 +31,14 @@ const provisionSchema = z.object({
   password: z.string().min(1),
 });
 type ProvisionBody = z.infer<typeof provisionSchema>;
+type EmptyAuthBody = Record<string, never>;
+
+const isPatientPortalAccount = (user: {
+  patientId?: string | null;
+  roles: Array<{ code: string }>;
+}) => Boolean(
+  user.patientId || user.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'),
+);
 
 const guardianProfileSchema = z.object({
   relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']),
@@ -89,6 +100,12 @@ const otpLoginSchema = z.object({
   otp: z.string().regex(/^\d{4}$/),
 });
 type OtpLoginBody = z.infer<typeof otpLoginSchema>;
+
+const patientPasswordLoginSchema = z.object({
+  identifier: z.string().trim().min(1),
+  password: z.string().min(1),
+});
+type PatientPasswordLoginBody = z.infer<typeof patientPasswordLoginSchema>;
 
 const guardianActivationSchema = z.object({
   phone: z.string().trim().min(7).max(20),
@@ -180,6 +197,13 @@ const bookAppointmentSchema = z.object({
   duration_minutes: z.number().int().min(5).max(240),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
   reason: z.string().trim().min(3).max(500),
+  consultation_intake: z.object({
+    chief_complaint: z.string().trim().min(3).max(4000),
+    history_present_illness: z.string().trim().max(4000).optional().nullable(),
+    past_history: z.string().trim().max(4000).optional().nullable(),
+    family_history: z.string().trim().max(4000).optional().nullable(),
+    allergies: z.string().trim().max(4000).optional().nullable(),
+  }),
 });
 type BookAppointmentBody = z.infer<typeof bookAppointmentSchema>;
 
@@ -211,6 +235,7 @@ const portalDocumentsQuerySchema = z.object({
 type PortalDocumentsQuery = z.input<typeof portalDocumentsQuerySchema>;
 
 const portalDocumentTypes = ['INSURANCE', 'CLINICAL', 'OTHER'] as const;
+const portalImageMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
 const readPortalMultipartField = (fields: MultipartFields, name: string) => {
   const field = fields[name];
   const value = Array.isArray(field) ? field[0] : field;
@@ -226,6 +251,73 @@ const metadataFromRequest = (request: FastifyRequest) => ({
 });
 
 export const registerPatientPortalRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.post<{ Body: PatientPasswordLoginBody }>('/api/patient-portal/auth/login', {
+    schema: { response: { 200: patientPortalSessionResponseSchema } },
+  }, async (request, reply) => {
+    const parsed = patientPasswordLoginSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError('Enter a valid portal identifier and password', 400, 'VALIDATION_ERROR');
+    }
+
+    const session = await services.auth.login(parsed.data, metadataFromRequest(request));
+    if (!isPatientPortalAccount(session.user)) {
+      await services.auth.logout(
+        session.user.id,
+        session.tokens.refreshToken,
+        metadataFromRequest(request),
+      );
+      throw new AppError(
+        'Staff accounts must sign in through the staff application',
+        403,
+        'STAFF_ACCOUNT',
+      );
+    }
+
+    return ok(establishPatientRefreshSession(reply, session));
+  });
+
+  app.post<{ Body: EmptyAuthBody }>('/api/patient-portal/auth/refresh', {
+    schema: { response: { 200: patientPortalSessionResponseSchema } },
+  }, async (request, reply) => {
+    const cookieToken = request.cookies[PATIENT_REFRESH_COOKIE_NAME];
+    if (!cookieToken) {
+      throw new AppError('Invalid patient refresh token', 401, 'INVALID_REFRESH_TOKEN');
+    }
+
+    const session = await services.auth.refresh(
+      { refreshToken: cookieToken },
+      metadataFromRequest(request),
+    );
+    if (!isPatientPortalAccount(session.user)) {
+      await services.auth.logout(
+        session.user.id,
+        session.tokens.refreshToken,
+        metadataFromRequest(request),
+      );
+      clearPatientRefreshSessionCookie(reply);
+      throw new AppError(
+        'Staff sessions cannot be restored in the patient portal',
+        403,
+        'STAFF_ACCOUNT',
+      );
+    }
+
+    return ok(establishPatientRefreshSession(reply, session));
+  });
+
+  app.post<{ Body: EmptyAuthBody }>('/api/patient-portal/auth/logout', {
+    preHandler: authenticate(services),
+  }, async (request, reply) => {
+    const cookieToken = request.cookies[PATIENT_REFRESH_COOKIE_NAME];
+    await services.auth.logout(
+      request.user!.id,
+      cookieToken,
+      metadataFromRequest(request),
+    );
+    clearPatientRefreshSessionCookie(reply);
+    return ok({ ok: true });
+  });
+
   app.get<{ Querystring: PublicListQuery }>('/api/patient-portal/public/branches', async (request) => {
     const query = publicListQuerySchema.parse(request.query);
     return ok(await services.patientPortal.listPublicBranches(query));
@@ -329,7 +421,7 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       verification,
       metadataFromRequest(request),
     );
-    return reply.status(201).send(ok({ account, ...establishRefreshSession(reply, session) }));
+    return reply.status(201).send(ok({ account, ...establishPatientRefreshSession(reply, session) }));
   });
 
   app.post<{ Body: OtpLoginBody }>('/api/patient-portal/login/otp', {
@@ -380,7 +472,7 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       verification,
       metadataFromRequest(request),
     );
-    return ok(establishRefreshSession(reply, session));
+    return ok(establishPatientRefreshSession(reply, session));
   });
 
   app.post<{ Body: ExistingPatientActivationBody }>('/api/patient-portal/existing-patient/activate', async (request, reply) => {
@@ -405,7 +497,7 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       verification,
       metadataFromRequest(request),
     );
-    setRefreshSessionCookie(reply, session.tokens.refreshToken);
+    setPatientRefreshSessionCookie(reply, session.tokens.refreshToken);
     return reply.status(201).send(ok(result));
   });
 
@@ -436,7 +528,7 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       verification,
       metadataFromRequest(request),
     );
-    return ok(establishRefreshSession(reply, session));
+    return ok(establishPatientRefreshSession(reply, session));
   });
 
   app.get('/api/patient-portal/context', {
@@ -500,6 +592,48 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       provider_name: readPortalMultipartField(file.fields, 'provider_name'),
       data,
     });
+    return reply.status(201).send(ok(document));
+  });
+
+  app.post('/api/patient-portal/profile-photo', { preHandler: authenticate(services) }, async (request, reply) => {
+    const file = await request.file();
+    if (!file) throw new AppError('Choose a photo to upload', 400, 'PHOTO_REQUIRED');
+    const patientId = readPortalMultipartField(file.fields, 'patient_id');
+    if (!patientId) throw new AppError('Patient is required', 400, 'VALIDATION_ERROR');
+    if (!portalImageMimeTypes.includes(file.mimetype)) {
+      throw new AppError('Profile photo must be a JPG, PNG or WebP image', 400, 'INVALID_FILE_TYPE');
+    }
+    const data = await file.toBuffer();
+    const document = await services.patientPortal.uploadProfilePhoto(
+      request.user!.id,
+      patientId,
+      data,
+      file.filename,
+      file.mimetype,
+    );
+    return reply.status(201).send(ok(document));
+  });
+
+  app.post('/api/patient-portal/consent-signature', { preHandler: authenticate(services) }, async (request, reply) => {
+    const file = await request.file();
+    if (!file) throw new AppError('Choose a signature image to upload', 400, 'SIGNATURE_REQUIRED');
+    const patientId = readPortalMultipartField(file.fields, 'patient_id');
+    const consentDocumentId = readPortalMultipartField(file.fields, 'consent_document_id');
+    if (!patientId || !consentDocumentId) {
+      throw new AppError('Patient and consent document are required', 400, 'VALIDATION_ERROR');
+    }
+    if (!portalImageMimeTypes.includes(file.mimetype)) {
+      throw new AppError('Signature must be a JPG, PNG or WebP image', 400, 'INVALID_FILE_TYPE');
+    }
+    const data = await file.toBuffer();
+    const document = await services.patientPortal.uploadConsentSignature(
+      request.user!.id,
+      patientId,
+      consentDocumentId,
+      data,
+      file.filename,
+      file.mimetype,
+    );
     return reply.status(201).send(ok(document));
   });
 
@@ -607,6 +741,9 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
 
   app.get<{ Params: { id: string } }>('/api/patient-portal/appointments/:id/reschedule-eligibility', { preHandler: authenticate(services) }, async (request) =>
     ok(await services.patientPortal.rescheduleEligibility(request.user!.id, request.params.id)));
+
+  app.post<{ Params: { id: string } }>('/api/patient-portal/appointments/:id/check-in', { preHandler: authenticate(services) }, async (request) =>
+    ok(await services.patientPortal.checkInAppointment(request.user!.id, request.params.id)));
 
   app.patch<{ Params: { id: string }; Body: RescheduleAppointmentBody }>('/api/patient-portal/appointments/:id/reschedule', { preHandler: authenticate(services) }, async (request) => {
     const input = rescheduleAppointmentSchema.parse(request.body);

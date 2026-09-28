@@ -65,8 +65,8 @@ interface OpdDentalExaminationTabProps {
 type DentalExaminationSubTab = 'odontogram' | 'history' | 'imaging' | 'laboratory' | 'treatment-plan';
 
 const dentalExaminationSubTabs: Array<{ id: DentalExaminationSubTab; label: string; icon: string }> = [
-  { id: 'history', label: 'History & Risk', icon: 'ph-heartbeat' },
-  { id: 'odontogram', label: 'Odontogram', icon: 'ph-tooth' },
+  { id: 'history', label: 'General Examination', icon: 'ph-stethoscope' },
+    { id: 'odontogram', label: 'Odontogram', icon: 'ph-tooth' },
   { id: 'imaging', label: 'Imaging', icon: 'ph-image-square' },
   { id: 'laboratory', label: 'Laboratory', icon: 'ph-flask' },
   { id: 'treatment-plan', label: 'Diagnosis & Plan', icon: 'ph-clipboard-text' },
@@ -114,7 +114,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const saveDraftMutation = useSaveOpdDentalExaminationDraft({ notifyOnError: false, notifyOnSuccess: false });
   const completeMutation = useCompleteOpdDentalExamination({ notifyOnError: false, notifyOnSuccess: false });
 
-  const isCompleted = dentalExam?.status === 'COMPLETED';
+  const isCompleted = dentalExam?.status === 'COMPLETED' || consultation?.status === 'COMPLETED';
   const isConsultationCompleted = consultation?.status === 'COMPLETED';
   const isReadOnly = !canEdit || isCompleted;
   const isSaving = saveDraftMutation.isPending || completeMutation.isPending;
@@ -157,7 +157,19 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const [treatmentPlanItems, setTreatmentPlanItems] = useState<DentalTreatmentPlanItem[]>([]);
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<DentalExaminationSubTab>('history');
+  const getInitialSubTab = (): DentalExaminationSubTab => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const s = sp.get('section');
+      if (s === 'oral-examination') return 'odontogram';
+      if (s && ['history', 'odontogram', 'imaging', 'laboratory', 'treatment-plan'].includes(s)) {
+        return s as DentalExaminationSubTab;
+      }
+    }
+    return 'history';
+  };
+
+  const [activeSubTab, setActiveSubTab] = useState<DentalExaminationSubTab>(getInitialSubTab);
   const [isDirty, setIsDirty] = useState(false);
   const dirtyRef = useRef(false);
   const allowNavigationRef = useRef(false);
@@ -165,7 +177,21 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   dirtyRef.current = isDirty;
 
   useEffect(() => {
-    setActiveSubTab('history');
+    const syncFromUrl = () => {
+      const sp = new URLSearchParams(window.location.search);
+      const s = sp.get('section');
+      const target = s === 'oral-examination' ? 'odontogram' : s;
+      if (target && ['history', 'odontogram', 'imaging', 'laboratory', 'treatment-plan'].includes(target)) {
+        setActiveSubTab((prev) => (prev !== target ? (target as DentalExaminationSubTab) : prev));
+      }
+    };
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    window.addEventListener('hms:navigation', syncFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncFromUrl);
+      window.removeEventListener('hms:navigation', syncFromUrl);
+    };
   }, [visitId]);
 
   const formatCurrency = useCurrencyFormatter();
@@ -425,6 +451,12 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       if (!saved) return;
     }
     setActiveSubTab(nextTab);
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set('section', nextTab);
+      window.history.replaceState(null, '', `${window.location.pathname}?${sp.toString()}${window.location.hash}`);
+      window.dispatchEvent(new Event('hms:navigation'));
+    }
   };
 
   const handleConfirmComplete = async () => {
@@ -653,39 +685,38 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       </div>
     )}
 
-    {!isConsultationCompleted ? (
+    {isCompleted || isConsultationCompleted ? (
+      <span
+        className={styles.statusBadgeCompleted}
+        title="Completed & Locked"
+        aria-label="Completed & Locked"
+      >
+        <i className="ph ph-check-circle-fill" />
+        <span>Completed & Locked</span>
+      </span>
+    ) : (
       <>
-        {isCompleted ? (
-          <span
-            className={styles.statusBadgeCompleted}
-            title="Completed & Locked"
-            aria-label="Completed & Locked"
-          >
-            <i className="ph ph-check-circle-fill" />
-          </span>
-        ) : (
-          <>
-            <span
-              className={styles.statusBadgeDraft}
-              title="Draft In-Progress"
-              aria-label="Draft In-Progress"
-            >
-              <i className="ph ph-pencil-simple-line" />
-            </span>
+        <span
+          className={styles.statusBadgeDraft}
+          title="Draft In-Progress"
+          aria-label="Draft In-Progress"
+        >
+          <i className="ph ph-pencil-simple-line" />
+          <span>Draft In-Progress</span>
+        </span>
 
-            {isDirty && (
-              <span
-                className={styles.unsavedBadge}
-                title="Unsaved Changes"
-                aria-label="Unsaved Changes"
-              >
-                <i className="ph ph-warning-circle" />
-              </span>
-            )}
-          </>
+        {isDirty && (
+          <span
+            className={styles.unsavedBadge}
+            title="Unsaved Changes"
+            aria-label="Unsaved Changes"
+          >
+            <i className="ph ph-warning-circle" />
+            <span>Unsaved Changes</span>
+          </span>
         )}
       </>
-    ) : null}
+    )}
   </div>
 </div>
 
@@ -729,14 +760,15 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           episodeId={episodeForSelectedTooth?.id ?? dentalExam?.episode_id ?? null}
           canEdit={canEdit && !isReadOnly}
           consultationCompleted={isCompleted}
-          additionalContent={(
-            <DentalSoftTissueSection
-              softTissue={softTissue}
-              onChange={handleSoftTissueChange}
-              disabled={controlsDisabled}
-              embedded
-            />
-          )}
+        />
+      </div>
+
+      {/* Oral Examination (Soft Tissues & Function/Bite) integrated inside Odontogram */}
+      <div style={{ marginTop: '1.25rem' }}>
+        <DentalSoftTissueSection
+          softTissue={softTissue}
+          onChange={handleSoftTissueChange}
+          disabled={controlsDisabled}
         />
       </div>
       </section>
@@ -749,10 +781,15 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           disabled={controlsDisabled}
           consultationChiefComplaint={consultation?.chief_complaint}
           consultationHpi={consultation?.history_present_illness}
+          consultationPastHistory={consultation?.past_history}
+          consultationFamilyHistory={consultation?.family_history}
+          consultationAllergies={consultation?.allergies}
           consultationAssessment={consultation?.assessment}
         />
       </div>
       </section>
+
+      
 
       <section className={styles.subTabPanel} aria-labelledby="dental-subtab-imaging" hidden={activeSubTab !== 'imaging'} id="dental-subtab-panel-imaging" role="tabpanel">
         {renderImaging?.(null, episodeForSelectedTooth?.id ?? dentalExam?.episode_id ?? null)}

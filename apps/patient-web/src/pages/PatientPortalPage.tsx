@@ -15,6 +15,7 @@ import { BillingTab } from '../components/patient-portal/tabs/BillingTab';
 import { ProfileTab } from '../components/patient-portal/tabs/ProfileTab';
 import { PatientCardModal } from '../components/patient-portal/modals/PatientCardModal';
 import { InvoiceDetailModal } from '../components/patient-portal/modals/InvoiceDetailModal';
+import { PatientAvatar } from '../components/patient-portal/PatientAvatar';
 
 export function PatientPortalPage() {
   const { logout } = useAuth();
@@ -256,7 +257,7 @@ export function PatientPortalPage() {
             }}
             tabIndex={0}
           >
-            <div className="patient-avatar">{initials}</div>
+            <PatientAvatar initials={initials} patientId={selectedPatientId} />
             <div style={{ display: 'grid', maxWidth: '180px' }}>
               <strong
                 style={{
@@ -385,6 +386,7 @@ export function PatientPortalPage() {
           <ProfileTab
             data={data}
             initials={initials}
+            patientId={selectedPatientId}
             patientAge={patientAge}
             portalContext={portalContext}
             selectedPatientContext={selectedPatientContext}

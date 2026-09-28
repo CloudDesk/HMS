@@ -15,6 +15,7 @@ import { useAuth } from '../auth/useAuth';
 import { hasPermission, isSuperAdministrator } from '../auth/access-control';
 import { patientInitials } from './opd-utils';
 import { formatDate, patientFullName, calculatePatientAge } from './patient-utils';
+import { PatientAvatar } from '../components/patients/PatientAvatar';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
 import { useHospitalSettings } from '../hooks/settings/useSettings';
 import { PatientRegistrationPage } from './PatientRegistrationPage';
@@ -487,8 +488,16 @@ export function PatientSearchPage() {
                     >
                       <td className="emp-id" data-label="MRN">{patient.patient_number}</td>
                       <td className="patient-directory-name-cell" data-label="Patient name">
-                        <div className="user-cell-info">
-                          <strong className="patient-directory-name" title={fullName}>{fullName}</strong>
+                        <div className="user-cell">
+                          <PatientAvatar
+                            patientId={patient.id}
+                            fullName={fullName}
+                            photoUrl={patient.photo_url}
+                            size="table"
+                          />
+                          <div className="user-cell-info">
+                            <strong className="patient-directory-name" title={fullName}>{fullName}</strong>
+                          </div>
                         </div>
                       </td>
                       {columns.gender ? <td data-label="Gender">{patient.gender}</td> : null}
@@ -808,9 +817,11 @@ export function PatientSearchPage() {
                 </div>
                 <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '20px', textTransform: 'uppercase' }}>Patient ID</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '3px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
-                    {patientInitials(patientFullName(cardPatient))}
-                  </div>
+                  <PatientAvatar
+                    fullName={patientFullName(cardPatient)}
+                    photoUrl={cardPatient.photo_url}
+                    size="card"
+                  />
                   <div>
                     <div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(cardPatient)}</div>
                     <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>{cardPatient.patient_number}</span>

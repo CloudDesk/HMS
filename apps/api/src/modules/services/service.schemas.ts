@@ -43,6 +43,8 @@ export const createServiceBodySchema = {
     category: { type: ['string', 'null'] },
     sample_type: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
+    reference_video_url: { type: ['string', 'null'], pattern: '^https?://', maxLength: 2000 },
+    reference_video_title: { type: ['string', 'null'], maxLength: 200 },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
   },
 } as const;
@@ -66,6 +68,8 @@ export const updateServiceBodySchema = {
     category: { type: ['string', 'null'] },
     sample_type: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
+    reference_video_url: { type: ['string', 'null'], pattern: '^https?://', maxLength: 2000 },
+    reference_video_title: { type: ['string', 'null'], maxLength: 200 },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
   },
 } as const;

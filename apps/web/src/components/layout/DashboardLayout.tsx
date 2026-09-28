@@ -44,7 +44,7 @@ function useActiveSidebarState() {
       const matchedLink = module.links.find(
         (link) => pathname === link.href || pathname.startsWith(link.href + '/'),
       );
-      return { activeKey: module.key, activeHref: matchedLink?.href ?? pathname };
+      return { activeKey: module.key, activeHref: matchedLink?.href ?? module.links[0]?.href ?? pathname };
     }
     const prefix = `/${module.key}`;
     if (pathname === prefix || pathname.startsWith(prefix + '/')) {

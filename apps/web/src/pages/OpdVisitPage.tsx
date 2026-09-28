@@ -33,7 +33,7 @@ import {
 import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
 import { useActiveBranch } from '../context/BranchContext';
 import { useTimezone } from '../api/useSettings';
-import { navigate } from '../routing/navigation';
+import { navigate, useAppLocation } from '../routing/navigation';
 import { getPatientErrorMessage, calculateAge } from './patient-utils';
 import {
   getOpdErrorMessage,
@@ -104,10 +104,7 @@ const WORKSPACE_TABS = [
 ] as const;
 
 const DENTAL_WORKSPACE_TABS = [
-  { id: '1', label: '1 Consultation', name: 'Consultation' },
-  { id: 'dental', label: '2 Dental Examination', name: 'Dental Examination' },
-  { id: '2', label: '3 Prescription', name: 'Prescription' },
-  { id: '3', label: '4 Referral', name: 'Referral' },
+  { id: 'dental', label: 'Dental Examination', name: 'Dental Examination' },
 ] as const;
 
 const emptyVitalsForm: VitalsFormState = {
@@ -182,6 +179,7 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null
 });
 
 export function OpdVisitPage() {
+  const { pathname } = useAppLocation();
   const { activeBranchId } = useActiveBranch();
   const timezone = useTimezone();
   const feature = useOpdVisitFeature();
@@ -258,23 +256,31 @@ export function OpdVisitPage() {
     () => isDentalVisit(visit, departments),
     [visit, departments],
   );
+  const dedicatedSection = pathname === '/opd/prescription'
+    ? 'Prescription'
+    : pathname === '/opd/referral'
+      ? 'Referral'
+      : null;
   const activeWorkspaceTabs = isDental && feature.state.canViewConsultation ? DENTAL_WORKSPACE_TABS : WORKSPACE_TABS;
 
   useEffect(() => {
-    if (!isDental) return;
+    if (!isDental || dedicatedSection) return;
     if (
+      activeTab === 'Consultation' ||
+      activeTab === 'Prescription' ||
+      activeTab === 'Referral' ||
       activeTab === 'Lab Orders' ||
       activeTab === 'Imaging Orders' ||
       activeTab === 'Diagnosis' ||
       activeTab === 'Follow-up'
     ) {
-      const targetTab = activeTab === 'Follow-up' ? 'Referral' : 'Dental Examination';
+      const targetTab = 'Dental Examination';
       setActiveTab(targetTab);
       if (visit?.id) {
         navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(targetTab)}`, { replace: true });
       }
     }
-  }, [activeTab, isDental, setActiveTab, visit?.id]);
+  }, [activeTab, dedicatedSection, isDental, setActiveTab, visit?.id]);
 
   const handleSubmitReferral = async () => {
     if (!visit || !referralDoctorId || !referralSpecialty) {
@@ -463,7 +469,8 @@ export function OpdVisitPage() {
       if (!prev.assessment) return prev;
       const lines = prev.assessment.split('\n');
       const filtered = lines.filter((line) => {
-        const hasCode = line.toLowerCase().includes(code.toLowerCase());
+        const lineCode = line.trim().split(/\s+/)[0]?.toLowerCase();
+        const hasCode = lineCode === code.toLowerCase();
         if (!hasCode) return true;
         if (toothNumber !== undefined && toothNumber !== null) {
           const toothMatch = line.match(/\[Tooth #(\d+)\]/i);
@@ -864,7 +871,12 @@ export function OpdVisitPage() {
     void saveConsultationDraft();
     setActiveTab(resolvedNextTab);
     if (visit?.id) {
-      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(resolvedNextTab)}`, { replace: true });
+      const destination = isDental && resolvedNextTab === 'Prescription'
+        ? '/opd/prescription'
+        : isDental && resolvedNextTab === 'Referral'
+          ? '/opd/referral'
+          : '/opd/consultation';
+      navigate(`${destination}?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(resolvedNextTab)}`, { replace: true });
     }
     requestAnimationFrame(() => {
       const scrollContainer = document.querySelector('.main-content');
@@ -1388,7 +1400,7 @@ export function OpdVisitPage() {
           <div className={`opd-workspace ${summaryPanelOpen ? '' : 'summary-hidden'}`}>
             <main className="opd-clinical-main">
               {/* Workspace Tabs Bar */}
-              <div className="opd-workspace-tabs-shell">
+              {!dedicatedSection ? <div className="opd-workspace-tabs-shell">
                 <div className="opd-workspace-tabs" role="tablist" aria-label="Consultation tabs">
                   {activeWorkspaceTabs.map((tab) => {
                     const completed = isTabCompleted(tab.name);
@@ -1418,14 +1430,14 @@ export function OpdVisitPage() {
                     Completed · Read Only
                   </span>
                 ) : null}
-              </div>
+              </div> : null}
 
               <fieldset
                 disabled={isVisitCompleted && activeTab !== 'Dental Examination'}
                 style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}
               >
                 {/* TAB 1: CONSULTATION */}
-                {activeTab === 'Consultation' ? (
+                {activeTab === 'Consultation' && !isDental ? (
                   <OpdConsultationSection
                     canEdit={!isVisitCompleted && feature.state.canEditConsultation}
                     consultationForm={consultationForm}

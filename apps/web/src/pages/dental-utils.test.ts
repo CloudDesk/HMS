@@ -95,6 +95,20 @@ describe('dental-utils tests', () => {
     });
   });
 
+  it('parses G.V. Black cavity classifications with their tooth association', () => {
+    const diagnoses = parseDentalDiagnoses(
+      'GVB-II - Class II — Proximal surfaces of posterior teeth (molars and premolars) [Tooth #36]',
+    );
+
+    expect(diagnoses).toEqual([
+      expect.objectContaining({
+        code: 'GVB-II',
+        category: 'G.V. Black Cavity Classification',
+        tooth_number: 36,
+      }),
+    ]);
+  });
+
   describe('Tooth anatomy helpers', () => {
     it('identifies dentition type accurately', () => {
       expect(getDentition(16)).toBe('PERMANENT');

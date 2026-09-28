@@ -232,6 +232,14 @@ export function AppRouter() {
     title = 'Consultation Workspace';
     breadcrumbs = [];
     content = <OpdVisitPage />;
+  } else if (pathname === '/opd/prescription') {
+    title = 'OPD Prescription';
+    breadcrumbs = ['Home', 'OPD', 'Prescription'];
+    content = <OpdVisitPage />;
+  } else if (pathname === '/opd/referral') {
+    title = 'OPD Referral';
+    breadcrumbs = ['Home', 'OPD', 'Referral'];
+    content = <OpdVisitPage />;
   } else if (pathname === '/opd/queue') {
     title = 'OPD Waiting Queue';
     breadcrumbs = ['Home', 'OPD', 'Waiting Queue'];
