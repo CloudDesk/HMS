@@ -52,8 +52,27 @@ export function Modal({
             {icon ? <span><i className={`ph ${icon}`} /></span> : null}
             <h2 id={titleId}>{title}</h2>
           </div>
-          <button aria-label="Close dialog" onClick={onClose} ref={closeButtonRef} type="button">
-            <i className="ph ph-x" />
+          <button
+            aria-label="Close dialog"
+            className="patient-modal-close-btn"
+            onClick={onClose}
+            ref={closeButtonRef}
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              fill="none"
+              height="20"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.5"
+              viewBox="0 0 24 24"
+              width="20"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </header>
         <div className="modal-body patient-modal-body">{children}</div>

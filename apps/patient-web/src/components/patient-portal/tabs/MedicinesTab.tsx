@@ -194,7 +194,7 @@ export function MedicinesTab({ data }: MedicinesTabProps) {
       {/* Prescription Details Modal */}
       {selectedPrescription ? (
         <Modal
-          icon="ph-prescription"
+          icon="ph-pill"
           onClose={() => setSelectedPrescription(null)}
           open={Boolean(selectedPrescription)}
           size="large"

@@ -3438,25 +3438,45 @@ label b,
   letter-spacing: -0.015em;
 }
 
-.patient-modal-header > button {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
+.patient-modal-header > button,
+.patient-modal-close-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
-  border: 1.5px solid var(--patient-border);
-  border-radius: 7px;
-  background: #fff;
-  color: #475569;
-  font-size: 1rem;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
   cursor: pointer;
-  transition: all 0.15s ease;
+  padding: 0 !important;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
-.patient-modal-header > button:hover {
-  border-color: #bfdbfe;
-  background: var(--patient-blue-soft);
-  color: var(--patient-primary);
+.patient-modal-header > button:hover,
+.patient-modal-close-btn:hover {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  box-shadow: 0 2px 5px rgba(220, 38, 38, 0.18);
+  transform: translateY(-1px);
+}
+
+.patient-modal-header > button:active,
+.patient-modal-close-btn:active {
+  transform: translateY(0);
+}
+
+.patient-modal-header > button svg,
+.patient-modal-close-btn svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 2.5;
 }
 
 .patient-modal-body {
