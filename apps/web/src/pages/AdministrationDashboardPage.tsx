@@ -44,7 +44,7 @@ export function AdministrationDashboardPage() {
         <i className="ph ph-warning-circle" aria-hidden="true" />
         <strong>Administration dashboard unavailable</strong>
         <span>{error}</span>
-        <button className="btn-secondary" onClick={() => void refetch()} type="button">Try again</button>
+        <button className="btn-secondary" onClick={() => void refetch()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Try again</button>
       </div>
     );
   }

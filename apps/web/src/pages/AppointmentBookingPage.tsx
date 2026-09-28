@@ -41,8 +41,12 @@ const bookingSchema = z.object({
   start_time: z.string().min(1, 'Time slot is required'),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY']),
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
-  reason: z.string().optional(),
+  reason: z.string().trim().optional(),
   notes: z.string().optional(),
+  history_present_illness: z.string().optional(),
+  past_history: z.string().optional(),
+  family_history: z.string().optional(),
+  allergies: z.string().optional(),
 });
 
 type BookingFormData = z.infer<typeof bookingSchema>;
@@ -76,6 +80,10 @@ const {
       priority: 'ROUTINE',
       reason: '',
       notes: '',
+      history_present_illness: '',
+      past_history: '',
+      family_history: '',
+      allergies: '',
     },
   });
 
@@ -227,6 +235,13 @@ clearErrors('start_time');
         duration_minutes: selectedSlotOption?.durationMinutes ?? 30,
         reason: data.reason?.trim() || null,
         notes: data.notes?.trim() || null,
+        consultation_intake: {
+          chief_complaint: data.reason?.trim() || null,
+          history_present_illness: data.history_present_illness?.trim() || null,
+          past_history: data.past_history?.trim() || null,
+          family_history: data.family_history?.trim() || null,
+          allergies: data.allergies?.trim() || null,
+        },
       });
       navigate('/appointments/queue');
     } catch {
@@ -487,12 +502,30 @@ clearErrors('start_time');
                 )}
               </div>
               <div className="doc-field full">
-                <label htmlFor="booking-reason">Reason for Visit</label>
-                <input
+                <label htmlFor="booking-reason">Chief Complaint</label>
+                <textarea
                   id="booking-reason"
-                  placeholder="Brief reason for appointment"
+                  placeholder="Describe the main concern for this visit"
+                  rows={3}
                   {...register('reason')}
                 />
+                {errors.reason ? <small className="field-error">{errors.reason.message}</small> : null}
+              </div>
+              <div className="doc-field full">
+                <label htmlFor="booking-hpi">History of Present Illness</label>
+                <textarea id="booking-hpi" rows={3} placeholder="Onset, symptoms and relevant details" {...register('history_present_illness')} />
+              </div>
+              <div className="doc-field">
+                <label htmlFor="booking-past-history">Past Medical History</label>
+                <textarea id="booking-past-history" rows={3} {...register('past_history')} />
+              </div>
+              <div className="doc-field">
+                <label htmlFor="booking-family-history">Family History</label>
+                <textarea id="booking-family-history" rows={3} {...register('family_history')} />
+              </div>
+              <div className="doc-field full">
+                <label htmlFor="booking-allergies">Allergies / Sensitivities</label>
+                <textarea id="booking-allergies" rows={3} {...register('allergies')} />
               </div>
               <div className="doc-field full">
                 <label htmlFor="booking-notes">Additional Notes</label>

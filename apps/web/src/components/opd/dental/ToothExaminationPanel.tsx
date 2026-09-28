@@ -25,7 +25,6 @@ interface ToothExaminationPanelProps {
   showAffectedSurfaces?: boolean;
   onSave?: () => void;
   isSaving?: boolean;
-  additionalContent?: React.ReactNode;
   episodeContext?: {
     episode_number: string | number;
     primary_tooth_number?: number | null;
@@ -43,6 +42,18 @@ interface ToothExaminationPanelProps {
   consultationCompleted?: boolean;
   imagingContent?: React.ReactNode;
 }
+
+const CONDITION_ICONS: Record<string, string> = {
+  HEALTHY: 'ph-check-circle',
+  CARIOUS: 'ph-warning-circle',
+  FILLED: 'ph-seal-check',
+  CROWN: 'ph-crown',
+  ROOT_PIECE: 'ph-tooth',
+  IMPACTED: 'ph-arrow-down',
+  FRACTURED: 'ph-lightning',
+  PULPITIC: 'ph-pulse',
+  PERIAPICAL_LESION: 'ph-circle-dashed',
+};
 
 type ToothAffectedSurfacesProps = Pick<
   ToothExaminationPanelProps,
@@ -94,7 +105,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   onRemoveFinding,
   disabled = false,
   showAffectedSurfaces = true,
-  additionalContent,
   episodeContext = null,
   toothDiagnoses = [],
   onOpenDiagnosis,
@@ -120,7 +130,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
             Click any tooth on the odontogram to record clinical findings, surfaces, and periodontal status.
           </p>
         </div>
-        {additionalContent}
       </div>
     );
   }
@@ -370,10 +379,10 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
       )}
       <div className={styles.toothDetailTabs} role="tablist" aria-label="Selected tooth details">
         {([
-          ['surfaces', 'Surfaces'],
-          ['imaging', 'Imaging'],
-          ['periodontal', 'Periodontal'],
-        ] as const).map(([value, label]) => (
+          ['surfaces', 'Surfaces', 'ph-grid-four'],
+          ['imaging', 'Imaging', 'ph-image-square'],
+          ['periodontal', 'Periodontal', 'ph-chart-line-up'],
+        ] as const).map(([value, label, icon]) => (
           <button
             key={value}
             type="button"
@@ -383,6 +392,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
             onClick={() => setActiveDetailTab(value)}
             disabled={value === 'periodontal' && (finding.status === 'MISSING' || finding.status === 'EXTRACTED')}
           >
+            <i className={`ph ${icon}`} aria-hidden="true" />
             {label}
           </button>
         ))}
@@ -429,6 +439,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
                   onClick={() => toggleCondition(cond.id)}
                   title={cond.description}
                 >
+                  <i className={`ph ${CONDITION_ICONS[cond.id] ?? 'ph-circle'}`} aria-hidden="true" />
                   {cond.label}
                 </button>
               );
@@ -448,13 +459,13 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
               )}
               title="Mark this tooth as missing"
             >
+              <i className="ph ph-x-circle" aria-hidden="true" />
               Missing
             </button>
           </div>
         </div>
       </div>
 
-      {additionalContent}
       </>}
 
       {/* Subsection: TOOTH-CENTERED IMAGING TAB */}

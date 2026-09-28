@@ -199,6 +199,7 @@ export class RoleRepository {
       type: input.type,
       status: input.status,
       color: input.color ?? undefined,
+      deletedAt: null,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
     } as unknown as Partial<import('./role.model.js').IRole>);

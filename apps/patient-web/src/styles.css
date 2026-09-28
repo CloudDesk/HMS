@@ -14,6 +14,11 @@ html {
 }
 
 :root {
+  --font-family-base: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-size-body: 0.9rem;
+  --font-size-subheading: 1rem;
+  --font-size-heading: 1.25rem;
+  --font-size-page-heading: 1.5rem;
   --patient-primary: #2563eb;
   --patient-primary-hover: #1d4ed8;
   --patient-navy: #0f172a;
@@ -36,7 +41,7 @@ html {
   --color-danger: #ef4444;
   --portal-border: #e2e8f0;
 
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-family-base);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -55,9 +60,16 @@ a {
   text-decoration: none;
 }
 
-button {
+button,
+input,
+select,
+textarea {
   font-family: inherit;
 }
+
+h1 { font-size: var(--font-size-page-heading); }
+h2 { font-size: var(--font-size-heading); }
+h3, h4 { font-size: var(--font-size-subheading); }
 
 /* ==========================================================================
    1. Patient Authentication (Login & Signup Pages)
@@ -245,8 +257,31 @@ button {
   font-weight: 700;
 }
 
-.required-asterisk {
-  color: #ef4444;
+/* Universal Required Asterisk Red Color Styles */
+.required-asterisk,
+.required,
+label .required-asterisk,
+label .required,
+span.required,
+span.required-asterisk,
+label > span > b,
+label b,
+.portal-form-grid label b,
+.portal-form-grid label span b,
+.portal-form-grid label > span > b,
+.patient-login-form label b,
+.patient-login-form label span b,
+.portal-dialog-body label b,
+.portal-dialog-body label span b,
+.portal-dialog-body label > span > b,
+.portal-field label b,
+.portal-field label span b,
+.form-group label b,
+.form-group label span b {
+  color: #ef4444 !important;
+  font-weight: 700 !important;
+  margin-left: 0.18rem;
+  display: inline-block;
 }
 
 .patient-login-input {
@@ -1457,6 +1492,31 @@ button {
   background: var(--patient-blue-soft);
 }
 
+.patient-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.portal-check-in-action {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--patient-primary);
+  padding: 0 12px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.portal-check-in-action:hover { background: var(--patient-primary-hover); }
+.portal-check-in-action:disabled { opacity: 0.65; cursor: wait; }
+
 /* ==========================================================================
    8. Prescriptions & Medication Records Layout (1 Prescription = 1 Record Card)
    ========================================================================== */
@@ -2128,6 +2188,239 @@ button {
   border-bottom: 1px solid var(--patient-border);
 }
 
+.portal-profile-photo-control {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+}
+
+.portal-profile-photo-control > div:nth-child(2) {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.portal-profile-photo-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid var(--patient-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--patient-primary);
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portal-profile-photo-control button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.portal-profile-photo-control > input {
+  display: none;
+}
+
+.portal-camera-stage {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #0f172a;
+}
+
+.portal-camera-stage video {
+  width: 100%;
+  max-height: 58dvh;
+  border-radius: 10px;
+  object-fit: contain;
+  transform: scaleX(-1);
+  background: #020617;
+}
+
+.portal-camera-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  max-width: 380px;
+  padding: 2rem;
+  color: #fff;
+  text-align: center;
+}
+
+.portal-camera-state > i {
+  font-size: 2rem;
+  color: #fca5a5;
+}
+
+.portal-camera-state span {
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.portal-camera-state button,
+.portal-camera-cancel,
+.portal-camera-capture {
+  min-height: 40px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--patient-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--patient-text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.portal-camera-capture {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-color: var(--patient-primary);
+  background: var(--patient-primary);
+  color: #fff;
+}
+
+.portal-camera-capture:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.portal-consent-signatures {
+  margin-top: 1rem;
+  padding: 1.15rem;
+  border: 1px solid var(--patient-border);
+  border-radius: 11px;
+  background: #fff;
+}
+
+.portal-consent-signatures-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.portal-consent-signatures-heading > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--patient-blue-soft);
+  color: var(--patient-primary);
+  font-size: 1.1rem;
+}
+
+.portal-consent-signatures-heading h2,
+.portal-consent-signatures-heading p {
+  margin: 0;
+}
+
+.portal-consent-signatures-heading h2 {
+  color: var(--patient-text);
+  font-size: 0.9rem;
+}
+
+.portal-consent-signatures-heading p {
+  margin-top: 0.2rem;
+  color: var(--patient-muted);
+  font-size: 0.7rem;
+}
+
+.portal-consent-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.portal-consent-list > article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--patient-border);
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.portal-consent-list > article > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.portal-consent-list strong {
+  color: var(--patient-text);
+  font-size: 0.78rem;
+}
+
+.portal-consent-list span,
+.portal-consent-empty {
+  color: var(--patient-muted);
+  font-size: 0.68rem;
+}
+
+.portal-consent-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.portal-consent-actions button,
+.portal-consent-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.48rem 0.7rem;
+  border: 1px solid var(--patient-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--patient-primary);
+  font: inherit;
+  font-size: 0.67rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portal-consent-actions label.disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.portal-consent-actions input {
+  display: none;
+}
+
+.portal-consent-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+@media (max-width: 640px) {
+  .portal-profile-head,
+  .portal-consent-list > article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .portal-profile-head > .portal-status {
+    margin-left: 0;
+  }
+
+  .portal-consent-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
 .portal-profile-head > div:nth-child(2) {
   display: grid;
 }
@@ -2584,6 +2877,233 @@ button {
 .portal-billing-card footer button:hover {
   border-color: #93c5fd;
   background: var(--patient-blue-soft);
+}
+
+.portal-accepted-plan {
+  margin: 0 1.25rem 1rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  overflow: hidden;
+}
+
+.portal-accepted-plan > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid #dcfce7;
+}
+
+.portal-accepted-plan > header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.portal-accepted-plan > header i {
+  color: #15803d;
+  font-size: 1.15rem;
+}
+
+.portal-accepted-plan h3 {
+  margin: 0;
+  color: #14532d;
+  font-size: 0.84rem;
+}
+
+.portal-accepted-plan header span {
+  display: block;
+  margin-top: 0.1rem;
+  color: #4b7260;
+  font-size: 0.7rem;
+}
+
+.portal-accepted-plan-count {
+  flex: 0 0 auto;
+  padding: 0.24rem 0.55rem;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d !important;
+  font-weight: 700;
+}
+
+.portal-accepted-plan-list {
+  display: grid;
+  background: #fff;
+}
+
+.portal-accepted-plan-item {
+  display: grid;
+  grid-template-columns: 28px minmax(160px, 1fr) auto minmax(118px, auto);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.72rem 0.9rem;
+  border-bottom: 1px solid #ecfdf5;
+}
+
+.portal-accepted-plan-item:last-child {
+  border-bottom: 0;
+}
+
+.portal-accepted-plan-step {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.portal-accepted-plan-item > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.portal-accepted-plan-item > div strong {
+  color: var(--patient-text);
+  font-size: 0.78rem;
+}
+
+.portal-accepted-plan-item > div span,
+.portal-reference-video-unavailable {
+  color: var(--patient-muted);
+  font-size: 0.68rem;
+}
+
+.portal-accepted-plan-price {
+  color: var(--patient-text);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.portal-reference-video-button,
+.portal-reference-video-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.7rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.portal-reference-video-button {
+  padding: 0.42rem 0.65rem;
+}
+
+.portal-reference-video-inline {
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.portal-reference-video-button:hover,
+.portal-reference-video-inline:hover {
+  border-color: #60a5fa;
+  background: #dbeafe;
+}
+
+.portal-accepted-plan-empty {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  background: #fff;
+  color: var(--patient-muted);
+  font-size: 0.76rem;
+}
+
+.portal-reference-video {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.1rem 1.25rem;
+}
+
+.portal-reference-video-context {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.portal-reference-video iframe,
+.portal-reference-video video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 62vh;
+  border: 0;
+  border-radius: 10px;
+  background: #0f172a;
+}
+
+.portal-reference-video-fallback {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  padding: 2rem;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.portal-reference-video-fallback > i {
+  color: var(--patient-primary);
+  font-size: 2rem;
+}
+
+.portal-reference-video-fallback span,
+.portal-reference-video-footer > span {
+  color: var(--patient-muted);
+  font-size: 0.74rem;
+}
+
+.portal-reference-video-fallback a,
+.portal-reference-video-footer a {
+  color: var(--patient-primary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.portal-reference-video-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.portal-reference-video-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+@media (max-width: 760px) {
+  .portal-accepted-plan-item {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .portal-accepted-plan-price,
+  .portal-reference-video-button,
+  .portal-reference-video-unavailable {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .portal-reference-video-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 /* Invoice Detail Modal Elements */

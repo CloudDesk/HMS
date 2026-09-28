@@ -64,6 +64,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     refreshPromiseRef.current = (async () => {
       const session = await authApi.refresh();
+      const isPatientAccount = session.user.roles.some(
+        (role) => role.code === 'PATIENT' || role.code === 'GUARDIAN',
+      ) || Boolean(session.user.patientId);
+      if (isPatientAccount) {
+        tokenStorage.setTokens(session.tokens);
+        try {
+          await authApi.logout();
+        } catch {
+          // The staff application still rejects the cross-portal session locally.
+        }
+        throw new ApiError(
+          'Patient and guardian sessions cannot be restored in the staff application.',
+          403,
+          'PATIENT_PORTAL_ACCOUNT',
+        );
+      }
       tokenStorage.setTokens(session.tokens);
       setUser(session.user);
       setStatus('authenticated');

@@ -192,6 +192,14 @@ export class PatientService {
     });
     try {
       const document = await this.repository.createDocument(patientId, {
+        visit_id: data.visit_id,
+        admission_id: data.admission_id,
+        procedure_id: data.procedure_id,
+        context_type: data.context_type,
+        context_id: data.context_id,
+        consent_template_id: data.consent_template_id,
+        consent_category: data.consent_category,
+        consent_version: data.consent_version,
         document_type: data.document_type,
         title: data.title,
         file_name: data.file_name,
@@ -199,15 +207,30 @@ export class PatientService {
         file_size_bytes: data.file_size_bytes,
         storage_key: storageKey,
         description: data.description,
+        consent_status: data.consent_status,
+        consent_kind: data.consent_kind,
+        signed_at: data.signed_at,
+        valid_until: data.valid_until,
+        signed_by_name: data.signed_by_name,
         source: data.source,
         review_status: data.review_status,
         document_date: data.document_date,
         provider_name: data.provider_name,
       }, userId);
+      const isProfilePhoto = document.consent_kind === 'PROFILE_PHOTO';
+      const isConsentSignature = document.consent_kind === 'PATIENT_SIGNATURE';
       await this.repository.addTimelineEvent(patientId, {
         event_type: 'DOCUMENT_ADDED',
-        title: 'Patient-supplied document added',
-        description: `${document.title} was uploaded and is pending clinical review.`,
+        title: isProfilePhoto
+          ? 'Profile photo updated'
+          : isConsentSignature
+            ? 'Consent signature uploaded'
+            : 'Patient-supplied document added',
+        description: isProfilePhoto
+          ? 'The patient portal profile photo was updated.'
+          : isConsentSignature
+            ? `${document.title} was uploaded for consent review.`
+            : `${document.title} was uploaded and is pending clinical review.`,
       }, userId);
       return document;
     } catch (error) {
@@ -251,6 +274,24 @@ export class PatientService {
     const document = await this.getActiveDocument(patientId, documentId);
     const storedFile = await this.documentStorage.download(document.storage_key);
     return { document, data: storedFile.data, contentType: storedFile.contentType ?? document.mime_type };
+  }
+
+  async getDocumentForPortal(patientId: string, documentId: string) {
+    return this.getActiveDocument(patientId, documentId);
+  }
+
+  async getProfilePhoto(patientId: string, userId: string) {
+    await this.getById(patientId, userId);
+    const document = await this.repository.findProfilePhotoDocument(patientId);
+    if (!document) {
+      return null;
+    }
+    const storedFile = await this.documentStorage.download(document.storage_key);
+    return {
+      document,
+      data: storedFile.data,
+      contentType: storedFile.contentType ?? document.mime_type,
+    };
   }
 
   async reviewDocument(

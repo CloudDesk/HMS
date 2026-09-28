@@ -16,6 +16,9 @@ interface DentalHistorySectionProps {
   consultationChiefComplaint?: string | null;
   /** Read-only general history of present illness for dentist reference */
   consultationHpi?: string | null;
+  consultationPastHistory?: string | null;
+  consultationFamilyHistory?: string | null;
+  consultationAllergies?: string | null;
   /** Read-only general consultation assessment / diagnoses for dentist reference */
   consultationAssessment?: string | null;
 }
@@ -26,6 +29,9 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
   disabled = false,
   consultationChiefComplaint,
   consultationHpi,
+  consultationPastHistory,
+  consultationFamilyHistory,
+  consultationAllergies,
   consultationAssessment,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -106,6 +112,9 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
   const hasConsultationContext = Boolean(
     consultationChiefComplaint?.trim() ||
     consultationHpi?.trim() ||
+    consultationPastHistory?.trim() ||
+    consultationFamilyHistory?.trim() ||
+    consultationAllergies?.trim() ||
     consultationAssessment?.trim()
   );
 
@@ -145,8 +154,8 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           </button>
           <span className={styles.historyHeaderIcon}><i className="ph ph-tooth" /></span>
           <div>
-            <h3 className={styles.cardTitle}>Dental History &amp; Medical Risk Assessment</h3>
-            <p className={styles.historyHeaderSubtitle}>Assess patient's dental history, habits, and medical conditions to ensure safe treatment.</p>
+            <h3 className={styles.cardTitle}>General Examination</h3>
+            <p className={styles.historyHeaderSubtitle}>Review symptoms, pain, medical risks, allergies, and habits before the oral examination.</p>
           </div>
         </div>
         {alertsList.length > 0 && (
@@ -184,6 +193,24 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
               <div style={{ marginBottom: consultationAssessment?.trim() ? '8px' : 0 }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>HPI: </span>
                 <span className={styles.consultationContextText}>{consultationHpi}</span>
+              </div>
+            )}
+            {consultationPastHistory?.trim() && (
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>Past Medical History: </span>
+                <span className={styles.consultationContextText}>{consultationPastHistory}</span>
+              </div>
+            )}
+            {consultationFamilyHistory?.trim() && (
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>Family History: </span>
+                <span className={styles.consultationContextText}>{consultationFamilyHistory}</span>
+              </div>
+            )}
+            {consultationAllergies?.trim() && (
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>Allergies / Sensitivities: </span>
+                <span className={styles.consultationContextText}>{consultationAllergies}</span>
               </div>
             )}
             {consultationAssessment?.trim() && (

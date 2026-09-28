@@ -78,9 +78,9 @@ export function ImagingReportEntryPage() {
       {!canEdit ? <div className="diagnostic-readonly"><i className="ph ph-info" /> A report can be entered only after the order is in progress.</div> : null}
 
       <div className="diagnostic-form-actions">
-        <button className="btn-secondary" type="button" onClick={() => navigate(`/imaging/workspace?id=${id}`)}>Back</button>
+        <button className="btn-secondary" type="button" onClick={() => navigate(`/imaging/workspace?id=${id}`)}><i className="ph ph-arrow-left" aria-hidden="true" /> Back</button>
         {readOnly && report ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
-        {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterReport} type="submit">{isSaving ? 'Saving...' : 'Save Report'}</button> : null}
+        {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterReport} type="submit">{isSaving ? 'Saving...' : <><i className="ph ph-floppy-disk" aria-hidden="true" /> Save Report</>}</button> : null}
       </div>
     </form>
     <ImagingAttachmentsPanel

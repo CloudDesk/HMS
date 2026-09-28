@@ -41,6 +41,7 @@ import {
 } from '../../../pages/dental-utils';
 import { DentalStageScheduleModal } from './DentalStageScheduleModal';
 import { DentalProstheticLabModal } from './DentalProstheticLabModal';
+import { DentalReferenceVideoModal } from './DentalReferenceVideoModal';
 import { downloadDentalStagesPdf, downloadDentalQuotationPdf } from '../../../utils/dental-pdf';
 import styles from './DentalExamination.module.css';
 
@@ -385,6 +386,11 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   const [scheduleModalStage, setScheduleModalStage] = useState<DentalTreatmentStageResponse | null>(null);
   const [cancelConfirmStageId, setCancelConfirmStageId] = useState<string | null>(null);
   const [viewAppointmentStageId, setViewAppointmentStageId] = useState<string | null>(null);
+  const [procedureReference, setProcedureReference] = useState<{
+    procedureName: string;
+    url: string;
+    title?: string | null;
+  } | null>(null);
 
   // Queries & Mutations across all episodes
   const episodeStagesQueries = useQueries({
@@ -1373,9 +1379,14 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                 <tbody>
                   {items.map((item, idx) => {
                     const billingState = item.id ? billingStateByTreatmentItem.get(item.id) : undefined;
-                    const cataloguePrice = item.service_id
-                      ? departmentServices.find((service) => service.id === item.service_id)?.standard_price
-                      : undefined;
+                    const catalogueService = (
+                      item.service_id
+                        ? departmentServices.find((service) => service.id === item.service_id)
+                        : undefined
+                    ) ?? departmentServices.find(
+                      (service) => service.name.trim().toLowerCase() === item.procedure_name.trim().toLowerCase(),
+                    );
+                    const cataloguePrice = catalogueService?.standard_price;
                     const isPersisted = Boolean(item.id && /^[a-f\d]{24}$/i.test(item.id));
                     const isAcceptedOrActive = item.status === 'ACCEPTED' || item.status === 'IN_PROGRESS' || item.status === 'COMPLETED';
                     const isProposed = item.status === 'PROPOSED' || !item.status;
@@ -1423,6 +1434,33 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               <span style={{ fontWeight: 600 }}>{item.procedure_name}</span>
+                              {catalogueService?.reference_video_url && (
+                                <button
+                                  type="button"
+                                  className={styles.chip}
+                                  style={{
+                                    cursor: 'pointer',
+                                    fontSize: '0.725rem',
+                                    background: '#eff6ff',
+                                    color: '#1d4ed8',
+                                    borderColor: '#bfdbfe',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '2px 8px',
+                                    fontWeight: 600,
+                                  }}
+                                  onClick={() => setProcedureReference({
+                                    procedureName: item.procedure_name,
+                                    url: catalogueService.reference_video_url!,
+                                    title: catalogueService.reference_video_title,
+                                  })}
+                                  title={`Watch the Service Catalogue reference video for ${item.procedure_name}`}
+                                  data-testid="procedure-reference-video-btn"
+                                >
+                                  <i className="ph ph-play-circle" aria-hidden="true" /> Reference video
+                                </button>
+                              )}
                               {/* Stages management indicator / toggle for accepted/active items */}
                               {isAcceptedOrActive && (
                                 isPersisted ? (
@@ -2218,6 +2256,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                             onChange={(e) => setNewStageNotes(e.target.value)}
                                           />
                                         </div>
+
                                       </div>
 
                                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -3822,6 +3861,16 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
           </div>
         </div>
       </div>
+    )}
+
+    {/* Treatment Procedure Reference Video Modal */}
+    {procedureReference && (
+      <DentalReferenceVideoModal
+        procedureName={procedureReference.procedureName}
+        referenceUrl={procedureReference.url}
+        referenceTitle={procedureReference.title}
+        onClose={() => setProcedureReference(null)}
+      />
     )}
 
     {/* Prosthetic Lab Order Create Modal */}

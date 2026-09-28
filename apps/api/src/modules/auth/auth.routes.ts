@@ -56,6 +56,13 @@ const metadataFromRequest = (request: FastifyRequest) => ({
   userAgent: request.headers['user-agent'],
 });
 
+const isPatientPortalAccount = (user: {
+  patientId?: string | null;
+  roles: Array<{ code: string }>;
+}) => Boolean(
+  user.patientId || user.roles.some((role) => role.code === 'PATIENT' || role.code === 'GUARDIAN'),
+);
+
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
@@ -80,6 +87,19 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
     },
     async (request, reply) => {
       const session = await services.auth.login(request.body, metadataFromRequest(request));
+
+      if (isPatientPortalAccount(session.user)) {
+        await services.auth.logout(
+          session.user.id,
+          session.tokens.refreshToken,
+          metadataFromRequest(request),
+        );
+        throw new AppError(
+          'Patient and guardian accounts must sign in through the patient portal',
+          403,
+          'PATIENT_PORTAL_ACCOUNT',
+        );
+      }
 
       // Set the refresh token in an HttpOnly cookie — not readable by JavaScript.
       return ok(establishRefreshSession(reply, session));
@@ -116,6 +136,20 @@ export const registerAuthRoutes = async (app: FastifyInstance, services: Service
         { refreshToken: cookieToken },
         metadataFromRequest(request),
       );
+
+      if (isPatientPortalAccount(session.user)) {
+        await services.auth.logout(
+          session.user.id,
+          session.tokens.refreshToken,
+          metadataFromRequest(request),
+        );
+        clearRefreshSessionCookie(reply);
+        throw new AppError(
+          'Patient and guardian sessions cannot be restored in the staff application',
+          403,
+          'PATIENT_PORTAL_ACCOUNT',
+        );
+      }
 
       // Replace the cookie with the newly rotated refresh token.
       return ok(establishRefreshSession(reply, session));

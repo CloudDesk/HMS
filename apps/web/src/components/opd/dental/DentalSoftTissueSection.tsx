@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { SoftTissueExamination } from '../../../api/opd';
 import { SOFT_TISSUE_OPTIONS } from '../../../pages/dental-utils';
 import styles from './DentalExamination.module.css';
@@ -16,7 +16,6 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
   disabled = false,
   embedded = false,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
   const current: SoftTissueExamination = softTissue ?? {
     gingiva_condition: null,
     calculus_plaque: null,
@@ -33,100 +32,93 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
     onChange({ ...current, [key]: value });
   };
 
+  const renderField = (
+    key: keyof SoftTissueExamination,
+    label: string,
+    icon: string,
+    placeholder: string,
+    options: string[],
+  ) => (
+    <div className={`${styles.formGroup} ${styles.oralExamField}`}>
+      <label className={styles.label} htmlFor={`oral-exam-${key}`}>
+        <i className={`ph ${icon} ${styles.oralExamFieldIcon}`} aria-hidden="true" />
+        {label}
+      </label>
+      <select
+        id={`oral-exam-${key}`}
+        className={styles.select}
+        value={current[key] ?? ''}
+        onChange={(e) => updateField(key, e.target.value.trim() || null)}
+        disabled={disabled}
+      >
+        <option value="">{placeholder}</option>
+        {current[key] && !options.includes(current[key]!) && (
+          <option value={current[key]!}>{current[key]}</option>
+        )}
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    </div>
+  );
+
   const fields = (
-    <div className={styles.formGrid3}>
-      {/* Gingiva Condition */}
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Gingiva / Periodontium</label>
-        <select className={styles.select} value={current.gingiva_condition ?? ''} onChange={(e) => updateField('gingiva_condition', e.target.value.trim() || null)} disabled={disabled}>
-          <option value="">-- Not Recorded / Normal --</option>
-          {SOFT_TISSUE_OPTIONS.gingiva.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-      </div>
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Calculus &amp; Plaque Deposits</label>
-        <select className={styles.select} value={current.calculus_plaque ?? ''} onChange={(e) => updateField('calculus_plaque', e.target.value.trim() || null)} disabled={disabled}>
-          <option value="">-- Not Recorded / Nil --</option>
-          {SOFT_TISSUE_OPTIONS.calculusPlaque.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-      </div>
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Oral Mucosa &amp; Cheeks</label>
-        <select className={styles.select} value={current.oral_mucosa ?? ''} onChange={(e) => updateField('oral_mucosa', e.target.value.trim() || null)} disabled={disabled}>
-          <option value="">-- Normal Mucosa --</option>
-          {SOFT_TISSUE_OPTIONS.oralMucosa.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-      </div>
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Tongue, Palate &amp; Floor of Mouth</label>
-        <select className={styles.select} value={current.tongue_palate_floor ?? ''} onChange={(e) => updateField('tongue_palate_floor', e.target.value.trim() || null)} disabled={disabled}>
-          <option value="">-- Normal / Healthy --</option>
-          {SOFT_TISSUE_OPTIONS.tonguePalate.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-      </div>
-      <div className={styles.formGroup}>
-        <label className={styles.label}>TMJ &amp; Mandibular Movement</label>
-        <select className={styles.select} value={current.tmj_evaluation ?? ''} onChange={(e) => updateField('tmj_evaluation', e.target.value.trim() || null)} disabled={disabled}>
-          <option value="">-- Normal / Asymptomatic --</option>
-          {SOFT_TISSUE_OPTIONS.tmj.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-      </div>
-      <div className={styles.formGroup}>
-        <label className={styles.label}>Dental Occlusion Classification</label>
-        <select className={styles.select} value={current.occlusion_class ?? ''} onChange={(e) => updateField('occlusion_class', e.target.value.trim() || null)} disabled={disabled}>
-          <option value="">-- Not Recorded / Class I --</option>
-          {SOFT_TISSUE_OPTIONS.occlusion.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-      </div>
+    <div className={styles.oralExamGroups}>
+      <section className={styles.oralExamGroup} aria-labelledby="oral-exam-soft-tissues">
+        <div className={styles.oralExamGroupHeader}>
+          <i className="ph ph-mouth" aria-hidden="true" />
+          <div>
+            <h4 id="oral-exam-soft-tissues">Soft tissues</h4>
+            <p>Review periodontal and intra-oral tissue health.</p>
+          </div>
+        </div>
+        <div className={styles.formGrid2}>
+          {renderField('gingiva_condition', 'Gingiva / Periodontium', 'ph-tooth', 'Not recorded / Normal', SOFT_TISSUE_OPTIONS.gingiva)}
+          {renderField('calculus_plaque', 'Calculus & Plaque', 'ph-sparkle', 'Not recorded / Nil', SOFT_TISSUE_OPTIONS.calculusPlaque)}
+          {renderField('oral_mucosa', 'Oral Mucosa & Cheeks', 'ph-smiley', 'Normal mucosa', SOFT_TISSUE_OPTIONS.oralMucosa)}
+          {renderField('tongue_palate_floor', 'Tongue, Palate & Floor', 'ph-mask-happy', 'Normal / Healthy', SOFT_TISSUE_OPTIONS.tonguePalate)}
+        </div>
+      </section>
+
+      <section className={styles.oralExamGroup} aria-labelledby="oral-exam-function">
+        <div className={styles.oralExamGroupHeader}>
+          <i className="ph ph-arrows-out-cardinal" aria-hidden="true" />
+          <div>
+            <h4 id="oral-exam-function">Function &amp; bite</h4>
+            <p>Record jaw movement and occlusion.</p>
+          </div>
+        </div>
+        <div className={styles.formGrid2}>
+          {renderField('tmj_evaluation', 'TMJ & Mandibular Movement', 'ph-arrows-out', 'Normal / Asymptomatic', SOFT_TISSUE_OPTIONS.tmj)}
+          {renderField('occlusion_class', 'Dental Occlusion', 'ph-selection', 'Not recorded / Class I', SOFT_TISSUE_OPTIONS.occlusion)}
+        </div>
+      </section>
     </div>
   );
 
   if (embedded) {
-    return <section className={styles.softTissueEmbedded} aria-label="General Oral and Soft Tissue Examination">
-      <h3><i className="ph ph-mask-happy" /> General Oral &amp; Soft Tissue Examination</h3>
+    return <section className={styles.softTissueEmbedded} aria-label="Oral Examination">
+      <h3><i className="ph ph-mask-happy" /> Oral Examination</h3>
       {fields}
     </section>;
   }
 
   return (
     <div className={`${styles.card} ${styles.softTissueCard}`}>
-      <div
-        className={`${styles.cardHeader} ${styles.cardHeaderCollapsible}`}
-        onClick={() => setIsExpanded(!isExpanded)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsExpanded(!isExpanded);
-          }
-        }}
-        aria-expanded={isExpanded}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            className={styles.collapseToggleBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsExpanded(!isExpanded);
-            }}
-            aria-label={isExpanded ? 'Collapse Soft Tissue Examination' : 'Expand Soft Tissue Examination'}
-          >
-            <i className={`ph ph-caret-down ${styles.collapseChevron} ${isExpanded ? styles.collapseChevronExpanded : ''}`} />
-          </button>
+      <div className={styles.cardHeader}>
+        <div className={styles.examinationHeading}>
+          <span className={styles.examinationHeadingIcon} aria-hidden="true">
+            <i className="ph ph-mask-happy" />
+          </span>
+          <div>
           <h3 className={styles.cardTitle}>
-            <i className="ph ph-mask-happy" style={{ color: '#0d9488' }} />
-            General Oral &amp; Soft Tissue Examination
+              Oral Examination
           </h3>
+            <p className={styles.examinationSubtitle}>A concise whole-mouth assessment, separate from individual tooth findings.</p>
+          </div>
         </div>
       </div>
-
-      {isExpanded && (
-        <div className={styles.cardContent}>
+      <div className={styles.cardContent}>
         {fields}
       </div>
-      )}
     </div>
   );
 };

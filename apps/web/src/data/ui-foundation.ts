@@ -1,6 +1,13 @@
+export type SidebarSubLink = {
+  label: string;
+  href: string;
+  sectionKey?: string;
+};
+
 export type SidebarLink = {
   label: string;
   href: string;
+  subSections?: SidebarSubLink[];
 };
 
 export type SidebarModule = {
@@ -8,6 +15,7 @@ export type SidebarModule = {
   label: string;
   icon: string;
   links: SidebarLink[];
+  forceGroup?: boolean;
 };
 
 export const sidebarModules: SidebarModule[] = [
@@ -45,7 +53,12 @@ export const sidebarModules: SidebarModule[] = [
     key: 'opd',
     label: 'OPD',
     icon: 'ph-first-aid',
-    links: [{ href: '/opd/queue', label: 'OPD' }],
+    forceGroup: true,
+    links: [
+      { href: '/opd/queue', label: 'OPD Queue' },
+      { href: '/opd/prescription', label: 'Prescription' },
+      { href: '/opd/referral', label: 'Referral' },
+    ],
   },
   {
     key: 'emergency',

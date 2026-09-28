@@ -164,16 +164,16 @@ export function PortalPersonalInformationForm({
   return <form className="portal-onboarding-form" onSubmit={handleSubmit(submit)} noValidate>
     {errors.root ? <div className="auth-alert auth-alert--error" role="alert">{errors.root.message}</div> : null}
     <div className="portal-form-section"><div className="portal-form-section-title"><span>1</span><div><strong>Personal and contact information</strong><small>Details stored in the selected HMS patient record.</small></div></div><div className="portal-form-grid">
-      <label><span>First name <b>*</b></span><input {...register('first_name')} />{errors.first_name ? <small>{errors.first_name.message}</small> : null}</label>
+      <label><span>First name <span className="required-asterisk">*</span></span><input {...register('first_name')} />{errors.first_name ? <small>{errors.first_name.message}</small> : null}</label>
       <label><span>Middle name</span><input {...register('middle_name')} /></label>
-      <label><span>Last name <b>*</b></span><input {...register('last_name')} />{errors.last_name ? <small>{errors.last_name.message}</small> : null}</label>
-      <label><span>Date of birth <b>*</b></span><input max={new Date().toISOString().slice(0, 10)} type="date" {...register('date_of_birth')} />{errors.date_of_birth ? <small>{errors.date_of_birth.message}</small> : null}</label>
-      <label><span>Gender <b>*</b></span><select {...register('gender')}><option value="UNKNOWN">Prefer not to say</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="OTHER">Other</option></select></label>
+      <label><span>Last name <span className="required-asterisk">*</span></span><input {...register('last_name')} />{errors.last_name ? <small>{errors.last_name.message}</small> : null}</label>
+      <label><span>Date of birth <span className="required-asterisk">*</span></span><input max={new Date().toISOString().slice(0, 10)} type="date" {...register('date_of_birth')} />{errors.date_of_birth ? <small>{errors.date_of_birth.message}</small> : null}</label>
+      <label><span>Gender <span className="required-asterisk">*</span></span><select {...register('gender')}><option value="UNKNOWN">Prefer not to say</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="OTHER">Other</option></select></label>
       <label><span>Blood group</span><select {...register('blood_group')}><option value="">Not known</option>{['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label><span>{guardian ? 'Child email (optional)' : 'Patient email'}</span><input autoComplete="email" type="email" {...register('email')} />{errors.email ? <small>{errors.email.message}</small> : null}</label>
       <label><span>{guardian ? 'Child mobile number (optional)' : 'Patient mobile number'}</span><input autoComplete="tel" inputMode="tel" {...register('phone')} />{errors.phone ? <small>{errors.phone.message}</small> : null}</label>
       <label className="wide">
-        <span>Preferred hospital branch <b>*</b></span>
+        <span>Preferred hospital branch <span className="required-asterisk">*</span></span>
         <select disabled={branches.isLoading || branches.isError} {...register('preferred_branch_id')}>
           <option value="">
             {branches.isLoading
@@ -219,8 +219,8 @@ export function PortalPersonalInformationForm({
       <label><span>Contact name</span><input {...register('emergency_name')} /></label><label><span>Relationship</span><input placeholder="Parent, spouse, sibling…" {...register('emergency_relationship')} /></label><label className="wide"><span>Mobile number</span><input inputMode="tel" {...register('emergency_phone')} />{errors.emergency_phone ? <small>{errors.emergency_phone.message}</small> : null}</label>
     </div></div>
     {guardian ? <div className="portal-form-section portal-guardian-edit-section"><div className="portal-form-section-title"><span>4</span><div><strong>Parent / guardian information</strong><small>Responsible adult details stored separately from the child’s patient record.</small></div></div><div className="portal-form-grid">
-      <label><span>Full name <b>*</b></span><input autoComplete="name" {...register('guardian_full_name')} />{errors.guardian_full_name ? <small>{errors.guardian_full_name.message}</small> : null}</label>
-      <label><span>Relationship <b>*</b></span><select {...register('guardian_relationship')}><option value="PARENT">Parent</option><option value="LEGAL_GUARDIAN">Legal guardian</option></select>{errors.guardian_relationship ? <small>{errors.guardian_relationship.message}</small> : null}</label>
+      <label><span>Full name <span className="required-asterisk">*</span></span><input autoComplete="name" {...register('guardian_full_name')} />{errors.guardian_full_name ? <small>{errors.guardian_full_name.message}</small> : null}</label>
+      <label><span>Relationship <span className="required-asterisk">*</span></span><select {...register('guardian_relationship')}><option value="PARENT">Parent</option><option value="LEGAL_GUARDIAN">Legal guardian</option></select>{errors.guardian_relationship ? <small>{errors.guardian_relationship.message}</small> : null}</label>
       <label><span>Verified login mobile</span><input readOnly value={guardian.phone || 'Not recorded'} /></label>
       <label><span>Account email</span><input readOnly value={guardian.email || 'Not recorded'} /></label>
       <label className="wide"><span>Address line</span><input {...register('guardian_line1')} /></label>

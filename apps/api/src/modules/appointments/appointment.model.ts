@@ -10,6 +10,14 @@ export type AppointmentDentalContextFields = {
   stageName?: string | null;
 };
 
+export type AppointmentConsultationIntakeFields = {
+  chiefComplaint?: string | null;
+  historyPresentIllness?: string | null;
+  pastHistory?: string | null;
+  familyHistory?: string | null;
+  allergies?: string | null;
+};
+
 export type AppointmentFields = {
   appointmentNumber: string;
   patientId: Types.ObjectId;
@@ -31,6 +39,7 @@ export type AppointmentFields = {
   status: AppointmentStatus;
   reason?: string | null;
   notes?: string | null;
+  consultationIntake?: AppointmentConsultationIntakeFields | null;
   dentalContext?: AppointmentDentalContextFields | null;
   activeSlotKey?: string | null;
   rescheduledFromId?: Types.ObjectId | null;
@@ -75,6 +84,13 @@ const appointmentSchema = new Schema<AppointmentFields>(
     },
     reason: { type: String, default: null },
     notes: { type: String, default: null },
+    consultationIntake: {
+      chiefComplaint: { type: String, default: null },
+      historyPresentIllness: { type: String, default: null },
+      pastHistory: { type: String, default: null },
+      familyHistory: { type: String, default: null },
+      allergies: { type: String, default: null },
+    },
     dentalContext: {
       treatmentEpisodeId: { type: Schema.Types.ObjectId, ref: 'DentalTreatmentEpisode', default: null },
       treatmentStageId: { type: Schema.Types.ObjectId, ref: 'DentalTreatmentStage', default: null },

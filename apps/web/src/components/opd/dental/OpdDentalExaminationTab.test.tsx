@@ -162,7 +162,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
     expect(container.textContent).toContain('Odontogram');
     expect(container.querySelector('[aria-label="Draft In-Progress"]')).toBeTruthy();
-    expect(container.textContent).toContain('Dental History & Medical Risk Assessment');
+    expect(container.textContent).toContain('General Examination');
     expect(container.textContent).toContain('Hypertension');
   });
 
@@ -177,7 +177,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
     const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('button[id^="dental-subtab-"][role="tab"]'));
     expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([
-      'History & Risk',
+      'General Examination',
       'Odontogram',
       'Imaging',
       'Laboratory',
@@ -204,6 +204,7 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(api.saveDentalExaminationDraft).toHaveBeenCalledTimes(1);
     expect(odontogramPanel?.hidden).toBe(false);
     expect(historyPanel?.hidden).toBe(true);
+    expect(odontogramPanel?.querySelector('#oral-exam-soft-tissues')).not.toBeNull();
 
     for (const [label, panelId] of [
       ['Next: Imaging', '#dental-subtab-panel-imaging'],
@@ -514,7 +515,7 @@ describe('OpdDentalExaminationTab Component', () => {
       Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Odontogram'))?.click();
     });
     await act(async () => { container.querySelector<HTMLElement>('[aria-label="Tooth 16: Maxillary Right First Molar"]')?.click(); });
-    await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Add diagnosis for Tooth #16'))?.click(); });
+    await act(async () => { container.querySelector<HTMLButtonElement>('button[title="Add or edit diagnosis for this tooth"]')?.click(); });
     expect(openDiagnosis).toHaveBeenCalledWith(16);
     await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Save Draft'))?.click(); });
     expect(saveDiagnosis).toHaveBeenCalledOnce();
@@ -800,13 +801,17 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(container.textContent).toContain('FDI #21');
   });
 
-  it('supports adding planned procedures, changing status lifecycle, and calculating financial summaries', async () => {
+  it('supports adding planned procedures and calculating financial summaries', async () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
           <OpdDentalExaminationTab visitId="visit-1" canEdit={true} />
         </QueryClientProvider>,
       );
+    });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('#dental-subtab-treatment-plan')?.click();
     });
 
     // Check existing item is rendered
@@ -854,15 +859,7 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(container.textContent).toContain('Root Canal Treatment');
     expect(container.textContent).toContain('4 canals identified');
 
-    // Change status of first item from PROPOSED to ACCEPTED
-    const statusSelects = container.querySelectorAll('table select');
-    expect(statusSelects.length).toBeGreaterThan(0);
-
-    await act(async () => {
-      const firstStatusSelect = statusSelects[0] as HTMLSelectElement;
-      firstStatusSelect.value = 'ACCEPTED';
-      firstStatusSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    expect(container.querySelectorAll('table tbody tr').length).toBeGreaterThan(0);
 
     // Save draft and verify both items and status are saved
     const saveButton = Array.from(container.querySelectorAll('button')).find((b) =>
@@ -878,7 +875,7 @@ describe('OpdDentalExaminationTab Component', () => {
         treatment_plan_items: expect.arrayContaining([
           expect.objectContaining({
             procedure_name: 'Composite Restoration',
-            status: 'ACCEPTED',
+            status: 'PROPOSED',
           }),
           expect.objectContaining({
             procedure_name: 'Root Canal Treatment',
@@ -898,10 +895,14 @@ describe('OpdDentalExaminationTab Component', () => {
       );
     });
 
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('#dental-subtab-treatment-plan')?.click();
+    });
+
     expect(container.textContent).toContain('Composite Restoration');
 
     // Find and click trash button
-    const deleteBtn = container.querySelector('button[title="Remove procedure"]') as HTMLButtonElement;
+    const deleteBtn = container.querySelector('button[title="Remove proposed procedure"]') as HTMLButtonElement;
     expect(deleteBtn).not.toBeNull();
 
     await act(async () => {

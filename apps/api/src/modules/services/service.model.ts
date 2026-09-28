@@ -9,6 +9,8 @@ export interface IService extends Document {
   category?: string;
   sampleType?: string | null;
   description?: string;
+  referenceVideoUrl?: string | null;
+  referenceVideoTitle?: string | null;
   departmentId: Types.ObjectId;
   standardPrice: number;
   defaultDurationMinutes?: number | null;
@@ -41,6 +43,8 @@ const serviceSchema = new Schema<IService>(
     category: { type: String },
     sampleType: { type: String, default: null },
     description: { type: String },
+    referenceVideoUrl: { type: String, default: null, trim: true },
+    referenceVideoTitle: { type: String, default: null, trim: true },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
     standardPrice: { type: Number, required: true },
     defaultDurationMinutes: { type: Number, min: 5, max: 720, default: null },

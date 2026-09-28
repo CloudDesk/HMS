@@ -29,14 +29,28 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
   const [providerName, setProviderName] = useState('');
   const [documentDate, setDocumentDate] = useState('');
   const [description, setDescription] = useState('');
+  const [signatureUploading, setSignatureUploading] = useState<string | null>(null);
   const query = useQuery({
     queryKey: portalQueryKeys.documents(patientId),
     queryFn: () => patientPortalApi.documents(patientId),
   });
 
+  const documents = query.data?.data ?? [];
+  const consentForms = documents.filter(
+    (document) => document.document_type === 'CONSENT' && document.consent_kind !== 'PATIENT_SIGNATURE',
+  );
+  const consentSignatures = documents.filter(
+    (document) => document.consent_kind === 'PATIENT_SIGNATURE',
+  );
+  const visibleDocuments = documents.filter(
+    (document) =>
+      document.consent_kind !== 'PROFILE_PHOTO' &&
+      document.consent_kind !== 'PATIENT_SIGNATURE' &&
+      document.document_type !== 'CONSENT',
+  );
   const [page, setPage] = useState(1);
-  const totalDocuments = query.data?.data.length ?? 0;
-  const paginatedDocuments = (query.data?.data ?? []).slice(
+  const totalDocuments = visibleDocuments.length;
+  const paginatedDocuments = visibleDocuments.slice(
     (page - 1) * PAGE_SIZE,
     page * PAGE_SIZE,
   );
@@ -123,6 +137,28 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
     }
   };
 
+  const uploadSignature = async (consent: PortalDocument, signature?: File) => {
+    if (!signature) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(signature.type)) {
+      toast.error('Choose a JPG, PNG or WebP signature image.');
+      return;
+    }
+    if (signature.size > 10 * 1024 * 1024) {
+      toast.error('The signature image must be 10 MB or smaller.');
+      return;
+    }
+    setSignatureUploading(consent.id);
+    try {
+      await patientPortalApi.uploadConsentSignature(patientId, consent.id, signature);
+      await queryClient.invalidateQueries({ queryKey: portalQueryKeys.documents(patientId) });
+      toast.success('Signature uploaded and attached to the consent form.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Signature upload failed.');
+    } finally {
+      setSignatureUploading(null);
+    }
+  };
+
   return (
     <section className="portal-page-section portal-documents-page">
       <header>
@@ -160,7 +196,7 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
           <div className="portal-document-form-grid">
             <label>
               <span>
-                Category <b>*</b>
+                Category <span className="required-asterisk">*</span>
               </span>
               <select
                 onChange={(event) => setDocumentType(event.target.value as typeof documentType)}
@@ -242,6 +278,66 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
         </form>
       ) : null}
 
+      <section className="portal-consent-signatures" aria-labelledby="consent-signatures-title">
+        <div className="portal-consent-signatures-heading">
+          <span><i className="ph ph-signature" /></span>
+          <div>
+            <h2 id="consent-signatures-title">Consent signatures</h2>
+            <p>Upload a clear image of your signature for an available consent form.</p>
+          </div>
+        </div>
+        {consentForms.length > 0 ? (
+          <div className="portal-consent-list">
+            {consentForms.map((consent) => {
+              const signature = consentSignatures.find(
+                (item) => item.context_id === consent.id,
+              );
+              return (
+                <article key={consent.id}>
+                  <div>
+                    <strong>{consent.title}</strong>
+                    <span>
+                      {signature
+                        ? `Signature uploaded ${formatDate(signature.created_at)}`
+                        : 'Signature not yet uploaded'}
+                    </span>
+                  </div>
+                  <div className="portal-consent-actions">
+                    <button onClick={() => void view(consent)} type="button">
+                      <i className="ph ph-eye" /> View form
+                    </button>
+                    {signature ? (
+                      <button onClick={() => void view(signature)} type="button">
+                        <i className="ph ph-image" /> View signature
+                      </button>
+                    ) : null}
+                    <label className={signatureUploading === consent.id ? 'disabled' : ''}>
+                      <i className="ph ph-signature" />
+                      {signatureUploading === consent.id
+                        ? 'Uploading…'
+                        : signature
+                          ? 'Replace signature'
+                          : 'Upload signature'}
+                      <input
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={signatureUploading === consent.id}
+                        onChange={(event) => void uploadSignature(consent, event.target.files?.[0])}
+                        type="file"
+                      />
+                    </label>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="portal-consent-empty">
+            <i className="ph ph-file-dashed" />
+            <span>No consent forms currently require a signature.</span>
+          </div>
+        )}
+      </section>
+
       <div className="portal-document-list">
         {query.isLoading ? (
           <div className="portal-empty">
@@ -314,7 +410,7 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
         ) : (
           <div className="portal-empty">
             <i className="ph ph-files" />
-            <strong>No documents uploaded</strong>
+            <strong>{consentForms.length > 0 ? 'No other documents uploaded' : 'No documents uploaded'}</strong>
             <span>Previous medical records and supporting documents will appear here.</span>
           </div>
         )}

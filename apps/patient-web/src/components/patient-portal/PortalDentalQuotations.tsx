@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { patientPortalApi, type PortalDentalQuotation } from '../../api/patient-portal';
+import {
+  patientPortalApi,
+  type PortalDentalQuotation,
+  type PortalDentalQuotationItem,
+} from '../../api/patient-portal';
 import { portalQueryKeys } from '../../api/query-keys';
 import { Empty } from './Empty';
 import { date, label, money } from '../../utils/formatters';
 import { PortalQuotationDetailModal } from './modals/PortalQuotationDetailModal';
 import { downloadPortalDentalQuotationPdf } from '../../utils/dental-pdf';
+import { PortalProcedureVideoModal } from './modals/PortalProcedureVideoModal';
 
 type PortalDentalQuotationsProps = {
   patientId: string;
@@ -22,6 +27,7 @@ function formatDoctorName(name?: string) {
 
 export function PortalDentalQuotations({ patientId }: PortalDentalQuotationsProps) {
   const [selectedQuotation, setSelectedQuotation] = useState<PortalDentalQuotation | null>(null);
+  const [videoItem, setVideoItem] = useState<PortalDentalQuotationItem | null>(null);
 
   const { data: quotations = [], isLoading, isError, refetch } = useQuery({
     queryKey: portalQueryKeys.dentalQuotations(patientId),
@@ -67,6 +73,10 @@ export function PortalDentalQuotations({ patientId }: PortalDentalQuotationsProp
           const isPending = quote.status === 'SENT' || quote.status === 'POSTPONED';
           const isAccepted = quote.status === 'ACCEPTED';
           const optionsCount = quote.options?.length ?? 0;
+          const acceptedOption = isAccepted
+            ? quote.options.find((option) => option.id === quote.selected_option_id)
+            : undefined;
+          const acceptedPlanItems = acceptedOption?.items ?? (isAccepted ? quote.items : []);
 
           const statusLabel =
             quote.status === 'SENT'
@@ -145,6 +155,56 @@ export function PortalDentalQuotations({ patientId }: PortalDentalQuotationsProp
                 </p>
               )}
 
+              {isAccepted && (
+                <section className="portal-accepted-plan" aria-label="Accepted dental treatment plan">
+                  <header>
+                    <div>
+                      <i className="ph ph-clipboard-text" />
+                      <div>
+                        <h3>Accepted dental treatment plan</h3>
+                        <span>{acceptedOption?.name || quote.selected_option_name || 'Selected treatment option'}</span>
+                      </div>
+                    </div>
+                    <span className="portal-accepted-plan-count">
+                      {acceptedPlanItems.length} procedure{acceptedPlanItems.length === 1 ? '' : 's'}
+                    </span>
+                  </header>
+
+                  {acceptedPlanItems.length ? (
+                    <div className="portal-accepted-plan-list">
+                      {acceptedPlanItems.map((item, index) => (
+                        <div className="portal-accepted-plan-item" key={item.id || `${item.procedure_name}-${index}`}>
+                          <span className="portal-accepted-plan-step">{index + 1}</span>
+                          <div>
+                            <strong>{item.procedure_name}</strong>
+                            <span>
+                              {item.tooth_number ? `Tooth #${item.tooth_number}` : 'General treatment'}
+                              {item.quantity > 1 ? ` · Quantity ${item.quantity}` : ''}
+                            </span>
+                          </div>
+                          <strong className="portal-accepted-plan-price">{money(item.line_total)}</strong>
+                          {item.reference_video_url ? (
+                            <button
+                              className="portal-reference-video-button"
+                              onClick={() => setVideoItem(item)}
+                              type="button"
+                            >
+                              <i className="ph ph-play-circle" /> Reference video
+                            </button>
+                          ) : (
+                            <span className="portal-reference-video-unavailable">No video available</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="portal-accepted-plan-empty">
+                      The accepted treatment option does not contain any procedures.
+                    </p>
+                  )}
+                </section>
+              )}
+
               <footer>
                 <small>
                   {isAccepted
@@ -209,7 +269,12 @@ export function PortalDentalQuotations({ patientId }: PortalDentalQuotationsProp
         quotation={selectedQuotation}
         patientId={patientId}
         onClose={() => setSelectedQuotation(null)}
+        onViewProcedureVideo={(item) => {
+          setSelectedQuotation(null);
+          setVideoItem(item);
+        }}
       />
+      <PortalProcedureVideoModal item={videoItem} onClose={() => setVideoItem(null)} />
     </>
   );
 }

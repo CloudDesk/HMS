@@ -815,7 +815,7 @@ export class DentalQuotationService {
       throw new AppError('Dental treatment quotation not found', 404, 'NOT_FOUND');
     }
     await this.ensureAccess(quotation, userId);
-    return quotation;
+    return (await this.withServiceReferences([quotation]))[0] ?? quotation;
   }
 
   async listQuotationsByEpisode(
@@ -828,7 +828,7 @@ export class DentalQuotationService {
       throw new AppError('Dental treatment episode not found', 404, 'EPISODE_NOT_FOUND');
     }
     await this.ensureDepartmentAccess(episode.department_id, userId);
-    return await this.repository.listByEpisode(episodeId);
+    return await this.withServiceReferences(await this.repository.listByEpisode(episodeId));
   }
 
   async listQuotationsByPatient(
@@ -873,10 +873,58 @@ export class DentalQuotationService {
       }
 
       const quotations = await this.repository.listByPatient(patientId);
-      return quotations.filter((q) => q.status !== 'DRAFT');
+      return await this.withServiceReferences(
+        quotations.filter((q) => q.status !== 'DRAFT'),
+      );
     }
 
-    return await this.repository.listByPatient(patientId);
+    return await this.withServiceReferences(await this.repository.listByPatient(patientId));
+  }
+
+  private async withServiceReferences(
+    quotations: DentalTreatmentQuotation[],
+  ): Promise<DentalTreatmentQuotation[]> {
+    const serviceIds = Array.from(
+      new Set(
+        quotations.flatMap((quotation) => [
+          ...quotation.items.map((item) => item.service_id),
+          ...quotation.options.flatMap((option) =>
+            option.items.map((item) => item.service_id),
+          ),
+        ]).filter((serviceId): serviceId is string => Boolean(serviceId && isObjectId(serviceId))),
+      ),
+    );
+
+    if (serviceIds.length === 0) {
+      return quotations;
+    }
+
+    const services = await Promise.all(
+      serviceIds.map((serviceId) => this.serviceRepository.getById(serviceId)),
+    );
+    const serviceById = new Map(
+      services
+        .filter((service): service is NonNullable<typeof service> => Boolean(service))
+        .map((service) => [service.id, service]),
+    );
+
+    const enrichItem = (item: DentalTreatmentQuotation['items'][number]) => {
+      const service = item.service_id ? serviceById.get(item.service_id) : undefined;
+      return {
+        ...item,
+        reference_video_url: service?.reference_video_url ?? null,
+        reference_video_title: service?.reference_video_title ?? null,
+      };
+    };
+
+    return quotations.map((quotation) => ({
+      ...quotation,
+      items: quotation.items.map(enrichItem),
+      options: quotation.options.map((option) => ({
+        ...option,
+        items: option.items.map(enrichItem),
+      })),
+    }));
   }
 
   private validateId(value: string | null | undefined, message: string): void {

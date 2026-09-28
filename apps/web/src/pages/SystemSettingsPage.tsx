@@ -113,7 +113,7 @@ export function SystemSettingsPage() {
             <div style={{ padding: '3rem 1rem' }}>
               <MedicalLoader size="medium" text="Loading system settings..." subtext="Retrieving hospital configuration" />
             </div>
-          ) : loadError ? <div className="ss-state ss-state--error" role="alert"><i className="ph ph-warning-circle" aria-hidden="true" /><strong>Settings unavailable</strong><span>{loadError}</span><button className="btn-secondary" onClick={() => void load()} type="button">Try again</button></div> : renderPanel(activeTab)}
+          ) : loadError ? <div className="ss-state ss-state--error" role="alert"><i className="ph ph-warning-circle" aria-hidden="true" /><strong>Settings unavailable</strong><span>{loadError}</span><button className="btn-secondary" onClick={() => void load()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Try again</button></div> : renderPanel(activeTab)}
         </main>
 
         <aside className="ss-right-panel">

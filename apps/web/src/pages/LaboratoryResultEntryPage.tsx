@@ -99,9 +99,9 @@ export function LaboratoryResultEntryPage() {
       {!canEdit ? <div className="diagnostic-readonly"><i className="ph ph-info" /> Results can be entered only after the order is in progress.</div> : null}
 
       <div className="diagnostic-form-actions">
-        <button className="btn-secondary" type="button" onClick={() => navigate(`/laboratory/workspace?id=${id}`)}>Back</button>
+        <button className="btn-secondary" type="button" onClick={() => navigate(`/laboratory/workspace?id=${id}`)}><i className="ph ph-arrow-left" aria-hidden="true" /> Back</button>
         {readOnly && result ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
-        {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterResult} type="submit">{isSaving ? 'Saving...' : 'Save Results'}</button> : null}
+        {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterResult} type="submit">{isSaving ? 'Saving...' : <><i className="ph ph-floppy-disk" aria-hidden="true" /> Save Results</>}</button> : null}
       </div>
     </form>
     {printOpen && result ? <PrintLaboratoryResultModal onClose={() => setPrintOpen(false)} order={order} result={result} /> : null}

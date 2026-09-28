@@ -525,7 +525,7 @@ export function DoctorDirectoryPage() {
             </select>
           </div>
           {(search || statusFilter || branchFilter || departmentFilter || sortColumn) && (
-            <button className="doc-btn" onClick={resetFilters} type="button">Reset</button>
+            <button className="doc-btn" onClick={resetFilters} type="button"><i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset</button>
           )}
         </section>
 
@@ -565,7 +565,7 @@ export function DoctorDirectoryPage() {
                     <td className="um-state-cell" colSpan={8}>
                       {directory.loadError}
                       <div>
-                        <button className="doc-btn mt-4" onClick={() => void directory.retry()} type="button">Retry</button>
+                        <button className="doc-btn mt-4" onClick={() => void directory.retry()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Retry</button>
                       </div>
                     </td>
                   </tr>

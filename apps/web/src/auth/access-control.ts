@@ -90,6 +90,8 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/opd/queue': [{ module: 'OPD', screen: 'OPD Visits' }],
   '/opd/visit': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
+  '/opd/prescription': [{ module: 'OPD', screen: 'OPD Prescription' }],
+  '/opd/referral': [{ module: 'OPD', screen: 'OPD Referral' }],
   '/admissions': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
   '/admissions/bed-availability': [{ module: 'Admissions', screen: 'Beds' }],
   '/admissions/beds': [{ module: 'Admissions', screen: 'Beds' }],
@@ -130,6 +132,7 @@ export const hasPermission = (
 ) => {
   if (isSuperAdministrator(roles)) return true;
 
+
   const reqModule = normalize(requirement.module);
   const reqScreen = normalize(requirement.screen);
   const reqAction = normalize(requirement.action ?? 'View');
@@ -155,6 +158,11 @@ export const canAccessRoute = (
   const normalizedPathname = pathnameOnly(pathname);
   if (normalizedPathname === '/' || normalizedPathname === '/dashboard') return true;
   if (isSuperAdministrator(roles)) return true;
+
+  // Remove access for Queue Management under Appointments for Doctor role
+  if (normalizedPathname === '/appointments/queue' && roles.some((role) => role.code === 'DOCTOR' || role.name?.toLowerCase() === 'doctor')) {
+    return false;
+  }
 
   const requirements = routeRequirements[normalizedPathname];
   if (!requirements) return false;

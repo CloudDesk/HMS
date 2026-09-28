@@ -23,7 +23,7 @@ export const tabs: Array<{ key: PortalTab; label: string; icon: string }> = [
   { key: 'results', label: 'Reports & results', icon: 'ph-file-text' },
   { key: 'medicines', label: 'Prescriptions', icon: 'ph-prescription' },
   { key: 'documents', label: 'Documents', icon: 'ph-files' },
-  { key: 'billing', label: 'Billing', icon: 'ph-receipt' },
+  { key: 'billing', label: 'Billing & Quotations', icon: 'ph-receipt' },
   { key: 'profile', label: 'My profile', icon: 'ph-user-circle' },
 ];
 

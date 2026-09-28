@@ -222,6 +222,7 @@ export function AppointmentCalendarPage() {
           </div>
           <div className="appointment-page-actions">
             <button className="doc-btn" onClick={() => setCalendarDate(todayInputValue())} type="button">
+              <i className="ph ph-calendar-dot" aria-hidden="true" />
               Today
             </button>
             {canBook ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">

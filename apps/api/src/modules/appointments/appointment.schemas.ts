@@ -58,6 +58,17 @@ export const createAppointmentBodySchema = {
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    consultation_intake: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      properties: {
+        chief_complaint: { type: ['string', 'null'], maxLength: 4000 },
+        history_present_illness: { type: ['string', 'null'], maxLength: 4000 },
+        past_history: { type: ['string', 'null'], maxLength: 4000 },
+        family_history: { type: ['string', 'null'], maxLength: 4000 },
+        allergies: { type: ['string', 'null'], maxLength: 4000 },
+      },
+    },
     dental_context: {
       type: ['object', 'null'],
       additionalProperties: false,
@@ -87,6 +98,17 @@ export const updateAppointmentBodySchema = {
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    consultation_intake: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      properties: {
+        chief_complaint: { type: ['string', 'null'], maxLength: 4000 },
+        history_present_illness: { type: ['string', 'null'], maxLength: 4000 },
+        past_history: { type: ['string', 'null'], maxLength: 4000 },
+        family_history: { type: ['string', 'null'], maxLength: 4000 },
+        allergies: { type: ['string', 'null'], maxLength: 4000 },
+      },
+    },
     dental_context: {
       type: ['object', 'null'],
       additionalProperties: false,

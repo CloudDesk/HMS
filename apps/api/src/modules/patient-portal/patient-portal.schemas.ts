@@ -340,7 +340,7 @@ export const patientPortalAppointmentsResponseSchema = apiResponseSchema({
     data: { type: 'array', items: portalAppointmentItemSchema },
     meta: {
       type: 'object',
-      required: ['page', 'limit', 'total'],
+      required: ['page', 'limit', 'total', 'totalPages'],
       additionalProperties: true,
       properties: {
         page: { type: 'integer' },
@@ -456,6 +456,11 @@ export const patientPortalDocumentsResponseSchema = apiResponseSchema({
           description: { type: ['string', 'null'] },
           source: { type: 'string' },
           review_status: { type: 'string' },
+          context_id: { type: ['string', 'null'] },
+          consent_kind: { type: ['string', 'null'] },
+          consent_status: { type: ['string', 'null'] },
+          signed_at: { type: ['string', 'null'] },
+          signed_by_name: { type: ['string', 'null'] },
           created_at: { type: 'string' },
         },
       },

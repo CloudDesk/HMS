@@ -140,10 +140,10 @@ export function PortalPatientForm({
       <div className="portal-form-section">
         <div className="portal-form-section-title"><span>1</span><div><strong>Patient information</strong><small>Identity details used for the medical record.</small></div></div>
         <div className="portal-form-grid">
-          <label><span>First name <b>*</b></span><input {...register('first_name')} />{errors.first_name ? <small>{errors.first_name.message}</small> : null}</label>
-          <label><span>Last name <b>*</b></span><input {...register('last_name')} />{errors.last_name ? <small>{errors.last_name.message}</small> : null}</label>
+          <label><span>First name <span className="required-asterisk">*</span></span><input {...register('first_name')} />{errors.first_name ? <small>{errors.first_name.message}</small> : null}</label>
+          <label><span>Last name <span className="required-asterisk">*</span></span><input {...register('last_name')} />{errors.last_name ? <small>{errors.last_name.message}</small> : null}</label>
           <label>
-            <span>Date of birth <b>*</b></span>
+            <span>Date of birth <span className="required-asterisk">*</span></span>
             <input max={new Date().toISOString().slice(0, 10)} type="date" {...register('date_of_birth')} />
             {currentAge !== null ? (
               isMinorAge ? (
@@ -158,11 +158,11 @@ export function PortalPatientForm({
             ) : null}
             {errors.date_of_birth ? <small className="portal-field-error">{errors.date_of_birth.message}</small> : null}
           </label>
-          <label><span>Gender <b>*</b></span><select {...register('gender')}><option value="UNKNOWN">Prefer not to say</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="OTHER">Other</option></select></label>
+          <label><span>Gender <span className="required-asterisk">*</span></span><select {...register('gender')}><option value="UNKNOWN">Prefer not to say</option><option value="FEMALE">Female</option><option value="MALE">Male</option><option value="OTHER">Other</option></select></label>
           <label><span>Blood group</span><select {...register('blood_group')}><option value="">Not known</option>{['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((value) => <option key={value}>{value}</option>)}</select></label>
-          {mode === 'DEPENDENT' ? <label><span>Your relationship <b>*</b></span><select {...register('relationship')}><option value="PARENT">Parent</option><option value="LEGAL_GUARDIAN">Legal guardian</option></select></label> : null}
+          {mode === 'DEPENDENT' ? <label><span>Your relationship <span className="required-asterisk">*</span></span><select {...register('relationship')}><option value="PARENT">Parent</option><option value="LEGAL_GUARDIAN">Legal guardian</option></select></label> : null}
           <label className="wide">
-            <span>Preferred hospital branch <b>*</b></span>
+            <span>Preferred hospital branch <span className="required-asterisk">*</span></span>
             <select disabled={branches.isLoading || branches.isError} {...register('preferred_branch_id')}>
               <option value="">
                 {branches.isLoading
@@ -212,12 +212,12 @@ export function PortalPatientForm({
               </div>
               <div className="portal-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
                 <label>
-                  <span>Parent / Guardian full name <b>*</b></span>
+                  <span>Parent / Guardian full name <span className="required-asterisk">*</span></span>
                   <input placeholder="Full name of parent or guardian" {...register('emergency_name')} />
                   {errors.emergency_name ? <small className="portal-field-error">{errors.emergency_name.message}</small> : null}
                 </label>
                 <label>
-                  <span>Relationship <b>*</b></span>
+                  <span>Relationship <span className="required-asterisk">*</span></span>
                   <select {...register('relationship')}>
                     <option value="PARENT">Parent</option>
                     <option value="LEGAL_GUARDIAN">Legal guardian</option>

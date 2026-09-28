@@ -1,5 +1,6 @@
-import type { UseQueryResult } from '@tanstack/react-query';
-import type { PortalAppointment, PublicList } from '../../api/patient-portal';
+import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { patientPortalApi, type PortalAppointment, type PublicList } from '../../api/patient-portal';
 import { date, label } from '../../utils/portal-invoice-pdf';
 
 type PortalAppointmentsTabProps = {
@@ -25,6 +26,20 @@ export function PortalAppointmentsTab({
   onOpenBooking,
   onReschedule,
 }: PortalAppointmentsTabProps) {
+  const queryClient = useQueryClient();
+  const checkIn = useMutation({
+    mutationFn: (appointmentId: string) => patientPortalApi.checkInAppointment(appointmentId),
+    onSuccess: async () => {
+      toast.success('You are checked in. Please proceed to the OPD waiting area.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['patient-portal-overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['patient-portal-appointments'] }),
+      ]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <section className="portal-page-section portal-appointments-page">
       <header>
@@ -175,6 +190,17 @@ export function PortalAppointmentsTab({
                     type="button"
                   >
                     <i className="ph ph-calendar-dots" /> Reschedule
+                  </button>
+                ) : null}
+                {['SCHEDULED', 'CONFIRMED'].includes(item.status)
+                  && String(item.appointment_date).slice(0, 10) === today ? (
+                  <button
+                    className="portal-check-in-action"
+                    disabled={checkIn.isPending}
+                    onClick={() => checkIn.mutate(item.id)}
+                    type="button"
+                  >
+                    <i className="ph ph-sign-in" /> {checkIn.isPending ? 'Checking in…' : 'Check in'}
                   </button>
                 ) : null}
                 {item.status === 'RESCHEDULED' && item.rescheduled_to_id ? (

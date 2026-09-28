@@ -17,6 +17,8 @@ type ServiceRecord = {
   category?: string | null;
   sampleType?: string | null;
   description?: string | null;
+  referenceVideoUrl?: string | null;
+  referenceVideoTitle?: string | null;
   departmentId: unknown;
   standardPrice: number;
   defaultDurationMinutes?: number | null;
@@ -48,6 +50,8 @@ const toService = (service: ServiceRecord): Service => ({
   category: service.category ?? null,
   sample_type: service.sampleType ?? null,
   description: service.description ?? null,
+  reference_video_url: service.referenceVideoUrl ?? null,
+  reference_video_title: service.referenceVideoTitle ?? null,
   department_id: String(service.departmentId),
   standard_price: service.standardPrice,
   default_duration_minutes: service.defaultDurationMinutes ?? null,
@@ -72,6 +76,8 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
       category: data.category,
       sampleType: data.sample_type,
       description: data.description,
+      referenceVideoUrl: data.reference_video_url,
+      referenceVideoTitle: data.reference_video_title,
       departmentId: data.department_id,
       standardPrice: data.standard_price,
       defaultDurationMinutes: data.default_duration_minutes,

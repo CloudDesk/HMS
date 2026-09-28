@@ -25,6 +25,14 @@ export type AppointmentDentalContext = {
   stage_name?: string | null;
 };
 
+export type AppointmentConsultationIntake = {
+  chief_complaint?: string | null;
+  history_present_illness?: string | null;
+  past_history?: string | null;
+  family_history?: string | null;
+  allergies?: string | null;
+};
+
 export type Appointment = {
   id: string;
   appointment_number: string;
@@ -47,6 +55,7 @@ export type Appointment = {
   status: AppointmentStatus;
   reason: string | null;
   notes: string | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
   dental_context?: AppointmentDentalContext | null;
   rescheduled_from_id: string | null;
   rescheduled_to_id: string | null;
@@ -99,6 +108,7 @@ export type CreateAppointmentDTO = {
   priority?: AppointmentPriority;
   reason?: string | null;
   notes?: string | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
   dental_context?: AppointmentDentalContext | null;
   clinical_history?: PatientPreConsultationDTO | null;
 };
@@ -129,7 +139,7 @@ export type PatientPreConsultation = {
 export type UpdateAppointmentDTO = Partial<
   Pick<
     CreateAppointmentDTO,
-    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes' | 'dental_context'
+    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes' | 'consultation_intake' | 'dental_context'
   >
 > & { reschedule_reason?: string | null };
 

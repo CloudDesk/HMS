@@ -61,7 +61,7 @@ const canonicalConsentStatus = (value: string | null | undefined) => {
   return value as PatientDocument['consent_status'];
 };
 
-const toPatient = (patient: PatientLean): Patient => ({
+const toPatient = (patient: PatientLean, photoDocumentId?: string | null): Patient => ({
   id: patient._id.toString(),
   patient_number: patient.patientNumber,
   first_name: patient.firstName ?? null,
@@ -88,6 +88,8 @@ const toPatient = (patient: PatientLean): Patient => ({
   registration_branch_id: patient.registrationBranchId?.toString() ?? null,
   blood_group: patient.bloodGroup ?? null,
   status: patient.status,
+  photo_document_id: photoDocumentId ?? null,
+  photo_url: photoDocumentId ? `/api/patients/${patient._id.toString()}/photo` : null,
   notes: patient.notes ?? null,
   created_by: patient.createdBy?.toString() ?? null,
   updated_by: patient.updatedBy?.toString() ?? null,
@@ -262,8 +264,28 @@ export class PatientRepository {
       PatientModel.countDocuments(filter),
     ]);
 
+    const patientIds = data.map((patient) => patient._id);
+    const photoMap = new Map<string, string>();
+    if (patientIds.length > 0) {
+      const photos = await PatientDocumentModel.find({
+        patientId: { $in: patientIds },
+        consentKind: 'PROFILE_PHOTO',
+        status: 'ACTIVE',
+      })
+        .sort({ createdAt: -1 })
+        .select('_id patientId')
+        .lean<{ _id: Types.ObjectId; patientId: Types.ObjectId }[]>();
+
+      for (const photo of photos) {
+        const pid = photo.patientId.toString();
+        if (!photoMap.has(pid)) {
+          photoMap.set(pid, photo._id.toString());
+        }
+      }
+    }
+
     return {
-      data: data.map(toPatient),
+      data: data.map((patient) => toPatient(patient, photoMap.get(patient._id.toString()) ?? null)),
       meta: {
         total: count,
         page,
@@ -277,7 +299,30 @@ export class PatientRepository {
     const filter: Record<string, unknown> = { _id: id, deletedAt: null };
     if (branchIds) filter.registrationBranchId = { $in: branchIds.map(toObjectId) };
     const patient = await PatientModel.findOne(filter).lean<PatientLean>();
-    return patient ? toPatient(patient) : undefined;
+    if (!patient) return undefined;
+
+    const photoDoc = await PatientDocumentModel.findOne({
+      patientId: patient._id,
+      consentKind: 'PROFILE_PHOTO',
+      status: 'ACTIVE',
+    })
+      .sort({ createdAt: -1 })
+      .select('_id')
+      .lean<{ _id: Types.ObjectId }>();
+
+    return toPatient(patient, photoDoc ? photoDoc._id.toString() : null);
+  }
+
+  async findProfilePhotoDocument(patientId: string): Promise<PatientDocument | null> {
+    const document = await PatientDocumentModel.findOne({
+      patientId: toObjectId(patientId),
+      consentKind: 'PROFILE_PHOTO',
+      status: 'ACTIVE',
+    })
+      .sort({ createdAt: -1 })
+      .lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : null;
   }
 
   async findLatestPatientNumber(year: number): Promise<string | undefined> {
@@ -315,7 +360,7 @@ export class PatientRepository {
       ...(branchIds ? { registrationBranchId: { $in: branchIds.map(toObjectId) } } : {}),
       $or: filters,
     }).limit(5).lean<PatientLean[]>();
-    return patients.map(toPatient);
+    return patients.map((p) => toPatient(p));
   }
 
   async create(patientNumber: string, data: CreatePatientDTO, createdBy: string): Promise<Patient> {
@@ -341,7 +386,18 @@ export class PatientRepository {
       { returnDocument: 'after', lean: true },
     ).lean<PatientLean>();
 
-    return patient ? toPatient(patient) : undefined;
+    if (!patient) return undefined;
+
+    const photoDoc = await PatientDocumentModel.findOne({
+      patientId: patient._id,
+      consentKind: 'PROFILE_PHOTO',
+      status: 'ACTIVE',
+    })
+      .sort({ createdAt: -1 })
+      .select('_id')
+      .lean<{ _id: Types.ObjectId }>();
+
+    return toPatient(patient, photoDoc ? photoDoc._id.toString() : null);
   }
 
   async syncPortalOwnerPhone(patientId: string, phone: string | null) {

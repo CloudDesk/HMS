@@ -193,24 +193,24 @@ export function PatientSignupPage() {
                 </div>
                 <div className="patient-inline-fields">
                   <label>
-                    <span>Child’s first name <b>*</b></span>
+                    <span>Child’s first name <span className="required-asterisk">*</span></span>
                     <div className="patient-login-input"><i className="ph ph-user" /><input autoComplete="off" placeholder="Child's first name" {...register('child_first_name')} /></div>
                     {errors.child_first_name ? <small className="portal-field-error">{errors.child_first_name.message}</small> : null}
                   </label>
                   <label>
-                    <span>Child’s last name <b>*</b></span>
+                    <span>Child’s last name <span className="required-asterisk">*</span></span>
                     <div className="patient-login-input"><i className="ph ph-user" /><input autoComplete="off" placeholder="Child's last name" {...register('child_last_name')} /></div>
                     {errors.child_last_name ? <small className="portal-field-error">{errors.child_last_name.message}</small> : null}
                   </label>
                 </div>
                 <div className="patient-inline-fields">
                   <label>
-                    <span>Date of birth <b>*</b></span>
+                    <span>Date of birth <span className="required-asterisk">*</span></span>
                     <div className="patient-login-input"><i className="ph ph-calendar" /><input type="date" {...register('child_date_of_birth')} /></div>
                     {errors.child_date_of_birth ? <small className="portal-field-error">{errors.child_date_of_birth.message}</small> : null}
                   </label>
                   <label>
-                    <span>Gender <b>*</b></span>
+                    <span>Gender <span className="required-asterisk">*</span></span>
                     <div className="patient-login-input">
                       <i className="ph ph-gender-intersex" />
                       <select {...register('child_gender')}>
@@ -236,7 +236,7 @@ export function PatientSignupPage() {
                     </div>
                   </label>
                   <label>
-                    <span>Preferred branch <b>*</b></span>
+                    <span>Preferred branch <span className="required-asterisk">*</span></span>
                     <div className="patient-login-input">
                       <i className="ph ph-buildings" />
                       <select disabled={branchesLoading || branchesQuery.isError} {...register('child_preferred_branch_id')}>
@@ -396,5 +396,5 @@ export function PatientSignupPage() {
 }
 
 function Field({ label, icon, error, children }: { label: string; icon: string; error?: string; children: React.ReactNode }) {
-  return <label><span>{label} <b>*</b></span><div className="patient-login-input"><i className={`ph ${icon}`} />{children}</div>{error ? <small className="portal-field-error">{error}</small> : null}</label>;
+  return <label><span>{label} <span className="required-asterisk">*</span></span><div className="patient-login-input"><i className={`ph ${icon}`} />{children}</div>{error ? <small className="portal-field-error">{error}</small> : null}</label>;
 }

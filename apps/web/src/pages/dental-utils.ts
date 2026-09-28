@@ -1,4 +1,8 @@
-import { ICD10_DIAGNOSES, type Icd10Diagnosis } from '../data/icd10-diagnoses';
+import {
+  GV_BLACK_CLASSIFICATIONS,
+  ICD10_DIAGNOSES,
+  type Icd10Diagnosis,
+} from '../data/icd10-diagnoses';
 import type { DepartmentResponse } from '../api/departments';
 import type {
   DentitionType,
@@ -315,11 +319,9 @@ export const SOFT_TISSUE_OPTIONS = {
   gingiva: [
     'Normal (Pink, firm, stippled)',
     'Mild Marginal Gingivitis',
-    'Moderate Gingivitis (Edematous, bleeding)',
-    'Severe Gingivitis',
+    'Moderate / Severe Gingivitis',
     'Generalized Chronic Periodontitis',
     'Gingival Enlargement / Hyperplasia',
-    'Acute Necrotizing Ulcerative Gingivitis (ANUG)',
   ],
   calculusPlaque: [
     'Nil / Good Oral Hygiene',
@@ -328,46 +330,33 @@ export const SOFT_TISSUE_OPTIONS = {
     'Severe (Heavy deposits, stain)',
   ],
   oralMucosa: [
-    'Normal',
-    'Aphthous Ulcer',
-    'Traumatic Ulcer',
-    'Leukoplakia',
+    'Normal mucosa',
+    'Aphthous / Traumatic Ulcer',
+    'Leukoplakia / White Patch',
     'Lichen Planus',
-    'Oral Submucous Fibrosis (OSMF)',
     'Candidiasis / Thrush',
-    'Hyperpigmentation',
+    'Other Mucosal Lesion',
   ],
   tonguePalate: [
-    'Normal',
-    'Coated Tongue',
-    'Geographic Tongue',
-    'Macroglossia',
+    'Normal / Healthy',
+    'Coated / Geographic Tongue',
+    'Torus (Palatinus / Mandibular)',
     'Ankyloglossia (Tongue-tie)',
-    'High Arched Palate',
-    'Torus Palatinus',
-    'Torus Mandibularis',
-    'Cleft Lip / Palate',
+    'Palatal / Tongue Lesion',
   ],
   tmj: [
     'Normal / Asymptomatic',
-    'Clicking / Popping (Right)',
-    'Clicking / Popping (Left)',
-    'Bilateral TMJ Clicking',
+    'Clicking / Crepitus',
     'Pain / Tenderness on Palpation',
-    'Deviation to Right on Opening',
-    'Deviation to Left on Opening',
-    'Trismus / Limited Mouth Opening (< 35mm)',
-    'Subluxation / Dislocation History',
+    'Limited Mouth Opening (< 35mm)',
+    'Deviation on Opening',
   ],
   occlusion: [
     'Class I (Normal Molar Relationship)',
-    'Class II Division 1 (Increased Overjet)',
-    'Class II Division 2 (Retroclined Incisors)',
-    'Class III (Prognathic / Edge-to-Edge)',
-    'Anterior Crossbite',
-    'Posterior Crossbite (Unilateral/Bilateral)',
-    'Anterior Open Bite',
-    'Deep Bite (Severe Overbite)',
+    'Class II (Increased Overjet / Distocclusion)',
+    'Class III (Prognathic / Mesiocclusion)',
+    'Crossbite (Anterior / Posterior)',
+    'Open Bite / Deep Bite',
   ],
 };
 
@@ -418,7 +407,8 @@ export function parseDentalDiagnoses(assessment: string): Icd10Diagnosis[] {
       const cleanLine = line.replace(/\[Tooth #\d+\]/i, '').trim();
 
       const exactCode = cleanLine.split(/\s+/)[0]?.toLowerCase();
-      const matched = ICD10_DIAGNOSES.find((diagnosis) => diagnosis.code.toLowerCase() === exactCode) ?? ICD10_DIAGNOSES.find(
+      const diagnosisCatalogue = [...ICD10_DIAGNOSES, ...GV_BLACK_CLASSIFICATIONS];
+      const matched = diagnosisCatalogue.find((diagnosis) => diagnosis.code.toLowerCase() === exactCode) ?? diagnosisCatalogue.find(
         (diagnosis) =>
           cleanLine.toLowerCase().startsWith(diagnosis.code.toLowerCase()) ||
           cleanLine.toLowerCase().includes(diagnosis.name.toLowerCase()) ||

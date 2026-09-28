@@ -18,6 +18,8 @@ export type DentalQuotationItem = {
   tax_amount: number;
   line_total: number;
   notes?: string | null;
+  reference_video_url?: string | null;
+  reference_video_title?: string | null;
 };
 
 export type DentalQuotationOption = {

@@ -212,6 +212,43 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     expect(container.textContent).toContain('Stages (2)');
   });
 
+  it('shows and opens the reference video configured on the linked Service Catalogue procedure', async () => {
+    const itemWithService = { ...mockItems[0]!, service_id: 'service-rct-1' };
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalTreatmentPlanSection
+            items={[itemWithService]}
+            teeth={[]}
+            onChange={vi.fn()}
+            episodeId="episode-1"
+            departmentId="dept-1"
+            departmentServices={[{
+              id: 'service-rct-1',
+              name: 'RCT and Ceramic Crown',
+              standard_price: 850,
+              reference_video_url: 'https://www.youtube.com/watch?v=procedure123',
+              reference_video_title: 'RCT procedure overview',
+            } as never]}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    const referenceButton = container.querySelector<HTMLButtonElement>('[data-testid="procedure-reference-video-btn"]');
+    expect(referenceButton).toBeTruthy();
+    await act(async () => referenceButton?.click());
+
+    expect(container.textContent).toContain('RCT procedure overview');
+    expect(container.querySelector('iframe')?.getAttribute('src')).toBe(
+      'https://www.youtube-nocookie.com/embed/procedure123',
+    );
+  });
+
   it('expands stages drawer and displays multi-doctor stages', async () => {
     await renderSection();
 

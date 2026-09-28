@@ -32,6 +32,11 @@ const serviceSchema = z.object({
   category: z.string().optional(),
   sample_type: z.string().optional(),
   description: z.string().optional(),
+  reference_video_url: z.string().refine(
+    (value) => !value || /^https?:\/\//i.test(value),
+    { message: 'Enter a valid http or https video URL.' },
+  ),
+  reference_video_title: z.string().max(200, 'Reference title cannot exceed 200 characters.'),
   standard_price: z.string().refine(
     (val) => val !== '' && !Number.isNaN(parseFloat(val)) && parseFloat(val) >= 0,
     { message: 'Standard price must be a non-negative number.' }
@@ -208,7 +213,7 @@ export function ServiceCataloguePage() {
     resolver: zodResolver(serviceSchema),
     defaultValues: {
       code: '', name: '', service_type: 'GENERAL', branch_id: '',
-      department_id: '', category: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
+      department_id: '', category: '', description: '', reference_video_url: '', reference_video_title: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
     }
   });
 
@@ -278,6 +283,8 @@ export function ServiceCataloguePage() {
         category: svc.category || '',
         sample_type: svc.sample_type || '',
         description: svc.description || '',
+        reference_video_url: svc.reference_video_url || '',
+        reference_video_title: svc.reference_video_title || '',
         standard_price: svc.standard_price !== null ? String(svc.standard_price) : '',
         default_duration_minutes: svc.default_duration_minutes == null ? '' : String(svc.default_duration_minutes),
         booking_capacity: svc.booking_capacity == null ? '' : String(svc.booking_capacity),
@@ -291,7 +298,7 @@ export function ServiceCataloguePage() {
       setModalBranchIds([]);
       svcForm.reset({
         code: '', name: '', service_type: 'GENERAL', branch_id: '',
-        department_id: '', category: '', sample_type: '', description: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
+        department_id: '', category: '', sample_type: '', description: '', reference_video_url: '', reference_video_title: '', standard_price: '', status: 'ACTIVE', default_duration_minutes: '', booking_capacity: '', requires_bed: false, requires_consent: false, requires_advance_deposit: false, minimum_advance_deposit_amount: ''
       });
     }
   };
@@ -330,6 +337,8 @@ export function ServiceCataloguePage() {
         category: values.category?.trim() || null,
         sample_type: values.service_type === 'LAB_TEST' ? (values.sample_type?.trim() || null) : null,
         description: values.description?.trim() || null,
+        reference_video_url: values.service_type === 'PROCEDURE' ? (values.reference_video_url.trim() || null) : null,
+        reference_video_title: values.service_type === 'PROCEDURE' ? (values.reference_video_title.trim() || null) : null,
         standard_price: price,
         default_duration_minutes: values.service_type === 'PROCEDURE' ? Number(values.default_duration_minutes) : null,
         booking_capacity: values.service_type === 'PROCEDURE' ? Number(values.booking_capacity) : null,
@@ -990,6 +999,35 @@ export function ServiceCataloguePage() {
                     <span>Requires Advance Deposit</span>
                   </label>
                 </div>
+
+                <div className="form-section-title">Procedure Reference Video</div>
+                <div className="form-grid-3" style={{ marginBottom: '0.85rem' }}>
+                  <label className="form-field" style={{ gridColumn: 'span 2' }}>
+                    <span>Video Reference URL</span>
+                    <input
+                      type="url"
+                      disabled={submitting}
+                      placeholder="https://www.youtube.com/watch?v=… or a direct video URL"
+                      aria-invalid={Boolean(svcForm.formState.errors.reference_video_url)}
+                      {...svcForm.register('reference_video_url')}
+                    />
+                    {svcForm.formState.errors.reference_video_url ? (
+                      <small className="field-error">{svcForm.formState.errors.reference_video_url.message}</small>
+                    ) : (
+                      <small style={{ color: '#64748b' }}>Displayed automatically beside this procedure in the dental treatment plan.</small>
+                    )}
+                  </label>
+                  <label className="form-field">
+                    <span>Reference Title</span>
+                    <input
+                      type="text"
+                      disabled={submitting}
+                      maxLength={200}
+                      placeholder="e.g. Composite restoration overview"
+                      {...svcForm.register('reference_video_title')}
+                    />
+                  </label>
+                </div>
               </>
             ) : null}
 
@@ -1023,6 +1061,18 @@ export function ServiceCataloguePage() {
               <label className="form-field"><span>Status</span><input readOnly value={activeSvc.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label>
               <label className="form-field"><span>Standard Price</span><input readOnly value={formatPrice(activeSvc.standard_price)} /></label>
               <label className="form-field"><span>Created</span><input readOnly value={formatDate(activeSvc.created_at)} /></label>
+              {activeSvc.service_type === 'PROCEDURE' ? (
+                <>
+                  <label className="form-field" style={{ gridColumn: 'span 2' }}>
+                    <span>Video Reference URL</span>
+                    <input readOnly value={activeSvc.reference_video_url ?? '—'} />
+                  </label>
+                  <label className="form-field">
+                    <span>Reference Title</span>
+                    <input readOnly value={activeSvc.reference_video_title ?? '—'} />
+                  </label>
+                </>
+              ) : null}
               <label className="form-field" style={{ gridColumn: '1 / -1' }}>
                 <span>Description</span>
                 <textarea readOnly rows={3} value={activeSvc.description ?? ''} />

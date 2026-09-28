@@ -21,7 +21,11 @@ const schema = z.object({
   appointment_date: z.string().min(1, 'Select an appointment date.'),
   start_time: z.string().min(1, 'Select an available time.'),
   visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
-  reason: z.string().min(3, 'Provide a reason for the visit (minimum 3 characters).'),
+  reason: z.string().max(500).optional().or(z.literal('')),
+  history_present_illness: z.string().max(4000).optional(),
+  past_history: z.string().max(4000).optional(),
+  family_history: z.string().max(4000).optional(),
+  allergies: z.string().max(4000).optional(),
 });
 type BookingValues = z.infer<typeof schema>;
 
@@ -72,6 +76,10 @@ export function PortalAppointmentBooking({
       start_time: '',
       visit_type: 'NEW_CONSULTATION',
       reason: '',
+      history_present_illness: '',
+      past_history: '',
+      family_history: '',
+      allergies: '',
     },
   });
   const selectedPatientId = form.watch('patient_id');
@@ -221,7 +229,14 @@ export function PortalAppointmentBooking({
         appointment_date: values.appointment_date,
         start_time: values.start_time,
         visit_type: values.visit_type,
-        reason: values.reason,
+        reason: values.reason?.trim() || null,
+        consultation_intake: {
+          chief_complaint: values.reason?.trim() || null,
+          history_present_illness: values.history_present_illness || null,
+          past_history: values.past_history || null,
+          family_history: values.family_history || null,
+          allergies: values.allergies || null,
+        },
         duration_minutes: minutesBetween(slot.start_time, slot.end_time),
       });
     },
@@ -258,7 +273,7 @@ export function PortalAppointmentBooking({
         <div className="portal-form-grid">
           <label>
             <span>
-              Patient <b>*</b>
+              Patient <span className="required-asterisk">*</span>
             </span>
             <select {...form.register('patient_id')}>
               {context.patients.map((patient) => (
@@ -273,7 +288,7 @@ export function PortalAppointmentBooking({
           </label>
           <label>
             <span>
-              Branch <b>*</b>
+              Branch <span className="required-asterisk">*</span>
             </span>
             <select
               {...form.register('branch_id', {
@@ -330,7 +345,7 @@ export function PortalAppointmentBooking({
           </label>
           <label>
             <span>
-              Department <b>*</b>
+              Department <span className="required-asterisk">*</span>
             </span>
             <select
               {...form.register('department_id', {
@@ -385,7 +400,7 @@ export function PortalAppointmentBooking({
           </label>
           <label>
             <span>
-              Doctor <b>*</b>
+              Doctor <span className="required-asterisk">*</span>
             </span>
             <select
               {...form.register('doctor_id', { onChange: resetSchedule })}
@@ -451,7 +466,7 @@ export function PortalAppointmentBooking({
         <div className="portal-form-grid portal-date-options">
           <label>
             <span>
-              Appointment date <b>*</b>
+              Appointment date <span className="required-asterisk">*</span>
             </span>
             <input
               min={today}
@@ -472,7 +487,7 @@ export function PortalAppointmentBooking({
           </label>
           <label>
             <span>
-              Visit type <b>*</b>
+              Visit type <span className="required-asterisk">*</span>
             </span>
             <select {...form.register('visit_type')}>
               <option value="NEW_CONSULTATION">New consultation</option>
@@ -572,15 +587,13 @@ export function PortalAppointmentBooking({
         <div className="portal-form-section-title">
           <span>3</span>
           <div>
-            <strong>Reason for visit</strong>
-            <small>This helps the care team prepare for your appointment.</small>
+            <strong>Basic consultation form</strong>
+            <small>Share your health concern before the appointment (optional).</small>
           </div>
         </div>
         <div className="portal-form-grid">
           <label className="wide">
-            <span>
-              Reason <b>*</b>
-            </span>
+            <span>Chief complaint</span>
             <textarea
               placeholder="Briefly describe the concern or service you need"
               rows={4}
@@ -589,6 +602,22 @@ export function PortalAppointmentBooking({
             {form.formState.errors.reason ? (
               <small>{form.formState.errors.reason.message}</small>
             ) : null}
+          </label>
+          <label className="wide">
+            <span>History of present illness</span>
+            <textarea placeholder="When it started, symptoms and relevant details" rows={3} {...form.register('history_present_illness')} />
+          </label>
+          <label>
+            <span>Past medical history</span>
+            <textarea rows={3} {...form.register('past_history')} />
+          </label>
+          <label>
+            <span>Family history</span>
+            <textarea rows={3} {...form.register('family_history')} />
+          </label>
+          <label className="wide">
+            <span>Allergies / sensitivities</span>
+            <textarea rows={3} {...form.register('allergies')} />
           </label>
         </div>
       </section>

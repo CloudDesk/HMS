@@ -175,4 +175,22 @@ describe('staff route access control', () => {
     expect(hasPermission(nursePermissions, createReq, nurseRole)).toBe(false);
     expect(hasPermission(doctorPermissions, createReq, doctorRole)).toBe(false);
   });
+
+  it('removes access to appointment queue management for doctor role based user', () => {
+    const queuePermissions = [
+      permission('Appointments', 'Appointment Records'),
+      permission('OPD', 'OPD Visits'),
+    ];
+
+    // Allowed for receptionist or general staff
+    expect(canAccessRoute('/appointments/queue', queuePermissions, [{ id: 'rec', code: 'RECEPTIONIST', name: 'Receptionist' }])).toBe(true);
+
+    // Blocked for doctor role
+    expect(canAccessRoute('/appointments/queue', queuePermissions, doctorRole)).toBe(false);
+
+    // Sidebar modules should not contain /appointments/queue for doctor
+    const modules = getAccessibleSidebarModules(queuePermissions, doctorRole);
+    const appointmentModule = modules.find((m) => m.key === 'appointments');
+    expect(appointmentModule?.links.some((l) => l.href === '/appointments/queue')).toBe(false);
+  });
 });
