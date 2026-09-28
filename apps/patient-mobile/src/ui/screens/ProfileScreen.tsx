@@ -398,9 +398,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
-    fontWeight: typography.weight.medium,
   },
   errorContainer: {
     flex: 1,
@@ -414,13 +413,12 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   headerTitle: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.screenTitle,
     color: colors.text.primary,
-    letterSpacing: -0.3,
+    letterSpacing: typography.letterSpacing.tight,
   },
   headerSubtitle: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -446,20 +444,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primaryLight,
   },
   changePhotoText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionStrong,
     color: colors.brand.primaryDark,
-    fontWeight: typography.weight.semibold,
   },
   heroName: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
+    fontSize: typography.size.title,
     color: colors.text.primary,
     marginBottom: spacing.xxs,
   },
   heroMrn: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionMedium,
     color: colors.text.secondary,
-    fontFamily: 'monospace',
+    fontFamily: typography.fontFamily.mono,
     marginBottom: spacing.md,
   },
   heroBadgeRow: {
@@ -476,9 +473,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border.default,
   },
   relBadgeText: {
+    ...typography.presets.captionStrong,
     fontSize: typography.size.xs,
     color: colors.text.secondary,
-    fontWeight: typography.weight.semibold,
     textTransform: 'uppercase',
   },
   card: {
@@ -491,11 +488,11 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   cardTitle: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
+    fontSize: typography.size.md,
     color: colors.text.primary,
     marginBottom: spacing.md,
-    letterSpacing: -0.2,
+    letterSpacing: typography.letterSpacing.tight,
   },
   row: {
     flexDirection: 'row',
@@ -505,20 +502,18 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border.subtle,
   },
   label: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
-    fontWeight: typography.weight.medium,
     flex: 1,
   },
   value: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.primary,
-    fontWeight: typography.weight.semibold,
     flex: 1.2,
     textAlign: 'right',
   },
   addressValue: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.bodySmall,
     lineHeight: typography.lineHeight.normal,
   },
   capitalize: {
@@ -533,8 +528,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   sectionTitle: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
     color: colors.text.primary,
     marginBottom: spacing.md,
   },
@@ -555,13 +549,12 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   actionCardTitle: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.bodyStrong,
     color: colors.text.primary,
     marginBottom: spacing.xxs,
   },
   actionCardSubtitle: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
   },
   actionCardArrow: {
@@ -578,7 +571,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border.subtle,
   },
   noticeText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.normal,
@@ -595,7 +588,6 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     color: colors.status.danger,
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.button,
   },
 });

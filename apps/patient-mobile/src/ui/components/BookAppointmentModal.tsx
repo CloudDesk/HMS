@@ -24,8 +24,14 @@ import {
   type SlotItem,
   type ClinicalHistoryFormState,
 } from '../../appointments/contracts';
-import { AppointmentDatePicker, formatToDateString } from './AppointmentDatePicker';
+import {
+  AppointmentDatePicker,
+  formatToDateString,
+  getSlotStatusLabel,
+  isSlotSelectable,
+} from './AppointmentDatePicker';
 import { ErrorDiagnosticView } from './ErrorDiagnosticView';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export type { ClinicalHistoryFormState };
 export { emptyClinicalHistory };
@@ -65,6 +71,10 @@ export function BookAppointmentModal({
   );
   const [reason, setReason] = useState<string>('');
 
+  // Dropdown Picker Modals
+  const [isDepartmentPickerOpen, setIsDepartmentPickerOpen] = useState<boolean>(false);
+  const [isDoctorPickerOpen, setIsDoctorPickerOpen] = useState<boolean>(false);
+
   // Optional Clinical History State
   const [isClinicalHistoryExpanded, setIsClinicalHistoryExpanded] = useState<boolean>(false);
   const [clinicalHistory, setClinicalHistory] =
@@ -90,7 +100,17 @@ export function BookAppointmentModal({
     return context?.patients.find((p) => p.id === patientId) ?? selectedPatient ?? null;
   }, [context, patientId, selectedPatient]);
 
+  const selectedDepartment = useMemo(() => {
+    return departments.find((d) => d.id === departmentId) ?? null;
+  }, [departments, departmentId]);
+
+  const selectedDoctor = useMemo(() => {
+    return doctors.find((d) => d.id === doctorId) ?? null;
+  }, [doctors, doctorId]);
+
   const handleClose = () => {
+    setIsDepartmentPickerOpen(false);
+    setIsDoctorPickerOpen(false);
     setIsClinicalHistoryExpanded(false);
     setClinicalHistory(emptyClinicalHistory);
     setErrorMessage(null);
@@ -103,10 +123,15 @@ export function BookAppointmentModal({
     if (visible) {
       const activeId = selectedPatientId ?? context?.patients[0]?.id ?? '';
       setPatientId(activeId);
+      setDepartmentId('');
+      setDoctorId('');
+      setDoctors([]);
       setAppointmentDate(formatToDateString(new Date()));
       setSelectedSlot(null);
       setSlotData(null);
       setReason('');
+      setIsDepartmentPickerOpen(false);
+      setIsDoctorPickerOpen(false);
       setIsClinicalHistoryExpanded(false);
       setClinicalHistory(emptyClinicalHistory);
       setErrorMessage(null);
@@ -175,11 +200,25 @@ export function BookAppointmentModal({
     setClinicalHistory(emptyClinicalHistory);
   };
 
+  // When branch changes, reset downstream fields
+  const handleBranchChange = (newBranchId: string) => {
+    if (branchId === newBranchId) return;
+    setBranchId(newBranchId);
+    setDepartmentId('');
+    setDepartments([]);
+    setDoctorId('');
+    setDoctors([]);
+    setSelectedSlot(null);
+    setSlotData(null);
+  };
+
   // When branch selection changes, reset downstream fields and load departments
   useEffect(() => {
     if (!visible || !branchId) {
       setDepartments([]);
       setDepartmentId('');
+      setDoctorId('');
+      setDoctors([]);
       return;
     }
 
@@ -196,13 +235,14 @@ export function BookAppointmentModal({
       .then((data) => {
         if (active) {
           setDepartments(data);
-          if (data.length > 0) {
-            setDepartmentId(data[0]?.id ?? '');
-          }
         }
       })
-      .catch(() => {
-        if (active) setDepartments([]);
+      .catch((err) => {
+        if (active) {
+          setDepartments([]);
+          setErrorObj(err);
+          setErrorMessage(friendlyError(err));
+        }
       })
       .finally(() => {
         if (active) setIsLoadingDepartments(false);
@@ -218,6 +258,8 @@ export function BookAppointmentModal({
     if (!visible || !branchId || !departmentId) {
       setDoctors([]);
       setDoctorId('');
+      setSelectedSlot(null);
+      setSlotData(null);
       return;
     }
 
@@ -232,13 +274,14 @@ export function BookAppointmentModal({
       .then((data) => {
         if (active) {
           setDoctors(data);
-          if (data.length > 0) {
-            setDoctorId(data[0]?.id ?? '');
-          }
         }
       })
-      .catch(() => {
-        if (active) setDoctors([]);
+      .catch((err) => {
+        if (active) {
+          setDoctors([]);
+          setErrorObj(err);
+          setErrorMessage(friendlyError(err));
+        }
       })
       .finally(() => {
         if (active) setIsLoadingDoctors(false);
@@ -248,6 +291,26 @@ export function BookAppointmentModal({
       active = false;
     };
   }, [visible, branchId, departmentId, appointmentsApi]);
+
+  const handleDepartmentSelect = (newDeptId: string) => {
+    setIsDepartmentPickerOpen(false);
+    if (departmentId === newDeptId) return;
+    setDepartmentId(newDeptId);
+    setDoctorId('');
+    setDoctors([]);
+    setSelectedSlot(null);
+    setSlotData(null);
+    setErrorMessage(null);
+  };
+
+  const handleDoctorSelect = (newDocId: string) => {
+    setIsDoctorPickerOpen(false);
+    if (doctorId === newDocId) return;
+    setDoctorId(newDocId);
+    setSelectedSlot(null);
+    setSlotData(null);
+    setErrorMessage(null);
+  };
 
   // When doctor or appointment date changes, load slots
   useEffect(() => {
@@ -292,6 +355,10 @@ export function BookAppointmentModal({
       setErrorMessage('Please select a hospital branch.');
       return;
     }
+    if (!departmentId) {
+      setErrorMessage('Please select a department.');
+      return;
+    }
     if (!doctorId) {
       setErrorMessage('Please select a doctor.');
       return;
@@ -300,8 +367,8 @@ export function BookAppointmentModal({
       setErrorMessage('Please select an appointment date.');
       return;
     }
-    if (!selectedSlot) {
-      setErrorMessage('Please select an available appointment time slot.');
+    if (!selectedSlot || !isSlotSelectable(selectedSlot, appointmentDate)) {
+      setErrorMessage('Please select a valid, available appointment time slot.');
       return;
     }
 
@@ -314,9 +381,6 @@ export function BookAppointmentModal({
     setIsSubmitting(true);
     try {
       const duration = minutesBetween(selectedSlot.start_time, selectedSlot.end_time);
-      const [hours = 0, minutes = 0] = selectedSlot.start_time.split(':').map(Number);
-      const [year = 1970, month = 1, day = 1] = appointmentDate.split('-').map(Number);
-      const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
 
       const hasClinicalData = Boolean(
         clinicalHistory.chiefComplaint.trim() ||
@@ -344,7 +408,6 @@ export function BookAppointmentModal({
         duration_minutes: duration > 0 ? duration : 15,
         visit_type: visitType,
         reason: effectiveReason,
-        utc_datetime: utcDate.toISOString(),
         clinical_history: clinicalHistoryPayload,
       });
 
@@ -370,12 +433,13 @@ export function BookAppointmentModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
+    <>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="slide"
+        onRequestClose={handleClose}
+      >
       <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
@@ -387,7 +451,13 @@ export function BookAppointmentModal({
                 </TouchableOpacity>
               </View>
 
-              <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+              >
                 {errorObj || errorMessage ? (
                   <ErrorDiagnosticView
                     error={errorObj ?? errorMessage}
@@ -447,11 +517,7 @@ export function BookAppointmentModal({
                             branchId === b.id && styles.selectorChipActive,
                             branches.length === 1 && styles.singleBranchChip,
                           ]}
-                          onPress={() => {
-                            if (branchId !== b.id) {
-                              setBranchId(b.id);
-                            }
-                          }}
+                          onPress={() => handleBranchChange(b.id)}
                           disabled={isSubmitting || branches.length === 1}
                         >
                           <Text
@@ -468,84 +534,112 @@ export function BookAppointmentModal({
                   )}
                 </View>
 
-                {/* 3. Department */}
-                {isLoadingDepartments ? (
-                  <View style={styles.formGroup}>
-                    <Text style={styles.label}>Department</Text>
-                    <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
-                  </View>
-                ) : departments.length > 0 ? (
-                  <View style={styles.formGroup}>
-                    <Text style={styles.label}>Department</Text>
-                    <View style={styles.chipSelector}>
-                      {departments.map((d) => (
-                        <TouchableOpacity
-                          key={d.id}
-                          style={[
-                            styles.selectorChip,
-                            departmentId === d.id && styles.selectorChipActive,
-                          ]}
-                          onPress={() => {
-                            if (departmentId !== d.id) {
-                              setDepartmentId(d.id);
-                            }
-                          }}
-                          disabled={isSubmitting}
-                        >
-                          <Text
-                            style={[
-                              styles.selectorChipText,
-                              departmentId === d.id && styles.selectorChipTextActive,
-                            ]}
-                          >
-                            {d.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                {/* 3 & 4. Compact Cascading Department & Doctor Row */}
+                <View style={styles.formGroup}>
+                  <View style={styles.cascadingRow}>
+                    {/* Department Column (approx 45-50%) */}
+                    <View style={styles.cascadingColLeft}>
+                      <Text style={styles.label}>Department</Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.selectTrigger,
+                          (isLoadingDepartments || isSubmitting || departments.length === 0) &&
+                            styles.selectTriggerDisabled,
+                        ]}
+                        onPress={() => setIsDepartmentPickerOpen(true)}
+                        disabled={isLoadingDepartments || isSubmitting || departments.length === 0}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Department: ${selectedDepartment?.name ?? 'Select Department'}`}
+                      >
+                        {isLoadingDepartments ? (
+                          <View style={styles.selectTriggerLoading}>
+                            <ActivityIndicator size="small" color="#0284C7" />
+                            <Text style={styles.selectPlaceholderText} numberOfLines={1}>
+                              Loading…
+                            </Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Text
+                              style={[
+                                styles.selectValueText,
+                                !selectedDepartment && styles.selectPlaceholderText,
+                              ]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {selectedDepartment?.name ?? 'Select Department'}
+                            </Text>
+                            <Text style={styles.selectArrow}>▾</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                ) : null}
 
-                {/* 4. Doctor */}
-                {isLoadingDoctors ? (
-                  <View style={styles.formGroup}>
-                    <Text style={styles.label}>Doctor</Text>
-                    <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
-                  </View>
-                ) : doctors.length > 0 ? (
-                  <View style={styles.formGroup}>
-                    <Text style={styles.label}>Doctor</Text>
-                    <View style={styles.chipSelector}>
-                      {doctors.map((doc) => (
-                        <TouchableOpacity
-                          key={doc.id}
-                          style={[
-                            styles.doctorChip,
-                            doctorId === doc.id && styles.doctorChipActive,
-                          ]}
-                          onPress={() => {
-                            if (doctorId !== doc.id) {
-                              setDoctorId(doc.id);
-                            }
-                          }}
-                          disabled={isSubmitting}
-                        >
-                          <Text
-                            style={[
-                              styles.doctorChipName,
-                              doctorId === doc.id && styles.doctorChipNameActive,
-                            ]}
-                          >
-                            {doc.display_name}
-                          </Text>
-                          <Text style={styles.doctorChipSpec}>{doc.specialization}</Text>
-                        </TouchableOpacity>
-                      ))}
+                    {/* Doctor Column (approx 50-55%) */}
+                    <View style={styles.cascadingColRight}>
+                      <Text style={styles.label}>Doctor</Text>
+                      <TouchableOpacity
+                        style={[
+                          styles.selectTrigger,
+                          (!departmentId ||
+                            isLoadingDoctors ||
+                            isSubmitting ||
+                            doctors.length === 0) &&
+                            styles.selectTriggerDisabled,
+                        ]}
+                        onPress={() => setIsDoctorPickerOpen(true)}
+                        disabled={
+                          !departmentId ||
+                          isLoadingDoctors ||
+                          isSubmitting ||
+                          doctors.length === 0
+                        }
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Doctor: ${
+                          selectedDoctor
+                            ? selectedDoctor.display_name
+                            : !departmentId
+                            ? 'Select department first'
+                            : doctors.length === 0
+                            ? 'No doctors available'
+                            : 'Select Doctor'
+                        }`}
+                      >
+                        {isLoadingDoctors ? (
+                          <View style={styles.selectTriggerLoading}>
+                            <ActivityIndicator size="small" color="#0284C7" />
+                            <Text style={styles.selectPlaceholderText} numberOfLines={1}>
+                              Loading…
+                            </Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Text
+                              style={[
+                                styles.selectValueText,
+                                !selectedDoctor && styles.selectPlaceholderText,
+                              ]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {selectedDoctor
+                                ? selectedDoctor.display_name
+                                : !departmentId
+                                ? 'Select dept first'
+                                : doctors.length === 0
+                                ? 'No doctors available'
+                                : 'Select Doctor'}
+                            </Text>
+                            <Text style={styles.selectArrow}>▾</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
-                ) : (
-                  <Text style={styles.emptyHint}>No doctors found for this department.</Text>
-                )}
+                </View>
 
                 {/* 5. Date Selection via AppointmentDatePicker */}
                 <View style={styles.formGroup}>
@@ -566,8 +660,7 @@ export function BookAppointmentModal({
                   ) : slotData && slotData.slots.length > 0 ? (
                     <View style={styles.slotGrid}>
                       {slotData.slots.map((slot) => {
-                        const isAvailable =
-                          slot.available !== false && slot.is_available !== false;
+                        const status = getSlotStatusLabel(slot, appointmentDate);
                         const isSelected = selectedSlot?.start_time === slot.start_time;
 
                         return (
@@ -575,18 +668,22 @@ export function BookAppointmentModal({
                             key={slot.start_time}
                             style={[
                               styles.slotBtn,
-                              !isAvailable && styles.slotBtnUnavailable,
+                              !status.isSelectable && styles.slotBtnUnavailable,
                               isSelected && styles.slotBtnSelected,
                             ]}
                             onPress={() => {
-                              if (isAvailable) setSelectedSlot(slot);
+                              if (status.isSelectable) {
+                                setSelectedSlot(slot);
+                                setErrorMessage(null);
+                              }
                             }}
-                            disabled={!isAvailable || isSubmitting}
+                            disabled={!status.isSelectable || isSubmitting}
+                            activeOpacity={0.7}
                           >
                             <Text
                               style={[
                                 styles.slotText,
-                                !isAvailable && styles.slotTextUnavailable,
+                                !status.isSelectable && styles.slotTextUnavailable,
                                 isSelected && styles.slotTextSelected,
                               ]}
                             >
@@ -595,10 +692,11 @@ export function BookAppointmentModal({
                             <Text
                               style={[
                                 styles.slotSubText,
+                                !status.isSelectable && styles.slotSubTextUnavailable,
                                 isSelected && styles.slotSubTextSelected,
                               ]}
                             >
-                              {isAvailable ? 'Open' : 'Booked'}
+                              {status.label}
                             </Text>
                           </TouchableOpacity>
                         );
@@ -833,6 +931,169 @@ export function BookAppointmentModal({
         </View>
       </TouchableWithoutFeedback>
     </Modal>
+
+    {/* Department Selection Modal */}
+    <Modal
+      visible={isDepartmentPickerOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setIsDepartmentPickerOpen(false)}
+    >
+      <TouchableWithoutFeedback onPress={() => setIsDepartmentPickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.pickerCard}>
+              <View style={styles.pickerHeader}>
+                <View style={styles.pickerHeaderLeft}>
+                  <Text style={styles.pickerTitle}>Select Department</Text>
+                  <Text style={styles.pickerSubtitle}>
+                    Choose a clinical department for your visit
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsDepartmentPickerOpen(false)}
+                  style={styles.pickerCloseBtn}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Close department selector"
+                >
+                  <Text style={styles.pickerCloseBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.pickerListScroll}
+                contentContainerStyle={styles.pickerListContent}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+              >
+                {departments.length === 0 ? (
+                  <Text style={styles.pickerEmptyText}>No departments available for this branch.</Text>
+                ) : (
+                  departments.map((dept) => {
+                    const isSelected = dept.id === departmentId;
+                    return (
+                      <TouchableOpacity
+                        key={dept.id}
+                        style={[
+                          styles.pickerItem,
+                          isSelected && styles.pickerItemSelected,
+                        ]}
+                        onPress={() => handleDepartmentSelect(dept.id)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.pickerItemInfo}>
+                          <Text
+                            style={[
+                              styles.pickerItemTitle,
+                              isSelected && styles.pickerItemTitleSelected,
+                            ]}
+                          >
+                            {dept.name}
+                          </Text>
+                          {dept.description ? (
+                            <Text style={styles.pickerItemSubtitle}>
+                              {dept.description}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {isSelected ? (
+                          <View style={styles.pickerCheckBadge}>
+                            <Text style={styles.pickerCheckText}>✓</Text>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+
+    {/* Doctor Selection Modal */}
+    <Modal
+      visible={isDoctorPickerOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setIsDoctorPickerOpen(false)}
+    >
+      <TouchableWithoutFeedback onPress={() => setIsDoctorPickerOpen(false)}>
+        <View style={styles.pickerOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.pickerCard}>
+              <View style={styles.pickerHeader}>
+                <View style={styles.pickerHeaderLeft}>
+                  <Text style={styles.pickerTitle}>Select Doctor</Text>
+                  <Text style={styles.pickerSubtitle}>
+                    {selectedDepartment
+                      ? `${selectedDepartment.name} Specialists`
+                      : 'Available Doctors'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsDoctorPickerOpen(false)}
+                  style={styles.pickerCloseBtn}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Close doctor selector"
+                >
+                  <Text style={styles.pickerCloseBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.pickerListScroll}
+                contentContainerStyle={styles.pickerListContent}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+              >
+                {doctors.length === 0 ? (
+                  <Text style={styles.pickerEmptyText}>No doctors available in this department.</Text>
+                ) : (
+                  doctors.map((doc) => {
+                    const isSelected = doc.id === doctorId;
+                    return (
+                      <TouchableOpacity
+                        key={doc.id}
+                        style={[
+                          styles.pickerItem,
+                          isSelected && styles.pickerItemSelected,
+                        ]}
+                        onPress={() => handleDoctorSelect(doc.id)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.pickerItemInfo}>
+                          <Text
+                            style={[
+                              styles.pickerItemTitle,
+                              isSelected && styles.pickerItemTitleSelected,
+                            ]}
+                          >
+                            {doc.display_name}
+                          </Text>
+                          <Text style={styles.pickerItemSubtitle}>
+                            {doc.specialization}
+                            {doc.qualification ? ` • ${doc.qualification}` : ''}
+                            {doc.experience_years ? ` • ${doc.experience_years} yrs exp` : ''}
+                          </Text>
+                        </View>
+                        {isSelected ? (
+                          <View style={styles.pickerCheckBadge}>
+                            <Text style={styles.pickerCheckText}>✓</Text>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  </>
   );
 }
 
@@ -843,299 +1104,454 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: colors.neutral.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     maxHeight: '90%',
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    ...shadows.modal,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.border.subtle,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.sectionTitle,
+    color: colors.text.primary,
   },
   closeBtn: {
-    padding: 6,
+    padding: spacing.xs,
   },
   closeBtnText: {
-    fontSize: 18,
-    color: '#64748B',
-    fontWeight: '600',
+    ...typography.presets.sectionTitle,
+    color: colors.text.secondary,
+  },
+  scrollView: {
+    width: '100%',
+    flexShrink: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   formGroup: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: spacing.xs + 2,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
+    ...typography.presets.bodySmallStrong,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs + 2,
   },
   preferredBadge: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#0284C7',
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.semibold,
+    color: colors.brand.primary,
+    backgroundColor: colors.brand.primaryLight,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.xs,
   },
   chipSelector: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   selectorChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.neutral.background,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border.default,
   },
   selectorChipActive: {
-    backgroundColor: '#E0F2FE',
-    borderColor: '#0284C7',
+    backgroundColor: colors.brand.primaryLight,
+    borderColor: colors.brand.primary,
   },
   singleBranchChip: {
-    backgroundColor: '#F0F9FF',
-    borderColor: '#0284C7',
+    backgroundColor: colors.brand.primarySubtle,
+    borderColor: colors.brand.primary,
   },
   selectorChipText: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '500',
+    ...typography.presets.bodySmallMedium,
+    color: colors.text.secondary,
   },
   selectorChipTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+    color: colors.brand.primary,
+    fontWeight: typography.weight.bold,
   },
   doctorChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.neutral.background,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border.default,
   },
   doctorChipActive: {
-    backgroundColor: '#E0F2FE',
-    borderColor: '#0284C7',
+    backgroundColor: colors.brand.primaryLight,
+    borderColor: colors.brand.primary,
   },
   doctorChipName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
+    ...typography.presets.bodySmallStrong,
+    color: colors.text.primary,
   },
   doctorChipNameActive: {
-    color: '#0284C7',
+    color: colors.brand.primary,
   },
   doctorChipSpec: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
+    ...typography.presets.caption,
+    color: colors.text.secondary,
+    marginTop: spacing.xxs,
   },
   input: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0F172A',
+    borderColor: colors.border.default,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    fontSize: typography.size.base,
+    color: colors.text.primary,
   },
   textArea: {
     minHeight: 72,
     textAlignVertical: 'top',
   },
   charCount: {
-    fontSize: 11,
-    color: '#94A3B8',
+    ...typography.presets.caption,
+    color: colors.text.muted,
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   clinicalHistoryCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    backgroundColor: colors.neutral.background,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 14,
-    marginBottom: 16,
+    borderColor: colors.border.default,
+    padding: spacing.md + 2,
+    marginBottom: spacing.lg,
   },
   clinicalHistoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   clinicalHistoryTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   clinicalHistoryTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.bodyStrong,
+    color: colors.text.primary,
   },
   optionalBadge: {
-    backgroundColor: '#F1F5F9',
-    borderColor: '#CBD5E1',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderColor: colors.border.default,
     borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 6,
+    borderRadius: radius.xs,
+    paddingHorizontal: spacing.xs + 2,
     paddingVertical: 1,
   },
   optionalBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: typography.size.micro,
+    lineHeight: typography.lineHeight.micro,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.secondary,
     textTransform: 'uppercase',
   },
   clinicalHistorySubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 8,
+    ...typography.presets.caption,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
   },
   toggleBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: '#E0F2FE',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.xs + 2,
+    backgroundColor: colors.brand.primaryLight,
   },
   toggleBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0284C7',
+    ...typography.presets.captionStrong,
+    color: colors.brand.primary,
   },
   clinicalFieldsContainer: {
-    marginTop: 10,
+    marginTop: spacing.sm + 2,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 12,
-    gap: 12,
+    borderTopColor: colors.border.default,
+    paddingTop: spacing.md,
+    gap: spacing.md,
   },
   clinicalFieldGroup: {
     marginBottom: 2,
   },
   clinicalFieldLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 4,
+    ...typography.presets.captionStrong,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   clinicalTextArea: {
     minHeight: 56,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surface,
     textAlignVertical: 'top',
   },
   slotGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   slotBtn: {
     width: '30%',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border.default,
+    backgroundColor: colors.neutral.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   slotBtnUnavailable: {
-    backgroundColor: '#F1F5F9',
-    borderColor: '#E2E8F0',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderColor: colors.border.subtle,
     opacity: 0.6,
   },
   slotBtnSelected: {
-    backgroundColor: '#0284C7',
-    borderColor: '#0284C7',
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
   slotText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.bodyStrong,
+    color: colors.text.primary,
   },
   slotTextUnavailable: {
-    color: '#94A3B8',
+    color: colors.text.muted,
     textDecorationLine: 'line-through',
   },
   slotTextSelected: {
-    color: '#FFFFFF',
+    color: colors.text.inverse,
   },
   slotSubText: {
-    fontSize: 10,
-    color: '#16A34A',
-    fontWeight: '600',
+    fontSize: typography.size.micro,
+    color: colors.status.success,
+    fontWeight: typography.weight.semibold,
     marginTop: 2,
   },
   slotSubTextSelected: {
-    color: '#E0F2FE',
+    color: colors.brand.primaryLight,
+  },
+  slotSubTextUnavailable: {
+    color: colors.text.muted,
   },
   emptyHint: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: typography.size.sm,
+    color: colors.text.muted,
     fontStyle: 'italic',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   loadingSpinner: {
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
-    paddingTop: 16,
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: colors.border.subtle,
   },
   cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
+    justifyContent: 'center',
   },
   cancelBtnText: {
-    color: '#64748B',
-    fontWeight: '600',
-    fontSize: 14,
+    ...typography.presets.buttonSmall,
+    color: colors.text.secondary,
   },
   confirmBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: colors.brand.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
     minWidth: 140,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   confirmBtnDisabled: {
     opacity: 0.7,
   },
   confirmBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
+    ...typography.presets.button,
+    color: colors.text.inverse,
+  },
+  // Cascading Dropdown Row
+  cascadingRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
+  cascadingColLeft: {
+    flex: 1,
+  },
+  cascadingColRight: {
+    flex: 1.1,
+  },
+  selectTrigger: {
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.neutral.surface,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectTriggerDisabled: {
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderColor: colors.border.subtle,
+    opacity: 0.7,
+  },
+  selectTriggerLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  selectValueText: {
+    ...typography.presets.bodySmallMedium,
+    color: colors.text.primary,
+    flex: 1,
+    marginRight: spacing.xs,
+  },
+  selectPlaceholderText: {
+    color: colors.text.muted,
+  },
+  selectArrow: {
+    fontSize: typography.size.xs,
+    color: colors.text.secondary,
+    marginLeft: 2,
+  },
+  // Picker Modals
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  pickerCard: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '75%',
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.lg,
+    ...shadows.modal,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+  },
+  pickerHeaderLeft: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  pickerTitle: {
+    ...typography.presets.sectionTitle,
+    color: colors.text.primary,
+  },
+  pickerSubtitle: {
+    ...typography.presets.caption,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  pickerCloseBtn: {
+    padding: spacing.xs,
+  },
+  pickerCloseBtnText: {
+    ...typography.presets.sectionTitle,
+    color: colors.text.secondary,
+  },
+  pickerListScroll: {
+    maxHeight: 360,
+  },
+  pickerListContent: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.neutral.background,
+    marginVertical: spacing.xs,
+  },
+  pickerItemSelected: {
+    backgroundColor: colors.brand.primaryLight,
+    borderColor: colors.brand.primary,
+  },
+  pickerItemInfo: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  pickerItemTitle: {
+    ...typography.presets.bodyStrong,
+    color: colors.text.primary,
+  },
+  pickerItemTitleSelected: {
+    color: colors.brand.primary,
+  },
+  pickerItemSubtitle: {
+    ...typography.presets.caption,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  pickerCheckBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerCheckText: {
+    color: colors.text.inverse,
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.bold,
+  },
+  pickerEmptyText: {
+    ...typography.presets.bodySmall,
+    color: colors.text.muted,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: spacing.xl,
   },
 });

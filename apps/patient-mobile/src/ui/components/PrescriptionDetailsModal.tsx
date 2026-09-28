@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import type { PrescriptionRecord } from '../../prescriptions/contracts';
+import { colors, typography } from '../theme';
 
 interface PrescriptionDetailsModalProps {
   prescription: PrescriptionRecord | null;
@@ -210,23 +211,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.sectionTitle,
+    color: colors.text.primary,
   },
   doctorTitle: {
-    fontSize: 14,
+    ...typography.presets.bodyStrong,
     color: '#0284C7',
-    fontWeight: '600',
     marginTop: 2,
   },
   closeBtn: {
     padding: 6,
   },
   closeBtnText: {
-    fontSize: 18,
+    fontSize: typography.size.title,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: typography.weight.semibold,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -244,15 +243,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...typography.presets.captionStrong,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: typography.letterSpacing.wide,
   },
   dateText: {
-    fontSize: 12,
+    ...typography.presets.captionMedium,
     color: '#64748B',
-    fontWeight: '500',
   },
   section: {
     marginBottom: 16,
@@ -261,15 +258,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    ...typography.presets.cardTitle,
     color: '#1E293B',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: typography.letterSpacing.wide,
   },
   emptyItemsText: {
+    ...typography.presets.bodySmall,
     color: '#94A3B8',
-    fontSize: 13,
     fontStyle: 'italic',
   },
   medicinesList: {
@@ -297,20 +293,19 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   medIcon: {
-    fontSize: 16,
+    fontSize: typography.size.subtitle,
   },
   medTitleContainer: {
     flex: 1,
   },
   medicineName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.bodyStrong,
+    fontSize: typography.size.md,
+    color: colors.text.primary,
   },
   medicineStrength: {
-    fontSize: 12,
+    ...typography.presets.captionMedium,
     color: '#0284C7',
-    fontWeight: '500',
     marginTop: 1,
   },
   qtyBadge: {
@@ -320,8 +315,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   qtyText: {
-    fontSize: 11,
-    fontWeight: '600',
+    ...typography.presets.captionMedium,
+    fontSize: typography.size.xs,
     color: '#475569',
   },
   medDetailsGrid: {
@@ -338,16 +333,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   medDetailLabel: {
-    fontSize: 10,
+    ...typography.presets.micro,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: typography.weight.semibold,
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   medDetailValue: {
-    fontSize: 12,
+    ...typography.presets.captionStrong,
     color: '#1E293B',
-    fontWeight: '600',
   },
   instructionRow: {
     flexDirection: 'row',
@@ -358,15 +352,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   instructionIcon: {
-    fontSize: 12,
+    fontSize: typography.size.caption,
     marginRight: 6,
     marginTop: 1,
   },
   instructionText: {
     flex: 1,
-    fontSize: 12,
+    ...typography.presets.caption,
     color: '#0369A1',
-    lineHeight: 16,
+    lineHeight: typography.lineHeight.normal,
   },
   adviceBox: {
     backgroundColor: '#EFF6FF',
@@ -377,15 +371,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   adviceTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+    ...typography.presets.bodySmallStrong,
     color: '#1E40AF',
     marginBottom: 4,
   },
   adviceContent: {
-    fontSize: 12,
+    ...typography.presets.caption,
     color: '#1E3A8A',
-    lineHeight: 18,
+    lineHeight: typography.lineHeight.relaxed,
   },
   followUpBox: {
     backgroundColor: '#F0FDF4',
@@ -396,8 +389,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   followUpTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...typography.presets.bodySmallMedium,
+    fontWeight: typography.weight.semibold,
     color: '#166534',
   },
   footer: {
@@ -411,8 +404,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneBtnText: {
+    ...typography.presets.button,
     color: '#475569',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

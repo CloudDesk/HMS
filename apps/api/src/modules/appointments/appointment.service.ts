@@ -10,7 +10,7 @@ import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import type { SettingsRepository } from '../settings/settings.repository.js';
 import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { AppointmentRepository } from './appointment.repository.js';
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type {
   Appointment,
   AppointmentListQuery,
@@ -326,18 +326,16 @@ export class AppointmentService {
     let appointmentDateStr: string;
     let startTimeStr: string;
 
-    if (data.utc_datetime) {
+    if (data.appointment_date && data.start_time) {
+      appointmentDateStr = data.appointment_date;
+      startTimeStr = data.start_time;
+      appointmentUtc = fromZonedTime(`${appointmentDateStr}T${startTimeStr}:00`, tz);
+    } else if (data.utc_datetime) {
       appointmentUtc = new Date(data.utc_datetime);
       appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
       startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
-    } else if (data.appointment_date && data.start_time) {
-      appointmentDateStr = data.appointment_date;
-      startTimeStr = data.start_time;
-      const [hours = 0, minutes = 0] = data.start_time.split(':').map(Number);
-      const [year = 1970, month = 1, day = 1] = data.appointment_date.split('-').map(Number);
-      appointmentUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes));
     } else {
-      throw new AppError('UTC datetime is required for new appointments', 400, 'VALIDATION_ERROR');
+      throw new AppError('Appointment date and start time (or UTC datetime) are required for new appointments', 400, 'VALIDATION_ERROR');
     }
 
     const appointmentDate = this.validateAppointmentDate(appointmentDateStr);
@@ -467,7 +465,11 @@ export class AppointmentService {
     let appointmentDateStr: string;
     let startTimeStr: string;
 
-    if (data.utc_datetime) {
+    if (data.appointment_date && data.start_time) {
+      appointmentDateStr = data.appointment_date;
+      startTimeStr = data.start_time;
+      appointmentUtc = fromZonedTime(`${appointmentDateStr}T${startTimeStr}:00`, tz);
+    } else if (data.utc_datetime) {
       appointmentUtc = new Date(data.utc_datetime);
       appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
       startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');

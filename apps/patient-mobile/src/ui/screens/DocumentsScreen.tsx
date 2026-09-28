@@ -320,8 +320,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   filterChipText: {
-    fontSize: typography.size.xs + 1,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.captionMedium,
     color: colors.text.secondary,
   },
   filterChipTextActive: {
@@ -333,7 +332,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   listContainer: {
@@ -361,19 +360,18 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   docIconEmoji: {
-    fontSize: 20,
+    fontSize: typography.size.xl,
   },
   docTitleBlock: {
     flex: 1,
     marginRight: spacing.sm,
   },
   docName: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   docMeta: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -388,12 +386,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   docDate: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionMedium,
     color: colors.text.muted,
   },
   viewDocText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primary,
-    fontWeight: typography.weight.semibold,
   },
 });

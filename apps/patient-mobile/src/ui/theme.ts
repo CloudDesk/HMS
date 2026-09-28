@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * HMS Patient Mobile — Centralized Design System & Theme Tokens
  *
@@ -87,30 +89,163 @@ export const radius = {
 } as const;
 
 export const typography = {
+  // Font Families
+  fontFamily: {
+    sans: undefined, // Native system default (San Francisco on iOS, Roboto on Android)
+    mono: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+
   // Font Sizes
   size: {
+    micro: 10,
     xs: 11,
+    caption: 12,
     sm: 13,
+    base: 14,
     md: 15,
+    subtitle: 16,
     lg: 17,
+    title: 18,
     xl: 20,
+    h2: 22,
     xxl: 24,
+    h1: 26,
     display: 28,
+    hero: 32,
   },
+
   // Font Weights
   weight: {
     regular: '400' as const,
     medium: '500' as const,
     semibold: '600' as const,
     bold: '700' as const,
+    heavy: '800' as const,
   },
+
   // Line Heights
   lineHeight: {
+    micro: 12,
+    compact: 14,
     tight: 16,
+    snug: 18,
     normal: 20,
+    moderate: 22,
     relaxed: 24,
+    spacious: 26,
     heading: 28,
+    title: 30,
     display: 34,
+    hero: 40,
+  },
+
+  // Letter Spacings
+  letterSpacing: {
+    tighter: -0.4,
+    tight: -0.3,
+    snug: -0.2,
+    normal: 0,
+    wide: 0.2,
+    wider: 0.4,
+    widest: 0.5,
+  },
+
+  // Semantic Presets / Composite Variants
+  presets: {
+    display: {
+      fontSize: 28,
+      fontWeight: '700' as const,
+      lineHeight: 34,
+      letterSpacing: -0.3,
+    },
+    screenTitle: {
+      fontSize: 20,
+      fontWeight: '700' as const,
+      lineHeight: 26,
+      letterSpacing: -0.3,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '700' as const,
+      lineHeight: 22,
+      letterSpacing: -0.2,
+    },
+    cardTitle: {
+      fontSize: 15,
+      fontWeight: '600' as const,
+      lineHeight: 20,
+    },
+    body: {
+      fontSize: 14,
+      fontWeight: '400' as const,
+      lineHeight: 20,
+    },
+    bodyMedium: {
+      fontSize: 14,
+      fontWeight: '500' as const,
+      lineHeight: 20,
+    },
+    bodyStrong: {
+      fontSize: 14,
+      fontWeight: '600' as const,
+      lineHeight: 20,
+    },
+    bodySmall: {
+      fontSize: 12,
+      fontWeight: '400' as const,
+      lineHeight: 16,
+    },
+    bodySmallMedium: {
+      fontSize: 12,
+      fontWeight: '500' as const,
+      lineHeight: 16,
+    },
+    bodySmallStrong: {
+      fontSize: 12,
+      fontWeight: '600' as const,
+      lineHeight: 16,
+    },
+    label: {
+      fontSize: 12,
+      fontWeight: '600' as const,
+      lineHeight: 16,
+    },
+    caption: {
+      fontSize: 11,
+      fontWeight: '400' as const,
+      lineHeight: 14,
+    },
+    captionMedium: {
+      fontSize: 11,
+      fontWeight: '500' as const,
+      lineHeight: 14,
+    },
+    captionStrong: {
+      fontSize: 11,
+      fontWeight: '600' as const,
+      lineHeight: 14,
+    },
+    micro: {
+      fontSize: 10,
+      fontWeight: '600' as const,
+      lineHeight: 12,
+    },
+    button: {
+      fontSize: 15,
+      fontWeight: '600' as const,
+      lineHeight: 20,
+      letterSpacing: 0.2,
+    },
+    buttonSmall: {
+      fontSize: 13,
+      fontWeight: '600' as const,
+      lineHeight: 18,
+    },
+    code: {
+      fontSize: 12,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      lineHeight: 16,
+    },
   },
 };
 

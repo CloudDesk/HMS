@@ -148,7 +148,8 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   singleContextText: {
-    fontSize: typography.size.xs + 1,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.tight,
     color: colors.brand.primaryDark,
     fontWeight: typography.weight.semibold,
   },
@@ -169,15 +170,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectorLabel: {
-    fontSize: 10,
+    fontSize: typography.size.micro,
+    lineHeight: typography.lineHeight.micro,
     color: colors.text.muted,
     fontWeight: typography.weight.bold,
-    letterSpacing: 0.5,
+    letterSpacing: typography.letterSpacing.widest,
     marginBottom: spacing.xxs,
   },
   selectorName: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   selectorRight: {
@@ -195,12 +196,13 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: typography.size.xs,
+    lineHeight: typography.lineHeight.tight,
     color: colors.text.secondary,
     fontWeight: typography.weight.semibold,
     textTransform: 'uppercase',
   },
   arrowIcon: {
-    fontSize: 14,
+    fontSize: typography.size.base,
     color: colors.text.muted,
     fontWeight: typography.weight.bold,
   },
@@ -226,12 +228,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   modalTitle: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
     color: colors.text.primary,
   },
   modalSubtitle: {
-    fontSize: typography.size.xs + 1,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.tight,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -271,8 +273,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   patientName: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodyStrong,
     color: colors.text.primary,
   },
   patientNameSelected: {
@@ -280,7 +281,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
   },
   patientRel: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.muted,
     marginTop: spacing.xxs,
   },

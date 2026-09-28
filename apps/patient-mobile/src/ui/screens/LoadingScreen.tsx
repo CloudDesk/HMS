@@ -45,9 +45,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border.default,
   },
   message: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
     marginLeft: spacing.md,
-    fontWeight: typography.weight.medium,
   },
 });

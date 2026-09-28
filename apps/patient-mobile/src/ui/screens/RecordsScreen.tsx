@@ -283,13 +283,12 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   title: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.screenTitle,
     color: colors.text.primary,
-    letterSpacing: -0.3,
+    letterSpacing: typography.letterSpacing.tight,
   },
   subtitle: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -313,8 +312,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   tabText: {
-    fontSize: typography.size.xs + 1,
-    fontWeight: typography.weight.medium,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
   },
   tabTextActive: {
@@ -327,7 +325,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   listContainer: {
@@ -351,12 +349,11 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   testName: {
-    fontSize: typography.size.md + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   reportNum: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -373,12 +370,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   detailIcon: {
-    fontSize: 14,
+    fontSize: typography.size.base,
     marginRight: spacing.sm,
     width: 20,
   },
   detailText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     flex: 1,
   },
@@ -392,12 +389,11 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.subtle,
   },
   sampleId: {
-    fontSize: typography.size.xs,
+    ...typography.presets.micro,
     color: colors.text.muted,
   },
   viewDetailsText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primary,
-    fontWeight: typography.weight.semibold,
   },
 });

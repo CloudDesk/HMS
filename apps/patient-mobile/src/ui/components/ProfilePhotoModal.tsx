@@ -310,10 +310,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
     color: colors.text.primary,
-    letterSpacing: -0.2,
   },
   closeButton: {
     width: 32,
@@ -324,9 +322,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.secondary,
-    fontWeight: typography.weight.bold,
   },
   errorBox: {
     backgroundColor: colors.status.dangerBg,
@@ -337,7 +334,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   errorText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.status.danger,
     lineHeight: typography.lineHeight.normal,
   },
@@ -348,8 +345,7 @@ const styles = StyleSheet.create({
     marginVertical: spacing.md,
   },
   patientNameText: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
     marginBottom: spacing.lg,
   },
@@ -374,18 +370,17 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   optionIcon: {
-    fontSize: 20,
+    fontSize: typography.size.xl,
   },
   optionTextBox: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.bodyStrong,
     color: colors.text.primary,
   },
   optionSubtitle: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: 2,
   },
@@ -410,15 +405,14 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   deleteIcon: {
-    fontSize: 18,
+    fontSize: typography.size.title,
   },
   deleteTitle: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.bodyStrong,
     color: colors.status.danger,
   },
   deleteSubtitle: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.status.danger,
     marginTop: 2,
     opacity: 0.85,
@@ -442,7 +436,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   previewSubtitle: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: spacing.lg,
@@ -458,9 +452,8 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.button,
+    color: colors.text.inverse,
   },
   secondaryButton: {
     width: '100%',
@@ -473,9 +466,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
+    ...typography.presets.buttonSmall,
     color: colors.text.primary,
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
   },
   buttonDisabled: {
     opacity: 0.6,

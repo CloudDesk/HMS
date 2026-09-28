@@ -366,11 +366,10 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   summaryTitle: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.captionStrong,
     color: colors.text.secondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: typography.letterSpacing.wide,
     marginBottom: spacing.md,
   },
   summaryGrid: {
@@ -388,13 +387,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border.subtle,
   },
   summaryColLabel: {
-    fontSize: typography.size.xs,
+    ...typography.presets.micro,
     color: colors.text.muted,
     marginBottom: spacing.xxs,
   },
   summaryColValue: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.bodyStrong,
     color: colors.text.primary,
   },
   tabContainer: {
@@ -417,8 +415,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   tabText: {
-    fontSize: typography.size.xs + 1,
-    fontWeight: typography.weight.medium,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
   },
   tabTextActive: {
@@ -431,7 +428,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   listContainer: {
@@ -455,12 +452,11 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   invoiceNumber: {
-    fontSize: typography.size.md + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   invoiceDate: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -480,15 +476,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   amountLabel: {
-    fontSize: 10,
+    ...typography.presets.micro,
     color: colors.text.muted,
     textTransform: 'uppercase',
     fontWeight: typography.weight.semibold,
     marginBottom: spacing.xxs,
   },
   amountValue: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.bodyStrong,
     color: colors.text.primary,
   },
   cardFooter: {
@@ -499,12 +494,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   itemsCount: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionMedium,
     color: colors.text.muted,
   },
   viewDetailsText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primary,
-    fontWeight: typography.weight.semibold,
   },
 });

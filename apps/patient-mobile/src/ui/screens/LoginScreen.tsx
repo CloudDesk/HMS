@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   subtitle: {
-    fontSize: typography.size.sm + 1,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.relaxed,
@@ -147,8 +147,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   label: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.primary,
     marginBottom: spacing.sm,
   },
@@ -168,8 +167,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   countryCodeText: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodyMedium,
     color: colors.text.primary,
   },
   input: {
@@ -180,7 +178,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border.default,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
-    fontSize: typography.size.md,
+    fontSize: typography.size.base,
     color: colors.text.primary,
     fontWeight: typography.weight.medium,
   },
@@ -197,9 +195,8 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: colors.text.inverse,
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 0.2,
+    ...typography.presets.button,
+    letterSpacing: typography.letterSpacing.wide,
   },
   footer: {
     marginTop: spacing.xxl,
@@ -212,7 +209,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border.subtle,
   },
   footerNotice: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.normal,

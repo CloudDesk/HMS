@@ -103,17 +103,16 @@ const styles = StyleSheet.create({
     borderColor: colors.status.warningBorder,
   },
   iconText: {
-    fontSize: 24,
+    fontSize: typography.size.xxl,
   },
   title: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
     color: colors.text.primary,
     marginBottom: spacing.xs,
     textAlign: 'center',
   },
   message: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.normal,
@@ -134,8 +133,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.text.inverse,
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.button,
   },
   secondaryButton: {
     paddingVertical: spacing.sm,
@@ -143,7 +141,6 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: colors.brand.primary,
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodySmallStrong,
   },
 });

@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import type { PortalAppointment } from '../../appointments/contracts';
+import { formatAppointmentDate } from '../../appointments/date-utils';
 import { StatusBadge, type StatusVariant } from './StatusBadge';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 
@@ -128,7 +129,7 @@ export function AppointmentDetailsModal({
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>Schedule</Text>
                   <Text style={styles.scheduleText}>
-                    📅 {appointment.appointment_date}
+                    📅 {formatAppointmentDate(appointment.appointment_date)}
                   </Text>
                   <Text style={styles.scheduleText}>
                     ⏰ {appointment.start_time} - {appointment.end_time}
@@ -217,15 +218,14 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border.subtle,
   },
   headerTitle: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
     color: colors.text.primary,
   },
   appointmentNumber: {
+    ...typography.presets.code,
     fontSize: typography.size.xs,
     color: colors.text.muted,
     marginTop: spacing.xxs,
-    fontFamily: 'monospace',
   },
   closeBtn: {
     width: 32,
@@ -236,9 +236,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeBtnText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.secondary,
-    fontWeight: typography.weight.bold,
   },
   scrollContent: {
     padding: spacing.xl,
@@ -253,51 +252,48 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   sectionLabel: {
-    fontSize: 10,
+    fontSize: typography.size.micro,
+    lineHeight: typography.lineHeight.micro,
     fontWeight: typography.weight.bold,
     color: colors.text.muted,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: typography.letterSpacing.widest,
     marginBottom: spacing.xs,
   },
   doctorName: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   specialization: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primaryDark,
     marginTop: spacing.xxs,
   },
   department: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
   scheduleText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.primary,
-    fontWeight: typography.weight.medium,
     marginTop: spacing.xxs,
   },
   locationText: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.primary,
   },
   addressText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
   visitTypeText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.primary,
-    fontWeight: typography.weight.medium,
   },
   reasonText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     marginTop: spacing.xs,
   },
@@ -310,25 +306,27 @@ const styles = StyleSheet.create({
   rescheduleBtn: {
     backgroundColor: colors.brand.primary,
     borderRadius: radius.md,
-    height: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   rescheduleBtnText: {
+    ...typography.presets.buttonSmall,
     color: colors.text.inverse,
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.bold,
   },
   dismissBtn: {
     backgroundColor: colors.neutral.surfaceSubtle,
     borderRadius: radius.md,
-    height: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   dismissBtnText: {
+    ...typography.presets.buttonSmall,
     color: colors.text.secondary,
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
   },
 });

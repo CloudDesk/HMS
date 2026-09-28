@@ -8,16 +8,25 @@ import {
   View,
 } from 'react-native';
 import {
+  formatAppointmentDate,
   formatHumanReadableDate,
   formatToDateString,
   getQuickDateOptions,
+  getSlotStatusLabel,
+  isSlotExpired,
+  isSlotSelectable,
   parseFromDateString,
 } from '../../appointments/date-utils';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export {
+  formatAppointmentDate,
   formatHumanReadableDate,
   formatToDateString,
   getQuickDateOptions,
+  getSlotStatusLabel,
+  isSlotExpired,
+  isSlotSelectable,
   parseFromDateString,
 };
 
@@ -84,8 +93,8 @@ export function AppointmentDatePicker({
 
   // Generate days in month grid
   const calendarDays = useMemo(() => {
-    const firstDayIndex = new Date(viewYear, viewMonth, 1).getDay();
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const firstDayIndex = new Date(viewYear, viewMonth, 1, 12, 0, 0).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0, 12, 0, 0).getDate();
 
     const days: ({ day: number; dateStr: string; isPast: boolean } | null)[] = [];
 
@@ -265,47 +274,46 @@ export function AppointmentDatePicker({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 4,
+    marginVertical: spacing.xs,
   },
   quickOptionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 8,
+    gap: spacing.xs + 2,
+    marginBottom: spacing.sm,
   },
   quickChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm - 1,
+    borderRadius: radius.sm,
+    backgroundColor: colors.neutral.surfaceSubtle,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border.default,
   },
   quickChipSelected: {
-    backgroundColor: '#0284C7',
-    borderColor: '#0284C7',
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
   disabledChip: {
     opacity: 0.5,
   },
   quickChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
+    ...typography.presets.captionStrong,
+    color: colors.text.secondary,
   },
   quickChipTextSelected: {
-    color: '#FFFFFF',
+    color: colors.text.inverse,
   },
   dateDisplayBtn: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surface,
     borderWidth: 1.5,
-    borderColor: '#0284C7',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: colors.brand.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.md,
   },
   disabledBtn: {
     opacity: 0.6,
@@ -313,130 +321,120 @@ const styles = StyleSheet.create({
   dateDisplayLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   calendarIcon: {
-    fontSize: 16,
+    fontSize: typography.size.subtitle,
   },
   dateDisplayText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.bodyStrong,
+    color: colors.text.primary,
   },
   changeDateAction: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0284C7',
+    ...typography.presets.captionStrong,
+    color: colors.brand.primary,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: spacing.xl,
   },
   calendarCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
     width: '100%',
     maxWidth: 360,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    ...shadows.modal,
   },
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   monthTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.sectionTitle,
+    color: colors.text.primary,
   },
   navBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.neutral.surfaceSubtle,
     justifyContent: 'center',
     alignItems: 'center',
   },
   navBtnText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#334155',
+    fontSize: typography.size.xl,
+    fontWeight: typography.weight.bold,
+    color: colors.text.secondary,
   },
   weekRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    justifyContent: 'flex-start',
+    marginBottom: spacing.sm,
   },
   weekDayLabel: {
-    width: 36,
+    width: '14.285%',
     textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
+    ...typography.presets.captionStrong,
+    color: colors.text.muted,
   },
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   dayCellEmpty: {
-    width: '14.28%',
+    width: '14.285%',
     height: 38,
   },
   dayCell: {
-    width: '14.28%',
+    width: '14.285%',
     height: 38,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 2,
-    borderRadius: 8,
+    marginVertical: spacing.xxs,
+    borderRadius: radius.sm,
   },
   dayCellToday: {
     borderWidth: 1,
-    borderColor: '#0284C7',
+    borderColor: colors.brand.primary,
   },
   dayCellSelected: {
-    backgroundColor: '#0284C7',
+    backgroundColor: colors.brand.primary,
   },
   dayCellDisabled: {
     opacity: 0.25,
   },
   dayCellText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.primary,
   },
   dayCellTextToday: {
-    color: '#0284C7',
-    fontWeight: '700',
+    color: colors.brand.primary,
+    fontWeight: typography.weight.bold,
   },
   dayCellTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: colors.text.inverse,
+    fontWeight: typography.weight.bold,
   },
   dayCellTextDisabled: {
-    color: '#94A3B8',
+    color: colors.text.muted,
   },
   cancelModalBtn: {
-    marginTop: 16,
-    paddingVertical: 10,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm + 2,
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.sm,
   },
   cancelModalBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
+    ...typography.presets.buttonSmall,
+    color: colors.text.secondary,
   },
 });

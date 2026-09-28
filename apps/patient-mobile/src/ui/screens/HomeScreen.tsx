@@ -316,9 +316,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
-    fontWeight: typography.weight.medium,
   },
   errorContainer: {
     flex: 1,
@@ -338,10 +337,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   greetingText: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.screenTitle,
     color: colors.text.primary,
-    letterSpacing: -0.3,
+    letterSpacing: typography.letterSpacing.tight,
   },
   headerActions: {
     flexDirection: 'row',
@@ -360,7 +358,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   headerIconText: {
-    fontSize: 18,
+    fontSize: typography.size.title,
   },
   notifBadge: {
     position: 'absolute',
@@ -378,7 +376,7 @@ const styles = StyleSheet.create({
   },
   notifBadgeText: {
     color: colors.text.inverse,
-    fontSize: 10,
+    ...typography.presets.micro,
     fontWeight: typography.weight.bold,
   },
   emptyCard: {
@@ -391,18 +389,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   emptyCardText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   section: {
     marginBottom: spacing.xl,
   },
   sectionTitle: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
     color: colors.text.primary,
     marginBottom: spacing.md,
-    letterSpacing: -0.2,
+    letterSpacing: typography.letterSpacing.tight,
   },
   servicesGrid: {
     flexDirection: 'row',
@@ -427,16 +424,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   serviceEmoji: {
-    fontSize: 20,
+    fontSize: typography.size.xl,
   },
   serviceTitle: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.bodyStrong,
     color: colors.text.primary,
     marginBottom: spacing.xxs,
   },
   serviceSubtitle: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
   },
   summaryGrid: {
@@ -454,8 +450,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   summaryValue: {
-    fontSize: typography.size.xxl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.display,
     color: colors.brand.primaryDark,
     marginBottom: spacing.xxs,
   },
@@ -463,8 +458,7 @@ const styles = StyleSheet.create({
     color: colors.status.danger,
   },
   summaryLabel: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionMedium,
     color: colors.text.secondary,
-    fontWeight: typography.weight.medium,
   },
 });

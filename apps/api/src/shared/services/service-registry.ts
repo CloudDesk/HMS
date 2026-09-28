@@ -157,6 +157,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     userRepository,
     userService,
     appointmentRepository,
+    settingsRepository,
   );
   const patientService = new PatientService(patientRepository, patientDocumentStorageService, sequenceService);
   const opdClinicalOrderService = new OpdClinicalOrderService(

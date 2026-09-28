@@ -89,11 +89,13 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: typography.size.xs,
+    lineHeight: typography.lineHeight.tight,
     fontWeight: typography.weight.semibold,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: typography.letterSpacing.wider,
   },
   textSm: {
-    fontSize: 10,
+    fontSize: typography.size.micro,
+    lineHeight: typography.lineHeight.micro,
   },
 });

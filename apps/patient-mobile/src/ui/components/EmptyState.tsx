@@ -52,20 +52,18 @@ const styles = StyleSheet.create({
     borderColor: colors.brand.primaryLight,
   },
   iconText: {
-    fontSize: 26,
+    fontSize: typography.size.h1,
   },
   title: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.sectionTitle,
     color: colors.text.primary,
     marginBottom: spacing.xs,
     textAlign: 'center',
   },
   description: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: typography.lineHeight.normal,
     maxWidth: 280,
   },
   actionButton: {
@@ -76,8 +74,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   actionButtonText: {
+    ...typography.presets.buttonSmall,
     color: colors.text.inverse,
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
   },
 });

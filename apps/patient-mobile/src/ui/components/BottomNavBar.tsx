@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primarySubtle,
   },
   tabIcon: {
-    fontSize: 18,
+    fontSize: typography.size.title,
     marginBottom: 2,
     opacity: 0.65,
   },
@@ -83,8 +83,7 @@ const styles = StyleSheet.create({
     opacity: 1,
   },
   tabLabel: {
-    fontSize: typography.size.xs,
-    fontWeight: typography.weight.medium,
+    ...typography.presets.captionMedium,
     color: colors.text.secondary,
   },
   tabLabelActive: {

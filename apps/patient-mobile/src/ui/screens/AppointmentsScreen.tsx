@@ -18,6 +18,7 @@ import {
   AppointmentDetailsModal,
   formatVisitType,
 } from '../components/AppointmentDetailsModal';
+import { formatAppointmentDate } from '../../appointments/date-utils';
 import { BookAppointmentModal } from '../components/BookAppointmentModal';
 import { RescheduleAppointmentModal } from '../components/RescheduleAppointmentModal';
 import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
@@ -230,7 +231,7 @@ export function AppointmentsScreen() {
                     <View style={styles.detailRow}>
                       <Text style={styles.detailIcon}>📅</Text>
                       <Text style={styles.detailText}>
-                        {apt.appointment_date} • {apt.start_time} - {apt.end_time}
+                        {formatAppointmentDate(apt.appointment_date)} • {apt.start_time} - {apt.end_time}
                       </Text>
                     </View>
                     {apt.branch?.name ? (
@@ -316,13 +317,12 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   title: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.screenTitle,
     color: colors.text.primary,
-    letterSpacing: -0.3,
+    letterSpacing: typography.letterSpacing.tight,
   },
   subtitle: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -335,8 +335,7 @@ const styles = StyleSheet.create({
   },
   bookBtnText: {
     color: colors.text.inverse,
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.buttonSmall,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -358,8 +357,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   tabText: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.medium,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
   },
   tabTextActive: {
@@ -372,7 +370,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   errorDiagnosticWrapper: {
@@ -399,12 +397,11 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   doctorName: {
-    fontSize: typography.size.md + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   specialization: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -421,12 +418,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   detailIcon: {
-    fontSize: 14,
+    fontSize: typography.size.base,
     marginRight: spacing.sm,
     width: 20,
   },
   detailText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   cardFooter: {
@@ -439,9 +436,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.subtle,
   },
   appointmentNum: {
-    fontSize: typography.size.xs,
+    ...typography.presets.micro,
     color: colors.text.muted,
-    fontFamily: 'monospace',
+    fontFamily: typography.fontFamily.mono,
     fontWeight: typography.weight.semibold,
   },
   cardActions: {
@@ -458,13 +455,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border.default,
   },
   actionRescheduleText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionStrong,
     color: colors.brand.primaryDark,
-    fontWeight: typography.weight.semibold,
   },
   viewDetailsText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primary,
-    fontWeight: typography.weight.semibold,
   },
 });

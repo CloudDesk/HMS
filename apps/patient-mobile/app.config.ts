@@ -24,6 +24,9 @@ const config: ExpoConfig & {
     bundleIdentifier: 'com.hms.patient.dev',
     supportsTablet: true,
     icon: './assets/icon.png',
+    "infoPlist": {
+      "ITSAppUsesNonExemptEncryption": false
+    },
   },
   android: {
     package: 'com.hms.patient.dev',

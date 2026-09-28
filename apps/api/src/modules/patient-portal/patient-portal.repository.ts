@@ -286,7 +286,7 @@ export class PatientPortalRepository {
       DoctorModel.countDocuments(filter),
     ]);
 
-    if (!doctors.length) {
+    if (!doctors.length && !query.departmentId && !query.branchId && !query.search) {
       [doctors, total] = await Promise.all([
         DoctorModel.find(baseFilter)
           .select('displayName specialization qualification experienceYears branchId departmentId consultationRoom availability')

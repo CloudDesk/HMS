@@ -310,8 +310,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   tabText: {
-    fontSize: typography.size.xs + 1,
-    fontWeight: typography.weight.medium,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
   },
   tabTextActive: {
@@ -324,7 +323,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   listContainer: {
@@ -348,12 +347,11 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   quoteTitle: {
-    fontSize: typography.size.md + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   quoteNum: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -370,13 +368,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   detailLabel: {
-    fontSize: typography.size.xs,
+    ...typography.presets.micro,
     color: colors.text.muted,
     marginBottom: spacing.xxs,
   },
   detailValue: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.primary,
   },
   costValue: {
@@ -393,12 +390,11 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.subtle,
   },
   dateText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionMedium,
     color: colors.text.muted,
   },
   viewPlanText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primary,
-    fontWeight: typography.weight.semibold,
   },
 });

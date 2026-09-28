@@ -308,13 +308,12 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   title: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.screenTitle,
     color: colors.text.primary,
-    letterSpacing: -0.3,
+    letterSpacing: typography.letterSpacing.tight,
   },
   subtitle: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -338,8 +337,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   tabText: {
-    fontSize: typography.size.xs + 1,
-    fontWeight: typography.weight.medium,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
   },
   tabTextActive: {
@@ -352,7 +350,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   listContainer: {
@@ -376,12 +374,11 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   doctorName: {
-    fontSize: typography.size.md + 1,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   dateText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
@@ -403,13 +400,12 @@ const styles = StyleSheet.create({
     maxWidth: '85%',
   },
   medChipIcon: {
-    fontSize: 12,
+    fontSize: typography.size.caption,
     marginRight: spacing.xs,
   },
   medChipText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionMedium,
     color: colors.text.primary,
-    fontWeight: typography.weight.medium,
   },
   moreChip: {
     backgroundColor: colors.brand.primarySubtle,
@@ -420,9 +416,8 @@ const styles = StyleSheet.create({
     borderColor: colors.brand.primaryLight,
   },
   moreChipText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionStrong,
     color: colors.brand.primaryDark,
-    fontWeight: typography.weight.semibold,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -434,14 +429,12 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.subtle,
   },
   medicinesCountText: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionMedium,
     color: colors.text.muted,
-    fontWeight: typography.weight.medium,
   },
   viewDetailsText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primary,
-    fontWeight: typography.weight.semibold,
   },
   purchaseCard: {
     backgroundColor: colors.neutral.surface,
@@ -461,18 +454,16 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   purchaseMedicineName: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.text.primary,
   },
   purchaseInvoice: {
-    fontSize: typography.size.xs,
+    ...typography.presets.caption,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },
   purchaseAmount: {
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.cardTitle,
     color: colors.brand.primaryDark,
   },
   cardDivider: {
@@ -488,13 +479,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   purchaseDetailLabel: {
-    fontSize: typography.size.xs,
+    ...typography.presets.micro,
     color: colors.text.muted,
     marginBottom: spacing.xxs,
   },
   purchaseDetailValue: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.primary,
   },
 });

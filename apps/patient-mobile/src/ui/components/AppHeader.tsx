@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   backIcon: {
-    fontSize: 18,
+    fontSize: typography.size.title,
     color: colors.text.primary,
     fontWeight: typography.weight.bold,
   },
@@ -72,13 +72,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: typography.size.xl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.screenTitle,
     color: colors.text.primary,
-    letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: typography.size.xs + 1,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.tight,
     color: colors.text.secondary,
     marginTop: spacing.xxs,
   },

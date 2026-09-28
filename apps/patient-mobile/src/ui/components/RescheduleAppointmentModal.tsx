@@ -20,8 +20,15 @@ import type {
   RescheduleEligibility,
   SlotItem,
 } from '../../appointments/contracts';
-import { AppointmentDatePicker, formatToDateString } from './AppointmentDatePicker';
+import {
+  AppointmentDatePicker,
+  formatAppointmentDate,
+  formatToDateString,
+  getSlotStatusLabel,
+  isSlotSelectable,
+} from './AppointmentDatePicker';
 import { ErrorDiagnosticView } from './ErrorDiagnosticView';
+import { colors, radius, shadows, spacing, typography } from '../theme';
 
 interface RescheduleAppointmentModalProps {
   appointment: PortalAppointment | null;
@@ -134,8 +141,8 @@ export function RescheduleAppointmentModal({
     setErrorMessage(null);
     setErrorObj(null);
 
-    if (!selectedSlot) {
-      setErrorMessage('Please select a new available appointment time slot.');
+    if (!selectedSlot || !isSlotSelectable(selectedSlot, appointmentDate)) {
+      setErrorMessage('Please select a valid, available appointment time slot.');
       return;
     }
 
@@ -193,7 +200,13 @@ export function RescheduleAppointmentModal({
                 </TouchableOpacity>
               </View>
 
-              <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+              >
                 {isCheckingEligibility ? (
                   <View style={styles.centerLoading}>
                     <ActivityIndicator size="small" color="#0284C7" />
@@ -223,7 +236,7 @@ export function RescheduleAppointmentModal({
                     <View style={styles.currentBox}>
                       <Text style={styles.currentLabel}>Current Scheduled Time:</Text>
                       <Text style={styles.currentValue}>
-                        {appointment.appointment_date} · {appointment.start_time}–{appointment.end_time}
+                        {formatAppointmentDate(appointment.appointment_date)} · {appointment.start_time}–{appointment.end_time}
                       </Text>
                       <Text style={styles.currentDoctor}>{appointment.doctor_name}</Text>
                     </View>
@@ -276,8 +289,7 @@ export function RescheduleAppointmentModal({
                       ) : slotData && slotData.slots.length > 0 ? (
                         <View style={styles.slotGrid}>
                           {slotData.slots.map((slot) => {
-                            const isAvailable =
-                              slot.available !== false && slot.is_available !== false;
+                            const status = getSlotStatusLabel(slot, appointmentDate);
                             const isSelected = selectedSlot?.start_time === slot.start_time;
 
                             return (
@@ -285,18 +297,22 @@ export function RescheduleAppointmentModal({
                                 key={slot.start_time}
                                 style={[
                                   styles.slotBtn,
-                                  !isAvailable && styles.slotBtnUnavailable,
+                                  !status.isSelectable && styles.slotBtnUnavailable,
                                   isSelected && styles.slotBtnSelected,
                                 ]}
                                 onPress={() => {
-                                  if (isAvailable) setSelectedSlot(slot);
+                                  if (status.isSelectable) {
+                                    setSelectedSlot(slot);
+                                    setErrorMessage(null);
+                                  }
                                 }}
-                                disabled={!isAvailable || isSubmitting}
+                                disabled={!status.isSelectable || isSubmitting}
+                                activeOpacity={0.7}
                               >
                                 <Text
                                   style={[
                                     styles.slotText,
-                                    !isAvailable && styles.slotTextUnavailable,
+                                    !status.isSelectable && styles.slotTextUnavailable,
                                     isSelected && styles.slotTextSelected,
                                   ]}
                                 >
@@ -305,10 +321,11 @@ export function RescheduleAppointmentModal({
                                 <Text
                                   style={[
                                     styles.slotSubText,
+                                    !status.isSelectable && styles.slotSubTextUnavailable,
                                     isSelected && styles.slotSubTextSelected,
                                   ]}
                                 >
-                                  {isAvailable ? 'Open' : 'Booked'}
+                                  {status.label}
                                 </Text>
                               </TouchableOpacity>
                             );
@@ -363,220 +380,224 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: colors.neutral.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     maxHeight: '90%',
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    ...shadows.modal,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
-    paddingBottom: 12,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.border.subtle,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.sectionTitle,
+    color: colors.text.primary,
   },
   subNumber: {
-    fontSize: 12,
-    color: '#64748B',
+    ...typography.presets.code,
+    fontSize: typography.size.xs,
+    color: colors.text.muted,
     marginTop: 2,
   },
   closeBtn: {
-    padding: 6,
+    padding: spacing.xs,
   },
   closeBtnText: {
-    fontSize: 18,
-    color: '#64748B',
-    fontWeight: '600',
+    ...typography.presets.sectionTitle,
+    color: colors.text.secondary,
+  },
+  scrollView: {
+    width: '100%',
+    flexShrink: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   centerLoading: {
-    paddingVertical: 32,
+    paddingVertical: spacing.xxxl,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 13,
-    color: '#64748B',
+    marginTop: spacing.sm + 2,
+    ...typography.presets.bodySmall,
+    color: colors.text.secondary,
   },
   ineligibleBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.status.dangerBg,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 16,
+    borderColor: colors.status.dangerBorder,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginVertical: spacing.lg,
   },
   ineligibleTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    ...typography.presets.bodyStrong,
     color: '#991B1B',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   ineligibleReason: {
-    fontSize: 13,
+    ...typography.presets.bodySmall,
     color: '#7F1D1D',
-    lineHeight: 18,
+    lineHeight: typography.lineHeight.snug,
   },
   currentBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: colors.neutral.background,
+    borderRadius: radius.md,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
+    borderColor: colors.border.default,
+    marginBottom: spacing.lg,
   },
   currentLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: typography.size.micro,
+    lineHeight: typography.lineHeight.micro,
+    fontWeight: typography.weight.semibold,
+    color: colors.text.secondary,
     textTransform: 'uppercase',
   },
   currentValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.bodyStrong,
+    color: colors.text.primary,
     marginTop: 2,
   },
   currentDoctor: {
-    fontSize: 13,
-    color: '#0284C7',
+    ...typography.presets.bodySmallMedium,
+    color: colors.brand.primary,
     marginTop: 2,
-    fontWeight: '500',
   },
   formGroup: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
+    ...typography.presets.bodySmallStrong,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs + 2,
   },
   chipSelector: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   selectorChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.neutral.background,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border.default,
   },
   selectorChipActive: {
-    backgroundColor: '#E0F2FE',
-    borderColor: '#0284C7',
+    backgroundColor: colors.brand.primaryLight,
+    borderColor: colors.brand.primary,
   },
   selectorChipText: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '500',
+    ...typography.presets.bodySmallMedium,
+    color: colors.text.secondary,
   },
   selectorChipTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
+    color: colors.brand.primary,
+    fontWeight: typography.weight.bold,
   },
   slotGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   slotBtn: {
     width: '30%',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border.default,
+    backgroundColor: colors.neutral.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   slotBtnUnavailable: {
-    backgroundColor: '#F1F5F9',
-    borderColor: '#E2E8F0',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderColor: colors.border.subtle,
     opacity: 0.6,
   },
   slotBtnSelected: {
-    backgroundColor: '#0284C7',
-    borderColor: '#0284C7',
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
   slotText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.bodyStrong,
+    color: colors.text.primary,
   },
   slotTextUnavailable: {
-    color: '#94A3B8',
+    color: colors.text.muted,
     textDecorationLine: 'line-through',
   },
   slotTextSelected: {
-    color: '#FFFFFF',
+    color: colors.text.inverse,
   },
   slotSubText: {
-    fontSize: 10,
-    color: '#16A34A',
-    fontWeight: '600',
+    fontSize: typography.size.micro,
+    color: colors.status.success,
+    fontWeight: typography.weight.semibold,
     marginTop: 2,
   },
   slotSubTextSelected: {
-    color: '#E0F2FE',
+    color: colors.brand.primaryLight,
+  },
+  slotSubTextUnavailable: {
+    color: colors.text.muted,
   },
   emptyHint: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: typography.size.sm,
+    color: colors.text.muted,
     fontStyle: 'italic',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   loadingSpinner: {
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
-    paddingTop: 16,
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: colors.border.subtle,
   },
   cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
+    justifyContent: 'center',
   },
   cancelBtnText: {
-    color: '#64748B',
-    fontWeight: '600',
-    fontSize: 14,
+    ...typography.presets.buttonSmall,
+    color: colors.text.secondary,
   },
   confirmBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: colors.brand.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.sm,
     minWidth: 160,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   confirmBtnDisabled: {
     opacity: 0.7,
   },
   confirmBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
+    ...typography.presets.button,
+    color: colors.text.inverse,
   },
 });

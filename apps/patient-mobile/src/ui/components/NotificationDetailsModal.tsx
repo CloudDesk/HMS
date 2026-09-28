@@ -15,6 +15,7 @@ import {
   type PortalNotification,
 } from '../../notifications/contracts';
 import type { MainTab } from '../components/BottomNavBar';
+import { colors, typography } from '../theme';
 
 interface NotificationDetailsModalProps {
   visible: boolean;
@@ -143,12 +144,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerIcon: {
-    fontSize: 20,
+    fontSize: typography.size.xl,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+    ...typography.presets.sectionTitle,
+    color: colors.text.primary,
   },
   closeButton: {
     width: 32,
@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeButtonText: {
-    fontSize: 16,
+    fontSize: typography.size.subtitle,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: typography.weight.semibold,
   },
   body: {
     flex: 1,
@@ -191,20 +191,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   typeBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    ...typography.presets.captionStrong,
+    fontSize: typography.size.xs,
     color: '#0284C7',
     textTransform: 'uppercase',
   },
   timeText: {
-    fontSize: 12,
+    ...typography.presets.caption,
     color: '#64748B',
   },
   titleText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    lineHeight: 22,
+    ...typography.presets.cardTitle,
+    fontSize: typography.size.subtitle,
+    color: colors.text.primary,
+    lineHeight: typography.lineHeight.relaxed,
   },
   messageCard: {
     backgroundColor: '#FFFFFF',
@@ -214,9 +214,9 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   messageText: {
-    fontSize: 14,
+    ...typography.presets.body,
     color: '#334155',
-    lineHeight: 20,
+    lineHeight: typography.lineHeight.normal,
   },
   footer: {
     paddingHorizontal: 20,
@@ -232,8 +232,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
+    ...typography.presets.button,
     color: '#FFFFFF',
   },
   closeFullButton: {
@@ -243,8 +242,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeFullButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.presets.button,
+    fontWeight: typography.weight.semibold,
     color: '#475569',
   },
 });

@@ -280,9 +280,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl,
   },
   markAllText: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.captionStrong,
     color: colors.brand.primary,
-    fontWeight: typography.weight.bold,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -304,8 +303,7 @@ const styles = StyleSheet.create({
     ...shadows.subtle,
   },
   tabText: {
-    fontSize: typography.size.xs + 1,
-    fontWeight: typography.weight.medium,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
   },
   tabTextActive: {
@@ -318,7 +316,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
   },
   listContainer: {
@@ -350,7 +348,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   notifIconEmoji: {
-    fontSize: 18,
+    fontSize: typography.size.title,
   },
   notifContent: {
     flex: 1,
@@ -362,8 +360,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxs,
   },
   notifTitle: {
-    fontSize: typography.size.sm + 1,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodyStrong,
     color: colors.text.primary,
     flex: 1,
   },
@@ -379,7 +376,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   notifMessage: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     lineHeight: typography.lineHeight.normal,
     marginBottom: spacing.sm,
@@ -390,12 +387,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   typeBadge: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionMedium,
     color: colors.text.muted,
-    fontWeight: typography.weight.medium,
   },
   timeText: {
-    fontSize: 10,
+    ...typography.presets.micro,
     color: colors.text.muted,
   },
 });

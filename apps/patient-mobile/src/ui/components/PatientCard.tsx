@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import type { PortalPatientDetail } from '../../portal/contracts';
 import { calculateAge } from '../../portal/formatters';
 import { Avatar } from './Avatar';
@@ -93,10 +93,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   name: {
-    fontSize: typography.size.lg,
+    fontSize: typography.size.subtitle,
     fontWeight: typography.weight.bold,
+    lineHeight: typography.lineHeight.moderate,
     color: colors.text.primary,
-    letterSpacing: -0.2,
+    letterSpacing: typography.letterSpacing.snug,
   },
   mrnRow: {
     flexDirection: 'row',
@@ -105,16 +106,18 @@ const styles = StyleSheet.create({
   },
   mrnLabel: {
     fontSize: typography.size.xs,
+    lineHeight: typography.lineHeight.tight,
     color: colors.text.muted,
     fontWeight: typography.weight.semibold,
     marginRight: spacing.xs,
     textTransform: 'uppercase',
   },
   mrnValue: {
-    fontSize: typography.size.xs + 1,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.tight,
     color: colors.brand.primaryDark,
     fontWeight: typography.weight.bold,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: typography.fontFamily.mono,
   },
   relationshipBadge: {
     backgroundColor: colors.neutral.surfaceSubtle,
@@ -126,6 +129,7 @@ const styles = StyleSheet.create({
   },
   relationshipText: {
     fontSize: typography.size.xs,
+    lineHeight: typography.lineHeight.tight,
     fontWeight: typography.weight.semibold,
     color: colors.text.secondary,
     textTransform: 'uppercase',
@@ -147,14 +151,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   chipLabel: {
-    fontSize: typography.size.xs,
+    ...typography.presets.captionMedium,
     color: colors.text.muted,
     marginBottom: spacing.xxs,
-    fontWeight: typography.weight.medium,
   },
   chipValue: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
+    ...typography.presets.bodySmallStrong,
     color: colors.text.primary,
   },
   bloodGroup: {

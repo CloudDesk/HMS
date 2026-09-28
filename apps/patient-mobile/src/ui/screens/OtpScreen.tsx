@@ -191,14 +191,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   title: {
-    fontSize: typography.size.lg,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.screenTitle,
+    fontSize: typography.size.title,
     color: colors.text.primary,
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.normal,
@@ -236,8 +236,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primarySubtle,
   },
   otpDigitText: {
-    fontSize: typography.size.xxl,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.display,
     color: colors.text.primary,
   },
   hiddenInput: {
@@ -259,9 +258,8 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.text.inverse,
-    fontSize: typography.size.md,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 0.2,
+    ...typography.presets.button,
+    letterSpacing: typography.letterSpacing.wide,
   },
   resendSection: {
     alignItems: 'center',
@@ -271,22 +269,20 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.subtle,
   },
   resendPrompt: {
-    fontSize: typography.size.xs + 1,
+    ...typography.presets.caption,
     color: colors.text.muted,
     marginBottom: spacing.xs,
   },
   cooldownText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
-    fontWeight: typography.weight.medium,
   },
   timerHighlight: {
     fontWeight: typography.weight.bold,
     color: colors.brand.primaryDark,
   },
   linkText: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.bold,
+    ...typography.presets.bodySmallStrong,
     color: colors.brand.primary,
   },
   backButton: {
@@ -295,8 +291,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   backButtonText: {
-    fontSize: typography.size.sm,
+    ...typography.presets.bodySmallMedium,
     color: colors.text.secondary,
-    fontWeight: typography.weight.medium,
   },
 });
