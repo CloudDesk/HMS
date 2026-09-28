@@ -3,10 +3,12 @@ services:
     name: hms-api
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build --workspace=@hms/api
+    buildCommand: npm install --include=dev && npm run build --workspace=@hms/api
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: "22.14.0"
       - key: APP_NAME
         value: hms-api
       - key: APP_ENV

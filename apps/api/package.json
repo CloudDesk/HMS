@@ -28,6 +28,7 @@
     "date-fns-tz": "^3.2.0",
     "fastify": "^5.12.1",
     "mongoose": "^9.9.2",
+    "whatwg-url": "^14.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
