@@ -2,7 +2,9 @@ import type { SessionManager } from '../auth/session-manager';
 import {
   dentalQuotationSchema,
   dentalQuotationsListSchema,
+  patientDentalStagesListSchema,
   type DentalQuotation,
+  type PatientDentalStage,
 } from './contracts';
 
 export class DentalApi {
@@ -15,6 +17,15 @@ export class DentalApi {
     );
 
     return dentalQuotationsListSchema.parse(response);
+  }
+
+  async listPatientStages(patientId: string): Promise<PatientDentalStage[]> {
+    const response = await this.sessionManager.authenticatedRequest(
+      `/opd/dental/patients/${encodeURIComponent(patientId)}/stages`,
+      patientDentalStagesListSchema
+    );
+
+    return patientDentalStagesListSchema.parse(response);
   }
 
   async getQuotation(quotationId: string): Promise<DentalQuotation> {
@@ -74,3 +85,4 @@ export class DentalApi {
     return dentalQuotationSchema.parse(response);
   }
 }
+

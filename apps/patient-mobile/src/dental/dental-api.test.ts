@@ -136,4 +136,49 @@ describe('DentalApi', () => {
       }
     );
   });
+
+  it('listPatientStages fetches treatment stages for patient', async () => {
+    const mockStages = [
+      {
+        id: 'stg-1',
+        patient_id: 'pat-1',
+        procedure_name: 'Root Canal Phase 1 - Access',
+        stage_number: 1,
+        total_stages: 2,
+        status: 'COMPLETED',
+        lab_order_status: null,
+        appointment_status: 'COMPLETED',
+        is_blocked_by_prerequisite: false,
+        created_at: '2026-09-24T00:00:00.000Z',
+      },
+      {
+        id: 'stg-2',
+        patient_id: 'pat-1',
+        procedure_name: 'Root Canal Phase 2 - Obturation & Crown',
+        stage_number: 2,
+        total_stages: 2,
+        status: 'PLANNED',
+        lab_order_status: 'READY',
+        appointment_status: null,
+        is_blocked_by_prerequisite: false,
+        created_at: '2026-09-24T00:00:00.000Z',
+      },
+    ];
+
+    const mockSessionManager = {
+      authenticatedRequest: vi.fn().mockResolvedValue(mockStages),
+    } as unknown as SessionManager;
+
+    const api = new DentalApi(mockSessionManager);
+    const result = await api.listPatientStages('pat-1');
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.procedure_name).toBe('Root Canal Phase 1 - Access');
+    expect(result[0]?.status).toBe('COMPLETED');
+    expect(result[1]?.lab_order_status).toBe('READY');
+    expect(mockSessionManager.authenticatedRequest).toHaveBeenCalledWith(
+      '/opd/dental/patients/pat-1/stages',
+      expect.anything()
+    );
+  });
 });

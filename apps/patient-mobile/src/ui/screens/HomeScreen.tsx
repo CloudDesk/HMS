@@ -242,7 +242,19 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
               <Text style={styles.serviceEmoji}>🦷</Text>
             </View>
             <Text style={styles.serviceTitle}>Dental Care</Text>
-            <Text style={styles.serviceSubtitle}>Treatment plans</Text>
+            <Text style={styles.serviceSubtitle}>Treatment plans & stages</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => onNavigateTab('consents')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.serviceIconCircle, { backgroundColor: '#FEE2E2' }]}>
+              <Text style={styles.serviceEmoji}>✍️</Text>
+            </View>
+            <Text style={styles.serviceTitle}>Consent Forms</Text>
+            <Text style={styles.serviceSubtitle}>Medical consents & signatures</Text>
           </TouchableOpacity>
         </View>
       </View>

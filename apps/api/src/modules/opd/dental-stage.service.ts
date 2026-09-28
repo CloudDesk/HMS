@@ -1,18 +1,24 @@
 import { Types } from 'mongoose';
 import { fromZonedTime } from 'date-fns-tz';
 import { AppError } from '../../shared/errors/app-error.js';
+import { AppointmentModel } from '../appointments/appointment.model.js';
 import { DoctorModel } from '../doctors/doctor.model.js';
+import { PatientAccessGrantModel } from '../patient-portal/patient-access-grant.model.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import { RoleModel } from '../roles/role.model.js';
+import { ServiceModel } from '../services/service.model.js';
 import { UserModel } from '../users/user.model.js';
+import { DentalTreatmentEpisodeModel } from './dental-episode.model.js';
 import type { DentalEpisodeRepository } from './dental-episode.repository.js';
+import { DentalProstheticLabOrderModel } from './dental-lab-order.model.js';
+import type { DentalLabOrderRepository } from './dental-lab-order.repository.js';
+import type { DentalProstheticLabOrder } from './dental-lab-order.types.js';
+import { DentalTreatmentStageModel } from './dental-stage.model.js';
 import type { DentalStageRepository } from './dental-stage.repository.js';
 import type { AppointmentService } from '../appointments/appointment.service.js';
 import type { Appointment } from '../appointments/appointment.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
 import type { SettingsRepository } from '../settings/settings.repository.js';
-import type { DentalLabOrderRepository } from './dental-lab-order.repository.js';
-import type { DentalProstheticLabOrder } from './dental-lab-order.types.js';
 import { OpdDentalExaminationModel } from './opd-dental-examination.model.js';
 import { evaluateProcedurePrerequisites } from './dental-procedure-dependency.js';
 import type {
@@ -336,6 +342,174 @@ export class DentalStageService {
       await this.ensureDepartmentAccess(episode.department_id, userId);
     }
     return this.repository.listByEpisode(episodeId, planItemId?.trim() || undefined);
+  }
+
+  async listStagesByPatient(
+    patientId: string,
+    userId: string,
+  ): Promise<Array<DentalTreatmentStage & {
+    episode_number?: string;
+    treatment_plan_summary?: string | null;
+    lab_order_status?: string | null;
+    lab_order_number?: string | null;
+    appointment_date?: string | null;
+    appointment_start_time?: string | null;
+    appointment_status?: string | null;
+    is_blocked_by_prerequisite?: boolean;
+    reference_video_url?: string | null;
+    reference_video_title?: string | null;
+  }>> {
+    this.validateId(patientId, 'Patient id is invalid');
+    const user = await UserModel.findOne({
+      _id: new Types.ObjectId(userId),
+      deletedAt: null,
+    })
+      .select('patientId roleIds departmentIds')
+      .lean();
+
+    if (!user) {
+      throw new AppError('User not found', 404, 'NOT_FOUND');
+    }
+
+    const isPatientPortalUser = Boolean(
+      user.patientId ||
+      await RoleModel.exists({
+        _id: { $in: user.roleIds ?? [] },
+        code: { $in: ['PATIENT', 'GUARDIAN'] },
+        status: 'active',
+        deletedAt: null,
+      }),
+    );
+
+    if (isPatientPortalUser) {
+      const hasAccess =
+        (user.patientId && user.patientId.toString() === patientId) ||
+        Boolean(
+          await PatientAccessGrantModel.exists({
+            userId: user._id,
+            patientId: new Types.ObjectId(patientId),
+            status: 'VERIFIED',
+          }),
+        );
+
+      if (!hasAccess) {
+        throw new AppError('You are not authorized to view this patient\'s treatment stages', 403, 'FORBIDDEN');
+      }
+    }
+
+    const stageDocs = await DentalTreatmentStageModel.find({
+      patientId: new Types.ObjectId(patientId),
+      deletedAt: null,
+    })
+      .sort({ episodeId: 1, sequence: 1 })
+      .lean();
+
+    if (stageDocs.length === 0) {
+      return [];
+    }
+
+    const episodeIds = Array.from(new Set(stageDocs.map((s) => s.episodeId.toString())));
+    const labOrderIds = Array.from(
+      new Set(
+        stageDocs
+          .map((s) => s.prostheticLabOrderId?.toString())
+          .filter((id): id is string => Boolean(id && isObjectId(id))),
+      ),
+    );
+    const appointmentIds = Array.from(
+      new Set(
+        stageDocs
+          .map((s) => s.appointmentId?.toString())
+          .filter((id): id is string => Boolean(id && isObjectId(id))),
+      ),
+    );
+    const serviceIds = Array.from(
+      new Set(
+        stageDocs
+          .map((s) => s.serviceId?.toString())
+          .filter((id): id is string => Boolean(id && isObjectId(id))),
+      ),
+    );
+
+    const [episodes, labOrders, appointments, services] = await Promise.all([
+      DentalTreatmentEpisodeModel.find({
+        _id: { $in: episodeIds.map((id) => new Types.ObjectId(id)) },
+      }).lean(),
+      labOrderIds.length > 0
+        ? DentalProstheticLabOrderModel.find({
+            _id: { $in: labOrderIds.map((id) => new Types.ObjectId(id)) },
+          }).lean()
+        : [],
+      appointmentIds.length > 0
+        ? AppointmentModel.find({
+            _id: { $in: appointmentIds.map((id) => new Types.ObjectId(id)) },
+          }).lean()
+        : [],
+      serviceIds.length > 0
+        ? ServiceModel.find({
+            _id: { $in: serviceIds.map((id) => new Types.ObjectId(id)) },
+          }).lean()
+        : [],
+    ]);
+
+    const episodeById = new Map(episodes.map((e) => [e._id.toString(), e]));
+    const labOrderById = new Map(labOrders.map((l) => [l._id.toString(), l]));
+    const appointmentById = new Map(appointments.map((a) => [a._id.toString(), a]));
+    const serviceById = new Map(services.map((s) => [s._id.toString(), s]));
+
+    return stageDocs.map((doc) => {
+      const episode = episodeById.get(doc.episodeId.toString());
+      const labOrder = doc.prostheticLabOrderId ? labOrderById.get(doc.prostheticLabOrderId.toString()) : undefined;
+      const appt = doc.appointmentId ? appointmentById.get(doc.appointmentId.toString()) : undefined;
+      const service = doc.serviceId ? serviceById.get(doc.serviceId.toString()) : undefined;
+
+      const priorStagesInPlan = stageDocs.filter(
+        (s) =>
+          s.episodeId.toString() === doc.episodeId.toString() &&
+          s.planItemId === doc.planItemId &&
+          s.sequence < doc.sequence,
+      );
+      const isBlocked = priorStagesInPlan.some(
+        (p) => p.status !== 'COMPLETED' && p.status !== 'CANCELLED',
+      );
+
+      return {
+        id: doc._id.toString(),
+        episode_id: doc.episodeId.toString(),
+        plan_item_id: doc.planItemId,
+        tooth_number: doc.toothNumber ?? null,
+        service_id: doc.serviceId ? doc.serviceId.toString() : null,
+        stage_name: doc.stageName,
+        sequence: doc.sequence,
+        assigned_doctor_id: doc.assignedDoctorId.toString(),
+        assigned_doctor_name: doc.assignedDoctorName,
+        status: doc.status,
+        planned_date: doc.plannedDate ?? null,
+        completed_at: doc.completedAt ?? null,
+        completed_by_doctor_id: doc.completedByDoctorId ? doc.completedByDoctorId.toString() : null,
+        completed_by_doctor_name: doc.completedByDoctorName ?? null,
+        appointment_id: doc.appointmentId ? doc.appointmentId.toString() : null,
+        prosthetic_lab_order_id: doc.prostheticLabOrderId ? doc.prostheticLabOrderId.toString() : null,
+        notes: doc.notes ?? null,
+        branch_id: doc.branchId.toString(),
+        department_id: doc.departmentId.toString(),
+        patient_id: doc.patientId.toString(),
+        created_at: doc.createdAt,
+        updated_at: doc.updatedAt,
+        episode_number: episode?.episodeNumber,
+        treatment_plan_summary: episode?.treatmentPlanSummary ?? null,
+        lab_order_status: labOrder?.status ?? null,
+        lab_order_number: labOrder?.orderNumber ?? null,
+        appointment_date: appt?.appointmentDate
+          ? new Date(appt.appointmentDate).toISOString().split('T')[0]
+          : null,
+        appointment_start_time: appt?.startTime ?? null,
+        appointment_status: appt?.status ?? null,
+        is_blocked_by_prerequisite: isBlocked,
+        reference_video_url: service?.referenceVideoUrl ?? null,
+        reference_video_title: service?.referenceVideoTitle ?? null,
+      };
+    });
   }
 
   async getStage(stageId: string, userId?: string): Promise<DentalTreatmentStage> {

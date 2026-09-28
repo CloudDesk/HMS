@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getInitials } from './formatters';
-import { PortalApi } from './portal-api';
+import { PortalApi, normalizeImageUpload } from './portal-api';
 import { portalPatientSchema, portalPatientDetailSchema } from './contracts';
 import type { SessionManager } from '../auth/session-manager';
 
@@ -73,7 +73,46 @@ describe('Patient Mobile Profile Photo Unit Tests', () => {
     });
   });
 
-  describe('3. PortalApi Profile Photo Methods', () => {
+  describe('3. normalizeImageUpload normalization for mobile uploads', () => {
+    it('handles image with full details', () => {
+      const normalized = normalizeImageUpload({
+        uri: 'file:///data/user/0/com.hms.mycare/cache/ImagePicker/test.png',
+        name: 'avatar.png',
+        type: 'image/png',
+      });
+      expect(normalized.uri).toBe('file:///data/user/0/com.hms.mycare/cache/ImagePicker/test.png');
+      expect(normalized.name).toBe('avatar.png');
+      expect(normalized.type).toBe('image/png');
+    });
+
+    it('derives MIME type and extension when name and type are missing', () => {
+      const normalized = normalizeImageUpload({
+        uri: 'file:///data/user/0/com.hms.mycare/cache/ImagePicker/image.webp',
+      });
+      expect(normalized.type).toBe('image/webp');
+      expect(normalized.name).toMatch(/^profile-\d+\.webp$/);
+    });
+
+    it('normalizes image/jpg to image/jpeg', () => {
+      const normalized = normalizeImageUpload({
+        uri: 'file:///data/user/0/com.hms.mycare/cache/ImagePicker/image.jpg',
+        name: 'photo',
+        type: 'image/jpg',
+      });
+      expect(normalized.type).toBe('image/jpeg');
+      expect(normalized.name).toBe('photo.jpg');
+    });
+
+    it('defaults to image/jpeg and generates name when no metadata is provided', () => {
+      const normalized = normalizeImageUpload({
+        uri: 'file:///data/user/0/com.hms.mycare/cache/ImagePicker/captured_camera_asset',
+      });
+      expect(normalized.type).toBe('image/jpeg');
+      expect(normalized.name).toMatch(/^profile-\d+\.jpg$/);
+    });
+  });
+
+  describe('4. PortalApi Profile Photo Methods', () => {
     it('calls authenticatedMultipartRequest when uploading photo', async () => {
       const mockSessionManager = {
         authenticatedMultipartRequest: vi.fn().mockResolvedValue({
@@ -119,3 +158,4 @@ describe('Patient Mobile Profile Photo Unit Tests', () => {
     });
   });
 });
+

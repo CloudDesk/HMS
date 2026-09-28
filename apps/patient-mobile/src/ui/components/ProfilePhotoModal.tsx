@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { friendlyError } from '../../api/errors';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 import { Avatar } from './Avatar';
 
@@ -111,8 +112,7 @@ export function ProfilePhotoModal({
       setSelectedAsset(null);
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save profile photo. Please try again.';
-      setErrorMessage(msg);
+      setErrorMessage(friendlyError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -135,8 +135,7 @@ export function ProfilePhotoModal({
               await onDeletePhoto();
               onClose();
             } catch (err: unknown) {
-              const msg = err instanceof Error ? err.message : 'Failed to remove photo.';
-              setErrorMessage(msg);
+              setErrorMessage(friendlyError(err));
             } finally {
               setIsSubmitting(false);
             }

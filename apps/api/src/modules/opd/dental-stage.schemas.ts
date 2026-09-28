@@ -92,3 +92,10 @@ export const episodeStagesQuerySchema = z
   })
   .strict();
 
+export const patientStagesParamsSchema = z
+  .object({
+    patientId: objectId,
+  })
+  .strict();
+
+

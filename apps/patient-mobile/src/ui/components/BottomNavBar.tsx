@@ -10,6 +10,7 @@ export type MainTab =
   | 'billing'
   | 'documents'
   | 'dental'
+  | 'consents'
   | 'notifications'
   | 'profile';
 

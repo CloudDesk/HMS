@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
+import { authenticate } from '../../middleware/authenticate.js';
 import { requirePermission, requireAnyPermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
@@ -11,6 +12,7 @@ import {
   dentalStageParamsSchema,
   episodeStageParamsSchema,
   episodeStagesQuerySchema,
+  patientStagesParamsSchema,
   rescheduleDentalStageSchema,
   scheduleDentalStageSchema,
   updateDentalStageStatusSchema,
@@ -235,4 +237,22 @@ export const registerDentalStageRoutes = async (
       );
     },
   );
+
+  // List Dental Treatment Stages for a Patient (Patient Portal or Clinical)
+  app.get(
+    '/api/opd/dental/patients/:patientId/stages',
+    {
+      preHandler: authenticate(services),
+    },
+    async (request) => {
+      const params = parse(patientStagesParamsSchema, request.params);
+      return ok(
+        await services.dentalStages.listStagesByPatient(
+          params.patientId,
+          request.user!.id,
+        ),
+      );
+    },
+  );
 };
+

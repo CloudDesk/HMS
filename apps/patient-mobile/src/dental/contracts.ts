@@ -131,3 +131,110 @@ export function formatToothDescription(toothNumber: number | null): string {
   if (!toothNumber) return 'General Dental';
   return `Tooth #${toothNumber}`;
 }
+
+export const dentalStageStatusSchema = z.enum([
+  'PLANNED',
+  'SCHEDULED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'ON_HOLD',
+  'CANCELLED',
+]);
+
+export const patientDentalStageSchema = z.object({
+  id: z.string(),
+  episode_id: z.string().default(''),
+  plan_item_id: z.string().default(''),
+  tooth_number: z.number().nullable().optional().transform((v) => v ?? null),
+  service_id: z.string().nullable().optional().transform((v) => v ?? null),
+  procedure_name: z.string().optional(),
+  stage_name: z.string().default(''),
+  stage_number: z.number().optional(),
+  total_stages: z.number().optional(),
+  sequence: z.number().default(1),
+  assigned_doctor_id: z.string().nullable().optional().transform((v) => v ?? null),
+  assigned_doctor_name: z.string().default(''),
+  doctor_name: z.string().optional(),
+  status: dentalStageStatusSchema,
+  planned_date: z.string().nullable().optional().transform((v) => v ?? null),
+  completed_at: z.string().nullable().optional().transform((v) => v ?? null),
+  completed_by_doctor_id: z.string().nullable().optional().transform((v) => v ?? null),
+  completed_by_doctor_name: z.string().nullable().optional().transform((v) => v ?? null),
+  appointment_id: z.string().nullable().optional().transform((v) => v ?? null),
+  prosthetic_lab_order_id: z.string().nullable().optional().transform((v) => v ?? null),
+  notes: z.string().nullable().optional().transform((v) => v ?? null),
+  description: z.string().nullable().optional().transform((v) => v ?? null),
+  branch_id: z.string().optional(),
+  department_id: z.string().optional(),
+  patient_id: z.string().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+  episode_number: z.string().optional(),
+  treatment_plan_summary: z.string().nullable().optional().transform((v) => v ?? null),
+  lab_order_status: z.string().nullable().optional().transform((v) => v ?? null),
+  lab_order_number: z.string().nullable().optional().transform((v) => v ?? null),
+  appointment_date: z.string().nullable().optional().transform((v) => v ?? null),
+  appointment_start_time: z.string().nullable().optional().transform((v) => v ?? null),
+  appointment_status: z.string().nullable().optional().transform((v) => v ?? null),
+  is_blocked_by_prerequisite: z.boolean().default(false),
+  reference_video_url: z.string().nullable().optional().transform((v) => v ?? null),
+  reference_video_title: z.string().nullable().optional().transform((v) => v ?? null),
+});
+
+export const patientDentalStagesListSchema = z.array(patientDentalStageSchema);
+
+export type DentalStageStatus = z.infer<typeof dentalStageStatusSchema>;
+export type PatientDentalStage = z.infer<typeof patientDentalStageSchema>;
+
+export function getStageStatusLabel(stageOrStatus: PatientDentalStage | DentalStageStatus | string): string {
+  if (typeof stageOrStatus === 'string') {
+    switch (stageOrStatus.toUpperCase()) {
+      case 'COMPLETED':
+        return 'Completed';
+      case 'IN_PROGRESS':
+        return 'In Progress';
+      case 'SCHEDULED':
+        return 'Scheduled';
+      case 'ON_HOLD':
+        return 'On Hold';
+      case 'CANCELLED':
+        return 'Cancelled';
+      case 'PLANNED':
+        return 'Planned';
+      default:
+        return stageOrStatus;
+    }
+  }
+  const stage = stageOrStatus;
+  if (stage.status === 'COMPLETED') return 'Completed';
+  if (stage.status === 'IN_PROGRESS') return 'In Progress';
+  if (stage.status === 'SCHEDULED') return 'Scheduled';
+  if (stage.status === 'ON_HOLD') return 'On Hold';
+  if (stage.status === 'CANCELLED') return 'Cancelled';
+  if (stage.is_blocked_by_prerequisite) return 'Waiting for Previous Stage';
+  if (stage.lab_order_status === 'SENT_TO_LAB' || stage.lab_order_status === 'IN_LAB') {
+    return 'In Lab Preparation';
+  }
+  if (stage.lab_order_status === 'READY') {
+    return 'Lab Ready for Fitting';
+  }
+  return 'Planned';
+}
+
+export function getStageBadgeVariant(
+  stageOrStatus: PatientDentalStage | DentalStageStatus | string
+): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+  const status = typeof stageOrStatus === 'string' ? stageOrStatus.toUpperCase() : stageOrStatus.status;
+  if (typeof stageOrStatus !== 'string') {
+    if (stageOrStatus.lab_order_status === 'READY') return 'success';
+    if (stageOrStatus.lab_order_status === 'SENT_TO_LAB' || stageOrStatus.lab_order_status === 'IN_LAB') return 'warning';
+    if (stageOrStatus.is_blocked_by_prerequisite) return 'neutral';
+  }
+  if (status === 'COMPLETED') return 'success';
+  if (status === 'IN_PROGRESS') return 'info';
+  if (status === 'SCHEDULED') return 'info';
+  if (status === 'ON_HOLD') return 'warning';
+  if (status === 'CANCELLED') return 'danger';
+  return 'neutral';
+}
+

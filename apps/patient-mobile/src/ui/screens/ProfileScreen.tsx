@@ -336,7 +336,21 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
             <View style={styles.actionCardLeft}>
               <Text style={styles.actionCardTitle}>Dental Treatment Plans</Text>
               <Text style={styles.actionCardSubtitle}>
-                Dental quotations & proposed care options
+                Dental quotations & multi-stage treatment progress
+              </Text>
+            </View>
+            <Text style={styles.actionCardArrow}>→</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => onNavigateTab('consents')}
+            activeOpacity={0.75}
+          >
+            <View style={styles.actionCardLeft}>
+              <Text style={styles.actionCardTitle}>Consent Management</Text>
+              <Text style={styles.actionCardSubtitle}>
+                Medical consent forms, legal signatures & authorizations
               </Text>
             </View>
             <Text style={styles.actionCardArrow}>→</Text>

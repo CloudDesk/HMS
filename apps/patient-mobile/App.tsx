@@ -21,6 +21,7 @@ import { PrescriptionsScreen } from './src/ui/screens/PrescriptionsScreen';
 import { BillingScreen } from './src/ui/screens/BillingScreen';
 import { DocumentsScreen } from './src/ui/screens/DocumentsScreen';
 import { DentalScreen } from './src/ui/screens/DentalScreen';
+import { ConsentsScreen } from './src/ui/screens/ConsentsScreen';
 import { NotificationsScreen } from './src/ui/screens/NotificationsScreen';
 import { ProfileScreen } from './src/ui/screens/ProfileScreen';
 import { ErrorScreen } from './src/ui/screens/ErrorScreen';
@@ -46,6 +47,8 @@ function AuthenticatedApp() {
         return <DocumentsScreen onNavigateBack={() => setActiveTab('home')} />;
       case 'dental':
         return <DentalScreen onNavigateBack={() => setActiveTab('home')} />;
+      case 'consents':
+        return <ConsentsScreen onNavigateBack={() => setActiveTab('home')} />;
       case 'notifications':
         return (
           <NotificationsScreen
