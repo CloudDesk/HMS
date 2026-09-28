@@ -187,8 +187,23 @@ export const portalDocumentSchema = z.object({
   description: z.string().nullable().optional().transform((v) => v ?? null),
   source: z.enum(['HOSPITAL', 'PATIENT', 'GUARDIAN']),
   review_status: z.enum(['NOT_REQUIRED', 'PENDING', 'VERIFIED', 'REJECTED']),
+  context_type: z.string().nullable().optional().transform((v) => v ?? null),
   context_id: z.string().nullable().optional().transform((v) => v ?? null),
+  consent_template_id: z.string().nullable().optional().transform((v) => v ?? null),
+  consent_category: z.string().nullable().optional().transform((v) => v ?? null),
+  consent_version: z.number().nullable().optional().transform((v) => v ?? null),
   consent_kind: z.string().nullable().optional().transform((v) => v ?? null),
+  valid_until: z.string().nullable().optional().transform((v) => v ?? null),
+  uploaded_by: z.string().nullable().optional().transform((v) => v ?? null),
+  uploaded_by_name: z.string().nullable().optional().transform((v) => v ?? null),
+  uploaded_at: z.string().nullable().optional().transform((v) => v ?? null),
+  reviewed_by: z.string().nullable().optional().transform((v) => v ?? null),
+  reviewed_by_name: z.string().nullable().optional().transform((v) => v ?? null),
+  reviewed_at: z.string().nullable().optional().transform((v) => v ?? null),
+  review_notes: z.string().nullable().optional().transform((v) => v ?? null),
+  verified_by: z.string().nullable().optional().transform((v) => v ?? null),
+  verified_at: z.string().nullable().optional().transform((v) => v ?? null),
+  updated_at: z.string().nullable().optional().transform((v) => v ?? null),
   consent_status: z
     .enum(['SIGNED', 'PENDING', 'EXPIRED', 'REJECTED', 'ATTACHED', 'VERIFIED'])
     .nullable()

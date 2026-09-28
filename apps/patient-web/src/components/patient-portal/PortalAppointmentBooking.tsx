@@ -144,6 +144,7 @@ export function PortalAppointmentBooking({
         branchId: branchId || undefined,
         departmentId: departmentId || undefined,
       }),
+    enabled: Boolean(departmentId),
   });
   const slots = useQuery({
     queryKey: portalQueryKeys.doctorSlots(doctorId, appointmentDate),
@@ -404,7 +405,7 @@ export function PortalAppointmentBooking({
             </span>
             <select
               {...form.register('doctor_id', { onChange: resetSchedule })}
-              disabled={doctors.isLoading || doctors.isError}
+              disabled={!departmentId || doctors.isLoading || doctors.isError}
             >
               <option value="">
                 {!departmentId
@@ -417,11 +418,13 @@ export function PortalAppointmentBooking({
                         ? 'No doctors available in this department'
                         : 'Select a doctor'}
               </option>
-              {doctorList.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.display_name} · {doctor.specialization}
-                </option>
-              ))}
+              {departmentId
+                ? doctorList.map((doctor) => (
+                    <option key={doctor.id} value={doctor.id}>
+                      {doctor.display_name} · {doctor.specialization}
+                    </option>
+                  ))
+                : null}
             </select>
             {doctors.isError ? (
               <div

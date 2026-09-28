@@ -376,7 +376,7 @@ export function PatientPortalPage() {
 
         {tab === 'medicines' ? <MedicinesTab data={data} /> : null}
 
-        {tab === 'documents' ? <PortalDocuments patientId={selectedPatientId} /> : null}
+        {tab === 'documents' ? <PortalDocuments patientId={selectedPatientId} patientName={[patient.first_name, patient.last_name].filter(Boolean).join(' ')} /> : null}
 
         {tab === 'billing' ? (
           <BillingTab data={data} setSelectedInvoice={setSelectedInvoice} />

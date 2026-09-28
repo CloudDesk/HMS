@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { patientPortalApi, type PortalDocument } from '../../api/patient-portal';
 import { portalQueryKeys } from '../../api/query-keys';
 import { Pagination } from './Pagination';
+import { PortalConsentFormModal } from './modals/PortalConsentFormModal';
 
 const PAGE_SIZE = 5;
 
@@ -18,7 +19,13 @@ const formatDate = (value: string) =>
 const reviewLabel = (status: PortalDocument['review_status']) =>
   status === 'NOT_REQUIRED' ? 'Hospital record' : status.charAt(0) + status.slice(1).toLowerCase();
 
-export function PortalDocuments({ patientId }: { patientId: string }) {
+export function PortalDocuments({
+  patientId,
+  patientName,
+}: {
+  patientId: string;
+  patientName?: string;
+}) {
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -30,6 +37,7 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
   const [documentDate, setDocumentDate] = useState('');
   const [description, setDescription] = useState('');
   const [signatureUploading, setSignatureUploading] = useState<string | null>(null);
+  const [viewingConsent, setViewingConsent] = useState<PortalDocument | null>(null);
   const query = useQuery({
     queryKey: portalQueryKeys.documents(patientId),
     queryFn: () => patientPortalApi.documents(patientId),
@@ -303,7 +311,7 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
                     </span>
                   </div>
                   <div className="portal-consent-actions">
-                    <button onClick={() => void view(consent)} type="button">
+                    <button onClick={() => setViewingConsent(consent)} type="button">
                       <i className="ph ph-eye" /> View form
                     </button>
                     {signature ? (
@@ -336,6 +344,20 @@ export function PortalDocuments({ patientId }: { patientId: string }) {
             <span>No consent forms currently require a signature.</span>
           </div>
         )}
+        {viewingConsent ? (
+          <PortalConsentFormModal
+            consent={viewingConsent}
+            onClose={() => setViewingConsent(null)}
+            onUploadSignature={uploadSignature}
+            open={Boolean(viewingConsent)}
+            patientId={patientId}
+            patientName={patientName}
+            signature={
+              consentSignatures.find((item) => item.context_id === viewingConsent.id) ?? null
+            }
+            uploadingSignature={signatureUploading === viewingConsent.id}
+          />
+        ) : null}
       </section>
 
       <div className="portal-document-list">
