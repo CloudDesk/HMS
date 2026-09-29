@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 type AppEnv = 'dev' | 'test' | 'prod';
+export type PatientDocumentStorageProvider = 'local' | 'gcp';
 
 const appEnvironment = process.env.APP_ENV ?? 'dev';
 if (!['dev', 'test', 'prod'].includes(appEnvironment)) {
@@ -210,6 +211,40 @@ const parseDatabaseUrl = (value: string | undefined) => {
   return value;
 };
 
+export const parsePatientDocumentStorageProvider = (
+  value: string | undefined,
+): PatientDocumentStorageProvider => {
+  const provider = (value ?? 'local').trim().toLowerCase();
+  if (provider !== 'local' && provider !== 'gcp') {
+    throw new Error('PATIENT_DOCUMENT_STORAGE_PROVIDER must be either local or gcp');
+  }
+  return provider;
+};
+
+export const assertPatientDocumentStorageConfiguration = (input: {
+  provider: PatientDocumentStorageProvider;
+  bucketName: string;
+  production: boolean;
+}) => {
+  if (input.production && input.provider !== 'gcp') {
+    throw new Error('PATIENT_DOCUMENT_STORAGE_PROVIDER must be gcp in production');
+  }
+  if (input.provider === 'gcp' && !input.bucketName.trim()) {
+    throw new Error('GCP_PATIENT_DOCUMENTS_BUCKET is required when GCP document storage is enabled');
+  }
+};
+
+const patientDocumentStorageProvider = parsePatientDocumentStorageProvider(
+  process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER,
+);
+const gcpPatientDocumentsBucket = process.env.GCP_PATIENT_DOCUMENTS_BUCKET?.trim() ?? '';
+
+assertPatientDocumentStorageConfiguration({
+  provider: patientDocumentStorageProvider,
+  bucketName: gcpPatientDocumentsBucket,
+  production: productionEnvironment,
+});
+
 export const env = {
   app: {
     name: process.env.APP_NAME ?? 'hms-api',
@@ -232,12 +267,14 @@ export const env = {
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),
   },
   storage: {
-    provider: process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER ?? 'local',
+    provider: patientDocumentStorageProvider,
     localPatientDocumentsPath:
       process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? getDefaultStoragePath('patient-documents'),
     localHospitalLogosPath:
       process.env.LOCAL_HOSPITAL_LOGO_STORAGE_PATH ?? getDefaultStoragePath('hospital-logos'),
-    gcpPatientDocumentsBucket: process.env.GCP_PATIENT_DOCUMENTS_BUCKET ?? '',
+    gcpProjectId:
+      process.env.GCP_PROJECT_ID?.trim() || process.env.GOOGLE_CLOUD_PROJECT?.trim() || '',
+    gcpPatientDocumentsBucket,
   },
   upload: {
     patientDocumentMaxFileSizeBytes: parseInteger(
