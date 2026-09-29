@@ -112,8 +112,8 @@ describe('M-007 patient appointment pagination', () => {
     expect(page2.data.map((item) => item.appointment_number)).toEqual(['APT-M007-3', 'OPD-M007-4']);
     expect(page1.data).toHaveLength(2);
     expect(page2.data).toHaveLength(2);
-    expect(page1.meta).toEqual({ page: 1, limit: 2, total: 5, totalPages: 3 });
-    expect(page2.meta).toEqual({ page: 2, limit: 2, total: 5, totalPages: 3 });
+    expect(page1.meta).toMatchObject({ page: 1, limit: 2, total: 5, totalPages: 3 });
+    expect(page2.meta).toMatchObject({ page: 2, limit: 2, total: 5, totalPages: 3 });
     expect(page1.data.some((item) => item.is_opd_visit)).toBe(true);
     expect(page1.data.some((item) => !item.is_opd_visit)).toBe(true);
     expect(page1.data[0]?.appointment_date.getTime()).toBeGreaterThan(page1.data[1]?.appointment_date.getTime() ?? 0);

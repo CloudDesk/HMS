@@ -41,6 +41,114 @@ export type PortalDocumentReviewStatus = z.infer<typeof portalDocumentReviewStat
 export type PortalDocument = z.infer<typeof portalDocumentSchema>;
 export type PortalDocumentsListResponse = z.infer<typeof portalDocumentsListResponseSchema>;
 
+export interface UploadDocumentInput {
+  patientId: string;
+  documentType: PortalDocumentType;
+  title: string;
+  file: {
+    uri: string;
+    name?: string;
+    type?: string;
+  };
+  providerName?: string | null;
+  documentDate?: string | null;
+  description?: string | null;
+}
+
+export const MAX_DOCUMENT_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+export const SUPPORTED_DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
+export const SUPPORTED_DOCUMENT_EXTENSIONS = [
+  'pdf',
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'heic',
+  'heif',
+];
+
+export interface SelectedDocumentFile {
+  uri: string;
+  name: string;
+  type: string;
+  size?: number;
+}
+
+export function validateDocumentFile(file: {
+  uri: string;
+  name?: string;
+  type?: string;
+  size?: number;
+}): { valid: boolean; error?: string; file?: SelectedDocumentFile } {
+  const uri = file.uri?.trim() || '';
+  if (!uri) {
+    return { valid: false, error: 'Invalid file location.' };
+  }
+
+  // Size validation
+  if (file.size !== undefined && file.size > MAX_DOCUMENT_FILE_SIZE_BYTES) {
+    return {
+      valid: false,
+      error: 'File exceeds the 10 MB limit. Please choose a smaller file.',
+    };
+  }
+
+  // Type & Extension validation
+  const cleanPath = (uri.split('?')[0] ?? '').split('#')[0] ?? '';
+  const ext = (file.name?.split('.').pop() || cleanPath.split('.').pop() || '').toLowerCase();
+  const rawType = (file.type?.trim() || '').toLowerCase();
+
+  const isSupportedMime = rawType ? SUPPORTED_DOCUMENT_MIME_TYPES.includes(rawType) : false;
+  const isSupportedExt = ext ? SUPPORTED_DOCUMENT_EXTENSIONS.includes(ext) : false;
+
+  if (!isSupportedMime && !isSupportedExt && rawType !== 'application/octet-stream') {
+    return {
+      valid: false,
+      error: 'Unsupported file type. Please select a PDF or image (JPG, PNG, WebP, HEIC).',
+    };
+  }
+
+  // Normalize MIME
+  let normalizedType = rawType;
+  if (!normalizedType || normalizedType === 'application/octet-stream' || !normalizedType.includes('/')) {
+    if (ext === 'pdf') normalizedType = 'application/pdf';
+    else if (ext === 'png') normalizedType = 'image/png';
+    else if (ext === 'webp') normalizedType = 'image/webp';
+    else if (ext === 'heic') normalizedType = 'image/heic';
+    else if (ext === 'heif') normalizedType = 'image/heif';
+    else normalizedType = 'image/jpeg';
+  } else if (normalizedType === 'image/jpg') {
+    normalizedType = 'image/jpeg';
+  }
+
+  // Normalize file name
+  let normalizedName = file.name?.trim();
+  if (!normalizedName) {
+    const defaultExt = normalizedType === 'application/pdf' ? 'pdf' : 'jpg';
+    normalizedName = `document-${Date.now()}.${defaultExt}`;
+  }
+
+  return {
+    valid: true,
+    file: {
+      uri,
+      name: normalizedName,
+      type: normalizedType,
+      size: file.size,
+    },
+  };
+}
+
 export function formatFileSize(bytes: number): string {
   if (isNaN(bytes) || bytes <= 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;

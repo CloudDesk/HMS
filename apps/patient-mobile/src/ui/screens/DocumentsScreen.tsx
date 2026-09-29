@@ -21,6 +21,7 @@ import {
 } from '../../documents/contracts';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import { DocumentDetailsModal } from '../components/DocumentDetailsModal';
+import { UploadDocumentModal } from '../components/UploadDocumentModal';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
@@ -59,6 +60,8 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
 
   // Selected document for details modal
   const [selectedDoc, setSelectedDoc] = useState<PortalDocument | null>(null);
+  // Upload document modal state
+  const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
 
   const api = useMemo(() => new DocumentsApi(manager), [manager]);
 
@@ -97,6 +100,11 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
       void loadDocuments(false);
     }
   }, [selectedPatientId, loadDocuments]);
+
+  const handleUploadSuccess = useCallback(() => {
+    setIsUploadOpen(false);
+    void loadDocuments(true);
+  }, [loadDocuments]);
 
   const clinicalCount = useMemo(
     () => documents.filter((d) => d.document_type === 'CLINICAL').length,
@@ -137,6 +145,24 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
       >
         {/* Patient Switcher */}
         <PatientContextSelector />
+
+        {/* Action Bar with Upload Button */}
+        <View style={styles.actionBar}>
+          <View style={styles.actionBarTextGroup}>
+            <Text style={styles.actionBarTitle}>Medical Documents</Text>
+            <Text style={styles.actionBarSubtitle}>
+              Upload and review records for this patient
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.uploadBtn}
+            onPress={() => setIsUploadOpen(true)}
+            activeOpacity={0.8}
+            testID="open-upload-modal-button"
+          >
+            <Text style={styles.uploadBtnText}>+ Upload</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Category Filter Chips */}
         <ScrollView
@@ -234,6 +260,8 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
                 ? 'No uploaded or hospital-issued documents available for this patient profile.'
                 : `No ${getDocumentTypeLabel(activeFilter as PortalDocumentType)} documents found.`
             }
+            actionLabel="+ Upload Document"
+            onAction={() => setIsUploadOpen(true)}
           />
         ) : null}
 
@@ -288,6 +316,14 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
         visible={Boolean(selectedDoc)}
         onClose={() => setSelectedDoc(null)}
       />
+
+      {/* Upload Document Modal */}
+      <UploadDocumentModal
+        visible={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onSuccess={handleUploadSuccess}
+        documentsApi={api}
+      />
     </View>
   );
 }
@@ -300,6 +336,45 @@ const styles = StyleSheet.create({
   container: {
     padding: spacing.lg,
     paddingBottom: spacing.xxxl,
+  },
+  actionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    backgroundColor: colors.neutral.surface,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    ...shadows.card,
+  },
+  actionBarTextGroup: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  actionBarTitle: {
+    ...typography.presets.cardTitle,
+    color: colors.text.primary,
+  },
+  actionBarSubtitle: {
+    ...typography.presets.caption,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  uploadBtn: {
+    backgroundColor: colors.brand.primary,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.subtle,
+  },
+  uploadBtnText: {
+    ...typography.presets.buttonSmall,
+    color: colors.text.inverse,
+    fontWeight: typography.weight.bold,
   },
   filterScroll: {
     gap: spacing.sm,

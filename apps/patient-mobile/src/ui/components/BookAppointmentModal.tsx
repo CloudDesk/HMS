@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -76,6 +79,67 @@ export function BookAppointmentModal({
   const [isClinicalHistoryExpanded, setIsClinicalHistoryExpanded] = useState<boolean>(false);
   const [clinicalHistory, setClinicalHistory] =
     useState<ClinicalHistoryFormState>(emptyClinicalHistory);
+
+  // Keyboard awareness & Auto-scrolling refs
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates?.height ?? 280);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleFieldFocus = useCallback(
+    (
+      field:
+        | 'reason'
+        | 'chiefComplaint'
+        | 'historyPresentIllness'
+        | 'pastMedicalHistory'
+        | 'familyHistory'
+        | 'allergies'
+    ) => {
+      setTimeout(() => {
+        if (!scrollViewRef.current) return;
+        if (field === 'allergies' || field === 'familyHistory') {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        } else if (field === 'pastMedicalHistory' || field === 'historyPresentIllness') {
+          scrollViewRef.current.scrollTo({ y: 780, animated: true });
+        } else if (field === 'chiefComplaint') {
+          scrollViewRef.current.scrollTo({ y: 640, animated: true });
+        } else if (field === 'reason') {
+          scrollViewRef.current.scrollTo({ y: 480, animated: true });
+        }
+      }, 120);
+    },
+    []
+  );
+
+  const handleToggleClinicalHistory = useCallback(() => {
+    setIsClinicalHistoryExpanded((prev) => {
+      const next = !prev;
+      if (next) {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({ y: 600, animated: true });
+        }, 100);
+      }
+      return next;
+    });
+  }, []);
 
   // Catalogue data
   const [branches, setBranches] = useState<PublicBranch[]>([]);
@@ -435,41 +499,49 @@ export function BookAppointmentModal({
         animationType="slide"
         onRequestClose={handleClose}
       >
-        <View style={styles.overlay}>
-          <TouchableOpacity
-            style={styles.backdropTouchable}
-            activeOpacity={1}
-            onPress={handleClose}
-            disabled={isSubmitting}
-          />
-          <View
-            style={[
-              styles.card,
-              {
-                paddingBottom: Math.max(insets.bottom, spacing.md),
-              },
-            ]}
-          >
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Book an Appointment</Text>
-              <TouchableOpacity
-                onPress={handleClose}
-                disabled={isSubmitting}
-                style={styles.closeBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Close appointment booking"
-              >
-                <Text style={styles.closeBtnText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled={true}
-              showsVerticalScrollIndicator={true}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.overlay}>
+            <TouchableOpacity
+              style={styles.backdropTouchable}
+              activeOpacity={1}
+              onPress={handleClose}
+              disabled={isSubmitting}
+            />
+            <View
+              style={[
+                styles.card,
+                {
+                  paddingBottom: Math.max(insets.bottom, spacing.md),
+                },
+              ]}
             >
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>Book an Appointment</Text>
+                <TouchableOpacity
+                  onPress={handleClose}
+                  disabled={isSubmitting}
+                  style={styles.closeBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close appointment booking"
+                >
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.scrollView}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  keyboardHeight > 0 && { paddingBottom: keyboardHeight + spacing.xxl },
+                ]}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+              >
               {errorObj || errorMessage ? (
                 <ErrorDiagnosticView
                   error={errorObj ?? errorMessage}
@@ -710,6 +782,7 @@ export function BookAppointmentModal({
                   style={[styles.input, styles.textArea]}
                   value={reason}
                   onChangeText={setReason}
+                  onFocus={() => handleFieldFocus('reason')}
                   placeholder="Describe your symptoms or consultation reason (min 3 chars)…"
                   placeholderTextColor="#94A3B8"
                   multiline
@@ -730,7 +803,7 @@ export function BookAppointmentModal({
                     </View>
                   </View>
                   <TouchableOpacity
-                    onPress={() => setIsClinicalHistoryExpanded((prev) => !prev)}
+                    onPress={handleToggleClinicalHistory}
                     style={styles.toggleBtn}
                     disabled={isSubmitting}
                     accessibilityRole="button"
@@ -761,6 +834,7 @@ export function BookAppointmentModal({
                         onChangeText={(text) =>
                           setClinicalHistory((prev) => ({ ...prev, chiefComplaint: text }))
                         }
+                        onFocus={() => handleFieldFocus('chiefComplaint')}
                         placeholder="What is the main reason for your visit?"
                         placeholderTextColor="#94A3B8"
                         multiline
@@ -782,6 +856,7 @@ export function BookAppointmentModal({
                         onChangeText={(text) =>
                           setClinicalHistory((prev) => ({ ...prev, historyPresentIllness: text }))
                         }
+                        onFocus={() => handleFieldFocus('historyPresentIllness')}
                         placeholder="Tell us about your current symptoms or concern."
                         placeholderTextColor="#94A3B8"
                         multiline
@@ -803,6 +878,7 @@ export function BookAppointmentModal({
                         onChangeText={(text) =>
                           setClinicalHistory((prev) => ({ ...prev, pastMedicalHistory: text }))
                         }
+                        onFocus={() => handleFieldFocus('pastMedicalHistory')}
                         placeholder="Previous illnesses, conditions, surgeries, or treatments."
                         placeholderTextColor="#94A3B8"
                         multiline
@@ -824,6 +900,7 @@ export function BookAppointmentModal({
                         onChangeText={(text) =>
                           setClinicalHistory((prev) => ({ ...prev, familyHistory: text }))
                         }
+                        onFocus={() => handleFieldFocus('familyHistory')}
                         placeholder="Relevant medical conditions in your family."
                         placeholderTextColor="#94A3B8"
                         multiline
@@ -848,6 +925,7 @@ export function BookAppointmentModal({
                             allergies: text,
                           }))
                         }
+                        onFocus={() => handleFieldFocus('allergies')}
                         placeholder="Medicines, food, or other known allergies or sensitivities."
                         placeholderTextColor="#94A3B8"
                         multiline
@@ -894,7 +972,8 @@ export function BookAppointmentModal({
             </View>
           </View>
         </View>
-      </Modal>
+      </KeyboardAvoidingView>
+    </Modal>
 
     {/* Doctor Selection Modal */}
     <Modal
@@ -983,6 +1062,9 @@ export function BookAppointmentModal({
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',

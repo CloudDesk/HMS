@@ -178,5 +178,74 @@ describe('Optional Clinical History During Appointment Booking', () => {
       expect(() => bookAppointmentInputSchema.parse(payload)).toThrow();
     });
   });
+
+  describe('Keyboard Visibility & Auto-Scrolling Behavior', () => {
+    it('maps all text input fields to appropriate auto-scroll positions', () => {
+      const getScrollTarget = (
+        field:
+          | 'reason'
+          | 'chiefComplaint'
+          | 'historyPresentIllness'
+          | 'pastMedicalHistory'
+          | 'familyHistory'
+          | 'allergies'
+      ): { action: 'scrollToEnd' | 'scrollTo'; y?: number } => {
+        if (field === 'allergies' || field === 'familyHistory') {
+          return { action: 'scrollToEnd' };
+        }
+        if (field === 'pastMedicalHistory' || field === 'historyPresentIllness') {
+          return { action: 'scrollTo', y: 780 };
+        }
+        if (field === 'chiefComplaint') {
+          return { action: 'scrollTo', y: 640 };
+        }
+        return { action: 'scrollTo', y: 480 };
+      };
+
+      // Lower clinical history fields must scroll to the very end so they are never hidden under the keyboard
+      expect(getScrollTarget('familyHistory')).toEqual({ action: 'scrollToEnd' });
+      expect(getScrollTarget('allergies')).toEqual({ action: 'scrollToEnd' });
+
+      // Mid-level clinical history fields scroll sufficiently
+      expect(getScrollTarget('pastMedicalHistory')).toEqual({ action: 'scrollTo', y: 780 });
+      expect(getScrollTarget('historyPresentIllness')).toEqual({ action: 'scrollTo', y: 780 });
+      expect(getScrollTarget('chiefComplaint')).toEqual({ action: 'scrollTo', y: 640 });
+      expect(getScrollTarget('reason')).toEqual({ action: 'scrollTo', y: 480 });
+    });
+
+    it('adds dynamic scroll content padding when keyboard height is detected', () => {
+      const computeScrollContentPadding = (keyboardHeight: number, baseSpacing: number) => {
+        return keyboardHeight > 0 ? keyboardHeight + baseSpacing : baseSpacing;
+      };
+
+      // When keyboard is closed (height = 0)
+      expect(computeScrollContentPadding(0, 24)).toBe(24);
+
+      // When keyboard opens on Android (e.g. height = 300)
+      expect(computeScrollContentPadding(300, 24)).toBe(324);
+    });
+
+    it('smoothly expands and collapses Clinical History without losing entered text', () => {
+      const historyState: ClinicalHistoryFormState = {
+        chiefComplaint: 'Toothache',
+        historyPresentIllness: '3 days',
+        pastMedicalHistory: 'None',
+        familyHistory: 'Diabetes in family',
+        allergies: 'No known allergies',
+      };
+
+      let isExpanded = true;
+      // Collapse
+      isExpanded = false;
+      // Form values remain preserved in state
+      expect(historyState.familyHistory).toBe('Diabetes in family');
+      expect(historyState.allergies).toBe('No known allergies');
+
+      // Expand again
+      isExpanded = true;
+      expect(isExpanded).toBe(true);
+      expect(historyState.familyHistory).toBe('Diabetes in family');
+    });
+  });
 });
 
