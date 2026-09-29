@@ -52,7 +52,7 @@ const availabilityFormSchema = z
       if (day.is_available && day.working_blocks.length === 0) {
         context.addIssue({
           code: 'custom',
-          message: 'Every available day must contain at least one working block.',
+          message: 'Every available day must contain at least one working slot.',
           path: ['availability'],
         });
       }
@@ -87,7 +87,7 @@ const exceptionFormSchema = z
     if (form.is_available && form.working_blocks.length === 0) {
       context.addIssue({
         code: 'custom',
-        message: 'Custom availability requires a working block.',
+        message: 'Custom availability requires a working slot.',
         path: ['working_blocks'],
       });
     }
@@ -279,7 +279,7 @@ export function DoctorAvailabilityPage() {
               <div className="doc-card-header">
                 <div>
                   <h3>Recurring Working Hours</h3>
-                  <p>Add multiple non-overlapping blocks for each available day.</p>
+                  <p>Add multiple non-overlapping slots for each available day.</p>
                 </div>
               </div>
               <Controller

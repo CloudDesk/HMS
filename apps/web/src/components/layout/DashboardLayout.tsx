@@ -30,6 +30,10 @@ function useActiveSidebarState() {
     return { activeKey: 'dashboard', activeHref: '/dashboard' };
   }
 
+  if (pathname === '/opd/consultation' || pathname === '/opd/visit') {
+    return { activeKey: 'opd', activeHref: '/opd/examination' };
+  }
+
   for (const module of sidebarModules) {
     for (const link of module.links) {
       if (pathname === link.href) {

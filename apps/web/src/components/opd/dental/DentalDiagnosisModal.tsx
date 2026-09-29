@@ -4,6 +4,7 @@ import {
   ICD10_DIAGNOSES,
   type Icd10Diagnosis,
 } from '../../../data/icd10-diagnoses';
+export type { Icd10Diagnosis };
 import {
   PERMANENT_QUADRANTS,
   PRIMARY_QUADRANTS,
@@ -22,6 +23,7 @@ export interface DentalDiagnosisModalProps {
   assessment?: string;
   onAssessmentChange?: (val: string) => void;
   showToast?: (message: string, tone?: 'success' | 'error') => void;
+  inline?: boolean;
 }
 
 const COMMON_DENTAL_QUICK_DIAGNOSES = [
@@ -46,6 +48,7 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
   assessment = '',
   onAssessmentChange,
   showToast,
+  inline = false,
 }) => {
   const [targetTooth, setTargetTooth] = useState<number | null>(selectedToothNumber);
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,59 +113,23 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
     showToast?.(`Custom diagnosis "${searchTerm.trim()}" added.`, 'success');
   };
 
-  return (
-    <div
-      className={styles.modalOverlay}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="dental-dx-modal-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className={styles.modernModalCard} style={{ width: 'min(820px, calc(100vw - 32px))' }}>
-        {/* Header */}
-        <div className={styles.modernModalHeader}>
-          <div className={styles.modernModalHeaderLeft}>
-            <div className={styles.modernModalIcon}>
-              <i className="ph ph-stethoscope" aria-hidden="true" />
-            </div>
-            <div>
-              <h3 id="dental-dx-modal-title" className={styles.modernModalTitle}>
-                Dental Diagnosis &amp; ICD-10 Coding
-              </h3>
-              <p className={styles.modernModalSubtitle}>
-                Associate ICD-10 conditions, cavity classifications, and diagnostic reasoning with teeth
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className={styles.modalCloseBtn}
-            onClick={onClose}
-            aria-label="Close diagnosis dialog"
-          >
-            <i className="ph ph-x" aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* Scrollable Body */}
-        <div className={styles.modernModalBody}>
-          {/* Target Tooth Scope Card */}
-          <div
-            style={{
-              padding: '12px 16px',
-              background: 'linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%)',
-              borderRadius: '12px',
-              border: '1px solid #bbf7d0',
-              marginBottom: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '14px',
-              flexWrap: 'wrap',
-            }}
-          >
+  const modalBody = (
+    <>
+      {/* Target Tooth Scope Card */}
+      <div
+        style={{
+          padding: '12px 16px',
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%)',
+          borderRadius: '12px',
+          border: '1px solid #bbf7d0',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '14px',
+          flexWrap: 'wrap',
+        }}
+      >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 auto', minWidth: '240px' }}>
               <div
                 style={{
@@ -776,6 +743,117 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
               />
             </div>
           )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div
+        className={styles.inlineDiagnosisSection}
+        aria-label="Dental Diagnosis and ICD-10 Coding"
+        style={{
+          marginTop: '12px',
+          padding: '14px',
+          background: '#ffffff',
+          borderRadius: '10px',
+          border: '1px solid #cbd5e1',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ display: 'inline-flex', padding: '4px', background: '#ecfdf5', color: '#059669', borderRadius: '6px' }}>
+              <i className="ph ph-stethoscope" style={{ fontSize: '1.1rem' }} aria-hidden="true" />
+            </span>
+            <div>
+              <strong style={{ display: 'block', fontSize: '0.82rem', color: '#0f172a', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                Dental Diagnosis &amp; ICD-10 Coding
+              </strong>
+              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                Target tooth scope, classifications &amp; findings
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#64748b',
+              padding: '4px',
+              borderRadius: '4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+            title="Collapse diagnosis section"
+            aria-label="Collapse diagnosis section"
+          >
+            <i className="ph ph-x" style={{ fontSize: '1.1rem' }} />
+          </button>
+        </div>
+
+        <div style={{ maxHeight: '460px', overflowY: 'auto', paddingRight: '4px' }}>
+          {modalBody}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            <strong>{diagnoses.length}</strong> {diagnoses.length === 1 ? 'diagnosis' : 'diagnoses'} active in session
+          </div>
+          <button
+            type="button"
+            className={styles.btnPrimary}
+            onClick={onClose}
+            style={{ padding: '6px 16px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600 }}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={styles.modalOverlay}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dental-dx-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className={styles.modernModalCard} style={{ width: 'min(820px, calc(100vw - 32px))' }}>
+        {/* Header */}
+        <div className={styles.modernModalHeader}>
+          <div className={styles.modernModalHeaderLeft}>
+            <div className={styles.modernModalIcon}>
+              <i className="ph ph-stethoscope" aria-hidden="true" />
+            </div>
+            <div>
+              <h3 id="dental-dx-modal-title" className={styles.modernModalTitle}>
+                Dental Diagnosis &amp; ICD-10 Coding
+              </h3>
+              <p className={styles.modernModalSubtitle}>
+                Associate ICD-10 conditions, cavity classifications, and diagnostic reasoning with teeth
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={styles.modalCloseBtn}
+            onClick={onClose}
+            aria-label="Close diagnosis dialog"
+          >
+            <i className="ph ph-x" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Scrollable Body */}
+        <div className={styles.modernModalBody}>
+          {modalBody}
         </div>
 
         {/* Sticky Modal Footer */}

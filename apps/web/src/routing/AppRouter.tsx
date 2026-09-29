@@ -248,6 +248,22 @@ export function AppRouter() {
     title = 'Consultation Workspace';
     breadcrumbs = [];
     content = <OpdVisitPage />;
+  } else if (pathname === '/opd/examination') {
+    title = 'Examination';
+    breadcrumbs = ['Home', 'OPD', 'Examination'];
+    content = <OpdVisitPage />;
+  } else if (pathname === '/opd/imaging') {
+    title = 'Imaging Orders';
+    breadcrumbs = ['Home', 'OPD', 'Imaging'];
+    content = <OpdVisitPage />;
+  } else if (pathname === '/opd/laboratory') {
+    title = 'Lab Orders';
+    breadcrumbs = ['Home', 'OPD', 'Laboratory'];
+    content = <OpdVisitPage />;
+  } else if (pathname === '/opd/treatment-plan') {
+    title = 'Diagnosis & Treatment Plan';
+    breadcrumbs = ['Home', 'OPD', 'Diagnosis & Treatment Plan'];
+    content = <OpdVisitPage />;
   } else if (pathname === '/administration/users') {
     title = 'User Management';
     breadcrumbs = ['Home', 'Administration', 'User Management'];

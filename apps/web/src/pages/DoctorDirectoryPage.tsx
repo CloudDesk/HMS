@@ -104,7 +104,7 @@ const doctorFormSchema = z
     ) {
       context.addIssue({
         code: 'custom',
-        message: 'Every available day must contain at least one working block.',
+        message: 'Every available day must contain at least one working slot.',
         path: ['availability'],
       });
     }
@@ -760,7 +760,7 @@ export function DoctorDirectoryPage() {
 
               {!editingDoctor ? (
                 <section className="doctor-onboarding-section">
-                  <header><span><i className="ph ph-calendar-dots" aria-hidden="true" /></span><div><h3>Availability</h3><p>Initialize recurring working blocks and appointment slot duration.</p></div></header>
+                  <header><span><i className="ph ph-calendar-dots" aria-hidden="true" /></span><div><h3>Availability</h3><p>Initialize recurring working slots and appointment slot duration.</p></div></header>
                   <Controller
                     control={control}
                     name="availability"

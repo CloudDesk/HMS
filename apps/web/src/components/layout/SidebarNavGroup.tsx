@@ -60,7 +60,8 @@ export function SidebarNavGroup({ module, activeKey, activeHref }: SidebarNavGro
             (!hasSubSections || !currentSection);
           const isSubGroupActive = link.href === activeHref || (hasSubSections && pathname === link.href);
 
-          const linkHref = currentVisitId && (link.href === '/opd/prescription' || link.href === '/opd/referral')
+          const isOpdVisitScoped = link.href.startsWith('/opd/') && link.href !== '/opd/queue' && link.href !== '/opd';
+          const linkHref = currentVisitId && isOpdVisitScoped
             ? `${link.href}?id=${encodeURIComponent(currentVisitId)}`
             : link.href;
 

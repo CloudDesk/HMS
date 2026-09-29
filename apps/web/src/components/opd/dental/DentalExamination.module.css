@@ -743,12 +743,13 @@
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  padding: 8px 16px;
+  padding: 10px 16px;
   border-radius: 12px;
   border: 1px solid #dbe5f1;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
   min-width: 0;
   box-sizing: border-box;
+  margin-top: 16px;
 }
 
 .subTabList {
@@ -1685,6 +1686,129 @@
   padding: 10px 16px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
+}
+
+.archHeaderBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 10;
+  width: 100%;
+}
+
+.archHeaderBar .jawHeader {
+  position: static;
+  top: auto;
+  left: auto;
+  max-width: none;
+  flex: 0 0 auto;
+}
+
+.archHeaderBar .jawHeader strong {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.archTagWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 175px;
+}
+
+.archTagWrapper .jawHeader {
+  position: static;
+  max-width: 100%;
+}
+
+.archPatientSideBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #0e7490;
+  box-sizing: border-box;
+  min-height: 38px;
+}
+
+.archHeaderBar .archPatientSideBadge {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
+}
+
+.archPatientSideBadge .sideLabelText strong {
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+}
+
+.archPatientSideBadge .sideSubtext {
+  font-size: 0.7rem;
+  color: #0891b2;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.archPatientSideBadgeRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  box-sizing: border-box;
+  min-height: 38px;
+}
+
+.archHeaderBar .archPatientSideBadgeRight {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
+}
+
+.archPatientSideBadgeRight .sideLabelText strong {
+  font-family: var(--dental-font-heading, 'Sora', sans-serif);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+}
+
+.archPatientSideBadgeRight .sideSubtext {
+  font-size: 0.7rem;
+  color: #2563eb;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.toothDiagnosisChip {
+  transition: all 0.15s ease;
+}
+
+.toothDiagnosisChip:hover:not(:disabled) {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
 }
 
 .patientSideBadge {
@@ -5361,4 +5485,192 @@
   background: #1e293b;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
+}
+
+/* Clinical Relationship Card (Diagnosis & Treatment Plan Linked by FDI Tooth Number) */
+.clinicalRelationshipCard {
+  background: #ffffff;
+  padding: 0;
+  margin: 0 0 16px 0;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.clinicalRelationshipHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.clinicalRelationshipHeading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.clinicalRelationshipIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.clinicalRelationshipHeading h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.clinicalRelationshipHeading p {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.compactPlanTableWrapper {
+  overflow-x: auto;
+  padding: 0;
+  background: #ffffff;
+}
+
+.compactPlanTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.compactPlanTable th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.compactPlanTable td {
+  padding: 8px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  font-size: 0.8rem;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+
+.compactPlanTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.compactPlanTable tbody tr:hover {
+  background: #f8fafc;
+}
+
+.toothNumberCell {
+  font-weight: 700;
+  color: #1d4ed8;
+  white-space: nowrap;
+}
+
+.plannedItemsCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.plannedItemRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.planStatusAccepted {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.planStatusInProgress {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.planStatusCompleted {
+  background: #ede9fe;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.planStatusProposed {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.planStatusCancelled {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.textMuted {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.emptyTableState {
+  text-align: center;
+  padding: 18px !important;
+  color: #64748b;
+  font-style: italic;
+}
+
+.generalDiagnosisRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.75rem;
+}
+
+.generalDiagnosisRow span {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.generalDiagnosisRow strong {
+  color: #334155;
+  font-weight: 600;
 }
