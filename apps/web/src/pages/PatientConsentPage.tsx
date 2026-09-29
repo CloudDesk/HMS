@@ -178,22 +178,9 @@ export function PatientConsentPage() {
               <p>Manage structured digital consents and patient authorization records</p>
             </div>
           </div>
-          <div className="appointment-page-actions" style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="appointment-page-actions">
             <button
               className="doc-btn primary"
-              disabled={!patient || !canCreate}
-              onClick={() => {
-                setFillTemplateId(templates[0]?.id ?? '');
-                setFillContextType('PATIENT');
-                setFillContextId('');
-                setFillSelectOpen(true);
-              }}
-              type="button"
-            >
-              <i className="ph ph-pencil-simple-line" aria-hidden="true" /> Fill & Sign Consent
-            </button>
-            <button
-              className="doc-btn"
               disabled={!patient || !canCreate}
               onClick={() => {
                 setUploadSourceMode('TEMPLATE');

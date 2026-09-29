@@ -117,6 +117,7 @@ const toDoctor = (doctor: DoctorLean): Doctor => ({
   email: doctor.email ?? null,
   status: doctor.status,
   notes: doctor.notes ?? null,
+  signature_data: doctor.signatureData ?? null,
   availability: doctor.availability.map(toAvailability),
   created_by: doctor.createdBy?.toString() ?? null,
   updated_by: doctor.updatedBy?.toString() ?? null,
@@ -178,6 +179,7 @@ const buildDoctorPayload = (data: CreateDoctorDTO | UpdateDoctorDTO) => ({
   ...(data.phone !== undefined ? { phone: nullableString(data.phone) } : {}),
   ...(data.email !== undefined ? { email: nullableString(data.email) } : {}),
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+  ...(data.signature_data !== undefined ? { signatureData: nullableString(data.signature_data) } : {}),
 });
 
 const buildWorkingBlocks = (blocks: Array<{ start_time: string; end_time: string; slot_duration_minutes: number; max_patients_per_slot?: number }>) =>

@@ -37,26 +37,31 @@ function generateConsentHtml(data: {
     </div>`;
   }).join('');
 
-  const sigsHtml = (data.signatures && data.signatures.length > 0)
-    ? data.signatures.map((s) => {
-        const isImg = s.signature_data.startsWith('data:image/') || s.signature_data.startsWith('http') || s.signature_data.startsWith('blob:');
-        return `<div style="flex:1;min-width:220px;padding:14px;background:#fff;border:1px solid #cbd5e1;border-radius:8px">
-          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">${s.signer_type} SIGNATURE</div>
-          <div style="height:70px;display:flex;align-items:center;margin:8px 0">
-            ${isImg ? `<img src="${s.signature_data}" style="max-height:68px;max-width:200px;object-fit:contain" alt="Signature" />` : `<div style="font-style:italic;font-family:serif;font-size:18px;color:#1e293b">${s.signature_data}</div>`}
-          </div>
-          <div style="border-top:1px solid #cbd5e1;padding-top:6px;font-size:12px;font-weight:600;color:#0f172a">${s.signer_name}</div>
-          <div style="font-size:11px;color:#64748b">${s.signed_at ? new Date(s.signed_at).toLocaleString('en-IN') : data.signedAt.toLocaleString('en-IN')}</div>
-        </div>`;
-      }).join('')
-    : `<div style="flex:1;min-width:240px;padding:16px;background:#f8fafc;border:2px dashed #cbd5e1;border-radius:8px;text-align:center">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">PATIENT SIGNATURE</div>
-        <div style="height:65px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:8px 0;color:#94a3b8;font-size:13px;font-style:italic">
-          <span>Awaiting Patient Digital Signature</span>
-          <span style="font-size:11px;color:#64748b;margin-top:4px">Sign via Patient Portal</span>
-        </div>
-        <div style="border-top:1px dashed #cbd5e1;padding-top:6px;font-size:12px;color:#64748b">${data.patientName}</div>
-      </div>`;
+  const renderedSigs = (data.signatures || []).map((s) => {
+    const isImg = s.signature_data.startsWith('data:image/') || s.signature_data.startsWith('http') || s.signature_data.startsWith('blob:');
+    return `<div style="flex:1;min-width:220px;padding:14px;background:#fff;border:1px solid #cbd5e1;border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">${s.signer_type} SIGNATURE</div>
+      <div style="height:70px;display:flex;align-items:center;margin:8px 0">
+        ${isImg ? `<img src="${s.signature_data}" style="max-height:68px;max-width:200px;object-fit:contain" alt="Signature" />` : `<div style="font-style:italic;font-family:serif;font-size:18px;color:#1e293b">${s.signature_data}</div>`}
+      </div>
+      <div style="border-top:1px solid #cbd5e1;padding-top:6px;font-size:12px;font-weight:600;color:#0f172a">${s.signer_name}</div>
+      <div style="font-size:11px;color:#64748b">${s.signed_at ? new Date(s.signed_at).toLocaleString('en-IN') : data.signedAt.toLocaleString('en-IN')}</div>
+    </div>`;
+  });
+
+  const hasPatientSig = (data.signatures || []).some((s) => s.signer_type === 'PATIENT');
+  if (!hasPatientSig) {
+    renderedSigs.push(`<div style="flex:1;min-width:240px;padding:16px;background:#f8fafc;border:2px dashed #cbd5e1;border-radius:8px;text-align:center">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">PATIENT SIGNATURE</div>
+      <div style="height:65px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:8px 0;color:#94a3b8;font-size:13px;font-style:italic">
+        <span>Awaiting Patient Digital Signature</span>
+        <span style="font-size:11px;color:#64748b;margin-top:4px">Sign via Patient Portal</span>
+      </div>
+      <div style="border-top:1px dashed #cbd5e1;padding-top:6px;font-size:12px;color:#64748b">${data.patientName}</div>
+    </div>`);
+  }
+
+  const sigsHtml = renderedSigs.join('');
 
   return `<!DOCTYPE html>
 <html>
@@ -106,6 +111,8 @@ function generateConsentHtml(data: {
 </html>`;
 }
 import { ConsentTemplateModel } from '../consents/consent.model.js';
+import { UserModel } from '../users/user.model.js';
+import { DoctorModel } from '../doctors/doctor.model.js';
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { env } from '../../config/env.js';
@@ -803,6 +810,43 @@ export class PatientService {
     const contextType = data.context_type ?? 'PATIENT';
     const contextId = data.context_id || patient.id;
 
+    let doctorName = 'Attending Physician';
+    let doctorSignatureData: string | null = null;
+    if (userId) {
+      const user = await UserModel.findById(userId).select({ fullName: 1 }).lean<{ fullName: string }>();
+      if (user?.fullName) doctorName = user.fullName;
+      const doctor = await DoctorModel.findOne({ userId: new Types.ObjectId(userId), deletedAt: null }).lean();
+      if (doctor) {
+        doctorName = doctor.displayName || `Dr. ${doctor.firstName} ${doctor.lastName}`;
+        if (doctor.signatureData) {
+          doctorSignatureData = doctor.signatureData;
+        }
+      }
+    }
+
+    const autoFormResponses: Record<string, unknown> = {
+      patient_name: patientName,
+      patient_number: patient.patient_number,
+      date_of_birth: patient.date_of_birth
+        ? new Date(patient.date_of_birth).toLocaleDateString('en-IN')
+        : '',
+      gender: patient.gender,
+      phone: patient.phone || '',
+      doctor_name: doctorName,
+      ...(data.form_responses || {}),
+    };
+
+    const initialSignatures: Array<import('./patient.types.js').ConsentDigitalSignature> = [];
+    const requiredSigs: string[] = (template.formDefinition as any)?.signatures?.requiredSignatures || ['PATIENT'];
+    if (requiredSigs.includes('DOCTOR')) {
+      initialSignatures.push({
+        signer_type: 'DOCTOR',
+        signer_name: doctorName,
+        signature_data: doctorSignatureData || `Digitally Authorized by Dr. ${doctorName}`,
+        signed_at: new Date().toISOString(),
+      });
+    }
+
     const summaryHtml = generateConsentHtml({
       patientName,
       patientNumber: patient.patient_number,
@@ -813,8 +857,8 @@ export class PatientService {
       contextType,
       contextId,
       sections: (template.formDefinition as any)?.sections,
-      formResponses: data.form_responses ?? {},
-      signatures: [],
+      formResponses: autoFormResponses,
+      signatures: initialSignatures,
       declarationAccepted: false,
       declarationText: (template.formDefinition as any)?.declaration?.text,
       signedAt: new Date(),
@@ -851,8 +895,8 @@ export class PatientService {
         valid_until: data.valid_until ? (isValidDate(data.valid_until) ? new Date(data.valid_until).toISOString() : null) : null,
         source: 'HOSPITAL',
         review_status: 'PENDING',
-        form_responses: data.form_responses ?? {},
-        digital_signatures: [],
+        form_responses: autoFormResponses,
+        digital_signatures: initialSignatures,
       },
       userId,
     );
@@ -909,6 +953,7 @@ export class PatientService {
       (s) => s.signer_type !== 'PATIENT',
     );
     const updatedSignatures = [...existingSignatures, digitalSignature];
+    let finalSignatures = updatedSignatures;
 
     // If this consent is an HTML document or linked to a template, regenerate the HTML with the embedded signature
     if (consent.storage_key && (consent.mime_type === 'text/html' || consent.consent_template_id)) {
@@ -923,6 +968,38 @@ export class PatientService {
           ? [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ')
           : signedByName;
 
+        let doctorName = 'Attending Physician';
+        let doctorSignatureData: string | null = null;
+        const uId = consent.uploaded_by;
+        if (uId) {
+          const docUser = await UserModel.findById(uId).select({ fullName: 1 }).lean<{ fullName: string }>();
+          if (docUser?.fullName) doctorName = docUser.fullName;
+          const doctor = await DoctorModel.findOne({ userId: new Types.ObjectId(uId), deletedAt: null }).lean();
+          if (doctor) {
+            doctorName = doctor.displayName || `Dr. ${doctor.firstName} ${doctor.lastName}`;
+            if (doctor.signatureData) doctorSignatureData = doctor.signatureData;
+          }
+        }
+
+        const autoFormResponses: Record<string, unknown> = {
+          patient_name: patientName,
+          patient_number: patient?.patient_number || '',
+          date_of_birth: patient?.date_of_birth
+            ? new Date(patient.date_of_birth).toLocaleDateString('en-IN')
+            : '',
+          gender: patient?.gender,
+          phone: patient?.phone || '',
+          doctor_name: doctorName,
+          ...(consent.form_responses || {}),
+        };
+
+        finalSignatures = updatedSignatures.map((s) => {
+          if (s.signer_type === 'DOCTOR' && doctorSignatureData) {
+            return { ...s, signature_data: doctorSignatureData, signer_name: doctorName };
+          }
+          return s;
+        });
+
         const updatedHtml = generateConsentHtml({
           patientName,
           patientNumber: patient?.patient_number || '',
@@ -933,8 +1010,8 @@ export class PatientService {
           contextType: consent.context_type || 'PATIENT',
           contextId: consent.context_id || patientId,
           sections: (template?.formDefinition as any)?.sections,
-          formResponses: consent.form_responses || {},
-          signatures: updatedSignatures,
+          formResponses: autoFormResponses,
+          signatures: finalSignatures,
           declarationAccepted: true,
           declarationText: (template?.formDefinition as any)?.declaration?.text,
           signedAt,
@@ -956,7 +1033,7 @@ export class PatientService {
       signatureDocumentId,
       signedByName,
       signedAt,
-      updatedSignatures,
+      finalSignatures,
     );
   }
 

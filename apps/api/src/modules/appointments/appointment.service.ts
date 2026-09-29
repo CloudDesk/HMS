@@ -10,7 +10,7 @@ import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import type { SettingsRepository } from '../settings/settings.repository.js';
 import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { AppointmentRepository } from './appointment.repository.js';
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type {
   Appointment,
   AppointmentListQuery,
@@ -319,15 +319,25 @@ export class AppointmentService {
     userId: string,
     enforceBranchScope: boolean,
   ) {
-    if (!data.utc_datetime) {
-      throw new AppError('UTC datetime is required for new appointments', 400, 'VALIDATION_ERROR');
-    }
     const settings = await this.settingsRepository.get();
     const tz = settings.localization.timezone;
-    const appointmentUtc = new Date(data.utc_datetime);
 
-    const appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
-    const startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
+    let appointmentUtc: Date;
+    let appointmentDateStr: string;
+    let startTimeStr: string;
+
+    if (data.utc_datetime) {
+      appointmentUtc = new Date(data.utc_datetime);
+      appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
+      startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
+    } else if (data.appointment_date && data.start_time) {
+      const localStr = `${data.appointment_date}T${data.start_time}:00`;
+      appointmentUtc = fromZonedTime(localStr, tz);
+      appointmentDateStr = data.appointment_date;
+      startTimeStr = data.start_time;
+    } else {
+      throw new AppError('UTC datetime is required for new appointments', 400, 'VALIDATION_ERROR');
+    }
 
     const appointmentDate = this.validateAppointmentDate(appointmentDateStr);
     const endTime = this.validateAppointmentWindow(startTimeStr, data.duration_minutes);

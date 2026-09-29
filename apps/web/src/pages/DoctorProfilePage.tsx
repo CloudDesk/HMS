@@ -1,3 +1,4 @@
+import { DoctorSignatureCard } from '../components/doctors/DoctorSignatureCard';
 import { useDoctorProfile } from '../hooks/doctors/useDoctorProfile';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDate } from './patient-utils';
@@ -88,6 +89,12 @@ export function DoctorProfilePage() {
           </div>
         </section>
       </div>
+
+      <DoctorSignatureCard
+        doctorId={doctor.id}
+        signatureData={doctor.signature_data}
+        canEdit={profile.canEdit}
+      />
 
       <section className="doc-card">
         <div className="doc-card-header"><div><h3>Weekly Availability</h3><p>Recurring working blocks used by the appointment slot engine</p></div></div>

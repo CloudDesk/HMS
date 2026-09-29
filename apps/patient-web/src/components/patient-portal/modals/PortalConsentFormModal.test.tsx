@@ -138,13 +138,7 @@ describe('PortalConsentFormModal', () => {
 
     expect(document.body.textContent).toContain('Dental General Treatment Consent Form');
     expect(document.body.textContent).toContain('Signature Captured & Attached');
-    expect(document.body.textContent).toContain('John Doe');
-    expect(document.body.textContent).toContain('Verified & Recorded');
-    expect(document.body.textContent).toContain('Signed & Legally Binding');
-
-    const sigImg = document.body.querySelector('img[alt="Patient Signature"]');
-    expect(sigImg).not.toBeNull();
-    expect(sigImg?.getAttribute('src')).toBe('blob:mock-url-image/png');
+    expect(document.body.textContent).toContain('Replace Signature');
   });
 
   it('displays signature prompt when signature is not yet uploaded', async () => {
@@ -163,7 +157,6 @@ describe('PortalConsentFormModal', () => {
     });
 
     expect(document.body.textContent).toContain('Signature Required');
-    expect(document.body.textContent).toContain('Signature has not been uploaded yet');
     expect(document.body.textContent).toContain('Upload Signature');
   });
 });

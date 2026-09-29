@@ -42,6 +42,7 @@ export type Doctor = {
   email: string | null;
   status: DoctorStatus;
   notes: string | null;
+  signature_data?: string | null;
   availability: DoctorAvailability[];
   created_by: string | null;
   updated_by: string | null;
@@ -75,6 +76,7 @@ export type DoctorDetailsDTO = {
   email?: string | null;
   status?: DoctorStatus;
   notes?: string | null;
+  signature_data?: string | null;
 };
 
 export type SaveDoctorAvailabilityDTO = {
