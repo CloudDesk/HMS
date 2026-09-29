@@ -5,32 +5,51 @@ import { colors, spacing, typography } from '../theme';
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg';
   showSubtitle?: boolean;
+  showTitle?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const logoSource = require('../../../assets/logo.png');
 
-export function BrandLogo({ size = 'md', showSubtitle = false }: BrandLogoProps) {
+export function BrandLogo({
+  size = 'md',
+  showSubtitle = false,
+  showTitle = true,
+}: BrandLogoProps) {
   const iconSize = size === 'sm' ? 40 : size === 'lg' ? 80 : 56;
 
   return (
     <View style={styles.container}>
       <Image
         source={logoSource}
-        style={[styles.logoImage, { width: iconSize, height: iconSize }]}
+        style={[
+          styles.logoImage,
+          { width: iconSize, height: iconSize },
+          !showTitle && !showSubtitle && { marginBottom: 0 },
+        ]}
         resizeMode="contain"
       />
 
-      <View style={styles.textContainer}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, size === 'sm' && styles.titleSm, size === 'lg' && styles.titleLg]}>
-            MyCare
-          </Text>
+      {showTitle || showSubtitle ? (
+        <View style={styles.textContainer}>
+          {showTitle ? (
+            <View style={styles.titleRow}>
+              <Text
+                style={[
+                  styles.title,
+                  size === 'sm' && styles.titleSm,
+                  size === 'lg' && styles.titleLg,
+                ]}
+              >
+                MyCare
+              </Text>
+            </View>
+          ) : null}
+          {showSubtitle ? (
+            <Text style={styles.subtitle}>Your care, connected.</Text>
+          ) : null}
         </View>
-        {showSubtitle ? (
-          <Text style={styles.subtitle}>Your care, connected.</Text>
-        ) : null}
-      </View>
+      ) : null}
     </View>
   );
 }

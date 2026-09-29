@@ -290,7 +290,7 @@ export class UserService {
     return { id: user.id, username: user.username, email: user.email, status: user.status };
   }
 
-  async registerPortalAccount(input: RegisterPortalAccountInput, metadata: RequestMetadata) {
+  async registerPortalAccount(input: RegisterPortalAccountInput, metadata: RequestMetadata, session?: ClientSession) {
     const role = await this.roleRepository.findActiveByCode(input.accountType);
     if (!role) {
       throw new AppError(`Active ${input.accountType} role is required for portal registration`, 409, 'PORTAL_ROLE_NOT_CONFIGURED');
@@ -303,7 +303,7 @@ export class UserService {
     if (!emailPattern.test(email)) throw new AppError('Email format is invalid', 400, 'INVALID_EMAIL');
     if (!phonePattern.test(input.phone) || phone.length < 7) throw new AppError('Mobile number is invalid', 400, 'INVALID_PHONE');
     assertPasswordPolicy(input.password, await this.getPasswordPolicy());
-    await this.assertUniqueFields({ username: email, email, phone });
+    await this.assertUniqueFields({ username: email, email, phone }, session);
 
     const user = await this.repository.create({
       employeeCode: `PORTAL-${randomUUID()}`,
@@ -316,14 +316,14 @@ export class UserService {
       status: 'active',
       passwordHash: await hashPassword(input.password),
       roleIds: [role.id],
-    });
-    await this.repository.replaceAssignments(user.id, [], [], [role.id]);
+    }, session);
+    await this.repository.replaceAssignments(user.id, [], [], [role.id], session);
     await this.repository.audit('patient_portal.account.registered', {
       ...metadata,
       actorUserId: user.id,
       subjectUserId: user.id,
       metadata: { accountType: input.accountType },
-    });
+    }, session);
     return { id: user.id, username: user.username, email: user.email, phone: user.phone, accountType: input.accountType };
   }
 

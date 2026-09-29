@@ -93,12 +93,14 @@ describe('Centralized API Error & Diagnostic System', () => {
       expect(err.userMessage).toBe('Too many attempts. Please wait before trying again.');
     });
 
-    it('covers all standard categories: 400, 403, 404, 409, 422', () => {
+    it('covers all standard categories: 400, 403, 404, 409, 413, 415, 422', () => {
       const categories: ApiErrorCategory[] = [
         'HTTP_400',
         'HTTP_403',
         'HTTP_404',
         'HTTP_409',
+        'HTTP_413',
+        'HTTP_415',
         'HTTP_422',
       ];
 
@@ -108,6 +110,20 @@ describe('Centralized API Error & Diagnostic System', () => {
         expect(typeof err.userMessage).toBe('string');
         expect(err.userMessage.length).toBeGreaterThan(5);
       }
+    });
+
+    it('maps profile photo specific error codes to helpful patient messages', () => {
+      const tooLarge = new ApiFailure({ code: 'IMAGE_TOO_LARGE', status: 400 });
+      expect(tooLarge.userMessage).toBe('Profile photo must be 5MB or smaller.');
+
+      const invalidType = new ApiFailure({ code: 'INVALID_IMAGE_TYPE', status: 400 });
+      expect(invalidType.userMessage).toBe('Please select a valid image file (JPG, PNG, WebP, or HEIC).');
+
+      const photoReq = new ApiFailure({ code: 'PHOTO_REQUIRED', status: 400 });
+      expect(photoReq.userMessage).toBe('Please choose a photo to upload.');
+
+      const accessDenied = new ApiFailure({ code: 'PATIENT_ACCESS_DENIED', status: 403 });
+      expect(accessDenied.userMessage).toBe('You do not have permission to update this patient profile.');
     });
   });
 

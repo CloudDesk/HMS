@@ -41,7 +41,6 @@ describe('MobileTransport', () => {
       expect.objectContaining({
         method: 'GET',
         credentials: 'omit',
-        redirect: 'error',
         headers: {
           Accept: 'application/json',
           Authorization: 'Bearer mock-access-token',

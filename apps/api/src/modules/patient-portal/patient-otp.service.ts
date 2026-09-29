@@ -144,7 +144,7 @@ export class PatientOtpService {
     return { registrationToken: token };
   }
 
-  async consumeRegistrationToken(phone: string, token: string): Promise<PatientOtpVerification> {
+  async consumeRegistrationToken(phone: string, token: string, session?: import('mongoose').ClientSession): Promise<PatientOtpVerification> {
     const normalizedPhone = normalizePatientOtpIdentity(phone);
     const now = this.now();
     const registrationToken = await RegistrationTokenModel.findOneAndUpdate(
@@ -155,7 +155,7 @@ export class PatientOtpService {
         expiresAt: { $gt: now },
       },
       { $set: { consumedAt: now } },
-      { returnDocument: 'after' },
+      { returnDocument: 'after', session },
     );
     if (!registrationToken) {
       throw new AppError(

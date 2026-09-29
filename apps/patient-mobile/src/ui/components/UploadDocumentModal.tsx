@@ -18,8 +18,6 @@ import { usePatient } from '../../portal/PatientContext';
 import { DocumentsApi } from '../../documents/documents-api';
 import {
   formatFileSize,
-  getDocumentTypeIcon,
-  getDocumentTypeLabel,
   MAX_DOCUMENT_FILE_SIZE_BYTES,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_DOCUMENT_MIME_TYPES,

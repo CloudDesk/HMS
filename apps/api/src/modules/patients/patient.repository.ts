@@ -752,7 +752,82 @@ export class PatientRepository {
       verifiedAt: null,
       status: 'ACTIVE',
     });
+
+    if (data.consent_kind === 'PROFILE_PHOTO') {
+      await PatientModel.updateOne(
+        { _id: new Types.ObjectId(patientId) },
+        {
+          $set: {
+            profilePhoto: {
+              storageKey: data.storage_key.trim(),
+              mimeType: data.mime_type.trim(),
+              fileSizeBytes: data.file_size_bytes,
+              uploadedAt: new Date(),
+            },
+            updatedBy: new Types.ObjectId(userId),
+          },
+        },
+      );
+    }
+
     return toPatientDocument(created.toObject<PatientDocumentLean>());
+  }
+
+  async updateProfilePhotoField(
+    patientId: string,
+    photo: { storageKey: string; mimeType: string; fileSizeBytes: number; uploadedAt: Date } | null,
+    userId: string,
+  ) {
+    const pId = toObjectId(patientId);
+    if (!pId) return;
+    await PatientModel.updateOne(
+      { _id: pId },
+      {
+        $set: {
+          profilePhoto: photo,
+          updatedBy: toObjectId(userId),
+        },
+      },
+    );
+  }
+
+  async saveProfilePhotoDocument(
+    patientId: string,
+    photo: { storageKey: string; mimeType: string; fileSizeBytes: number; fileName?: string },
+    userId: string,
+  ) {
+    const pId = toObjectId(patientId);
+    if (!pId) return;
+    const uId = toObjectId(userId);
+    await PatientDocumentModel.updateMany(
+      { patientId: pId, consentKind: 'PROFILE_PHOTO', status: 'ACTIVE' },
+      { $set: { status: 'DELETED', deletedAt: new Date(), deletedBy: uId ?? undefined } },
+    );
+    await PatientDocumentModel.create({
+      patientId: pId,
+      documentType: 'IDENTITY',
+      title: 'Profile photo',
+      fileName: photo.fileName || 'profile-photo.jpg',
+      mimeType: photo.mimeType,
+      fileSizeBytes: photo.fileSizeBytes,
+      storageKey: photo.storageKey,
+      description: 'Patient portal profile photo',
+      consentKind: 'PROFILE_PHOTO',
+      source: 'PATIENT',
+      reviewStatus: 'NOT_REQUIRED',
+      uploadedBy: uId ?? undefined,
+      status: 'ACTIVE',
+    });
+  }
+
+  async deleteProfilePhotoDocument(patientId: string, userId: string) {
+    const pId = toObjectId(patientId);
+    if (!pId) return;
+    const uId = toObjectId(userId);
+    await PatientDocumentModel.updateMany(
+      { patientId: pId, consentKind: 'PROFILE_PHOTO', status: 'ACTIVE' },
+      { $set: { status: 'DELETED', deletedAt: new Date(), deletedBy: uId ?? undefined } },
+    );
   }
 
   async replaceDocument(patientId: string, documentId: string, data: CreatePatientDocumentDTO, userId: string) {

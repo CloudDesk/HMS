@@ -78,6 +78,23 @@ type PatientProfileBody = z.infer<typeof patientProfileSchema>;
 const dependentSchema = patientProfileSchema.extend({ relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']) });
 type DependentBody = z.infer<typeof dependentSchema>;
 
+const selfProfileSchema = z.object({
+  first_name: z.string().trim().min(1).max(100),
+  last_name: z.string().trim().min(1).max(100),
+  date_of_birth: z.string().date(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
+  preferred_branch_id: z.string().min(1),
+  blood_group: z.string().trim().max(10).nullable().optional(),
+  address: z.object({
+    line1: z.string().trim().max(200).nullable().optional(),
+    city: z.string().trim().max(100).nullable().optional(),
+    state: z.string().trim().max(100).nullable().optional(),
+    country: z.string().trim().max(100).nullable().optional(),
+    postal_code: z.string().trim().max(30).nullable().optional(),
+  }).optional(),
+});
+type SelfProfileBody = z.infer<typeof selfProfileSchema>;
+
 const registerSchema = z.object({
   account_type: z.enum(['PATIENT', 'GUARDIAN']),
   full_name: z.string().trim().min(2).max(160),
@@ -87,6 +104,7 @@ const registerSchema = z.object({
   otp: z.string().regex(/^\d{4}$/).optional(),
   guardian_profile: guardianProfileSchema.optional(),
   initial_dependent: dependentSchema.optional(),
+  self_profile: selfProfileSchema.optional(),
 }).superRefine((value, context) => {
   if (!value.registration_token && !value.otp) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['registration_token'], message: 'Verification is required' });
@@ -247,7 +265,7 @@ const portalDocumentsQuerySchema = z.object({
 type PortalDocumentsQuery = z.input<typeof portalDocumentsQuerySchema>;
 
 const portalDocumentTypes = ['INSURANCE', 'CLINICAL', 'OTHER'] as const;
-const portalImageMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const portalImageMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
 const readPortalMultipartField = (fields: MultipartFields, name: string) => {
   const field = fields[name];
   const value = Array.isArray(field) ? field[0] : field;
@@ -408,6 +426,18 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
       fullName: parsed.data.full_name,
       email: parsed.data.email,
       phone: parsed.data.phone,
+      selfProfile: parsed.data.self_profile ? {
+        firstName: parsed.data.self_profile.first_name,
+        lastName: parsed.data.self_profile.last_name,
+        dateOfBirth: parsed.data.self_profile.date_of_birth,
+        gender: parsed.data.self_profile.gender,
+        preferredBranchId: parsed.data.self_profile.preferred_branch_id,
+        bloodGroup: parsed.data.self_profile.blood_group,
+        address: parsed.data.self_profile.address ? {
+          ...parsed.data.self_profile.address,
+          postalCode: parsed.data.self_profile.address.postal_code,
+        } : undefined,
+      } : undefined,
       guardianProfile: parsed.data.guardian_profile ? {
         relationship: parsed.data.guardian_profile.relationship,
         legalConsentAccepted: parsed.data.guardian_profile.legal_consent_accepted,

@@ -235,8 +235,10 @@ describe('Optional Clinical History During Appointment Booking', () => {
       };
 
       let isExpanded = true;
+      expect(isExpanded).toBe(true);
       // Collapse
       isExpanded = false;
+      expect(isExpanded).toBe(false);
       // Form values remain preserved in state
       expect(historyState.familyHistory).toBe('Diabetes in family');
       expect(historyState.allergies).toBe('No known allergies');

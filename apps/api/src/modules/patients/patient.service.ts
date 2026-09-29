@@ -363,6 +363,18 @@ export class PatientService {
     await this.documentStorage.deleteIfExists(storageKey);
   }
 
+  async createOrUpdateProfilePhotoDocument(
+    patientId: string,
+    photo: { storageKey: string; mimeType: string; fileSizeBytes: number; fileName?: string },
+    userId: string,
+  ) {
+    await this.repository.saveProfilePhotoDocument(patientId, photo, userId);
+  }
+
+  async deleteProfilePhotoDocument(patientId: string, userId: string) {
+    await this.repository.deleteProfilePhotoDocument(patientId, userId);
+  }
+
   async downloadDocumentForPortal(patientId: string, documentId: string) {
     const document = await this.getActiveDocument(patientId, documentId);
     const storedFile = await this.documentStorage.download(document.storage_key);

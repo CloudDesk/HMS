@@ -59,7 +59,6 @@ export class MobileTransport {
       response = await this.fetcher(url, {
         method,
         credentials: 'omit',
-        redirect: 'error',
         headers: {
           Accept: 'application/json',
           ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -131,8 +130,6 @@ export class MobileTransport {
       const url = `${this.config.apiBaseUrl}${path}`;
       response = await this.fetcher(url, {
         method: 'POST',
-        credentials: 'omit',
-        redirect: 'error',
         headers: {
           Accept: 'application/json',
           ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
@@ -222,6 +219,10 @@ export class MobileTransport {
           ? 'HTTP_404'
           : response.status === 409
           ? 'HTTP_409'
+          : response.status === 413
+          ? 'HTTP_413'
+          : response.status === 415
+          ? 'HTTP_415'
           : response.status === 422
           ? 'HTTP_422'
           : response.status === 429
@@ -242,6 +243,7 @@ export class MobileTransport {
         kind,
         status: response.status,
         code: serverCode ?? (response.status >= 500 ? 'SERVER_ERROR' : undefined),
+        userMessage: serverMessage,
         requestId: serverRequestId,
         endpoint: path,
         method,

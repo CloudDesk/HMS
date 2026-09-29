@@ -24,7 +24,10 @@ describe('Patient Profile Photo End-to-End Unit Tests', () => {
     deleteIfExists: vi.fn().mockResolvedValue(undefined),
   } as unknown as PatientDocumentStorageService;
 
-  const mockPatientRepo = {} as PatientRepository;
+  const mockPatientRepo = {
+    saveProfilePhotoDocument: vi.fn().mockResolvedValue(undefined),
+    deleteProfilePhotoDocument: vi.fn().mockResolvedValue(undefined),
+  } as unknown as PatientRepository;
   const mockSequenceService = {} as SequenceService;
 
   const patientService = new PatientService(

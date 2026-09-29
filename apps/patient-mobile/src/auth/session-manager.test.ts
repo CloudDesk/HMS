@@ -511,7 +511,7 @@ describe('SessionManager', () => {
       expect(state.phone).toBe('+919876543210');
     });
 
-    it('completes patient registration (signup + completeProfile) and establishes authenticated session', async () => {
+    it('completes atomic patient registration in a single signup call with selfProfile and establishes authenticated session', async () => {
       const manager = createManager();
       await manager.start();
 
@@ -523,7 +523,6 @@ describe('SessionManager', () => {
 
       const signupSession = createSampleSession('r'.repeat(64), 'reg.access.token');
       mockApi.signup.mockResolvedValue(signupSession);
-      mockApi.completeProfile.mockResolvedValue({ patientId: 'patient-new-1' });
 
       await manager.requestOtp('+919876543210', 'register');
       await manager.verifyRegistrationOtp('1234');
@@ -550,18 +549,59 @@ describe('SessionManager', () => {
           email: 'aarav@example.com',
           phone: '+919876543210',
           registrationToken: 'reg-token-xyz-789',
+          selfProfile: {
+            firstName: 'Aarav',
+            lastName: 'Patel',
+            dateOfBirth: '1995-06-20',
+            gender: 'MALE',
+            preferredBranchId: 'branch-1',
+            bloodGroup: 'B+',
+            address: {
+              line1: '456 Marine Drive',
+              city: 'Mumbai',
+              state: 'Maharashtra',
+              postalCode: '400020',
+            },
+          },
         })
       );
-      expect(mockApi.completeProfile).toHaveBeenCalledWith(
-        'reg.access.token',
-        expect.objectContaining({
-          fullName: 'Aarav Patel',
-          email: 'aarav@example.com',
-          dateOfBirth: '1995-06-20',
-          gender: 'MALE',
-          preferredBranchId: 'branch-1',
+      expect(mockApi.completeProfile).not.toHaveBeenCalled();
+    });
+
+    it('fails registration and does not authenticate when signup throws an error (including 409 DUPLICATE)', async () => {
+      const manager = createManager();
+      await manager.start();
+
+      mockApi.requestOtp.mockResolvedValue({
+        success: true,
+        resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      mockApi.verifyRegistrationOtp.mockResolvedValue('reg-token-xyz-789');
+
+      mockApi.signup.mockRejectedValue(
+        new ApiFailure({
+          kind: 'validation',
+          status: 409,
+          code: 'DUPLICATE_PATIENT',
+          userMessage: 'A possible existing patient record was found.',
         })
       );
+
+      await manager.requestOtp('+919876543210', 'register');
+      await manager.verifyRegistrationOtp('1234');
+
+      await manager.registerPatient({
+        fullName: 'Aarav Patel',
+        email: 'aarav@example.com',
+        dateOfBirth: '1995-06-20',
+        gender: 'MALE',
+        preferredBranchId: 'branch-1',
+      });
+
+      const state = manager.getSnapshot();
+      expect(state.status).toBe('registrationDetails');
+      expect(state.message).toContain('A possible existing patient record was found');
+      expect(mockApi.completeProfile).not.toHaveBeenCalled();
     });
 
     it('cancels registration and returns to unauthenticated state', async () => {

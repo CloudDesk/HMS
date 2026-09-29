@@ -28,13 +28,15 @@ export function normalizeImageUpload(file: {
   let uri = file.uri.trim();
 
   // Ensure local file paths have valid scheme prefix so React Native networking can resolve it
-  if (
+  if (uri.startsWith('file:/') && !uri.startsWith('file:///')) {
+    uri = uri.replace(/^file:\/+/, 'file:///');
+  } else if (
     !uri.startsWith('file://') &&
     !uri.startsWith('content://') &&
     !uri.startsWith('http://') &&
     !uri.startsWith('https://')
   ) {
-    uri = `file://${uri}`;
+    uri = uri.startsWith('/') ? `file://${uri}` : `file:///${uri}`;
   }
 
   // Derive and normalize MIME type

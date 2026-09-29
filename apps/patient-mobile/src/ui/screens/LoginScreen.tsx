@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -8,6 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
@@ -19,18 +21,50 @@ export function LoginScreen() {
   const { state, requestOtp, setAuthMode, clearError } = useAuth();
   const [phone, setPhone] = useState(state.phone ?? '');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const isRegisterMode = state.authMode === 'register';
   const isSubmitting = state.status === 'requestingOtp';
   const displayError = state.message ?? localError;
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleInputFocus = useCallback(() => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  }, []);
+
   const handleModeChange = (mode: 'login' | 'register') => {
+    Keyboard.dismiss();
     setLocalError(null);
     clearError();
     setAuthMode(mode);
   };
 
   const handleSubmit = async () => {
+    Keyboard.dismiss();
     setLocalError(null);
     clearError();
     const cleaned = phone.trim();
@@ -51,124 +85,141 @@ export function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.keyboardView}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
-          <View style={styles.header}>
-            <BrandLogo size="lg" />
-            <Text style={styles.title}>
-              {isRegisterMode ? 'New Patient Registration' : 'Welcome to MyCare'}
-            </Text>
-            <Text style={styles.subtitle}>
-              {isRegisterMode
-                ? 'Enter your mobile number to create your MyCare profile and link your health records.'
-                : 'Access your appointments, records and care information.'}
-            </Text>
-          </View>
-
-          {/* Mode Switcher Tabs */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tabButton, !isRegisterMode && styles.tabButtonActive]}
-              onPress={() => handleModeChange('login')}
-              disabled={isSubmitting}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.tabButtonText, !isRegisterMode && styles.tabButtonTextActive]}>
-                Sign In
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContainer,
+            keyboardHeight > 0 && {
+              paddingBottom: keyboardHeight + spacing.xl,
+              justifyContent: 'flex-start',
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
+            <View style={styles.header}>
+              <BrandLogo size="lg" showTitle={false} />
+              <Text style={styles.title}>
+                {isRegisterMode ? 'New Patient Registration' : 'Welcome to MyCare'}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tabButton, isRegisterMode && styles.tabButtonActive]}
-              onPress={() => handleModeChange('register')}
-              disabled={isSubmitting}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.tabButtonText, isRegisterMode && styles.tabButtonTextActive]}>
-                New Patient
+              <Text style={styles.subtitle}>
+                {isRegisterMode
+                  ? 'Enter your mobile number to create your MyCare profile and link your health records.'
+                  : 'Access your appointments, records and care information.'}
               </Text>
-            </TouchableOpacity>
-          </View>
-
-          {state.errorDetails || displayError ? (
-            <View style={styles.errorContainer}>
-              <ErrorDiagnosticView
-                error={state.errorDetails ?? displayError}
-                onDismiss={() => {
-                  if (localError) setLocalError(null);
-                  clearError();
-                }}
-              />
             </View>
-          ) : null}
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              {isRegisterMode ? 'Mobile Number for Registration' : 'Registered Mobile Number'}
-            </Text>
-            <View style={styles.inputRow}>
-              <View style={styles.countryCodeBadge}>
-                <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="9876543210"
-                placeholderTextColor={colors.text.muted}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={phone}
-                onChangeText={(text) => {
-                  setPhone(text);
-                  if (localError) setLocalError(null);
-                  if (state.message || state.errorDetails) clearError();
-                }}
-                editable={!isSubmitting}
-              />
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, isSubmitting && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-            activeOpacity={0.85}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color={colors.text.inverse} size="small" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {isRegisterMode ? 'Verify Mobile & Continue' : 'Continue to Sign In'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.footer}>
-            {isRegisterMode ? (
+            {/* Mode Switcher Tabs */}
+            <View style={styles.tabContainer}>
               <TouchableOpacity
-                style={styles.switchModeLink}
+                style={[styles.tabButton, !isRegisterMode && styles.tabButtonActive]}
                 onPress={() => handleModeChange('login')}
                 disabled={isSubmitting}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                <Text style={styles.switchModePrompt}>
-                  Already have an account? <Text style={styles.linkHighlight}>Sign In</Text>
+                <Text style={[styles.tabButtonText, !isRegisterMode && styles.tabButtonTextActive]}>
+                  Sign In
                 </Text>
               </TouchableOpacity>
-            ) : (
               <TouchableOpacity
-                style={styles.switchModeLink}
+                style={[styles.tabButton, isRegisterMode && styles.tabButtonActive]}
                 onPress={() => handleModeChange('register')}
                 disabled={isSubmitting}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                <Text style={styles.switchModePrompt}>
-                  New patient? <Text style={styles.linkHighlight}>Register here</Text>
+                <Text style={[styles.tabButtonText, isRegisterMode && styles.tabButtonTextActive]}>
+                  New Patient
                 </Text>
               </TouchableOpacity>
-            )}
+            </View>
+
+            {state.errorDetails || displayError ? (
+              <View style={styles.errorContainer}>
+                <ErrorDiagnosticView
+                  error={state.errorDetails ?? displayError}
+                  onDismiss={() => {
+                    if (localError) setLocalError(null);
+                    clearError();
+                  }}
+                />
+              </View>
+            ) : null}
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                {isRegisterMode ? 'Mobile Number for Registration' : 'Registered Mobile Number'}
+              </Text>
+              <View style={styles.inputRow}>
+                <View style={styles.countryCodeBadge}>
+                  <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
+                </View>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  placeholder="9876543210"
+                  placeholderTextColor={colors.text.muted}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={phone}
+                  onFocus={handleInputFocus}
+                  onChangeText={(text) => {
+                    setPhone(text);
+                    if (localError) setLocalError(null);
+                    if (state.message || state.errorDetails) clearError();
+                  }}
+                  editable={!isSubmitting}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.button, isSubmitting && styles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+              activeOpacity={0.85}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={colors.text.inverse} size="small" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {isRegisterMode ? 'Verify Mobile & Continue' : 'Continue to Sign In'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.footer}>
+              {isRegisterMode ? (
+                <TouchableOpacity
+                  style={styles.switchModeLink}
+                  onPress={() => handleModeChange('login')}
+                  disabled={isSubmitting}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.switchModePrompt}>
+                    Already have an account? <Text style={styles.linkHighlight}>Sign In</Text>
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.switchModeLink}
+                  onPress={() => handleModeChange('register')}
+                  disabled={isSubmitting}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.switchModePrompt}>
+                    New patient? <Text style={styles.linkHighlight}>Register here</Text>
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }

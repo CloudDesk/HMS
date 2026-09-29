@@ -8,7 +8,7 @@ import { ImagingReportModel } from '../imaging/imaging-report.model.js';
 import { LaboratoryResultModel } from '../laboratory/laboratory-result.model.js';
 import { OpdPrescriptionModel } from '../opd/opd-prescription.model.js';
 import { OpdVisitModel } from '../opd/opd-visit.model.js';
-import { PatientModel, PatientTimelineEventModel } from '../patients/patient.model.js';
+import { PatientDocumentModel, PatientModel, PatientTimelineEventModel } from '../patients/patient.model.js';
 import { allocatePatientNumber } from '../patients/patient-number.service.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { RefreshTokenModel } from '../auth/refresh-token.model.js';
@@ -367,6 +367,24 @@ export class PatientPortalRepository {
       deletedAt: null,
     }).select('patientNumber firstName middleName lastName dateOfBirth gender registrationBranchId profilePhoto').lean();
     const patientById = new Map(patients.map((patient) => [String(patient._id), patient]));
+
+    const missingPhotoPatientIds = patients.filter((p) => !p.profilePhoto).map((p) => p._id);
+    const fallbackPhotoMap = new Map<string, Date>();
+    if (missingPhotoPatientIds.length > 0) {
+      const photoDocs = await PatientDocumentModel.find({
+        patientId: { $in: missingPhotoPatientIds },
+        consentKind: 'PROFILE_PHOTO',
+        status: 'ACTIVE',
+        deletedAt: null,
+      }).select('patientId createdAt updatedAt').sort({ updatedAt: -1, createdAt: -1 }).lean();
+      for (const doc of photoDocs) {
+        const pid = String(doc.patientId);
+        if (!fallbackPhotoMap.has(pid)) {
+          fallbackPhotoMap.set(pid, (doc as any).updatedAt ?? (doc as any).createdAt ?? new Date());
+        }
+      }
+    }
+
     const branchIds = [...new Set(patients.map((patient) => patient.registrationBranchId ? String(patient.registrationBranchId) : null).filter((id): id is string => Boolean(id)))];
     const branches = await BranchModel.find({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null }).select('name city address').lean();
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
@@ -390,9 +408,12 @@ export class PatientPortalRepository {
       patients: grants.flatMap((grant) => {
         const patient = patientById.get(String(grant.patientId));
         const branch = patient?.registrationBranchId ? branchById.get(String(patient.registrationBranchId)) : null;
-        const photoUrl = patient?.profilePhoto
-          ? `/api/patient-portal/patients/${patient._id}/profile-photo?v=${new Date(patient.profilePhoto.uploadedAt).getTime()}`
-          : null;
+        let photoUrl: string | null = null;
+        if (patient?.profilePhoto) {
+          photoUrl = `/api/patient-portal/patients/${patient._id}/profile-photo?v=${new Date(patient.profilePhoto.uploadedAt).getTime()}`;
+        } else if (patient && fallbackPhotoMap.has(String(patient._id))) {
+          photoUrl = `/api/patient-portal/patients/${patient._id}/profile-photo?v=${fallbackPhotoMap.get(String(patient._id))!.getTime()}`;
+        }
         return patient ? [{
           id: String(patient._id),
           patient_number: patient.patientNumber,
@@ -949,9 +970,21 @@ export class PatientPortalRepository {
       .select('name city address')
       .lean();
     const appointmentBranchById = new Map(appointmentBranches.map((branch) => [String(branch._id), branch]));
-    const photoUrl = patient.profilePhoto
+    let photoUrl = patient.profilePhoto
       ? `/api/patient-portal/patients/${patient._id}/profile-photo?v=${new Date(patient.profilePhoto.uploadedAt).getTime()}`
       : null;
+    if (!photoUrl) {
+      const photoDoc = await PatientDocumentModel.findOne({
+        patientId: id,
+        consentKind: 'PROFILE_PHOTO',
+        status: 'ACTIVE',
+        deletedAt: null,
+      }).select('createdAt updatedAt').sort({ updatedAt: -1, createdAt: -1 }).lean();
+      if (photoDoc) {
+        const ts = new Date((photoDoc as any).updatedAt ?? (photoDoc as any).createdAt ?? new Date()).getTime();
+        photoUrl = `/api/patient-portal/patients/${patient._id}/profile-photo?v=${ts}`;
+      }
+    }
     return {
       patient: {
         id: String(patient._id),
@@ -1327,7 +1360,24 @@ export class PatientPortalRepository {
     const patient = await PatientModel.findOne({ _id: objectId(patientId), deletedAt: null })
       .select('profilePhoto')
       .lean();
-    return patient?.profilePhoto ?? null;
+    if (patient?.profilePhoto) {
+      return patient.profilePhoto;
+    }
+    const photoDoc = await PatientDocumentModel.findOne({
+      patientId: objectId(patientId),
+      consentKind: 'PROFILE_PHOTO',
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).select('storageKey mimeType fileSizeBytes createdAt updatedAt').sort({ updatedAt: -1, createdAt: -1 }).lean();
+    if (photoDoc) {
+      return {
+        storageKey: photoDoc.storageKey,
+        mimeType: photoDoc.mimeType,
+        fileSizeBytes: photoDoc.fileSizeBytes,
+        uploadedAt: new Date((photoDoc as any).updatedAt ?? (photoDoc as any).createdAt ?? new Date()),
+      };
+    }
+    return null;
   }
 
   async updatePatientProfilePhoto(

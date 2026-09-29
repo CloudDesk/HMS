@@ -99,6 +99,10 @@ export function ProfilePhotoModal({
 
   const handleSavePhoto = async () => {
     if (!selectedAsset) return;
+    if (selectedAsset.fileSize && selectedAsset.fileSize > 5 * 1024 * 1024) {
+      setErrorMessage('Profile photo must be 5MB or smaller.');
+      return;
+    }
     setIsSubmitting(true);
     setErrorMessage(null);
     try {

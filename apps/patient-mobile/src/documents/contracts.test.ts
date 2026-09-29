@@ -68,6 +68,57 @@ describe('Documents Contracts & Schemas', () => {
     expect(parsed.meta.total).toBe(1);
   });
 
+  it('parses IDENTITY (profile photo) and CONSENT documents without throwing INVALID_RESPONSE', () => {
+    const rawList = {
+      data: [
+        {
+          id: 'doc-photo-001',
+          patient_id: 'pat-mark',
+          document_type: 'IDENTITY',
+          title: 'Profile photo',
+          file_name: 'profile-photo.jpg',
+          mime_type: 'image/jpeg',
+          file_size_bytes: 184520,
+          description: 'Patient portal profile photo',
+          consent_kind: 'PROFILE_PHOTO',
+          source: 'PATIENT',
+          review_status: 'NOT_REQUIRED',
+          document_date: null,
+          provider_name: null,
+          created_at: '2026-09-29T10:00:00.000Z',
+          extra_backend_field: 'safe_passthrough',
+        },
+        {
+          id: 'doc-consent-002',
+          patient_id: 'pat-mark',
+          document_type: 'CONSENT',
+          title: 'Dental Procedure Consent Form',
+          file_name: 'consent.html',
+          mime_type: 'text/html',
+          file_size_bytes: 10240,
+          description: 'Consent for dental extraction',
+          source: 'HOSPITAL',
+          review_status: 'VERIFIED',
+          document_date: '2026-09-28',
+          provider_name: 'City Dental Clinic',
+          created_at: '2026-09-28T14:30:00.000Z',
+        },
+      ],
+      meta: {
+        page: 1,
+        limit: 20,
+        total: 2,
+        totalPages: 1,
+        total_pages: 1,
+      },
+    };
+
+    const parsed = portalDocumentsListResponseSchema.parse(rawList);
+    expect(parsed.data).toHaveLength(2);
+    expect(parsed.data[0]?.document_type).toBe('IDENTITY');
+    expect(parsed.data[1]?.document_type).toBe('CONSENT');
+  });
+
   describe('Document Formatters', () => {
     it('formats file sizes accurately', () => {
       expect(formatFileSize(0)).toBe('0 B');

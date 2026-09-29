@@ -51,6 +51,20 @@ export class AuthApi {
     registrationToken: string;
     platform: 'android' | 'ios';
     appVersion: string;
+    selfProfile?: {
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
+      preferredBranchId: string;
+      bloodGroup?: string | null;
+      address?: {
+        line1?: string | null;
+        city?: string | null;
+        state?: string | null;
+        postalCode?: string | null;
+      };
+    };
   }): Promise<NativeSession> {
     const portalRes = await this.transport.request(
       '/patient-portal/signup',
@@ -63,6 +77,26 @@ export class AuthApi {
           email: input.email.trim().toLowerCase(),
           phone: phoneSchema.parse(input.phone),
           registration_token: input.registrationToken,
+          ...(input.selfProfile
+            ? {
+                self_profile: {
+                  first_name: input.selfProfile.firstName,
+                  last_name: input.selfProfile.lastName,
+                  date_of_birth: input.selfProfile.dateOfBirth,
+                  gender: input.selfProfile.gender,
+                  preferred_branch_id: input.selfProfile.preferredBranchId,
+                  blood_group: input.selfProfile.bloodGroup || null,
+                  address: input.selfProfile.address
+                    ? {
+                        line1: input.selfProfile.address.line1 || null,
+                        city: input.selfProfile.address.city || null,
+                        state: input.selfProfile.address.state || null,
+                        postal_code: input.selfProfile.address.postalCode || null,
+                      }
+                    : undefined,
+                },
+              }
+            : {}),
         },
       }
     );

@@ -211,6 +211,11 @@ export class SessionManager {
     this.set({ ...previous, status: 'registering', message: undefined, errorDetails: undefined });
     try {
       if (!await this.online()) throw new ApiFailure('offline');
+
+      const names = parsed.data.fullName.trim().split(/\s+/);
+      const firstName = names[0] || parsed.data.fullName.trim();
+      const lastName = names.slice(1).join(' ') || '.';
+
       const result = await this.api.signup({
         fullName: parsed.data.fullName,
         email: parsed.data.email,
@@ -218,18 +223,24 @@ export class SessionManager {
         registrationToken,
         platform: this.device.platform,
         appVersion: this.device.appVersion,
+        selfProfile: {
+          firstName,
+          lastName,
+          dateOfBirth: parsed.data.dateOfBirth,
+          gender: parsed.data.gender,
+          preferredBranchId: parsed.data.preferredBranchId,
+          bloodGroup: parsed.data.bloodGroup || null,
+          address: {
+            line1: parsed.data.line1 || null,
+            city: parsed.data.city || null,
+            state: parsed.data.state || null,
+            postalCode: parsed.data.postalCode || null,
+          },
+        },
       });
       if (generation !== this.generation) {
         await this.revokeQuietly(result.tokens.refreshToken);
         return;
-      }
-
-      try {
-        await this.api.completeProfile(result.tokens.accessToken, parsed.data);
-      } catch (profileError) {
-        if (!(profileError instanceof ApiFailure && profileError.status === 409)) {
-          throw profileError;
-        }
       }
 
       await this.accept(result, generation);

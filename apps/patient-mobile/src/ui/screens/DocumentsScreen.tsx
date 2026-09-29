@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
 import { DocumentsApi } from '../../documents/documents-api';
+import { friendlyError } from '../../api/errors';
 import {
   formatDocumentDate,
   formatFileSize,
@@ -80,10 +81,7 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
         const response = await api.listDocuments(selectedPatientId);
         setDocuments(response.data);
       } catch (err: unknown) {
-        const msg =
-          err instanceof Error
-            ? err.message
-            : 'Unable to load documents. Please retry.';
+        const msg = friendlyError(err);
         setError(msg);
       } finally {
         setIsLoading(false);
@@ -115,12 +113,20 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
     [documents]
   );
   const otherCount = useMemo(
-    () => documents.filter((d) => d.document_type === 'OTHER').length,
+    () =>
+      documents.filter(
+        (d) => d.document_type !== 'CLINICAL' && d.document_type !== 'INSURANCE'
+      ).length,
     [documents]
   );
 
   const filteredDocuments = useMemo(() => {
     if (activeFilter === 'ALL') return documents;
+    if (activeFilter === 'OTHER') {
+      return documents.filter(
+        (d) => d.document_type !== 'CLINICAL' && d.document_type !== 'INSURANCE'
+      );
+    }
     return documents.filter((d) => d.document_type === activeFilter);
   }, [documents, activeFilter]);
 

@@ -6,6 +6,8 @@ export type ApiErrorCategory =
   | 'HTTP_403'
   | 'HTTP_404'
   | 'HTTP_409'
+  | 'HTTP_413'
+  | 'HTTP_415'
   | 'HTTP_422'
   | 'HTTP_429'
   | 'HTTP_5XX'
@@ -48,6 +50,8 @@ function resolveCategoryFromKind(kind: LegacyApiKind, status?: number, code?: st
   if (kind === 'validation') {
     if (status === 404) return 'HTTP_404';
     if (status === 409) return 'HTTP_409';
+    if (status === 413) return 'HTTP_413';
+    if (status === 415) return 'HTTP_415';
     if (status === 422) return 'HTTP_422';
     if (status === 429) return 'HTTP_429';
     return 'HTTP_400';
@@ -70,6 +74,8 @@ function resolveKindFromCategory(category: ApiErrorCategory): LegacyApiKind {
     case 'HTTP_400':
     case 'HTTP_404':
     case 'HTTP_409':
+    case 'HTTP_413':
+    case 'HTTP_415':
     case 'HTTP_422':
     case 'HTTP_429':
       return 'validation';
@@ -91,6 +97,39 @@ function resolveDefaultUserMessage(category: ApiErrorCategory, code?: string, st
   if (code === 'SLOT_ALREADY_BOOKED' || code === 'SLOT_UNAVAILABLE') {
     return 'This appointment slot is no longer available. Please select another time.';
   }
+  if (code === 'IMAGE_TOO_LARGE' || status === 413) {
+    return 'Profile photo must be 5MB or smaller.';
+  }
+  if (code === 'INVALID_IMAGE_TYPE' || code === 'INVALID_FILE_TYPE' || status === 415) {
+    return 'Please select a valid image file (JPG, PNG, WebP, or HEIC).';
+  }
+  if (code === 'PHOTO_REQUIRED') {
+    return 'Please choose a photo to upload.';
+  }
+  if (code === 'PATIENT_ACCESS_DENIED') {
+    return 'You do not have permission to update this patient profile.';
+  }
+  if (code === 'DUPLICATE_PATIENT') {
+    return 'A possible existing patient record was found. Contact hospital staff to link it safely.';
+  }
+  if (code === 'EXISTING_PATIENT_REQUIRES_ACTIVATION') {
+    return 'An existing patient record uses this email or mobile number. Contact hospital staff to activate portal access.';
+  }
+  if (code === 'DUPLICATE_EMAIL') {
+    return 'An account already exists with this email address.';
+  }
+  if (code === 'DUPLICATE_PHONE') {
+    return 'An account already exists with this mobile number.';
+  }
+  if (code === 'DUPLICATE_USERNAME') {
+    return 'An account already exists with this username.';
+  }
+  if (code === 'MINOR_GUARDIAN_REQUIRED') {
+    return 'Patients under 15 must be registered through a parent or guardian account.';
+  }
+  if (code === 'INVALID_BRANCH') {
+    return 'Please select an active hospital branch.';
+  }
   if (status === 409) {
     return 'Please complete your account setup in Patient Web or contact reception.';
   }
@@ -108,6 +147,10 @@ function resolveDefaultUserMessage(category: ApiErrorCategory, code?: string, st
       return 'The requested information or service could not be found.';
     case 'HTTP_409':
       return 'Please complete your account setup in Patient Web or contact reception.';
+    case 'HTTP_413':
+      return 'Profile photo must be 5MB or smaller.';
+    case 'HTTP_415':
+      return 'Please select a valid image file (JPG, PNG, WebP, or HEIC).';
     case 'HTTP_422':
       return 'Please check your details and try again.';
     case 'HTTP_429':
@@ -159,8 +202,13 @@ export class ApiFailure extends Error {
       const effectiveKind: LegacyApiKind =
         opts.kind ?? resolveKindFromCategory(effectiveCategory);
       const effectiveStatus = opts.status ?? opts.httpStatus;
+      const defaultForCode = opts.code ? resolveDefaultUserMessage(effectiveCategory, opts.code, effectiveStatus) : undefined;
+      const isKnownCode =
+        defaultForCode !== undefined &&
+        defaultForCode !== resolveDefaultUserMessage(effectiveCategory, undefined, effectiveStatus);
       const effectiveUserMessage =
-        opts.userMessage ?? resolveDefaultUserMessage(effectiveCategory, opts.code, effectiveStatus);
+        (isKnownCode ? defaultForCode : opts.userMessage) ??
+        resolveDefaultUserMessage(effectiveCategory, opts.code, effectiveStatus);
 
       super(effectiveCategory);
 

@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-export const portalDocumentTypeSchema = z.enum(['INSURANCE', 'CLINICAL', 'OTHER']);
+export const portalDocumentTypeSchema = z.enum([
+  'INSURANCE',
+  'CLINICAL',
+  'IDENTITY',
+  'CONSENT',
+  'OTHER',
+]);
 export const portalDocumentSourceSchema = z.enum(['HOSPITAL', 'PATIENT', 'GUARDIAN']);
 export const portalDocumentReviewStatusSchema = z.enum([
   'NOT_REQUIRED',
@@ -9,31 +15,38 @@ export const portalDocumentReviewStatusSchema = z.enum([
   'REJECTED',
 ]);
 
-export const portalDocumentSchema = z.object({
-  id: z.string(),
-  patient_id: z.string(),
-  document_type: portalDocumentTypeSchema,
-  title: z.string(),
-  file_name: z.string(),
-  mime_type: z.string(),
-  file_size_bytes: z.number(),
-  description: z.string().nullable().optional().transform((v) => v ?? null),
-  source: portalDocumentSourceSchema,
-  review_status: portalDocumentReviewStatusSchema,
-  document_date: z.string().nullable().optional().transform((v) => v ?? null),
-  provider_name: z.string().nullable().optional().transform((v) => v ?? null),
-  created_at: z.string(),
-});
+export const portalDocumentSchema = z
+  .object({
+    id: z.string(),
+    patient_id: z.string(),
+    document_type: portalDocumentTypeSchema.or(z.string()),
+    title: z.string(),
+    file_name: z.string(),
+    mime_type: z.string(),
+    file_size_bytes: z.number().or(z.string().transform((v) => Number(v) || 0)),
+    description: z.string().nullable().optional().transform((v) => v ?? null),
+    source: portalDocumentSourceSchema.optional().default('HOSPITAL'),
+    review_status: portalDocumentReviewStatusSchema.optional().default('NOT_REQUIRED'),
+    document_date: z.string().nullable().optional().transform((v) => v ?? null),
+    provider_name: z.string().nullable().optional().transform((v) => v ?? null),
+    created_at: z.string(),
+  })
+  .passthrough();
 
-export const portalDocumentsListResponseSchema = z.object({
-  data: z.array(portalDocumentSchema),
-  meta: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-  }),
-});
+export const portalDocumentsListResponseSchema = z
+  .object({
+    data: z.array(portalDocumentSchema),
+    meta: z
+      .object({
+        page: z.number(),
+        limit: z.number(),
+        total: z.number(),
+        totalPages: z.number().optional(),
+        total_pages: z.number().optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
 
 export type PortalDocumentType = z.infer<typeof portalDocumentTypeSchema>;
 export type PortalDocumentSource = z.infer<typeof portalDocumentSourceSchema>;
@@ -179,6 +192,10 @@ export function getDocumentTypeLabel(type: PortalDocumentType | string): string 
       return 'Clinical Record';
     case 'INSURANCE':
       return 'Insurance Document';
+    case 'IDENTITY':
+      return 'Identity / Profile';
+    case 'CONSENT':
+      return 'Consent Document';
     case 'OTHER':
       return 'Other File';
     default:
@@ -192,6 +209,10 @@ export function getDocumentTypeIcon(type: PortalDocumentType | string): string {
       return '🩺';
     case 'INSURANCE':
       return '🛡️';
+    case 'IDENTITY':
+      return '🪪';
+    case 'CONSENT':
+      return '✍️';
     case 'OTHER':
       return '📄';
     default:

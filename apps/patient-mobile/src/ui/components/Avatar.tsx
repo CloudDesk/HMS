@@ -58,7 +58,7 @@ export function Avatar({
 
   useEffect(() => {
     setHasError(false);
-  }, [photoUrl]);
+  }, [photoUrl, token]);
 
   useEffect(() => {
     let isMounted = true;
@@ -101,8 +101,13 @@ export function Avatar({
     return photoUrl;
   }, [photoUrl, config]);
 
+  const isRemoteApiUrl = useMemo(() => {
+    if (!resolvedUrl) return false;
+    return !resolvedUrl.startsWith('data:') && !resolvedUrl.startsWith('file://');
+  }, [resolvedUrl]);
+
   const initials = getInitials(name);
-  const showImage = Boolean(resolvedUrl && !hasError);
+  const showImage = Boolean(resolvedUrl && !hasError && (!isRemoteApiUrl || !manager || token));
 
   const content = (
     <View

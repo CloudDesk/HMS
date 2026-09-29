@@ -22,6 +22,16 @@ type ProvisionInput = {
   password: string;
 };
 
+type SelfProfileInput = {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
+  preferredBranchId: string;
+  bloodGroup?: string | null;
+  address?: { line1?: string | null; city?: string | null; state?: string | null; country?: string | null; postalCode?: string | null };
+};
+
 type RegisterInput = {
   accountType: 'PATIENT' | 'GUARDIAN';
   fullName: string;
@@ -29,6 +39,7 @@ type RegisterInput = {
   phone: string;
   guardianProfile?: GuardianProfileInput;
   initialDependent?: PatientProfileInput & { relationship: 'PARENT' | 'LEGAL_GUARDIAN' };
+  selfProfile?: SelfProfileInput;
 };
 
 type GuardianProfileInput = {
@@ -306,7 +317,13 @@ export class PatientPortalService {
     const uploaded = await this.patients.uploadProfilePhotoFile(patientId, data);
     try {
       await this.repository.updatePatientProfilePhoto(userId, patientId, uploaded);
-      if (previousPhoto?.storageKey) {
+      await this.patients.createOrUpdateProfilePhotoDocument(patientId, {
+        fileName: data.fileName,
+        mimeType: uploaded.mimeType,
+        fileSizeBytes: uploaded.fileSizeBytes,
+        storageKey: uploaded.storageKey,
+      }, userId);
+      if (previousPhoto?.storageKey && previousPhoto.storageKey !== uploaded.storageKey) {
         await this.patients.deleteProfilePhotoFile(previousPhoto.storageKey);
       }
       return {
@@ -349,6 +366,7 @@ export class PatientPortalService {
       await this.patients.deleteProfilePhotoFile(previousPhoto.storageKey);
     }
     await this.repository.deletePatientProfilePhoto(userId, patientId);
+    await this.patients.deleteProfilePhotoDocument(patientId, userId);
     return { success: true, patient_id: patientId };
   }
 
@@ -363,27 +381,72 @@ export class PatientPortalService {
     if (input.accountType === 'GUARDIAN' && !input.guardianProfile?.legalConsentAccepted) {
       throw new AppError('Legal guardian confirmation and consent are required', 400, 'GUARDIAN_CONSENT_REQUIRED');
     }
-    const account = await this.users.registerPortalAccount({
-      ...input,
-      password: `Aa1!${randomBytes(32).toString('base64url')}`,
-    }, metadata);
-    if (input.accountType === 'GUARDIAN' && input.guardianProfile) {
-      await this.repository.upsertGuardianProfile(account.id, {
-        fullName: input.fullName, email: input.email, phone: input.phone, ...input.guardianProfile,
+
+    if (input.accountType === 'PATIENT' && input.selfProfile) {
+      if (isMinor(input.selfProfile.dateOfBirth)) {
+        throw new AppError('Patients under 15 must be registered through a parent or guardian account.', 400, 'MINOR_GUARDIAN_REQUIRED');
+      }
+      await this.requireActiveBranch(input.selfProfile.preferredBranchId);
+
+      const result = await this.executePortalTransaction(async (session) => {
+        const account = await this.users.registerPortalAccount({
+          ...input,
+          password: `Aa1!${randomBytes(32).toString('base64url')}`,
+        }, metadata, session);
+
+        const patientId = await this.repository.createPortalPatient({
+          userId: account.id,
+          firstName: input.selfProfile!.firstName,
+          lastName: input.selfProfile!.lastName,
+          dateOfBirth: input.selfProfile!.dateOfBirth,
+          gender: input.selfProfile!.gender,
+          preferredBranchId: input.selfProfile!.preferredBranchId,
+          bloodGroup: input.selfProfile!.bloodGroup,
+          address: input.selfProfile!.address,
+          email: input.email,
+          phone: input.phone,
+          relationship: 'SELF',
+        }, session);
+
+        if (!patientId) {
+          throw new AppError('A possible existing patient record was found. Contact hospital staff to link it safely.', 409, 'DUPLICATE_PATIENT');
+        }
+
+        return account;
       });
+
+      return result;
     }
+
     if (input.accountType === 'GUARDIAN' && input.initialDependent) {
       await this.requireActiveBranch(input.initialDependent.preferredBranchId);
-      const patientId = await this.repository.createPortalPatient({
-        userId: account.id,
-        ...input.initialDependent,
-        relationship: input.initialDependent.relationship,
-      });
-      if (!patientId) {
-        throw new AppError('A possible existing patient record was found. Hospital staff must verify and link that patient.', 409, 'DUPLICATE_PATIENT');
-      }
     }
-    return account;
+
+    const result = await this.executePortalTransaction(async (session) => {
+      const account = await this.users.registerPortalAccount({
+        ...input,
+        password: `Aa1!${randomBytes(32).toString('base64url')}`,
+      }, metadata, session);
+
+      if (input.accountType === 'GUARDIAN' && input.guardianProfile) {
+        await this.repository.upsertGuardianProfile(account.id, {
+          fullName: input.fullName, email: input.email, phone: input.phone, ...input.guardianProfile,
+        }, session);
+      }
+      if (input.accountType === 'GUARDIAN' && input.initialDependent) {
+        const patientId = await this.repository.createPortalPatient({
+          userId: account.id,
+          ...input.initialDependent,
+          relationship: input.initialDependent.relationship,
+        }, session);
+        if (!patientId) {
+          throw new AppError('A possible existing patient record was found. Hospital staff must verify and link that patient.', 409, 'DUPLICATE_PATIENT');
+        }
+      }
+      return account;
+    });
+
+    return result;
   }
 
   async activateExistingPatient(input: ActivateExistingPatientInput, metadata: RequestMetadata) {
@@ -644,8 +707,8 @@ export class PatientPortalService {
     return this.otp.assertValidForPendingFlow(phone, otp, metadata);
   }
 
-  async verifyAndConsumeRegistrationToken(phone: string, token: string) {
-    return this.otp.consumeRegistrationToken(phone, token);
+  async verifyAndConsumeRegistrationToken(phone: string, token: string, session?: ClientSession) {
+    return this.otp.consumeRegistrationToken(phone, token, session);
   }
 
   private validateOptionalId(value: string | undefined, message: string) {
