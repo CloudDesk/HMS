@@ -16,7 +16,7 @@ import {
   useReplacePatientDocument,
   useVerifyPatientConsent,
 } from './usePatients';
-import { useConsentTemplates, useCompleteStructuredConsent } from '../consents/useConsents';
+import { useConsentTemplates, useCompleteStructuredConsent, useAttachConsentTemplate } from '../consents/useConsents';
 import type { ConsentDigitalSignature } from '../../api/consents';
 import type { ConsentContextType } from '../../api/consents';
 import { getPatientErrorMessage } from '../../pages/patient-utils';
@@ -41,7 +41,11 @@ export function usePatientConsentFeature() {
   const patientId = requestedPatientId;
 
   const { data: patient, isLoading: loadingPatient } = usePatientDetails(patientId);
-  const { data: templates = [], isLoading: loadingTemplates } = useConsentTemplates({ branch_id: patient?.registration_branch_id ?? '', status: 'ACTIVE' }, canView && Boolean(patient?.registration_branch_id));
+  const effectiveBranchId = patient?.registration_branch_id || user?.branches?.[0]?.id || '';
+  const { data: templates = [], isLoading: loadingTemplates } = useConsentTemplates(
+    { branch_id: effectiveBranchId, status: 'ACTIVE' },
+    canView && Boolean(effectiveBranchId)
+  );
   const { data: docsRes, isLoading: loadingDocs } = usePatientDocuments(patientId, { document_type: 'CONSENT', limit: 100 });
   const consents = docsRes?.data || [];
   const loading = loadingPatient || loadingDocs || loadingTemplates;
@@ -52,6 +56,7 @@ export function usePatientConsentFeature() {
   const replaceDoc = useReplacePatientDocument();
   const verifyDoc = useVerifyPatientConsent();
   const completeStructuredDoc = useCompleteStructuredConsent();
+  const attachTemplateDoc = useAttachConsentTemplate();
 
   const handleDownload = async (document: PatientDocumentResponse) => {
     if (!patient) return;
@@ -130,7 +135,8 @@ export function usePatientConsentFeature() {
   ) => {
     if (!patient) return;
     const template = templates.find((item) => item.id === templateId);
-    if (!template || !patient.registration_branch_id) throw new Error('Select a valid consent template.');
+    const branchId = patient.registration_branch_id || user?.branches?.[0]?.id;
+    if (!template || !branchId) throw new Error('Select a valid consent template.');
     await uploadDoc.mutateAsync({
       id: patient.id,
       payload: {
@@ -141,7 +147,7 @@ export function usePatientConsentFeature() {
         consent_template_id: template.id,
         consent_category: template.category,
         consent_version: template.version,
-        branch_id: patient.registration_branch_id,
+        branch_id: branchId,
         context_type: contextType,
         context_id: contextId || patient.id,
         visit_id: contextType === 'PROCEDURE' ? contextId : undefined,
@@ -171,11 +177,15 @@ export function usePatientConsentFeature() {
     declarationAccepted?: boolean;
     notes?: string;
   }) => {
-    if (!patient || !patient.registration_branch_id) return;
+    const branchId = patient?.registration_branch_id || user?.branches?.[0]?.id;
+    if (!patient || !branchId) {
+      toast.error('Patient or registration branch is missing.');
+      return;
+    }
     await completeStructuredDoc.mutateAsync({
       patientId: patient.id,
       payload: {
-        branch_id: patient.registration_branch_id,
+        branch_id: branchId,
         template_id: payload.templateId,
         context_type: payload.contextType ?? 'PATIENT',
         context_id: payload.contextId ?? patient.id,
@@ -188,13 +198,56 @@ export function usePatientConsentFeature() {
     toast.success('Consent form submitted and verified.');
   };
 
+  const handleAttachTemplate = async (payload: {
+    templateId: string;
+    title?: string;
+    contextType?: ConsentContextType;
+    contextId?: string;
+    description?: string;
+    consentStatus?: 'PENDING' | 'ATTACHED' | 'SIGNED';
+    validUntil?: string;
+    formResponses?: Record<string, unknown>;
+  }) => {
+    if (!patient) {
+      toast.error('Patient record not found.');
+      return;
+    }
+    const branchId = patient.registration_branch_id || user?.branches?.[0]?.id || undefined;
+    const template = templates.find((item) => item.id === payload.templateId);
+    if (!template) {
+      toast.error('Select a valid consent template.');
+      return;
+    }
+    try {
+      await attachTemplateDoc.mutateAsync({
+        patientId: patient.id,
+        payload: {
+          branch_id: branchId,
+          template_id: template.id,
+          title: payload.title?.trim() || `${template.name} (v${template.version})`,
+          context_type: payload.contextType ?? 'PATIENT',
+          context_id: payload.contextId ?? patient.id,
+          description: payload.description?.trim() || undefined,
+          consent_status: payload.consentStatus ?? 'PENDING',
+          valid_until: payload.validUntil || undefined,
+          form_responses: payload.formResponses ?? {},
+        },
+      });
+      toast.success('Consent form attached to patient record.');
+    } catch (error) {
+      const msg = getPatientErrorMessage(error) || 'Failed to attach consent form';
+      toast.error(msg);
+      throw error;
+    }
+  };
+
   return {
     state: {
       patient,
       consents,
       templates,
       loading,
-      isSubmitting: uploadDoc.isPending || replaceDoc.isPending || completeStructuredDoc.isPending,
+      isSubmitting: uploadDoc.isPending || replaceDoc.isPending || completeStructuredDoc.isPending || attachTemplateDoc.isPending,
     },
     capabilities: {
       canCreate,
@@ -211,6 +264,7 @@ export function usePatientConsentFeature() {
       handleReplace,
       handleVerify,
       handleCompleteStructuredConsent,
+      handleAttachTemplate,
     },
   };
 }

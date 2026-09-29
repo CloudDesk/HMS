@@ -15,6 +15,8 @@ import {
   patientIdParamsSchema,
   reviewPatientDocumentBodySchema,
   updatePatientBodySchema,
+  attachConsentTemplateBodySchema,
+  submitStructuredConsentBodySchema,
 } from './patient.schemas.js';
 import type {
   CreatePatientDTO,
@@ -24,6 +26,8 @@ import type {
   PatientTimelineListQuery,
   ReviewPatientDocumentDTO,
   UpdatePatientDTO,
+  AttachConsentTemplateDTO,
+  SubmitStructuredConsentDTO,
 } from './patient.types.js';
 
 type PatientIdParams = {
@@ -437,6 +441,44 @@ export const registerPatientRoutes = async (app: FastifyInstance, services: Serv
     '/api/patients/:id/documents/:documentId/consent/verify',
     { preHandler: requirePermission(services, 'Patients', 'Consent', 'Verify'), schema: { params: patientDocumentIdParamsSchema } },
     async (request) => ok(await services.patients.verifyConsent(request.params.id, request.params.documentId, request.user!.id)),
+  );
+
+  app.post<{ Params: PatientIdParams; Body: AttachConsentTemplateDTO }>(
+    '/api/patients/:id/consents/attach-template',
+    {
+      preHandler: requirePermission(services, 'Patients', 'Consent', 'Attach'),
+      schema: {
+        params: patientIdParamsSchema,
+        body: attachConsentTemplateBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const document = await services.patients.attachConsentTemplate(
+        request.params.id,
+        request.body,
+        request.user!.id,
+      );
+      return reply.status(201).send(ok(document));
+    },
+  );
+
+  app.post<{ Params: PatientIdParams; Body: SubmitStructuredConsentDTO }>(
+    '/api/patients/:id/consents/complete',
+    {
+      preHandler: requirePermission(services, 'Patients', 'Consent', 'Attach'),
+      schema: {
+        params: patientIdParamsSchema,
+        body: submitStructuredConsentBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const document = await services.patients.completeStructuredConsent(
+        request.params.id,
+        request.body,
+        request.user!.id,
+      );
+      return reply.status(201).send(ok(document));
+    },
   );
 
   app.delete<{ Params: PatientDocumentIdParams }>(

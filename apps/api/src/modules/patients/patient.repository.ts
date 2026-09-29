@@ -856,6 +856,7 @@ export class PatientRepository {
     signatureDocumentId: string,
     signedByName: string,
     signedAt: Date = new Date(),
+    digitalSignatures?: any[],
   ) {
     const document = await PatientDocumentModel.findOneAndUpdate(
       {
@@ -869,8 +870,8 @@ export class PatientRepository {
           consentStatus: 'SIGNED',
           signedAt,
           signedByName,
-          contextId: new Types.ObjectId(signatureDocumentId),
           reviewStatus: 'PENDING',
+          ...(digitalSignatures ? { digitalSignatures } : {}),
         },
       },
       { returnDocument: 'after', lean: true },

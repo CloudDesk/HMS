@@ -211,3 +211,54 @@ export const patientListResponseSchema = apiResponseSchema({
   },
 });
 
+export const attachConsentTemplateBodySchema = {
+  type: 'object',
+  required: ['template_id'],
+  additionalProperties: false,
+  properties: {
+    template_id: { type: 'string', minLength: 1 },
+    title: { type: ['string', 'null'], maxLength: 200 },
+    context_type: { type: 'string', enum: ['PATIENT', 'PROCEDURE', 'ADMISSION', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'] },
+    context_id: { type: ['string', 'null'] },
+    description: { type: ['string', 'null'], maxLength: 1000 },
+    consent_status: { type: 'string', enum: ['PENDING', 'ATTACHED', 'SIGNED'] },
+    valid_until: { type: ['string', 'null'] },
+    branch_id: { type: ['string', 'null'] },
+    form_responses: { type: 'object' },
+    visit_id: { type: ['string', 'null'] },
+    procedure_id: { type: ['string', 'null'] },
+    admission_id: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const submitStructuredConsentBodySchema = {
+  type: 'object',
+  required: ['template_id'],
+  additionalProperties: false,
+  properties: {
+    template_id: { type: 'string', minLength: 1 },
+    context_type: { type: 'string', enum: ['PATIENT', 'PROCEDURE', 'ADMISSION', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'] },
+    context_id: { type: ['string', 'null'] },
+    branch_id: { type: ['string', 'null'] },
+    visit_id: { type: ['string', 'null'] },
+    procedure_id: { type: ['string', 'null'] },
+    admission_id: { type: ['string', 'null'] },
+    form_responses: { type: 'object' },
+    signatures: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['signer_type', 'signer_name', 'signature_data'],
+        properties: {
+          signer_type: { type: 'string' },
+          signer_name: { type: 'string' },
+          signature_data: { type: 'string' },
+          signed_at: { type: 'string' },
+        },
+      },
+    },
+    declaration_accepted: { type: 'boolean' },
+    notes: { type: ['string', 'null'] },
+  },
+} as const;
+

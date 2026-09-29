@@ -267,11 +267,13 @@ export class PatientPortalService {
       data,
     }, userId);
 
-    await this.patients.updateConsentDocumentSignature(
+    await this.patients.attachPatientSignatureToConsent(
       patientId,
       consent.id,
       signatureDocument.id,
       context.account.full_name,
+      data,
+      mimeType,
       new Date(),
     );
 
