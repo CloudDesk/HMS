@@ -43,10 +43,15 @@ export function useDoctorProfile(requestedDoctorId: string | null) {
     canViewProfile && !useMappedDoctor,
   );
   const activeQuery = useMappedDoctor ? currentDoctorQuery : doctorDetailsQuery;
+  const canEdit =
+    isSuperAdministrator ||
+    can('Doctors', 'Doctor Directory', 'Edit') ||
+    Boolean(user?.id && activeQuery.data?.user_id === user.id);
 
   return {
     canViewAvailability,
     canViewSchedule,
+    canEdit,
     canRetry: canViewProfile,
     doctor: activeQuery.data ?? null,
     error: !canViewProfile

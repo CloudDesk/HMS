@@ -60,34 +60,34 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/opd/referral', label: 'Referral' },
     ],
   },
-  {
-    key: 'emergency',
-    label: 'Emergency',
-    icon: 'ph-warning-circle',
-    links: [
-      { href: '/emergency', label: 'Dashboard' },
-      { href: '/emergency/queue', label: 'Emergency Queue' },
-      { href: '/emergency/workspace', label: 'Emergency Workspace' },
-    ],
-  },
-  {
-    key: 'admissions',
-    label: 'Admissions',
-    icon: 'ph-bed',
-    links: [
-      { href: '/admissions/inpatients', label: 'Admission Requests' },
-      { href: '/admissions/beds', label: 'Bed Management' },
-      { href: '/admissions/workspace', label: 'Inpatient Workspace' },
-    ],
-  },
-  {
-    key: 'surgery',
-    label: 'Surgery',
-    icon: 'ph-scissors',
-    links: [
-      { href: '/surgery', label: 'Procedure Workflow' },
-    ],
-  },
+  // {
+  //   key: 'emergency',
+  //   label: 'Emergency',
+  //   icon: 'ph-warning-circle',
+  //   links: [
+  //     { href: '/emergency', label: 'Dashboard' },
+  //     { href: '/emergency/queue', label: 'Emergency Queue' },
+  //     { href: '/emergency/workspace', label: 'Emergency Workspace' },
+  //   ],
+  // },
+  // {
+  //   key: 'admissions',
+  //   label: 'Admissions',
+  //   icon: 'ph-bed',
+  //   links: [
+  //     { href: '/admissions/inpatients', label: 'Admission Requests' },
+  //     { href: '/admissions/beds', label: 'Bed Management' },
+  //     { href: '/admissions/workspace', label: 'Inpatient Workspace' },
+  //   ],
+  // },
+  // {
+  //   key: 'surgery',
+  //   label: 'Surgery',
+  //   icon: 'ph-scissors',
+  //   links: [
+  //     { href: '/surgery', label: 'Procedure Workflow' },
+  //   ],
+  // },
   {
     key: 'pharmacy',
     label: 'Pharmacy',

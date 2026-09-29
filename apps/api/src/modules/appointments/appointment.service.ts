@@ -326,16 +326,21 @@ export class AppointmentService {
     let appointmentDateStr: string;
     let startTimeStr: string;
 
-    if (data.appointment_date && data.start_time) {
-      appointmentDateStr = data.appointment_date;
-      startTimeStr = data.start_time;
-      appointmentUtc = fromZonedTime(`${appointmentDateStr}T${startTimeStr}:00`, tz);
-    } else if (data.utc_datetime) {
+    if (data.utc_datetime) {
       appointmentUtc = new Date(data.utc_datetime);
       appointmentDateStr = formatInTimeZone(appointmentUtc, tz, 'yyyy-MM-dd');
       startTimeStr = formatInTimeZone(appointmentUtc, tz, 'HH:mm');
+    } else if (data.appointment_date && data.start_time) {
+      const localStr = `${data.appointment_date}T${data.start_time}:00`;
+      appointmentUtc = fromZonedTime(localStr, tz);
+      appointmentDateStr = data.appointment_date;
+      startTimeStr = data.start_time;
     } else {
-      throw new AppError('Appointment date and start time (or UTC datetime) are required for new appointments', 400, 'VALIDATION_ERROR');
+      throw new AppError(
+        'Appointment date and start time (or UTC datetime) are required for new appointments',
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     const appointmentDate = this.validateAppointmentDate(appointmentDateStr);

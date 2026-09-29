@@ -199,100 +199,6 @@ export function PortalConsentFormModal({
           </div>
         </div>
 
-        {/* Captured Patient Signature Section */}
-        <section aria-label="Captured Consent Signature" className="portal-consent-signature-box">
-          <div className="portal-consent-signature-header">
-            <div className="portal-consent-signature-title-group">
-              <span className="portal-consent-sig-icon">
-                <i className="ph ph-signature" />
-              </span>
-              <div>
-                <h4>Patient Signature &amp; Acknowledgment</h4>
-                <p>Formal patient consent signature captured for this medical document.</p>
-              </div>
-            </div>
-            {signature ? (
-              <label className={`portal-consent-replace-sig-btn ${uploadingSignature ? 'disabled' : ''}`}>
-                <i className="ph ph-arrows-clockwise" />
-                {uploadingSignature ? 'Updating…' : 'Replace Signature'}
-                <input
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={uploadingSignature}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void onUploadSignature(consent, f);
-                  }}
-                  type="file"
-                />
-              </label>
-            ) : null}
-          </div>
-
-          {signature ? (
-            <div className="portal-consent-signature-card">
-              <div className="portal-consent-signature-image-container">
-                <div className="portal-consent-sig-banner-label">Captured Signature</div>
-                <div className="portal-consent-sig-image-holder">
-                  {signatureLoading ? (
-                    <div className="portal-spinner portal-spinner--sm" />
-                  ) : signatureUrl ? (
-                    <img alt="Patient Signature" src={signatureUrl} />
-                  ) : (
-                    <span className="portal-consent-sig-fallback">Signature Attached</span>
-                  )}
-                </div>
-                <div className="portal-consent-sig-line">
-                  <span>Signee Signature</span>
-                </div>
-              </div>
-
-              <div className="portal-consent-signature-details-grid">
-                <div className="portal-consent-sig-item">
-                  <small>Signed By</small>
-                  <strong>{signature.signed_by_name || patientName || 'Patient'}</strong>
-                </div>
-                <div className="portal-consent-sig-item">
-                  <small>Signature Date &amp; Time</small>
-                  <strong>{formatDateTime(signature.signed_at || signature.created_at)}</strong>
-                </div>
-                <div className="portal-consent-sig-item">
-                  <small>Legal Verification</small>
-                  <strong className="portal-consent-verified-badge">
-                    <i className="ph ph-seal-check" /> Verified &amp; Recorded
-                  </strong>
-                </div>
-                <div className="portal-consent-sig-item">
-                  <small>Consent Document Status</small>
-                  <strong style={{ color: '#0f172a' }}>Signed &amp; Legally Binding</strong>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="portal-consent-signature-empty-card">
-              <div className="portal-consent-empty-sig-content">
-                <i className="ph ph-pen-nib" />
-                <div>
-                  <strong>Signature has not been uploaded yet</strong>
-                  <p>Upload a clear image of your signature (PNG, JPG, or WebP) to complete and sign this form.</p>
-                </div>
-              </div>
-              <label className={`portal-consent-upload-cta ${uploadingSignature ? 'disabled' : ''}`}>
-                <i className="ph ph-upload-simple" />
-                {uploadingSignature ? 'Uploading…' : 'Upload Signature'}
-                <input
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={uploadingSignature}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void onUploadSignature(consent, f);
-                  }}
-                  type="file"
-                />
-              </label>
-            </div>
-          )}
-        </section>
-
         {/* Modal actions footer */}
         <div className="portal-consent-modal-actions">
           <div className="portal-consent-modal-actions-left">
@@ -304,9 +210,23 @@ export function PortalConsentFormModal({
               <i className="ph ph-printer" /> Print Form
             </button>
           </div>
-          <div className="portal-consent-modal-actions-right">
+          <div className="portal-consent-modal-actions-right" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <label className={`portal-consent-btn-primary ${uploadingSignature ? 'disabled' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <i className="ph ph-upload-simple" />
+              {uploadingSignature ? 'Uploading…' : signature ? 'Replace Signature' : 'Upload Signature'}
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                disabled={uploadingSignature}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onUploadSignature(consent, f);
+                }}
+                style={{ display: 'none' }}
+                type="file"
+              />
+            </label>
             <button
-              className="portal-consent-btn-primary"
+              className="portal-consent-btn-outline"
               onClick={onClose}
               type="button"
             >

@@ -42,6 +42,7 @@ export type DoctorResponse = {
   email: string | null;
   status: ApiDoctorStatus;
   notes: string | null;
+  signature_data?: string | null;
   availability: DoctorAvailabilityResponse[];
   created_by: string | null;
   updated_by: string | null;
@@ -80,6 +81,7 @@ export type SaveDoctorPayload = {
   email?: string | null;
   status?: ApiDoctorStatus;
   notes?: string | null;
+  signature_data?: string | null;
 };
 
 export type SaveDoctorAvailabilityPayload = {

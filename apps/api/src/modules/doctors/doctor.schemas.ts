@@ -75,6 +75,7 @@ const editableDoctorProperties = {
   phone: { type: ['string', 'null'] },
   email: { type: ['string', 'null'] },
   notes: { type: ['string', 'null'] },
+  signature_data: { type: ['string', 'null'] },
 } as const;
 
 export const createDoctorBodySchema = {
