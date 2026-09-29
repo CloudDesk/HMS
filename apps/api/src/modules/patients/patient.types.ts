@@ -103,6 +103,21 @@ export type SubmitStructuredConsentDTO = {
   notes?: string | null;
 };
 
+export type AttachConsentTemplateDTO = {
+  template_id: string;
+  title?: string;
+  context_type?: PatientConsentContextType;
+  context_id?: string | null;
+  description?: string | null;
+  consent_status?: PatientConsentStatus;
+  valid_until?: string | null;
+  branch_id?: string;
+  form_responses?: Record<string, unknown>;
+  visit_id?: string | null;
+  procedure_id?: string | null;
+  admission_id?: string | null;
+};
+
 export type PatientDocument = {
   id: string;
   patient_id: string;

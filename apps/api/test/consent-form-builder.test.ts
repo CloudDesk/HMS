@@ -256,4 +256,75 @@ describe('Consent Form Builder & Structured Execution', () => {
     expect(history.documents).toHaveLength(1);
     expect(history.timeline.some((t) => t.event_type === 'CONSENT_VERIFIED')).toBe(true);
   });
+
+  it('attaches configured consent template to patient in PENDING status and captures patient portal signature into the document', async () => {
+    const template = await ConsentTemplateModel.findOne({ code: 'SURG_CONSENT', version: 1 });
+    expect(template).toBeDefined();
+
+    // Create test patient
+    const patient = await patientService.create(
+      {
+        first_name: 'Ford',
+        last_name: 'Prefect',
+        date_of_birth: '1982-01-20',
+        gender: 'MALE',
+        phone: '+254722998877',
+        registration_branch_id: branchId,
+      },
+      userId,
+    );
+
+    // 1. Staff attaches configured template without uploading external file
+    const attachedDoc = await patientService.attachConsentTemplate(
+      patient.id,
+      {
+        template_id: template!._id.toString(),
+        title: 'Oral Surgery Authorization',
+        context_type: 'PATIENT',
+        consent_status: 'PENDING',
+        description: 'Mandatory pre-operative authorization form',
+      },
+      userId,
+    );
+
+    expect(attachedDoc.document_type).toBe('CONSENT');
+    expect(attachedDoc.consent_status).toBe('PENDING');
+    expect(attachedDoc.mime_type).toBe('text/html');
+    expect(attachedDoc.title).toBe('Oral Surgery Authorization');
+    expect(attachedDoc.consent_version).toBe(1);
+
+    // Initial HTML should contain pending signature placeholder
+    const initialDownload = await patientService.downloadDocument(patient.id, attachedDoc.id, userId);
+    const initialHtml = initialDownload.data.toString('utf8');
+    expect(initialHtml).toContain('Awaiting Patient Digital Signature');
+    expect(initialHtml).toContain('Ford Prefect');
+
+    // 2. Patient uploads digital signature (e.g. from Patient Portal)
+    const sigBuffer = Buffer.from('fake-png-signature-data');
+    await patientService.attachPatientSignatureToConsent(
+      patient.id,
+      attachedDoc.id,
+      '507f191e810c19729de860ef', // mock signature doc id
+      'Ford Prefect',
+      sigBuffer,
+      'image/png',
+      new Date(),
+    );
+
+    // 3. Verify consent document is now SIGNED
+    const updatedDoc = await patientService.getDocument(patient.id, attachedDoc.id, userId);
+    expect(updatedDoc.consent_status).toBe('SIGNED');
+    expect(updatedDoc.signed_by_name).toBe('Ford Prefect');
+    expect(updatedDoc.digital_signatures).toBeDefined();
+    expect(updatedDoc.digital_signatures![0].signer_type).toBe('PATIENT');
+    expect(updatedDoc.digital_signatures![0].signature_data).toContain('data:image/png;base64,');
+
+    // 4. Verify updated stored HTML now contains embedded signature image
+    const updatedDownload = await patientService.downloadDocument(patient.id, attachedDoc.id, userId);
+    const updatedHtml = updatedDownload.data.toString('utf8');
+    expect(updatedHtml).toContain('data:image/png;base64,');
+    expect(updatedHtml).toContain('PATIENT SIGNATURE');
+    expect(updatedHtml).toContain('Ford Prefect');
+    expect(updatedHtml).not.toContain('Awaiting Patient Digital Signature');
+  });
 });

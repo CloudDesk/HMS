@@ -5,6 +5,7 @@ import type {
   ConsentTemplateStatus,
   SaveConsentTemplate,
   SubmitStructuredConsentPayload,
+  AttachConsentTemplatePayload,
 } from '../../api/consents';
 import { consentsService } from '../../services/consents.service';
 
@@ -77,6 +78,18 @@ export const useCompleteStructuredConsent = () => {
   return useMutation({
     mutationFn: ({ patientId, payload }: { patientId: string; payload: SubmitStructuredConsentPayload }) =>
       consentsService.completeStructuredConsent(patientId, payload),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['patient-documents'] });
+      client.invalidateQueries({ queryKey: ['patients'] });
+    },
+  });
+};
+
+export const useAttachConsentTemplate = () => {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ patientId, payload }: { patientId: string; payload: AttachConsentTemplatePayload }) =>
+      consentsService.attachConsentTemplate(patientId, payload),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['patient-documents'] });
       client.invalidateQueries({ queryKey: ['patients'] });

@@ -133,6 +133,21 @@ export type SubmitStructuredConsentPayload = {
   notes?: string | null;
 };
 
+export type AttachConsentTemplatePayload = {
+  template_id: string;
+  title?: string;
+  context_type?: ConsentContextType;
+  context_id?: string | null;
+  description?: string | null;
+  consent_status?: 'PENDING' | 'ATTACHED' | 'SIGNED';
+  valid_until?: string | null;
+  branch_id?: string;
+  form_responses?: Record<string, unknown>;
+  visit_id?: string | null;
+  procedure_id?: string | null;
+  admission_id?: string | null;
+};
+
 const query = (params: { branch_id: string; context_type?: ConsentContextType; status?: ConsentTemplateStatus }) => {
   const values = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => { if (value) values.set(key, value); });
@@ -165,6 +180,11 @@ export const consentsApi = {
     }),
   completeStructuredConsent: (patientId: string, payload: SubmitStructuredConsentPayload) =>
     apiClient.request<any>(`/patients/${encodeURIComponent(patientId)}/consents/complete`, {
+      method: 'POST',
+      body: payload,
+    }),
+  attachConsentTemplate: (patientId: string, payload: AttachConsentTemplatePayload) =>
+    apiClient.request<any>(`/patients/${encodeURIComponent(patientId)}/consents/attach-template`, {
       method: 'POST',
       body: payload,
     }),

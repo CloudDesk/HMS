@@ -73,6 +73,13 @@ export class PatientDocumentStorageService {
     return { storageKey };
   }
 
+  async updatePatientDocument(storageKey: string, data: Buffer) {
+    const storagePath = this.resolveStoragePath(storageKey);
+    await mkdir(path.dirname(storagePath), { recursive: true });
+    await writeFile(storagePath, data);
+  }
+
+
   async download(storageKey: string): Promise<DownloadedPatientDocument> {
     const storagePath = this.resolveStoragePath(storageKey);
     const legacyStoragePath = this.resolveStoragePath(storageKey, this.legacyRootDirectory);

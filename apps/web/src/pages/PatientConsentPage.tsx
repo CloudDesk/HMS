@@ -36,11 +36,14 @@ export function PatientConsentPage() {
       handleReplace,
       handleVerify,
       handleCompleteStructuredConsent,
+      handleAttachTemplate,
     }
   } = usePatientConsentFeature();
 
   // Local UI State
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadSourceMode, setUploadSourceMode] = useState<'TEMPLATE' | 'FILE'>('TEMPLATE');
+  const [consentStatus, setConsentStatus] = useState<'PENDING' | 'ATTACHED'>('PENDING');
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -62,20 +65,60 @@ export function PatientConsentPage() {
   const [replacing, setReplacing] = useState<PatientDocumentResponse | null>(null);
   const replacementInput = useRef<HTMLInputElement>(null);
 
+  const selectedTemplate = templates.find((t) => t.id === templateId);
+
+  const handleSelectTemplate = (id: string) => {
+    setTemplateId(id);
+    const tmpl = templates.find((t) => t.id === id);
+    if (tmpl) {
+      setTitle(tmpl.name);
+      setContextType(tmpl.context_type);
+      setDescription(`Configured consent: ${tmpl.name} (v${tmpl.version})`);
+    }
+  };
+
   const submitConsent = async (event: FormEvent) => {
     event.preventDefault();
-    if (!patient || !file || !title.trim()) {
-      toast.error('Patient, consent title, and consent file are required.');
-      return;
-    }
-    try {
-      await handleUpload(file, title, description, 'ATTACHED', signedAt, validUntil, signedByName, templateId, contextType, contextId);
-      setUploadOpen(false);
-      setFile(null);
-      setTitle('');
-      setDescription('');
-    } catch {
-      // Handled in feature hook or silently fails
+    if (!patient) return;
+
+    if (uploadSourceMode === 'TEMPLATE') {
+      if (!templateId) {
+        toast.error('Please select a consent template.');
+        return;
+      }
+      try {
+        await handleAttachTemplate({
+          templateId,
+          title: title.trim() || undefined,
+          contextType,
+          contextId: contextType === 'PATIENT' ? undefined : contextId,
+          description: description.trim() || undefined,
+          consentStatus,
+          validUntil: validUntil || undefined,
+        });
+        setUploadOpen(false);
+        setFile(null);
+        setTitle('');
+        setDescription('');
+        setTemplateId('');
+      } catch {
+        // Handled in feature hook
+      }
+    } else {
+      if (!file || !title.trim()) {
+        toast.error('Patient, consent title, and consent file are required.');
+        return;
+      }
+      try {
+        await handleUpload(file, title, description, 'ATTACHED', signedAt, validUntil, signedByName, templateId, contextType, contextId);
+        setUploadOpen(false);
+        setFile(null);
+        setTitle('');
+        setDescription('');
+        setTemplateId('');
+      } catch {
+        // Handled in feature hook or silently fails
+      }
     }
   };
 
@@ -153,12 +196,16 @@ export function PatientConsentPage() {
               className="doc-btn"
               disabled={!patient || !canCreate}
               onClick={() => {
-                setUploadOpen(true);
+                setUploadSourceMode('TEMPLATE');
+                if (templates.length > 0 && templates[0]) {
+                  handleSelectTemplate(templates[0].id);
+                }
                 setSignedByName(patient ? patientFullName(patient) : '');
+                setUploadOpen(true);
               }}
               type="button"
             >
-              <i className="ph ph-upload-simple" aria-hidden="true" /> Upload File
+              <i className="ph ph-upload-simple" aria-hidden="true" /> Attach / Upload Consent
             </button>
           </div>
         </section>
@@ -269,8 +316,8 @@ export function PatientConsentPage() {
                           <small>{formatDate(document.signed_at ?? document.uploaded_at)}</small>
                         </td>
                         <td>
-                          <span className={`doc-status ${document.consent_status === 'SIGNED' || document.consent_status === 'VERIFIED' ? 'active' : 'inactive'}`}>
-                            {document.consent_status ? statusLabels[document.consent_status] ?? document.consent_status : 'Pending'}
+                          <span className={`doc-status ${document.consent_status === 'SIGNED' || document.consent_status === 'VERIFIED' ? 'active' : document.consent_status === 'PENDING' ? 'pending' : 'inactive'}`}>
+                            {document.consent_status === 'PENDING' ? 'Pending Signature' : document.consent_status ? statusLabels[document.consent_status] ?? document.consent_status : 'Pending'}
                           </span>
                         </td>
                         <td>
@@ -462,87 +509,271 @@ export function PatientConsentPage() {
         </Modal>
       )}
 
-      {/* Manual File Upload Modal */}
-      <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload Consent File">
+      {/* Revamped Attach / Upload Consent Modal */}
+      <Modal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        size="large"
+        title="Attach / Upload Consent Form"
+      >
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+          <button
+            className={`doc-btn ${uploadSourceMode === 'TEMPLATE' ? 'primary' : ''}`}
+            onClick={() => {
+              setUploadSourceMode('TEMPLATE');
+              if (templates.length > 0 && !templateId && templates[0]) {
+                handleSelectTemplate(templates[0].id);
+              }
+            }}
+            style={{ flex: 1, justifyContent: 'center' }}
+            type="button"
+          >
+            <i className="ph ph-file-text" /> Configured Consent Template
+          </button>
+          <button
+            className={`doc-btn ${uploadSourceMode === 'FILE' ? 'primary' : ''}`}
+            onClick={() => setUploadSourceMode('FILE')}
+            style={{ flex: 1, justifyContent: 'center' }}
+            type="button"
+          >
+            <i className="ph ph-upload-simple" /> Upload Scanned Document / File
+          </button>
+        </div>
+
         <form className="modal-form" onSubmit={submitConsent}>
-          <div className="doc-field">
-            <label htmlFor="consent-title">Consent Title</label>
-            <input id="consent-title" onChange={(event) => setTitle(event.target.value)} required value={title} />
-          </div>
-          <div className="doc-field">
-            <label htmlFor="consent-file">Consent File</label>
-            <input accept={fileAccept} id="consent-file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required type="file" />
-          </div>
-          <div className="doc-field">
-            <label htmlFor="consent-description">Description</label>
-            <textarea id="consent-description" onChange={(event) => setDescription(event.target.value)} value={description} />
-          </div>
-          <div className="doc-form-grid">
-            <div className="doc-field">
-              <label htmlFor="consent-template">Template</label>
-              <select
-                id="consent-template"
-                onChange={(event) => setTemplateId(event.target.value)}
-                required
-                value={templateId}
-              >
-                <option value="">Select template</option>
-                {templates.filter((item) => item.context_type === contextType).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} (v{item.version}){item.mandatory ? ' — Mandatory' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="doc-field">
-              <label htmlFor="consent-context">Context</label>
-              <select
-                id="consent-context"
-                onChange={(event) => {
-                  setContextType(event.target.value as typeof contextType);
-                  setTemplateId('');
-                  setContextId('');
-                }}
-                value={contextType}
-              >
-                <option value="PATIENT">Patient / EMR</option>
-                <option value="PROCEDURE">Procedure encounter</option>
-                <option value="ADMISSION">IP admission</option>
-              </select>
-            </div>
-            {contextType !== 'PATIENT' ? (
+          {uploadSourceMode === 'TEMPLATE' ? (
+            <>
               <div className="doc-field">
-                <label htmlFor="consent-context-id">
-                  {contextType === 'ADMISSION' ? 'Admission ID' : 'Procedure Encounter ID'}
-                </label>
-                <input id="consent-context-id" onChange={(event) => setContextId(event.target.value)} required value={contextId} />
+                <label htmlFor="consent-template">Select Configured Consent Template</label>
+                <select
+                  id="consent-template"
+                  onChange={(event) => handleSelectTemplate(event.target.value)}
+                  required
+                  value={templateId}
+                >
+                  <option value="">Select template</option>
+                  {templates.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} (v{item.version}) — {item.category} {item.mandatory ? '· Mandatory' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : null}
-            <div className="doc-field">
-              <label>Status</label>
-              <input disabled value="Attached on upload" />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="consent-signer">Signed By</label>
-              <input id="consent-signer" onChange={(event) => setSignedByName(event.target.value)} value={signedByName} />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="consent-signed-at">Signed Date</label>
-              <input id="consent-signed-at" onChange={(event) => setSignedAt(event.target.value)} type="date" value={signedAt} />
-            </div>
-            <div className="doc-field">
-              <label htmlFor="consent-valid-until">Valid Until</label>
-              <input id="consent-valid-until" onChange={(event) => setValidUntil(event.target.value)} type="date" value={validUntil} />
-            </div>
-          </div>
-          <div className="modal-actions">
-            <button className="doc-btn" onClick={() => setUploadOpen(false)} type="button">
-              Cancel
-            </button>
-            <button className="doc-btn primary" disabled={isSubmitting} type="submit">
-              {isSubmitting ? 'Uploading...' : 'Upload Consent'}
-            </button>
-          </div>
+
+              {selectedTemplate && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', marginBottom: '1rem' }}>
+                  <div style={{ fontWeight: 600, color: '#166534', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph ph-check-circle" /> {selectedTemplate.name} (v{selectedTemplate.version})
+                  </div>
+                  <div style={{ color: '#15803d', fontSize: '0.8rem', marginTop: '2px' }}>
+                    Code: <code>{selectedTemplate.code}</code> &middot; Category: {selectedTemplate.category} &middot; Sections: {selectedTemplate.form_definition?.sections?.length ?? 0}
+                  </div>
+                  <div style={{ color: '#166534', fontSize: '0.78rem', marginTop: '6px', fontStyle: 'italic' }}>
+                    Attaching this template creates an official electronic consent document for the patient with status <strong>Pending Patient Signature</strong>. The patient will be able to review and digitally sign it in the Patient Portal.
+                  </div>
+                </div>
+              )}
+
+              <div className="doc-field">
+                <label htmlFor="consent-title">Consent Title</label>
+                <input
+                  id="consent-title"
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="e.g. Dental Surgery Consent"
+                  required
+                  value={title}
+                />
+              </div>
+
+              <div className="doc-field">
+                <label htmlFor="consent-description">Notes / Instructions</label>
+                <textarea
+                  id="consent-description"
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Optional clinical notes or instructions for the patient"
+                  value={description}
+                />
+              </div>
+
+              <div className="doc-form-grid">
+                <div className="doc-field">
+                  <label htmlFor="consent-context">Clinical Context</label>
+                  <select
+                    id="consent-context"
+                    onChange={(event) => {
+                      setContextType(event.target.value as typeof contextType);
+                      setContextId('');
+                    }}
+                    value={contextType}
+                  >
+                    <option value="PATIENT">General Patient / EMR</option>
+                    <option value="PROCEDURE">Procedure Encounter</option>
+                    <option value="ADMISSION">Inpatient Admission</option>
+                  </select>
+                </div>
+                {contextType !== 'PATIENT' ? (
+                  <div className="doc-field">
+                    <label htmlFor="consent-context-id">
+                      {contextType === 'ADMISSION' ? 'Admission ID' : 'Procedure Encounter ID'}
+                    </label>
+                    <input
+                      id="consent-context-id"
+                      onChange={(event) => setContextId(event.target.value)}
+                      placeholder="e.g. ADM-101"
+                      required
+                      value={contextId}
+                    />
+                  </div>
+                ) : null}
+                <div className="doc-field">
+                  <label htmlFor="consent-status-select">Status</label>
+                  <select
+                    id="consent-status-select"
+                    onChange={(event) => setConsentStatus(event.target.value as typeof consentStatus)}
+                    value={consentStatus}
+                  >
+                    <option value="PENDING">Pending Patient Signature</option>
+                    <option value="ATTACHED">Attached</option>
+                  </select>
+                </div>
+                <div className="doc-field">
+                  <label htmlFor="consent-valid-until">Valid Until</label>
+                  <input
+                    id="consent-valid-until"
+                    onChange={(event) => setValidUntil(event.target.value)}
+                    type="date"
+                    value={validUntil}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button className="doc-btn" onClick={() => setUploadOpen(false)} type="button">
+                  Cancel
+                </button>
+                <button
+                  className="doc-btn primary"
+                  disabled={isSubmitting || !templateId}
+                  type="submit"
+                >
+                  <i className="ph ph-paper-plane-right" /> {isSubmitting ? 'Attaching...' : 'Attach Consent Form'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="doc-field">
+                <label htmlFor="consent-title">Consent Title</label>
+                <input
+                  id="consent-title"
+                  onChange={(event) => setTitle(event.target.value)}
+                  required
+                  value={title}
+                />
+              </div>
+              <div className="doc-field">
+                <label htmlFor="consent-file">Consent File (PDF, Image, or Scanned Document)</label>
+                <input
+                  accept={fileAccept}
+                  id="consent-file"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  required
+                  type="file"
+                />
+              </div>
+              <div className="doc-field">
+                <label htmlFor="consent-description">Description</label>
+                <textarea
+                  id="consent-description"
+                  onChange={(event) => setDescription(event.target.value)}
+                  value={description}
+                />
+              </div>
+              <div className="doc-form-grid">
+                <div className="doc-field">
+                  <label htmlFor="consent-template-file">Link to Template (Optional)</label>
+                  <select
+                    id="consent-template-file"
+                    onChange={(event) => setTemplateId(event.target.value)}
+                    value={templateId}
+                  >
+                    <option value="">Select template (optional)</option>
+                    {templates.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} (v{item.version}){item.mandatory ? ' — Mandatory' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="doc-field">
+                  <label htmlFor="consent-context">Context</label>
+                  <select
+                    id="consent-context"
+                    onChange={(event) => {
+                      setContextType(event.target.value as typeof contextType);
+                      setContextId('');
+                    }}
+                    value={contextType}
+                  >
+                    <option value="PATIENT">Patient / EMR</option>
+                    <option value="PROCEDURE">Procedure encounter</option>
+                    <option value="ADMISSION">IP admission</option>
+                  </select>
+                </div>
+                {contextType !== 'PATIENT' ? (
+                  <div className="doc-field">
+                    <label htmlFor="consent-context-id">
+                      {contextType === 'ADMISSION' ? 'Admission ID' : 'Procedure Encounter ID'}
+                    </label>
+                    <input
+                      id="consent-context-id"
+                      onChange={(event) => setContextId(event.target.value)}
+                      required
+                      value={contextId}
+                    />
+                  </div>
+                ) : null}
+                <div className="doc-field">
+                  <label>Status</label>
+                  <input disabled value="Attached on upload" />
+                </div>
+                <div className="doc-field">
+                  <label htmlFor="consent-signer">Signed By</label>
+                  <input
+                    id="consent-signer"
+                    onChange={(event) => setSignedByName(event.target.value)}
+                    value={signedByName}
+                  />
+                </div>
+                <div className="doc-field">
+                  <label htmlFor="consent-signed-at">Signed Date</label>
+                  <input
+                    id="consent-signed-at"
+                    onChange={(event) => setSignedAt(event.target.value)}
+                    type="date"
+                    value={signedAt}
+                  />
+                </div>
+                <div className="doc-field">
+                  <label htmlFor="consent-valid-until">Valid Until</label>
+                  <input
+                    id="consent-valid-until"
+                    onChange={(event) => setValidUntil(event.target.value)}
+                    type="date"
+                    value={validUntil}
+                  />
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button className="doc-btn" onClick={() => setUploadOpen(false)} type="button">
+                  Cancel
+                </button>
+                <button className="doc-btn primary" disabled={isSubmitting || !file} type="submit">
+                  <i className="ph ph-upload-simple" /> {isSubmitting ? 'Uploading...' : 'Upload Consent File'}
+                </button>
+              </div>
+            </>
+          )}
         </form>
       </Modal>
 

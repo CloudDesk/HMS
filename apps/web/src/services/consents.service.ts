@@ -5,6 +5,7 @@ import {
   type ConsentTemplateStatus,
   type SaveConsentTemplate,
   type SubmitStructuredConsentPayload,
+  type AttachConsentTemplatePayload,
 } from '../api/consents';
 
 export const consentsService = {
@@ -19,4 +20,6 @@ export const consentsService = {
   createNextVersion: (id: string, branchId: string) => consentsApi.createNextVersion(id, branchId),
   completeStructuredConsent: (patientId: string, payload: SubmitStructuredConsentPayload) =>
     consentsApi.completeStructuredConsent(patientId, payload),
+  attachConsentTemplate: (patientId: string, payload: AttachConsentTemplatePayload) =>
+    consentsApi.attachConsentTemplate(patientId, payload),
 };

@@ -107,6 +107,9 @@ export function PortalConsentFormModal({
   const isImage =
     consent.mime_type?.startsWith('image/') ||
     /\.(png|jpe?g|webp|gif)$/i.test(consent.file_name ?? '');
+  const isHtml =
+    consent.mime_type === 'text/html' ||
+    consent.file_name?.toLowerCase().endsWith('.html');
 
   return (
     <Modal
@@ -164,7 +167,7 @@ export function PortalConsentFormModal({
                 <p>Loading consent document…</p>
               </div>
             ) : consentUrl ? (
-              isPdf ? (
+              isPdf || isHtml ? (
                 <iframe
                   className="portal-consent-iframe"
                   src={consentUrl}
