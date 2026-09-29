@@ -115,33 +115,6 @@ export class PatientDocumentStorageService {
     }
   }
 
-  constructor() {
-    this.gcpBucket = this.provider === 'gcp'
-      ? new Storage({ projectId: env.storage.gcpProjectId }).bucket(env.storage.gcpPatientDocumentsBucket)
-      : null;
-  }
-
-  private validateStorageKey(storageKey: string) {
-    const normalized = storageKey.replaceAll('\\', '/');
-    const segments = normalized.split('/');
-    if (
-      !normalized.startsWith('patients/')
-      || normalized.startsWith('/')
-      || segments.some((segment) => !segment || segment === '.' || segment === '..')
-    ) {
-      throw new AppError('Patient document storage key is invalid', 400, 'INVALID_STORAGE_KEY');
-    }
-    return normalized;
-  }
-
-  private gcpFile(storageKey: string): File {
-    const key = this.validateStorageKey(storageKey);
-    if (!this.gcpBucket) {
-      throw new AppError('Google Cloud patient document storage is not configured', 500, 'STORAGE_NOT_CONFIGURED');
-    }
-    return this.gcpBucket.file(key);
-  }
-
   private resolveStoragePath(storageKey: string, rootDirectory = this.rootDirectory) {
     assertValidStorageKey(storageKey);
     const resolvedPath = path.resolve(rootDirectory, ...storageKey.split('/'));
