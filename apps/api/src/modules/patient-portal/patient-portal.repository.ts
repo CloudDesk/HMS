@@ -130,8 +130,14 @@ export class PatientPortalRepository {
     if (query.branchId) {
       const bId = query.branchId;
       const validObjId = objectId(bId);
-      const branchConds: Record<string, unknown>[] = [{ branchId: String(bId) }];
-      if (validObjId) branchConds.push({ branchId: validObjId });
+      const branchConds: Record<string, unknown>[] = [
+        { branchId: String(bId) },
+        { branchIds: String(bId) },
+      ];
+      if (validObjId) {
+        branchConds.push({ branchId: validObjId });
+        branchConds.push({ branchIds: validObjId });
+      }
       andConditions.push({ $or: branchConds });
     }
     if (query.search) {
@@ -139,7 +145,7 @@ export class PatientPortalRepository {
     }
     const filter = andConditions.length > 1 ? { $and: andConditions } : baseFilter;
     const departments = await DepartmentModel.find(filter)
-      .select('code name description branchId')
+      .select('code name description branchId branchIds')
       .sort({ name: 1 })
       .lean();
 

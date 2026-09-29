@@ -42,3 +42,28 @@ export const savedSessionSchema = z.object({
   installationId: z.uuid(), apiBaseUrl: z.string(), status: z.enum(['ready', 'in-flight', 'uncertain']),
 }).strict();
 export type SavedSession = z.infer<typeof savedSessionSchema>;
+
+export const verifyOtpResponseSchema = z.object({
+  success: z.literal(true),
+  registrationToken: z.string().min(1),
+});
+export type VerifyOtpResponse = z.infer<typeof verifyOtpResponseSchema>;
+
+export const registrationFormSchema = z.object({
+  fullName: z.string().trim().min(2, 'Enter your full name.').max(160),
+  email: z.string().trim().email('Enter a valid email address.'),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be YYYY-MM-DD.'),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
+  preferredBranchId: z.string().min(1, 'Select a hospital branch.'),
+  bloodGroup: z.string().trim().max(10).optional(),
+  line1: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(100).optional(),
+  postalCode: z.string().trim().max(30).optional(),
+});
+export type RegistrationFormValues = z.infer<typeof registrationFormSchema>;
+
+export const completeProfileResponseSchema = z.object({
+  patientId: z.string(),
+});
+export type CompleteProfileResponse = z.infer<typeof completeProfileResponseSchema>;

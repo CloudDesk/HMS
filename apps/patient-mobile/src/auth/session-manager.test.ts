@@ -41,6 +41,10 @@ describe('SessionManager', () => {
     login: ReturnType<typeof vi.fn>;
     refresh: ReturnType<typeof vi.fn>;
     logout: ReturnType<typeof vi.fn>;
+    verifyRegistrationOtp: ReturnType<typeof vi.fn>;
+    signup: ReturnType<typeof vi.fn>;
+    completeProfile: ReturnType<typeof vi.fn>;
+    getPublicBranches: ReturnType<typeof vi.fn>;
   };
   let mockTransport: {
     config: { environment: 'development'; apiBaseUrl: string };
@@ -102,6 +106,10 @@ describe('SessionManager', () => {
       login: vi.fn(),
       refresh: vi.fn(),
       logout: vi.fn(),
+      verifyRegistrationOtp: vi.fn(),
+      signup: vi.fn(),
+      completeProfile: vi.fn(),
+      getPublicBranches: vi.fn(),
     };
 
     mockTransport = {
@@ -461,5 +469,122 @@ describe('SessionManager', () => {
       expect.anything(),
       { accessToken: 'bearer.access.jwt' }
     );
+  });
+
+  describe('New Patient Registration Flow', () => {
+    it('sets auth mode and requests registration OTP', async () => {
+      const manager = createManager();
+      await manager.start();
+
+      mockApi.requestOtp.mockResolvedValue({
+        success: true,
+        resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+      });
+
+      manager.setAuthMode('register');
+      expect(manager.getSnapshot().authMode).toBe('register');
+
+      await manager.requestOtp('+919876543210', 'register');
+      expect(manager.getSnapshot().status).toBe('otpVerification');
+      expect(manager.getSnapshot().authMode).toBe('register');
+      expect(manager.getSnapshot().phone).toBe('+919876543210');
+      expect(mockApi.requestOtp).toHaveBeenCalledWith('+919876543210');
+    });
+
+    it('verifies registration OTP and transitions to registrationDetails with registrationToken', async () => {
+      const manager = createManager();
+      await manager.start();
+
+      mockApi.requestOtp.mockResolvedValue({
+        success: true,
+        resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      mockApi.verifyRegistrationOtp.mockResolvedValue('reg-token-xyz-789');
+
+      await manager.requestOtp('+919876543210', 'register');
+      await manager.verifyRegistrationOtp('1234');
+
+      const state = manager.getSnapshot();
+      expect(state.status).toBe('registrationDetails');
+      expect(state.authMode).toBe('register');
+      expect(state.registrationToken).toBe('reg-token-xyz-789');
+      expect(state.phone).toBe('+919876543210');
+    });
+
+    it('completes patient registration (signup + completeProfile) and establishes authenticated session', async () => {
+      const manager = createManager();
+      await manager.start();
+
+      mockApi.requestOtp.mockResolvedValue({
+        success: true,
+        resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      mockApi.verifyRegistrationOtp.mockResolvedValue('reg-token-xyz-789');
+
+      const signupSession = createSampleSession('r'.repeat(64), 'reg.access.token');
+      mockApi.signup.mockResolvedValue(signupSession);
+      mockApi.completeProfile.mockResolvedValue({ patientId: 'patient-new-1' });
+
+      await manager.requestOtp('+919876543210', 'register');
+      await manager.verifyRegistrationOtp('1234');
+
+      await manager.registerPatient({
+        fullName: 'Aarav Patel',
+        email: 'aarav@example.com',
+        dateOfBirth: '1995-06-20',
+        gender: 'MALE',
+        preferredBranchId: 'branch-1',
+        bloodGroup: 'B+',
+        line1: '456 Marine Drive',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        postalCode: '400020',
+      });
+
+      const state = manager.getSnapshot();
+      expect(state.status).toBe('authenticated');
+      expect(state.user?.fullName).toBe('John Patient');
+      expect(mockApi.signup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fullName: 'Aarav Patel',
+          email: 'aarav@example.com',
+          phone: '+919876543210',
+          registrationToken: 'reg-token-xyz-789',
+        })
+      );
+      expect(mockApi.completeProfile).toHaveBeenCalledWith(
+        'reg.access.token',
+        expect.objectContaining({
+          fullName: 'Aarav Patel',
+          email: 'aarav@example.com',
+          dateOfBirth: '1995-06-20',
+          gender: 'MALE',
+          preferredBranchId: 'branch-1',
+        })
+      );
+    });
+
+    it('cancels registration and returns to unauthenticated state', async () => {
+      const manager = createManager();
+      await manager.start();
+
+      mockApi.requestOtp.mockResolvedValue({
+        success: true,
+        resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      mockApi.verifyRegistrationOtp.mockResolvedValue('reg-token-xyz-789');
+
+      await manager.requestOtp('+919876543210', 'register');
+      await manager.verifyRegistrationOtp('1234');
+
+      expect(manager.getSnapshot().status).toBe('registrationDetails');
+
+      manager.cancelRegistration();
+
+      const state = manager.getSnapshot();
+      expect(state.status).toBe('unauthenticated');
+      expect(state.authMode).toBe('login');
+      expect(state.registrationToken).toBeUndefined();
+    });
   });
 });

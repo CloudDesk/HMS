@@ -192,20 +192,24 @@ export class PatientOtpService {
   }
 
   private async enforceRequestLimits(normalizedPhone: string, metadata: RequestMetadata, now: Date) {
-    await this.consumeOrReject('otp-resend', normalizedPhone, 1, this.resendCooldownSeconds(), metadata, now);
-    await this.consumeOrReject('otp-request-identity', normalizedPhone, this.options.identityRequestLimit ?? env.auth.otpIdentityRequestLimit, this.options.identityWindowSeconds ?? env.auth.otpIdentityWindowSeconds, metadata, now);
-    if (metadata.ipAddress) {
-      await this.consumeOrReject('otp-request-ip', metadata.ipAddress, this.options.ipRequestLimit ?? env.auth.otpIpRequestLimit, this.options.ipRequestWindowSeconds ?? env.auth.otpIpRequestWindowSeconds, metadata, now);
-    }
+    await Promise.all([
+      this.consumeOrReject('otp-resend', normalizedPhone, 1, this.resendCooldownSeconds(), metadata, now),
+      this.consumeOrReject('otp-request-identity', normalizedPhone, this.options.identityRequestLimit ?? env.auth.otpIdentityRequestLimit, this.options.identityWindowSeconds ?? env.auth.otpIdentityWindowSeconds, metadata, now),
+      ...(metadata.ipAddress
+        ? [this.consumeOrReject('otp-request-ip', metadata.ipAddress, this.options.ipRequestLimit ?? env.auth.otpIpRequestLimit, this.options.ipRequestWindowSeconds ?? env.auth.otpIpRequestWindowSeconds, metadata, now)]
+        : []),
+    ]);
   }
 
   private async enforceVerificationLimits(normalizedPhone: string, metadata: RequestMetadata | undefined, now: Date) {
     if (!metadata) return;
     const windowSeconds = this.options.verificationWindowSeconds ?? env.auth.otpVerificationWindowSeconds;
-    await this.consumeOrReject('otp-verification-identity', normalizedPhone, this.options.verificationIdentityLimit ?? env.auth.otpVerificationIdentityLimit, windowSeconds, metadata, now);
-    if (metadata.ipAddress) {
-      await this.consumeOrReject('otp-verification-ip', metadata.ipAddress, this.options.verificationIpLimit ?? env.auth.otpVerificationIpLimit, windowSeconds, metadata, now);
-    }
+    await Promise.all([
+      this.consumeOrReject('otp-verification-identity', normalizedPhone, this.options.verificationIdentityLimit ?? env.auth.otpVerificationIdentityLimit, windowSeconds, metadata, now),
+      ...(metadata.ipAddress
+        ? [this.consumeOrReject('otp-verification-ip', metadata.ipAddress, this.options.verificationIpLimit ?? env.auth.otpVerificationIpLimit, windowSeconds, metadata, now)]
+        : []),
+    ]);
   }
 
   private async consumeOrReject(scope: string, key: string, limit: number, windowSeconds: number, metadata: RequestMetadata, now: Date) {

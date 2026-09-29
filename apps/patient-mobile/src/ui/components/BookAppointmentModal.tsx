@@ -8,9 +8,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { friendlyError } from '../../api/errors';
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
@@ -53,6 +53,7 @@ export function BookAppointmentModal({
   onClose,
   onBooked,
 }: BookAppointmentModalProps) {
+  const insets = useSafeAreaInsets();
   const { manager } = useAuth();
   const { context, selectedPatient, selectedPatientId } = usePatient();
   const appointmentsApi = useMemo(() => new AppointmentsApi(manager), [manager]);
@@ -66,13 +67,9 @@ export function BookAppointmentModal({
   const [doctorId, setDoctorId] = useState<string>('');
   const [appointmentDate, setAppointmentDate] = useState<string>(todayStr);
   const [selectedSlot, setSelectedSlot] = useState<SlotItem | null>(null);
-  const [visitType, setVisitType] = useState<'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE'>(
-    'NEW_CONSULTATION'
-  );
   const [reason, setReason] = useState<string>('');
 
   // Dropdown Picker Modals
-  const [isDepartmentPickerOpen, setIsDepartmentPickerOpen] = useState<boolean>(false);
   const [isDoctorPickerOpen, setIsDoctorPickerOpen] = useState<boolean>(false);
 
   // Optional Clinical History State
@@ -109,7 +106,6 @@ export function BookAppointmentModal({
   }, [doctors, doctorId]);
 
   const handleClose = () => {
-    setIsDepartmentPickerOpen(false);
     setIsDoctorPickerOpen(false);
     setIsClinicalHistoryExpanded(false);
     setClinicalHistory(emptyClinicalHistory);
@@ -130,7 +126,6 @@ export function BookAppointmentModal({
       setSelectedSlot(null);
       setSlotData(null);
       setReason('');
-      setIsDepartmentPickerOpen(false);
       setIsDoctorPickerOpen(false);
       setIsClinicalHistoryExpanded(false);
       setClinicalHistory(emptyClinicalHistory);
@@ -234,7 +229,18 @@ export function BookAppointmentModal({
       .getDepartments(branchId)
       .then((data) => {
         if (active) {
-          setDepartments(data);
+          const dentalDepts = data.filter(
+            (d) =>
+              d.name.trim().toLowerCase() === 'dental' ||
+              d.code.trim().toUpperCase() === 'DENT' ||
+              d.code.trim().toUpperCase() === 'DENTAL'
+          );
+          const eligible = dentalDepts.length > 0 ? dentalDepts : data;
+          setDepartments(eligible);
+          const first = eligible[0];
+          if (first) {
+            setDepartmentId(first.id);
+          }
         }
       })
       .catch((err) => {
@@ -291,17 +297,6 @@ export function BookAppointmentModal({
       active = false;
     };
   }, [visible, branchId, departmentId, appointmentsApi]);
-
-  const handleDepartmentSelect = (newDeptId: string) => {
-    setIsDepartmentPickerOpen(false);
-    if (departmentId === newDeptId) return;
-    setDepartmentId(newDeptId);
-    setDoctorId('');
-    setDoctors([]);
-    setSelectedSlot(null);
-    setSlotData(null);
-    setErrorMessage(null);
-  };
 
   const handleDoctorSelect = (newDocId: string) => {
     setIsDoctorPickerOpen(false);
@@ -406,7 +401,7 @@ export function BookAppointmentModal({
         appointment_date: appointmentDate,
         start_time: selectedSlot.start_time,
         duration_minutes: duration > 0 ? duration : 15,
-        visit_type: visitType,
+        visit_type: 'NEW_CONSULTATION',
         reason: effectiveReason,
         clinical_history: clinicalHistoryPayload,
       });
@@ -440,577 +435,466 @@ export function BookAppointmentModal({
         animationType="slide"
         onRequestClose={handleClose}
       >
-      <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.card}>
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Book an Appointment</Text>
-                <TouchableOpacity onPress={handleClose} disabled={isSubmitting} style={styles.closeBtn}>
-                  <Text style={styles.closeBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={true}
+          <TouchableOpacity
+            style={styles.backdropTouchable}
+            activeOpacity={1}
+            onPress={handleClose}
+            disabled={isSubmitting}
+          />
+          <View
+            style={[
+              styles.card,
+              {
+                paddingBottom: Math.max(insets.bottom, spacing.md),
+              },
+            ]}
+          >
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Book an Appointment</Text>
+              <TouchableOpacity
+                onPress={handleClose}
+                disabled={isSubmitting}
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close appointment booking"
               >
-                {errorObj || errorMessage ? (
-                  <ErrorDiagnosticView
-                    error={errorObj ?? errorMessage}
-                    onDismiss={() => {
-                      setErrorMessage(null);
-                      setErrorObj(null);
-                    }}
-                  />
-                ) : null}
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
-                {/* 1. Patient Selector */}
-                {context && context.patients.length > 1 ? (
-                  <View style={styles.formGroup}>
-                    <Text style={styles.label}>Patient</Text>
-                    <View style={styles.chipSelector}>
-                      {context.patients.map((p) => (
-                        <TouchableOpacity
-                          key={p.id}
-                          style={[
-                            styles.selectorChip,
-                            patientId === p.id && styles.selectorChipActive,
-                          ]}
-                          onPress={() => handlePatientChange(p.id)}
-                          disabled={isSubmitting}
-                        >
-                          <Text
-                            style={[
-                              styles.selectorChipText,
-                              patientId === p.id && styles.selectorChipTextActive,
-                            ]}
-                          >
-                            {p.full_name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+            >
+              {errorObj || errorMessage ? (
+                <ErrorDiagnosticView
+                  error={errorObj ?? errorMessage}
+                  onDismiss={() => {
+                    setErrorMessage(null);
+                    setErrorObj(null);
+                  }}
+                />
+              ) : null}
 
-                {/* 2. Hospital Branch (Respects Patient Context) */}
+              {/* 1. Patient Selector */}
+              {context && context.patients.length > 1 ? (
                 <View style={styles.formGroup}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.label}>Hospital Branch</Text>
-                    {currentPatient?.preferred_branch?.name ? (
-                      <Text style={styles.preferredBadge}>Eligible Branch</Text>
-                    ) : null}
-                  </View>
-                  {isLoadingCatalogues ? (
-                    <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
-                  ) : (
-                    <View style={styles.chipSelector}>
-                      {branches.map((b) => (
-                        <TouchableOpacity
-                          key={b.id}
-                          style={[
-                            styles.selectorChip,
-                            branchId === b.id && styles.selectorChipActive,
-                            branches.length === 1 && styles.singleBranchChip,
-                          ]}
-                          onPress={() => handleBranchChange(b.id)}
-                          disabled={isSubmitting || branches.length === 1}
-                        >
-                          <Text
-                            style={[
-                              styles.selectorChipText,
-                              branchId === b.id && styles.selectorChipTextActive,
-                            ]}
-                          >
-                            {b.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                {/* 3 & 4. Compact Cascading Department & Doctor Row */}
-                <View style={styles.formGroup}>
-                  <View style={styles.cascadingRow}>
-                    {/* Department Column (approx 45-50%) */}
-                    <View style={styles.cascadingColLeft}>
-                      <Text style={styles.label}>Department</Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.selectTrigger,
-                          (isLoadingDepartments || isSubmitting || departments.length === 0) &&
-                            styles.selectTriggerDisabled,
-                        ]}
-                        onPress={() => setIsDepartmentPickerOpen(true)}
-                        disabled={isLoadingDepartments || isSubmitting || departments.length === 0}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Department: ${selectedDepartment?.name ?? 'Select Department'}`}
-                      >
-                        {isLoadingDepartments ? (
-                          <View style={styles.selectTriggerLoading}>
-                            <ActivityIndicator size="small" color="#0284C7" />
-                            <Text style={styles.selectPlaceholderText} numberOfLines={1}>
-                              Loading…
-                            </Text>
-                          </View>
-                        ) : (
-                          <>
-                            <Text
-                              style={[
-                                styles.selectValueText,
-                                !selectedDepartment && styles.selectPlaceholderText,
-                              ]}
-                              numberOfLines={1}
-                              ellipsizeMode="tail"
-                            >
-                              {selectedDepartment?.name ?? 'Select Department'}
-                            </Text>
-                            <Text style={styles.selectArrow}>▾</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Doctor Column (approx 50-55%) */}
-                    <View style={styles.cascadingColRight}>
-                      <Text style={styles.label}>Doctor</Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.selectTrigger,
-                          (!departmentId ||
-                            isLoadingDoctors ||
-                            isSubmitting ||
-                            doctors.length === 0) &&
-                            styles.selectTriggerDisabled,
-                        ]}
-                        onPress={() => setIsDoctorPickerOpen(true)}
-                        disabled={
-                          !departmentId ||
-                          isLoadingDoctors ||
-                          isSubmitting ||
-                          doctors.length === 0
-                        }
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Doctor: ${
-                          selectedDoctor
-                            ? selectedDoctor.display_name
-                            : !departmentId
-                            ? 'Select department first'
-                            : doctors.length === 0
-                            ? 'No doctors available'
-                            : 'Select Doctor'
-                        }`}
-                      >
-                        {isLoadingDoctors ? (
-                          <View style={styles.selectTriggerLoading}>
-                            <ActivityIndicator size="small" color="#0284C7" />
-                            <Text style={styles.selectPlaceholderText} numberOfLines={1}>
-                              Loading…
-                            </Text>
-                          </View>
-                        ) : (
-                          <>
-                            <Text
-                              style={[
-                                styles.selectValueText,
-                                !selectedDoctor && styles.selectPlaceholderText,
-                              ]}
-                              numberOfLines={1}
-                              ellipsizeMode="tail"
-                            >
-                              {selectedDoctor
-                                ? selectedDoctor.display_name
-                                : !departmentId
-                                ? 'Select dept first'
-                                : doctors.length === 0
-                                ? 'No doctors available'
-                                : 'Select Doctor'}
-                            </Text>
-                            <Text style={styles.selectArrow}>▾</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-
-                {/* 5. Date Selection via AppointmentDatePicker */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Appointment Date</Text>
-                  <AppointmentDatePicker
-                    value={appointmentDate}
-                    onChange={(date) => setAppointmentDate(date)}
-                    minDate={todayStr}
-                    disabled={isSubmitting}
-                  />
-                </View>
-
-                {/* 6. Live Slots */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Available Times</Text>
-                  {isLoadingSlots ? (
-                    <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
-                  ) : slotData && slotData.slots.length > 0 ? (
-                    <View style={styles.slotGrid}>
-                      {slotData.slots.map((slot) => {
-                        const status = getSlotStatusLabel(slot, appointmentDate);
-                        const isSelected = selectedSlot?.start_time === slot.start_time;
-
-                        return (
-                          <TouchableOpacity
-                            key={slot.start_time}
-                            style={[
-                              styles.slotBtn,
-                              !status.isSelectable && styles.slotBtnUnavailable,
-                              isSelected && styles.slotBtnSelected,
-                            ]}
-                            onPress={() => {
-                              if (status.isSelectable) {
-                                setSelectedSlot(slot);
-                                setErrorMessage(null);
-                              }
-                            }}
-                            disabled={!status.isSelectable || isSubmitting}
-                            activeOpacity={0.7}
-                          >
-                            <Text
-                              style={[
-                                styles.slotText,
-                                !status.isSelectable && styles.slotTextUnavailable,
-                                isSelected && styles.slotTextSelected,
-                              ]}
-                            >
-                              {slot.start_time}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.slotSubText,
-                                !status.isSelectable && styles.slotSubTextUnavailable,
-                                isSelected && styles.slotSubTextSelected,
-                              ]}
-                            >
-                              {status.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <Text style={styles.emptyHint}>
-                      {slotData?.unavailable_reason ?? 'No open slots on this date. Try another date.'}
-                    </Text>
-                  )}
-                </View>
-
-                {/* 7. Visit Type */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Visit Type</Text>
+                  <Text style={styles.label}>Patient</Text>
                   <View style={styles.chipSelector}>
-                    {(
-                      [
-                        { id: 'NEW_CONSULTATION', label: 'New Consultation' },
-                        { id: 'FOLLOW_UP', label: 'Follow Up' },
-                        { id: 'PROCEDURE', label: 'Procedure' },
-                      ] as const
-                    ).map((t) => (
+                    {context.patients.map((p) => (
                       <TouchableOpacity
-                        key={t.id}
+                        key={p.id}
                         style={[
                           styles.selectorChip,
-                          visitType === t.id && styles.selectorChipActive,
+                          patientId === p.id && styles.selectorChipActive,
                         ]}
-                        onPress={() => setVisitType(t.id)}
+                        onPress={() => handlePatientChange(p.id)}
                         disabled={isSubmitting}
                       >
                         <Text
                           style={[
                             styles.selectorChipText,
-                            visitType === t.id && styles.selectorChipTextActive,
+                            patientId === p.id && styles.selectorChipTextActive,
                           ]}
                         >
-                          {t.label}
+                          {p.full_name}
                         </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
+              ) : null}
 
-                {/* 8. Reason */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Reason for Visit (Required)</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={reason}
-                    onChangeText={setReason}
-                    placeholder="Describe your symptoms or consultation reason (min 3 chars)…"
-                    placeholderTextColor="#94A3B8"
-                    multiline
-                    numberOfLines={3}
-                    maxLength={500}
-                    editable={!isSubmitting}
-                  />
-                  <Text style={styles.charCount}>{reason.length}/500</Text>
+              {/* 2. Hospital Branch (Respects Patient Context) */}
+              <View style={styles.formGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Hospital Branch</Text>
+                  {currentPatient?.preferred_branch?.name ? (
+                    <Text style={styles.preferredBadge}>Eligible Branch</Text>
+                  ) : null}
                 </View>
+                {isLoadingCatalogues ? (
+                  <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
+                ) : (
+                  <View style={styles.chipSelector}>
+                    {branches.map((b) => (
+                      <TouchableOpacity
+                        key={b.id}
+                        style={[
+                          styles.selectorChip,
+                          branchId === b.id && styles.selectorChipActive,
+                          branches.length === 1 && styles.singleBranchChip,
+                        ]}
+                        onPress={() => handleBranchChange(b.id)}
+                        disabled={isSubmitting || branches.length === 1}
+                      >
+                        <Text
+                          style={[
+                            styles.selectorChipText,
+                            branchId === b.id && styles.selectorChipTextActive,
+                          ]}
+                        >
+                          {b.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
 
-                {/* 9. Optional Clinical History */}
-                <View style={styles.clinicalHistoryCard}>
-                  <View style={styles.clinicalHistoryHeader}>
-                    <View style={styles.clinicalHistoryTitleRow}>
-                      <Text style={styles.clinicalHistoryTitle}>Clinical History</Text>
-                      <View style={styles.optionalBadge}>
-                        <Text style={styles.optionalBadgeText}>Optional</Text>
-                      </View>
+              {/* 3 & 4. Compact Cascading Department & Doctor Row (Dental Locked) */}
+              <View style={styles.formGroup}>
+                <View style={styles.cascadingRow}>
+                  {/* Department Column (Fixed Dental Only) */}
+                  <View style={styles.cascadingColLeft}>
+                    <Text style={styles.label}>Department</Text>
+                    <View style={styles.selectTriggerLocked}>
+                      {isLoadingDepartments ? (
+                        <View style={styles.selectTriggerLoading}>
+                          <ActivityIndicator size="small" color="#0284C7" />
+                          <Text style={styles.selectPlaceholderText} numberOfLines={1}>
+                            Loading…
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.lockedDeptBadge}>
+                          <Text style={styles.dentalIcon}>🦷</Text>
+                          <Text style={styles.lockedDeptText} numberOfLines={1}>
+                            {selectedDepartment?.name ?? 'Dental'}
+                          </Text>
+                        </View>
+                      )}
                     </View>
-                    <TouchableOpacity
-                      onPress={() => setIsClinicalHistoryExpanded((prev) => !prev)}
-                      style={styles.toggleBtn}
-                      disabled={isSubmitting}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        isClinicalHistoryExpanded
-                          ? 'Collapse clinical history'
-                          : 'Expand clinical history'
-                      }
-                    >
-                      <Text style={styles.toggleBtnText}>
-                        {isClinicalHistoryExpanded ? 'Hide ▲' : '+ Add Details ▼'}
-                      </Text>
-                    </TouchableOpacity>
                   </View>
 
-                  <Text style={styles.clinicalHistorySubtitle}>
-                    Provide additional health context for your doctor ahead of your visit.
-                  </Text>
-
-                  {isClinicalHistoryExpanded && (
-                    <View style={styles.clinicalFieldsContainer}>
-                      {/* 1. Chief Complaint */}
-                      <View style={styles.clinicalFieldGroup}>
-                        <Text style={styles.clinicalFieldLabel}>Chief Complaint</Text>
-                        <TextInput
-                          style={[styles.input, styles.clinicalTextArea]}
-                          value={clinicalHistory.chiefComplaint}
-                          onChangeText={(text) =>
-                            setClinicalHistory((prev) => ({ ...prev, chiefComplaint: text }))
-                          }
-                          placeholder="What is the main reason for your visit?"
-                          placeholderTextColor="#94A3B8"
-                          multiline
-                          numberOfLines={2}
-                          maxLength={500}
-                          editable={!isSubmitting}
-                        />
-                        <Text style={styles.charCount}>
-                          {clinicalHistory.chiefComplaint.length}/500
-                        </Text>
-                      </View>
-
-                      {/* 2. History of Present Illness */}
-                      <View style={styles.clinicalFieldGroup}>
-                        <Text style={styles.clinicalFieldLabel}>History of Present Illness</Text>
-                        <TextInput
-                          style={[styles.input, styles.clinicalTextArea]}
-                          value={clinicalHistory.historyPresentIllness}
-                          onChangeText={(text) =>
-                            setClinicalHistory((prev) => ({ ...prev, historyPresentIllness: text }))
-                          }
-                          placeholder="Tell us about your current symptoms or concern."
-                          placeholderTextColor="#94A3B8"
-                          multiline
-                          numberOfLines={2}
-                          maxLength={500}
-                          editable={!isSubmitting}
-                        />
-                        <Text style={styles.charCount}>
-                          {clinicalHistory.historyPresentIllness.length}/500
-                        </Text>
-                      </View>
-
-                      {/* 3. Past Medical History */}
-                      <View style={styles.clinicalFieldGroup}>
-                        <Text style={styles.clinicalFieldLabel}>Past Medical History</Text>
-                        <TextInput
-                          style={[styles.input, styles.clinicalTextArea]}
-                          value={clinicalHistory.pastMedicalHistory}
-                          onChangeText={(text) =>
-                            setClinicalHistory((prev) => ({ ...prev, pastMedicalHistory: text }))
-                          }
-                          placeholder="Previous illnesses, conditions, surgeries, or treatments."
-                          placeholderTextColor="#94A3B8"
-                          multiline
-                          numberOfLines={2}
-                          maxLength={500}
-                          editable={!isSubmitting}
-                        />
-                        <Text style={styles.charCount}>
-                          {clinicalHistory.pastMedicalHistory.length}/500
-                        </Text>
-                      </View>
-
-                      {/* 4. Family History */}
-                      <View style={styles.clinicalFieldGroup}>
-                        <Text style={styles.clinicalFieldLabel}>Family History</Text>
-                        <TextInput
-                          style={[styles.input, styles.clinicalTextArea]}
-                          value={clinicalHistory.familyHistory}
-                          onChangeText={(text) =>
-                            setClinicalHistory((prev) => ({ ...prev, familyHistory: text }))
-                          }
-                          placeholder="Relevant medical conditions in your family."
-                          placeholderTextColor="#94A3B8"
-                          multiline
-                          numberOfLines={2}
-                          maxLength={500}
-                          editable={!isSubmitting}
-                        />
-                        <Text style={styles.charCount}>
-                          {clinicalHistory.familyHistory.length}/500
-                        </Text>
-                      </View>
-
-                      {/* 5. Allergies / Sensitivities */}
-                      <View style={styles.clinicalFieldGroup}>
-                        <Text style={styles.clinicalFieldLabel}>Allergies / Sensitivities</Text>
-                        <TextInput
-                          style={[styles.input, styles.clinicalTextArea]}
-                          value={clinicalHistory.allergies}
-                          onChangeText={(text) =>
-                            setClinicalHistory((prev) => ({
-                              ...prev,
-                              allergies: text,
-                            }))
-                          }
-                          placeholder="Medicines, food, or other known allergies or sensitivities."
-                          placeholderTextColor="#94A3B8"
-                          multiline
-                          numberOfLines={2}
-                          maxLength={500}
-                          editable={!isSubmitting}
-                        />
-                        <Text style={styles.charCount}>
-                          {clinicalHistory.allergies.length}/500
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-              </ScrollView>
-
-              {/* Submit / Cancel Actions */}
-              <View style={styles.footer}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={handleClose}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
-                  onPress={handleSubmit}
-                  disabled={isSubmitting}
-                  activeOpacity={0.8}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.confirmBtnText}>Confirm Booking</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
-
-    {/* Department Selection Modal */}
-    <Modal
-      visible={isDepartmentPickerOpen}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setIsDepartmentPickerOpen(false)}
-    >
-      <TouchableWithoutFeedback onPress={() => setIsDepartmentPickerOpen(false)}>
-        <View style={styles.pickerOverlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.pickerCard}>
-              <View style={styles.pickerHeader}>
-                <View style={styles.pickerHeaderLeft}>
-                  <Text style={styles.pickerTitle}>Select Department</Text>
-                  <Text style={styles.pickerSubtitle}>
-                    Choose a clinical department for your visit
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setIsDepartmentPickerOpen(false)}
-                  style={styles.pickerCloseBtn}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Close department selector"
-                >
-                  <Text style={styles.pickerCloseBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                style={styles.pickerListScroll}
-                contentContainerStyle={styles.pickerListContent}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled={true}
-              >
-                {departments.length === 0 ? (
-                  <Text style={styles.pickerEmptyText}>No departments available for this branch.</Text>
-                ) : (
-                  departments.map((dept) => {
-                    const isSelected = dept.id === departmentId;
-                    return (
-                      <TouchableOpacity
-                        key={dept.id}
-                        style={[
-                          styles.pickerItem,
-                          isSelected && styles.pickerItemSelected,
-                        ]}
-                        onPress={() => handleDepartmentSelect(dept.id)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.pickerItemInfo}>
+                  {/* Doctor Column */}
+                  <View style={styles.cascadingColRight}>
+                    <Text style={styles.label}>Doctor</Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.selectTrigger,
+                        (!departmentId ||
+                          isLoadingDoctors ||
+                          isSubmitting ||
+                          doctors.length === 0) &&
+                          styles.selectTriggerDisabled,
+                      ]}
+                      onPress={() => setIsDoctorPickerOpen(true)}
+                      disabled={
+                        !departmentId ||
+                        isLoadingDoctors ||
+                        isSubmitting ||
+                        doctors.length === 0
+                      }
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Doctor: ${
+                        selectedDoctor
+                          ? selectedDoctor.display_name
+                          : !departmentId
+                          ? 'Loading…'
+                          : doctors.length === 0
+                          ? 'No doctors available'
+                          : 'Select Doctor'
+                      }`}
+                    >
+                      {isLoadingDoctors ? (
+                        <View style={styles.selectTriggerLoading}>
+                          <ActivityIndicator size="small" color="#0284C7" />
+                          <Text style={styles.selectPlaceholderText} numberOfLines={1}>
+                            Loading…
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
                           <Text
                             style={[
-                              styles.pickerItemTitle,
-                              isSelected && styles.pickerItemTitleSelected,
+                              styles.selectValueText,
+                              !selectedDoctor && styles.selectPlaceholderText,
+                            ]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {selectedDoctor
+                              ? selectedDoctor.display_name
+                              : !departmentId
+                              ? 'Loading…'
+                              : doctors.length === 0
+                              ? 'No doctors available'
+                              : 'Select Doctor'}
+                          </Text>
+                          <Text style={styles.selectArrow}>▾</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {/* 5. Date Selection via AppointmentDatePicker */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Appointment Date</Text>
+                <AppointmentDatePicker
+                  value={appointmentDate}
+                  onChange={(date) => setAppointmentDate(date)}
+                  minDate={todayStr}
+                  disabled={isSubmitting}
+                />
+              </View>
+
+              {/* 6. Live Slots */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Available Times</Text>
+                {isLoadingSlots ? (
+                  <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
+                ) : slotData && slotData.slots.length > 0 ? (
+                  <View style={styles.slotGrid}>
+                    {slotData.slots.map((slot) => {
+                      const status = getSlotStatusLabel(slot, appointmentDate);
+                      const isSelected = selectedSlot?.start_time === slot.start_time;
+
+                      return (
+                        <TouchableOpacity
+                          key={slot.start_time}
+                          style={[
+                            styles.slotBtn,
+                            !status.isSelectable && styles.slotBtnUnavailable,
+                            isSelected && styles.slotBtnSelected,
+                          ]}
+                          onPress={() => {
+                            if (status.isSelectable) {
+                              setSelectedSlot(slot);
+                              setErrorMessage(null);
+                            }
+                          }}
+                          disabled={!status.isSelectable || isSubmitting}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.slotText,
+                              !status.isSelectable && styles.slotTextUnavailable,
+                              isSelected && styles.slotTextSelected,
                             ]}
                           >
-                            {dept.name}
+                            {slot.start_time}
                           </Text>
-                          {dept.description ? (
-                            <Text style={styles.pickerItemSubtitle}>
-                              {dept.description}
-                            </Text>
-                          ) : null}
-                        </View>
-                        {isSelected ? (
-                          <View style={styles.pickerCheckBadge}>
-                            <Text style={styles.pickerCheckText}>✓</Text>
-                          </View>
-                        ) : null}
-                      </TouchableOpacity>
-                    );
-                  })
+                          <Text
+                            style={[
+                              styles.slotSubText,
+                              !status.isSelectable && styles.slotSubTextUnavailable,
+                              isSelected && styles.slotSubTextSelected,
+                            ]}
+                          >
+                            {status.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={styles.emptyHint}>
+                    {slotData?.unavailable_reason ?? 'No open slots on this date. Try another date.'}
+                  </Text>
                 )}
-              </ScrollView>
+              </View>
+
+              {/* 7. Reason for Visit */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Reason for Visit (Required)</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={reason}
+                  onChangeText={setReason}
+                  placeholder="Describe your symptoms or consultation reason (min 3 chars)…"
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  numberOfLines={3}
+                  maxLength={500}
+                  editable={!isSubmitting}
+                />
+                <Text style={styles.charCount}>{reason.length}/500</Text>
+              </View>
+
+              {/* 8. Optional Clinical History */}
+              <View style={styles.clinicalHistoryCard}>
+                <View style={styles.clinicalHistoryHeader}>
+                  <View style={styles.clinicalHistoryTitleRow}>
+                    <Text style={styles.clinicalHistoryTitle}>Clinical History</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setIsClinicalHistoryExpanded((prev) => !prev)}
+                    style={styles.toggleBtn}
+                    disabled={isSubmitting}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isClinicalHistoryExpanded
+                        ? 'Collapse clinical history'
+                        : 'Expand clinical history'
+                    }
+                  >
+                    <Text style={styles.toggleBtnText}>
+                      {isClinicalHistoryExpanded ? 'Hide ▲' : '+ Add Details ▼'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.clinicalHistorySubtitle}>
+                  Provide additional health context for your doctor ahead of your visit.
+                </Text>
+
+                {isClinicalHistoryExpanded && (
+                  <View style={styles.clinicalFieldsContainer}>
+                    {/* 1. Chief Complaint */}
+                    <View style={styles.clinicalFieldGroup}>
+                      <Text style={styles.clinicalFieldLabel}>Chief Complaint</Text>
+                      <TextInput
+                        style={[styles.input, styles.clinicalTextArea]}
+                        value={clinicalHistory.chiefComplaint}
+                        onChangeText={(text) =>
+                          setClinicalHistory((prev) => ({ ...prev, chiefComplaint: text }))
+                        }
+                        placeholder="What is the main reason for your visit?"
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={2}
+                        maxLength={500}
+                        editable={!isSubmitting}
+                      />
+                      <Text style={styles.charCount}>
+                        {clinicalHistory.chiefComplaint.length}/500
+                      </Text>
+                    </View>
+
+                    {/* 2. History of Present Illness */}
+                    <View style={styles.clinicalFieldGroup}>
+                      <Text style={styles.clinicalFieldLabel}>History of Present Illness</Text>
+                      <TextInput
+                        style={[styles.input, styles.clinicalTextArea]}
+                        value={clinicalHistory.historyPresentIllness}
+                        onChangeText={(text) =>
+                          setClinicalHistory((prev) => ({ ...prev, historyPresentIllness: text }))
+                        }
+                        placeholder="Tell us about your current symptoms or concern."
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={2}
+                        maxLength={500}
+                        editable={!isSubmitting}
+                      />
+                      <Text style={styles.charCount}>
+                        {clinicalHistory.historyPresentIllness.length}/500
+                      </Text>
+                    </View>
+
+                    {/* 3. Past Medical History */}
+                    <View style={styles.clinicalFieldGroup}>
+                      <Text style={styles.clinicalFieldLabel}>Past Medical History</Text>
+                      <TextInput
+                        style={[styles.input, styles.clinicalTextArea]}
+                        value={clinicalHistory.pastMedicalHistory}
+                        onChangeText={(text) =>
+                          setClinicalHistory((prev) => ({ ...prev, pastMedicalHistory: text }))
+                        }
+                        placeholder="Previous illnesses, conditions, surgeries, or treatments."
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={2}
+                        maxLength={500}
+                        editable={!isSubmitting}
+                      />
+                      <Text style={styles.charCount}>
+                        {clinicalHistory.pastMedicalHistory.length}/500
+                      </Text>
+                    </View>
+
+                    {/* 4. Family History */}
+                    <View style={styles.clinicalFieldGroup}>
+                      <Text style={styles.clinicalFieldLabel}>Family History</Text>
+                      <TextInput
+                        style={[styles.input, styles.clinicalTextArea]}
+                        value={clinicalHistory.familyHistory}
+                        onChangeText={(text) =>
+                          setClinicalHistory((prev) => ({ ...prev, familyHistory: text }))
+                        }
+                        placeholder="Relevant medical conditions in your family."
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={2}
+                        maxLength={500}
+                        editable={!isSubmitting}
+                      />
+                      <Text style={styles.charCount}>
+                        {clinicalHistory.familyHistory.length}/500
+                      </Text>
+                    </View>
+
+                    {/* 5. Allergies / Sensitivities */}
+                    <View style={styles.clinicalFieldGroup}>
+                      <Text style={styles.clinicalFieldLabel}>Allergies / Sensitivities</Text>
+                      <TextInput
+                        style={[styles.input, styles.clinicalTextArea]}
+                        value={clinicalHistory.allergies}
+                        onChangeText={(text) =>
+                          setClinicalHistory((prev) => ({
+                            ...prev,
+                            allergies: text,
+                          }))
+                        }
+                        placeholder="Medicines, food, or other known allergies or sensitivities."
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={2}
+                        maxLength={500}
+                        editable={!isSubmitting}
+                      />
+                      <Text style={styles.charCount}>
+                        {clinicalHistory.allergies.length}/500
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+
+            {/* Submit / Cancel Actions */}
+            <View
+              style={[
+                styles.footer,
+                { paddingBottom: Math.max(insets.bottom, spacing.xs) },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={handleClose}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
+                onPress={handleSubmit}
+                disabled={isSubmitting}
+                activeOpacity={0.8}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Confirm Booking</Text>
+                )}
+              </TouchableOpacity>
             </View>
-          </TouchableWithoutFeedback>
+          </View>
         </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+      </Modal>
 
     {/* Doctor Selection Modal */}
     <Modal
@@ -1019,79 +903,80 @@ export function BookAppointmentModal({
       animationType="fade"
       onRequestClose={() => setIsDoctorPickerOpen(false)}
     >
-      <TouchableWithoutFeedback onPress={() => setIsDoctorPickerOpen(false)}>
-        <View style={styles.pickerOverlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.pickerCard}>
-              <View style={styles.pickerHeader}>
-                <View style={styles.pickerHeaderLeft}>
-                  <Text style={styles.pickerTitle}>Select Doctor</Text>
-                  <Text style={styles.pickerSubtitle}>
-                    {selectedDepartment
-                      ? `${selectedDepartment.name} Specialists`
-                      : 'Available Doctors'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setIsDoctorPickerOpen(false)}
-                  style={styles.pickerCloseBtn}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Close doctor selector"
-                >
-                  <Text style={styles.pickerCloseBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                style={styles.pickerListScroll}
-                contentContainerStyle={styles.pickerListContent}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled={true}
-              >
-                {doctors.length === 0 ? (
-                  <Text style={styles.pickerEmptyText}>No doctors available in this department.</Text>
-                ) : (
-                  doctors.map((doc) => {
-                    const isSelected = doc.id === doctorId;
-                    return (
-                      <TouchableOpacity
-                        key={doc.id}
-                        style={[
-                          styles.pickerItem,
-                          isSelected && styles.pickerItemSelected,
-                        ]}
-                        onPress={() => handleDoctorSelect(doc.id)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.pickerItemInfo}>
-                          <Text
-                            style={[
-                              styles.pickerItemTitle,
-                              isSelected && styles.pickerItemTitleSelected,
-                            ]}
-                          >
-                            {doc.display_name}
-                          </Text>
-                          <Text style={styles.pickerItemSubtitle}>
-                            {doc.specialization}
-                            {doc.qualification ? ` • ${doc.qualification}` : ''}
-                            {doc.experience_years ? ` • ${doc.experience_years} yrs exp` : ''}
-                          </Text>
-                        </View>
-                        {isSelected ? (
-                          <View style={styles.pickerCheckBadge}>
-                            <Text style={styles.pickerCheckText}>✓</Text>
-                          </View>
-                        ) : null}
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </ScrollView>
+      <View style={styles.pickerOverlay}>
+        <TouchableOpacity
+          style={styles.pickerBackdropTouchable}
+          activeOpacity={1}
+          onPress={() => setIsDoctorPickerOpen(false)}
+        />
+        <View style={styles.pickerCard}>
+          <View style={styles.pickerHeader}>
+            <View style={styles.pickerHeaderLeft}>
+              <Text style={styles.pickerTitle}>Select Doctor</Text>
+              <Text style={styles.pickerSubtitle}>
+                {selectedDepartment
+                  ? `${selectedDepartment.name} Specialists`
+                  : 'Available Doctors'}
+              </Text>
             </View>
-          </TouchableWithoutFeedback>
+            <TouchableOpacity
+              onPress={() => setIsDoctorPickerOpen(false)}
+              style={styles.pickerCloseBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Close doctor selector"
+            >
+              <Text style={styles.pickerCloseBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            style={styles.pickerListScroll}
+            contentContainerStyle={styles.pickerListContent}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+          >
+            {doctors.length === 0 ? (
+              <Text style={styles.pickerEmptyText}>No doctors available in this department.</Text>
+            ) : (
+              doctors.map((doc) => {
+                const isSelected = doc.id === doctorId;
+                return (
+                  <TouchableOpacity
+                    key={doc.id}
+                    style={[
+                      styles.pickerItem,
+                      isSelected && styles.pickerItemSelected,
+                    ]}
+                    onPress={() => handleDoctorSelect(doc.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.pickerItemInfo}>
+                      <Text
+                        style={[
+                          styles.pickerItemTitle,
+                          isSelected && styles.pickerItemTitleSelected,
+                        ]}
+                      >
+                        {doc.display_name}
+                      </Text>
+                      <Text style={styles.pickerItemSubtitle}>
+                        {doc.specialization}
+                        {doc.qualification ? ` • ${doc.qualification}` : ''}
+                        {doc.experience_years ? ` • ${doc.experience_years} yrs exp` : ''}
+                      </Text>
+                    </View>
+                    {isSelected ? (
+                      <View style={styles.pickerCheckBadge}>
+                        <Text style={styles.pickerCheckText}>✓</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   </>
   );
@@ -1103,13 +988,26 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'flex-end',
   },
+  backdropTouchable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  pickerBackdropTouchable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   card: {
     backgroundColor: colors.neutral.surface,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     maxHeight: '90%',
     paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl,
     ...shadows.modal,
   },
   header: {
@@ -1429,6 +1327,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.surfaceSubtle,
     borderColor: colors.border.subtle,
     opacity: 0.7,
+  },
+  selectTriggerLocked: {
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  lockedDeptBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dentalIcon: {
+    fontSize: 14,
+  },
+  lockedDeptText: {
+    ...typography.presets.bodySmallMedium,
+    color: '#0369A1',
+    fontWeight: '600',
   },
   selectTriggerLoading: {
     flexDirection: 'row',

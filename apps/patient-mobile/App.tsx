@@ -14,6 +14,7 @@ import { PatientProvider } from './src/portal/PatientContext';
 import { LoadingScreen } from './src/ui/screens/LoadingScreen';
 import { LoginScreen } from './src/ui/screens/LoginScreen';
 import { OtpScreen } from './src/ui/screens/OtpScreen';
+import { RegisterScreen } from './src/ui/screens/RegisterScreen';
 import { HomeScreen } from './src/ui/screens/HomeScreen';
 import { AppointmentsScreen } from './src/ui/screens/AppointmentsScreen';
 import { RecordsScreen } from './src/ui/screens/RecordsScreen';
@@ -88,6 +89,9 @@ function NavigationRoot() {
       return <LoginScreen />;
     case 'otpVerification':
       return <OtpScreen />;
+    case 'registrationDetails':
+    case 'registering':
+      return <RegisterScreen />;
     case 'authenticated':
       return <AuthenticatedApp />;
     case 'error':

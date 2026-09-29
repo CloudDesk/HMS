@@ -108,6 +108,7 @@ const doctorSchema = new Schema<DoctorFields>(
 doctorSchema.index({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } });
 doctorSchema.index({ displayName: 1 });
 doctorSchema.index({ branchId: 1, departmentId: 1, status: 1 });
+doctorSchema.index({ deletedAt: 1, status: 1, branchId: 1, departmentId: 1, displayName: 1 });
 doctorSchema.index({ specialization: 1 });
 doctorSchema.index({ registrationNumber: 1 }, { sparse: true });
 doctorSchema.index({ email: 1 }, { sparse: true });

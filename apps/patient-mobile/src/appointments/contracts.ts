@@ -124,7 +124,7 @@ export const bookAppointmentInputSchema = z.object({
   appointment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Valid date YYYY-MM-DD is required.'),
   start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Valid start time HH:MM is required.'),
   duration_minutes: z.number().int().min(5).max(240).default(15),
-  visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
+  visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']).optional().default('NEW_CONSULTATION'),
   reason: z.string().min(3, 'Provide a reason (minimum 3 characters).').max(500),
   utc_datetime: z.string().optional(),
   clinical_history: z

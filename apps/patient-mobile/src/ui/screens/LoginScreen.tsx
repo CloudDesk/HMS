@@ -16,15 +16,23 @@ import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export function LoginScreen() {
-  const { state, requestOtp } = useAuth();
+  const { state, requestOtp, setAuthMode, clearError } = useAuth();
   const [phone, setPhone] = useState(state.phone ?? '');
   const [localError, setLocalError] = useState<string | null>(null);
 
+  const isRegisterMode = state.authMode === 'register';
   const isSubmitting = state.status === 'requestingOtp';
   const displayError = state.message ?? localError;
 
+  const handleModeChange = (mode: 'login' | 'register') => {
+    setLocalError(null);
+    clearError();
+    setAuthMode(mode);
+  };
+
   const handleSubmit = async () => {
     setLocalError(null);
+    clearError();
     const cleaned = phone.trim();
     if (!cleaned) {
       setLocalError('Please enter your mobile number.');
@@ -35,7 +43,7 @@ export function LoginScreen() {
       setLocalError('Enter a valid mobile number (at least 7 digits).');
       return;
     }
-    await requestOtp(cleaned);
+    await requestOtp(cleaned, isRegisterMode ? 'register' : 'login');
   };
 
   return (
@@ -47,22 +55,56 @@ export function LoginScreen() {
         <View style={styles.card}>
           <View style={styles.header}>
             <BrandLogo size="lg" />
-            <Text style={styles.subtitle}>
-              Access your appointments, records and care information.
+            <Text style={styles.title}>
+              {isRegisterMode ? 'New Patient Registration' : 'Welcome to MyCare'}
             </Text>
+            <Text style={styles.subtitle}>
+              {isRegisterMode
+                ? 'Enter your mobile number to create your MyCare profile and link your health records.'
+                : 'Access your appointments, records and care information.'}
+            </Text>
+          </View>
+
+          {/* Mode Switcher Tabs */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tabButton, !isRegisterMode && styles.tabButtonActive]}
+              onPress={() => handleModeChange('login')}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.tabButtonText, !isRegisterMode && styles.tabButtonTextActive]}>
+                Sign In
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabButton, isRegisterMode && styles.tabButtonActive]}
+              onPress={() => handleModeChange('register')}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.tabButtonText, isRegisterMode && styles.tabButtonTextActive]}>
+                New Patient
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {state.errorDetails || displayError ? (
             <View style={styles.errorContainer}>
               <ErrorDiagnosticView
                 error={state.errorDetails ?? displayError}
-                onDismiss={localError ? () => setLocalError(null) : undefined}
+                onDismiss={() => {
+                  if (localError) setLocalError(null);
+                  clearError();
+                }}
               />
             </View>
           ) : null}
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Registered Mobile Number</Text>
+            <Text style={styles.label}>
+              {isRegisterMode ? 'Mobile Number for Registration' : 'Registered Mobile Number'}
+            </Text>
             <View style={styles.inputRow}>
               <View style={styles.countryCodeBadge}>
                 <Text style={styles.countryCodeText}>🇮🇳 +91</Text>
@@ -78,6 +120,7 @@ export function LoginScreen() {
                 onChangeText={(text) => {
                   setPhone(text);
                   if (localError) setLocalError(null);
+                  if (state.message || state.errorDetails) clearError();
                 }}
                 editable={!isSubmitting}
               />
@@ -93,16 +136,36 @@ export function LoginScreen() {
             {isSubmitting ? (
               <ActivityIndicator color={colors.text.inverse} size="small" />
             ) : (
-              <Text style={styles.buttonText}>Continue</Text>
+              <Text style={styles.buttonText}>
+                {isRegisterMode ? 'Verify Mobile & Continue' : 'Continue to Sign In'}
+              </Text>
             )}
           </TouchableOpacity>
 
           <View style={styles.footer}>
-            <View style={styles.footerBadge}>
-              <Text style={styles.footerNotice}>
-                Existing accounts only. New patient registration and guardian linking must be completed through Patient Web or hospital reception.
-              </Text>
-            </View>
+            {isRegisterMode ? (
+              <TouchableOpacity
+                style={styles.switchModeLink}
+                onPress={() => handleModeChange('login')}
+                disabled={isSubmitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.switchModePrompt}>
+                  Already have an account? <Text style={styles.linkHighlight}>Sign In</Text>
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.switchModeLink}
+                onPress={() => handleModeChange('register')}
+                disabled={isSubmitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.switchModePrompt}>
+                  New patient? <Text style={styles.linkHighlight}>Register here</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -130,15 +193,49 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  title: {
+    ...typography.presets.screenTitle,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginTop: spacing.md,
   },
   subtitle: {
     ...typography.presets.bodySmall,
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: typography.lineHeight.relaxed,
-    marginTop: spacing.sm,
-    maxWidth: 280,
+    marginTop: spacing.xs,
+    maxWidth: 290,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.xxs,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.neutral.surface,
+    ...shadows.subtle,
+  },
+  tabButtonText: {
+    ...typography.presets.bodySmallStrong,
+    color: colors.text.secondary,
+  },
+  tabButtonTextActive: {
+    color: colors.brand.primaryDark,
+    fontWeight: typography.weight.bold,
   },
   errorContainer: {
     marginBottom: spacing.lg,
@@ -199,19 +296,21 @@ const styles = StyleSheet.create({
     letterSpacing: typography.letterSpacing.wide,
   },
   footer: {
-    marginTop: spacing.xxl,
+    marginTop: spacing.xl,
+    alignItems: 'center',
   },
-  footerBadge: {
-    backgroundColor: colors.neutral.surfaceSubtle,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
+  switchModeLink: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
-  footerNotice: {
-    ...typography.presets.caption,
+  switchModePrompt: {
+    ...typography.presets.bodySmall,
     color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: typography.lineHeight.normal,
+  },
+  linkHighlight: {
+    ...typography.presets.bodySmallStrong,
+    color: colors.brand.primary,
+    fontWeight: typography.weight.bold,
   },
 });

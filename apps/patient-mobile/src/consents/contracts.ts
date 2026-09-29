@@ -77,14 +77,18 @@ export function mapDocumentsToConsentItems(
 
   return consentForms.map((form) => {
     const signature = consentSignatures.find((sig) => sig.context_id === form.id);
-    const isSigned = Boolean(signature);
+    const isSigned =
+      Boolean(signature) ||
+      form.consent_status === 'SIGNED' ||
+      form.consent_status === 'VERIFIED' ||
+      form.review_status === 'VERIFIED';
 
     let status: ConsentStatus;
     if (form.consent_status === 'EXPIRED') {
       status = 'EXPIRED';
     } else if (form.consent_status === 'REJECTED') {
       status = 'REJECTED';
-    } else if (form.review_status === 'VERIFIED') {
+    } else if (form.review_status === 'VERIFIED' || form.consent_status === 'VERIFIED') {
       status = 'VERIFIED';
     } else if (isSigned) {
       status = 'SIGNED';

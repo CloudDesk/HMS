@@ -3,16 +3,39 @@ import { ApiFailure, friendlyError, toApiFailure } from '../api/errors';
 import type { Connectivity, MobileTransport } from '../api/transport';
 import type { SessionStore } from '../storage/session-store';
 import type { AuthApi } from './auth-api';
-import { otpFormSchema, phoneSchema, type NativeSession, type PublicUser, type SavedSession } from './contracts';
+import {
+  otpFormSchema,
+  phoneSchema,
+  registrationFormSchema,
+  type NativeSession,
+  type PublicUser,
+  type RegistrationFormValues,
+  type SavedSession,
+} from './contracts';
 
 export type AuthState = {
-  status: 'initializing' | 'unauthenticated' | 'requestingOtp' | 'otpVerification' | 'authenticated' | 'refreshing' | 'loggingOut' | 'error';
-  user?: PublicUser; phone?: string; resendAt?: number; message?: string;
+  status:
+    | 'initializing'
+    | 'unauthenticated'
+    | 'requestingOtp'
+    | 'otpVerification'
+    | 'registrationDetails'
+    | 'registering'
+    | 'authenticated'
+    | 'refreshing'
+    | 'loggingOut'
+    | 'error';
+  authMode?: 'login' | 'register';
+  user?: PublicUser;
+  phone?: string;
+  registrationToken?: string;
+  resendAt?: number;
+  message?: string;
   recovery?: 'restore' | 'reauth' | 'storage';
   errorDetails?: ApiFailure;
 };
 export class SessionManager {
-  private state: AuthState = { status: 'initializing' };
+  private state: AuthState = { status: 'initializing', authMode: 'login' };
   private listeners = new Set<() => void>();
   private access?: { value: string; expiresAt: number };
   private saved: SavedSession | null = null;
@@ -39,7 +62,7 @@ export class SessionManager {
       const saved = await this.store.initialize();
       if (generation !== this.generation) return;
       this.saved = saved;
-      if (!saved) { this.set({ status: 'unauthenticated' }); return; }
+      if (!saved) { this.set({ status: 'unauthenticated', authMode: 'login' }); return; }
       if (Date.parse(saved.expiresAt) <= this.now()) { await this.invalidate(); return; }
       if (saved.status === 'in-flight') {
         saved.status = 'ready';
@@ -52,36 +75,72 @@ export class SessionManager {
       if (saved.status !== 'ready') { this.uncertain(); return; }
       await this.refresh();
     } catch {
-      this.set({ status: 'unauthenticated' });
+      this.set({ status: 'unauthenticated', authMode: 'login' });
     }
   }
-  async requestOtp(rawPhone: string) {
+  setAuthMode(mode: 'login' | 'register') {
+    if (this.state.status === 'unauthenticated' || this.state.status === 'otpVerification') {
+      this.set({ ...this.state, authMode: mode, message: undefined, errorDetails: undefined });
+    }
+  }
+  clearError() {
+    if (this.state.message || this.state.errorDetails) {
+      this.set({ ...this.state, message: undefined, errorDetails: undefined });
+    }
+  }
+  async requestOtp(rawPhone: string, mode?: 'login' | 'register') {
     if (!['unauthenticated', 'otpVerification'].includes(this.state.status)) return;
     const parsed = phoneSchema.safeParse(rawPhone);
-    if (!parsed.success) { this.set({ ...this.state, message: 'Enter a valid phone number, including country code.' }); return; }
-    if (this.state.phone === parsed.data && (this.state.resendAt ?? 0) > this.now()) return;
+    if (!parsed.success) { this.set({ ...this.state, message: 'Enter a valid phone number, including country code.', errorDetails: undefined }); return; }
+    if (this.state.phone === parsed.data && (this.state.resendAt ?? 0) > this.now()) {
+      const remainingSec = Math.max(1, Math.ceil(((this.state.resendAt ?? 0) - this.now()) / 1000));
+      this.set({ ...this.state, message: `Please wait ${remainingSec}s before requesting a new code.`, errorDetails: undefined });
+      return;
+    }
+    const targetMode = mode ?? this.state.authMode ?? 'login';
     const previous = this.state;
     const generation = this.generation;
-    this.set({ ...previous, status: 'requestingOtp', message: undefined });
+    this.set({ ...previous, status: 'requestingOtp', authMode: targetMode, message: undefined, errorDetails: undefined });
     try {
       if (!await this.online()) throw new ApiFailure('offline');
       const response = await this.api.requestOtp(parsed.data);
-      if (generation === this.generation) this.set({ status: 'otpVerification', phone: parsed.data, resendAt: Date.parse(response.resendAvailableAt), errorDetails: undefined });
+      if (generation === this.generation) {
+        this.set({
+          status: 'otpVerification',
+          authMode: targetMode,
+          phone: parsed.data,
+          resendAt: Date.parse(response.resendAvailableAt),
+          errorDetails: undefined,
+          message: undefined,
+        });
+      }
     } catch (error) {
       if (generation === this.generation) {
         this.set({
           ...previous,
           message: friendlyError(error),
-          errorDetails: toApiFailure(error, '/patient-portal/mobile/auth/request-otp', 'POST'),
+          errorDetails: toApiFailure(error, '/patient-portal/otp/request', 'POST'),
         });
       }
     }
   }
   backToPhone() {
-    if (this.state.status === 'otpVerification') this.set({ status: 'unauthenticated', phone: this.state.phone });
+    if (this.state.status === 'otpVerification' || this.state.status === 'registrationDetails') {
+      this.set({
+        status: 'unauthenticated',
+        authMode: this.state.authMode ?? 'login',
+        phone: this.state.phone,
+        registrationToken: undefined,
+        message: undefined,
+        errorDetails: undefined,
+      });
+    }
   }
   async verifyOtp(otp: string) {
     if (this.state.status !== 'otpVerification' || !this.state.phone) return;
+    if (this.state.authMode === 'register') {
+      return this.verifyRegistrationOtp(otp);
+    }
     const parsed = otpFormSchema.safeParse({ otp });
     if (!parsed.success) { this.set({ ...this.state, message: 'Enter the four-digit verification code.' }); return; }
     const previous = this.state;
@@ -99,10 +158,104 @@ export class SessionManager {
         this.set({
           ...previous,
           message: friendlyError(error),
-          errorDetails: toApiFailure(error, '/patient-portal/mobile/auth/login', 'POST'),
+          errorDetails: toApiFailure(error, '/patient-portal/login/otp', 'POST'),
         });
       }
     }
+  }
+  async verifyRegistrationOtp(otp: string) {
+    if (this.state.status !== 'otpVerification' || !this.state.phone) return;
+    const parsed = otpFormSchema.safeParse({ otp });
+    if (!parsed.success) {
+      this.set({ ...this.state, message: 'Enter the four-digit verification code.' });
+      return;
+    }
+    const previous = this.state;
+    const phone = this.state.phone;
+    const generation = this.generation;
+    this.set({ ...previous, status: 'requestingOtp', message: undefined, errorDetails: undefined });
+    try {
+      if (!await this.online()) throw new ApiFailure('offline');
+      const registrationToken = await this.api.verifyRegistrationOtp(phone, parsed.data.otp);
+      if (generation === this.generation) {
+        this.set({
+          status: 'registrationDetails',
+          authMode: 'register',
+          phone,
+          registrationToken,
+          errorDetails: undefined,
+          message: undefined,
+        });
+      }
+    } catch (error) {
+      if (generation === this.generation) {
+        this.set({
+          ...previous,
+          message: friendlyError(error),
+          errorDetails: toApiFailure(error, '/patient-portal/otp/verify', 'POST'),
+        });
+      }
+    }
+  }
+  async registerPatient(values: RegistrationFormValues) {
+    if (this.state.status !== 'registrationDetails' || !this.state.phone || !this.state.registrationToken) return;
+    const parsed = registrationFormSchema.safeParse(values);
+    if (!parsed.success) {
+      this.set({ ...this.state, message: parsed.error.issues[0]?.message ?? 'Invalid registration details.' });
+      return;
+    }
+    const previous = this.state;
+    const phone = this.state.phone;
+    const registrationToken = this.state.registrationToken;
+    const generation = this.generation;
+    this.set({ ...previous, status: 'registering', message: undefined, errorDetails: undefined });
+    try {
+      if (!await this.online()) throw new ApiFailure('offline');
+      const result = await this.api.signup({
+        fullName: parsed.data.fullName,
+        email: parsed.data.email,
+        phone,
+        registrationToken,
+        platform: this.device.platform,
+        appVersion: this.device.appVersion,
+      });
+      if (generation !== this.generation) {
+        await this.revokeQuietly(result.tokens.refreshToken);
+        return;
+      }
+
+      try {
+        await this.api.completeProfile(result.tokens.accessToken, parsed.data);
+      } catch (profileError) {
+        if (!(profileError instanceof ApiFailure && profileError.status === 409)) {
+          throw profileError;
+        }
+      }
+
+      await this.accept(result, generation);
+    } catch (error) {
+      if (generation === this.generation) {
+        this.set({
+          ...previous,
+          status: 'registrationDetails',
+          message: friendlyError(error),
+          errorDetails: toApiFailure(error, '/patient-portal/signup', 'POST'),
+        });
+      }
+    }
+  }
+  cancelRegistration() {
+    this.set({
+      status: 'unauthenticated',
+      authMode: 'login',
+      phone: this.state.phone,
+      registrationToken: undefined,
+      message: undefined,
+      errorDetails: undefined,
+    });
+  }
+  async getPublicBranches() {
+    return this.api.getPublicBranches();
   }
   private async accept(result: NativeSession, generation: number) {
     const saved: SavedSession = { refreshToken: result.tokens.refreshToken, sessionId: result.session.id,
@@ -256,7 +409,7 @@ export class SessionManager {
     try { await this.store.clear(); } catch { this.storageError(); await revocation; return; }
     const revoked = await revocation;
     this.set({ status: 'unauthenticated', message: revoked ? undefined
-      : 'Signed out on this device. The server could not be reached to confirm session revocation.' });
+      : 'Signed out on this device. The server could not be reached to confirm session revocation.', errorDetails: undefined });
   }
   private async revokeQuietly(proof: string): Promise<boolean> {
     try { if (!await this.online()) return false; await this.api.logout(proof); return true; } catch { return false; }
@@ -264,7 +417,7 @@ export class SessionManager {
   private async invalidate() {
     ++this.generation; this.saved = null; this.access = undefined;
     try { await this.store.clear();
-      this.set({ status: 'unauthenticated', message: 'Your session has expired. Please sign in again.' });
+      this.set({ status: 'unauthenticated', message: 'Your session has expired. Please sign in again.', errorDetails: undefined });
     } catch { this.storageError(); }
   }
 }

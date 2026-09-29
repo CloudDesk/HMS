@@ -27,6 +27,10 @@ const otpChallengeSchema = new Schema<OtpChallengeFields>(
   { timestamps: true }
 );
 
+// Compound indexes for fast challenge lookup, verification, and sorting
+otpChallengeSchema.index({ phone: 1, createdAt: -1 });
+otpChallengeSchema.index({ phone: 1, verifiedAt: 1, expiresAt: 1 });
+
 // TTL index to automatically remove challenges after they expire
 otpChallengeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 

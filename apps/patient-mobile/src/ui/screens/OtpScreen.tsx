@@ -63,6 +63,8 @@ export function OtpScreen() {
 
   const digits = [otp[0] ?? '', otp[1] ?? '', otp[2] ?? '', otp[3] ?? ''];
 
+  const isRegisterMode = state.authMode === 'register';
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -72,7 +74,9 @@ export function OtpScreen() {
         <View style={styles.card}>
           <View style={styles.header}>
             <BrandLogo size="md" />
-            <Text style={styles.title}>Verify your MyCare account</Text>
+            <Text style={styles.title}>
+              {isRegisterMode ? 'Verify Mobile Number' : 'Verify your MyCare account'}
+            </Text>
             <Text style={styles.subtitle}>
               Enter the 4-digit verification code sent to{'\n'}
               <Text style={styles.phoneHighlight}>{phone || 'your mobile number'}</Text>
@@ -137,7 +141,9 @@ export function OtpScreen() {
             {isSubmitting ? (
               <ActivityIndicator color={colors.text.inverse} size="small" />
             ) : (
-              <Text style={styles.primaryButtonText}>Verify & Sign In</Text>
+              <Text style={styles.primaryButtonText}>
+                {isRegisterMode ? 'Verify & Continue' : 'Verify & Sign In'}
+              </Text>
             )}
           </TouchableOpacity>
 
