@@ -31,7 +31,8 @@ describe('Dental consultation without vitals', () => {
   const patients = new PatientRepository();
   const consultations = new OpdConsultationRepository();
   const appointments = new AppointmentRepository();
-  const service = new OpdVisitService(visits, appointments, patients, new DoctorRepository(),
+  const doctors = new DoctorRepository();
+  const service = new OpdVisitService(visits, appointments, patients, doctors,
     consultations, new SequenceService(), new NotificationService(new NotificationRepository()));
 
   beforeEach(() => {
@@ -105,5 +106,23 @@ describe('Dental consultation without vitals', () => {
       updated_by: id, created_at: new Date(), updated_at: new Date(),
     });
     await expect(areVitalsOptional({ ...visit, doctor_specialization: 'General Medicine' })).resolves.toBe(true);
+  });
+
+  it('limits a linked doctor to their own OPD queue records', async () => {
+    vi.spyOn(visits, 'reconcileStaleVisits').mockResolvedValue(0);
+    vi.spyOn(doctors, 'getByUserId').mockResolvedValue({ id } as Awaited<ReturnType<DoctorRepository['getByUserId']>>);
+    const list = vi.spyOn(visits, 'list').mockResolvedValue({ data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 1 } });
+
+    await service.list({ limit: 10 }, id);
+
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ doctor_id: id }), [id]);
+  });
+
+  it('rejects a linked doctor requesting another doctor queue', async () => {
+    vi.spyOn(visits, 'reconcileStaleVisits').mockResolvedValue(0);
+    vi.spyOn(doctors, 'getByUserId').mockResolvedValue({ id } as Awaited<ReturnType<DoctorRepository['getByUserId']>>);
+
+    await expect(service.list({ doctor_id: '507f1f77bcf86cd799439012' }, id))
+      .rejects.toMatchObject({ code: 'DOCTOR_SCOPE_DENIED' });
   });
 });

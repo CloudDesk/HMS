@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState }
 import type { DentitionType, HistoricalToothFinding, ToothFinding } from '../../../api/opd';
 import { getToothName, PERMANENT_QUADRANTS, PRIMARY_QUADRANTS } from '../../../pages/dental-utils';
 import { AnatomicalMouthBackground, AnatomicalMouthForeground } from './AnatomicalMouthArtwork';
-import type { AnatomicalCallout, CameraPreset, OralCavity3DController } from './dental-3d-scene';
+import type { AnatomicalCallout, OralCavity3DController } from './dental-3d-scene';
 import styles from './DentalExamination.module.css';
 
 interface OdontogramChartProps {
@@ -456,7 +456,6 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
   const sceneControllerRef = useRef<OralCavity3DController | null>(null);
   const calloutRefreshFrameRef = useRef<number | null>(null);
   const pointerStateRef = useRef({ down: false, lastX: 0, lastY: 0, button: 0, moved: false });
-  const [activePreset, setActivePreset] = useState<CameraPreset>('clinical');
   const [calloutOverlay, setCalloutOverlay] = useState<{
     callouts: AnatomicalCallout[];
     width: number;
@@ -552,47 +551,30 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
     sceneControllerRef.current?.setDentition(dentitionView);
   }, [viewMode, dentitionView]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    pointerStateRef.current = { down: true, lastX: e.clientX, lastY: e.clientY, button: e.button, moved: false };
+  const handlePointerDown = useCallback((_e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Fixed anatomical view: drag rotation disabled
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!pointerStateRef.current.down) return;
-    const dx = e.clientX - pointerStateRef.current.lastX;
-    const dy = e.clientY - pointerStateRef.current.lastY;
-    if (Math.abs(dx) + Math.abs(dy) > 2) pointerStateRef.current.moved = true;
-    pointerStateRef.current.lastX = e.clientX;
-    pointerStateRef.current.lastY = e.clientY;
+    // Show pointer cursor when hovering over an interactive tooth
     const sc = sceneControllerRef.current;
-    if (!sc) return;
-    if (pointerStateRef.current.button === 2) {
-      sc.pan(dx * 0.003, dy * 0.003);
-    } else {
-      sc.rotate(dx * 0.4, dy * 0.4);
+    if (sc && !disabled) {
+      const hoveredTooth = sc.pickTooth(e.clientX, e.clientY);
+      e.currentTarget.style.cursor = hoveredTooth ? 'pointer' : 'default';
     }
-    refresh3DCallouts();
-  }, [refresh3DCallouts]);
+  }, [disabled]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!pointerStateRef.current.moved && !disabled) {
+    if (!disabled) {
       const pickedTooth = sceneControllerRef.current?.pickTooth(e.clientX, e.clientY);
       if (pickedTooth) onSelectTooth(pickedTooth);
     }
-    pointerStateRef.current.down = false;
   }, [disabled, onSelectTooth]);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    sceneControllerRef.current?.zoom(e.deltaY * 0.001);
-    refresh3DCallouts();
-  }, [refresh3DCallouts]);
-
-  const applyPreset = useCallback((preset: CameraPreset) => {
-    setActivePreset(preset);
-    sceneControllerRef.current?.setCameraPreset(preset);
-    refresh3DCallouts();
-  }, [refresh3DCallouts]);
+    // Fixed anatomical view: zoom disabled to keep teeth locked in mouth artwork
+  }, []);
 
   const renderArch = (arch: Arch) => {
     const numbers = archTeeth(dentitionView, arch);
@@ -690,7 +672,7 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
             type="button"
             className={`${styles.viewToggleBtn} ${viewMode === '3d' ? styles.viewToggleBtnActive : ''}`}
             onClick={() => setViewMode('3d')}
-            title="3D Interactive Model — drag to rotate, scroll to zoom"
+            title="3D Anatomical View — select a tooth to chart findings"
           >
             <i className="ph ph-cube" aria-hidden="true" />
             <span>3D View</span>
@@ -762,11 +744,10 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
           <canvas
             ref={canvasRef}
             className={styles.oralCavity3DCanvas}
-            aria-label="Interactive 3D dental model — drag to rotate, scroll to zoom, right-drag to pan"
+            aria-label="Interactive 3D dental model — select a tooth to chart findings"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            onPointerLeave={() => { pointerStateRef.current.down = false; }}
             onWheel={handleWheel}
             onContextMenu={(e) => e.preventDefault()}
             tabIndex={0}
@@ -817,32 +798,7 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
           ) : null}
           <div className={styles.oralAnatomyCaption}>
             <strong>Interactive Oral Anatomy</strong>
-            <span>Drag to rotate · Scroll to zoom · Select a tooth to chart findings</span>
-          </div>
-          <div className={styles.cameraToolbar} role="toolbar" aria-label="Camera views">
-            {(['clinical', 'upper', 'lower', 'anterior', 'occlusal', 'right', 'left'] as CameraPreset[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                className={`${styles.cameraBtn} ${activePreset === p ? styles.cameraBtnActive : ''}`}
-                onClick={() => applyPreset(p)}
-                title={`Camera: ${p} view`}
-              >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={styles.cameraBtn}
-              onClick={() => {
-                sceneControllerRef.current?.resetView();
-                setActivePreset('clinical');
-                refresh3DCallouts();
-              }}
-              title="Reset camera to default position"
-            >
-              Reset
-            </button>
+            <span>Select a tooth to chart findings</span>
           </div>
           {/* Accessible arch sections for DOM test compatibility */}
           <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }}>

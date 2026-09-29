@@ -131,6 +131,131 @@
   margin-top: 0.75rem;
 }
 
+.appointment-intake-modal {
+  width: min(760px, 94vw);
+}
+
+.appointment-intake {
+  margin-top: 1rem;
+  overflow: hidden;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.appointment-intake-modal .appointment-intake {
+  margin-top: 0;
+}
+
+.appointment-intake-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #dbeafe;
+  background: #eff6ff;
+}
+
+.appointment-intake-icon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: #dbeafe;
+  color: #2563eb;
+  font-size: 1.1rem;
+}
+
+.appointment-intake-header h4,
+.appointment-intake-header p {
+  margin: 0;
+}
+
+.appointment-intake-header h4 {
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.appointment-intake-header p {
+  margin-top: 0.15rem;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.appointment-intake-source {
+  margin-left: auto;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: #dcfce7;
+  padding: 0.25rem 0.55rem;
+  color: #166534;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.appointment-intake-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+
+.appointment-intake-grid > div {
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.appointment-intake-grid > div:nth-child(even),
+.appointment-intake-grid > div.wide {
+  border-right: 0;
+}
+
+.appointment-intake-grid > div.wide {
+  grid-column: 1 / -1;
+}
+
+.appointment-intake-grid dt {
+  margin-bottom: 0.3rem;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+.appointment-intake-grid dd {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .appointment-intake-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .appointment-intake-source {
+    margin-left: 42px;
+  }
+
+  .appointment-intake-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-intake-grid > div {
+    grid-column: 1;
+    border-right: 0;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Appointment Booking Wizard & Step Progress Bar
 ────────────────────────────────────────────────────────────────────────────── */

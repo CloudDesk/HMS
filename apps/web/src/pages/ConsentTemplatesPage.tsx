@@ -347,6 +347,8 @@ export function ConsentTemplatesPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? 'Edit Consent Template Information' : 'Add Consent Template — Step 1: Information'}
+        icon="ph-file-text"
+        size="large"
       >
         <form className="modal-form" onSubmit={handleNextToBuilder}>
           <div className="doc-form-grid">
@@ -373,6 +375,9 @@ export function ConsentTemplatesPage() {
                   ))
                 )}
               </select>
+              <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                Assigned branch scope
+              </small>
             </div>
 
             <div className="doc-field">
@@ -402,6 +407,9 @@ export function ConsentTemplatesPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
+              <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                Clinical template title
+              </small>
             </div>
 
             <div className="doc-field">
@@ -420,6 +428,9 @@ export function ConsentTemplatesPage() {
                   <option key={cat} value={cat} />
                 ))}
               </datalist>
+              <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                Specialty or care classification
+              </small>
             </div>
 
             <div className="doc-field">
@@ -434,6 +445,9 @@ export function ConsentTemplatesPage() {
                 <option value="PROCEDURE">Procedure</option>
                 <option value="ADMISSION">Admission</option>
               </select>
+              <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                Clinical workflow trigger point
+              </small>
             </div>
 
             <div className="doc-field">
@@ -447,20 +461,110 @@ export function ConsentTemplatesPage() {
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
               </select>
+              <small style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                Publication lifecycle state
+              </small>
             </div>
 
-            <div className="doc-field" style={{ gridColumn: 'span 2' }}>
-              <label className="form-checkbox" style={{ cursor: 'pointer' }}>
+            <div className="doc-field full" style={{ gridColumn: '1 / -1', marginTop: '0.35rem' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '1rem 1.25rem',
+                  background: form.mandatory ? '#eff6ff' : '#f8fafc',
+                  border: `1.5px solid ${form.mandatory ? '#3b82f6' : '#e2e8f0'}`,
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  userSelect: 'none',
+                  boxShadow: form.mandatory ? '0 2px 8px rgba(37, 99, 235, 0.08)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+                  {/* Custom Toggle Switch */}
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      width: '42px',
+                      height: '24px',
+                      borderRadius: '12px',
+                      backgroundColor: form.mandatory ? '#2563eb' : '#cbd5e1',
+                      position: 'relative',
+                      transition: 'background-color 0.2s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffffff',
+                        position: 'absolute',
+                        top: '3px',
+                        left: form.mandatory ? '21px' : '3px',
+                        transition: 'left 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontWeight: 650,
+                          color: form.mandatory ? '#1d4ed8' : '#1e293b',
+                          fontSize: '0.88rem',
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        Mandatory before confirmation
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          backgroundColor: form.mandatory ? '#dbeafe' : '#f1f5f9',
+                          color: form.mandatory ? '#1e40af' : '#64748b',
+                          border: form.mandatory ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                        }}
+                      >
+                        {form.mandatory ? 'Strict Enforcement' : 'Optional'}
+                      </span>
+                    </div>
+                    <small
+                      style={{
+                        color: '#64748b',
+                        fontSize: '0.78rem',
+                        lineHeight: 1.4,
+                        display: 'block',
+                      }}
+                    >
+                      If enabled, clinical procedures or admission confirmation will be blocked until signed.
+                    </small>
+                  </div>
+                </div>
+
                 <input
+                  type="checkbox"
                   checked={form.mandatory}
                   onChange={(e) => setForm({ ...form, mandatory: e.target.checked })}
-                  type="checkbox"
-                />{' '}
-                <strong>Mandatory before confirmation</strong>
+                  style={{
+                    position: 'absolute',
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    width: 0,
+                    height: 0,
+                  }}
+                />
               </label>
-              <small style={{ color: '#64748b', fontSize: '0.72rem', display: 'block', marginTop: '2px' }}>
-                If enabled, clinical procedures or admission confirmation will be blocked until signed.
-              </small>
             </div>
           </div>
 

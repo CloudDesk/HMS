@@ -33,6 +33,14 @@ export type AppointmentDentalContext = {
   stage_name?: string | null;
 };
 
+export type AppointmentConsultationIntake = {
+  chief_complaint?: string | null;
+  history_present_illness?: string | null;
+  past_history?: string | null;
+  family_history?: string | null;
+  allergies?: string | null;
+};
+
 export type AppointmentResponse = {
   id: string;
   appointment_number: string;
@@ -55,6 +63,7 @@ export type AppointmentResponse = {
   status: ApiAppointmentStatus;
   reason: string | null;
   notes: string | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
   dental_context?: AppointmentDentalContext | null;
   created_by: string | null;
   updated_by: string | null;
@@ -105,13 +114,7 @@ export type SaveAppointmentPayload = {
   priority?: ApiAppointmentPriority;
   reason?: string | null;
   notes?: string | null;
-  consultation_intake?: {
-    chief_complaint?: string | null;
-    history_present_illness?: string | null;
-    past_history?: string | null;
-    family_history?: string | null;
-    allergies?: string | null;
-  } | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
 };
 export type UpdateAppointmentPayload = Partial<SaveAppointmentPayload> & { reschedule_reason?: string | null };
 

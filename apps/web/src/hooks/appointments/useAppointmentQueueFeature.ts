@@ -270,7 +270,6 @@ export function useAppointmentQueueFeature() {
       throw new Error('Vitals can only be recorded while the patient is checked in or waiting for vitals.');
     }
     await createVitals.mutateAsync({ visitId: visit.id, payload });
-    await updateVisit.mutateAsync({ id: visit.id, payload: { status: 'READY_FOR_CONSULTATION' } });
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: opdKeys.visits() }),
       queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() }),

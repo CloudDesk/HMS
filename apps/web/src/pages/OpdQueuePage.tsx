@@ -4,6 +4,7 @@ import type { ApiOpdVisitPriority, ApiOpdVisitStatus, OpdVisitResponse } from '.
 import { useOpdQueue, type OpdQueueFilters } from '../hooks/opd/useOpdQueue';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
+import { isDentalVisit } from './dental-utils';
 import {
   getOpdErrorMessage,
   isActiveVisit,
@@ -19,6 +20,7 @@ type StatusFilter = Extract<ApiOpdVisitStatus, 'READY_FOR_CONSULTATION' | 'IN_CO
 type PriorityFilter = ApiOpdVisitPriority | '';
 
 const clinicianStatuses = new Set<ApiOpdVisitStatus>(['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'SKIPPED', 'COMPLETED']);
+const dentalCheckInStatuses = new Set<ApiOpdVisitStatus>(['CHECKED_IN', 'WAITING_FOR_VITALS']);
 
 const tokenFor = (visit: OpdVisitResponse, index: number) =>
   `O${String(visit.queue_token_number ?? index + 1).padStart(3, '0')}`;
@@ -69,8 +71,15 @@ export function OpdQueuePage() {
     if (window.location.pathname + window.location.search !== nextUrl) navigate(nextUrl, { replace: true });
   }, [filters, isDoctorUser]);
 
-  const clinicianVisits = useMemo(() => visits.filter((visit) => clinicianStatuses.has(visit.status)).sort(visitSort), [visits]);
-  const readyVisits = clinicianVisits.filter((visit) => visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED');
+  const clinicianVisits = useMemo(() => visits.filter((visit) =>
+    clinicianStatuses.has(visit.status)
+    || (dentalCheckInStatuses.has(visit.status) && isDentalVisit(visit, departments)),
+  ).sort(visitSort), [departments, visits]);
+  const readyVisits = clinicianVisits.filter((visit) =>
+    visit.status === 'READY_FOR_CONSULTATION'
+    || visit.status === 'SKIPPED'
+    || (dentalCheckInStatuses.has(visit.status) && isDentalVisit(visit, departments)),
+  );
   const inConsultation = clinicianVisits.filter((visit) => visit.status === 'IN_CONSULTATION');
   const completed = clinicianVisits.filter((visit) => visit.status === 'COMPLETED');
   const averageWait = readyVisits.length ? Math.round(readyVisits.reduce((total, visit) => total + waitMinutes(visit), 0) / readyVisits.length) : 0;
@@ -176,6 +185,7 @@ export function OpdQueuePage() {
                 </tr>
               ) : paginatedVisits.map((visit, index) => {
                 const globalIndex = (page - 1) * pageSize + index;
+                const isDentalCheckIn = dentalCheckInStatuses.has(visit.status) && isDentalVisit(visit, departments);
                 return (
                 <tr key={visit.id}>
                   <td><span className="queue-token-chip">{tokenFor(visit, globalIndex)}</span></td>
@@ -185,7 +195,7 @@ export function OpdQueuePage() {
                   <td><span className={`doc-status ${visitPriorityClass(visit.priority)}`}>{opdVisitPriorityLabels[visit.priority]}</span></td>
                   <td><span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span></td>
                   <td className="align-right"><div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
-                    {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED') && canEditConsultation && canEditVisit ? <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> Start Consultation</button> : null}
+                    {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED' || isDentalCheckIn) && canEditConsultation && canEditVisit ? <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> {isDentalCheckIn ? 'Start Dental Consultation' : 'Start Consultation'}</button> : null}
                     {visit.status === 'IN_CONSULTATION' && canViewConsultation ? <button className="doc-btn primary compact" onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)} type="button">Consultation</button> : null}
                     <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button"><i className="ph ph-arrow-square-out" aria-hidden="true" /></button>
                   </div></td>

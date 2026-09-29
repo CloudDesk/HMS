@@ -51,7 +51,7 @@ export function useOpdQueue(filters: OpdQueueFilters) {
   
   const { data: departmentsData, isLoading: departmentsLoading } = useDepartments(
     { status: 'ACTIVE', limit: 100 },
-    !isDoctorUser && canAccess('Administration', 'Departments')
+    canAccess('Administration', 'Departments')
   );
   
   // Mutations

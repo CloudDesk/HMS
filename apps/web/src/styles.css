@@ -2343,7 +2343,7 @@ fieldset.form-field {
   font-weight: 650;
 }
 
-.doc-field input,
+.doc-field input:not([type='checkbox']):not([type='radio']),
 .doc-field select,
 .doc-field textarea {
   width: 100%;
@@ -2364,7 +2364,7 @@ fieldset.form-field {
   resize: vertical;
 }
 
-.doc-field input:focus,
+.doc-field input:not([type='checkbox']):not([type='radio']):focus,
 .doc-field select:focus,
 .doc-field textarea:focus {
   border-color: #2563eb;
