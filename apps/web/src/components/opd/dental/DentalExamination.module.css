@@ -708,10 +708,18 @@
 }
 
 /* Odontogram Section Layout */
-.subTabBar {
+.topHeaderContainer {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--dental-bg, #f8fafc);
+  padding-bottom: 4px;
+}
+
+.subTabBar {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -724,6 +732,23 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.subTabActionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid #dbe5f1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .subTabList {
@@ -1867,14 +1892,10 @@
   inset: 0;
   width: 100% !important;
   height: 100% !important;
-  cursor: grab;
+  cursor: default;
   outline: none;
   touch-action: none;
   z-index: 1;
-}
-
-.oralCavity3DCanvas:active {
-  cursor: grabbing;
 }
 
 .anatomicalCalloutOverlay {
@@ -3852,6 +3873,8 @@
 }
 
 .modalInput {
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   padding: 8px 12px;
@@ -4367,6 +4390,7 @@
     min-height: 150px;
   }
 
+  .subTabActionBar,
   .stickyActionBar {
     flex-wrap: nowrap;
     padding: 8px 14px;
@@ -4392,6 +4416,7 @@
 }
 
 @media (min-width: 721px) {
+  .subTabActionBar,
   .stickyActionBar {
     flex-wrap: nowrap;
   }

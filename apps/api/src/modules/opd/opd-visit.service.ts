@@ -76,7 +76,14 @@ export class OpdVisitService {
     this.validateListQuery(query);
     await this.repository.reconcileStaleVisits().catch(() => 0);
     const scope = userId ? await this.repository.resolveBranchScope(userId, query.branch_id) : undefined;
-    return this.repository.list(this.normalizeListDates(query), scope);
+    const currentDoctor = userId ? await this.doctorRepository.getByUserId(userId) : undefined;
+    if (currentDoctor && query.doctor_id && query.doctor_id !== currentDoctor.id) {
+      throw new AppError('Doctor OPD access is limited to the linked doctor record', 403, 'DOCTOR_SCOPE_DENIED');
+    }
+    return this.repository.list(this.normalizeListDates({
+      ...query,
+      ...(currentDoctor ? { doctor_id: currentDoctor.id } : {}),
+    }), scope);
   }
 
   async dashboardSummary(query: OpdVisitListQuery, userId: string) {

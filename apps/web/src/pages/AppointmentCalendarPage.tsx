@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { useAppointmentCalendarFeature } from '../hooks/appointments/useAppointmentCalendarFeature';
 import { useFirstDayOfWeek } from '../hooks/settings/useSettings';
 import { format } from 'date-fns';
+import { AppointmentConsultationIntake } from '../components/appointments/AppointmentConsultationIntake';
 
 const timeSlots = Array.from({ length: 11 }).map((_, index) => `${String(index + 8).padStart(2, '0')}:00`);
 
@@ -511,6 +512,8 @@ export function AppointmentCalendarPage() {
                   <strong>{selectedAppointment.duration_minutes} Minutes</strong>
                 </div>
               </div>
+
+              <AppointmentConsultationIntake intake={selectedAppointment.consultation_intake} />
 
               {isRescheduling ? (
                 <form className="apt-modal-reschedule-form" onSubmit={(e) => void handleRescheduleSubmit(e)}>

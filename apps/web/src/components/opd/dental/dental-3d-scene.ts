@@ -414,8 +414,9 @@ export function createOralCavity3DScene(container: HTMLCanvasElement): OralCavit
       currentDentition = dentition;
       rebuildToothMeshes();
     },
-    setCameraPreset(preset) {
-      const targetConfig = presetPositions[preset] ?? presetPositions.clinical;
+    setCameraPreset(_preset) {
+      // Fixed anatomical view: lock camera to clinical front perspective to align with mouth artwork
+      const targetConfig = presetPositions.clinical;
       targetYaw = targetConfig.yaw;
       targetPitch = targetConfig.pitch;
       targetZoom = targetConfig.zoom;
@@ -427,19 +428,14 @@ export function createOralCavity3DScene(container: HTMLCanvasElement): OralCavit
       targetZoom = 8.8;
       panOffset.set(0, 0, 0);
     },
-    rotate(deltaYaw, deltaPitch) {
-      targetYaw += deltaYaw * 0.01;
-      targetPitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, targetPitch + deltaPitch * 0.01));
+    rotate(_deltaYaw, _deltaPitch) {
+      // Fixed anatomical view: rotation disabled to keep teeth locked in mouth artwork
     },
-    zoom(deltaZoom) {
-      targetZoom = Math.max(4.0, Math.min(14.0, targetZoom + deltaZoom));
+    zoom(_deltaZoom) {
+      // Fixed anatomical view: zoom disabled to keep teeth locked in mouth artwork
     },
-    pan(deltaX, deltaY) {
-      const right = new THREE.Vector3();
-      const up = new THREE.Vector3();
-      camera.matrix.extractBasis(right, up, new THREE.Vector3());
-      panOffset.addScaledVector(right, -deltaX);
-      panOffset.addScaledVector(up, deltaY);
+    pan(_deltaX, _deltaY) {
+      // Fixed anatomical view: pan disabled to keep teeth locked in mouth artwork
     },
     getToothScreenCoordinates,
     getAnatomicalCallouts,

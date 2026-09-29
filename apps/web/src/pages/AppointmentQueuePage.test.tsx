@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppointmentQueuePage } from './AppointmentQueuePage';
 
-const state = vi.hoisted(() => ({ direct: true, vitals: true, status: 'CHECKED_IN' }));
+const state = vi.hoisted(() => ({ direct: true, intake: false, vitals: true, status: 'CHECKED_IN' }));
 vi.mock('../components/opd/VitalsCaptureModal', () => ({ VitalsCaptureModal: () => null }));
 vi.mock('../hooks/appointments/useAppointmentQueueFeature', () => ({
   useAppointmentQueueFeature: () => ({
@@ -11,7 +11,8 @@ vi.mock('../hooks/appointments/useAppointmentQueueFeature', () => ({
       branchFilter: '', queueDate: '2026-09-21', departments: [], doctors: [], branches: [],
       appointments: [{ id: 'a1', patient_name: 'Test Patient', patient_number: 'P1',
         doctor_specialization: 'Dental', doctor_name: 'Test Doctor', start_time: '10:30',
-        priority: 'ROUTINE', status: 'CHECKED_IN' }],
+        priority: 'ROUTINE', status: 'CHECKED_IN',
+        consultation_intake: state.intake ? { chief_complaint: 'Tooth pain' } : null }],
       callNotifications: [], loading: false, loadError: '', opdLoadError: '', updating: false,
       currentAppointment: null, nextAppointment: null, canCreateVitals: state.vitals,
       canEditVisit: true, canCheckIn: true, canViewConsultation: true,
@@ -25,7 +26,7 @@ vi.mock('../hooks/appointments/useAppointmentQueueFeature', () => ({
 }));
 
 describe('Appointment queue dental choices', () => {
-  beforeEach(() => { state.direct = true; state.vitals = true; state.status = 'CHECKED_IN'; });
+  beforeEach(() => { state.direct = true; state.intake = false; state.vitals = true; state.status = 'CHECKED_IN'; });
 
   it('shows both vitals and direct consultation when available', () => {
     const html = renderToStaticMarkup(<AppointmentQueuePage />);
@@ -54,5 +55,11 @@ describe('Appointment queue dental choices', () => {
     expect(html).toContain('Open Consultation');
     expect(html).not.toContain('Go to Consultation');
     expect(html).not.toContain('Take Vitals');
+  });
+
+  it('offers the patient intake before consultation when the booking contains one', () => {
+    state.intake = true;
+    const html = renderToStaticMarkup(<AppointmentQueuePage />);
+    expect(html).toContain('View Intake');
   });
 });

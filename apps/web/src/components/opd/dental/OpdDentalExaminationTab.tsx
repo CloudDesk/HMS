@@ -541,8 +541,10 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         </div>
       )}
 
-      {/* Dental Examination Secondary Navigation Tabs */}
-      <div className={styles.subTabBar}>
+      {/* Top Sticky Header: Secondary Navigation Tabs & Workstation Actions */}
+      <div className={styles.topHeaderContainer}>
+        {/* Dental Examination Secondary Navigation Tabs */}
+        <div className={styles.subTabBar}>
   <div
     className={styles.subTabList}
     role="tablist"
@@ -720,7 +722,86 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   </div>
 </div>
 
-{/* Panels stay mounted so switching tabs does not discard unsaved section state. */}
+        {/* Dedicated Action Strip Directly Below Sub-Tabs */}
+        <div className={styles.subTabActionBar}>
+          <div className={styles.stickySummary}>
+            <span className={styles.stickyMetric}>
+              <i className="ph ph-tooth" style={{ color: '#2563eb' }} />
+              Examined Teeth: <strong>{teeth.length}</strong>
+            </span>
+            <span className={styles.stickyMetric}>
+              <i className="ph ph-calendar-check" style={{ color: '#7c3aed' }} />
+              Procedures: <strong>{treatmentPlanItems.length}</strong>
+            </span>
+            <span className={styles.stickyMetric}>
+              <i className="ph ph-receipt" style={{ color: '#059669' }} />
+              Est. Total: <strong>{formatCurrency(totalPlanCost)}</strong>
+            </span>
+            {medicalAlerts.length > 0 && (
+              <span className={styles.stickyMetricAlert}>
+                <i className="ph ph-warning-octagon" />
+                {medicalAlerts.length} Alert{medicalAlerts.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          <div className={styles.stickyActions}>
+            {!isReadOnly && (
+              <>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={handleSaveDraft}
+                  disabled={isSaving}
+                >
+                  <i className="ph ph-floppy-disk" />
+                  {saveDraftMutation.isPending ? 'Saving...' : 'Save Draft'}
+                </button>
+
+                <button
+                  type="button"
+                  className={styles.btnComplete}
+                  onClick={() => setConfirmCompleteOpen(true)}
+                  disabled={isSaving}
+                >
+                  <i className="ph ph-check-circle" />
+                  Complete Examination
+                </button>
+              </>
+            )}
+
+            {dentalExaminationNextStep[activeSubTab] ? (
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => void handleSubTabChange(dentalExaminationNextStep[activeSubTab]!.id)}
+                disabled={isSaving}
+              >
+                {dentalExaminationNextStep[activeSubTab]!.label}
+                <i className="ph ph-arrow-right" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={async () => {
+                  if (isDirty && !isReadOnly) {
+                    const saved = await handleSaveDraft();
+                    if (!saved) return;
+                  }
+                  onNextStep?.('Prescription');
+                }}
+                disabled={isSaving}
+              >
+                Next: Prescription
+                <i className="ph ph-arrow-right" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Panels stay mounted so switching tabs does not discard unsaved section state. */}
       <section className={`${styles.subTabPanel} ${styles.odontogramPanel}`} aria-labelledby="dental-subtab-odontogram" hidden={activeSubTab !== 'odontogram'} id="dental-subtab-panel-odontogram" role="tabpanel">
       <div className={styles.odontogramLayout}>
         <div className={styles.odontogramMainColumn}>
@@ -937,84 +1018,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
         primaryToothNumber={episodeForSelectedTooth?.primary_tooth_number ?? episodes[0]?.primary_tooth_number}
       />
       </section>
-
-      {/* Sticky Bottom Workstation Action Bar */}
-      <div className={styles.stickyActionBar}>
-        <div className={styles.stickySummary}>
-          <span className={styles.stickyMetric}>
-            <i className="ph ph-tooth" style={{ color: '#2563eb' }} />
-            Examined Teeth: <strong>{teeth.length}</strong>
-          </span>
-          <span className={styles.stickyMetric}>
-            <i className="ph ph-calendar-check" style={{ color: '#7c3aed' }} />
-            Procedures: <strong>{treatmentPlanItems.length}</strong>
-          </span>
-          <span className={styles.stickyMetric}>
-            <i className="ph ph-receipt" style={{ color: '#059669' }} />
-            Est. Total: <strong>{formatCurrency(totalPlanCost)}</strong>
-          </span>
-          {medicalAlerts.length > 0 && (
-            <span className={styles.stickyMetricAlert}>
-              <i className="ph ph-warning-octagon" />
-              {medicalAlerts.length} Alert{medicalAlerts.length > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-
-        <div className={styles.stickyActions}>
-          {!isReadOnly && (
-            <>
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                onClick={handleSaveDraft}
-                disabled={isSaving}
-              >
-                <i className="ph ph-floppy-disk" />
-                {saveDraftMutation.isPending ? 'Saving...' : 'Save Draft'}
-              </button>
-
-              <button
-                type="button"
-                className={styles.btnComplete}
-                onClick={() => setConfirmCompleteOpen(true)}
-                disabled={isSaving}
-              >
-                <i className="ph ph-check-circle" />
-                Complete Examination
-              </button>
-            </>
-          )}
-
-          {dentalExaminationNextStep[activeSubTab] ? (
-            <button
-              type="button"
-              className={styles.btnPrimary}
-              onClick={() => void handleSubTabChange(dentalExaminationNextStep[activeSubTab]!.id)}
-              disabled={isSaving}
-            >
-              {dentalExaminationNextStep[activeSubTab]!.label}
-              <i className="ph ph-arrow-right" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.btnPrimary}
-              onClick={async () => {
-                if (isDirty && !isReadOnly) {
-                  const saved = await handleSaveDraft();
-                  if (!saved) return;
-                }
-                onNextStep?.('Prescription');
-              }}
-              disabled={isSaving}
-            >
-              Next: Prescription
-              <i className="ph ph-arrow-right" />
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Complete Confirmation Modal */}
       {confirmCompleteOpen && (

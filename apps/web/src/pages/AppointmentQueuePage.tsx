@@ -14,6 +14,10 @@ import type { OpdVisitResponse } from '../api/opd';
 import { VitalsCaptureModal } from '../components/opd/VitalsCaptureModal';
 import { getOpdErrorMessage, opdVisitStatusLabels, visitStatusClass } from './opd-utils';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
+import {
+  AppointmentConsultationIntake,
+  hasAppointmentConsultationIntake,
+} from '../components/appointments/AppointmentConsultationIntake';
 
 const waitingStatuses = new Set<ApiAppointmentStatus>(['SCHEDULED', 'CONFIRMED', 'SKIPPED']);
 
@@ -55,6 +59,7 @@ export function AppointmentQueuePage() {
   const [completionError, setCompletionError] = useState('');
   const [vitalsVisit, setVitalsVisit] = useState<OpdVisitResponse | null>(null);
   const [vitalsError, setVitalsError] = useState('');
+  const [intakeAppointment, setIntakeAppointment] = useState<AppointmentResponse | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const lastCallNotificationId = useRef<string | null>(null);
@@ -354,6 +359,17 @@ export function AppointmentQueuePage() {
                               Check In
                             </button>
                           ) : null}
+                          {hasAppointmentConsultationIntake(appointment.consultation_intake) ? (
+                            <button
+                              className="doc-btn compact"
+                              onClick={() => setIntakeAppointment(appointment)}
+                              title="View patient-supplied basic consultation form"
+                              type="button"
+                            >
+                              <i className="ph ph-clipboard-text" aria-hidden="true" />
+                              View Intake
+                            </button>
+                          ) : null}
                           {isTakeVitalsAvailable ? (
                             <button
                               className="doc-btn primary compact"
@@ -559,6 +575,27 @@ export function AppointmentQueuePage() {
               <button className="primary-action" onClick={() => void submitCompletion()} type="button">
                 Complete Visit
               </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {intakeAppointment ? (
+        <div className="modal-backdrop" onClick={() => setIntakeAppointment(null)} role="presentation">
+          <section className="modal-box appointment-intake-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="appointment-intake-title">
+            <div className="modal-header">
+              <div>
+                <h3 id="appointment-intake-title">Patient consultation intake</h3>
+                <p>{intakeAppointment.patient_name} · {intakeAppointment.appointment_number}</p>
+              </div>
+              <button className="modal-close" onClick={() => setIntakeAppointment(null)} type="button" aria-label="Close consultation intake">
+                <i className="ph ph-x" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="modal-body">
+              <AppointmentConsultationIntake intake={intakeAppointment.consultation_intake} />
+            </div>
+            <div className="modal-footer">
+              <button className="doc-btn" onClick={() => setIntakeAppointment(null)} type="button">Close</button>
             </div>
           </section>
         </div>

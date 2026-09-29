@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   type ApiPatientGender,
   type ApiPatientStatus,
@@ -19,7 +18,7 @@ import { PatientAvatar } from '../components/patients/PatientAvatar';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
 import { useHospitalSettings } from '../hooks/settings/useSettings';
 import { PatientRegistrationPage } from './PatientRegistrationPage';
-
+import { PatientEditModal, updatePatientSchema, type UpdatePatientForm } from '../components/patients/PatientEditModal';
 
 type ColumnVisibility = {
   gender: boolean;
@@ -34,22 +33,6 @@ const defaultColumns: ColumnVisibility = {
   phone: true,
   status: true,
 };
-
-const updatePatientSchema = z.object({
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  gender: z.enum(['UNKNOWN', 'MALE', 'FEMALE', 'OTHER']),
-  bloodGroup: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email('Invalid email format').or(z.literal('')),
-  addressLine1: z.string().optional(),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'DECEASED']),
-  notes: z.string().optional(),
-});
-type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
 
 export function PatientSearchPage() {
   const { user } = useAuth();
@@ -107,100 +90,67 @@ export function PatientSearchPage() {
   // Edit Patient Modal State
   const [editingPatient, setEditingPatient] = useState<PatientResponse | null>(null);
   const [registrationOpen, setRegistrationOpen] = useState(false);
-  const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
-    dateOfBirth: '',
-    gender: 'MALE' as ApiPatientGender,
-    phone: '',
-    email: '',
-    addressLine1: '',
-    city: '',
-    postalCode: '',
-    bloodGroup: '',
-    status: 'ACTIVE' as ApiPatientStatus,
-    notes: '',
-  });
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [editFormError, setEditFormError] = useState('');
-  
-  
-  
+  const editForm = useForm<UpdatePatientForm>({
+    resolver: zodResolver(updatePatientSchema),
+  });
+
   const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
   const { hospitalName, phone: hospitalPhone, address: hospitalAddress, logoUrl: hospitalLogoUrl } = useHospitalSettings();
   const hospitalSubText = [hospitalAddress, hospitalPhone].filter(Boolean).join(' · ') || 'Hospital Management System';
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<UpdatePatientForm>({
-    resolver: zodResolver(updatePatientSchema),
-  });
-
+  const { state: { patients, meta, loading, loadError }, mutations: { updatePatient } } = usePatientSearchFeature({ appliedFilters, currentPage });
 
   const printPatientCard = (p: PatientResponse) => { executePrintPatientCard(p); };
 
   const openEditModal = (patient: PatientResponse) => {
     setEditingPatient(patient);
-    setEditForm({
+    editForm.reset({
       firstName: patient.first_name ?? '',
-      lastName: patient.last_name ?? '',
+      lastName: patient.last_name,
       dateOfBirth: patient.date_of_birth ? patient.date_of_birth.slice(0, 10) : '',
-      gender: patient.gender ?? 'MALE',
       phone: patient.phone ?? '',
       email: patient.email ?? '',
+      status: patient.status,
+      gender: patient.gender,
+      bloodGroup: patient.blood_group ?? '',
       addressLine1: patient.address?.line1 ?? '',
       city: patient.address?.city ?? '',
       postalCode: patient.address?.postal_code ?? '',
-      bloodGroup: patient.blood_group ?? '',
-      status: patient.status,
       notes: patient.notes ?? '',
     });
-    setEditFormError('');
   };
 
-  const onSubmitEdit = async () => {
+  const onSubmitEdit = async (data: UpdatePatientForm) => {
     if (!editingPatient) return;
     try {
-      const updatePayload: Record<string, unknown> = {
-        phone: editForm.phone.trim() || null,
-        email: editForm.email.trim() || null,
-        status: editForm.status,
-        notes: editForm.notes.trim() || null,
-        address: {
-          line1: editForm.addressLine1.trim() || null,
-          city: editForm.city.trim() || null,
-          postal_code: editForm.postalCode.trim() || null,
+      setEditSubmitting(true);
+      await updatePatient({
+        id: editingPatient.id,
+        payload: {
+          first_name: (data.firstName || '').trim(),
+          last_name: (data.lastName || '').trim(),
+          date_of_birth: data.dateOfBirth,
+          phone: data.phone?.trim() || null,
+          email: data.email?.trim() || null,
+          status: data.status,
+          gender: data.gender,
+          blood_group: data.bloodGroup?.trim() || null,
+          address: {
+            line1: data.addressLine1?.trim() || null,
+            city: data.city?.trim() || null,
+            postal_code: data.postalCode?.trim() || null,
+          },
+          notes: data.notes?.trim() || null,
         },
-      };
-
-      if (canEditAllDetails) {
-        if (!editForm.lastName.trim()) {
-          setEditFormError('Last name is required.');
-          setEditSubmitting(false);
-          return;
-        }
-        if (!editForm.dateOfBirth) {
-          setEditFormError('Date of birth is required.');
-          setEditSubmitting(false);
-          return;
-        }
-        updatePayload.first_name = editForm.firstName.trim() || null;
-        updatePayload.last_name = editForm.lastName.trim();
-        updatePayload.date_of_birth = editForm.dateOfBirth;
-        updatePayload.gender = editForm.gender;
-        updatePayload.blood_group = editForm.bloodGroup || null;
-      }
-
-      await updatePatient({ id: editingPatient.id, payload: updatePayload });
+      });
       setEditingPatient(null);
-      console.log('Patient updated successfully.');
     } catch (error) {
-      setEditFormError(String(error));
-      console.log(String(error), 'error');
+      console.error(error);
     } finally {
       setEditSubmitting(false);
     }
   };
-
-  const { state: { patients, meta, loading, loadError }, mutations: { updatePatient } } = usePatientSearchFeature({ appliedFilters, currentPage });
 
   const handleApplyFilters = () => {
     setCurrentPage(1);
@@ -607,195 +557,17 @@ export function PatientSearchPage() {
       </Modal>
 
       {/* Edit Patient Modal */}
-      <Modal onClose={() => setEditingPatient(null)} open={Boolean(editingPatient)} size="large" title="Edit Patient">
-        {editingPatient ? (
-          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSubmit(onSubmitEdit)}>
-            {editFormError ? <div className="form-error-banner" role="alert">{editFormError}</div> : null}
-
-            {canEditAllDetails ? (
-              <div className="locked-notice-banner" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
-                <i className="ph ph-shield-check" aria-hidden="true" style={{ color: '#16a34a' }} />
-                <span>
-                  Administrator Access: You have full permissions to edit patient identity attributes, demographics, address, and status.
-                </span>
-              </div>
-            ) : (
-              <div className="locked-notice-banner">
-                <i className="ph ph-lock-key" aria-hidden="true" />
-                <span>
-                  Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
-                </span>
-              </div>
-            )}
-
-            <section className="doctor-onboarding-section">
-              <header>
-                <span><i className="ph ph-user" aria-hidden="true" /></span>
-                <div>
-                  <h3>Identity Information</h3>
-                  <p>{canEditAllDetails ? 'Patient identification and demographic attributes.' : 'Immutable patient identification and demographic attributes.'}</p>
-                </div>
-              </header>
-              <div className="form-grid">
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-first">
-                    First name {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <input
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-first"
-                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                    readOnly={!canEditAllDetails}
-                    value={editForm.firstName}
-                  />
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-last">
-                    Last name {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <input
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-last"
-                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                    readOnly={!canEditAllDetails}
-                    required={canEditAllDetails}
-                    value={editForm.lastName}
-                  />
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-dob">
-                    Date of birth {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <input
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-dob"
-                    onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
-                    readOnly={!canEditAllDetails}
-                    required={canEditAllDetails}
-                    type="date"
-                    value={editForm.dateOfBirth}
-                  />
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-gender">
-                    Gender {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <select
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-gender"
-                    onChange={(e) => setEditForm({ ...editForm, gender: e.target.value as ApiPatientGender })}
-                    value={editForm.gender}
-                  >
-                    <option value="UNKNOWN">Unknown</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-blood">
-                    Blood group {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  {canEditAllDetails ? (
-                    <select
-                      disabled={editSubmitting}
-                      id="search-edit-blood"
-                      onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
-                      value={editForm.bloodGroup}
-                    >
-                      <option value="">Select Blood Group</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                    </select>
-                  ) : (
-                    <input disabled id="search-edit-blood" readOnly value={editForm.bloodGroup || 'Not recorded'} />
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="doctor-onboarding-section">
-              <header>
-                <span><i className="ph ph-phone" aria-hidden="true" /></span>
-                <div>
-                  <h3>Contact &amp; Address Details</h3>
-                  <p>Editable communication details, physical address, status, and clinical notes.</p>
-                </div>
-              </header>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="search-edit-phone">Phone</label>
-                  <input disabled={isSubmitting} id="search-edit-phone" {...register('phone')} />
-                  {errors.phone && <span className="field-error">{errors.phone.message}</span>}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-email">Email</label>
-                  <input disabled={isSubmitting} id="search-edit-email" type="email" {...register('email')} />
-                  {errors.email && <span className="field-error">{errors.email.message}</span>}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-status">Status</label>
-                  <select disabled={isSubmitting} id="search-edit-status" {...register('status')}>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                    <option value="DECEASED">Deceased</option>
-                  </select>
-                  {errors.status && <span className="field-error">{errors.status.message}</span>}
-                </div>
-                <div className="form-group full-width">
-                  <label htmlFor="search-edit-address">Address / Street</label>
-                  <input
-                    disabled={editSubmitting}
-                    id="search-edit-address"
-                    onChange={(event) => setEditForm({ ...editForm, addressLine1: event.target.value })}
-                    placeholder="e.g. 123 Healthcare Ave, Suite 400"
-                    value={editForm.addressLine1}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-city">City</label>
-                  <input
-                    disabled={editSubmitting}
-                    id="search-edit-city"
-                    onChange={(event) => setEditForm({ ...editForm, city: event.target.value })}
-                    placeholder="City"
-                    value={editForm.city}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-postal">Postal Code</label>
-                  <input
-                    disabled={editSubmitting}
-                    id="search-edit-postal"
-                    onChange={(event) => setEditForm({ ...editForm, postalCode: event.target.value })}
-                    placeholder="Postal Code"
-                    value={editForm.postalCode}
-                  />
-                </div>
-                <div className="form-group full-width">
-                  <label htmlFor="search-edit-notes">Registration Notes</label>
-                  <textarea disabled={editSubmitting} id="search-edit-notes" onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })} rows={2} value={editForm.notes} />
-                </div>
-              </div>
-            </section>
-
-            <div className="modal-actions">
-              <button className="secondary-action" disabled={isSubmitting} onClick={() => setEditingPatient(null)} type="button">
-                Cancel
-              </button>
-              <button className="primary-action" disabled={isSubmitting} type="submit">
-                {isSubmitting ? 'Saving...' : 'Save Profile'}
-              </button>
-            </div>
-          </form>
-        ) : null}
-      </Modal>
+      {editingPatient ? (
+        <PatientEditModal
+          canEditAllDetails={canEditAllDetails}
+          form={editForm}
+          onClose={() => setEditingPatient(null)}
+          onSubmit={onSubmitEdit}
+          open={Boolean(editingPatient)}
+          patient={editingPatient}
+          submitting={editSubmitting}
+        />
+      ) : null}
 
       {/* Print Patient Card - preview modal */}
       {cardPatient ? (

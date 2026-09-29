@@ -200,19 +200,20 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                   id="modal-dx-tooth-select"
                   value={targetTooth ?? ''}
                   onChange={(e) => setTargetTooth(e.target.value ? Number(e.target.value) : null)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || Boolean(selectedToothNumber ?? targetTooth)}
                   style={{
                     width: '100%',
                     padding: '7px 12px',
                     fontSize: '0.84rem',
                     borderRadius: '8px',
-                    border: '1px solid #86efac',
-                    backgroundColor: '#ffffff',
-                    color: '#0f172a',
+                    border: (!canEdit || Boolean(selectedToothNumber ?? targetTooth)) ? '1px solid #cbd5e1' : '1px solid #86efac',
+                    backgroundColor: (!canEdit || Boolean(selectedToothNumber ?? targetTooth)) ? '#f1f5f9' : '#ffffff',
+                    color: (!canEdit || Boolean(selectedToothNumber ?? targetTooth)) ? '#475569' : '#0f172a',
                     fontWeight: 600,
-                    cursor: canEdit ? 'pointer' : 'not-allowed',
+                    cursor: (!canEdit || Boolean(selectedToothNumber ?? targetTooth)) ? 'not-allowed' : 'pointer',
                     outline: 'none',
-                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+                    boxShadow: 'none',
+                    opacity: (!canEdit || Boolean(selectedToothNumber ?? targetTooth)) ? 0.85 : 1,
                   }}
                 >
                   <option value="">General / Full Mouth (General Dentition)</option>
@@ -738,7 +739,7 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
 
           {/* Diagnostic Reasoning & Clinical Notes */}
           {onAssessmentChange && (
-            <div style={{ marginBottom: '8px' }}>
+            <div style={{ marginBottom: '8px', width: '100%', boxSizing: 'border-box' }}>
               <label
                 htmlFor="modal-dx-notes"
                 style={{
@@ -762,7 +763,16 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                 value={assessment}
                 onChange={(e) => onAssessmentChange(e.target.value)}
                 disabled={!canEdit}
-                style={{ resize: 'vertical', minHeight: '70px', lineHeight: 1.4 }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  display: 'block',
+                  resize: 'vertical',
+                  minHeight: '80px',
+                  lineHeight: 1.5,
+                  padding: '10px 14px',
+                  fontSize: '0.85rem',
+                }}
               />
             </div>
           )}

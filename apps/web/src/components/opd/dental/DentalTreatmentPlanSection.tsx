@@ -1166,23 +1166,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     </select>
                   </div>
 
-                  {/* Service Catalogue Picker */}
-                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>Service Catalogue</label>
-                    <select
-                      className={styles.select}
-                      value={selectedServiceId}
-                      onChange={(e) => handleCatalogueDropdownChange(e.target.value)}
-                    >
-                      <option value="">-- Select from Catalogue --</option>
-                      {catalogueServicesList.map((svc) => (
-                        <option key={svc.id} value={svc.id}>
-                          {svc.name} {svc.standard_price > 0 ? `(${formatCurrency(svc.standard_price)})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
                   {/* Procedure Name Input */}
                   <div className={styles.formGroup} style={{ minWidth: 0 }}>
                     <label className={styles.label}>
@@ -1209,6 +1192,23 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                       }}
                       required
                     />
+                  </div>
+
+                  {/* Service Catalogue Picker */}
+                  <div className={styles.formGroup} style={{ minWidth: 0 }}>
+                    <label className={styles.label}>Service Catalogue</label>
+                    <select
+                      className={styles.select}
+                      value={selectedServiceId}
+                      onChange={(e) => handleCatalogueDropdownChange(e.target.value)}
+                    >
+                      <option value="">-- Select from Catalogue --</option>
+                      {catalogueServicesList.map((svc) => (
+                        <option key={svc.id} value={svc.id}>
+                          {svc.name} {svc.standard_price > 0 ? `(${formatCurrency(svc.standard_price)})` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Prerequisite Procedure (Optional) */}

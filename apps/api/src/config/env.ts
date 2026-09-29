@@ -210,6 +210,19 @@ const parseDatabaseUrl = (value: string | undefined) => {
   return value;
 };
 
+type PatientDocumentStorageProvider = 'local' | 'gcp';
+
+const parsePatientDocumentStorageProvider = (value: string | undefined): PatientDocumentStorageProvider => {
+  const provider = (value ?? 'local').trim().toLowerCase();
+  if (provider !== 'local' && provider !== 'gcp') {
+    throw new Error('PATIENT_DOCUMENT_STORAGE_PROVIDER must be either local or gcp');
+  }
+  if (provider === 'gcp' && !process.env.GCP_PATIENT_DOCUMENTS_BUCKET?.trim()) {
+    throw new Error('GCP_PATIENT_DOCUMENTS_BUCKET is required when patient document storage uses gcp');
+  }
+  return provider;
+};
+
 export const env = {
   app: {
     name: process.env.APP_NAME ?? 'hms-api',
@@ -232,12 +245,13 @@ export const env = {
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),
   },
   storage: {
-    provider: process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER ?? 'local',
+    provider: parsePatientDocumentStorageProvider(process.env.PATIENT_DOCUMENT_STORAGE_PROVIDER),
     localPatientDocumentsPath:
       process.env.LOCAL_PATIENT_DOCUMENT_STORAGE_PATH ?? getDefaultStoragePath('patient-documents'),
     localHospitalLogosPath:
       process.env.LOCAL_HOSPITAL_LOGO_STORAGE_PATH ?? getDefaultStoragePath('hospital-logos'),
-    gcpPatientDocumentsBucket: process.env.GCP_PATIENT_DOCUMENTS_BUCKET ?? '',
+    gcpProjectId: process.env.GCP_PROJECT_ID?.trim() || undefined,
+    gcpPatientDocumentsBucket: process.env.GCP_PATIENT_DOCUMENTS_BUCKET?.trim() ?? '',
   },
   upload: {
     patientDocumentMaxFileSizeBytes: parseInteger(
