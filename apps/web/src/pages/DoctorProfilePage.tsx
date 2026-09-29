@@ -97,10 +97,10 @@ export function DoctorProfilePage() {
       />
 
       <section className="doc-card">
-        <div className="doc-card-header"><div><h3>Weekly Availability</h3><p>Recurring working blocks used by the appointment slot engine</p></div></div>
+        <div className="doc-card-header"><div><h3>Weekly Availability</h3><p>Recurring working slots used by the appointment slot engine</p></div></div>
         <div className="doc-table-wrap">
           <table className="doc-table">
-            <thead><tr><th>Day</th><th>Status</th><th>Working blocks</th><th>Slot duration</th></tr></thead>
+            <thead><tr><th>Day</th><th>Status</th><th>Working slots</th><th>Slot duration</th></tr></thead>
             <tbody>
               {doctor.availability.map((day) => (
                 <tr key={day.day_of_week}>

@@ -35,7 +35,6 @@ import {
 import { useDoctorsList } from '../../../hooks/doctors/useDoctors';
 import type { DoctorResponse } from '../../../api/doctors';
 import {
-  COMMON_DENTAL_PROCEDURES,
   TOOTH_NAMES,
   getToothName,
 } from '../../../pages/dental-utils';
@@ -50,28 +49,6 @@ function formatDoctorName(name: string | undefined | null): string {
   const clean = name.replace(/^Dr\.?\s+/i, '').trim();
   return clean ? `Dr. ${clean}` : '';
 }
-
-const DEFAULT_DENTAL_PROCEDURE_PRICES: Record<string, number> = {
-  'Root Canal Treatment': 12000,
-  'Root Canal Treatment (RCT)': 12000,
-  'Direct Composite Filling': 3500,
-  'Composite Restoration': 3500,
-  'Glass Ionomer Filling': 2000,
-  'Glass Ionomer Cement (GIC) Restoration': 2000,
-  'Crown': 18000,
-  'Zirconia Crown': 25000,
-  'Porcelain-Fused-to-Metal Crown': 15000,
-  'Dental Cleaning / Scaling': 3000,
-  'Scaling and Polishing': 3000,
-  'Scaling & Polishing (Prophylaxis)': 3000,
-  'Simple Tooth Extraction': 2500,
-  'Simple Dental Extraction': 2500,
-  'Surgical Extraction / Disimpaction': 8000,
-  'Dental Implant Placement': 65000,
-  'Post & Core Build-up': 5000,
-  'Complete Denture (Maxillary / Mandibular)': 25000,
-  'Removable Partial Denture': 12000,
-};
 
 export function isStageClinicallyCompatible(procedureName: string, stageName: string): boolean {
   const p = (procedureName || '').toLowerCase();
@@ -246,24 +223,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
       }
     }
 
-    for (const proc of COMMON_DENTAL_PROCEDURES) {
-      if (!seenNames.has(proc.toLowerCase())) {
-        seenNames.add(proc.toLowerCase());
-        const matchedPrice =
-          DEFAULT_DENTAL_PROCEDURE_PRICES[proc] ??
-          Object.entries(DEFAULT_DENTAL_PROCEDURE_PRICES).find(([k]) =>
-            proc.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(proc.toLowerCase())
-          )?.[1] ??
-          0;
-        list.push({
-          id: `dent-proc-${proc.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-          name: proc,
-          standard_price: matchedPrice,
-        });
-      }
-    }
-
-    return list;
+    return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [departmentServices]);
 
   const filteredSuggestions = useMemo(() => {
@@ -2717,9 +2677,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                       <datalist id={`proc-sugg-${opt.id}-${item.id}`}>
                                         {departmentServices.map((s) => (
                                           <option key={s.id} value={s.name} />
-                                        ))}
-                                        {COMMON_DENTAL_PROCEDURES.map((p) => (
-                                          <option key={p} value={p} />
                                         ))}
                                       </datalist>
                                     </div>

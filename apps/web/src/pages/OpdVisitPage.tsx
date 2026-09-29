@@ -30,6 +30,7 @@ import {
   OpdSummaryPanel,
   OpdClinicalVitalsModal,
   OpdDentalExaminationTab,
+  DentalDiagnosisTreatmentPlanSection,
   OpdPatientTimelineModal,
 } from '../components/opd';
 import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
@@ -282,7 +283,15 @@ export function OpdVisitPage() {
     ? 'Prescription'
     : pathname === '/opd/referral'
       ? 'Referral'
-      : null;
+      : pathname === '/opd/examination'
+        ? (isDental ? 'Dental Examination' : 'Consultation')
+        : pathname === '/opd/imaging'
+          ? 'Imaging Orders'
+          : pathname === '/opd/laboratory'
+            ? 'Lab Orders'
+            : pathname === '/opd/treatment-plan'
+              ? 'Diagnosis'
+              : null;
   const activeWorkspaceTabs = isDental && feature.state.canViewConsultation ? DENTAL_WORKSPACE_TABS : WORKSPACE_TABS;
 
   useEffect(() => {
@@ -1259,7 +1268,7 @@ export function OpdVisitPage() {
         visitId={visit?.id ?? ''}
         episodeId={episodeId ?? null}
         selectedTooth={selectedTooth}
-        active={activeTab === 'Dental Examination'}
+        active={activeTab === 'Imaging Orders' || activeTab === 'Dental Examination'}
         canEdit={!isVisitCompleted && (feature.state.canEditClinicalOrders || feature.state.canEditConsultation)}
         consultationCompleted={consultation?.status === 'COMPLETED'}
         draft={{
@@ -1294,7 +1303,7 @@ export function OpdVisitPage() {
       <DentalLabSection
         key={`dental-lab-${visit?.id ?? 'none'}`}
         visitId={visit?.id ?? ''}
-        active={activeTab === 'Dental Examination'}
+        active={activeTab === 'Lab Orders' || activeTab === 'Dental Examination'}
         canEdit={!isVisitCompleted && (feature.state.canEditClinicalOrders || feature.state.canEditConsultation)}
         consultationCompleted={consultation?.status === 'COMPLETED'}
         draft={{
@@ -1422,7 +1431,7 @@ export function OpdVisitPage() {
           <div className={`opd-workspace ${summaryPanelOpen ? '' : 'summary-hidden'}`}>
             <main className="opd-clinical-main">
               {/* Workspace Tabs Bar */}
-              {!dedicatedSection ? <div className="opd-workspace-tabs-shell">
+              {!dedicatedSection && !isDental ? <div className="opd-workspace-tabs-shell">
                 <div className="opd-workspace-tabs" role="tablist" aria-label="Consultation tabs">
                   {activeWorkspaceTabs.map((tab) => {
                     const completed = isTabCompleted(tab.name);
@@ -1521,24 +1530,63 @@ export function OpdVisitPage() {
                   </div>
                 ) : null}
 
-                {/* TAB 2: DIAGNOSIS */}
+                {/* TAB 2: DIAGNOSIS & TREATMENT PLAN */}
                 {activeTab === 'Diagnosis' ? (
-                  <OpdDiagnosisTab
-                    initialTooth={diagnosisTooth}
-                    assessment={consultationForm.assessment}
-                    canEdit={!isVisitCompleted && !(isDental && dentalCompleted) && feature.state.canEditConsultation}
-                    dxSearchTerm={dxSearchTerm}
-                    filteredIcd10={filteredIcd10}
-                    handleAddDiagnosis={handleAddDiagnosis}
-                    handleRemoveDiagnosis={handleRemoveDiagnosis}
-                    isDental={isDental}
-                    onAssessmentChange={(val) => setConsultationForm((c) => ({ ...c, assessment: val }))}
-                    onNext={() => handleNextStep('Prescription')}
-                    onSaveDraft={saveConsultationDraft}
-                    selectedDiagnoses={selectedDiagnoses}
-                    setDxSearchTerm={setDxSearchTerm}
-                    showToast={showToast}
-                  />
+                  isDental ? (
+                    <DentalDiagnosisTreatmentPlanSection
+                      visitId={visit.id}
+                      canEdit={!isVisitCompleted && !(isDental && dentalCompleted) && feature.state.canEditConsultation}
+                      consultation={consultation}
+                      patient={patient}
+                      departmentServices={dentalProcedureServices}
+                      diagnoses={selectedDiagnoses}
+                      onAddDiagnosis={handleAddDiagnosis}
+                      onRemoveDiagnosis={handleRemoveDiagnosis}
+                      assessment={consultationForm.assessment}
+                      onAssessmentChange={(val) => setConsultationForm((c) => ({ ...c, assessment: val }))}
+                      onSaveDiagnosis={async () => {
+                        if (consultationForm.assessment.trim() !== (consultation?.assessment?.trim() ?? '')) {
+                          await feature.actions.saveDentalDiagnosis(consultationForm.assessment);
+                        }
+                      }}
+                      onNextStep={handleNextStep}
+                      showToast={showToast}
+                      billingStates={feature.state.dentalBillingStates}
+                      billingStateLoading={feature.state.dentalBillingLoading}
+                      billingStateError={feature.state.dentalBillingError}
+                      canCreateInvoice={
+                        feature.state.billingCapabilities.canCreate &&
+                        feature.state.billingCapabilities.canView
+                      }
+                      billingTreatmentItemPending={feature.state.billingTreatmentItemPending}
+                      onCreateInvoice={async (treatmentItemId) => {
+                        const invoice = await feature.actions.createDentalTreatmentInvoice(
+                          treatmentItemId,
+                        );
+                        navigate(`/billing/workspace?id=${invoice.id}`);
+                      }}
+                      onOpenInvoice={(invoiceId) =>
+                        navigate(`/billing/workspace?id=${invoiceId}`)
+                      }
+                    />
+                  ) : (
+                    <OpdDiagnosisTab
+                      initialTooth={diagnosisTooth}
+                      assessment={consultationForm.assessment}
+                      canEdit={!isVisitCompleted && !(isDental && dentalCompleted) && feature.state.canEditConsultation}
+                      dxSearchTerm={dxSearchTerm}
+                      filteredIcd10={filteredIcd10}
+                      handleAddDiagnosis={handleAddDiagnosis}
+                      handleRemoveDiagnosis={handleRemoveDiagnosis}
+                      isDental={isDental}
+                      onAssessmentChange={(val) => setConsultationForm((c) => ({ ...c, assessment: val }))}
+                      onNext={() => handleNextStep('Prescription')}
+                      onSaveDraft={saveConsultationDraft}
+                      selectedDiagnoses={selectedDiagnoses}
+                      setDxSearchTerm={setDxSearchTerm}
+                      showToast={showToast}
+                    />
+                  )
                 ) : null}
 
                 {/* TAB 3: PRESCRIPTION */}
@@ -1564,59 +1612,67 @@ export function OpdVisitPage() {
 
                 {/* TAB 4: LAB ORDERS */}
                 {activeTab === 'Lab Orders' ? (
-                  <OpdLabSection
-                    availableLabTests={availableLabTests}
-                    canEdit={!isVisitCompleted && feature.state.canEditClinicalOrders}
-                    handleNextStep={handleNextStep}
-                    handleToggleLabTest={handleToggleLabTest}
-                    isDental={isDental}
-                    nextTab={isDental ? 'Follow-up' : 'Imaging Orders'}
-                    labCategory={labCategory}
-                    labCategoryOptions={labCategoryOptions}
-                    labClinicalNotes={labClinicalNotes}
-                    labFacilities={labFacilities}
-                    labFacility={labFacility}
-                    labOrderSummary={labOrderSummary}
-                    labOrders={labOrders}
-                    labPriority={labPriority}
-                    labSampleType={labSampleType}
-                    labSampleTypeOptions={labSampleTypeOptions}
-                    labSearchQuery={labSearchQuery}
-                    saveConsultationDraft={saveConsultationDraft}
-                    setLabCategory={setLabCategory}
-                    setLabClinicalNotes={setLabClinicalNotes}
-                    setLabFacility={setLabFacility}
-                    setLabOrderSummary={setLabOrderSummary}
-                    setLabOrders={setLabOrders}
-                    setLabPriority={setLabPriority}
-                    setLabSampleType={setLabSampleType}
-                    setLabSearchQuery={setLabSearchQuery}
-                  />
+                  isDental ? (
+                    renderDentalLab()
+                  ) : (
+                    <OpdLabSection
+                      availableLabTests={availableLabTests}
+                      canEdit={!isVisitCompleted && feature.state.canEditClinicalOrders}
+                      handleNextStep={handleNextStep}
+                      handleToggleLabTest={handleToggleLabTest}
+                      isDental={isDental}
+                      nextTab={isDental ? 'Follow-up' : 'Imaging Orders'}
+                      labCategory={labCategory}
+                      labCategoryOptions={labCategoryOptions}
+                      labClinicalNotes={labClinicalNotes}
+                      labFacilities={labFacilities}
+                      labFacility={labFacility}
+                      labOrderSummary={labOrderSummary}
+                      labOrders={labOrders}
+                      labPriority={labPriority}
+                      labSampleType={labSampleType}
+                      labSampleTypeOptions={labSampleTypeOptions}
+                      labSearchQuery={labSearchQuery}
+                      saveConsultationDraft={saveConsultationDraft}
+                      setLabCategory={setLabCategory}
+                      setLabClinicalNotes={setLabClinicalNotes}
+                      setLabFacility={setLabFacility}
+                      setLabOrderSummary={setLabOrderSummary}
+                      setLabOrders={setLabOrders}
+                      setLabPriority={setLabPriority}
+                      setLabSampleType={setLabSampleType}
+                      setLabSearchQuery={setLabSearchQuery}
+                    />
+                  )
                 ) : null}
 
                 {/* TAB 5: IMAGING ORDERS */}
                 {activeTab === 'Imaging Orders' ? (
-                  <OpdImagingSection
-                    availableImagingTests={availableImagingTests}
-                    canEdit={!isVisitCompleted && feature.state.canEditClinicalOrders}
-                    handleNextStep={handleNextStep}
-                    handleToggleImagingTest={handleToggleImagingTest}
-                    imagingCategory={imagingCategory}
-                    imagingCategoryOptions={imagingCategoryOptions}
-                    imagingClinicalInfo={imagingClinicalInfo}
-                    imagingOrderInstructions={imagingOrderInstructions}
-                    imagingOrders={imagingOrders}
-                    imagingPriority={imagingPriority}
-                    imagingSearchQuery={imagingSearchQuery}
-                    isDental={isDental}
-                    saveConsultationDraft={saveConsultationDraft}
-                    setImagingCategory={setImagingCategory}
-                    setImagingClinicalInfo={setImagingClinicalInfo}
-                    setImagingOrderInstructions={setImagingOrderInstructions}
-                    setImagingOrders={setImagingOrders}
-                    setImagingPriority={setImagingPriority}
-                    setImagingSearchQuery={setImagingSearchQuery}
-                  />
+                  isDental ? (
+                    renderDentalImaging(null, null)
+                  ) : (
+                    <OpdImagingSection
+                      availableImagingTests={availableImagingTests}
+                      canEdit={!isVisitCompleted && feature.state.canEditClinicalOrders}
+                      handleNextStep={handleNextStep}
+                      handleToggleImagingTest={handleToggleImagingTest}
+                      imagingCategory={imagingCategory}
+                      imagingCategoryOptions={imagingCategoryOptions}
+                      imagingClinicalInfo={imagingClinicalInfo}
+                      imagingOrderInstructions={imagingOrderInstructions}
+                      imagingOrders={imagingOrders}
+                      imagingPriority={imagingPriority}
+                      imagingSearchQuery={imagingSearchQuery}
+                      isDental={isDental}
+                      saveConsultationDraft={saveConsultationDraft}
+                      setImagingCategory={setImagingCategory}
+                      setImagingClinicalInfo={setImagingClinicalInfo}
+                      setImagingOrderInstructions={setImagingOrderInstructions}
+                      setImagingOrders={setImagingOrders}
+                      setImagingPriority={setImagingPriority}
+                      setImagingSearchQuery={setImagingSearchQuery}
+                    />
+                  )
                 ) : null}
 
                 {/* TAB 6: REFERRAL */}

@@ -29,7 +29,6 @@ import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { DentalDiagnosisModal } from './DentalDiagnosisModal';
 import { DentalHistorySection } from './DentalHistorySection';
 import { DentalSoftTissueSection } from './DentalSoftTissueSection';
-import { DentalTreatmentPlanSection } from './DentalTreatmentPlanSection';
 import { OdontogramChart } from './OdontogramChart';
 import { ToothExaminationPanel } from './ToothExaminationPanel';
 import styles from './DentalExamination.module.css';
@@ -62,14 +61,11 @@ interface OpdDentalExaminationTabProps {
   renderLab?: () => React.ReactNode;
 }
 
-type DentalExaminationSubTab = 'odontogram' | 'history' | 'imaging' | 'laboratory' | 'treatment-plan';
+type DentalExaminationSubTab = 'history' | 'odontogram';
 
 const dentalExaminationSubTabs: Array<{ id: DentalExaminationSubTab; label: string; icon: string }> = [
-  { id: 'history', label: 'General Examination', icon: 'ph-stethoscope' },
-    { id: 'odontogram', label: 'Odontogram', icon: 'ph-tooth' },
-  { id: 'imaging', label: 'Imaging', icon: 'ph-image-square' },
-  { id: 'laboratory', label: 'Laboratory', icon: 'ph-flask' },
-  { id: 'treatment-plan', label: 'Diagnosis & Plan', icon: 'ph-clipboard-text' },
+  { id: 'history', label: 'Examination', icon: 'ph-stethoscope' },
+  { id: 'odontogram', label: 'Odontogram', icon: 'ph-tooth' },
 ];
 
 const dentalExaminationNextStep: Partial<Record<
@@ -77,9 +73,6 @@ const dentalExaminationNextStep: Partial<Record<
   { id: DentalExaminationSubTab; label: string }
 >> = {
   history: { id: 'odontogram', label: 'Next: Odontogram' },
-  odontogram: { id: 'imaging', label: 'Next: Imaging' },
-  imaging: { id: 'laboratory', label: 'Next: Laboratory' },
-  laboratory: { id: 'treatment-plan', label: 'Next: Diagnosis & Plan' },
 };
 
 export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = ({
@@ -161,10 +154,8 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
       const s = sp.get('section');
-      if (s === 'oral-examination') return 'odontogram';
-      if (s && ['history', 'odontogram', 'imaging', 'laboratory', 'treatment-plan'].includes(s)) {
-        return s as DentalExaminationSubTab;
-      }
+      if (s === 'oral-examination' || s === 'odontogram') return 'odontogram';
+      if (s === 'history') return 'history';
     }
     return 'history';
   };
@@ -181,8 +172,16 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       const sp = new URLSearchParams(window.location.search);
       const s = sp.get('section');
       const target = s === 'oral-examination' ? 'odontogram' : s;
-      if (target && ['history', 'odontogram', 'imaging', 'laboratory', 'treatment-plan'].includes(target)) {
-        setActiveSubTab((prev) => (prev !== target ? (target as DentalExaminationSubTab) : prev));
+      if (target && (target === 'history' || target === 'odontogram')) {
+        setActiveSubTab((prev) => (prev !== target ? target : prev));
+        return;
+      }
+      const p = window.location.pathname;
+      let pathTarget: DentalExaminationSubTab | null = null;
+      if (p === '/opd/examination') pathTarget = 'history';
+
+      if (pathTarget) {
+        setActiveSubTab((prev) => (prev !== pathTarget ? pathTarget! : prev));
       }
     };
     syncFromUrl();
@@ -722,83 +721,6 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   </div>
 </div>
 
-        {/* Dedicated Action Strip Directly Below Sub-Tabs */}
-        <div className={styles.subTabActionBar}>
-          <div className={styles.stickySummary}>
-            <span className={styles.stickyMetric}>
-              <i className="ph ph-tooth" style={{ color: '#2563eb' }} />
-              Examined Teeth: <strong>{teeth.length}</strong>
-            </span>
-            <span className={styles.stickyMetric}>
-              <i className="ph ph-calendar-check" style={{ color: '#7c3aed' }} />
-              Procedures: <strong>{treatmentPlanItems.length}</strong>
-            </span>
-            <span className={styles.stickyMetric}>
-              <i className="ph ph-receipt" style={{ color: '#059669' }} />
-              Est. Total: <strong>{formatCurrency(totalPlanCost)}</strong>
-            </span>
-            {medicalAlerts.length > 0 && (
-              <span className={styles.stickyMetricAlert}>
-                <i className="ph ph-warning-octagon" />
-                {medicalAlerts.length} Alert{medicalAlerts.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          <div className={styles.stickyActions}>
-            {!isReadOnly && (
-              <>
-                <button
-                  type="button"
-                  className={styles.btnSecondary}
-                  onClick={handleSaveDraft}
-                  disabled={isSaving}
-                >
-                  <i className="ph ph-floppy-disk" />
-                  {saveDraftMutation.isPending ? 'Saving...' : 'Save Draft'}
-                </button>
-
-                <button
-                  type="button"
-                  className={styles.btnComplete}
-                  onClick={() => setConfirmCompleteOpen(true)}
-                  disabled={isSaving}
-                >
-                  <i className="ph ph-check-circle" />
-                  Complete Examination
-                </button>
-              </>
-            )}
-
-            {dentalExaminationNextStep[activeSubTab] ? (
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={() => void handleSubTabChange(dentalExaminationNextStep[activeSubTab]!.id)}
-                disabled={isSaving}
-              >
-                {dentalExaminationNextStep[activeSubTab]!.label}
-                <i className="ph ph-arrow-right" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={async () => {
-                  if (isDirty && !isReadOnly) {
-                    const saved = await handleSaveDraft();
-                    if (!saved) return;
-                  }
-                  onNextStep?.('Prescription');
-                }}
-                disabled={isSaving}
-              >
-                Next: Prescription
-                <i className="ph ph-arrow-right" />
-              </button>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Panels stay mounted so switching tabs does not discard unsaved section state. */}
@@ -832,9 +754,14 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             diagnosis_name: episodeForSelectedTooth.diagnosis_name,
           } : null}
           toothDiagnoses={selectedToothNumber ? diagnoses.filter((d) => d.tooth_number === selectedToothNumber) : []}
+          allDiagnoses={diagnoses}
+          onAddDiagnosis={onAddDiagnosis}
+          onRemoveDiagnosis={onRemoveDiagnosis}
+          assessment={assessment}
+          onAssessmentChange={onAssessmentChange}
+          showToast={showToast}
           onOpenDiagnosis={(tooth) => {
             setDiagnosisModalTooth(tooth);
-            setDiagnosisModalOpen(true);
             onOpenDiagnosis?.(tooth);
           }}
           visitId={visitId}
@@ -870,154 +797,93 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
       </div>
       </section>
 
-      
-
-      <section className={styles.subTabPanel} aria-labelledby="dental-subtab-imaging" hidden={activeSubTab !== 'imaging'} id="dental-subtab-panel-imaging" role="tabpanel">
-        {renderImaging?.(null, episodeForSelectedTooth?.id ?? dentalExam?.episode_id ?? null)}
-      </section>
-      <section className={styles.subTabPanel} aria-labelledby="dental-subtab-laboratory" hidden={activeSubTab !== 'laboratory'} id="dental-subtab-panel-laboratory" role="tabpanel">
-        {renderLab?.()}
-      </section>
-
-      <section className={styles.subTabPanel} aria-labelledby="dental-subtab-treatment-plan" hidden={activeSubTab !== 'treatment-plan'} id="dental-subtab-panel-treatment-plan" role="tabpanel">
-      <section className={`${styles.consultationContext} ${styles.clinicalRelationshipCard}`} aria-label="Dental clinical relationship">
-        <div className={styles.clinicalRelationshipHeader}>
-          <div className={styles.clinicalRelationshipHeading}>
-            <span className={styles.clinicalRelationshipIcon} aria-hidden="true">↗</span>
-            <div>
-              <h3>Diagnosis &amp; Treatment Plan</h3>
-              <p>Linked by FDI tooth number</p>
-            </div>
-          </div>
+      {/* Action Strip at Bottom of Page */}
+      <div className={styles.subTabActionBar} style={{ marginTop: '1.25rem' }}>
+        <div className={styles.stickySummary}>
+          {isCompleted && (
+            <>
+              {teeth.length > 0 && (
+                <span className={styles.stickyMetric}>
+                  <i className="ph ph-tooth" style={{ color: '#2563eb' }} />
+                  Examined Teeth: <strong>{teeth.length}</strong>
+                </span>
+              )}
+              {treatmentPlanItems.length > 0 && (
+                <span className={styles.stickyMetric}>
+                  <i className="ph ph-calendar-check" style={{ color: '#7c3aed' }} />
+                  Procedures: <strong>{treatmentPlanItems.length}</strong>
+                </span>
+              )}
+              {totalPlanCost > 0 && (
+                <span className={styles.stickyMetric}>
+                  <i className="ph ph-receipt" style={{ color: '#059669' }} />
+                  Est. Total: <strong>{formatCurrency(totalPlanCost)}</strong>
+                </span>
+              )}
+            </>
+          )}
+          {medicalAlerts.length > 0 && (
+            <span className={styles.stickyMetricAlert}>
+              <i className="ph ph-warning-octagon" />
+              {medicalAlerts.length} Alert{medicalAlerts.length > 1 ? 's' : ''}
+            </span>
+          )}
         </div>
-        <div className={styles.compactPlanTableWrapper}>
-          <table className={styles.compactPlanTable}>
-            <thead>
-              <tr>
-                <th style={{ width: '12%' }}>Tooth</th>
-                <th style={{ width: '28%' }}>Examination</th>
-                <th style={{ width: '28%' }}>Diagnosis</th>
-                <th style={{ width: '32%' }}>Treatment Plan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const uniqueToothNumbers = Array.from(new Set([
-                  ...teeth.map((tooth) => tooth.tooth_number),
-                  ...diagnoses.flatMap((dx) => dx.tooth_number ? [dx.tooth_number] : []),
-                  ...treatmentPlanItems.flatMap((item) => item.tooth_number ? [item.tooth_number] : []),
-                ])).sort((a, b) => a - b);
 
-                if (uniqueToothNumbers.length === 0) {
-                  return (
-                    <tr>
-                      <td colSpan={4} className={styles.emptyTableState}>
-                        No tooth-level examination findings, diagnoses, or treatment plans recorded.
-                      </td>
-                    </tr>
-                  );
+        <div className={styles.stickyActions}>
+          {!isReadOnly && (
+            <>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={handleSaveDraft}
+                disabled={isSaving}
+              >
+                <i className="ph ph-floppy-disk" />
+                {saveDraftMutation.isPending ? 'Saving...' : 'Save Draft'}
+              </button>
+
+              <button
+                type="button"
+                className={styles.btnComplete}
+                onClick={() => setConfirmCompleteOpen(true)}
+                disabled={isSaving}
+              >
+                <i className="ph ph-check-circle" />
+                Complete Examination
+              </button>
+            </>
+          )}
+
+          {dentalExaminationNextStep[activeSubTab] ? (
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={() => void handleSubTabChange(dentalExaminationNextStep[activeSubTab]!.id)}
+              disabled={isSaving}
+            >
+              {dentalExaminationNextStep[activeSubTab]!.label}
+              <i className="ph ph-arrow-right" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={async () => {
+                if (isDirty && !isReadOnly) {
+                  const saved = await handleSaveDraft();
+                  if (!saved) return;
                 }
-
-                return uniqueToothNumbers.map((number) => {
-                  const finding = teeth.find((tooth) => tooth.tooth_number === number);
-                  const toothDiagnoses = diagnoses.filter((dx) => dx.tooth_number === number);
-                  const plannedItems = treatmentPlanItems.filter((item) => item.tooth_number === number);
-
-                  const formatStatusBadge = (status?: string) => {
-                    const s = (status ?? 'PROPOSED').toUpperCase();
-                    let badgeStyle = styles.planStatusProposed;
-                    let label = 'Proposed';
-                    if (s === 'ACCEPTED') {
-                      badgeStyle = styles.planStatusAccepted;
-                      label = 'Accepted';
-                    } else if (s === 'IN_PROGRESS') {
-                      badgeStyle = styles.planStatusInProgress;
-                      label = 'In Progress';
-                    } else if (s === 'COMPLETED') {
-                      badgeStyle = styles.planStatusCompleted;
-                      label = 'Completed';
-                    } else if (s === 'DECLINED' || s === 'CANCELLED') {
-                      badgeStyle = styles.planStatusCancelled;
-                      label = s === 'DECLINED' ? 'Declined' : 'Cancelled';
-                    }
-                    return <span className={`${styles.planStatusBadge} ${badgeStyle}`}>({label})</span>;
-                  };
-
-                  const formatConditionName = (cond: string) => {
-                    if (!cond) return '';
-                    return cond.charAt(0).toUpperCase() + cond.slice(1).toLowerCase();
-                  };
-
-                  const conditionsText = finding?.conditions && finding.conditions.length > 0
-                    ? finding.conditions.map(formatConditionName).join(', ')
-                    : (finding ? 'Examined' : '—');
-
-                  const diagnosisText = toothDiagnoses.length > 0
-                    ? toothDiagnoses.map((dx) => dx.code ? `${dx.code} — ${dx.name}` : dx.name).join('; ')
-                    : '—';
-
-                  return (
-                    <tr key={number}>
-                      <td className={styles.toothNumberCell}>
-                        #{number}
-                      </td>
-                      <td>{conditionsText}</td>
-                      <td>{diagnosisText}</td>
-                      <td>
-                        {plannedItems.length > 0 ? (
-                          <div className={styles.plannedItemsCell}>
-                            {plannedItems.map((item, idx) => (
-                              <div key={item.id ?? idx} className={styles.plannedItemRow}>
-                                <span>{item.procedure_name}</span>
-                                {formatStatusBadge(item.status)}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className={styles.textMuted}>Not planned</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                });
-              })()}
-            </tbody>
-          </table>
+                onNextStep?.('Prescription');
+              }}
+              disabled={isSaving}
+            >
+              Next: Prescription
+              <i className="ph ph-arrow-right" />
+            </button>
+          )}
         </div>
-        <div className={styles.generalDiagnosisRow}>
-          <span>General / Full Mouth: </span>
-          <strong>{diagnoses.filter((dx) => !dx.tooth_number).map((dx) => `${dx.code} — ${dx.name}`).join('; ') || 'No general diagnosis recorded'}</strong>
-        </div>
-      </section>
-
-      <DentalTreatmentPlanSection
-        items={treatmentPlanItems}
-        teeth={teeth}
-        onChange={handleTreatmentPlanChange}
-        disabled={controlsDisabled}
-        departmentServices={departmentServices}
-        billingStates={billingStates}
-        billingStateLoading={billingStateLoading}
-        billingStateError={billingStateError}
-        canCreateInvoice={canCreateInvoice}
-        billingBlockedByUnsavedChanges={isDirty}
-        billingTreatmentItemPending={billingTreatmentItemPending}
-        onCreateInvoice={onCreateInvoice}
-        onOpenInvoice={onOpenInvoice}
-        patientId={patientId}
-        episodes={episodes}
-        episodeId={
-          dentalExam?.episode_id ??
-          episodeForSelectedTooth?.id ??
-          episodes[0]?.id
-        }
-        departmentId={dentalExam?.department_id ?? episodeForSelectedTooth?.department_id ?? null}
-        onStartEpisode={openCreateEpisodeModal}
-        patientName={patient ? [patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.patient_number : undefined}
-        episodeNumber={episodeForSelectedTooth?.episode_number ?? episodes[0]?.episode_number}
-        primaryToothNumber={episodeForSelectedTooth?.primary_tooth_number ?? episodes[0]?.primary_tooth_number}
-      />
-      </section>
+      </div>
 
       {/* Complete Confirmation Modal */}
       {confirmCompleteOpen && (

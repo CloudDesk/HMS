@@ -92,6 +92,22 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/opd/consultation': [{ module: 'OPD', screen: 'OPD Consultation' }],
   '/opd/prescription': [{ module: 'OPD', screen: 'OPD Prescription' }],
   '/opd/referral': [{ module: 'OPD', screen: 'OPD Referral' }],
+  '/opd/examination': [
+    { module: 'OPD', screen: 'OPD Consultation' },
+    { module: 'OPD', screen: 'OPD Visits' },
+  ],
+  '/opd/imaging': [
+    { module: 'OPD', screen: 'OPD Consultation' },
+    { module: 'OPD', screen: 'OPD Visits' },
+  ],
+  '/opd/laboratory': [
+    { module: 'OPD', screen: 'OPD Consultation' },
+    { module: 'OPD', screen: 'OPD Visits' },
+  ],
+  '/opd/treatment-plan': [
+    { module: 'OPD', screen: 'OPD Consultation' },
+    { module: 'OPD', screen: 'OPD Visits' },
+  ],
   '/admissions': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
   '/admissions/bed-availability': [{ module: 'Admissions', screen: 'Beds' }],
   '/admissions/beds': [{ module: 'Admissions', screen: 'Beds' }],
@@ -112,7 +128,13 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/emergency/workspace': [{ module: 'Emergency', screen: 'Encounters' }],
 };
 
-const anyPermissionRoutes = new Set(['/surgery']);
+const anyPermissionRoutes = new Set([
+  '/surgery',
+  '/opd/examination',
+  '/opd/imaging',
+  '/opd/laboratory',
+  '/opd/treatment-plan',
+]);
 
 const normalize = (value: string) => value.trim().toLowerCase().replaceAll(/[_\s-]+/g, ' ');
 const pathnameOnly = (value: string) => {

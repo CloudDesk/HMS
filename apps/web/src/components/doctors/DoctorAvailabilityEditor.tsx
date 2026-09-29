@@ -161,7 +161,7 @@ export function DoctorAvailabilityEditor({
             >
               <span className="weekday-name">{dayName.slice(0, 3)}</span>
               <span className="weekday-status">
-                {isAvailable ? `${dayMaxPts} max pts (${blockCount}b)` : 'Off'}
+                {isAvailable ? `${dayMaxPts} max pts (${blockCount} slot${blockCount === 1 ? '' : 's'})` : 'Off'}
               </span>
             </button>
           );
@@ -182,7 +182,7 @@ export function DoctorAvailabilityEditor({
             </div>
             <span className="doctor-day-subtitle">
               {activeDayForm.is_available
-                ? `${activeDayForm.working_blocks.length} working block${activeDayForm.working_blocks.length === 1 ? '' : 's'} configured · Max patients auto-adjusts based on slot duration`
+                ? `${activeDayForm.working_blocks.length} working slot${activeDayForm.working_blocks.length === 1 ? '' : 's'} configured · Max patients auto-adjusts based on slot duration`
                 : 'Doctor is off duty on this day'}
             </span>
           </div>
@@ -289,7 +289,7 @@ export function DoctorAvailabilityEditor({
                     </div>
 
                     <button
-                      aria-label={`Remove ${activeDayForm.day_of_week.toLowerCase()} working block`}
+                      aria-label={`Remove ${activeDayForm.day_of_week.toLowerCase()} working slot`}
                       className="doc-action danger"
                       disabled={disabled || activeDayForm.working_blocks.length === 1}
                       onClick={() =>
@@ -297,7 +297,7 @@ export function DoctorAvailabilityEditor({
                           working_blocks: activeDayForm.working_blocks.filter((_, blockIndex) => blockIndex !== index),
                         })
                       }
-                      title="Remove block"
+                      title="Remove slot"
                       type="button"
                     >
                       <i className="ph ph-trash" aria-hidden="true" />
@@ -336,7 +336,7 @@ export function DoctorAvailabilityEditor({
                 }
                 type="button"
               >
-                <i className="ph ph-plus" aria-hidden="true" /> Add Working Block
+                <i className="ph ph-plus" aria-hidden="true" /> Add Working Slots
               </button>
             </div>
           </div>
