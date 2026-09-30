@@ -126,116 +126,153 @@ export function DoctorDashboardPage() {
 
   return (
     <>
-      <div className="doctor-page">
-        <section className="doctor-page-header">
-          <div className="doctor-page-title">
+      <div className="hms-dash-wrapper">
+        <div className="hms-dash-header">
+          <div className="hms-dash-title">
             <h2>Doctor Dashboard</h2>
-            <p>Clinical schedule and patient consultations for today.</p>
+            <p>Clinical schedule and consultations for today</p>
           </div>
-          <div className="doctor-page-actions">
-            <button className="doc-btn" style={{ cursor: 'default' }} type="button">
+          <div className="hms-dash-actions">
+            <button className="hms-dash-btn secondary" onClick={() => navigate('/doctors/schedule')} type="button">
               <i className="ph ph-calendar-check" aria-hidden="true" />
               Today's Schedule
             </button>
-            {dashboard.canViewOpdQueue ? <button
-              className="doc-btn primary"
-              onClick={() => navigate('/opd/queue')}
-              type="button"
-            >
-              <i className="ph ph-stethoscope" aria-hidden="true" />
-              Open Clinical Queue
-            </button> : null}
+            {dashboard.canViewOpdQueue ? (
+              <button
+                className="hms-dash-btn primary"
+                onClick={() => navigate('/opd/queue')}
+                type="button"
+              >
+                <i className="ph ph-stethoscope" aria-hidden="true" />
+                Open Clinical Queue
+              </button>
+            ) : null}
           </div>
-        </section>
+        </div>
 
         {dashboard.errorMessage ? (
-          <div className="form-error-banner" role="alert">
+          <div className="form-error-banner" role="alert" style={{ borderRadius: '8px' }}>
             <i className="ph ph-warning-circle" aria-hidden="true" />
             <span>{dashboard.errorMessage}</span>
           </div>
         ) : null}
         {dashboard.isLoading ? <div className="doc-muted-note">Loading live doctor metrics...</div> : null}
 
-            <section className="doc-kpi-grid">
-              {kpis.map(([icon, tone, label, value, copy]) => (
-                <article className="doc-kpi" key={label}>
-                  <span className={`doc-kpi-icon ${tone}`}>
-                    <i className={`ph ${icon}`} aria-hidden="true" />
-                  </span>
-                  <div className="doc-kpi-copy">
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                    <small>{copy}</small>
-                  </div>
-                </article>
-              ))}
-            </section>
+        {/* 5 Clinical KPIs */}
+        <div className="hms-dash-kpi-grid">
+          {kpis.map(([icon, tone, label, value, copy]) => (
+            <div className="hms-dash-kpi-card" key={label}>
+              <div className="hms-kpi-top">
+                <span className={`hms-kpi-icon ${tone}`}>
+                  <i className={`ph ${icon}`} aria-hidden="true" />
+                </span>
+                {tone === 'red' && typeof value === 'number' && value > 0 ? (
+                  <span style={{ fontSize: '11px', fontWeight: 700, background: '#fee2e2', color: '#dc2626', padding: '2px 6px', borderRadius: '4px' }}>Attention</span>
+                ) : null}
+              </div>
+              <div>
+                <div className="hms-kpi-label">{label}</div>
+                <div className="hms-kpi-value">{value}</div>
+                <div className="hms-kpi-sub">{copy}</div>
+              </div>
+            </div>
+          ))}
+        </div>
 
-            <section className="doc-grid dashboard-main">
-              <article className="doc-card">
-                <div className="doc-card-header">
-                  <div>
-                    <h3>Weekly Consultation Trend</h3>
-                    <p>Consultation volume over the last seven days</p>
-                  </div>
+        {/* Analytics Row: Trend & Donut */}
+        <div className="hms-dash-grid two-col-7-5">
+          <div className="hms-dash-card">
+            <div className="hms-card-header">
+              <div className="hms-card-header-left">
+                <h3 className="hms-card-title">Weekly Consultation Trend</h3>
+                <p className="hms-card-desc">Consultation volume over the last seven days</p>
+              </div>
+            </div>
+            <div className="hms-card-body">
+              {dashboard.hasCompleteAppointmentDataset && !dashboard.errorMessage ? (
+                <LineChart points={trend} />
+              ) : (
+                <div className="hms-dash-empty">
+                  <i className="ph ph-chart-line" />
+                  <div className="hms-dash-empty-title">Trend data unavailable</div>
+                  <div className="hms-dash-empty-desc">Complete consultation history is not available for this scope.</div>
                 </div>
-                {dashboard.hasCompleteAppointmentDataset && !dashboard.errorMessage ? <LineChart points={trend} /> : <div className="um-state-cell">Complete trend data is unavailable for this dashboard scope.</div>}
-              </article>
-              <article className="doc-card">
-                <div className="doc-card-header">
-                  <div>
-                    <h3>Appointment Status</h3>
-                    <p>Today's appointment distribution by status</p>
-                  </div>
-                </div>
-                {dashboard.appointmentSummary ? <DonutChart summary={dashboard.appointmentSummary} /> : <div className="um-state-cell">Complete status totals are unavailable for this dashboard scope.</div>}
-              </article>
-            </section>
+              )}
+            </div>
+          </div>
 
-            <section className="doc-grid dashboard-bottom">
-              <article className="doc-card">
-                <div className="doc-card-header">
-                  <div>
-                    <h3>Upcoming Appointments</h3>
-                    <p>Next scheduled consultations in clinical queue</p>
-                  </div>
-                  <button className="doc-btn" onClick={() => navigate('/doctors/schedule')} type="button">
-                    View Schedule
-                  </button>
+          <div className="hms-dash-card">
+            <div className="hms-card-header">
+              <div className="hms-card-header-left">
+                <h3 className="hms-card-title">Appointment Status</h3>
+                <p className="hms-card-desc">Today's appointment distribution by status</p>
+              </div>
+            </div>
+            <div className="hms-card-body">
+              {dashboard.appointmentSummary ? (
+                <DonutChart summary={dashboard.appointmentSummary} />
+              ) : (
+                <div className="hms-dash-empty">
+                  <i className="ph ph-chart-donut" />
+                  <div className="hms-dash-empty-title">Status distribution unavailable</div>
                 </div>
-                <div className="doc-appointment-list">
-                  {dashboard.todayAppointments.length === 0 ? (
-                    <div className="um-state-cell">
-                      No appointments scheduled{dashboard.selectedDoctor ? ` for ${dashboard.selectedDoctor.display_name}` : ''} today.
-                    </div>
-                  ) : (
-                    dashboard.todayAppointments.slice(0, 6).map((appointment) => (
-                      <div className="doc-appointment-item" key={appointment.id}>
-                        <span className="doc-time">{appointment.start_time}</span>
-                        <span className="doc-avatar">{patientInitialsFromName(appointment.patient_name)}</span>
-                        <div className="doc-appointment-copy">
-                          <strong>{appointment.patient_name}</strong>
-                          <span>
-                            {visitTypeText(appointment.visit_type)} · {appointment.doctor_specialization}
-                          </span>
-                        </div>
-                        <span className={`doc-status ${statusTone(appointment.status)}`}>
-                          {appointmentStatusText(appointment)}
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Lower Row: Upcoming Appointments & Quick Actions */}
+        <div className="hms-dash-grid two-col-7-5">
+          <div className="hms-dash-card">
+            <div className="hms-card-header">
+              <div className="hms-card-header-left">
+                <h3 className="hms-card-title">Upcoming Consultations</h3>
+                <p className="hms-card-desc">Next scheduled consultations in clinical queue</p>
+              </div>
+              <button className="hms-dash-btn secondary" onClick={() => navigate('/doctors/schedule')} style={{ height: '32px', fontSize: '12px' }} type="button">
+                View Schedule
+              </button>
+            </div>
+            <div className="hms-card-body" style={{ padding: '0.75rem 1rem' }}>
+              <div className="doc-appointment-list">
+                {dashboard.todayAppointments.length === 0 ? (
+                  <div className="hms-dash-empty" style={{ padding: '1.5rem 1rem' }}>
+                    <i className="ph ph-calendar-blank" style={{ fontSize: '1.75rem' }} />
+                    <div className="hms-dash-empty-title">No appointments today</div>
+                    <div className="hms-dash-empty-desc">No patients are currently queued for consultation.</div>
+                  </div>
+                ) : (
+                  dashboard.todayAppointments.slice(0, 6).map((appointment) => (
+                    <div className="doc-appointment-item" key={appointment.id}>
+                      <span className="doc-time">{appointment.start_time}</span>
+                      <span className="doc-avatar">{patientInitialsFromName(appointment.patient_name)}</span>
+                      <div className="doc-appointment-copy">
+                        <strong>{appointment.patient_name}</strong>
+                        <span>
+                          {visitTypeText(appointment.visit_type)} · {appointment.doctor_specialization}
                         </span>
                       </div>
-                    ))
-                  )}
-                </div>
-              </article>
-              <article className="doc-card">
-                <div className="doc-card-header">
-                  <div>
-                    <h3>Quick Actions</h3>
-                    <p>Common clinician workflows and navigation</p>
-                  </div>
-                </div>
-                <div className="doc-quick-actions">
-                  {dashboard.canViewOpdQueue ? <button
+                      <span className={`doc-status ${statusTone(appointment.status)}`}>
+                        {appointmentStatusText(appointment)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="hms-dash-card">
+            <div className="hms-card-header">
+              <div className="hms-card-header-left">
+                <h3 className="hms-card-title">Quick Actions</h3>
+                <p className="hms-card-desc">Common clinician workflows and navigation</p>
+              </div>
+            </div>
+            <div className="hms-card-body">
+              <div className="doc-quick-actions">
+                {dashboard.canViewOpdQueue ? (
+                  <button
                     className="doc-quick-action"
                     onClick={() => navigate('/opd/queue')}
                     type="button"
@@ -245,24 +282,28 @@ export function DoctorDashboardPage() {
                       <strong>Open Clinical Queue</strong>
                       <span>Open active queue and start consultations</span>
                     </span>
-                  </button> : null}
-                  <button className="doc-quick-action" onClick={() => navigate('/doctors/schedule')} type="button">
-                    <i className="ph ph-calendar-check" aria-hidden="true" />
-                    <span>
-                      <strong>View Today's Schedule</strong>
-                      <span>Review booked time slots and day view</span>
-                    </span>
                   </button>
-                  {dashboard.canSearchPatients ? <button className="doc-quick-action" onClick={() => navigate('/patients/search')} type="button">
+                ) : null}
+                <button className="doc-quick-action" onClick={() => navigate('/doctors/schedule')} type="button">
+                  <i className="ph ph-calendar-check" aria-hidden="true" />
+                  <span>
+                    <strong>View Today's Schedule</strong>
+                    <span>Review booked time slots and day view</span>
+                  </span>
+                </button>
+                {dashboard.canSearchPatients ? (
+                  <button className="doc-quick-action" onClick={() => navigate('/patients/search')} type="button">
                     <i className="ph ph-magnifying-glass" aria-hidden="true" />
                     <span>
                       <strong>Patient Search</strong>
                       <span>Search master patient index and history</span>
                     </span>
-                  </button> : null}
-                </div>
-              </article>
-            </section>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </>

@@ -66,8 +66,11 @@ export const administrationDashboardApi = {
   get() {
     return apiClient.request<AdministrationDashboard>('/administration/dashboard');
   },
-  getOverview(branchId?: string) {
-    const query = branchId ? `?branch_id=${encodeURIComponent(branchId)}` : '';
+  getOverview(branchId?: string, range: 'week' | 'month' | 'year' = 'week') {
+    const params = new URLSearchParams();
+    if (branchId) params.append('branch_id', branchId);
+    if (range) params.append('range', range);
+    const query = params.toString() ? `?${params.toString()}` : '';
     return apiClient.request<ExecutiveDashboardOverview>(`/administration/dashboard/overview${query}`);
   },
 };

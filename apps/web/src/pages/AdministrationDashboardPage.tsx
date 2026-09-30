@@ -50,19 +50,83 @@ export function AdministrationDashboardPage() {
   }
 
   return (
-    <div className="admin-dashboard-page">
-      <div className="um-kpi-row admin-dashboard-kpis">
-        {kpis.map((item) => <KpiCard detail={item.detail} icon={item.icon} key={item.label} label={item.label} tone={item.tone} value={String(item.value)} />)}
+    <div className="hms-dash-wrapper">
+      <div className="hms-dash-header">
+        <div className="hms-dash-title">
+          <h2>Administration Dashboard</h2>
+          <p>Operational system metrics, account status, and audit activity</p>
+        </div>
+        <div className="hms-dash-actions">
+          <button className="hms-dash-btn secondary" onClick={() => void refetch()} type="button">
+            <i className="ph ph-arrows-clockwise" aria-hidden="true" />
+            Refresh
+          </button>
+        </div>
       </div>
 
-      <div className="admin-dashboard-grid">
-        <Card title="Users by Status" description="Current account availability"><MetricBars items={dashboard.usersByStatus} /></Card>
-        <Card title="Users by Role" description="Active role assignments"><MetricBars items={dashboard.usersByRole} /></Card>
-        <Card title="Services by Department" description="Catalogue distribution"><MetricBars items={dashboard.servicesByDepartment} /></Card>
+      <div className="hms-dash-kpi-grid">
+        {kpis.map((item) => (
+          <div className="hms-dash-kpi-card" key={item.label}>
+            <div className="hms-kpi-top">
+              <span className={`hms-kpi-icon ${item.tone}`}>
+                <i className={`ph ${item.icon}`} aria-hidden="true" />
+              </span>
+            </div>
+            <div>
+              <div className="hms-kpi-label">{item.label}</div>
+              <div className="hms-kpi-value">{String(item.value)}</div>
+              <div className="hms-kpi-sub">{item.detail}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="admin-dashboard-lower admin-dashboard-lower--single">
-        <Card className="admin-activity-card" title="Recent Audit Activity" description={`Snapshot updated ${formatDate(dashboard.generatedAt)}`}>
+      <div className="hms-dash-grid three-col-equal">
+        <div className="hms-dash-card">
+          <div className="hms-card-header">
+            <div className="hms-card-header-left">
+              <h3 className="hms-card-title">Users by Status</h3>
+              <p className="hms-card-desc">Current account availability</p>
+            </div>
+          </div>
+          <div className="hms-card-body">
+            <MetricBars items={dashboard.usersByStatus} />
+          </div>
+        </div>
+
+        <div className="hms-dash-card">
+          <div className="hms-card-header">
+            <div className="hms-card-header-left">
+              <h3 className="hms-card-title">Users by Role</h3>
+              <p className="hms-card-desc">Active role assignments</p>
+            </div>
+          </div>
+          <div className="hms-card-body">
+            <MetricBars items={dashboard.usersByRole} />
+          </div>
+        </div>
+
+        <div className="hms-dash-card">
+          <div className="hms-card-header">
+            <div className="hms-card-header-left">
+              <h3 className="hms-card-title">Services by Department</h3>
+              <p className="hms-card-desc">Catalogue distribution</p>
+            </div>
+          </div>
+          <div className="hms-card-body">
+            <MetricBars items={dashboard.servicesByDepartment} />
+          </div>
+        </div>
+      </div>
+
+      <div className="hms-dash-card">
+        <div className="hms-card-header">
+          <div className="hms-card-header-left">
+            <h3 className="hms-card-title">Recent Audit Activity</h3>
+            <p className="hms-card-desc">Snapshot updated {formatDate(dashboard.generatedAt)}</p>
+          </div>
+        </div>
+        <div className="hms-card-body">
           {dashboard.recentActivity.length ? (
             <div className="admin-activity-list">
               {dashboard.recentActivity.map((activity) => (
@@ -73,9 +137,14 @@ export function AdministrationDashboardPage() {
                 </article>
               ))}
             </div>
-          ) : <EmptyState icon="ph-clock-counter-clockwise" title="No recent activity" message="Audited administration actions will appear here." />}
-        </Card>
-
+          ) : (
+            <div className="hms-dash-empty">
+              <i className="ph ph-clock-counter-clockwise" />
+              <div className="hms-dash-empty-title">No recent activity</div>
+              <div className="hms-dash-empty-desc">Audited administration actions will appear here.</div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

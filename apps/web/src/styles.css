@@ -1,3 +1,5 @@
+@import './styles/dashboard-system.css';
+
 :root {
   --primary: #0046c0;
   --primary-hover: #003699;

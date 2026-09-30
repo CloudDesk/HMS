@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useDashboardOverviewFeature } from '../hooks/dashboard/useDashboardOverviewFeature';
 import { useAuth } from '../auth/useAuth';
 import {
@@ -74,29 +74,164 @@ function StatCard({ icon, label, note, tone, value }: StatCardProps) {
   );
 }
 
-function ExecutiveOverviewTab() {
+function getSplinePath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return '';
+  const first = pts[0];
+  if (!first) return '';
+  if (pts.length === 1) return `M ${first.x} ${first.y}`;
+  let path = `M ${first.x} ${first.y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i === 0 ? 0 : i - 1] ?? first;
+    const p1 = pts[i] ?? first;
+    const p2 = pts[i + 1] ?? p1;
+    const p3 = pts[i + 2 >= pts.length ? pts.length - 1 : i + 2] ?? p2;
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return path;
+}
+
+function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => void }) {
   const { user } = useAuth();
-  const firstName = user?.fullName?.split(' ')[0] ?? user?.username ?? 'User';
-  const { data, isLoading: loading, isError, isFetching, refresh, selectedBranchId, setSelectedBranchId } = useDashboardOverviewFeature();
+  const firstName = user?.fullName?.split(' ')[0] ?? user?.username ?? 'Doctor';
+  const [chartRange, setChartRange] = useState<'week' | 'month' | 'year'>('week');
+  const { data, isLoading: loading, isError, isFetching, refresh, selectedBranchId, setSelectedBranchId } = useDashboardOverviewFeature(chartRange);
   const { data: branchesData } = useBranchesList({ limit: 100 });
 
   const accessibleBranches = branchesData?.data || [];
   const loadError = isError ? 'Executive dashboard metrics could not be updated.' : '';
 
-  const maxEncounters = Math.max(1, ...data.trend.map((t) => t.encounters));
+  // Calendar week days strip with reactive navigation
+  const now = useMemo(() => new Date(), []);
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const monday = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + weekOffset * 7);
+    const dayOfWeek = (d.getDay() + 6) % 7; // Mon = 0
+    d.setDate(d.getDate() - dayOfWeek);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [weekOffset]);
+
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }).map((_, idx) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + idx);
+      const isSelected =
+        d.getFullYear() === selectedDate.getFullYear() &&
+        d.getMonth() === selectedDate.getMonth() &&
+        d.getDate() === selectedDate.getDate();
+      const isRealToday =
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate();
+
+      return {
+        date: d,
+        dayNum: d.getDate(),
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        isSelected,
+        isRealToday,
+      };
+    });
+  }, [monday, selectedDate, now]);
+
+  const isSelectedDateToday =
+    selectedDate.getFullYear() === now.getFullYear() &&
+    selectedDate.getMonth() === now.getMonth() &&
+    selectedDate.getDate() === now.getDate();
+
+  const formattedSelectedDate = new Intl.DateTimeFormat('en-US', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(selectedDate);
+
+  // Live dynamic trend data points directly from backend
+  const trendList = useMemo(() => {
+    return data?.trend ?? [];
+  }, [data?.trend]);
+
+  const numPts = trendList.length;
+  const maxVal = Math.max(5, ...trendList.map((t) => t.encounters));
+  const stepX = numPts > 1 ? 600 / (numPts - 1) : 300;
+
+  // Compute curve 1 points (Total patients / encounters)
+  const ptsCurve1 = trendList.map((pt, idx) => {
+    const x = 50 + idx * stepX;
+    const y = 160 - (pt.encounters / maxVal) * 110;
+    return { x, y };
+  });
+
+  const curve1Path = getSplinePath(ptsCurve1);
+  const firstPt = ptsCurve1[0];
+  const lastPt = ptsCurve1[ptsCurve1.length - 1];
+  const area1Path = firstPt && lastPt
+    ? `${curve1Path} L ${lastPt.x} 175 L ${firstPt.x} 175 Z`
+    : '';
+
+  // Peak index for the highlight capsule marker
+  let peakIdx = 0;
+  trendList.forEach((pt, idx) => {
+    const currPeak = trendList[peakIdx];
+    if (currPeak && pt.encounters > currPeak.encounters) peakIdx = idx;
+  });
+  const peakPt = ptsCurve1[peakIdx] ?? ptsCurve1[0] ?? { x: 350, y: 50 };
+  const peakVal = trendList[peakIdx]?.encounters ?? 0;
+
+  // Date formatting for header pill
+  const formattedToday = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(now);
+
+  const waiting = data.operationalMetrics?.patientsWaiting ?? 0;
+  const inConsultation = data.operationalMetrics?.patientsInConsultation ?? 0;
+  const completed = data.operationalMetrics?.completedConsultationsToday ?? 0;
+  const activeFlowTotal = waiting + inConsultation;
+
+  const balancePercentage = data.financialSummary?.totalBilledAmount
+    ? Math.min(100, Math.round(((data.financialSummary.collectedFunds ?? 0) / data.financialSummary.totalBilledAmount) * 100))
+    : (completed + activeFlowTotal > 0 ? Math.min(100, Math.round((completed / (completed + activeFlowTotal)) * 100)) : 0);
+
+  // Filter live visits for the selected day in timeline
+  const dayVisits = useMemo(() => {
+    if (!data.recentVisits || data.recentVisits.length === 0) return [];
+    return data.recentVisits.filter((v) => {
+      if (!v.check_in_time) return false;
+      const vDate = new Date(v.check_in_time);
+      return (
+        vDate.getFullYear() === selectedDate.getFullYear() &&
+        vDate.getMonth() === selectedDate.getMonth() &&
+        vDate.getDate() === selectedDate.getDate()
+      );
+    });
+  }, [data.recentVisits, selectedDate]);
 
   return (
-    <div className="dashboard-grid">
-      <div className="appointment-page-header executive-dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div className="appointment-page-title">
-          <h2>Hospital Executive Overview</h2>
-          <p>Welcome back, {firstName}. Live enterprise health and encounter performance.</p>
+    <div className="hms-dash-wrapper">
+      {/* Header & Greeting Bar */}
+      <div className="hms-dash-greeting">
+        <div className="hms-greeting-left">
+          <div className="hms-dash-scope-tag">
+            <i className="ph ph-shield-check" aria-hidden="true" /> Hospital Executive Overview
+          </div>
+          <h2 className="hms-greeting-title">Hello, {firstName} 👋</h2>
+          <p className="hms-greeting-sub">Live operational and clinical activity for your hospital network.</p>
         </div>
-        <div className="executive-dashboard-actions">
+        <div className="hms-greeting-right">
           {accessibleBranches.length > 1 ? (
             <select
               aria-label="Dashboard branch"
-              className="um-filter executive-dashboard-branch"
+              className="hms-dash-select"
               value={selectedBranchId ?? ''}
               onChange={(e) => setSelectedBranchId(e.target.value || undefined)}
             >
@@ -106,151 +241,634 @@ function ExecutiveOverviewTab() {
               ))}
             </select>
           ) : null}
-          <button className="btn-secondary admin-table-action executive-dashboard-refresh" disabled={loading || isFetching} onClick={() => refresh()} type="button">
+          <button
+            className="hms-date-pill"
+            onClick={() => (onSelectTab ? onSelectTab('appointments') : navigate('/appointments'))}
+            title="Open appointment calendar"
+            type="button"
+          >
+            <i className="ph ph-calendar" aria-hidden="true" />
+            <span>{formattedToday}</span>
+          </button>
+          <button
+            className="hms-dash-btn secondary"
+            disabled={loading || isFetching}
+            onClick={() => refresh()}
+            type="button"
+          >
             <i className={`ph ph-arrow-clockwise${isFetching ? ' ph-spin' : ''}`} aria-hidden="true" />
-            {isFetching ? 'Refreshing...' : 'Refresh Live Data'}
+            {isFetching ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      {loadError ? <div className="um-state-cell" role="alert" style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '0.75rem', borderRadius: '6px' }}>{loadError}</div> : null}
+      {loadError ? (
+        <div className="um-state-cell" role="alert" style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '0.75rem', borderRadius: '12px' }}>
+          {loadError}
+        </div>
+      ) : null}
 
-      <div className="stat-cards-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-        <StatCard icon="ph-users" label="Registered Patients" note="Active patient directory" tone="blue" value={loading || !data ? '...' : (data.kpis?.registeredPatients ?? 0)} />
-        <StatCard icon="ph-stethoscope" label="Active Doctors" note="On-duty clinical staff" tone="green" value={loading || !data ? '...' : (data.kpis?.activeDoctors ?? 0)} />
-        <StatCard icon="ph-calendar-check" label="Today's Appointments" note="Bookings for today" tone="orange" value={loading || !data ? '...' : (data.kpis?.todayAppointments ?? 0)} />
-        <StatCard icon="ph-first-aid" label="OPD Visits Today" note="Checked-in patient visits" tone="purple" value={loading || !data ? '...' : (data.kpis?.todayOpdVisits ?? 0)} />
+      {/* Top 4 KPI Row (Live values only, brand blue) */}
+      <div className="hms-dash-kpi-grid">
+        {/* Card 1: Hero Royal Blue Gradient Card */}
+        <div
+          className="hms-dash-kpi-card hero"
+          onClick={() => (onSelectTab ? onSelectTab('appointments') : navigate('/appointments'))}
+          role="button"
+          tabIndex={0}
+          title="Open Appointments workspace"
+        >
+          <div className="hms-kpi-top">
+            <span className="hms-kpi-icon hero-circle">
+              <i className="ph ph-calendar-check" aria-hidden="true" />
+            </span>
+            <span className="hms-kpi-label">Appointments</span>
+          </div>
+          <div className="hms-kpi-bottom">
+            <div className="hms-kpi-value">
+              {loading || !data ? '—' : (data.kpis?.todayAppointments ?? 0).toLocaleString()}
+            </div>
+            <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <i className="ph ph-calendar-check" /> Today's bookings
+            </span>
+          </div>
+        </div>
+
+        {/* Card 2: Active Doctors */}
+        <div
+          className="hms-dash-kpi-card"
+          onClick={() => (onSelectTab ? onSelectTab('doctors') : navigate('/doctors'))}
+          role="button"
+          tabIndex={0}
+          title="Open Doctors directory"
+        >
+          <div className="hms-kpi-top">
+            <span className="hms-kpi-icon phone-blue">
+              <i className="ph ph-phone-call" aria-hidden="true" />
+            </span>
+            <span className="hms-kpi-label">Active Doctors</span>
+          </div>
+          <div className="hms-kpi-bottom">
+            <div className="hms-kpi-value">
+              {loading || !data ? '—' : (data.kpis?.activeDoctors ?? 0).toLocaleString()}
+            </div>
+            <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <i className="ph ph-stethoscope" /> On-duty clinical staff
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: OPD Visits Today */}
+        <div
+          className="hms-dash-kpi-card"
+          onClick={() => (onSelectTab ? onSelectTab('opd') : navigate('/opd'))}
+          role="button"
+          tabIndex={0}
+          title="Open OPD workspace"
+        >
+          <div className="hms-kpi-top">
+            <span className="hms-kpi-icon doctor-cyan">
+              <i className="ph ph-first-aid" aria-hidden="true" />
+            </span>
+            <span className="hms-kpi-label">OPD Visits</span>
+          </div>
+          <div className="hms-kpi-bottom">
+            <div className="hms-kpi-value">
+              {loading || !data ? '—' : (data.kpis?.todayOpdVisits ?? 0).toLocaleString()}
+            </div>
+            <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <i className="ph ph-users" /> {waiting} currently in queue
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Total Patients */}
+        <div
+          className="hms-dash-kpi-card"
+          onClick={() => navigate('/patients')}
+          role="button"
+          tabIndex={0}
+          title="Open Patients directory"
+        >
+          <div className="hms-kpi-top">
+            <span className="hms-kpi-icon patient-teal">
+              <i className="ph ph-handshake" aria-hidden="true" />
+            </span>
+            <span className="hms-kpi-label">Total Patients</span>
+          </div>
+          <div className="hms-kpi-bottom">
+            <div className="hms-kpi-value">
+              {loading || !data ? '—' : (data.kpis?.registeredPatients ?? 0).toLocaleString()}
+            </div>
+            <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <i className="ph ph-identification-card" /> Registered patient directory
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Operational Highlights */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <i className="ph ph-hourglass" style={{ fontSize: '1.4rem', color: '#ea580c' }} />
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Patients Waiting</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>{loading ? '...' : data.operationalMetrics.patientsWaiting}</div>
-          </div>
-        </div>
-        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <i className="ph ph-user-focus" style={{ fontSize: '1.4rem', color: '#2563eb' }} />
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>In Consultation</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>{loading ? '...' : data.operationalMetrics.patientsInConsultation}</div>
-          </div>
-        </div>
-        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <i className="ph ph-check-circle" style={{ fontSize: '1.4rem', color: '#16a34a' }} />
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Completed Today</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>{loading ? '...' : data.operationalMetrics.completedConsultationsToday}</div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="doc-grid dashboard-main executive-dashboard-main"
-        style={{ gridTemplateColumns: 'minmax(0, 1fr)', marginTop: '1.25rem' }}
-      >
-        {/* 7-Day Encounter Trend Chart */}
-        <article className="doc-card">
-          <div className="doc-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3>7-Day Encounter Flow</h3>
-              <p>Outpatient encounter volume for the selected branch scope</p>
-            </div>
-            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', fontWeight: 600 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#9333ea' }}>
-                <span style={{ width: '10px', height: '10px', backgroundColor: '#9333ea', borderRadius: '2px', display: 'inline-block' }} />
-                Encounters
-              </span>
-            </div>
-          </div>
-          <div className="doc-chart" style={{ padding: '1rem 0.5rem 0.5rem' }}>
-            {loading ? (
-              <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                Loading 7-day trend analysis...
+      {/* Main Grid: Left Column (Chart + 3 Bottom Cards) / Right Column (Today's Schedule & Calendar) */}
+      <div className="hms-dash-grid two-col-7-5">
+        {/* ── Left Column ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Patient Statistics Spline Wave Chart */}
+          <div className="hms-dash-card">
+            <div className="hms-card-header">
+              <div className="hms-card-header-left">
+                <h3 className="hms-card-title">Patient statistics</h3>
               </div>
-            ) : (
-              <>
-                <svg
-                  aria-label="Seven-day outpatient encounter trend"
-                  className="doc-line-chart"
-                  preserveAspectRatio="none"
-                  role="img"
-                  style={{ display: 'block', height: '190px', width: '100%' }}
-                  viewBox="0 0 700 210"
+              <div className="hms-chart-pills">
+                <button
+                  className={`hms-chart-pill-btn${chartRange === 'week' ? ' active' : ''}`}
+                  onClick={() => setChartRange('week')}
+                  type="button"
                 >
-                  {[0, 1, 2, 3, 4].map((line) => (
-                    <line key={line} x1="40" x2="660" y1={20 + line * 38} y2={20 + line * 38} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
-                  ))}
-                  {/* Encounters Bars */}
-                  {data.trend.map((pt, idx) => {
-                    const x = 55 + idx * 96;
-                    const barHeight = Math.max(4, (pt.encounters / maxEncounters) * 110);
-                    const y = 172 - barHeight;
-                    return (
-                      <g key={`bar-${pt.date}`}>
-                        <rect x={x - 12} y={y} width="24" height={barHeight} fill="#e9d5ff" rx="3" />
-                        <text x={x} y={y - 5} textAnchor="middle" fill="#7e22ce" fontSize="10" fontWeight="600">
-                          {pt.encounters > 0 ? pt.encounters : ''}
+                  Week
+                </button>
+                <button
+                  className={`hms-chart-pill-btn${chartRange === 'month' ? ' active' : ''}`}
+                  onClick={() => setChartRange('month')}
+                  type="button"
+                >
+                  Month
+                </button>
+                <button
+                  className={`hms-chart-pill-btn${chartRange === 'year' ? ' active' : ''}`}
+                  onClick={() => setChartRange('year')}
+                  type="button"
+                >
+                  <i className="ph ph-calendar-blank" style={{ marginRight: '4px' }} /> Year-{now.getFullYear()}
+                </button>
+              </div>
+            </div>
+            <div className="hms-card-body" style={{ padding: '1rem 1.35rem 1.25rem' }}>
+              {loading ? (
+                <div className="hms-dash-empty">
+                  <i className="ph ph-chart-line" />
+                  <div className="hms-dash-empty-title">Loading patient statistics...</div>
+                </div>
+              ) : trendList.length === 0 ? (
+                <div className="hms-dash-empty" style={{ padding: '3rem 1rem' }}>
+                  <i className="ph ph-chart-line" style={{ fontSize: '2rem', color: '#94a3b8' }} />
+                  <div className="hms-dash-empty-title">No patient statistics recorded for this period</div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Data updates live as visits and consultations occur.</p>
+                </div>
+              ) : (
+                <div className="hms-chart-wrap">
+                  <svg
+                    aria-label="Patient statistics spline chart"
+                    className="hms-chart-svg"
+                    preserveAspectRatio="none"
+                    role="img"
+                    style={{ height: '220px' }}
+                    viewBox="0 0 700 210"
+                  >
+                    <defs>
+                      <linearGradient id="areaGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#2563eb" stopOpacity="0.22" />
+                        <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                      </linearGradient>
+                      <linearGradient id="capsuleGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#1d4ed8" />
+                        <stop offset="100%" stopColor="#60a5fa" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Horizontal Dashed Gridlines with Dynamic Y Labels */}
+                    {(() => {
+                      const yGridMax = Math.max(10, Math.ceil(maxVal / 10) * 10);
+                      const step = Math.round(yGridMax / 3);
+                      return [
+                        { y: 35, val: yGridMax.toString() },
+                        { y: 80, val: (step * 2).toString() },
+                        { y: 125, val: step.toString() },
+                        { y: 170, val: '0' },
+                      ].map((grid) => (
+                        <g key={grid.y}>
+                          <text x="30" y={grid.y + 4} fill="#94a3b8" fontSize="11" fontWeight="600" textAnchor="end">
+                            {grid.val}
+                          </text>
+                          <line
+                            className="hms-chart-gridline"
+                            x1="38"
+                            x2="680"
+                            y1={grid.y}
+                            y2={grid.y}
+                          />
+                        </g>
+                      ));
+                    })()}
+
+                    {/* Curve 1 Area Fill */}
+                    {area1Path && <path d={area1Path} fill="url(#areaGrad)" />}
+
+                    {/* Peak Highlight Vertical Capsule Marker */}
+                    {peakPt && peakVal > 0 && (
+                      <g>
+                        <rect
+                          fill="url(#capsuleGrad)"
+                          height="135"
+                          rx="13"
+                          width="26"
+                          x={peakPt.x - 13}
+                          y={35}
+                        />
+                        <circle
+                          cx={peakPt.x}
+                          cy={peakPt.y}
+                          fill="#ffffff"
+                          r="5.5"
+                          stroke="#1d4ed8"
+                          strokeWidth="3.5"
+                        />
+                        {/* Peak Badge */}
+                        <rect
+                          fill="#1e3a8a"
+                          height="24"
+                          rx="12"
+                          width="56"
+                          x={peakPt.x - 28}
+                          y={peakPt.y - 34}
+                        />
+                        <text
+                          fill="#ffffff"
+                          fontSize="11"
+                          fontWeight="800"
+                          textAnchor="middle"
+                          x={peakPt.x}
+                          y={peakPt.y - 18}
+                        >
+                          {peakVal.toLocaleString()}
                         </text>
                       </g>
-                    );
-                  })}
-                </svg>
-                <div className="doc-chart-axis" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.5rem 0 0.5rem' }}>
-                  {data.trend.map((pt) => (
-                    <div key={pt.date} style={{ textAlign: 'center', width: '90px' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#334155' }}>{pt.day}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#7e22ce', fontWeight: 500 }}>{pt.encounters} encounters</div>
-                    </div>
-                  ))}
+                    )}
+
+                    {/* Curve 1: Blue Wave (Total Patient Encounters) */}
+                    {curve1Path && (
+                      <path
+                        d={curve1Path}
+                        fill="none"
+                        stroke="#2563eb"
+                        strokeLinecap="round"
+                        strokeWidth="3"
+                      />
+                    )}
+                  </svg>
+
+                  {/* X Axis Labels */}
+                  <div className="hms-chart-axis-labels">
+                    {trendList.map((pt, idx) => {
+                      const showLabel =
+                        chartRange === 'week' ||
+                        chartRange === 'year' ||
+                        idx % 5 === 0 ||
+                        idx === numPts - 1;
+                      return (
+                        <div
+                          className="hms-chart-axis-item"
+                          key={pt.date || pt.day || idx}
+                          style={{ width: `${100 / numPts}%`, opacity: showLabel ? 1 : 0 }}
+                        >
+                          {showLabel ? pt.day.toUpperCase() : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Chart Legend */}
+                  <div className="hms-chart-legend">
+                    <span className="hms-legend-item">
+                      <span className="hms-legend-dot dark" /> Total patient encounters
+                    </span>
+                  </div>
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
-        </article>
 
-      </div>
+          {/* Bottom 3 Cards: Balance / Room Occupancy / Reports */}
+          <div className="hms-dash-grid three-col-equal">
+            {/* Card 1: Balance / Consultation Flow */}
+            <div className="hms-dash-card">
+              <div className="hms-card-header">
+                <h4 className="hms-card-title">Balance</h4>
+                <button
+                  className="hms-report-link"
+                  onClick={() => (onSelectTab ? onSelectTab('billing') : navigate('/billing/history'))}
+                  style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}
+                  type="button"
+                >
+                  Open <i className="ph ph-arrow-up-right" />
+                </button>
+              </div>
+              <div className="hms-card-body" style={{ padding: '0.95rem 1.15rem' }}>
+                <div className="hms-donut-card-content">
+                  <div className="hms-donut-wrap">
+                    <svg height="84" viewBox="0 0 84 84" width="84">
+                      <circle cx="42" cy="42" fill="none" r="32" stroke="#e2e8f0" strokeWidth="8" />
+                      <circle
+                        cx="42"
+                        cy="42"
+                        fill="none"
+                        r="32"
+                        stroke="#2563eb"
+                        strokeDasharray={201}
+                        strokeDashoffset={201 - (201 * balancePercentage) / 100}
+                        strokeLinecap="round"
+                        strokeWidth="8"
+                        transform="rotate(-90 42 42)"
+                      />
+                    </svg>
+                    <div className="hms-donut-center">{balancePercentage}%</div>
+                  </div>
+                  <div className="hms-donut-info">
+                    {data.financialSummary ? (
+                      <>
+                        <div className="hms-spark-stat">
+                          <div>
+                            <small>Collected</small>
+                            <strong>₹{(data.financialSummary.collectedFunds ?? 0).toLocaleString()}</strong>
+                          </div>
+                        </div>
+                        <div className="hms-spark-stat">
+                          <div>
+                            <small>Pending</small>
+                            <strong>₹{(data.financialSummary.pendingOutstanding ?? 0).toLocaleString()}</strong>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="hms-spark-stat">
+                          <div>
+                            <small>Total flow</small>
+                            <strong>{(completed + activeFlowTotal).toLocaleString()}</strong>
+                          </div>
+                        </div>
+                        <div className="hms-spark-stat">
+                          <div>
+                            <small>In queue</small>
+                            <strong>{waiting.toLocaleString()}</strong>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-      {/* Live OPD Patient Encounters Table */}
-      <div className="card appointments-card" style={{ marginTop: '1.25rem' }}>
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3>Live OPD Patient Encounters</h3>
-            <p>Real-time check-ins and clinical status tracking</p>
+            {/* Card 2: Room occupancy */}
+            <div className="hms-dash-card">
+              <div className="hms-card-header">
+                <h4 className="hms-card-title">Room occupancy</h4>
+                <button
+                  aria-label="Room options"
+                  className="hms-event-menu"
+                  onClick={() => navigate('/admissions/bed-availability')}
+                  title="View Bed Availability"
+                  type="button"
+                >
+                  <i className="ph ph-arrow-up-right" />
+                </button>
+              </div>
+              <div className="hms-card-body" style={{ padding: '0.95rem 1.15rem' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>
+                    {activeFlowTotal}
+                  </span>
+                  <span className="hms-kpi-subtext" style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    active in facility
+                  </span>
+                </div>
+                <div
+                  className="hms-occupancy-item"
+                  onClick={() => (onSelectTab ? onSelectTab('opd') : navigate('/opd'))}
+                  role="button"
+                  style={{ cursor: 'pointer' }}
+                  tabIndex={0}
+                >
+                  <div className="hms-occupancy-left">
+                    <div className="hms-occupancy-icon">
+                      <i className="ph ph-stethoscope" />
+                    </div>
+                    <span className="hms-occupancy-label">In Consultation</span>
+                  </div>
+                  <strong className="hms-occupancy-val">{inConsultation}</strong>
+                </div>
+                <div
+                  className="hms-occupancy-item"
+                  onClick={() => (onSelectTab ? onSelectTab('opd') : navigate('/opd'))}
+                  role="button"
+                  style={{ cursor: 'pointer' }}
+                  tabIndex={0}
+                >
+                  <div className="hms-occupancy-left">
+                    <div className="hms-occupancy-icon">
+                      <i className="ph ph-clock" />
+                    </div>
+                    <span className="hms-occupancy-label">Waiting in Queue</span>
+                  </div>
+                  <strong className="hms-occupancy-val">{waiting}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Reports */}
+            <div className="hms-dash-card">
+              <div className="hms-card-header">
+                <h4 className="hms-card-title">Reports</h4>
+                <button
+                  aria-label="Report options"
+                  className="hms-event-menu"
+                  onClick={() => navigate('/reports/library')}
+                  title="View all reports"
+                  type="button"
+                >
+                  <i className="ph ph-arrow-up-right" />
+                </button>
+              </div>
+              <div className="hms-card-body" style={{ padding: '0.95rem 1.15rem' }}>
+                {data.recentVisits.length > 0 ? (
+                  data.recentVisits.slice(0, 2).map((visit) => (
+                    <div
+                      className="hms-report-item"
+                      key={visit.id}
+                      onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="hms-report-icon">
+                        <i className="ph ph-clipboard-text" />
+                      </div>
+                      <div className="hms-report-body">
+                        <div className="hms-report-title">{visit.patient_name}</div>
+                        <div className="hms-report-meta">
+                          <span>{formatDateTime(visit.check_in_time)}</span>
+                          <span className="hms-report-link">View visit →</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="hms-dash-empty" style={{ padding: '1rem', textAlign: 'center' }}>
+                    <i className="ph ph-clipboard-text" style={{ fontSize: '1.5rem', color: '#94a3b8' }} />
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginTop: '0.25rem' }}>
+                      No recent consultation reports
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                      Completed visits will appear here.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        {loading ? (
-          <div className="um-state-cell">Loading live encounter stream...</div>
-        ) : data.recentVisits.length === 0 ? (
-          <div className="patient-empty-inline" style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b' }}>
-            No OPD visits recorded today for the selected branch.
-          </div>
-        ) : (
-          <div className="um-table-section">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Patient Name</th>
-                  <th>Attending Doctor</th>
-                  <th>Check-in Time</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recentVisits.map((visit) => (
-                  <tr key={visit.id}>
-                    <td>{visit.patient_name}</td>
-                    <td>{visit.doctor_name}</td>
-                    <td>{formatDateTime(visit.check_in_time)}</td>
-                    <td><span className="status-badge neutral">{visit.status.replaceAll('_', ' ')}</span></td>
-                  </tr>
+
+        {/* ── Right Column: Today's Schedule & Mini Calendar ── */}
+        <div>
+          <div className="hms-dash-card" style={{ height: '100%' }}>
+            <div className="hms-card-header">
+              <div className="hms-card-header-left" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ph ph-calendar-check" style={{ color: '#2563eb', fontSize: '1.25rem' }} />
+                <h3 className="hms-card-title">
+                  {isSelectedDateToday ? 'Today, ' : ''}
+                  {formattedSelectedDate}
+                </h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  aria-label="Previous week"
+                  className="hms-event-menu"
+                  onClick={() => {
+                    setWeekOffset((prev) => prev - 1);
+                    const prevD = new Date(selectedDate);
+                    prevD.setDate(prevD.getDate() - 7);
+                    setSelectedDate(prevD);
+                  }}
+                  title="Previous week"
+                  type="button"
+                >
+                  <i className="ph ph-caret-left" />
+                </button>
+                {weekOffset !== 0 ? (
+                  <button
+                    className="hms-chart-pill-btn"
+                    onClick={() => {
+                      setWeekOffset(0);
+                      setSelectedDate(new Date());
+                    }}
+                    style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                    type="button"
+                  >
+                    Today
+                  </button>
+                ) : null}
+                <button
+                  aria-label="Next week"
+                  className="hms-event-menu"
+                  onClick={() => {
+                    setWeekOffset((prev) => prev + 1);
+                    const nextD = new Date(selectedDate);
+                    nextD.setDate(nextD.getDate() + 7);
+                    setSelectedDate(nextD);
+                  }}
+                  title="Next week"
+                  type="button"
+                >
+                  <i className="ph ph-caret-right" />
+                </button>
+                <button
+                  aria-label="Add schedule item"
+                  className="hms-event-menu"
+                  onClick={() => (onSelectTab ? onSelectTab('appointments') : navigate('/appointments'))}
+                  style={{ color: '#2563eb', fontSize: '1.25rem' }}
+                  title="Book appointment or add schedule"
+                  type="button"
+                >
+                  <i className="ph ph-plus-circle-fill" />
+                </button>
+              </div>
+            </div>
+            <div className="hms-card-body">
+              {/* Horizontal 7-Day Week Strip */}
+              <div className="hms-week-strip">
+                {weekDays.map((day) => (
+                  <button
+                    className={`hms-day-pill${day.isSelected ? ' active' : ''}`}
+                    key={`${day.dayName}-${day.dayNum}`}
+                    onClick={() => setSelectedDate(day.date)}
+                    type="button"
+                  >
+                    <span className="hms-day-num">{day.dayNum}</span>
+                    <span className="hms-day-name">{day.dayName}</span>
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Time-Slotted Live Schedule Feed */}
+              {dayVisits.length > 0 ? (
+                <div className="hms-schedule-timeline">
+                  {dayVisits.map((v, i) => {
+                    const checkIn = new Date(v.check_in_time);
+                    const timeStr = checkIn.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    return (
+                      <div className="hms-schedule-slot" key={v.id || i}>
+                        <span className="hms-schedule-time">{timeStr}</span>
+                        <div
+                          className={`hms-schedule-event${i % 2 === 1 ? ' cyan' : ''}`}
+                          onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(v.id)}`)}
+                          role="button"
+                          tabIndex={0}
+                          title="Open consultation details"
+                        >
+                          <div className="hms-event-info">
+                            <strong>{`Consultation: ${v.patient_name}`}</strong>
+                            <span>
+                              {v.doctor_name ? `Dr. ${v.doctor_name}` : 'Attending Doctor'} • {v.status.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+                          <button
+                            aria-label="Event options"
+                            className="hms-event-menu"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onSelectTab) onSelectTab('appointments');
+                              else navigate('/appointments');
+                            }}
+                            title="View appointments"
+                            type="button"
+                          >
+                            <i className="ph ph-arrow-square-out" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="hms-dash-empty" style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
+                  <i className="ph ph-calendar-blank" style={{ fontSize: '2.25rem', color: '#94a3b8' }} />
+                  <div className="hms-dash-empty-title" style={{ marginTop: '0.5rem', fontWeight: 600, color: '#334155' }}>
+                    No consultations recorded for this day
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0.35rem 0 1rem' }}>
+                    Patient check-ins and appointments for this date will appear here in real time.
+                  </p>
+                  <button
+                    className="hms-dash-btn secondary"
+                    onClick={() => (onSelectTab ? onSelectTab('appointments') : navigate('/appointments'))}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    type="button"
+                  >
+                    <i className="ph ph-plus" /> Book Appointment
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -316,8 +934,8 @@ function AccessibleModulesOverview({ user }: { user: AuthUser }) {
   );
 }
 
-const buildSuperAdministratorTabs = (): DashboardTabDefinition[] => [
-  { key: 'overview', label: 'Overview', icon: 'ph-squares-four', content: <ExecutiveOverviewTab /> },
+const buildSuperAdministratorTabs = (onSelectTab?: (key: string) => void): DashboardTabDefinition[] => [
+  { key: 'overview', label: 'Overview', icon: 'ph-squares-four', content: <ExecutiveOverviewTab onSelectTab={onSelectTab} /> },
   { key: 'doctors', label: 'Doctors', icon: 'ph-stethoscope', content: withSuspense('Doctors', <DoctorDashboardPage />) },
   { key: 'appointments', label: 'Appointments', icon: 'ph-calendar-blank', content: withSuspense('Appointments', <AppointmentDashboardPage />) },
   { key: 'opd', label: 'OPD', icon: 'ph-first-aid', content: withSuspense('OPD', <OpdDashboardPage />) },
@@ -328,7 +946,7 @@ const buildSuperAdministratorTabs = (): DashboardTabDefinition[] => [
   { key: 'admin', label: 'Administration', icon: 'ph-gear', content: withSuspense('Administration', <AdministrationDashboardPage />) },
 ];
 
-const buildPermissionTabs = (user: AuthUser): DashboardTabDefinition[] => {
+const buildPermissionTabs = (user: AuthUser, onSelectTab?: (key: string) => void): DashboardTabDefinition[] => {
   const doctorUser = user.roles.some((role) => role.code === 'DOCTOR');
   const tabs: DashboardTabDefinition[] = [];
 
@@ -377,9 +995,11 @@ export function DashboardShell() {
   const [selectedTabKey, setSelectedTabKey] = useState<string | null>(null);
   if (!user) return null;
 
+  const selectTab = (key: string) => setSelectedTabKey(key);
+
   const tabs = isSuperAdministrator(user.roles)
-    ? buildSuperAdministratorTabs()
-    : buildPermissionTabs(user);
+    ? buildSuperAdministratorTabs(selectTab)
+    : buildPermissionTabs(user, selectTab);
   const requestedTab = searchParams.get('tab');
   const activeTab = tabs.find((tab) => tab.key === selectedTabKey) ??
     tabs.find((tab) => tab.key === requestedTab) ?? tabs[0] ?? {
@@ -389,11 +1009,9 @@ export function DashboardShell() {
     content: <AccessibleModulesOverview user={user} />,
   };
 
-  const selectTab = (key: string) => setSelectedTabKey(key);
-
   return (
     <div className="dashboard-master-wrapper">
-      <div aria-label="Dashboard sections" className="dashboard-tab-bar" role="tablist" style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid #e2e8f0', overflowX: 'auto' }}>
+      <div aria-label="Dashboard sections" className="dashboard-tab-bar" role="tablist">
         {tabs.map((tab) => (
           <button
             aria-selected={activeTab.key === tab.key}
