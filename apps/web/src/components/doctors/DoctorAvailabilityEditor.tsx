@@ -182,7 +182,7 @@ export function DoctorAvailabilityEditor({
             </div>
             <span className="doctor-day-subtitle">
               {activeDayForm.is_available
-                ? `${activeDayForm.working_blocks.length} working slot${activeDayForm.working_blocks.length === 1 ? '' : 's'} configured · Max patients auto-adjusts based on slot duration`
+                ? `${activeDayForm.working_blocks.length} working slot${activeDayForm.working_blocks.length === 1 ? '' : 's'} configured · Capacity auto-calculated from slot duration`
                 : 'Doctor is off duty on this day'}
             </span>
           </div>
@@ -237,7 +237,7 @@ export function DoctorAvailabilityEditor({
                 <div className="doctor-working-block-wrap" key={`${activeDayForm.day_of_week}-${index}`}>
                   <div className="doctor-working-block">
                     <label className="doc-field">
-                      <span>From</span>
+                      <span>From Time</span>
                       <input
                         disabled={disabled}
                         onChange={(event) =>
@@ -248,7 +248,7 @@ export function DoctorAvailabilityEditor({
                       />
                     </label>
                     <label className="doc-field">
-                      <span>To</span>
+                      <span>To Time</span>
                       <input
                         disabled={disabled}
                         onChange={(event) =>

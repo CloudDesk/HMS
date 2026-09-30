@@ -85,6 +85,12 @@ export function SystemSettingsPage() {
 
   return (
     <div className="ss-page">
+      <div className="um-top-row" style={{ marginBottom: '0.25rem' }}>
+        <div className="um-top-title-area">
+          <h2 className="um-page-title">System Settings</h2>
+          <p className="um-page-subtitle">Configure hospital parameters, regional localization, user preferences, and audit history.</p>
+        </div>
+      </div>
       <section className="ss-kpi-row" aria-label="System settings summary">
         {[
           ['general', 'ph-sliders', 'blue', 'System Configurations', '24', 'Active settings'],

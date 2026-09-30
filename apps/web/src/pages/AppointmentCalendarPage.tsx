@@ -219,7 +219,7 @@ export function AppointmentCalendarPage() {
         <section className="appointment-page-header">
           <div className="appointment-page-title">
             <h2>Calendar View</h2>
-            <p>Manage appointments across doctors and departments</p>
+            <p>Review and coordinate scheduled clinical consultations.</p>
           </div>
           <div className="appointment-page-actions">
             <button className="doc-btn" onClick={() => setCalendarDate(todayInputValue())} type="button">
@@ -228,7 +228,7 @@ export function AppointmentCalendarPage() {
             </button>
             {canBook ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
               <i className="ph ph-plus" aria-hidden="true" />
-              New Appointment
+              Book Appointment
             </button> : null}
             <button className="doc-btn" onClick={() => window.print()} type="button">
               <i className="ph ph-printer" aria-hidden="true" />
@@ -236,7 +236,7 @@ export function AppointmentCalendarPage() {
             </button>
             <button className="doc-btn" onClick={handleExport} type="button">
               <i className="ph ph-download-simple" aria-hidden="true" />
-              Export
+              Export CSV
             </button>
           </div>
         </section>

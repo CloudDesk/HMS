@@ -243,7 +243,8 @@ describe('OpdVisitPage feature-hook rendering', () => {
     expect(container.textContent).toContain('1 Consultation');
     expect(container.textContent).toContain('2 Diagnosis');
     expect(container.textContent).toContain('5 Imaging Orders');
-    expect(container.textContent).toContain('6 Referral');
+    expect(container.textContent).toContain('6 Follow-up');
+    expect(container.textContent).not.toContain('Referral');
   });
 
   it('renders the OpdDentalExaminationTab when activeTab is "Dental Examination"', async () => {
@@ -378,7 +379,7 @@ describe('OpdVisitPage feature-hook rendering', () => {
     const visitSelector = banner?.querySelector<HTMLSelectElement>('select[aria-label="Patient Visit"]');
     expect(visitSelector).not.toBeNull();
     expect(visitSelector?.selectedOptions[0]?.textContent).toContain(
-      'Jane Doe (OPD-DENT-001) - In consultation',
+      'Jane Doe (OPD-DENT-001) - In Consultation',
     );
     expect(banner?.querySelector('.opd-mrn-chip')?.textContent).toBe('MRN-001');
     expect(banner?.querySelector('.opd-patient-avatar-box')?.textContent).toBe('JD');

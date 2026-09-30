@@ -234,10 +234,12 @@ export function PhaseTwoReportsPage() {
 
   return (
     <div className="reports-workspace">
-      {/* ── Compact Header ── */}
-      <div className="reports-header">
-        <h1>Reports</h1>
-        <p>View hospital activity, operational metrics, and reports.</p>
+      {/* ── Header ── */}
+      <div className="reports-header appointment-page-header">
+        <div className="appointment-page-title">
+          <h2>Reports</h2>
+          <p>Hospital activity, operational performance, and departmental analytics</p>
+        </div>
       </div>
 
       {/* ── Compact Filter Toolbar ── */}

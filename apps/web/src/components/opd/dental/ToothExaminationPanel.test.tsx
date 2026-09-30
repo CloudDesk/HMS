@@ -416,7 +416,7 @@ describe('ToothExaminationPanel refactored component', () => {
     });
 
     const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Surfaces', 'Periodontal']);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Surfaces', 'Periodontal', 'Add Diagnosis']);
     expect(container.textContent).not.toContain('Probing Depth (mm)');
 
     await act(async () => tabs[1]?.click());

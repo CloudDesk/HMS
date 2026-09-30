@@ -13,6 +13,19 @@
   flex: 0 0 auto;
 }
 
+.opd-consultation-page .opd-page-title h2 {
+  font-size: var(--font-size-heading-lg, 22px);
+  font-weight: var(--font-weight-heading, 700);
+  color: #0f172a;
+  margin: 0;
+}
+
+.opd-consultation-page .opd-page-title p {
+  font-size: var(--font-size-body-sm, 12px);
+  color: #64748b;
+  margin: 2px 0 0;
+}
+
 .opd-consultation-page .opd-page-actions {
   flex: 1 1 36rem;
   min-width: 0;
@@ -22,7 +35,9 @@
 
 .opd-consultation-page .opd-page-header .doc-btn {
   width: auto;
-  min-height: 38px;
+  min-height: var(--control-height-standard, 38px);
+  font-size: var(--font-size-button, 13px);
+  font-weight: var(--font-weight-subheading, 600);
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -35,12 +50,16 @@
 
 .opd-consultation-page .opd-visit-selector > span {
   flex-shrink: 0;
+  font-size: var(--font-size-label, 13px);
+  font-weight: var(--font-weight-label, 600);
 }
 
 .opd-consultation-page .opd-visit-selector select {
   flex: 1;
   min-width: 0;
   width: 100%;
+  height: var(--control-height-standard, 38px);
+  font-size: var(--font-size-body-md, 13px);
   text-overflow: ellipsis;
 }
 
@@ -70,14 +89,16 @@
 }
 
 .opd-consultation-page .opd-patient-banner-title h3 {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: var(--font-size-heading-sm, 16px);
+  font-weight: var(--font-weight-heading, 700);
+  color: #0f172a;
   margin: 0;
 }
 
 .opd-consultation-page .opd-mrn-chip {
-  font-size: 0.72rem;
-  padding: 0.1rem 0.45rem;
+  font-size: var(--font-size-badge, 12px);
+  font-weight: var(--font-weight-subheading, 600);
+  padding: 0.15rem 0.5rem;
   border-radius: 4px;
 }
 
@@ -85,7 +106,7 @@
   display: flex;
   align-items: center;
   gap: 0.35rem 0.5rem;
-  font-size: 0.78rem;
+  font-size: var(--font-size-body-sm, 12px);
   color: #64748b;
   flex-wrap: wrap;
 }
@@ -100,13 +121,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.15rem 0.55rem;
+  padding: 0.2rem 0.6rem;
   border: 1px solid #86efac;
   border-radius: 999px;
   background: #f0fdf4;
   color: #047857;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: var(--font-size-badge, 12px);
+  font-weight: var(--font-weight-subheading, 600);
   line-height: 1.25;
   white-space: nowrap;
 }
@@ -129,7 +150,8 @@
 
 .opd-consultation-page .opd-visit-number-badge {
   color: #475569;
-  font-weight: 600;
+  font-size: var(--font-size-badge, 12px);
+  font-weight: var(--font-weight-subheading, 600);
 }
 
 .opd-consultation-page .opd-patient-banner-actions {
@@ -140,11 +162,11 @@
 }
 
 .opd-hdr-btn {
-  min-height: 32px;
-  height: 32px;
-  padding: 0 0.65rem;
-  font-size: 0.78rem;
-  font-weight: 600;
+  min-height: var(--control-height-compact, 32px);
+  height: var(--control-height-compact, 32px);
+  padding: 0 0.75rem;
+  font-size: var(--font-size-button, 13px);
+  font-weight: var(--font-weight-subheading, 600);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -169,8 +191,8 @@
 }
 
 .opd-hdr-more-btn {
-  width: 32px;
-  height: 32px;
+  width: var(--control-height-compact, 32px);
+  height: var(--control-height-compact, 32px);
   padding: 0;
   justify-content: center;
 }
@@ -208,7 +230,7 @@
   padding: 8px 10px;
   border: none;
   background: transparent;
-  font-size: 0.8rem;
+  font-size: var(--font-size-body-md, 13px);
   font-weight: 500;
   color: #334155;
   text-align: left;
@@ -391,11 +413,11 @@
 
 .opd-dx-search-input {
   width: 100%;
-  height: 42px;
+  height: var(--control-height-standard, 38px);
   padding: 0 36px 0 38px !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 8px !important;
-  font-size: 0.85rem !important;
+  font-size: var(--font-size-body-md, 13px) !important;
   background: #ffffff !important;
   transition: all 0.15s ease;
 }
@@ -440,7 +462,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -465,12 +487,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 8px;
+  padding: 2px 7px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #1d4ed8;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.78rem;
+  font-size: var(--font-size-badge, 12px);
   font-weight: 700;
   border-radius: 6px;
   flex-shrink: 0;
@@ -484,14 +506,14 @@
 }
 
 .opd-dx-name {
-  font-size: 0.86rem;
+  font-size: var(--font-size-body-md, 13px);
   font-weight: 600;
   color: #0f172a;
   line-height: 1.35;
 }
 
 .opd-dx-category-label {
-  font-size: 0.72rem;
+  font-size: var(--font-size-body-sm, 12px);
   color: #64748b;
   font-weight: 500;
 }
@@ -510,12 +532,12 @@
 .opd-dx-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
+  gap: 6px;
+  padding: 4px 10px;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-badge, 12px);
   color: #1e293b;
   font-weight: 500;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
@@ -552,9 +574,9 @@
 
 .opd-tests-search-input {
   max-width: 320px;
-  height: 36px !important;
+  height: var(--control-height-standard, 38px) !important;
   padding: 0 10px 0 32px !important;
-  font-size: 0.8rem !important;
+  font-size: var(--font-size-body-md, 13px) !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 6px !important;
   background: #ffffff !important;
@@ -619,14 +641,14 @@
 }
 
 .opd-test-checkbox-label .opd-test-name {
-  font-size: 0.82rem;
+  font-size: var(--font-size-body-md, 13px);
   font-weight: 600;
   color: #1e293b;
   line-height: 1.35;
 }
 
 .opd-test-checkbox-label .opd-test-badge {
-  font-size: 0.7rem;
+  font-size: var(--font-size-body-sm, 12px);
   color: #64748b;
   font-weight: 500;
 }
@@ -637,4 +659,117 @@
 
 .opd-test-checkbox-label.selected.imaging .opd-test-name {
   color: #6d28d9;
+}
+
+/* OPD Queue Page, Table, Badges & Filter Controls */
+.opd-page {
+  font-family: var(--font-family-primary);
+}
+
+.opd-page-header .opd-page-title h2 {
+  font-size: var(--font-size-heading-lg, 22px);
+  font-weight: var(--font-weight-heading, 700);
+  color: #0f172a;
+}
+
+.opd-page-header .opd-page-title p {
+  font-size: var(--font-size-body-sm, 12px);
+  color: #64748b;
+}
+
+.opd-kpi-grid .doc-kpi {
+  padding: 12px 16px;
+}
+
+.opd-kpi-grid .doc-kpi-copy span {
+  font-size: var(--font-size-label, 13px);
+  font-weight: 500;
+  color: #64748b;
+}
+
+.opd-kpi-grid .doc-kpi-copy strong {
+  font-size: var(--font-size-heading-md, 18px);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.opd-kpi-grid .doc-kpi-copy small {
+  font-size: var(--font-size-body-sm, 12px);
+  color: #94a3b8;
+}
+
+.opd-page .doc-toolbar {
+  gap: var(--field-group-gap, 14px);
+  padding: 12px 16px;
+}
+
+.opd-page .doc-field label {
+  font-size: var(--font-size-label, 13px);
+  font-weight: var(--font-weight-label, 600);
+  margin-bottom: var(--field-label-gap, 5px);
+  color: #334155;
+}
+
+.opd-page .doc-field input,
+.opd-page .doc-field select {
+  height: var(--control-height-standard, 38px);
+  font-size: var(--font-size-body-md, 13px);
+}
+
+.opd-page .doc-field input::placeholder {
+  font-size: var(--font-size-placeholder, 12px);
+  color: #94a3b8;
+}
+
+.opd-queue-table-wrap .opd-queue-table {
+  width: 100%;
+}
+
+.opd-queue-table th {
+  font-size: var(--font-size-body-sm, 12px);
+  font-weight: var(--font-weight-subheading, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  padding: 10px 14px;
+}
+
+.opd-queue-table td {
+  font-size: var(--font-size-body-md, 13px);
+  color: #1e293b;
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+
+.opd-queue-table .queue-token-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  font-size: var(--font-size-badge, 12px);
+  font-weight: 700;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.opd-queue-table .doc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: var(--font-size-badge, 12px);
+  font-weight: var(--font-weight-subheading, 600);
+  border-radius: 9999px;
+  line-height: 1.25;
+}
+
+.opd-empty-state-wrapper .opd-empty-state-title {
+  font-size: var(--font-size-heading-sm, 16px);
+  font-weight: var(--font-weight-heading, 700);
+  color: #1e293b;
+}
+
+.opd-empty-state-wrapper .opd-empty-state-text {
+  font-size: var(--font-size-body-md, 13px);
+  color: #64748b;
 }

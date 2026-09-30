@@ -300,29 +300,29 @@ function GumArtwork({ arch }: { arch: Arch }) {
 
       {/* ── Realistic 3D Tongue in Lower Dental Arch ── */}
       {arch === 'lower' && (
-        <g aria-hidden="true" transform="translate(300, 150) scale(0.88, 0.72) translate(-300, -150)">
+        <g aria-hidden="true">
           {/* Sublingual floor depth */}
           <path
-            d="M 188 72 Q 300 120 412 72 C 416 168 385 272 300 286 C 215 272 184 168 188 72 Z"
+            d="M 188 62 C 182 145 208 258 300 282 C 392 258 418 145 412 62 C 368 76 232 76 188 62 Z"
             fill={`url(#${id}-sublingual)`}
-            opacity="0.92"
+            opacity="0.95"
           />
 
-          {/* Tongue body (anatomical dome contour) */}
+          {/* Tongue body (anatomical dome contour starting from lower jaw starting point) */}
           <path
-            d="M 198 86 C 195 160 216 262 300 276 C 384 262 405 160 402 86 C 360 112 240 112 198 86 Z"
+            d="M 194 66 C 190 142 216 250 300 274 C 384 250 410 142 406 66 C 360 80 240 80 194 66 Z"
             fill={`url(#${id}-tongue-base)`}
             stroke="#be123c"
             strokeWidth="1.5"
           />
 
           {/* Dorsal surface highlights for 3D realism */}
-          <ellipse cx="300" cy="180" rx="68" ry="46" fill={`url(#${id}-tongue-highlight)`} />
-          <ellipse cx="300" cy="230" rx="44" ry="24" fill={`url(#${id}-tongue-tip)`} />
+          <ellipse cx="300" cy="150" rx="72" ry="54" fill={`url(#${id}-tongue-highlight)`} />
+          <ellipse cx="300" cy="216" rx="46" ry="26" fill={`url(#${id}-tongue-tip)`} />
 
           {/* Median lingual sulcus (central anatomical groove) */}
           <path
-            d="M 300 110 Q 298 180 300 256"
+            d="M 300 84 Q 298 165 300 252"
             fill="none"
             stroke="#9f1239"
             strokeWidth="2.8"
@@ -330,7 +330,7 @@ function GumArtwork({ arch }: { arch: Arch }) {
             opacity="0.65"
           />
           <path
-            d="M 301 112 Q 299 181 301 254"
+            d="M 301 86 Q 299 166 301 250"
             fill="none"
             stroke="#ffe4e6"
             strokeWidth="1.2"
@@ -343,7 +343,7 @@ function GumArtwork({ arch }: { arch: Arch }) {
             <circle
               key={dx}
               cx={300 + dx}
-              cy={128 + Math.abs(dx) * 0.45}
+              cy={102 + Math.abs(dx) * 0.45}
               r="2.2"
               fill="#fda4af"
               stroke="#be123c"
@@ -355,7 +355,7 @@ function GumArtwork({ arch }: { arch: Arch }) {
             <circle
               key={`sub-${dx}`}
               cx={300 + dx}
-              cy={136 + Math.abs(dx) * 0.4}
+              cy={110 + Math.abs(dx) * 0.4}
               r="1.6"
               fill="#fda4af"
               opacity="0.65"
@@ -370,7 +370,7 @@ function GumArtwork({ arch }: { arch: Arch }) {
           d={
             arch === 'upper'
               ? 'M300 43 C215 37 165 107 150 207 L148 293 Q147 325 178 322 C226 321 242 276 300 276 C358 276 374 321 422 322 Q453 325 452 293 L450 207 C435 107 385 37 300 43Z'
-              : 'M300 43 C215 37 165 107 150 207 L148 293 Q147 325 178 322 Q199 320 196 295 C191 218 220 126 273 106 Q300 95 327 106 C380 126 409 218 404 295 Q401 320 422 322 Q453 325 452 293 L450 207 C435 107 385 37 300 43Z'
+              : 'M300 43 C215 37 165 107 150 207 L148 293 Q147 325 178 322 C210 324 235 308 250 295 C191 218 220 126 273 106 Q300 95 327 106 C380 126 409 218 350 295 C365 308 390 324 422 322 Q453 325 452 293 L450 207 C435 107 385 37 300 43Z'
           }
           fill={`url(#${id})`}
           stroke="#cb7770"
@@ -416,7 +416,7 @@ function GumArtwork({ arch }: { arch: Arch }) {
       {/* ── Arch Centered Anatomical Label ── */}
       <text
         x="300"
-        y={arch === 'upper' ? 231 : 172}
+        y={arch === 'upper' ? 231 : 160}
         textAnchor="middle"
         fill={arch === 'upper' ? '#8b4544' : '#ffffff'}
         fontSize={arch === 'upper' ? '12.5' : '10.5'}
@@ -654,53 +654,51 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
         className={styles.jawSection}
         aria-label={`${arch === 'upper' ? 'Maxillary upper' : 'Mandibular lower'} arch`}
       >
-        <div className={styles.archHeaderBar}>
-          <div
-            className={`${styles.archPatientSideBadge} ${styles.patientSideRight}`}
-            title={`Patient's Right Side (${arch === 'upper' ? (primary ? 'Q5 Upper' : 'Q1 Upper') : (primary ? 'Q8 Lower' : 'Q4 Lower')})`}
-          >
+        <header className={styles.jawHeader}>
+          <strong>
+            {arch === 'upper' ? 'Maxillary Arch' : 'Mandibular Arch'}
+            <span>{arch === 'upper' ? '(Upper)' : '(Lower)'}</span>
+          </strong>
+        </header>
+
+        <div
+          className={`${styles.archPatientSideBadge} ${styles.patientSideRight}`}
+          title={`Patient's Right Side (${arch === 'upper' ? (primary ? 'Q5 Upper' : 'Q1 Upper') : (primary ? 'Q8 Lower' : 'Q4 Lower')})`}
+        >
+          <div className={styles.sideBadgeHeader}>
             <span className={styles.sideArrow}>◀</span>
-            <div className={styles.sideLabelText}>
-              <strong>PATIENT RIGHT</strong>
-              <span className={styles.sideSubtext}>
-                Your Left · {arch === 'upper' ? (primary ? 'Q5 (Upper)' : 'Q1 (Upper)') : (primary ? 'Q8 (Lower)' : 'Q4 (Lower)')}
-              </span>
-            </div>
-            {rightIssues > 0 ? (
-              <span className={styles.sideIssuePill}>
-                {rightIssues} issue{rightIssues > 1 ? 's' : ''}
-              </span>
-            ) : (
-              <span className={styles.sideHealthyPill}>✓ Normal</span>
-            )}
+            <strong>PATIENT RIGHT</strong>
           </div>
+          <span className={styles.sideSubtext}>
+            Your Left · {arch === 'upper' ? (primary ? 'Q5 (Upper)' : 'Q1 (Upper)') : (primary ? 'Q8 (Lower)' : 'Q4 (Lower)')}
+          </span>
+          {rightIssues > 0 ? (
+            <span className={styles.sideIssuePill}>
+              {rightIssues} issue{rightIssues > 1 ? 's' : ''}
+            </span>
+          ) : (
+            <span className={styles.sideHealthyPill}>✓ Normal</span>
+          )}
+        </div>
 
-          <header className={styles.jawHeader}>
-            <strong>
-              {arch === 'upper' ? 'Maxillary Arch' : 'Mandibular Arch'}
-              <span>{arch === 'upper' ? '(Upper)' : '(Lower)'}</span>
-            </strong>
-          </header>
-
-          <div
-            className={`${styles.archPatientSideBadgeRight} ${styles.patientSideLeft}`}
-            title={`Patient's Left Side (${arch === 'upper' ? (primary ? 'Q6 Upper' : 'Q2 Upper') : (primary ? 'Q7 Lower' : 'Q3 Lower')})`}
-          >
-            {leftIssues > 0 ? (
-              <span className={styles.sideIssuePill}>
-                {leftIssues} issue{leftIssues > 1 ? 's' : ''}
-              </span>
-            ) : (
-              <span className={styles.sideHealthyPill}>✓ Normal</span>
-            )}
-            <div className={styles.sideLabelText}>
-              <strong>PATIENT LEFT</strong>
-              <span className={styles.sideSubtext}>
-                Your Right · {arch === 'upper' ? (primary ? 'Q6 (Upper)' : 'Q2 (Upper)') : (primary ? 'Q7 (Lower)' : 'Q3 (Lower)')}
-              </span>
-            </div>
+        <div
+          className={`${styles.archPatientSideBadgeRight} ${styles.patientSideLeft}`}
+          title={`Patient's Left Side (${arch === 'upper' ? (primary ? 'Q6 Upper' : 'Q2 Upper') : (primary ? 'Q7 Lower' : 'Q3 Lower')})`}
+        >
+          <div className={styles.sideBadgeHeader}>
+            <strong>PATIENT LEFT</strong>
             <span className={styles.sideArrow}>▶</span>
           </div>
+          <span className={styles.sideSubtext}>
+            Your Right · {arch === 'upper' ? (primary ? 'Q6 (Upper)' : 'Q2 (Upper)') : (primary ? 'Q7 (Lower)' : 'Q3 (Lower)')}
+          </span>
+          {leftIssues > 0 ? (
+            <span className={styles.sideIssuePill}>
+              {leftIssues} issue{leftIssues > 1 ? 's' : ''}
+            </span>
+          ) : (
+            <span className={styles.sideHealthyPill}>✓ Normal</span>
+          )}
         </div>
 
         <div className={styles.jawOrientation}>

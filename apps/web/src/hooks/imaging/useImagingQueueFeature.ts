@@ -27,7 +27,7 @@ export function useImagingQueueFeature({ embedded = false }: { embedded?: boolea
   const dateFrom = query.get('date_from') ?? '';
   const dateTo = query.get('date_to') ?? '';
   const page = Math.max(1, Number(query.get('page') ?? 1) || 1);
-  const limit = Math.min(100, Math.max(10, Number(query.get('limit') ?? 20) || 20));
+  const limit = Math.min(100, Math.max(5, Number(query.get('limit') ?? 10) || 10));
 
   const updateFilters = useCallback((changes: Record<string, string | number | null>) => {
     const next = new URLSearchParams(activeSearch);

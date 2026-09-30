@@ -100,8 +100,7 @@ const WORKSPACE_TABS = [
   { id: '3', label: '3 Prescription', name: 'Prescription' },
   { id: '4', label: '4 Lab Orders', name: 'Lab Orders' },
   { id: '5', label: '5 Imaging Orders', name: 'Imaging Orders' },
-  { id: '6', label: '6 Referral', name: 'Referral' },
-  { id: '7', label: '7 Follow-up', name: 'Follow-up' },
+  { id: '6', label: '6 Follow-up', name: 'Follow-up' },
 ] as const;
 
 const DENTAL_WORKSPACE_TABS = [
@@ -875,16 +874,14 @@ export function OpdVisitPage() {
     if (isDental) {
       if (nextTab === 'Diagnosis') resolvedNextTab = 'Dental Examination';
       else if (nextTab === 'Lab Orders' || nextTab === 'Imaging Orders') resolvedNextTab = 'Prescription';
-      else if (nextTab === 'Follow-up') resolvedNextTab = 'Referral';
+      else if (nextTab === 'Follow-up') resolvedNextTab = 'Follow-up';
     }
     void saveConsultationDraft();
     setActiveTab(resolvedNextTab);
     if (visit?.id) {
       const destination = isDental && resolvedNextTab === 'Prescription'
         ? '/opd/prescription'
-        : isDental && resolvedNextTab === 'Referral'
-          ? '/opd/referral'
-          : '/opd/consultation';
+        : '/opd/consultation';
       navigate(`${destination}?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(resolvedNextTab)}`, { replace: true });
     }
     requestAnimationFrame(() => {

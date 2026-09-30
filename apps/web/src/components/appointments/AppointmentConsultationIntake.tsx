@@ -5,11 +5,11 @@ type Props = {
 };
 
 const fields: Array<{ key: keyof AppointmentConsultationIntakeData; label: string }> = [
-  { key: 'chief_complaint', label: 'Chief complaint' },
-  { key: 'history_present_illness', label: 'History of present illness' },
-  { key: 'past_history', label: 'Past medical history' },
-  { key: 'family_history', label: 'Family history' },
-  { key: 'allergies', label: 'Allergies / sensitivities' },
+  { key: 'chief_complaint', label: 'Chief Complaint' },
+  { key: 'history_present_illness', label: 'History of Present Illness' },
+  { key: 'past_history', label: 'Past Medical History' },
+  { key: 'family_history', label: 'Family History' },
+  { key: 'allergies', label: 'Allergies / Sensitivities' },
 ];
 
 export const hasAppointmentConsultationIntake = (intake?: AppointmentConsultationIntakeData | null) =>
@@ -20,12 +20,12 @@ export function AppointmentConsultationIntake({ intake }: Props) {
   if (visibleFields.length === 0) return null;
 
   return (
-    <section className="appointment-intake" aria-label="Patient-supplied basic consultation form">
+    <section className="appointment-intake" aria-label="Patient-supplied consultation intake">
       <div className="appointment-intake-header">
         <span className="appointment-intake-icon"><i className="ph ph-clipboard-text" aria-hidden="true" /></span>
         <div>
-          <h4>Basic consultation form</h4>
-          <p>Submitted by the patient while booking this appointment.</p>
+          <h4>Consultation Intake</h4>
+          <p>Recorded during appointment booking.</p>
         </div>
         <span className="appointment-intake-source">Patient supplied</span>
       </div>

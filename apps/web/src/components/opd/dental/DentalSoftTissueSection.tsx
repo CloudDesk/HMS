@@ -42,7 +42,7 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
     <div className={`${styles.formGroup} ${styles.oralExamField}`}>
       <label className={styles.label} htmlFor={`oral-exam-${key}`}>
         <i className={`ph ${icon} ${styles.oralExamFieldIcon}`} aria-hidden="true" />
-        {label}
+        <span className={styles.oralExamFieldLabelText}>{label}</span>
       </label>
       <select
         id={`oral-exam-${key}`}
@@ -66,11 +66,11 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
         <div className={styles.oralExamGroupHeader}>
           <i className="ph ph-mouth" aria-hidden="true" />
           <div>
-            <h4 id="oral-exam-soft-tissues">Soft tissues</h4>
+            <h4 id="oral-exam-soft-tissues">Soft Tissues</h4>
             <p>Review periodontal and intra-oral tissue health.</p>
           </div>
         </div>
-        <div className={styles.formGrid2}>
+        <div className={styles.oralExamGrid2}>
           {renderField('gingiva_condition', 'Gingiva / Periodontium', 'ph-tooth', 'Not recorded / Normal', SOFT_TISSUE_OPTIONS.gingiva)}
           {renderField('calculus_plaque', 'Calculus & Plaque', 'ph-sparkle', 'Not recorded / Nil', SOFT_TISSUE_OPTIONS.calculusPlaque)}
           {renderField('oral_mucosa', 'Oral Mucosa & Cheeks', 'ph-smiley', 'Normal mucosa', SOFT_TISSUE_OPTIONS.oralMucosa)}
@@ -82,11 +82,11 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
         <div className={styles.oralExamGroupHeader}>
           <i className="ph ph-arrows-out-cardinal" aria-hidden="true" />
           <div>
-            <h4 id="oral-exam-function">Function &amp; bite</h4>
+            <h4 id="oral-exam-function">Function &amp; Bite</h4>
             <p>Record jaw movement and occlusion.</p>
           </div>
         </div>
-        <div className={styles.formGrid2}>
+        <div className={styles.oralExamGrid2}>
           {renderField('tmj_evaluation', 'TMJ & Mandibular Movement', 'ph-arrows-out', 'Normal / Asymptomatic', SOFT_TISSUE_OPTIONS.tmj)}
           {renderField('occlusion_class', 'Dental Occlusion', 'ph-selection', 'Not recorded / Class I', SOFT_TISSUE_OPTIONS.occlusion)}
         </div>
@@ -112,7 +112,7 @@ export const DentalSoftTissueSection: React.FC<DentalSoftTissueSectionProps> = (
           <h3 className={styles.cardTitle}>
               Oral Examination
           </h3>
-            <p className={styles.examinationSubtitle}>A concise whole-mouth assessment, separate from individual tooth findings.</p>
+            {/* <p className={styles.examinationSubtitle}>A concise whole-mouth assessment, separate from individual tooth findings.</p> */}
           </div>
         </div>
       </div>

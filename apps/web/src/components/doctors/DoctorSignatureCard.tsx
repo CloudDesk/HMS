@@ -6,9 +6,10 @@ interface DoctorSignatureCardProps {
   doctorId: string;
   signatureData?: string | null;
   canEdit: boolean;
+  embedded?: boolean;
 }
 
-export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: DoctorSignatureCardProps) {
+export function DoctorSignatureCard({ doctorId, signatureData, canEdit, embedded = false }: DoctorSignatureCardProps) {
   const [isEditing, setIsEditing] = useState(!signatureData);
   const [mode, setMode] = useState<'draw' | 'upload'>('draw');
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -178,15 +179,19 @@ export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: Doctor
     }
   };
 
+  const Wrapper = embedded ? 'div' : 'section';
+  const wrapperClass = embedded ? 'doctor-signature-embedded' : 'doc-card doctor-signature-section';
+  const wrapperStyle = embedded ? undefined : { marginTop: '1rem' };
+
   return (
-    <section className="doc-card doctor-signature-section" style={{ marginTop: '1rem' }}>
+    <Wrapper className={wrapperClass} style={wrapperStyle}>
       <div className="doc-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <i className="ph ph-pen-nib" aria-hidden="true" style={{ color: '#2563eb' }} />
             Clinical Digital Signature
           </h3>
-          <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.875rem' }}>
+          <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '12px' }}>
             Pre-registered signature automatically populated on patient consent forms and clinical authorisations.
           </p>
         </div>
@@ -243,7 +248,7 @@ export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: Doctor
               }}
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#16a34a', fontSize: '0.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#16a34a', fontSize: '12px', fontWeight: 500 }}>
             <i className="ph ph-check-circle" style={{ fontSize: '1.1rem' }} aria-hidden="true" />
             <span>Active & ready: Automatically attached whenever patient consent forms are assigned or signed.</span>
           </div>
@@ -259,7 +264,6 @@ export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: Doctor
                 setMode('draw');
                 setUploadedPreview(null);
               }}
-              style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
             >
               <i className="ph ph-pen" aria-hidden="true" /> Draw Signature
             </button>
@@ -270,7 +274,6 @@ export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: Doctor
                 setMode('upload');
                 clearCanvas();
               }}
-              style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }}
             >
               <i className="ph ph-upload-simple" aria-hidden="true" /> Upload Image
             </button>
@@ -279,14 +282,13 @@ export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: Doctor
           {mode === 'draw' ? (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.825rem', color: '#64748b' }}>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
                   Use your mouse, stylus, or touch screen to draw your signature inside the box below:
                 </span>
                 <button
                   type="button"
-                  className="doc-btn"
+                  className="doc-btn-sm"
                   onClick={clearCanvas}
-                  style={{ fontSize: '0.78rem', padding: '0.25rem 0.5rem' }}
                 >
                   <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Clear
                 </button>
@@ -356,21 +358,20 @@ export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: Doctor
                     />
                     <button
                       type="button"
-                      className="doc-btn"
+                      className="doc-btn-sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         fileInputRef.current?.click();
                       }}
-                      style={{ fontSize: '0.8rem' }}
                     >
                       Choose Different Image
                     </button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', color: '#64748b' }}>
-                    <i className="ph ph-cloud-arrow-up" style={{ fontSize: '2rem', color: '#3b82f6' }} aria-hidden="true" />
-                    <p style={{ margin: 0, fontWeight: 500, color: '#1e293b' }}>Click to browse signature image</p>
-                    <span style={{ fontSize: '0.78rem' }}>PNG with transparent background recommended</span>
+                    <i className="ph ph-cloud-arrow-up" style={{ fontSize: '2rem', color: '#2563eb' }} aria-hidden="true" />
+                    <p style={{ margin: 0, fontWeight: 600, color: '#1e293b', fontSize: '13px' }}>Click to browse signature image</p>
+                    <span style={{ fontSize: '12px' }}>PNG with transparent background recommended</span>
                   </div>
                 )}
               </div>
@@ -405,10 +406,10 @@ export function DoctorSignatureCard({ doctorId, signatureData, canEdit }: Doctor
           </div>
         </div>
       ) : (
-        <div style={{ marginTop: '0.75rem', color: '#64748b', fontSize: '0.875rem' }}>
+        <div style={{ marginTop: '0.75rem', color: '#64748b', fontSize: '12px' }}>
           <em>No signature on file. Please contact your system administrator to configure clinical digital signing.</em>
         </div>
       )}
-    </section>
+    </Wrapper>
   );
 }

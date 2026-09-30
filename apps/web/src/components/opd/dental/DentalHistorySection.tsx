@@ -155,7 +155,7 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           <span className={styles.historyHeaderIcon}><i className="ph ph-tooth" /></span>
           <div>
             <h3 className={styles.cardTitle}>General Examination</h3>
-            <p className={styles.historyHeaderSubtitle}>Review symptoms, pain, medical risks, allergies, and habits before the oral examination.</p>
+            <p className={styles.historyHeaderSubtitle}>Review symptoms, risks, allergies, and oral habits.</p>
           </div>
         </div>
         {alertsList.length > 0 && (
@@ -315,9 +315,9 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
 
         <div className={styles.riskCardGrid}>
           {[
-            { key: 'Medical Conditions', title: 'Medical Conditions', subtitle: 'Select any medical conditions (multiple allowed)', icon: 'ph-heartbeat', tone: 'blue', items: medicalGroups['Medical Conditions'] ?? [], value: customMedicalCondition, setValue: setCustomMedicalCondition, placeholder: 'Add other medical condition...' },
-            { key: 'Bleeding / Medication Risks', title: 'Bleeding / Medication Risks', subtitle: 'Select any bleeding or medication risks (multiple allowed)', icon: 'ph-drop', tone: 'red', items: medicalGroups['Bleeding / Medication Risks'] ?? [], value: customBleedingRisk, setValue: setCustomBleedingRisk, placeholder: 'Add other medication risk...' },
-            { key: 'Allergies', title: 'Allergies', subtitle: 'Select any allergies (multiple allowed)', icon: 'ph-warning-octagon', tone: 'amber', items: medicalGroups.Allergies ?? [], value: customAllergy, setValue: setCustomAllergy, placeholder: 'Add other allergy...' },
+            { key: 'Medical Conditions', title: 'Medical Conditions', subtitle: 'Select applicable conditions', icon: 'ph-heartbeat', tone: 'blue', items: medicalGroups['Medical Conditions'] ?? [], value: customMedicalCondition, setValue: setCustomMedicalCondition, placeholder: 'Add condition...' },
+            { key: 'Bleeding / Medication Risks', title: 'Bleeding / Medication Risks', subtitle: 'Select applicable risks', icon: 'ph-drop', tone: 'red', items: medicalGroups['Bleeding / Medication Risks'] ?? [], value: customBleedingRisk, setValue: setCustomBleedingRisk, placeholder: 'Add risk...' },
+            { key: 'Allergies', title: 'Allergies', subtitle: 'Select applicable allergies', icon: 'ph-warning-octagon', tone: 'amber', items: medicalGroups.Allergies ?? [], value: customAllergy, setValue: setCustomAllergy, placeholder: 'Add allergy...' },
           ].map((group) => {
             const selectedCount = group.items.filter((item) => alertsList.includes(item)).length;
             const defaultItems = group.items.slice(0, 3);
@@ -349,7 +349,7 @@ export const DentalHistorySection: React.FC<DentalHistorySectionProps> = ({
           <section className={`${styles.riskCategoryCard} ${styles.riskTonegreen}`}>
             <header className={styles.riskCategoryHeader}>
               <i className="ph ph-tooth" />
-              <div><strong>Dental &amp; Oral Habits</strong><span>Select patient's oral habits (multiple allowed)</span></div>
+              <div><strong>Dental &amp; Oral Habits</strong><span>Select applicable habits</span></div>
               <em>{habitsList.length ? `${habitsList.length} selected` : 'None selected'}</em>
             </header>
             <div className={styles.riskCategoryBody}>

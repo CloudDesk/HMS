@@ -28,7 +28,6 @@ import { navigate } from '../../../routing/navigation';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { DentalDiagnosisModal } from './DentalDiagnosisModal';
 import { DentalHistorySection } from './DentalHistorySection';
-import { DentalSoftTissueSection } from './DentalSoftTissueSection';
 import { OdontogramChart } from './OdontogramChart';
 import { ToothExaminationPanel } from './ToothExaminationPanel';
 import styles from './DentalExamination.module.css';
@@ -768,15 +767,8 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
           episodeId={episodeForSelectedTooth?.id ?? dentalExam?.episode_id ?? null}
           canEdit={canEdit && !isReadOnly}
           consultationCompleted={isCompleted}
-        />
-      </div>
-
-      {/* Oral Examination (Soft Tissues & Function/Bite) integrated inside Odontogram */}
-      <div style={{ marginTop: '1.25rem' }}>
-        <DentalSoftTissueSection
           softTissue={softTissue}
-          onChange={handleSoftTissueChange}
-          disabled={controlsDisabled}
+          onSoftTissueChange={handleSoftTissueChange}
         />
       </div>
       </section>

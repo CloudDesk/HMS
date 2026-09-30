@@ -364,10 +364,10 @@ export function OpdImagingSection({
           </button>
           <button
             className="doc-btn primary"
-            onClick={() => handleNextStep('Referral')}
+            onClick={() => handleNextStep('Follow-up')}
             type="button"
           >
-            Next: Referral
+            Next: Follow-up
             <i aria-hidden="true" className="ph ph-arrow-right" />
           </button>
         </div>

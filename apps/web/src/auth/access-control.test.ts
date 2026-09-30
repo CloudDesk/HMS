@@ -213,7 +213,6 @@ describe('staff route access control', () => {
     expect(opdModule?.links.map((l) => l.href)).toEqual([
       '/opd/queue',
       '/opd/prescription',
-      '/opd/referral',
       '/opd/imaging',
       '/opd/laboratory',
       '/opd/treatment-plan',

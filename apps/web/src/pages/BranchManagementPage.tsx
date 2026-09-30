@@ -211,6 +211,20 @@ export function BranchManagementPage() {
   return (
     <>
       <div className="um-grid">
+        <div className="um-top-row">
+          <div className="um-top-title-area">
+            <h2 className="um-page-title">Branch Management</h2>
+            <p className="um-page-subtitle">Configure hospital branches, geographic locations, contact information, and wards.</p>
+          </div>
+          <div className="um-top-actions">
+            {canCreate && !forbidden ? (
+              <button className="um-add-btn-top" onClick={() => openModal('create')} type="button">
+                <i className="ph ph-plus" aria-hidden="true" /> Add Branch
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         <div className="um-kpi-row">
           {[
             ['ph-buildings', 'blue', 'Total Branches', summary.total],

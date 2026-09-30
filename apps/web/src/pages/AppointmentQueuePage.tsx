@@ -165,7 +165,7 @@ export function AppointmentQueuePage() {
       <section className="appointment-page-header">
         <div className="appointment-page-title">
           <h2>Queue Management</h2>
-          <p>Coordinate patient flow and consultation status</p>
+          <p>Coordinate patient flow, token calling, and consultation status.</p>
         </div>
         <div className="appointment-page-actions">
           {/* <button className="doc-btn primary" onClick={() => navigate('/appointments/book?mode=walkin')} type="button">
@@ -178,10 +178,10 @@ export function AppointmentQueuePage() {
       <section className="doc-kpi-grid appointment-kpi-grid">
         {[
           ['ph-users-three', 'orange', 'Patients Waiting', waitingCount, 'Across departments'],
-          ['ph-stethoscope', 'cyan', 'Currently In Consultation', inConsultationCount, 'Active consultations'],
+          ['ph-stethoscope', 'cyan', 'In Consultation', inConsultationCount, 'Active consultations'],
           ['ph-check-circle', 'green', 'Completed', completedCount, 'Today'],
           ['ph-user-minus', 'red', 'No Show', noShowCount, 'Needs review'],
-          ['ph-timer', 'purple', 'Average Waiting Time', `${averageWait} min`, 'Live estimate'],
+          ['ph-timer', 'purple', 'Average Wait Time', `${averageWait} min`, 'Live estimate'],
         ].map(([icon, tone, label, value, copy]) => (
           <article className="doc-kpi" key={label}>
             <span className={`doc-kpi-icon ${tone}`}>
@@ -279,7 +279,7 @@ export function AppointmentQueuePage() {
             </div>
             <button className="doc-btn" onClick={() => downloadQueue(appointments)} type="button">
               <i className="ph ph-download-simple" aria-hidden="true" />
-              Export
+              Export CSV
             </button>
           </div>
 
@@ -296,7 +296,7 @@ export function AppointmentQueuePage() {
                   <th>Estimated Wait</th>
                   <th>Priority</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -311,7 +311,11 @@ export function AppointmentQueuePage() {
                   </tr>
                 ) : appointments.length === 0 ? (
                   <tr>
-                    <td className="um-state-cell" colSpan={10}>
+                    <td
+                      className="um-state-cell appointment-queue-empty-cell"
+                      colSpan={10}
+                      style={{ textAlign: 'center', padding: '3rem 1rem' }}
+                    >
                       No appointments are in the queue for the selected filters.
                     </td>
                   </tr>

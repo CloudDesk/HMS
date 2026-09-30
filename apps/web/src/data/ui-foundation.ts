@@ -44,7 +44,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-calendar-blank',
     links: [
       { href: '/appointments/book', label: 'Book Appointment' },
-      { href: '/appointments/referrals', label: 'Referral Booking' },
+      // { href: '/appointments/referrals', label: 'Referral Booking' },
       { href: '/appointments/calendar', label: 'Calendar View' },
       { href: '/appointments/queue', label: 'Queue Management' },
     ],
@@ -57,7 +57,7 @@ export const sidebarModules: SidebarModule[] = [
     links: [
       { href: '/opd/queue', label: 'OPD Queue' },
       { href: '/opd/prescription', label: 'Prescription' },
-      { href: '/opd/referral', label: 'Referral' },
+      // { href: '/opd/referral', label: 'Referral' },
       { href: '/opd/imaging', label: 'Imaging' },
       { href: '/opd/laboratory', label: 'Laboratory' },
       { href: '/opd/treatment-plan', label: 'Diagnosis & Treatment plan' },

@@ -15,6 +15,7 @@ export function useBillingHistoryFeature() {
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
   const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+  const limit = Math.min(100, Math.max(5, Number(params.get('limit') ?? 10) || 10));
   const invoiceNumber = params.get('invoice_number') ?? '';
   const patientId = params.get('patient_id') ?? '';
   const status = (params.get('status') ?? '') as BillingInvoiceStatus | '';
@@ -47,13 +48,13 @@ export function useBillingHistoryFeature() {
     date_to: dateTo || undefined,
     branch_id: branchId || undefined,
     page,
-    limit: 20,
+    limit,
     sortBy: 'created_at',
     sortOrder: 'desc',
-  }), [invoiceNumber, patientId, status, dateFrom, dateTo, branchId, page]);
+  }), [invoiceNumber, patientId, status, dateFrom, dateTo, branchId, page, limit]);
 
   const invoicesQuery = useBillingInvoices(queryParams);
-  const meta = invoicesQuery.data?.meta ?? { total: 0, page, limit: 20, totalPages: 1 };
+  const meta = invoicesQuery.data?.meta ?? { total: 0, page, limit, totalPages: 1 };
 
   const updateFilters = (changes: Record<string, string | number | null>) => {
     const next = new URLSearchParams(location.search);
