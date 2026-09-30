@@ -361,7 +361,39 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
                         </button>
                       </td>
                       <td>{conditionsText}</td>
-                      <td>{diagnosisText}</td>
+                      <td>
+                        {toothDiagnoses.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {toothDiagnoses.map((dx) => (
+                              <div key={dx.code} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <span>{dx.code ? `${dx.code} — ${dx.name}` : dx.name}</span>
+                                {!isReadOnly && onRemoveDiagnosis && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onRemoveDiagnosis(dx.code, number)}
+                                    title={`Remove diagnosis ${dx.code} for Tooth #${number}`}
+                                    aria-label={`Remove diagnosis ${dx.code} for Tooth #${number}`}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: '#dc2626',
+                                      cursor: 'pointer',
+                                      padding: '1px 3px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      borderRadius: '3px',
+                                    }}
+                                  >
+                                    <i className="ph ph-trash" style={{ fontSize: '0.8rem' }} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td>
                         {plannedItems.length > 0 ? (
                           <div className={styles.plannedItemsCell}>
@@ -386,12 +418,50 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
 
         <div className={styles.generalDiagnosisRow}>
           <span>General / Full Mouth: </span>
-          <strong>
-            {diagnoses
-              .filter((dx) => !dx.tooth_number)
-              .map((dx) => (dx.code ? `${dx.code} — ${dx.name}` : dx.name))
-              .join('; ') || 'No general diagnosis recorded'}
-          </strong>
+          {diagnoses.filter((dx) => !dx.tooth_number).length > 0 ? (
+            <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+              {diagnoses
+                .filter((dx) => !dx.tooth_number)
+                .map((dx) => (
+                  <span
+                    key={dx.code}
+                    style={{
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      padding: '2px 8px',
+                      fontSize: '0.78rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <strong>{dx.code ? `${dx.code} — ${dx.name}` : dx.name}</strong>
+                    {!isReadOnly && onRemoveDiagnosis && (
+                      <button
+                        type="button"
+                        onClick={() => onRemoveDiagnosis(dx.code, null)}
+                        title={`Remove ${dx.code}`}
+                        aria-label={`Remove ${dx.code}`}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#dc2626',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <i className="ph ph-x" style={{ fontSize: '0.82rem' }} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+            </div>
+          ) : (
+            <strong>No general diagnosis recorded</strong>
+          )}
           {!isReadOnly && (
             <button
               type="button"

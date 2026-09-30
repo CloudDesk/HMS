@@ -218,4 +218,38 @@ describe('DentalDiagnosisTreatmentPlanSection Component', () => {
     expect(container.textContent).toContain('Service Catalogue');
     expect(container.textContent).toContain('Composite Restoration - Posterior (KES 250.00)');
   });
+
+  it('allows removing diagnosis directly from the compact table row', async () => {
+    const onRemoveDiagnosis = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalDiagnosisTreatmentPlanSection
+            visitId="visit-1"
+            canEdit={true}
+            departmentServices={mockDepartmentServices}
+            onRemoveDiagnosis={onRemoveDiagnosis}
+            diagnoses={[
+              {
+                code: 'K02.1',
+                name: 'Caries of dentine',
+                category: 'Dental Caries',
+                tooth_number: 16,
+              },
+            ]}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    const removeBtn = container.querySelector('button[title*="Remove diagnosis K02.1"]') as HTMLButtonElement;
+    expect(removeBtn).not.toBeNull();
+
+    await act(async () => {
+      removeBtn.click();
+    });
+
+    expect(onRemoveDiagnosis).toHaveBeenCalledWith('K02.1', 16);
+  });
 });
