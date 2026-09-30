@@ -100,6 +100,11 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
     });
   };
 
+  const handleRemove = (code: string, toothNum?: number | null) => {
+    if (!canEdit || !onRemoveDiagnosis) return;
+    onRemoveDiagnosis(code, toothNum !== undefined ? toothNum : targetTooth);
+  };
+
   const handleAddCustom = () => {
     if (!canEdit || !onAddDiagnosis || !searchTerm.trim()) return;
     const customCode = `DX-${Date.now().toString().slice(-4)}`;
@@ -325,12 +330,20 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                   <button
                     key={classification.code}
                     type="button"
-                    disabled={!canEdit || targetTooth === null || isAdded}
-                    onClick={() => handleAdd(classification)}
+                    disabled={!canEdit || (targetTooth === null && !isAdded)}
+                    onClick={() => {
+                      if (isAdded) {
+                        handleRemove(classification.code, targetTooth);
+                      } else {
+                        handleAdd(classification);
+                      }
+                    }}
                     title={
-                      targetTooth === null
+                      targetTooth === null && !isAdded
                         ? 'Select a target tooth before adding a cavity classification'
-                        : classification.name
+                        : isAdded
+                          ? `Click to remove ${classification.code.replace('GVB-', 'Class ')} classification`
+                          : `Click to add ${classification.code.replace('GVB-', 'Class ')} classification`
                     }
                     style={{
                       display: 'flex',
@@ -342,8 +355,8 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                       border: isAdded ? '1.5px solid #16a34a' : '1px solid #e0e7ff',
                       background: isAdded ? '#f0fdf4' : '#ffffff',
                       color: isAdded ? '#166534' : '#1e293b',
-                      cursor: canEdit && targetTooth !== null && !isAdded ? 'pointer' : 'not-allowed',
-                      opacity: targetTooth === null ? 0.6 : 1,
+                      cursor: canEdit && (targetTooth !== null || isAdded) ? 'pointer' : 'not-allowed',
+                      opacity: targetTooth === null && !isAdded ? 0.6 : 1,
                       transition: 'all 0.15s ease',
                       boxShadow: isAdded ? '0 1px 4px rgba(22, 163, 74, 0.1)' : '0 1px 2px rgba(0, 0, 0, 0.02)',
                     }}
@@ -361,18 +374,34 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                       >
                         {classification.code.replace('GVB-', 'Class ')}
                       </span>
-                      {isAdded && (
+                      {isAdded ? (
                         <span
                           style={{
                             fontSize: '0.7rem',
                             fontWeight: 700,
-                            color: '#16a34a',
+                            color: '#dc2626',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '3px',
+                            background: '#fee2e2',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
                           }}
                         >
-                          <i className="ph ph-check" aria-hidden="true" /> Added
+                          <i className="ph ph-x" aria-hidden="true" /> Remove
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            color: '#6366f1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                          }}
+                        >
+                          <i className="ph ph-plus" aria-hidden="true" /> Add
                         </span>
                       )}
                     </div>
@@ -387,11 +416,13 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
 
           {/* Quick-Add Frequent Dental Diagnoses */}
           <div style={{ marginBottom: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <i className="ph ph-lightning" style={{ color: '#f59e0b', fontSize: '0.95rem' }} />
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
-                Frequent Dental Diagnoses
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <i className="ph ph-lightning" style={{ color: '#f59e0b', fontSize: '0.95rem' }} />
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
+                  Frequent Dental Diagnoses
+                </span>
+              </div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {COMMON_DENTAL_QUICK_DIAGNOSES.map((d) => {
@@ -404,16 +435,23 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                   <button
                     key={d.code}
                     type="button"
-                    disabled={!canEdit || isAdded}
-                    onClick={() => handleAdd(d)}
+                    disabled={!canEdit}
+                    onClick={() => {
+                      if (isAdded) {
+                        handleRemove(d.code, targetTooth);
+                      } else {
+                        handleAdd(d);
+                      }
+                    }}
+                    title={isAdded ? `Click to remove ${d.code} (${d.name})` : `Click to add ${d.code} (${d.name})`}
                     style={{
                       fontSize: '0.75rem',
                       padding: '5px 12px',
                       borderRadius: '20px',
-                      border: isAdded ? '1px solid #86efac' : '1px solid #cbd5e1',
-                      background: isAdded ? '#f0fdf4' : '#ffffff',
-                      color: isAdded ? '#15803d' : '#334155',
-                      cursor: canEdit && !isAdded ? 'pointer' : 'default',
+                      border: isAdded ? '1px solid #fca5a5' : '1px solid #cbd5e1',
+                      background: isAdded ? '#fef2f2' : '#ffffff',
+                      color: isAdded ? '#b91c1c' : '#334155',
+                      cursor: canEdit ? 'pointer' : 'default',
                       fontWeight: isAdded ? 700 : 500,
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -423,12 +461,17 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                     }}
                   >
                     {isAdded ? (
-                      <i className="ph ph-check" style={{ color: '#16a34a' }} />
+                      <i className="ph ph-x-circle" style={{ color: '#dc2626', fontSize: '0.85rem' }} />
                     ) : (
                       <i className="ph ph-plus" style={{ color: '#64748b' }} />
                     )}
-                    <span style={{ fontWeight: 700, color: isAdded ? '#15803d' : '#2563eb' }}>{d.code}</span>
+                    <span style={{ fontWeight: 700, color: isAdded ? '#b91c1c' : '#2563eb' }}>{d.code}</span>
                     <span>{d.name}</span>
+                    {isAdded && (
+                      <span style={{ fontSize: '0.68rem', color: '#dc2626', fontWeight: 700, marginLeft: '2px' }}>
+                        ×
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -573,25 +616,32 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                         {canEdit && (
                           <button
                             type="button"
-                            disabled={isAdded}
-                            onClick={() => handleAdd(d)}
+                            onClick={() => {
+                              if (isAdded) {
+                                handleRemove(d.code, targetTooth);
+                              } else {
+                                handleAdd(d);
+                              }
+                            }}
                             style={{
                               fontSize: '0.74rem',
                               padding: '4px 10px',
                               borderRadius: '6px',
-                              border: isAdded ? '1px solid #86efac' : '1px solid #2563eb',
-                              background: isAdded ? '#f0fdf4' : '#2563eb',
-                              color: isAdded ? '#16a34a' : '#ffffff',
-                              cursor: isAdded ? 'default' : 'pointer',
+                              border: isAdded ? '1px solid #fca5a5' : '1px solid #2563eb',
+                              background: isAdded ? '#fee2e2' : '#2563eb',
+                              color: isAdded ? '#dc2626' : '#ffffff',
+                              cursor: 'pointer',
                               fontWeight: 600,
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
+                              transition: 'all 0.15s ease',
                             }}
+                            title={isAdded ? `Remove ${d.code}` : `Add ${d.code}`}
                           >
                             {isAdded ? (
                               <>
-                                <i className="ph ph-check" /> Added
+                                <i className="ph ph-trash" /> Remove
                               </>
                             ) : (
                               <>
@@ -618,13 +668,67 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
               border: '1px solid #e2e8f0',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <i className="ph ph-clipboard-text" style={{ color: '#2563eb', fontSize: '0.95rem' }} />
                 <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>
                   Recorded Diagnoses ({diagnoses.length})
                 </span>
               </div>
+              {canEdit && onRemoveDiagnosis && diagnoses.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {targetTooth !== null && diagnoses.some((d) => d.tooth_number === targetTooth) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        for (const dx of diagnoses.filter((d) => d.tooth_number === targetTooth)) {
+                          onRemoveDiagnosis(dx.code, dx.tooth_number);
+                        }
+                      }}
+                      style={{
+                        background: '#fee2e2',
+                        border: '1px solid #fca5a5',
+                        borderRadius: '6px',
+                        color: '#dc2626',
+                        fontSize: '0.72rem',
+                        padding: '3px 8px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                      }}
+                      title={`Remove all diagnoses for Tooth #${targetTooth}`}
+                    >
+                      <i className="ph ph-trash" /> Clear Tooth #{targetTooth}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      for (const dx of [...diagnoses]) {
+                        onRemoveDiagnosis(dx.code, dx.tooth_number);
+                      }
+                    }}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      color: '#ef4444',
+                      fontSize: '0.72rem',
+                      padding: '3px 8px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                    }}
+                    title="Remove all recorded diagnoses from this session"
+                  >
+                    <i className="ph ph-trash" /> Clear All ({diagnoses.length})
+                  </button>
+                </div>
+              )}
             </div>
             {diagnoses.length === 0 ? (
               <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem' }}>
@@ -640,7 +744,7 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '7px',
-                      padding: '5px 12px',
+                      padding: '5px 8px 5px 12px',
                       borderRadius: '8px',
                       background: '#ffffff',
                       border: '1px solid #cbd5e1',
@@ -683,19 +787,25 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                         type="button"
                         onClick={() => onRemoveDiagnosis(dx.code, dx.tooth_number)}
                         style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#ef4444',
+                          background: '#fee2e2',
+                          border: '1px solid #fca5a5',
+                          color: '#dc2626',
                           cursor: 'pointer',
-                          padding: '2px',
+                          padding: '2px 6px',
                           display: 'inline-flex',
                           alignItems: 'center',
+                          gap: '3px',
                           borderRadius: '4px',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          marginLeft: '4px',
+                          transition: 'all 0.15s ease',
                         }}
-                        title="Remove diagnosis"
-                        aria-label="Remove diagnosis"
+                        title={`Remove ${dx.code}`}
+                        aria-label={`Remove diagnosis ${dx.code}`}
                       >
-                        <i className="ph ph-trash" style={{ fontSize: '0.85rem' }} />
+                        <i className="ph ph-trash" style={{ fontSize: '0.75rem' }} />
+                        <span>Remove</span>
                       </button>
                     )}
                   </span>
