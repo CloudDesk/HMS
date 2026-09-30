@@ -230,7 +230,73 @@ function GumArtwork({ arch }: { arch: Arch }) {
           <stop offset="60%" stopColor="#fb7185" stopOpacity="0.45" />
           <stop offset="100%" stopColor="#f43f5e" stopOpacity="0" />
         </radialGradient>
+        {/* Floor of the mouth (sublingual mucosa / lingual sulcus tissue) */}
+        <radialGradient id={`${id}-floor-mucosa`} cx="50%" cy="75%" r="65%">
+          <stop offset="0%" stopColor="#fca5a5" />
+          <stop offset="40%" stopColor="#f87171" />
+          <stop offset="75%" stopColor="#dc5a5a" />
+          <stop offset="100%" stopColor="#b83838" />
+        </radialGradient>
+        <linearGradient id={`${id}-frenulum`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffe4e6" />
+          <stop offset="60%" stopColor="#fecdd3" />
+          <stop offset="100%" stopColor="#f43f5e" />
+        </linearGradient>
       </defs>
+
+      {/* ── Floor of Mouth / Sublingual Mucosa Tissue Bed in Lower Arch ── */}
+      {arch === 'lower' && (
+        <g aria-hidden="true">
+          {/* Sublingual mucosa bed completely filling gap between lower dental arch and tongue */}
+          <path
+            d="M 194 65 C 189 142 218 236 272 256 Q 300 268 328 256 C 382 236 411 142 406 65 Q 300 68 194 65 Z"
+            fill={`url(#${id}-floor-mucosa)`}
+            stroke="#cb7770"
+            strokeWidth="1.5"
+          />
+
+          {/* Sublingual sulcus shadow along lingual gingival margin */}
+          <path
+            d="M 194 65 C 189 142 218 236 272 256 Q 300 268 328 256 C 382 236 411 142 406 65"
+            fill="none"
+            stroke="#991b1b"
+            strokeWidth="3.5"
+            opacity="0.28"
+          />
+
+          {/* Anterior mucosal folds (Plica sublingualis) */}
+          <path
+            d="M 232 218 Q 266 250 300 252 Q 334 250 368 218"
+            fill="none"
+            stroke="#fecdd3"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            opacity="0.75"
+          />
+          <path
+            d="M 248 230 Q 274 254 300 256 Q 326 254 352 230"
+            fill="none"
+            stroke="#fda4af"
+            strokeWidth="2"
+            strokeLinecap="round"
+            opacity="0.6"
+          />
+
+          {/* Lingual frenulum (midline mucosal fold connecting anterior oral floor to tongue ventral surface) */}
+          <path
+            d="M 300 236 L 300 262"
+            fill="none"
+            stroke={`url(#${id}-frenulum)`}
+            strokeWidth="3"
+            strokeLinecap="round"
+            opacity="0.9"
+          />
+
+          {/* Sublingual salivary caruncles (Wharton's duct orifices) flanking the frenulum */}
+          <circle cx="295" cy="254" r="2.2" fill="#ffe4e6" stroke="#be123c" strokeWidth="0.7" opacity="0.9" />
+          <circle cx="305" cy="254" r="2.2" fill="#ffe4e6" stroke="#be123c" strokeWidth="0.7" opacity="0.9" />
+        </g>
+      )}
 
       {/* ── Realistic 3D Tongue in Lower Dental Arch ── */}
       {arch === 'lower' && (
