@@ -721,46 +721,292 @@
   color: #94a3b8;
 }
 
-.opd-queue-table-wrap .opd-queue-table {
-  width: 100%;
+/* ==========================================================================
+   Consultation Queue Table Card & Standardized Table
+   ========================================================================== */
+.opd-page .doc-card.consultation-queue-card,
+.opd-page .doc-card.opd-queue-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.opd-page .doc-card.consultation-queue-card .doc-card-header,
+.opd-page .doc-card.opd-queue-card .doc-card-header {
+  padding: 1rem 1.25rem 0.85rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.opd-page .doc-card.consultation-queue-card .doc-table-wrap,
+.opd-page .doc-card.opd-queue-card .doc-table-wrap {
+  width: 100% !important;
+  overflow-x: hidden !important;
+  border-radius: 0;
+  margin-top: 0;
+}
+
+.opd-queue-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  min-width: unset !important;
+  border-collapse: collapse;
+}
+
+.opd-queue-table th,
+.opd-queue-table td {
+  padding: 0.65rem 0.5rem !important;
+  border-bottom: 1px solid var(--table-row-border, #f1f5f9);
+  vertical-align: middle;
+  text-align: left;
+  font-size: 0.82rem !important;
+  color: #334155;
+}
+
+.opd-queue-table th:first-child,
+.opd-queue-table td:first-child {
+  padding-left: 1.25rem !important;
+}
+
+.opd-queue-table th:last-child,
+.opd-queue-table td:last-child {
+  padding-right: 1.25rem !important;
+  text-align: right;
+}
+
+.opd-queue-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .opd-queue-table th {
-  font-size: var(--font-size-body-sm, 12px);
-  font-weight: var(--font-weight-subheading, 600);
-  text-transform: uppercase;
+  background: var(--table-header-bg, #f8fafc);
+  color: var(--table-header-color, #475569);
+  font-size: var(--table-header-font-size, 0.72rem);
+  font-weight: var(--table-header-font-weight, 700);
   letter-spacing: 0.04em;
-  color: #475569;
-  padding: 10px 14px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  height: 44px;
 }
 
-.opd-queue-table td {
-  font-size: var(--font-size-body-md, 13px);
-  color: #1e293b;
-  padding: 10px 14px;
-  vertical-align: middle;
+.opd-queue-table tbody tr {
+  transition: background-color 0.1s ease;
+}
+
+.opd-queue-table tbody tr:hover {
+  background: var(--table-row-hover-bg, #f8fafc);
+}
+
+/* Token cell */
+.opd-queue-table .col-token-cell {
+  white-space: nowrap;
 }
 
 .opd-queue-table .queue-token-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 8px;
-  font-size: var(--font-size-badge, 12px);
+  padding: 3px 7px;
+  font-size: 0.75rem;
   font-weight: 700;
   border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: nowrap;
+}
+
+/* Patient & Visit cell */
+.opd-queue-table .col-patient-cell {
+  white-space: normal !important;
+  overflow: hidden;
+}
+
+.opd-queue-table .doc-person {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0 !important;
+  overflow: hidden;
+}
+
+.opd-queue-table .doc-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.opd-queue-table .doc-person-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+}
+
+.opd-queue-table .doc-person-name {
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.opd-queue-table .doc-person-id {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Doctor cell */
+.opd-queue-table .col-doctor-cell {
+  white-space: normal !important;
+  overflow: hidden;
+}
+
+.opd-doctor-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+}
+
+.opd-doctor-name {
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: normal !important;
+}
+
+.opd-doctor-dept {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: normal;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+/* Wait cell */
+.opd-wait-text {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #475569;
+  font-size: 0.81rem;
+}
+
+/* Priority & Status cells */
+.opd-queue-table th.col-priority-th,
+.opd-queue-table td.col-priority-cell {
+  white-space: nowrap !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+}
+
+.opd-queue-table th.col-status-th,
+.opd-queue-table td.col-status-cell {
+  white-space: nowrap !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
 }
 
 .opd-queue-table .doc-status {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  font-size: var(--font-size-badge, 12px);
-  font-weight: var(--font-weight-subheading, 600);
-  border-radius: 9999px;
-  line-height: 1.25;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Actions cell */
+.opd-queue-table th.col-actions-th,
+.opd-queue-table td.col-actions-cell {
+  white-space: nowrap !important;
+  text-align: right !important;
+  padding-left: 0.25rem !important;
+  padding-right: 1.25rem !important;
+  overflow: visible !important;
+}
+
+.opd-queue-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  vertical-align: middle;
+}
+
+.opd-queue-actions .doc-btn.compact {
+  padding: 0.35rem 0.65rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  box-sizing: border-box !important;
+}
+
+.opd-queue-actions .doc-action {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.opd-queue-actions .doc-action:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
 }
 
 .opd-empty-state-wrapper .opd-empty-state-title {

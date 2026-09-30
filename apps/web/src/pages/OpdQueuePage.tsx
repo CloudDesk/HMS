@@ -135,28 +135,28 @@ export function OpdQueuePage() {
       </section>
 
       {error ? <div className="form-error-banner">{getOpdErrorMessage(error)}</div> : null}
-      <section className="doc-card">
+      <section className="doc-card opd-queue-card consultation-queue-card">
         <div className="doc-card-header"><div><h3>Consultation Queue</h3><p>{isLoading ? 'Loading queue...' : `${clinicianVisits.length} clinical visits`}</p></div></div>
-        <div className="doc-table-wrap opd-queue-table-wrap">
-          <table className="doc-table opd-queue-table">
+        <div className="doc-table-wrap opd-queue-table-wrap table-responsive" tabIndex={0} role="region" aria-label="Consultation queue" aria-busy={isLoading}>
+          <table className="data-table opd-queue-table">
             <colgroup>
-              <col style={{ width: isDoctorUser ? '10%' : '8%' }} />
-              <col style={{ width: isDoctorUser ? '32%' : '26%' }} />
-              {!isDoctorUser ? <col style={{ width: '18%' }} /> : null}
-              <col style={{ width: isDoctorUser ? '12%' : '10%' }} />
-              <col style={{ width: isDoctorUser ? '14%' : '12%' }} />
-              <col style={{ width: isDoctorUser ? '16%' : '13%' }} />
-              <col style={{ width: isDoctorUser ? '16%' : '13%' }} />
+              <col className="col-token" style={{ width: isDoctorUser ? '9%' : '7%' }} />
+              <col className="col-patient" style={{ width: isDoctorUser ? '32%' : '23%' }} />
+              {!isDoctorUser ? <col className="col-doctor" style={{ width: '17%' }} /> : null}
+              <col className="col-wait" style={{ width: isDoctorUser ? '10%' : '8%' }} />
+              <col className="col-priority" style={{ width: isDoctorUser ? '12%' : '11%' }} />
+              <col className="col-status" style={{ width: isDoctorUser ? '15%' : '14%' }} />
+              <col className="col-actions" style={{ width: isDoctorUser ? '22%' : '20%' }} />
             </colgroup>
             <thead>
               <tr>
-                <th>Token</th>
-                <th>Patient &amp; Visit</th>
-                {!isDoctorUser ? <th>Doctor</th> : null}
-                <th>Wait</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th className="align-right" style={{ textAlign: 'right' }}>Actions</th>
+                <th className="col-token-th">Token</th>
+                <th className="col-patient-th">Patient</th>
+                {!isDoctorUser ? <th className="col-doctor-th">Doctor</th> : null}
+                <th className="col-wait-th">Wait</th>
+                <th className="col-priority-th">Priority</th>
+                <th className="col-status-th">Status</th>
+                <th className="col-actions-th align-right" style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -188,17 +188,51 @@ export function OpdQueuePage() {
                 const isDentalCheckIn = dentalCheckInStatuses.has(visit.status) && isDentalVisit(visit, departments);
                 return (
                 <tr key={visit.id}>
-                  <td><span className="queue-token-chip">{tokenFor(visit, globalIndex)}</span></td>
-                  <td><div className="doc-person"><span className="doc-avatar">{patientInitials(visit.patient_name)}</span><div><strong>{visit.patient_name}</strong><span>{visit.visit_number}</span></div></div></td>
-                  {!isDoctorUser ? <td><strong>{visit.doctor_name}</strong><br /><small>{visit.doctor_specialization}</small></td> : null}
-                  <td>{waitMinutes(visit)} min</td>
-                  <td><span className={`doc-status ${visitPriorityClass(visit.priority)}`}>{opdVisitPriorityLabels[visit.priority]}</span></td>
-                  <td><span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span></td>
-                  <td className="align-right"><div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
-                    {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED' || isDentalCheckIn) && canEditConsultation && canEditVisit ? <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> {isDentalCheckIn ? 'Start Dental Consultation' : 'Start Consultation'}</button> : null}
-                    {visit.status === 'IN_CONSULTATION' && canViewConsultation ? <button className="doc-btn primary compact" onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)} type="button">Consultation</button> : null}
-                    <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button"><i className="ph ph-arrow-square-out" aria-hidden="true" /></button>
-                  </div></td>
+                  <td className="col-token-cell">
+                    <span className="queue-token-chip">{tokenFor(visit, globalIndex)}</span>
+                  </td>
+                  <td className="col-patient-cell">
+                    <div className="doc-person">
+                      <span className="doc-avatar">{patientInitials(visit.patient_name)}</span>
+                      <div className="doc-person-info">
+                        <strong className="doc-person-name" title={visit.patient_name}>{visit.patient_name}</strong>
+                      </div>
+                    </div>
+                  </td>
+                  {!isDoctorUser ? (
+                    <td className="col-doctor-cell">
+                      <div className="opd-doctor-info">
+                        <strong className="opd-doctor-name" title={visit.doctor_name}>{visit.doctor_name}</strong>
+                        <span className="opd-doctor-dept" title={visit.doctor_specialization}>{visit.doctor_specialization}</span>
+                      </div>
+                    </td>
+                  ) : null}
+                  <td className="col-wait-cell">
+                    <span className="opd-wait-text">{waitMinutes(visit)} min</span>
+                  </td>
+                  <td className="col-priority-cell">
+                    <span className={`doc-status ${visitPriorityClass(visit.priority)}`}>{opdVisitPriorityLabels[visit.priority]}</span>
+                  </td>
+                  <td className="col-status-cell">
+                    <span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span>
+                  </td>
+                  <td className="col-actions-cell align-right">
+                    <div className="opd-queue-actions">
+                      {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED' || isDentalCheckIn) && canEditConsultation && canEditVisit ? (
+                        <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button">
+                          <i className="ph ph-stethoscope" aria-hidden="true" /> {isDentalCheckIn ? 'Start Dental Consultation' : 'Start Consultation'}
+                        </button>
+                      ) : null}
+                      {visit.status === 'IN_CONSULTATION' && canViewConsultation ? (
+                        <button className="doc-btn primary compact" onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)} type="button">
+                          Consultation
+                        </button>
+                      ) : null}
+                      <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button">
+                        <i className="ph ph-arrow-square-out" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
                 );
               })}
@@ -208,46 +242,33 @@ export function OpdQueuePage() {
 
         {/* Pagination Controls */}
         {clinicianVisits.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '12px 16px',
-              borderTop: '1px solid #f1f5f9',
-              fontSize: '0.82rem',
-              color: '#64748b',
-              background: '#ffffff',
-              borderBottomLeftRadius: '12px',
-              borderBottomRightRadius: '12px',
-            }}
-          >
+          <div className="um-pagination" style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid #e2e8f0', margin: 0 }}>
             <div>
               Showing <strong>{Math.min((page - 1) * pageSize + 1, clinicianVisits.length)}</strong> to{' '}
               <strong>{Math.min(page * pageSize, clinicianVisits.length)}</strong> of{' '}
               <strong>{clinicianVisits.length}</strong> clinical visits
             </div>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <div className="um-page-controls">
               <button
                 type="button"
-                className="btn-secondary compact"
+                className="pg-btn"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                aria-label="Previous page"
               >
-                <i className="ph ph-caret-left" /> Previous
+                <i className="ph ph-caret-left" />
               </button>
-              <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
-                Page {page} of {totalPages}
+              <span className="pg-btn active" aria-current="page">
+                {page}
               </span>
               <button
                 type="button"
-                className="btn-secondary compact"
+                className="pg-btn"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                aria-label="Next page"
               >
-                Next <i className="ph ph-caret-right" />
+                <i className="ph ph-caret-right" />
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DispensingQueueStatus, DispensingStatus } from '../api/pharmacy-dispensing';
 import { useCurrencyFormatter } from '../api/useSettings';
 import { Modal } from '../components/ui/Modal';
@@ -26,6 +26,58 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('en', {
 }).format(new Date(value));
 
 const statusLabel = (status: DispensingStatus) => status === 'DRAFT' ? 'PENDING' : status;
+
+const dispensingStatusClass = (status: DispensingStatus) => {
+  if (status === 'DRAFT') return 'waiting';
+  if (status === 'CONFIRMED') return 'completed';
+  if (status === 'CANCELLED') return 'cancelled';
+  if (status === 'REVERSED') return 'blocked';
+  return 'waiting';
+};
+
+type PrescriptionSortField =
+  | 'patient'
+  | 'source'
+  | 'doctor'
+  | 'items'
+  | 'submitted'
+  | 'status'
+  | 'invoice'
+  | null;
+
+type PrescriptionSortDir = 'asc' | 'desc';
+
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: PrescriptionSortField;
+  sortField: PrescriptionSortField;
+  sortDir: PrescriptionSortDir;
+}) {
+  if (sortField !== field) {
+    return <i className="ph ph-arrows-down-up th-sort-icon" aria-hidden="true" />;
+  }
+  return sortDir === 'asc' ? (
+    <i className="ph ph-arrow-up th-sort-icon" aria-hidden="true" />
+  ) : (
+    <i className="ph ph-arrow-down th-sort-icon" aria-hidden="true" />
+  );
+}
+
+/** Build pagination page-number array with ellipsis markers matching global tables */
+function buildPageNumbers(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '…')[] = [1];
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push('…');
+  pages.push(total);
+  return pages;
+}
 
 type PrescriptionQueuePageProps = {
   embedded?: boolean;
@@ -76,7 +128,51 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
 
   useEffect(() => setActionReason(''), [queue.selectedPrescriptionId, queue.detail?.status]);
 
+  const [sortField, setSortField] = useState<PrescriptionSortField>(null);
+  const [sortDir, setSortDir] = useState<PrescriptionSortDir>('asc');
+
+  const handleSort = (field: PrescriptionSortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedDispensings = useMemo(() => {
+    if (!sortField) return queue.dispensings;
+    return [...queue.dispensings].sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case 'patient':
+          cmp = (a.patient_name || '').localeCompare(b.patient_name || '');
+          break;
+        case 'source':
+          cmp = (a.source_type || '').localeCompare(b.source_type || '');
+          break;
+        case 'doctor':
+          cmp = (a.doctor_name || '').localeCompare(b.doctor_name || '');
+          break;
+        case 'items':
+          cmp = (a.items?.length ?? 0) - (b.items?.length ?? 0);
+          break;
+        case 'submitted':
+          cmp = new Date(a.submitted_at || 0).getTime() - new Date(b.submitted_at || 0).getTime();
+          break;
+        case 'status':
+          cmp = (a.status || '').localeCompare(b.status || '');
+          break;
+        case 'invoice':
+          cmp = (a.invoice_number || '').localeCompare(b.invoice_number || '');
+          break;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [queue.dispensings, sortDir, sortField]);
+
   const meta = queue.meta ?? { page, limit, total: 0, totalPages: 1 };
+  const pageNumbers = buildPageNumbers(meta.page, meta.totalPages);
   const detail = queue.detail;
   const draftDisabled = queue.isMutating || queue.batchesLoading || !queue.permissions.canEdit;
   const hasLineError = queue.lines.some((line) => line.insufficientStock || line.invalidQuantity);
@@ -130,36 +226,139 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
           </div>
 
           {queue.listError ? <div className="form-error-banner dispensing-page-banner">{queue.listError}</div> : null}
-          <div className="table-responsive">
-            <table className="data-table">
-              <thead><tr><th>Patient</th><th>Source</th><th>Doctor</th><th>Items</th><th>Submitted</th><th>Status</th><th>Invoice</th><th>Actions</th></tr></thead>
+          <div className="table-responsive pharmacy-queue-table-wrap">
+            <table className="data-table pharmacy-queue-table">
+              <colgroup>
+                <col className="col-patient" style={{ width: '21%' }} />
+                <col className="col-source" style={{ width: '11%' }} />
+                <col className="col-doctor" style={{ width: '14%' }} />
+                <col className="col-items" style={{ width: '8%' }} />
+                <col className="col-submitted" style={{ width: '13%' }} />
+                <col className="col-status" style={{ width: '9%' }} />
+                <col className="col-invoice" style={{ width: '6%' }} />
+                <col className="col-actions" style={{ width: '18%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th
+                    className={`sortable${sortField === 'patient' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('patient')}
+                    aria-sort={sortField === 'patient' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Patient <SortIcon field="patient" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                  <th
+                    className={`sortable${sortField === 'source' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('source')}
+                    aria-sort={sortField === 'source' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Source <SortIcon field="source" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                  <th
+                    className={`sortable${sortField === 'doctor' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('doctor')}
+                    aria-sort={sortField === 'doctor' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Doctor <SortIcon field="doctor" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                  <th
+                    className={`sortable${sortField === 'items' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('items')}
+                    aria-sort={sortField === 'items' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Items <SortIcon field="items" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                  <th
+                    className={`sortable${sortField === 'submitted' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('submitted')}
+                    aria-sort={sortField === 'submitted' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Submitted <SortIcon field="submitted" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                  <th
+                    className={`sortable${sortField === 'status' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('status')}
+                    aria-sort={sortField === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                  <th
+                    className={`sortable${sortField === 'invoice' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('invoice')}
+                    aria-sort={sortField === 'invoice' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Invoice <SortIcon field="invoice" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                  <th className="align-right" style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
               <tbody>
                 {queue.listLoading ? (
                   <tr>
-                    <td colSpan={8} style={{ padding: '2.5rem 1rem' }}>
+                    <td colSpan={8} style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
                       <MedicalLoader
                         text="Loading dispensing queue..."
                         subtext="Retrieving outpatient and inpatient pharmacy orders"
                       />
                     </td>
                   </tr>
-                ) : queue.dispensings.length === 0 ? (
+                ) : sortedDispensings.length === 0 ? (
                   <tr>
                     <td className="um-state-cell" colSpan={8}>
                       <i className="ph ph-inbox" aria-hidden="true" /> No dispensings found.
                     </td>
                   </tr>
                 ) : (
-                  queue.dispensings.map((dispensing) => (
+                  sortedDispensings.map((dispensing) => (
                     <tr key={dispensing.prescription_id}>
-                      <td><div className="user-cell-info"><strong>{dispensing.patient_name}</strong><span className="muted-cell">{dispensing.patient_number}</span></div></td>
-                      <td><span className={`dispensing-source source-${dispensing.source_type.toLowerCase().replaceAll('_', '-')}`}>{dispensingSourceLabel(dispensing.source_type)}</span></td>
-                      <td>{dispensing.doctor_name}</td>
-                      <td>{dispensing.items.length ? <strong>{dispensing.items.length} meds</strong> : <span className="muted-cell">Open to review</span>}</td>
-                      <td>{formatDateTime(dispensing.submitted_at)}</td>
-                      <td><span className={`diagnostic-status status-${statusLabel(dispensing.status).toLowerCase()}`}>{statusLabel(dispensing.status)}</span></td>
-                      <td>{dispensing.invoice_number ?? '—'}</td>
-                      <td><button className={dispensing.status === 'DRAFT' && queue.permissions.canEdit ? 'btn-primary compact' : 'btn-secondary compact'} onClick={() => queue.actions.openDispensing(dispensing.prescription_id)} type="button"><i className={`ph ${dispensing.status === 'DRAFT' ? 'ph-prescription' : 'ph-eye'}`} aria-hidden="true" /> {dispensing.status === 'DRAFT' ? 'Open Dispensing' : 'View'}</button></td>
+                      <td className="col-patient-cell">
+                        <div className="prescription-queue-patient">
+                          <strong className="prescription-queue-patient-name" title={dispensing.patient_name}>
+                            {dispensing.patient_name}
+                          </strong>
+                          <span className="prescription-queue-patient-mrn">{dispensing.patient_number}</span>
+                        </div>
+                      </td>
+                      <td className="col-source-cell">
+                        <span className={`dispensing-source source-${dispensing.source_type.toLowerCase().replaceAll('_', '-')}`}>
+                          {dispensingSourceLabel(dispensing.source_type)}
+                        </span>
+                      </td>
+                      <td className="col-doctor-cell">
+                        <span className="prescription-queue-doctor-name" title={dispensing.doctor_name}>
+                          {dispensing.doctor_name}
+                        </span>
+                      </td>
+                      <td className="col-items-cell">
+                        {dispensing.items.length ? (
+                          <strong className="prescription-queue-items-count">{dispensing.items.length} meds</strong>
+                        ) : (
+                          <span className="prescription-queue-items-muted">Open to review</span>
+                        )}
+                      </td>
+                      <td className="col-submitted-cell">
+                        <span className="prescription-queue-submitted-date">
+                          {formatDateTime(dispensing.submitted_at)}
+                        </span>
+                      </td>
+                      <td className="col-status-cell">
+                        <span className={`doc-status ${dispensingStatusClass(dispensing.status)}`}>
+                          {statusLabel(dispensing.status)}
+                        </span>
+                      </td>
+                      <td className="col-invoice-cell">
+                        <span className="prescription-queue-invoice">{dispensing.invoice_number ?? '—'}</span>
+                      </td>
+                      <td className="col-actions-cell align-right">
+                        <button
+                          className={dispensing.status === 'DRAFT' && queue.permissions.canEdit ? 'btn-primary compact' : 'btn-secondary compact'}
+                          onClick={() => queue.actions.openDispensing(dispensing.prescription_id)}
+                          type="button"
+                        >
+                          <i className={`ph ${dispensing.status === 'DRAFT' ? 'ph-prescription' : 'ph-eye'}`} aria-hidden="true" />{' '}
+                          {dispensing.status === 'DRAFT' ? 'Open Dispensing' : 'View'}
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -167,10 +366,62 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
             </table>
           </div>
 
-          <div className="um-pagination">
-            <div className="um-showing">{meta.total ? `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}` : 'No dispensings'}</div>
-            <div className="um-page-size"><span>Rows:</span><select onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }} value={limit}><option value="10">10</option><option value="20">20</option><option value="30">30</option></select></div>
-            <div className="um-page-controls"><button className="pg-btn" disabled={meta.page <= 1 || queue.listLoading} onClick={() => setPage((current) => Math.max(1, current - 1))} type="button"><i className="ph ph-caret-left" aria-hidden="true" /></button><span className="pg-btn active">{meta.page}</span><button className="pg-btn" disabled={meta.page >= meta.totalPages || queue.listLoading} onClick={() => setPage((current) => current + 1)} type="button"><i className="ph ph-caret-right" aria-hidden="true" /></button></div>
+          <div className="um-pagination prescription-queue-pagination">
+            <span aria-live="polite">
+              {queue.listLoading
+                ? 'Loading prescriptions...'
+                : queue.listError
+                ? 'Results unavailable'
+                : meta.total === 0
+                ? 'No prescriptions'
+                : <>
+                    Showing {(meta.page - 1) * meta.limit + 1}–
+                    {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} prescriptions
+                  </>
+              }
+            </span>
+            <div className="um-page-controls" role="navigation" aria-label="Prescription pagination">
+              <button
+                className="pg-btn"
+                aria-label="Previous page"
+                disabled={meta.page <= 1 || queue.listLoading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                type="button"
+              >
+                <i className="ph ph-caret-left" aria-hidden="true" />
+              </button>
+
+              {meta.totalPages > 1
+                ? pageNumbers.map((p, idx) =>
+                    p === '…' ? (
+                      <span key={`ellipsis-${idx}`} className="pg-btn pg-ellipsis">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        className={`pg-btn${p === meta.page ? ' active' : ''}`}
+                        aria-label={`Page ${p}`}
+                        aria-current={p === meta.page ? 'page' : undefined}
+                        disabled={queue.listLoading}
+                        onClick={() => setPage(p as number)}
+                        type="button"
+                      >
+                        {p}
+                      </button>
+                    )
+                  )
+                : <span className="pg-btn active" aria-current="page" aria-label={`Page ${meta.page}`}>{meta.page}</span>
+              }
+
+              <button
+                className="pg-btn"
+                aria-label="Next page"
+                disabled={meta.page >= meta.totalPages || queue.listLoading || Boolean(queue.listError)}
+                onClick={() => setPage((current) => Math.min(meta.totalPages, current + 1))}
+                type="button"
+              >
+                <i className="ph ph-caret-right" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </section>
       </div>

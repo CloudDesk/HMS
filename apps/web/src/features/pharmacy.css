@@ -418,9 +418,351 @@
 }
 
 /* ==========================================================================
-   4. Tables in Pharmacy
+   4. Tables in Pharmacy (Standardized Prescription Queue)
    ========================================================================== */
-.pharmacy-queue-page .data-table,
+.pharmacy-queue-page .um-table-section.card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.pharmacy-queue-page .table-responsive.pharmacy-queue-table-wrap {
+  width: 100% !important;
+  overflow-x: hidden;
+  border-radius: 0;
+  margin: 0;
+  padding: 0 !important;
+}
+
+@media (max-width: 900px) {
+  .pharmacy-queue-page .table-responsive.pharmacy-queue-table-wrap {
+    overflow-x: auto;
+  }
+}
+
+.pharmacy-queue-page .pharmacy-queue-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  min-width: unset !important;
+  border-collapse: collapse;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table th,
+.pharmacy-queue-page .pharmacy-queue-table td {
+  padding: 0.75rem 0.6rem !important;
+  border-bottom: 1px solid var(--table-row-border, #f1f5f9);
+  vertical-align: middle;
+  text-align: left;
+  font-size: 0.82rem !important;
+  color: #334155;
+  box-sizing: border-box;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table th:first-child,
+.pharmacy-queue-page .pharmacy-queue-table td:first-child {
+  padding-left: 1.25rem !important;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table th:last-child,
+.pharmacy-queue-page .pharmacy-queue-table td:last-child {
+  padding-right: 1.25rem !important;
+  text-align: right !important;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table th {
+  background: var(--table-header-bg, #f8fafc) !important;
+  color: var(--table-header-color, #475569) !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  user-select: none;
+  height: 44px;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table tbody tr {
+  transition: background-color 0.1s ease;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table tbody tr:hover {
+  background: var(--table-row-hover-bg, #f8fafc);
+}
+
+/* Patient cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-patient-cell {
+  overflow: hidden;
+  white-space: normal !important;
+}
+
+.pharmacy-queue-patient {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.prescription-queue-patient-name {
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.prescription-queue-patient-mrn {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* Source cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-source-cell {
+  white-space: nowrap;
+}
+
+/* Doctor cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-doctor-cell {
+  overflow: hidden;
+  white-space: normal !important;
+}
+
+.prescription-queue-doctor-name {
+  color: #1e293b;
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* Items cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-items-cell {
+  overflow: hidden;
+  white-space: normal;
+}
+
+.prescription-queue-items-count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.prescription-queue-items-muted {
+  font-size: 0.82rem;
+  color: #64748b;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+/* Submitted cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-submitted-cell {
+  white-space: normal;
+}
+
+.prescription-queue-submitted-date {
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.35;
+  display: inline-block;
+}
+
+/* Status cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-status-cell {
+  white-space: nowrap;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table .doc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1.3;
+  max-width: 100%;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table .doc-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table .doc-status.waiting,
+.pharmacy-queue-page .pharmacy-queue-table .doc-status.pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table .doc-status.completed,
+.pharmacy-queue-page .pharmacy-queue-table .doc-status.confirmed {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table .doc-status.cancelled {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table .doc-status.blocked,
+.pharmacy-queue-page .pharmacy-queue-table .doc-status.reversed {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+/* Invoice cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-invoice-cell {
+  white-space: nowrap;
+}
+
+.prescription-queue-invoice {
+  font-size: 0.82rem;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Sortable column header */
+.pharmacy-queue-page .pharmacy-queue-table th.sortable {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table th.sortable:hover {
+  color: var(--table-sort-active-color, #2563eb) !important;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table th.sort-asc,
+.pharmacy-queue-page .pharmacy-queue-table th.sort-desc {
+  color: var(--table-sort-active-color, #2563eb) !important;
+}
+
+.pharmacy-queue-page .th-sort-icon {
+  margin-left: 4px;
+  font-size: 0.8rem;
+  opacity: 0.6;
+  vertical-align: middle;
+}
+
+.pharmacy-queue-page th.sortable:hover .th-sort-icon,
+.pharmacy-queue-page th.sort-asc .th-sort-icon,
+.pharmacy-queue-page th.sort-desc .th-sort-icon {
+  opacity: 1;
+  color: #2563eb;
+}
+
+/* Actions cell */
+.pharmacy-queue-page .pharmacy-queue-table .col-actions-cell {
+  white-space: nowrap !important;
+  text-align: right !important;
+  overflow: visible;
+}
+
+.pharmacy-queue-page .pharmacy-queue-table .col-actions-cell .btn-primary.compact,
+.pharmacy-queue-page .pharmacy-queue-table .col-actions-cell .btn-secondary.compact {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+
+/* Standardized Global Pagination for Prescription Queue */
+.prescription-queue-pagination {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0.85rem 1.25rem !important;
+  border-top: 1px solid var(--border, #e2e8f0) !important;
+  margin: 0 !important;
+  font-size: var(--font-size-body-sm, 12px) !important;
+  color: #64748b !important;
+  background: #ffffff !important;
+}
+
+.prescription-queue-pagination .um-page-controls {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.prescription-queue-pagination .pg-btn {
+  min-width: 32px !important;
+  height: 32px !important;
+  padding: 0 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  border-radius: 6px !important;
+  font-size: var(--font-size-body-sm, 12px) !important;
+  font-weight: var(--font-weight-semibold, 600) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.prescription-queue-pagination .pg-btn:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+.prescription-queue-pagination .pg-btn.active {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.prescription-queue-pagination .pg-btn:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.prescription-queue-pagination .pg-ellipsis {
+  border: none !important;
+  background: transparent !important;
+  cursor: default !important;
+}
+
 .pharmacy-inventory-page .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -428,7 +770,6 @@
   font-family: inherit;
 }
 
-.pharmacy-queue-page .data-table thead th,
 .pharmacy-inventory-page .data-table thead th {
   background: #f8fafc;
   color: #475569;
@@ -442,7 +783,6 @@
   white-space: nowrap;
 }
 
-.pharmacy-queue-page .data-table tbody td,
 .pharmacy-inventory-page .data-table tbody td {
   padding: 10px 14px;
   border-bottom: 1px solid #f1f5f9;
@@ -451,7 +791,6 @@
   vertical-align: middle;
 }
 
-.pharmacy-queue-page .data-table tbody tr:hover,
 .pharmacy-inventory-page .data-table tbody tr:hover {
   background: #f8fafc;
 }

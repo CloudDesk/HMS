@@ -271,7 +271,7 @@ export function AppointmentQueuePage() {
       ) : null}
 
       <section className="appointment-queue-layout">
-        <div className="doc-card">
+        <div className="doc-card appointment-queue-card">
           <div className="doc-card-header">
             <div>
               <h3>Patient Queue</h3>
@@ -283,26 +283,32 @@ export function AppointmentQueuePage() {
             </button>
           </div>
 
-          <div className="doc-table-wrap appointment-queue-table-wrap">
-            <table className="doc-table">
+          <div className="doc-table-wrap appointment-queue-table-wrap table-responsive" tabIndex={0} role="region" aria-label="Patient queue" aria-busy={loading}>
+            <table className="data-table appointment-queue-table">
+              <colgroup>
+                <col className="col-patient" />
+                <col className="col-dept" />
+                <col className="col-doctor" />
+                <col className="col-checkin" />
+                <col className="col-priority" />
+                <col className="col-status" />
+                <col className="col-actions" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Token</th>
-                  <th>Patient</th>
-                  <th>MRN</th>
-                  <th>Department</th>
-                  <th>Doctor</th>
-                  <th>Check-in</th>
-                  <th>Estimated Wait</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th className="col-patient-th">Patient</th>
+                  <th className="col-dept-th">Department</th>
+                  <th className="col-doctor-th">Doctor</th>
+                  <th className="col-checkin-th">Check-in</th>
+                  <th className="col-priority-th">Priority</th>
+                  <th className="col-status-th">Status</th>
+                  <th className="col-actions-th align-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={10} style={{ padding: '2.5rem 1rem' }}>
+                    <td colSpan={7} style={{ padding: '2.5rem 1rem' }}>
                       <MedicalLoader
                         text="Loading appointment queue..."
                         subtext="Tracking patient check-in and waiting tokens"
@@ -313,43 +319,45 @@ export function AppointmentQueuePage() {
                   <tr>
                     <td
                       className="um-state-cell appointment-queue-empty-cell"
-                      colSpan={10}
+                      colSpan={7}
                       style={{ textAlign: 'center', padding: '3rem 1rem' }}
                     >
                       No appointments are in the queue for the selected filters.
                     </td>
                   </tr>
                 ) : (
-                  paginatedAppointments.map((appointment, index) => {
+                  paginatedAppointments.map((appointment) => {
                     const linkedVisit = visitForAppointment(appointment.id);
                     const isCheckInAvailable = canCheckIn && !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
                     const isTakeVitalsAvailable = canCreateVitals && canEditVisit && (linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS');
                     const isStartConsultationAvailable = canViewConsultation && canEditVisit && (linkedVisit?.status === 'READY_FOR_CONSULTATION' || linkedVisit?.status === 'SKIPPED');
                     const isInConsultationAvailable = canViewConsultation && linkedVisit?.status === 'IN_CONSULTATION';
-                    const globalIndex = (page - 1) * pageSize + index;
                     return (
                     <tr className={appointment.id === currentAppointment?.id ? 'queue-current-row' : ''} key={appointment.id}>
-                      <td>
-                        <span className="queue-token-chip">{tokenFor(appointment, globalIndex, linkedVisit)}</span>
+                      <td className="col-patient-cell" title={appointment.patient_name}>
+                        <span className="queue-patient-name">{appointment.patient_name}</span>
                       </td>
-                      <td>{appointment.patient_name}</td>
-                      <td>{appointment.patient_number}</td>
-                      <td>{appointment.doctor_specialization}</td>
-                      <td>{appointment.doctor_name}</td>
-                      <td>{appointment.start_time}</td>
-                      <td>{waitMinutes(appointment, globalIndex)} min</td>
-                      <td>
+                      <td className="col-dept-cell" title={appointment.doctor_specialization}>
+                        <span className="queue-dept-text">{appointment.doctor_specialization}</span>
+                      </td>
+                      <td className="col-doctor-cell" title={appointment.doctor_name}>
+                        <span className="queue-doctor-name">{appointment.doctor_name}</span>
+                      </td>
+                      <td className="col-checkin-cell">
+                        <span className="queue-time-text">{appointment.start_time}</span>
+                      </td>
+                      <td className="col-priority-cell">
                         <span className={`status-badge ${appointmentPriorityClass(appointment.priority)}`}>
                           {appointmentPriorityLabels[appointment.priority]}
                         </span>
                       </td>
-                      <td>
+                      <td className="col-status-cell">
                         <span className={`status-badge ${linkedVisit ? visitStatusClass(linkedVisit.status) : appointmentStatusClass(appointment.status)}`}>
                           {linkedVisit ? opdVisitStatusLabels[linkedVisit.status] : appointmentStatusLabels[appointment.status]}
                         </span>
                       </td>
-                      <td>
-                        <div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
+                      <td className="col-actions-cell align-right">
+                        <div className="appointment-queue-actions">
                           {isCheckInAvailable ? (
                             <button
                               className="doc-btn success compact"
@@ -443,46 +451,33 @@ export function AppointmentQueuePage() {
 
           {/* Pagination Controls */}
           {appointments.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px 16px',
-                borderTop: '1px solid #f1f5f9',
-                fontSize: '0.82rem',
-                color: '#64748b',
-                background: '#ffffff',
-                borderBottomLeftRadius: '12px',
-                borderBottomRightRadius: '12px',
-              }}
-            >
+            <div className="um-pagination" style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid #e2e8f0', margin: 0 }}>
               <div>
                 Showing <strong>{Math.min((page - 1) * pageSize + 1, appointments.length)}</strong> to{' '}
                 <strong>{Math.min(page * pageSize, appointments.length)}</strong> of{' '}
                 <strong>{appointments.length}</strong> queue records
               </div>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <div className="um-page-controls">
                 <button
                   type="button"
-                  className="btn-secondary compact"
+                  className="pg-btn"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                  aria-label="Previous page"
                 >
-                  <i className="ph ph-caret-left" /> Previous
+                  <i className="ph ph-caret-left" />
                 </button>
-                <span style={{ padding: '0 8px', fontWeight: 600, color: '#1e293b' }}>
-                  Page {page} of {totalPages}
+                <span className="pg-btn active" aria-current="page">
+                  {page}
                 </span>
                 <button
                   type="button"
-                  className="btn-secondary compact"
+                  className="pg-btn"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
-                  style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                  aria-label="Next page"
                 >
-                  Next <i className="ph ph-caret-right" />
+                  <i className="ph ph-caret-right" />
                 </button>
               </div>
             </div>

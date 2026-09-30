@@ -1451,10 +1451,47 @@ p {
   background: #dc2626;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Global Table Design System — HMS Standard
+   This is the canonical table style for the entire HMS web application.
+   All tables should use .data-table within .table-responsive.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Table design tokens */
+:root {
+  --table-header-bg: #f8fafc;
+  --table-header-color: #475569;
+  --table-header-font-size: 0.72rem;
+  --table-header-font-weight: 700;
+  --table-row-border: #f1f5f9;
+  --table-row-hover-bg: #f8fafc;
+  --table-row-selected-bg: #eff6ff;
+  --table-cell-padding-v: 0.75rem;
+  --table-cell-padding-h: 1rem;
+  --table-cell-font-size: 0.875rem;
+  --table-cell-color: #334155;
+  --table-sort-icon-color: #94a3b8;
+  --table-sort-active-color: #2563eb;
+}
+
 .table-responsive,
 .table-scroll {
   width: 100%;
   overflow-x: auto;
+  /* Hide scrollbar when not needed */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 4px;
+}
+.table-responsive::-webkit-scrollbar-track {
+  background: transparent;
+}
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 .data-table {
@@ -1466,22 +1503,75 @@ p {
 
 .data-table th,
 .data-table td {
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid #edf2f7;
+  padding: var(--table-cell-padding-v) var(--table-cell-padding-h);
+  border-bottom: 1px solid var(--table-row-border);
   text-align: left;
-  font-size: 0.86rem;
+  font-size: var(--table-cell-font-size);
+  color: var(--table-cell-color);
+  vertical-align: middle;
+}
+
+.data-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .data-table th {
-  background: #f8fafc;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 800;
+  background: var(--table-header-bg);
+  color: var(--table-header-color);
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  user-select: none;
+  height: 44px;
+}
+
+/* Sortable column header */
+.data-table th.sortable {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.data-table th.sortable:hover {
+  color: var(--table-sort-active-color);
+}
+.data-table th.sort-asc,
+.data-table th.sort-desc {
+  color: var(--table-sort-active-color);
+}
+
+/* Sort icon inside header */
+.th-sort-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  font-size: 0.7rem;
+  color: var(--table-sort-icon-color);
+  vertical-align: middle;
+  transition: color 0.15s ease;
+}
+.data-table th.sortable:hover .th-sort-icon,
+.data-table th.sort-asc .th-sort-icon,
+.data-table th.sort-desc .th-sort-icon {
+  color: var(--table-sort-active-color);
+}
+
+.data-table tbody tr {
+  transition: background-color 0.1s ease;
 }
 
 .data-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--table-row-hover-bg);
+}
+
+.data-table tbody tr.selected,
+.data-table tbody tr[aria-selected="true"] {
+  background: var(--table-row-selected-bg);
+}
+
+/* Last row no bottom border */
+.data-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .align-right {
@@ -2195,16 +2285,22 @@ fieldset.form-field {
 }
 
 .pg-btn {
-  width: 32px;
+  min-width: 32px;
   height: 32px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0 6px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: #ffffff;
-  color: #334155;
+  color: #475569;
   font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .pg-btn:hover:not(:disabled) {
@@ -2218,10 +2314,21 @@ fieldset.form-field {
   background: #2563eb;
   color: #ffffff;
   font-weight: 600;
+  cursor: default;
 }
 
 .pg-btn:disabled {
   color: #cbd5e1;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.pg-btn.pg-ellipsis {
+  border-color: transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: default;
+  pointer-events: none;
 }
 
 .patient-body {
@@ -3513,8 +3620,15 @@ fieldset.form-field {
 
 .appointment-queue-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.7fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 3.8fr) minmax(260px, 1.2fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .appointment-queue-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .appointment-queue-assignment {
@@ -3524,11 +3638,11 @@ fieldset.form-field {
 }
 
 .appointment-queue-table-wrap {
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .appointment-queue-table-wrap .doc-table {
-  min-width: 1080px;
+  min-width: unset;
 }
 
 .opd-queue-table .doc-person {
@@ -6967,28 +7081,121 @@ textarea.has-error {
   gap: 1.25rem !important;
 }
 
+.appointment-page .doc-card.appointment-queue-card,
+.doc-card.appointment-queue-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.appointment-page .doc-card.appointment-queue-card .doc-card-header,
+.doc-card.appointment-queue-card .doc-card-header {
+  padding: 1rem 1.25rem 0.85rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
 .appointment-queue-table-wrap {
-  overflow-x: auto !important;
+  overflow-x: hidden;
   width: 100% !important;
   scrollbar-width: thin !important;
 }
 
+@media (max-width: 860px) {
+  .appointment-queue-table-wrap {
+    overflow-x: hidden !important;
+  }
+}
+
 .appointment-queue-table-wrap table {
   width: 100% !important;
-  table-layout: auto !important;
-  min-width: 560px !important;
+  table-layout: fixed !important;
+  min-width: unset !important;
 }
+
+.appointment-queue-table-wrap table colgroup col.col-patient  { width: 15%; }
+.appointment-queue-table-wrap table colgroup col.col-dept     { width: 13%; }
+.appointment-queue-table-wrap table colgroup col.col-doctor   { width: 16%; }
+.appointment-queue-table-wrap table colgroup col.col-checkin  { width: 10%; }
+.appointment-queue-table-wrap table colgroup col.col-priority { width: 11%; }
+.appointment-queue-table-wrap table colgroup col.col-status   { width: 13%; }
+.appointment-queue-table-wrap table colgroup col.col-actions  { width: 22%; }
 
 .appointment-queue-table-wrap th,
 .appointment-queue-table-wrap td {
   padding: 0.6rem 0.5rem !important;
   font-size: 0.81rem !important;
+  vertical-align: middle;
+}
+
+.appointment-queue-table-wrap th:first-child,
+.appointment-queue-table-wrap td:first-child {
+  padding-left: 1.25rem !important;
 }
 
 .appointment-queue-table-wrap th:last-child,
-.appointment-queue-table-wrap td:not(.um-state-cell):not(.appointment-queue-empty-cell):last-child {
+.appointment-queue-table-wrap td:last-child {
+  padding-right: 1.25rem !important;
+  text-align: right !important;
+}
+
+.appointment-queue-table-wrap td.col-patient-cell,
+.appointment-queue-table-wrap td.col-dept-cell,
+.appointment-queue-table-wrap td.col-doctor-cell {
+  white-space: normal !important;
+  overflow: hidden;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.appointment-queue-table-wrap th.col-doctor-th,
+.appointment-queue-table-wrap td.col-doctor-cell {
+  padding-left: 1.5rem !important;
+}
+
+.appointment-queue-table-wrap th.col-checkin-th,
+.appointment-queue-table-wrap td.col-checkin-cell,
+.appointment-queue-table-wrap th.col-priority-th,
+.appointment-queue-table-wrap td.col-priority-cell,
+.appointment-queue-table-wrap th.col-status-th,
+.appointment-queue-table-wrap td.col-status-cell {
+  white-space: nowrap !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+}
+
+.appointment-queue-table-wrap th.col-actions-th,
+.appointment-queue-table-wrap td.col-actions-cell {
   white-space: nowrap !important;
   text-align: right !important;
+  padding-left: 0.25rem !important;
+  padding-right: 1.25rem !important;
+  overflow: visible !important;
+}
+
+.appointment-queue-actions {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 4px 0 !important;
+}
+
+.appointment-queue-actions .doc-btn.compact {
+  padding: 0.3rem 0.6rem !important;
+  font-size: 0.76rem !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  box-sizing: border-box !important;
+  max-width: 100% !important;
 }
 
 .appointment-queue-table-wrap td.um-state-cell,
@@ -9433,15 +9640,284 @@ textarea.has-error {
 
 
 
-/* Enhanced OPD Queue Table UI */
-.opd-queue-table-wrap {
-  width: 100%;
-  overflow-x: auto;
+/* Enhanced OPD Queue Table UI & Edge-to-Edge Consultation Queue Standard */
+.opd-page .doc-card.consultation-queue-card,
+.opd-page .doc-card.opd-queue-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.opd-page .doc-card.consultation-queue-card .doc-card-header,
+.opd-page .doc-card.opd-queue-card .doc-card-header {
+  padding: 1rem 1.25rem 0.85rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.opd-page .doc-card.consultation-queue-card .doc-table-wrap,
+.opd-page .doc-card.opd-queue-card .doc-table-wrap {
+  width: 100% !important;
+  overflow-x: hidden !important;
+  border-radius: 0;
+  margin-top: 0;
 }
 
 .opd-queue-table {
-  width: 100%;
-  table-layout: fixed;
+  width: 100% !important;
+  table-layout: fixed !important;
+  min-width: unset !important;
+  border-collapse: collapse;
+}
+
+.opd-queue-table th,
+.opd-queue-table td {
+  padding: 0.65rem 0.5rem !important;
+  border-bottom: 1px solid var(--table-row-border, #f1f5f9);
+  vertical-align: middle;
+  text-align: left;
+  font-size: 0.82rem !important;
+  color: #334155;
+}
+
+.opd-queue-table th:first-child,
+.opd-queue-table td:first-child {
+  padding-left: 1.25rem !important;
+}
+
+.opd-queue-table th:last-child,
+.opd-queue-table td:last-child {
+  padding-right: 1.25rem !important;
+  text-align: right;
+}
+
+.opd-queue-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.opd-queue-table th {
+  background: var(--table-header-bg, #f8fafc);
+  color: var(--table-header-color, #475569);
+  font-size: var(--table-header-font-size, 0.72rem);
+  font-weight: var(--table-header-font-weight, 700);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  height: 44px;
+}
+
+.opd-queue-table tbody tr {
+  transition: background-color 0.1s ease;
+}
+
+.opd-queue-table tbody tr:hover {
+  background: var(--table-row-hover-bg, #f8fafc);
+}
+
+.opd-queue-table .col-token-cell {
+  white-space: nowrap;
+}
+
+.opd-queue-table .queue-token-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.opd-queue-table .col-patient-cell {
+  white-space: normal !important;
+  overflow: hidden;
+}
+
+.opd-queue-table .doc-person {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0 !important;
+  overflow: hidden;
+}
+
+.opd-queue-table .doc-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.opd-queue-table .doc-person-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+}
+
+.opd-queue-table .doc-person-name {
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.opd-queue-table .doc-person-id {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opd-queue-table .col-doctor-cell {
+  white-space: normal !important;
+  overflow: hidden;
+}
+
+.opd-doctor-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+}
+
+.opd-doctor-name {
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: normal !important;
+}
+
+.opd-doctor-dept {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: normal;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.opd-wait-text {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #475569;
+  font-size: 0.81rem;
+}
+
+.opd-queue-table th.col-priority-th,
+.opd-queue-table td.col-priority-cell {
+  white-space: nowrap !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+}
+
+.opd-queue-table th.col-status-th,
+.opd-queue-table td.col-status-cell {
+  white-space: nowrap !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+}
+
+.opd-queue-table .doc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.opd-queue-table th.col-actions-th,
+.opd-queue-table td.col-actions-cell {
+  white-space: nowrap !important;
+  text-align: right !important;
+  padding-left: 0.25rem !important;
+  padding-right: 1.25rem !important;
+  overflow: visible !important;
+}
+
+.opd-queue-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  vertical-align: middle;
+}
+
+.opd-queue-actions .doc-btn.compact {
+  padding: 0.35rem 0.65rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  box-sizing: border-box !important;
+}
+
+.opd-queue-actions .doc-action {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.opd-queue-actions .doc-action:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
 }
 
 .opd-empty-state-cell {

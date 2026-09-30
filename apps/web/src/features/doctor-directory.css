@@ -352,85 +352,163 @@
 .doctor-directory-table {
   width: 100%;
   table-layout: fixed;
-  min-width: 860px;
+  min-width: unset !important;
   border-collapse: collapse;
-}
-
-.doctor-directory-table th {
-  padding: 0.75rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: #475569;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--border, #e2e8f0);
   white-space: nowrap;
 }
 
+/* Column width distribution (total = 100%) */
+.doctor-directory-table colgroup col.col-doc     { width: 19%; }
+.doctor-directory-table colgroup col.col-spec    { width: 13%; }
+.doctor-directory-table colgroup col.col-dept    { width: 13%; }
+.doctor-directory-table colgroup col.col-branch  { width: 11%; }
+.doctor-directory-table colgroup col.col-contact { width: 11%; }
+.doctor-directory-table colgroup col.col-status  { width: 9%; }
+.doctor-directory-table colgroup col.col-created { width: 12%; }
+.doctor-directory-table colgroup col.col-actions { width: 12%; }
+
+.doctor-directory-table th,
 .doctor-directory-table td {
-  padding: 0.75rem 0.75rem;
+  padding: 0.7rem 0.65rem;
+  border-bottom: 1px solid var(--table-row-border, #f1f5f9);
+  vertical-align: middle;
+  text-align: left;
   font-size: 0.82rem;
   color: #334155;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
-  overflow-wrap: anywhere;
+  overflow: hidden;
 }
 
-.doctor-directory-table th:nth-child(1),
-.doctor-directory-table td:nth-child(1) {
-  width: 22%;
-  min-width: 180px;
-}
-
-.doctor-directory-table th:nth-child(2),
-.doctor-directory-table td:nth-child(2) {
-  width: 14%;
-  min-width: 110px;
-}
-
-.doctor-directory-table th:nth-child(3),
-.doctor-directory-table td:nth-child(3) {
-  width: 13%;
-  min-width: 100px;
-}
-
-.doctor-directory-table th:nth-child(4),
-.doctor-directory-table td:nth-child(4) {
-  width: 12%;
-  min-width: 95px;
-}
-
-.doctor-directory-table th:nth-child(5),
-.doctor-directory-table td:nth-child(5) {
-  width: 16%;
-  min-width: 125px;
-}
-
-.doctor-directory-table th:nth-child(6),
-.doctor-directory-table td:nth-child(6) {
-  width: 10%;
-  min-width: 85px;
-}
-
-.doctor-directory-table th:nth-child(7),
-.doctor-directory-table td:nth-child(7) {
-  width: 10%;
-  min-width: 85px;
+.doctor-directory-table th:first-child,
+.doctor-directory-table td:first-child {
+  padding-left: 1.25rem;
 }
 
 .doctor-directory-table th:last-child,
 .doctor-directory-table td:last-child {
-  width: 130px;
-  min-width: 130px;
+  padding-right: 1.25rem;
+}
+
+.doctor-directory-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.doctor-directory-table th {
+  background: var(--table-header-bg, #f8fafc);
+  color: var(--table-header-color, #475569);
+  font-size: var(--table-header-font-size, 0.72rem);
+  font-weight: var(--table-header-font-weight, 700);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  height: 44px;
+}
+
+/* Sortable column header */
+.doctor-directory-table th.sortable {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.doctor-directory-table th.sortable:hover {
+  color: var(--table-sort-active-color, #2563eb);
+}
+.doctor-directory-table th.sort-asc,
+.doctor-directory-table th.sort-desc {
+  color: var(--table-sort-active-color, #2563eb);
+}
+
+.doctor-directory-table tbody tr {
+  transition: background-color 0.1s ease;
+}
+.doctor-directory-table tbody tr:hover {
+  background: var(--table-row-hover-bg, #f8fafc);
+}
+
+/* Specialization cell — wraps cleanly up to 2 lines, never overlaps adjacent columns */
+.doctor-directory-table .col-spec-cell {
+  white-space: normal;
+  overflow: hidden;
+}
+
+.doc-spec-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  color: #334155;
+  font-size: 0.82rem;
+  word-break: break-word;
+}
+
+/* Department cell — wraps cleanly up to 2 lines, never overlaps */
+.doctor-directory-table .col-dept-cell {
+  white-space: normal;
+  overflow: hidden;
+}
+
+.doc-dept-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  color: #334155;
+  font-size: 0.82rem;
+  word-break: break-word;
+}
+
+/* Branch cell */
+.doctor-directory-table .col-branch-cell {
+  color: #334155;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status cell */
+.doctor-directory-table .col-status-cell {
+  white-space: nowrap;
+}
+
+/* Created cell — protected width, truncates cleanly inside cell if compressed */
+.doctor-directory-table .col-created-cell {
+  color: #475569;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  padding-right: 0.75rem;
+}
+
+/* Actions cell — contained width, never overlaps or spills into Created column */
+.doctor-directory-table .col-actions-cell {
+  overflow: hidden;
   text-align: right;
+  padding-left: 0.25rem;
 }
 
 .doc-person {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  min-width: 0;
+  gap: 0.55rem;
+  min-width: 0 !important;
+  overflow: hidden;
+}
+
+.doc-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .doc-person-info {
@@ -438,40 +516,69 @@
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  overflow: hidden;
 }
 
 .doc-person-name {
   color: #0f172a;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 600;
   white-space: normal;
-  overflow-wrap: anywhere;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  user-select: none;
+}
+
+.doc-person-name:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.doc-person-name:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .doc-person-id {
   color: #64748b;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .doc-contact-cell {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  align-items: center;
   min-width: 0;
+  overflow: hidden;
 }
 
 .doc-contact-phone {
   color: #0f172a;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 
 .doc-contact-email {
   color: #64748b;
-  font-size: 0.75rem;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .doc-contact-email.muted {
@@ -483,15 +590,15 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.35rem;
+  gap: 4px;
   flex-wrap: nowrap;
 }
 
 .doctor-directory-table .doc-action {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
-  min-height: 30px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -500,15 +607,81 @@
   border: 1px solid var(--border, #e2e8f0);
   background: #ffffff;
   color: #475569;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .doctor-directory-table .doc-action:hover {
   border-color: #2563eb;
   color: #2563eb;
   background: #eff6ff;
+}
+
+.doctor-page .doctor-directory-table .doc-person {
+  min-width: 0 !important;
+}
+
+.doctor-page .doctor-directory-table td {
+  white-space: nowrap;
+  padding: 0.7rem 0.65rem;
+}
+
+.doctor-page .doctor-directory-table td:first-child,
+.doctor-page .doctor-directory-table th:first-child {
+  padding-left: 1.25rem;
+}
+
+.doctor-page .doctor-directory-table td:last-child,
+.doctor-page .doctor-directory-table th:last-child {
+  padding-right: 1.25rem;
+}
+
+.doctor-page .doctor-directory-table td.col-spec-cell,
+.doctor-page .doctor-directory-table td.col-dept-cell,
+.doctor-page .doctor-directory-table td.col-doc-cell {
+  white-space: normal;
+}
+
+.doctor-page .doctor-directory-table td.col-created-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 0.75rem;
+}
+
+.doctor-page .doctor-directory-table td.col-actions-cell {
+  overflow: hidden;
+  text-align: right;
+  padding-left: 0.25rem;
+  padding-right: 1.25rem;
+}
+
+/* ==========================================================================
+   Doctor Directory Table Card — Edge-to-Edge Matching Patient Directory
+   ========================================================================== */
+.doctor-page .doc-card.doctor-directory-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.doctor-page .doc-card.doctor-directory-card .doc-card-header {
+  padding: 1rem 1.25rem 0.85rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.doctor-page .doc-card.doctor-directory-card .doc-table-wrap {
+  width: 100%;
+  overflow-x: hidden;
+  border-radius: 0;
+}
+
+.doctor-page .doc-card.doctor-directory-card .um-pagination {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  margin-top: 0;
 }
 
 .doc-table th[onClick],

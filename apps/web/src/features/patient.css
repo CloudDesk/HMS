@@ -44,42 +44,167 @@
   align-items: center;
   flex-wrap: wrap;
 }
-.patient-directory-table .emp-id { color: var(--text-muted); }
-.patient-directory-name { display: block; overflow-wrap: anywhere; }
-.patient-directory-table .user-cell-info { min-width: 0; }
-.patient-directory-actions { justify-content: flex-end; flex-wrap: nowrap; }
-.patient-directory-actions .doc-btn {
-  width: var(--control-height-sm);
-  min-width: var(--control-height-sm);
-  height: var(--control-height-sm);
-  min-height: var(--control-height-sm);
-  padding: 0;
+
+/* ── Patient Directory Table: No-scroll layout ──────────────────────────── */
+/* The table fits within the viewport at normal desktop widths.
+   All columns use percentages summing to 100% so they scale correctly
+   at any container width. Gender/Age get enough space for their longest values. */
+
+.patient-directory-table {
+  /* Override global data-table min-width — we control widths via column rules */
+  min-width: unset !important;
+  width: 100%;
+  table-layout: fixed;
+  white-space: nowrap;
 }
+
+/* Column widths — all percentages, sum = 100%.
+   Sized so normal values fit without truncation at ≥820px container:
+   MRN 17% @900px=153px (fits HMS-2026-000031)
+   Name 24% @900px=216px (flex, wraps for long names)
+   Gender 10% @900px=90px (fits FEMALE/UNKNOWN)
+   Age 9% @900px=81px (fits "45 yrs")
+   Phone 16% @900px=144px (fits most phone numbers)
+   Status 13% @900px=117px (fits ● ACTIVE)
+   Actions 11% @900px=99px (fits 3 icon buttons) */
+.patient-directory-table colgroup col.col-mrn    { width: 17%; }
+.patient-directory-table colgroup col.col-name   { width: 23%; }
+.patient-directory-table colgroup col.col-gender { width: 11%; }
+.patient-directory-table colgroup col.col-age    { width: 9%; }
+.patient-directory-table colgroup col.col-phone  { width: 16%; }
+.patient-directory-table colgroup col.col-status { width: 13%; }
+.patient-directory-table colgroup col.col-actions { width: 11%; }
+
+/* All cells: clip overflow (default — overridden per-cell below as needed) */
+.patient-directory-table th,
+.patient-directory-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.7rem 0.875rem;
+}
+
+/* MRN cell — muted monospace-style */
+.patient-directory-table .col-mrn-cell {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Name cell — allows text wrapping; overrides the table-wide nowrap + ellipsis */
+.patient-directory-table .patient-dir-name-cell {
+  overflow: hidden;
+  white-space: normal;    /* allow wrapping — overrides table .patient-directory-table white-space:nowrap */
+  text-overflow: clip;    /* no ellipsis on the cell itself */
+  vertical-align: middle;
+}
+
+.patient-dir-name-wrap {
+  display: flex;
+  align-items: flex-start; /* align avatar to top when name wraps to 2 lines */
+  gap: 0.6rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Patient name text: wraps to max 2 lines, no ellipsis */
+.patient-dir-name-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* Gender, Age — compact muted text */
+.patient-directory-table .col-gender-cell,
+.patient-directory-table .col-age-cell {
+  color: #475569;
+  font-size: 0.82rem;
+}
+
+/* Phone cell */
+.patient-directory-table .col-phone-cell {
+  color: #334155;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status cell */
+.patient-directory-table .col-status-cell {
+  /* allow badge to breathe */
+}
+
+/* Status badge — refined */
+.patient-directory-table .doc-status {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Actions cell */
+.patient-directory-table .col-actions-cell {
+  overflow: visible; /* let hover effects show outside cell bounds */
+}
+
+.patient-directory-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+/* Action icon buttons — square, consistent */
+.patient-directory-actions .doc-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+/* Hover state for actions column sticky background */
 .patient-directory-full-card .patient-directory-pagination {
   border-top: 1px solid var(--border);
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-@media (min-width: 640px) {
-  .patient-directory-table { table-layout: fixed; min-width: 800px; }
-  .patient-directory-table th, .patient-directory-table td { padding: 0.75rem 0.5rem; }
-  .patient-directory-table th:first-child { width: 18%; }
-  .patient-directory-table .patient-directory-name-cell { width: 25%; white-space: normal; }
-  .patient-directory-table th:nth-child(3) { width: 9%; }
-  .patient-directory-table th:nth-child(4) { width: 8%; }
-  .patient-directory-table th:nth-child(5) { width: 16%; }
-  .patient-directory-table th:nth-child(6) { width: 11%; }
-  .patient-directory-table th:last-child { width: 120px; }
-  .patient-directory-table td { overflow-wrap: anywhere; white-space: normal; }
-  .patient-directory-table th:last-child, .patient-directory-table td:last-child {
-    position: sticky;
-    right: 0;
-    background: var(--card-bg);
-    z-index: 2;
-  }
-  .patient-directory-table th:last-child { background: var(--bg-main); }
-  .patient-directory-table tr:hover td:last-child { background: var(--bg-main); }
+
+/* ── Table-responsive: no scroll for patient directory ──────────────────── */
+/* We disable horizontal overflow so the table fits the content area.
+   The table-layout:fixed + column widths above ensure it never exceeds the width. */
+.patient-directory-full-card .table-responsive {
+  overflow-x: hidden; /* prevent horizontal scroll at desktop */
 }
+
+/* Fallback: if very narrow (<768px) allow minimal scroll */
+@media (max-width: 768px) {
+  .patient-directory-full-card .table-responsive {
+    overflow-x: auto;
+  }
+  .patient-directory-table {
+    min-width: 600px !important;
+    table-layout: auto;
+  }
+}
+
 @container (max-width: 850px) {
   .patient-search-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .patient-search-actions-group { grid-column: span 2; justify-content: flex-end; }
@@ -89,6 +214,7 @@
   .patient-search-actions-group { grid-column: span 1; justify-content: stretch; }
   .patient-search-actions-group .doc-btn { flex: 1; justify-content: center; }
 }
+
 
 .consent-patient-switch {
   width: min(460px, 100%);

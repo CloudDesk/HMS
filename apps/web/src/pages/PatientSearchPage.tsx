@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -32,6 +32,32 @@ const defaultColumns: ColumnVisibility = {
   phone: true,
   status: true,
 };
+
+type SortField = 'mrn' | 'name' | 'gender' | 'age' | 'phone' | 'status' | null;
+type SortDir = 'asc' | 'desc';
+
+/** Build pagination page-number array with ellipsis markers */
+function buildPageNumbers(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '…')[] = [1];
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push('…');
+  pages.push(total);
+  return pages;
+}
+
+/** Sort icon component */
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (sortField !== field) {
+    return <i className="ph ph-arrows-down-up th-sort-icon" aria-hidden="true" />;
+  }
+  return sortDir === 'asc'
+    ? <i className="ph ph-arrow-up th-sort-icon" aria-hidden="true" />
+    : <i className="ph ph-arrow-down th-sort-icon" aria-hidden="true" />;
+}
 
 export function PatientSearchPage() {
   const { user } = useAuth();
@@ -93,6 +119,19 @@ export function PatientSearchPage() {
   const [showColumnSelector] = useState(false);
   const [columns, setColumns] = useState<ColumnVisibility>(defaultColumns);
 
+  // Sort state (client-side, within current page)
+  const [sortField, setSortField] = useState<SortField>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
   // Actions context menu state
   const [, setActiveMenuId] = useState<string | null>(null);
   // Edit Patient Modal State
@@ -108,6 +147,28 @@ export function PatientSearchPage() {
   const hospitalSubText = [hospitalAddress, hospitalPhone].filter(Boolean).join(' · ') || 'Hospital Management System';
 
   const { state: { patients, meta, loading, loadError }, mutations: { updatePatient }, actions: { retry } } = usePatientSearchFeature({ appliedFilters, currentPage });
+
+  // Client-side sort of the current page's patients
+  const sortedPatients = useMemo(() => {
+    if (!sortField || patients.length === 0) return patients;
+    return [...patients].sort((a, b) => {
+      let aVal = '';
+      let bVal = '';
+      switch (sortField) {
+        case 'mrn':    aVal = a.patient_number; bVal = b.patient_number; break;
+        case 'name':   aVal = patientFullName(a).toLowerCase(); bVal = patientFullName(b).toLowerCase(); break;
+        case 'gender': aVal = a.gender; bVal = b.gender; break;
+        case 'age':    aVal = a.date_of_birth ?? ''; bVal = b.date_of_birth ?? ''; break;
+        case 'phone':  aVal = a.phone ?? ''; bVal = b.phone ?? ''; break;
+        case 'status': aVal = a.status; bVal = b.status; break;
+      }
+      const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+      // For age: ascending = youngest first (larger date = younger)
+      return sortField === 'age'
+        ? (sortDir === 'asc' ? -cmp : cmp)
+        : (sortDir === 'asc' ? cmp : -cmp);
+    });
+  }, [patients, sortField, sortDir]);
 
   const printPatientCard = (p: PatientResponse) => { executePrintPatientCard(p); };
 
@@ -204,6 +265,9 @@ export function PatientSearchPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const totalCols = 2 + (columns.gender ? 1 : 0) + (columns.age ? 1 : 0) + (columns.phone ? 1 : 0) + (columns.status ? 1 : 0) + 1;
+  const pageNumbers = buildPageNumbers(currentPage, meta.totalPages);
 
   return (
     <div className="appointment-page full-height-layout patient-directory-page" onClick={() => setActiveMenuId(null)}>
@@ -341,22 +405,76 @@ export function PatientSearchPage() {
         </div>
 
         <div className="table-responsive" tabIndex={0} role="region" aria-label="Patient directory" aria-busy={loading}>
-          <table className="data-table responsive-table patient-directory-table">
+          <table className="data-table patient-directory-table">
+            {/* colgroup ensures fixed column widths — prevents horizontal scroll */}
+            <colgroup>
+              <col className="col-mrn" />
+              <col className="col-name" />
+              {columns.gender ? <col className="col-gender" /> : null}
+              {columns.age ? <col className="col-age" /> : null}
+              {columns.phone ? <col className="col-phone" /> : null}
+              {columns.status ? <col className="col-status" /> : null}
+              <col className="col-actions" />
+            </colgroup>
             <thead>
               <tr>
-                <th>MRN</th>
-                <th className="patient-directory-name-cell">PATIENT NAME</th>
-                {columns.gender ? <th>GENDER</th> : null}
-                {columns.age ? <th>AGE</th> : null}
-                {columns.phone ? <th>PHONE</th> : null}
-                {columns.status ? <th>STATUS</th> : null}
-                <th className="align-right">ACTIONS</th>
+                <th
+                  className={`sortable${sortField === 'mrn' ? ` sort-${sortDir}` : ''}`}
+                  onClick={() => handleSort('mrn')}
+                  aria-sort={sortField === 'mrn' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  MRN <SortIcon field="mrn" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th
+                  className={`sortable${sortField === 'name' ? ` sort-${sortDir}` : ''}`}
+                  onClick={() => handleSort('name')}
+                  aria-sort={sortField === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  Patient Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
+                </th>
+                {columns.gender ? (
+                  <th
+                    className={`sortable${sortField === 'gender' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('gender')}
+                    aria-sort={sortField === 'gender' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Gender <SortIcon field="gender" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                {columns.age ? (
+                  <th
+                    className={`sortable${sortField === 'age' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('age')}
+                    aria-sort={sortField === 'age' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Age <SortIcon field="age" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                {columns.phone ? (
+                  <th
+                    className={`sortable${sortField === 'phone' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('phone')}
+                    aria-sort={sortField === 'phone' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Phone <SortIcon field="phone" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                {columns.status ? (
+                  <th
+                    className={`sortable${sortField === 'status' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('status')}
+                    aria-sort={sortField === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                <th className="align-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={3 + Object.values(columns).filter(Boolean).length} style={{ padding: '2rem 1rem' }}>
+                  <td colSpan={totalCols} style={{ padding: '2rem 1rem' }}>
                     <MedicalLoader
                       text="Searching patient directory..."
                       subtext="Retrieving patient demographic & encounter records"
@@ -365,18 +483,18 @@ export function PatientSearchPage() {
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td className="um-state-cell" colSpan={3 + Object.values(columns).filter(Boolean).length}>
+                  <td className="um-state-cell" colSpan={totalCols}>
                     Failed to load patient directory. <button className="doc-btn" type="button" onClick={() => void retry()}>Retry</button>
                   </td>
                 </tr>
-              ) : patients.length === 0 ? (
+              ) : sortedPatients.length === 0 ? (
                 <tr>
-                  <td className="um-state-cell" colSpan={3 + Object.values(columns).filter(Boolean).length}>
+                  <td className="um-state-cell" colSpan={totalCols}>
                     No patient records found.
                   </td>
                 </tr>
               ) : (
-                patients.map((patient) => {
+                sortedPatients.map((patient) => {
                   const fullName = patientFullName(patient);
                   const age = calculatePatientAge(patient.date_of_birth);
 
@@ -386,25 +504,33 @@ export function PatientSearchPage() {
                       onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="emp-id" data-label="MRN">{patient.patient_number}</td>
-                      <td className="patient-directory-name-cell" data-label="Patient name">
-                        <div className="user-cell">
+                      <td className="col-mrn-cell" data-label="MRN" title={patient.patient_number}>
+                        {patient.patient_number}
+                      </td>
+                      <td className="patient-dir-name-cell" data-label="Patient name">
+                        <div className="patient-dir-name-wrap">
                           <PatientAvatar
                             patientId={patient.id}
                             fullName={fullName}
                             photoUrl={patient.photo_url}
                             size="table"
                           />
-                          <div className="user-cell-info">
-                            <strong className="user-cell-name patient-directory-name" title={fullName}>{fullName}</strong>
-                          </div>
+                          <span className="patient-dir-name-text" title={fullName}>{fullName}</span>
                         </div>
                       </td>
-                      {columns.gender ? <td data-label="Gender">{patient.gender}</td> : null}
-                      {columns.age ? <td data-label="Age">{age}</td> : null}
-                      {columns.phone ? <td data-label="Phone">{patient.phone || 'Not recorded'}</td> : null}
+                      {columns.gender ? (
+                        <td className="col-gender-cell" data-label="Gender">{patient.gender}</td>
+                      ) : null}
+                      {columns.age ? (
+                        <td className="col-age-cell" data-label="Age">{age}</td>
+                      ) : null}
+                      {columns.phone ? (
+                        <td className="col-phone-cell" data-label="Phone" title={patient.phone || 'Not recorded'}>
+                          {patient.phone || 'Not recorded'}
+                        </td>
+                      ) : null}
                       {columns.status ? (
-                        <td data-label="Status">
+                        <td className="col-status-cell" data-label="Status">
                           <span
                             className={`doc-status ${
                               patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
@@ -414,14 +540,15 @@ export function PatientSearchPage() {
                           </span>
                         </td>
                       ) : null}
-                      <td className="align-right" data-label="Actions">
+                      <td className="col-actions-cell align-right" data-label="Actions">
                         <div className="patient-directory-actions" onClick={(e) => e.stopPropagation()}>
                           {canEditAllDetails ? (
                             <button
                               className="doc-btn"
                               onClick={() => openEditModal(patient)}
                               type="button"
-                              title="Edit Patient" aria-label="Edit Patient"
+                              title="Edit Patient"
+                              aria-label="Edit Patient"
                             >
                               <i className="ph ph-pencil-simple" aria-hidden="true" />
                             </button>
@@ -431,7 +558,8 @@ export function PatientSearchPage() {
                               className="doc-btn"
                               onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)}
                               type="button"
-                              title="Book Appointment" aria-label="Book Appointment"
+                              title="Book Appointment"
+                              aria-label="Book Appointment"
                             >
                               <i className="ph ph-calendar-plus" aria-hidden="true" />
                             </button>
@@ -440,7 +568,8 @@ export function PatientSearchPage() {
                             className="doc-btn"
                             onClick={() => setCardPatient(patient)}
                             type="button"
-                            title="View Patient Card" aria-label="View Patient Card"
+                            title="View Patient Card"
+                            aria-label="View Patient Card"
                           >
                             <i className="ph ph-identification-card" aria-hidden="true" />
                           </button>
@@ -454,13 +583,21 @@ export function PatientSearchPage() {
           </table>
         </div>
 
-        {/* Pagination anchored at bottom */}
+        {/* Pagination footer */}
         <div className="um-pagination patient-directory-pagination">
           <span aria-live="polite">
-            {loading ? 'Loading patients...' : loadError ? 'Results unavailable' : <>Showing {patients.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
-            {patients.length === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total)} of {meta.total} patients</>}
+            {loading
+              ? 'Loading patients...'
+              : loadError
+              ? 'Results unavailable'
+              : <>
+                  Showing {patients.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+                  {patients.length === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total)} of {meta.total} patients
+                </>
+            }
           </span>
           <div className="um-page-controls" role="navigation" aria-label="Patient pagination">
+            {/* Previous */}
             <button
               className="pg-btn"
               aria-label="Previous page"
@@ -470,7 +607,30 @@ export function PatientSearchPage() {
             >
               <i className="ph ph-caret-left" aria-hidden="true" />
             </button>
-            <span className="pg-btn active" aria-current="page" aria-label={`Page ${currentPage}`}>{currentPage}</span>
+
+            {/* Page numbers with ellipsis */}
+            {meta.totalPages > 1
+              ? pageNumbers.map((p, idx) =>
+                  p === '…' ? (
+                    <span key={`ellipsis-${idx}`} className="pg-btn pg-ellipsis">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      className={`pg-btn${p === currentPage ? ' active' : ''}`}
+                      aria-label={`Page ${p}`}
+                      aria-current={p === currentPage ? 'page' : undefined}
+                      disabled={loading}
+                      onClick={() => setCurrentPage(p as number)}
+                      type="button"
+                    >
+                      {p}
+                    </button>
+                  )
+                )
+              : <span className="pg-btn active" aria-current="page" aria-label={`Page ${currentPage}`}>{currentPage}</span>
+            }
+
+            {/* Next */}
             <button
               className="pg-btn"
               aria-label="Next page"
@@ -597,4 +757,3 @@ export function PatientSearchPage() {
     </div>
   );
 }
-

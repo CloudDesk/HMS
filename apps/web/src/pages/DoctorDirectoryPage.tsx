@@ -238,6 +238,48 @@ const parsePositivePage = (value: string | null): number => {
   return Number.isInteger(page) && page > 0 ? page : 1;
 };
 
+type DoctorSortField =
+  | 'doctor'
+  | 'specialization'
+  | 'department'
+  | 'branch'
+  | 'contact'
+  | 'status'
+  | 'created'
+  | null;
+type DoctorSortDir = 'asc' | 'desc';
+
+function buildPageNumbers(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '…')[] = [1];
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push('…');
+  pages.push(total);
+  return pages;
+}
+
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: DoctorSortField;
+  sortField: DoctorSortField;
+  sortDir: DoctorSortDir;
+}) {
+  if (sortField !== field) {
+    return <i className="ph ph-arrows-down-up th-sort-icon" aria-hidden="true" />;
+  }
+  return sortDir === 'asc' ? (
+    <i className="ph ph-arrow-up th-sort-icon" aria-hidden="true" />
+  ) : (
+    <i className="ph ph-arrow-down th-sort-icon" aria-hidden="true" />
+  );
+}
+
 const sortableColumns: DoctorDirectorySortColumn[] = [
   'doctor_number',
   'display_name',
@@ -247,12 +289,6 @@ const sortableColumns: DoctorDirectorySortColumn[] = [
 
 const parseSortColumn = (value: string | null): DoctorDirectorySortColumn | null =>
   sortableColumns.find((column) => column === value) ?? null;
-
-const statusClass = (status: ApiDoctorStatus) => {
-  if (status === 'ACTIVE') return 'status-active';
-  if (status === 'ON_LEAVE') return 'status-on-leave';
-  return 'status-inactive';
-};
 
 const doctorInitials = (doctor: DoctorResponse) =>
   `${doctor.first_name.charAt(0)}${doctor.last_name.charAt(0)}`.toUpperCase();
@@ -283,6 +319,17 @@ export function DoctorDirectoryPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<DoctorResponse | null>(null);
 
+  const [clientSortField, setClientSortField] = useState<DoctorSortField>(null);
+  const [clientSortDir, setClientSortDir] = useState<DoctorSortDir>('asc');
+
+  const handleClientSort = (field: DoctorSortField) => {
+    if (clientSortField === field) {
+      setClientSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setClientSortField(field);
+      setClientSortDir('asc');
+    }
+  };
 
   const directoryFilters = useMemo(
     () => ({
@@ -305,6 +352,46 @@ export function DoctorDirectoryPage() {
     ],
   );
   const directory = useDoctorDirectory(directoryFilters, editingDoctor?.id ?? null);
+
+  const sortedDoctors = useMemo(() => {
+    if (!clientSortField || directory.doctors.length === 0) return directory.doctors;
+    return [...directory.doctors].sort((a, b) => {
+      let aVal = '';
+      let bVal = '';
+      switch (clientSortField) {
+        case 'doctor':
+          aVal = (a.display_name || `${a.first_name} ${a.last_name}`).toLowerCase();
+          bVal = (b.display_name || `${b.first_name} ${b.last_name}`).toLowerCase();
+          break;
+        case 'specialization':
+          aVal = (a.specialization || '').toLowerCase();
+          bVal = (b.specialization || '').toLowerCase();
+          break;
+        case 'department':
+          aVal = (directory.departments.find((d) => d.id === a.department_id)?.name ?? '').toLowerCase();
+          bVal = (directory.departments.find((d) => d.id === b.department_id)?.name ?? '').toLowerCase();
+          break;
+        case 'branch':
+          aVal = (directory.branches.find((b_) => b_.id === a.branch_id)?.name ?? '').toLowerCase();
+          bVal = (directory.branches.find((b_) => b_.id === b.branch_id)?.name ?? '').toLowerCase();
+          break;
+        case 'contact':
+          aVal = (a.phone || a.email || '').toLowerCase();
+          bVal = (b.phone || b.email || '').toLowerCase();
+          break;
+        case 'status':
+          aVal = a.status;
+          bVal = b.status;
+          break;
+        case 'created':
+          aVal = a.created_at || '';
+          bVal = b.created_at || '';
+          break;
+      }
+      const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+      return clientSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [directory.doctors, clientSortField, clientSortDir, directory.departments, directory.branches]);
   const {
     control,
     register,
@@ -529,24 +616,76 @@ export function DoctorDirectoryPage() {
           )}
         </section>
 
-        <section className="doc-card">
+        <section className="doc-card doctor-directory-card">
           <div className="doc-card-header">
             <div>
               <h3>Doctor Directory</h3>
               <p>{directory.isLoading ? 'Loading doctors...' : `${directory.meta.total} doctor records found`}</p>
             </div>
           </div>
-          <div className="doc-table-wrap">
-            <table className="doc-table responsive-table doctor-directory-table">
+          <div className="doc-table-wrap table-responsive" tabIndex={0} role="region" aria-label="Doctor directory" aria-busy={directory.isLoading}>
+            <table className="data-table doctor-directory-table">
+              <colgroup>
+                <col className="col-doc" />
+                <col className="col-spec" />
+                <col className="col-dept" />
+                <col className="col-branch" />
+                <col className="col-contact" />
+                <col className="col-status" />
+                <col className="col-created" />
+                <col className="col-actions" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th onClick={() => handleSort('doctor_number')}>Doctor</th>
-                  <th onClick={() => handleSort('specialization')}>Specialization</th>
-                  <th>Department</th>
-                  <th>Branch</th>
-                  <th>Contact</th>
-                  <th>Status</th>
-                  <th onClick={() => handleSort('created_at')}>Created</th>
+                  <th
+                    className={`sortable${clientSortField === 'doctor' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('doctor')}
+                    aria-sort={clientSortField === 'doctor' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Doctor <SortIcon field="doctor" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'specialization' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('specialization')}
+                    aria-sort={clientSortField === 'specialization' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Specialization <SortIcon field="specialization" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'department' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('department')}
+                    aria-sort={clientSortField === 'department' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Department <SortIcon field="department" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'branch' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('branch')}
+                    aria-sort={clientSortField === 'branch' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Branch <SortIcon field="branch" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'contact' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('contact')}
+                    aria-sort={clientSortField === 'contact' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Contact <SortIcon field="contact" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'status' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('status')}
+                    aria-sort={clientSortField === 'status' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Status <SortIcon field="status" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'created' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('created')}
+                    aria-sort={clientSortField === 'created' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Created <SortIcon field="created" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
                   <th className="align-right">Actions</th>
                 </tr>
               </thead>
@@ -565,59 +704,86 @@ export function DoctorDirectoryPage() {
                     <td className="um-state-cell" colSpan={8}>
                       {directory.loadError}
                       <div>
-                        <button className="doc-btn mt-4" onClick={() => void directory.retry()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Retry</button>
+                        <button className="doc-btn mt-4" onClick={() => void directory.retry()} type="button">
+                          <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Retry
+                        </button>
                       </div>
                     </td>
                   </tr>
-                ) : directory.doctors.length === 0 ? (
+                ) : sortedDoctors.length === 0 ? (
                   <tr><td className="um-state-cell" colSpan={8}>No doctor records found.</td></tr>
                 ) : (
-                  directory.doctors.map((doctor) => (
-                    <tr key={doctor.id}>
-                      <td data-label="Doctor">
-                        <div className="doc-person">
-                          <span className="doc-avatar">{doctorInitials(doctor)}</span>
-                          <div className="doc-person-info">
-                            <strong className="doc-person-name">{doctor.display_name}</strong>
-                            <span className="doc-person-id">{doctor.doctor_number}</span>
+                  sortedDoctors.map((doctor) => {
+                    const deptName = directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-';
+                    const branchName = directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-';
+
+                    return (
+                      <tr key={doctor.id}>
+                        <td data-label="Doctor" className="col-doc-cell">
+                          <div className="doc-person">
+                            <span className="doc-avatar">{doctorInitials(doctor)}</span>
+                            <div className="doc-person-info">
+                              <strong
+                                className="doc-person-name"
+                                onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`);
+                                  }
+                                }}
+                                title={`View ${doctor.display_name} profile`}
+                              >
+                                {doctor.display_name}
+                              </strong>
+                              <span className="doc-person-id">{doctor.doctor_number}</span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td data-label="Specialization">{doctor.specialization}</td>
-                      <td data-label="Department">{directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-'}</td>
-                      <td data-label="Branch">{directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-'}</td>
-                      <td data-label="Contact">
-                        <div className="doc-contact-cell">
-                          <strong className="doc-contact-phone">{doctor.phone || '-'}</strong>
-                          <small className={`doc-contact-email${doctor.email ? '' : ' muted'}`}>{doctor.email || 'No email recorded'}</small>
-                        </div>
-                      </td>
-                      <td data-label="Status"><span className={`status-badge ${statusClass(doctor.status)}`}>{doctor.status.replace('_', ' ')}</span></td>
-                      <td data-label="Created">{formatDate(doctor.created_at)}</td>
-                      <td data-label="Actions" className="align-right">
-                        <div className="doc-actions">
-                          {directory.canEdit ? (
-                            <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" aria-label="Edit doctor" type="button">
-                              <i className="ph ph-pencil-simple" aria-hidden="true" />
-                            </button>
-                          ) : null}
-                          <button className="doc-action" onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)} title="View doctor profile" aria-label="View doctor profile" type="button">
-                            <i className="ph ph-user-circle" aria-hidden="true" />
-                          </button>
-                          {directory.canViewSchedule ? (
-                            <button className="doc-action" onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)} title="View schedule" aria-label="View schedule" type="button">
-                              <i className="ph ph-calendar-check" aria-hidden="true" />
-                            </button>
-                          ) : null}
-                          {directory.canViewAvailability ? (
-                            <button className="doc-action" onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)} title="Manage availability" aria-label="Manage availability" type="button">
-                              <i className="ph ph-clock" aria-hidden="true" />
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td data-label="Specialization" className="col-spec-cell" title={doctor.specialization}>
+                          <span className="doc-spec-text">{doctor.specialization}</span>
+                        </td>
+                        <td data-label="Department" className="col-dept-cell" title={deptName}>
+                          <span className="doc-dept-text">{deptName}</span>
+                        </td>
+                        <td data-label="Branch" className="col-branch-cell" title={branchName}>
+                          <span className="doc-branch-text">{branchName}</span>
+                        </td>
+                        <td data-label="Contact" className="col-contact-cell">
+                          <div className="doc-contact-cell">
+                            <span className="doc-contact-phone">{doctor.phone || '-'}</span>
+                          </div>
+                        </td>
+                        <td data-label="Status" className="col-status-cell">
+                          <span className={`doc-status ${doctor.status === 'ACTIVE' ? 'active' : doctor.status === 'ON_LEAVE' ? 'pending' : 'inactive'}`}>
+                            {doctor.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td data-label="Created" className="col-created-cell">{formatDate(doctor.created_at)}</td>
+                        <td data-label="Actions" className="col-actions-cell align-right">
+                          <div className="doc-actions">
+                            {directory.canEdit ? (
+                              <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" aria-label="Edit doctor" type="button">
+                                <i className="ph ph-pencil-simple" aria-hidden="true" />
+                              </button>
+                            ) : null}
+                            {directory.canViewSchedule ? (
+                              <button className="doc-action" onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)} title="View schedule" aria-label="View schedule" type="button">
+                                <i className="ph ph-calendar-check" aria-hidden="true" />
+                              </button>
+                            ) : null}
+                            {directory.canViewAvailability ? (
+                              <button className="doc-action" onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)} title="Manage availability" aria-label="Manage availability" type="button">
+                                <i className="ph ph-clock" aria-hidden="true" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -625,15 +791,46 @@ export function DoctorDirectoryPage() {
 
           <div className="um-pagination">
             <span>
-              Showing {directory.doctors.length === 0 ? 0 : (directory.meta.page - 1) * directory.meta.limit + 1}-
+              Showing {directory.doctors.length === 0 ? 0 : (directory.meta.page - 1) * directory.meta.limit + 1}–
               {Math.min(directory.meta.page * directory.meta.limit, directory.meta.total)} of {directory.meta.total} doctors
             </span>
-            <div className="um-page-controls">
-              <button className="pg-btn" aria-label="Previous page" disabled={directory.meta.page <= 1 || directory.isLoading} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} type="button">
+            <div className="um-page-controls" role="navigation" aria-label="Doctor pagination">
+              <button
+                className="pg-btn"
+                aria-label="Previous page"
+                disabled={directory.meta.page <= 1 || directory.isLoading}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                type="button"
+              >
                 <i className="ph ph-caret-left" aria-hidden="true" />
               </button>
-              <button className="pg-btn active" aria-current="page" disabled type="button">{directory.meta.page}</button>
-              <button className="pg-btn" aria-label="Next page" disabled={directory.meta.page >= directory.meta.totalPages || directory.isLoading} onClick={() => setCurrentPage((page) => page + 1)} type="button">
+              {directory.meta.totalPages > 1
+                ? buildPageNumbers(directory.meta.page, directory.meta.totalPages).map((p, idx) =>
+                    p === '…' ? (
+                      <span key={`ellipsis-${idx}`} className="pg-btn pg-ellipsis">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        className={`pg-btn${p === currentPage ? ' active' : ''}`}
+                        aria-label={`Page ${p}`}
+                        aria-current={p === currentPage ? 'page' : undefined}
+                        disabled={directory.isLoading}
+                        onClick={() => setCurrentPage(p as number)}
+                        type="button"
+                      >
+                        {p}
+                      </button>
+                    )
+                  )
+                : <span className="pg-btn active" aria-current="page" aria-label={`Page ${currentPage}`}>{currentPage}</span>
+              }
+              <button
+                className="pg-btn"
+                aria-label="Next page"
+                disabled={directory.meta.page >= directory.meta.totalPages || directory.isLoading}
+                onClick={() => setCurrentPage((page) => page + 1)}
+                type="button"
+              >
                 <i className="ph ph-caret-right" aria-hidden="true" />
               </button>
             </div>
