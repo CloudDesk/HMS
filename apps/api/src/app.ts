@@ -1,3 +1,4 @@
+import compress from '@fastify/compress';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -20,6 +21,11 @@ export const buildApp = async () => {
 
   registerErrorHandler(app);
   await registerRequestContext(app);
+
+  await app.register(compress, {
+    global: true,
+    threshold: 1024,
+  });
 
   // Refresh tokens are stored in HttpOnly cookies and validated by the auth service.
   app.addHook('onSend', async (_request, reply) => {

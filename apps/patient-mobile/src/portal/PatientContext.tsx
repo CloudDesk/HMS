@@ -118,6 +118,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       }
 
       setSelectedPatientId(patientId);
+      setOverview(null);
       setIsLoading(true);
       setError(null);
       try {

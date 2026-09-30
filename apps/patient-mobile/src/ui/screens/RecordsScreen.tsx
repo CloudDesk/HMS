@@ -11,9 +11,11 @@ import {
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
 import { RecordsApi } from '../../records/records-api';
-import type {
-  ImagingReportRecord,
-  LabResultRecord,
+import {
+  imagingReportRecordSchema,
+  labResultRecordSchema,
+  type ImagingReportRecord,
+  type LabResultRecord,
 } from '../../records/contracts';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import {
@@ -27,12 +29,26 @@ import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export function RecordsScreen() {
   const { manager } = useAuth();
-  const { selectedPatient, selectedPatientId } = usePatient();
+  const { selectedPatient, selectedPatientId, overview } = usePatient();
 
   const [activeTab, setActiveTab] = useState<'lab' | 'imaging'>('lab');
-  const [labResults, setLabResults] = useState<LabResultRecord[]>([]);
-  const [imagingReports, setImagingReports] = useState<ImagingReportRecord[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [labResults, setLabResults] = useState<LabResultRecord[]>(() => {
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId && Array.isArray(overview.laboratory_results)) {
+      const parsed = labResultRecordSchema.array().safeParse(overview.laboratory_results);
+      return parsed.success ? parsed.data : [];
+    }
+    return [];
+  });
+  const [imagingReports, setImagingReports] = useState<ImagingReportRecord[]>(() => {
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId && Array.isArray(overview.imaging_reports)) {
+      const parsed = imagingReportRecordSchema.array().safeParse(overview.imaging_reports);
+      return parsed.success ? parsed.data : [];
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    return !(overview && selectedPatientId && overview.patient?.id === selectedPatientId);
+  });
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,12 +85,23 @@ export function RecordsScreen() {
   );
 
   useEffect(() => {
-    setLabResults([]);
-    setImagingReports([]);
     setSelectedLabResult(null);
     setSelectedImagingReport(null);
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId) {
+      const parsedLab = labResultRecordSchema.array().safeParse(overview.laboratory_results);
+      const parsedImaging = imagingReportRecordSchema.array().safeParse(overview.imaging_reports);
+      if (parsedLab.success && parsedImaging.success) {
+        setLabResults(parsedLab.data);
+        setImagingReports(parsedImaging.data);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+    }
+    setLabResults([]);
+    setImagingReports([]);
     loadData();
-  }, [selectedPatientId, loadData]);
+  }, [selectedPatientId, overview, loadData]);
 
   return (
     <View style={styles.screenContainer}>

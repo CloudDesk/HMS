@@ -355,42 +355,55 @@ export class PatientPortalRepository {
   async listAccessiblePatients(userId: string) {
     const account = await this.getPortalAccount(userId);
     if (!account) return null;
-    const grants = await PatientAccessGrantModel.find({ userId: objectId(userId), status: 'VERIFIED', revokedAt: null })
-      .sort({ isPrimary: -1, createdAt: 1 })
-      .lean();
+
+    const userObjId = objectId(userId);
+    const [grants, guardianProfile] = await Promise.all([
+      PatientAccessGrantModel.find({ userId: userObjId, status: 'VERIFIED', revokedAt: null })
+        .sort({ isPrimary: -1, createdAt: 1 })
+        .lean(),
+      account.accountType === 'GUARDIAN'
+        ? GuardianProfileModel.findOne({ userId: userObjId }).lean()
+        : Promise.resolve(null),
+    ]);
+
     if (account.patientId && !grants.some((grant) => String(grant.patientId) === account.patientId)) {
       grants.unshift({ patientId: objectId(account.patientId), relationship: 'SELF', status: 'VERIFIED', isPrimary: true } as (typeof grants)[number]);
     }
+
+    const patientIds = grants.map((grant) => grant.patientId).filter(Boolean);
     const patients = await PatientModel.find({
-      _id: { $in: grants.map((grant) => grant.patientId) },
+      _id: { $in: patientIds },
       status: 'ACTIVE',
       deletedAt: null,
     }).select('patientNumber firstName middleName lastName dateOfBirth gender registrationBranchId profilePhoto').lean();
     const patientById = new Map(patients.map((patient) => [String(patient._id), patient]));
 
     const missingPhotoPatientIds = patients.filter((p) => !p.profilePhoto).map((p) => p._id);
+    const branchIds = [...new Set(patients.map((patient) => patient.registrationBranchId ? String(patient.registrationBranchId) : null).filter((id): id is string => Boolean(id)))];
+
+    const [branches, photoDocs] = await Promise.all([
+      branchIds.length > 0
+        ? BranchModel.find({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null }).select('name city address').lean()
+        : Promise.resolve([]),
+      missingPhotoPatientIds.length > 0
+        ? PatientDocumentModel.find({
+            patientId: { $in: missingPhotoPatientIds },
+            consentKind: 'PROFILE_PHOTO',
+            status: 'ACTIVE',
+            deletedAt: null,
+          }).select('patientId createdAt updatedAt').sort({ updatedAt: -1, createdAt: -1 }).lean()
+        : Promise.resolve([]),
+    ]);
+
     const fallbackPhotoMap = new Map<string, Date>();
-    if (missingPhotoPatientIds.length > 0) {
-      const photoDocs = await PatientDocumentModel.find({
-        patientId: { $in: missingPhotoPatientIds },
-        consentKind: 'PROFILE_PHOTO',
-        status: 'ACTIVE',
-        deletedAt: null,
-      }).select('patientId createdAt updatedAt').sort({ updatedAt: -1, createdAt: -1 }).lean();
-      for (const doc of photoDocs) {
-        const pid = String(doc.patientId);
-        if (!fallbackPhotoMap.has(pid)) {
-          fallbackPhotoMap.set(pid, (doc as any).updatedAt ?? (doc as any).createdAt ?? new Date());
-        }
+    for (const doc of photoDocs) {
+      const pid = String(doc.patientId);
+      if (!fallbackPhotoMap.has(pid)) {
+        fallbackPhotoMap.set(pid, (doc as any).updatedAt ?? (doc as any).createdAt ?? new Date());
       }
     }
 
-    const branchIds = [...new Set(patients.map((patient) => patient.registrationBranchId ? String(patient.registrationBranchId) : null).filter((id): id is string => Boolean(id)))];
-    const branches = await BranchModel.find({ _id: { $in: branchIds }, status: 'ACTIVE', deletedAt: null }).select('name city address').lean();
     const branchById = new Map(branches.map((branch) => [String(branch._id), branch]));
-    const guardianProfile = account.accountType === 'GUARDIAN'
-      ? await GuardianProfileModel.findOne({ userId: objectId(userId) }).lean()
-      : null;
     return {
       account: {
         type: account.accountType,
@@ -430,10 +443,41 @@ export class PatientPortalRepository {
   }
 
   async resolveAccessiblePatientId(userId: string, requestedPatientId?: string) {
+    if (requestedPatientId) {
+      if (!Types.ObjectId.isValid(requestedPatientId)) return null;
+      const reqPatientObjId = objectId(requestedPatientId);
+      const userObjId = objectId(userId);
+
+      const [grantExists, userDirectLink] = await Promise.all([
+        PatientAccessGrantModel.exists({
+          userId: userObjId,
+          patientId: reqPatientObjId,
+          status: 'VERIFIED',
+          revokedAt: null,
+        }),
+        UserModel.exists({
+          _id: userObjId,
+          patientId: reqPatientObjId,
+          status: 'active',
+          deletedAt: null,
+        }),
+      ]);
+
+      if (grantExists || userDirectLink) {
+        const patientActive = await PatientModel.exists({
+          _id: reqPatientObjId,
+          status: 'ACTIVE',
+          deletedAt: null,
+        });
+        if (patientActive) {
+          return requestedPatientId;
+        }
+      }
+      return null;
+    }
+
     const context = await this.listAccessiblePatients(userId);
-    if (!context) return null;
-    if (requestedPatientId) return context.patients.some((patient) => patient.id === requestedPatientId) ? requestedPatientId : null;
-    return context.patients[0]?.id ?? null;
+    return context?.patients[0]?.id ?? null;
   }
 
   async getLinkedPatientId(userId: string) {
@@ -958,32 +1002,49 @@ export class PatientPortalRepository {
       ]);
 
     if (!patient) return null;
-    const pharmacyItems = pharmacyInvoices.length ? await BillingInvoiceItemModel.find({
-      invoiceId: { $in: pharmacyInvoices.map((invoice) => invoice._id) },
-      serviceType: 'PHARMACY',
-      deletedAt: null,
-    }).select('invoiceId serviceName quantity unitPrice lineTotal createdAt').sort({ createdAt: -1 }).lean() : [];
+
+    const appointmentBranchIds = appointments.map((item) => String(item.branchId));
+    const purchaseBranchIds = pharmacyInvoices.map((item) => String(item.branchId));
+    const allBranchIds = [...new Set([...appointmentBranchIds, ...purchaseBranchIds])].filter(Boolean);
+
+    const [pharmacyItems, appointmentBranches, photoDoc] = await Promise.all([
+      pharmacyInvoices.length > 0
+        ? BillingInvoiceItemModel.find({
+            invoiceId: { $in: pharmacyInvoices.map((invoice) => invoice._id) },
+            serviceType: 'PHARMACY',
+            deletedAt: null,
+          })
+            .select('invoiceId serviceName quantity unitPrice lineTotal createdAt')
+            .sort({ createdAt: -1 })
+            .lean()
+        : Promise.resolve([]),
+      allBranchIds.length > 0
+        ? BranchModel.find({ _id: { $in: allBranchIds }, deletedAt: null })
+            .select('name city address')
+            .lean()
+        : Promise.resolve([]),
+      !patient.profilePhoto
+        ? PatientDocumentModel.findOne({
+            patientId: id,
+            consentKind: 'PROFILE_PHOTO',
+            status: 'ACTIVE',
+            deletedAt: null,
+          })
+            .select('createdAt updatedAt')
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .lean()
+        : Promise.resolve(null),
+    ]);
+
     const pharmacyInvoiceById = new Map(pharmacyInvoices.map((invoice) => [String(invoice._id), invoice]));
-    const appointmentBranchIds = [...new Set(appointments.map((item) => String(item.branchId)))];
-    const purchaseBranchIds = [...new Set(pharmacyInvoices.map((item) => String(item.branchId)))];
-    const appointmentBranches = await BranchModel.find({ _id: { $in: [...new Set([...appointmentBranchIds, ...purchaseBranchIds])] }, deletedAt: null })
-      .select('name city address')
-      .lean();
     const appointmentBranchById = new Map(appointmentBranches.map((branch) => [String(branch._id), branch]));
+
     let photoUrl = patient.profilePhoto
       ? `/api/patient-portal/patients/${patient._id}/profile-photo?v=${new Date(patient.profilePhoto.uploadedAt).getTime()}`
       : null;
-    if (!photoUrl) {
-      const photoDoc = await PatientDocumentModel.findOne({
-        patientId: id,
-        consentKind: 'PROFILE_PHOTO',
-        status: 'ACTIVE',
-        deletedAt: null,
-      }).select('createdAt updatedAt').sort({ updatedAt: -1, createdAt: -1 }).lean();
-      if (photoDoc) {
-        const ts = new Date((photoDoc as any).updatedAt ?? (photoDoc as any).createdAt ?? new Date()).getTime();
-        photoUrl = `/api/patient-portal/patients/${patient._id}/profile-photo?v=${ts}`;
-      }
+    if (!photoUrl && photoDoc) {
+      const ts = new Date((photoDoc as any).updatedAt ?? (photoDoc as any).createdAt ?? new Date()).getTime();
+      photoUrl = `/api/patient-portal/patients/${patient._id}/profile-photo?v=${ts}`;
     }
     return {
       patient: {

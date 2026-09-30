@@ -250,7 +250,7 @@ const parseSortColumn = (value: string | null): DoctorDirectorySortColumn | null
 
 const statusClass = (status: ApiDoctorStatus) => {
   if (status === 'ACTIVE') return 'status-active';
-  if (status === 'ON_LEAVE') return 'status-warning';
+  if (status === 'ON_LEAVE') return 'status-on-leave';
   return 'status-inactive';
 };
 
@@ -461,17 +461,19 @@ export function DoctorDirectoryPage() {
         <section className="doc-toolbar">
           <div className="doc-field grow doc-search">
             <label htmlFor="doctor-search">Search Doctor</label>
-            <i className="ph ph-magnifying-glass" aria-hidden="true" />
-            <input
-              id="doctor-search"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Search name, number, specialization, phone, or email"
-              type="search"
-              value={search}
-            />
+            <div className="doc-search-input-wrap">
+              <i className="ph ph-magnifying-glass" aria-hidden="true" />
+              <input
+                id="doctor-search"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Search name, number, specialization, phone, or email"
+                type="search"
+                value={search}
+              />
+            </div>
           </div>
           <div className="doc-field">
             <label htmlFor="doctor-branch-filter">Branch</label>
@@ -525,7 +527,7 @@ export function DoctorDirectoryPage() {
             </select>
           </div>
           {(search || statusFilter || branchFilter || departmentFilter || sortColumn) && (
-            <button className="doc-btn" onClick={resetFilters} type="button"><i className="ph ph-arrow-counter-clockwise" aria-hidden="true" /> Reset</button>
+            <button className="doc-btn" onClick={resetFilters} type="button"><i className="ph ph-x" aria-hidden="true" /> Reset</button>
           )}
         </section>
 
@@ -547,7 +549,7 @@ export function DoctorDirectoryPage() {
                   <th>Contact</th>
                   <th>Status</th>
                   <th onClick={() => handleSort('created_at')}>Created</th>
-                  <th>Actions</th>
+                  <th className="align-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -577,32 +579,40 @@ export function DoctorDirectoryPage() {
                       <td data-label="Doctor">
                         <div className="doc-person">
                           <span className="doc-avatar">{doctorInitials(doctor)}</span>
-                          <div><strong>{doctor.display_name}</strong><span>{doctor.doctor_number}</span></div>
+                          <div className="doc-person-info">
+                            <strong className="doc-person-name">{doctor.display_name}</strong>
+                            <span className="doc-person-id">{doctor.doctor_number}</span>
+                          </div>
                         </div>
                       </td>
                       <td data-label="Specialization">{doctor.specialization}</td>
                       <td data-label="Department">{directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-'}</td>
                       <td data-label="Branch">{directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-'}</td>
-                      <td data-label="Contact"><strong>{doctor.phone || '-'}</strong><br /><small>{doctor.email || 'No email recorded'}</small></td>
+                      <td data-label="Contact">
+                        <div className="doc-contact-cell">
+                          <strong className="doc-contact-phone">{doctor.phone || '-'}</strong>
+                          <small className={`doc-contact-email${doctor.email ? '' : ' muted'}`}>{doctor.email || 'No email recorded'}</small>
+                        </div>
+                      </td>
                       <td data-label="Status"><span className={`status-badge ${statusClass(doctor.status)}`}>{doctor.status.replace('_', ' ')}</span></td>
                       <td data-label="Created">{formatDate(doctor.created_at)}</td>
-                      <td data-label="Actions">
+                      <td data-label="Actions" className="align-right">
                         <div className="doc-actions">
                           {directory.canEdit ? (
-                            <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" type="button">
+                            <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" aria-label="Edit doctor" type="button">
                               <i className="ph ph-pencil-simple" aria-hidden="true" />
                             </button>
                           ) : null}
-                          <button className="doc-action" onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)} title="View doctor profile" type="button">
+                          <button className="doc-action" onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)} title="View doctor profile" aria-label="View doctor profile" type="button">
                             <i className="ph ph-user-circle" aria-hidden="true" />
                           </button>
                           {directory.canViewSchedule ? (
-                            <button className="doc-action" onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)} title="View schedule" type="button">
+                            <button className="doc-action" onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)} title="View schedule" aria-label="View schedule" type="button">
                               <i className="ph ph-calendar-check" aria-hidden="true" />
                             </button>
                           ) : null}
                           {directory.canViewAvailability ? (
-                            <button className="doc-action" onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)} title="Manage availability" type="button">
+                            <button className="doc-action" onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)} title="Manage availability" aria-label="Manage availability" type="button">
                               <i className="ph ph-clock" aria-hidden="true" />
                             </button>
                           ) : null}
@@ -621,11 +631,11 @@ export function DoctorDirectoryPage() {
               {Math.min(directory.meta.page * directory.meta.limit, directory.meta.total)} of {directory.meta.total} doctors
             </span>
             <div className="um-page-controls">
-              <button className="pg-btn" disabled={directory.meta.page <= 1 || directory.isLoading} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} type="button">
+              <button className="pg-btn" aria-label="Previous page" disabled={directory.meta.page <= 1 || directory.isLoading} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} type="button">
                 <i className="ph ph-caret-left" aria-hidden="true" />
               </button>
-              <button className="pg-btn active" disabled type="button">{directory.meta.page}</button>
-              <button className="pg-btn" disabled={directory.meta.page >= directory.meta.totalPages || directory.isLoading} onClick={() => setCurrentPage((page) => page + 1)} type="button">
+              <button className="pg-btn active" aria-current="page" disabled type="button">{directory.meta.page}</button>
+              <button className="pg-btn" aria-label="Next page" disabled={directory.meta.page >= directory.meta.totalPages || directory.isLoading} onClick={() => setCurrentPage((page) => page + 1)} type="button">
                 <i className="ph ph-caret-right" aria-hidden="true" />
               </button>
             </div>

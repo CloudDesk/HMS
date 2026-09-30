@@ -106,6 +106,7 @@ export class PortalApi {
     const normalized = normalizeImageUpload(file);
     const formData = new FormData();
 
+    formData.append('patient_id', patientId);
     formData.append('file', {
       uri: normalized.uri,
       name: normalized.name,

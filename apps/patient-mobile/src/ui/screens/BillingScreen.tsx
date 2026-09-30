@@ -15,6 +15,7 @@ import {
   formatCurrency,
   formatInvoiceDate,
   getInvoiceStatusLabel,
+  portalInvoiceSummaryItemSchema,
   type PortalInvoiceDetails,
   type PortalInvoiceSummaryItem,
 } from '../../billing/contracts';
@@ -47,11 +48,19 @@ const getInvoiceBadgeVariant = (status: string): StatusVariant => {
 
 export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
   const { manager } = useAuth();
-  const { selectedPatient, selectedPatientId } = usePatient();
+  const { selectedPatient, selectedPatientId, overview } = usePatient();
 
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
-  const [invoices, setInvoices] = useState<PortalInvoiceSummaryItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [invoices, setInvoices] = useState<PortalInvoiceSummaryItem[]>(() => {
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId && Array.isArray(overview.invoices)) {
+      const parsed = portalInvoiceSummaryItemSchema.array().safeParse(overview.invoices);
+      return parsed.success ? parsed.data : [];
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    return !(overview && selectedPatientId && overview.patient?.id === selectedPatientId);
+  });
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,14 +104,23 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
   );
 
   useEffect(() => {
-    setInvoices([]);
     setSelectedInvoiceSummary(null);
     setInvoiceDetails(null);
     setModalError(null);
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId) {
+      const parsedInvoices = portalInvoiceSummaryItemSchema.array().safeParse(overview.invoices);
+      if (parsedInvoices.success) {
+        setInvoices(parsedInvoices.data);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+    }
+    setInvoices([]);
     if (selectedPatientId) {
       void loadBillingData(false);
     }
-  }, [selectedPatientId, loadBillingData]);
+  }, [selectedPatientId, overview, loadBillingData]);
 
   const handleOpenInvoice = useCallback(
     async (invoice: PortalInvoiceSummaryItem) => {

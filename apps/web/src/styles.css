@@ -6604,7 +6604,7 @@ textarea.has-error {
   cursor: pointer;
 }
 
-.patient-consent-check span {
+.patient-consent-check > span {
   display: flex !important;
   flex-direction: column !important;
   gap: 0.2rem !important;
@@ -7803,40 +7803,6 @@ textarea.has-error {
 /* ─────────────────────────────────────────────────────────────────────────────
    Compact Patient Search & Directory Layout
 ────────────────────────────────────────────────────────────────────────────── */
-.patient-search-card-compact {
-  padding: 0.85rem 1.25rem !important;
-  margin-bottom: 0.85rem !important;
-  border-radius: 12px !important;
-}
-
-.patient-search-compact-field input,
-.patient-search-compact-field select {
-  height: 36px !important;
-  padding: 0 0.65rem !important;
-  font-size: 0.82rem !important;
-  border-radius: 6px !important;
-  border: 1px solid #cbd5e1 !important;
-}
-
-.patient-search-compact-field input:focus,
-.patient-search-compact-field select:focus {
-  border-color: #2563eb !important;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1) !important;
-}
-
-@media (max-width: 1200px) {
-  .patient-search-top-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 768px) {
-  .patient-search-top-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-
 /* ==========================================================================
    Emergency Module Suite (Dashboard, Queue, Workspace)
    ========================================================================== */

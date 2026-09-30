@@ -34,44 +34,79 @@ type PatientEditModalProps = {
 export function PatientEditModal({ open, patient, canEditAllDetails, submitting, form, onClose, onSubmit }: PatientEditModalProps) {
   const { register, handleSubmit, formState: { errors } } = form;
 
+  const footerContent = (
+    <>
+      <button className="doc-btn" disabled={submitting} onClick={onClose} type="button">
+        Cancel
+      </button>
+      <button className="doc-btn primary" disabled={submitting} form="patient-edit-form" type="submit">
+        {submitting ? (
+          <>
+            <MedicalSpinner size="sm" />
+            <span>Saving...</span>
+          </>
+        ) : (
+          'Save Profile'
+        )}
+      </button>
+    </>
+  );
+
   return (
-    <Modal onClose={onClose} open={open} size="large" title="Edit Patient">
-      <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSubmit(onSubmit)}>
+    <Modal
+      footer={footerContent}
+      onClose={onClose}
+      open={open}
+      size="large"
+      title="Edit Patient"
+    >
+      <form id="patient-edit-form" className="patient-edit-form" onSubmit={handleSubmit(onSubmit)}>
         {canEditAllDetails ? (
-          <div className="locked-notice-banner" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
-            <i className="ph ph-shield-check" aria-hidden="true" style={{ color: '#16a34a' }} />
-            <span>Administrator Access: You have full permissions to edit patient identity attributes, demographics, address, and status.</span>
+          <div
+            className="patient-edit-access-badge admin"
+            title="You have full permissions to edit patient identity attributes, demographics, address, and status."
+          >
+            <i className="ph ph-shield-check" aria-hidden="true" />
+            <span>Administrator Access</span>
           </div>
         ) : (
-          <div className="locked-notice-banner">
+          <div
+            className="patient-edit-access-badge locked"
+            title="Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity."
+          >
             <i className="ph ph-lock-key" aria-hidden="true" />
-            <span>Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.</span>
+            <span>Core Identity Locked</span>
           </div>
         )}
 
-        <section className="doctor-onboarding-section">
-          <header>
-            <span><i className="ph ph-user" aria-hidden="true" /></span>
-            <div>
-              <h3>Identity Information</h3>
-              <p>{canEditAllDetails ? 'Patient identification and demographic attributes.' : 'Immutable patient identification and demographic attributes.'}</p>
-            </div>
+        <section className="patient-edit-section">
+          <header className="patient-edit-section-header">
+            <span className="patient-edit-section-icon"><i className="ph ph-user" aria-hidden="true" /></span>
+            <h3>Identity Information</h3>
           </header>
           <div className="form-grid">
             <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-              <label htmlFor="profile-first">First name {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}</label>
+              <label htmlFor="profile-first">
+                First name {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
+              </label>
               <input disabled={!canEditAllDetails || submitting} id="profile-first" readOnly={!canEditAllDetails} {...register('firstName')} />
             </div>
             <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-              <label htmlFor="profile-last">Last name {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}</label>
+              <label htmlFor="profile-last">
+                Last name {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
+              </label>
               <input disabled={!canEditAllDetails || submitting} id="profile-last" readOnly={!canEditAllDetails} required={canEditAllDetails} {...register('lastName')} />
             </div>
             <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-              <label htmlFor="profile-dob">Date of birth {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}</label>
+              <label htmlFor="profile-dob">
+                Date of birth {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
+              </label>
               <input disabled={!canEditAllDetails || submitting} id="profile-dob" readOnly={!canEditAllDetails} required={canEditAllDetails} type="date" {...register('dateOfBirth')} />
             </div>
             <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-              <label htmlFor="profile-gender">Gender {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}</label>
+              <label htmlFor="profile-gender">
+                Gender {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
+              </label>
               <select disabled={!canEditAllDetails || submitting} id="profile-gender" {...register('gender')}>
                 <option value="UNKNOWN">Unknown</option>
                 <option value="MALE">Male</option>
@@ -80,7 +115,9 @@ export function PatientEditModal({ open, patient, canEditAllDetails, submitting,
               </select>
             </div>
             <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-              <label htmlFor="profile-blood">Blood group {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}</label>
+              <label htmlFor="profile-blood">
+                Blood group {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
+              </label>
               {canEditAllDetails ? (
                 <select disabled={submitting} id="profile-blood" {...register('bloodGroup')}>
                   <option value="">Select Blood Group</option>
@@ -96,10 +133,10 @@ export function PatientEditModal({ open, patient, canEditAllDetails, submitting,
           </div>
         </section>
 
-        <section className="doctor-onboarding-section">
-          <header>
-            <span><i className="ph ph-phone" aria-hidden="true" /></span>
-            <div><h3>Contact &amp; Address Details</h3><p>Editable communication details, physical address, status, and clinical notes.</p></div>
+        <section className="patient-edit-section">
+          <header className="patient-edit-section-header">
+            <span className="patient-edit-section-icon"><i className="ph ph-phone" aria-hidden="true" /></span>
+            <h3>Contact &amp; Address Details</h3>
           </header>
           <div className="form-grid">
             <div className={`form-group ${errors.phone ? 'has-error' : ''}`}>
@@ -127,11 +164,6 @@ export function PatientEditModal({ open, patient, canEditAllDetails, submitting,
             <div className="form-group full-width"><label htmlFor="profile-notes">Registration Notes</label><textarea disabled={submitting} id="profile-notes" {...register('notes')} rows={2} /></div>
           </div>
         </section>
-
-        <div className="modal-actions">
-          <button className="secondary-action" disabled={submitting} onClick={onClose} type="button">Cancel</button>
-          <button className="primary-action" disabled={submitting} type="submit">{submitting ? <><MedicalSpinner size="sm" /><span>Saving...</span></> : 'Save Profile'}</button>
-        </div>
       </form>
     </Modal>
   );

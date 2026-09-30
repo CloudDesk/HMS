@@ -11,9 +11,11 @@ import {
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
 import { PrescriptionsApi } from '../../prescriptions/prescriptions-api';
-import type {
-  PrescriptionRecord,
-  PurchasedMedicine,
+import {
+  prescriptionRecordSchema,
+  purchasedMedicineSchema,
+  type PrescriptionRecord,
+  type PurchasedMedicine,
 } from '../../prescriptions/contracts';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import {
@@ -43,12 +45,26 @@ const getPrescriptionStatusVariant = (status: string): StatusVariant => {
 
 export function PrescriptionsScreen() {
   const { manager } = useAuth();
-  const { selectedPatient, selectedPatientId } = usePatient();
+  const { selectedPatient, selectedPatientId, overview } = usePatient();
 
   const [activeSection, setActiveSection] = useState<'prescriptions' | 'purchases'>('prescriptions');
-  const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
-  const [purchasedMedicines, setPurchasedMedicines] = useState<PurchasedMedicine[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>(() => {
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId && Array.isArray(overview.prescriptions)) {
+      const parsed = prescriptionRecordSchema.array().safeParse(overview.prescriptions);
+      return parsed.success ? parsed.data : [];
+    }
+    return [];
+  });
+  const [purchasedMedicines, setPurchasedMedicines] = useState<PurchasedMedicine[]>(() => {
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId && Array.isArray(overview.purchased_medicines)) {
+      const parsed = purchasedMedicineSchema.array().safeParse(overview.purchased_medicines);
+      return parsed.success ? parsed.data : [];
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    return !(overview && selectedPatientId && overview.patient?.id === selectedPatientId);
+  });
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,11 +100,22 @@ export function PrescriptionsScreen() {
   );
 
   useEffect(() => {
+    setSelectedPrescription(null);
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId) {
+      const parsedPrescriptions = prescriptionRecordSchema.array().safeParse(overview.prescriptions);
+      const parsedPurchases = purchasedMedicineSchema.array().safeParse(overview.purchased_medicines);
+      if (parsedPrescriptions.success && parsedPurchases.success) {
+        setPrescriptions(parsedPrescriptions.data);
+        setPurchasedMedicines(parsedPurchases.data);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+    }
     setPrescriptions([]);
     setPurchasedMedicines([]);
-    setSelectedPrescription(null);
     loadData();
-  }, [selectedPatientId, loadData]);
+  }, [selectedPatientId, overview, loadData]);
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

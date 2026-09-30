@@ -98,7 +98,54 @@ const isMinor = (dateOfBirth: string) => {
   return adultDate > new Date();
 };
 
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+class SimpleTtlCache<T> {
+  private cache = new Map<string, CacheEntry<T>>();
+  private readonly ttlMs: number;
+  private readonly maxEntries: number;
+
+  constructor(ttlSeconds = 180, maxEntries = 100) {
+    this.ttlMs = ttlSeconds * 1000;
+    this.maxEntries = maxEntries;
+  }
+
+  get(key: string): T | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return undefined;
+    }
+    return entry.data;
+  }
+
+  set(key: string, data: T): void {
+    if (this.cache.size >= this.maxEntries) {
+      const now = Date.now();
+      for (const [k, v] of this.cache.entries()) {
+        if (now > v.expiresAt || this.cache.size >= this.maxEntries) {
+          this.cache.delete(k);
+        }
+      }
+    }
+    this.cache.set(key, { data, expiresAt: Date.now() + this.ttlMs });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
 export class PatientPortalService {
+  private readonly branchesCache = new SimpleTtlCache<any>(180);
+  private readonly departmentsCache = new SimpleTtlCache<any>(180);
+  private readonly servicesCache = new SimpleTtlCache<any>(180);
+  private readonly doctorsCache = new SimpleTtlCache<any>(180);
+
   constructor(
     private readonly repository: PatientPortalRepository,
     private readonly users: UserService,
@@ -109,25 +156,45 @@ export class PatientPortalService {
     private readonly opdVisits: OpdVisitService,
   ) {}
 
-  listPublicBranches(query: { page: number; limit: number; search?: string }) {
-    return this.repository.listPublicBranches(query);
+  async listPublicBranches(query: { page: number; limit: number; search?: string }) {
+    const cacheKey = JSON.stringify(query);
+    const cached = this.branchesCache.get(cacheKey);
+    if (cached) return cached;
+    const result = await this.repository.listPublicBranches(query);
+    this.branchesCache.set(cacheKey, result);
+    return result;
   }
 
-  listPublicDepartments(query: { page: number; limit: number; search?: string; branchId?: string }) {
+  async listPublicDepartments(query: { page: number; limit: number; search?: string; branchId?: string }) {
     this.validateOptionalId(query.branchId, 'Branch id is invalid');
-    return this.repository.listPublicDepartments(query);
+    const cacheKey = JSON.stringify(query);
+    const cached = this.departmentsCache.get(cacheKey);
+    if (cached) return cached;
+    const result = await this.repository.listPublicDepartments(query);
+    this.departmentsCache.set(cacheKey, result);
+    return result;
   }
 
-  listPublicServices(query: { page: number; limit: number; search?: string; departmentId?: string; branchId?: string }) {
+  async listPublicServices(query: { page: number; limit: number; search?: string; departmentId?: string; branchId?: string }) {
     this.validateOptionalId(query.departmentId, 'Department id is invalid');
     this.validateOptionalId(query.branchId, 'Branch id is invalid');
-    return this.repository.listPublicServices(query);
+    const cacheKey = JSON.stringify(query);
+    const cached = this.servicesCache.get(cacheKey);
+    if (cached) return cached;
+    const result = await this.repository.listPublicServices(query);
+    this.servicesCache.set(cacheKey, result);
+    return result;
   }
 
-  listPublicDoctors(query: { page: number; limit: number; search?: string; departmentId?: string; branchId?: string }) {
+  async listPublicDoctors(query: { page: number; limit: number; search?: string; departmentId?: string; branchId?: string }) {
     this.validateOptionalId(query.departmentId, 'Department id is invalid');
     this.validateOptionalId(query.branchId, 'Branch id is invalid');
-    return this.repository.listPublicDoctors(query);
+    const cacheKey = JSON.stringify(query);
+    const cached = this.doctorsCache.get(cacheKey);
+    if (cached) return cached;
+    const result = await this.repository.listPublicDoctors(query);
+    this.doctorsCache.set(cacheKey, result);
+    return result;
   }
 
   availableSlots(doctorId: string, date: string) {

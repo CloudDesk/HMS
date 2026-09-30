@@ -1,35 +1,33 @@
 /* ==========================================================================
-   Doctor Directory & Doctor Performance Feature Stylesheet
-   Phase 7.3 Extraction from styles.css
-   ========================================================================== */
-
-/* ==========================================================================
    1. Doctor Directory Shell & Header
    ========================================================================== */
 .doctor-page {
   display: grid;
   gap: 1rem;
   padding: 1.5rem;
+  min-width: 0;
 }
 
 .doctor-page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .doctor-page-title h2 {
-  margin: 0 0 0.3rem;
+  margin: 0 0 0.2rem;
   color: #0f172a;
-  font-size: 1.4rem;
-  font-weight: 800;
+  font-size: 1.35rem;
+  font-weight: 700;
 }
 
 .doctor-page-title p {
   margin: 0;
   color: #64748b;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
+  font-weight: 400;
 }
 
 .doctor-page-actions {
@@ -39,33 +37,257 @@
   gap: 0.5rem;
 }
 
-.doctor-directory-table {
-  min-width: 1120px;
-  table-layout: auto;
+.doctor-page-actions .doc-btn {
+  height: var(--control-height-md, 38px);
+  min-height: var(--control-height-md, 38px);
+  padding: 0 1rem;
+  font-size: 0.85rem;
 }
 
-.doctor-directory-table th:first-child,
-.doctor-directory-table td:first-child {
-  min-width: 230px;
+/* ==========================================================================
+   Doctor Directory Toolbar & Filters
+   ========================================================================== */
+.doc-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1rem;
+}
+
+.doc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.doc-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.doc-field input,
+.doc-field select {
+  height: var(--control-height-md, 38px);
+  min-height: var(--control-height-md, 38px);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.doc-field.grow {
+  flex: 1 1 260px;
+}
+
+.doc-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.doc-search-input-wrap i {
+  position: absolute;
+  left: 0.75rem;
+  color: #94a3b8;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.doc-search-input-wrap input {
+  padding-left: 2.25rem;
+  width: 100%;
+}
+
+.doc-toolbar .doc-btn {
+  height: var(--control-height-md, 38px);
+  min-height: var(--control-height-md, 38px);
+  padding: 0 0.9rem;
+}
+
+/* ==========================================================================
+   Doctor Directory Table & Card
+   ========================================================================== */
+.doctor-directory-table {
+  width: 100%;
+  table-layout: fixed;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.doctor-directory-table th {
+  padding: 0.75rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #475569;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  white-space: nowrap;
+}
+
+.doctor-directory-table td {
+  padding: 0.75rem 0.75rem;
+  font-size: 0.82rem;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.doctor-directory-table th:nth-child(1),
+.doctor-directory-table td:nth-child(1) {
+  width: 22%;
+  min-width: 180px;
 }
 
 .doctor-directory-table th:nth-child(2),
 .doctor-directory-table td:nth-child(2) {
-  min-width: 170px;
+  width: 14%;
+  min-width: 110px;
+}
+
+.doctor-directory-table th:nth-child(3),
+.doctor-directory-table td:nth-child(3) {
+  width: 13%;
+  min-width: 100px;
+}
+
+.doctor-directory-table th:nth-child(4),
+.doctor-directory-table td:nth-child(4) {
+  width: 12%;
+  min-width: 95px;
 }
 
 .doctor-directory-table th:nth-child(5),
 .doctor-directory-table td:nth-child(5) {
-  min-width: 170px;
+  width: 16%;
+  min-width: 125px;
+}
+
+.doctor-directory-table th:nth-child(6),
+.doctor-directory-table td:nth-child(6) {
+  width: 10%;
+  min-width: 85px;
+}
+
+.doctor-directory-table th:nth-child(7),
+.doctor-directory-table td:nth-child(7) {
+  width: 10%;
+  min-width: 85px;
 }
 
 .doctor-directory-table th:last-child,
 .doctor-directory-table td:last-child {
-  min-width: 200px;
+  width: 130px;
+  min-width: 130px;
+  text-align: right;
+}
+
+.doc-person {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.doc-person-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.doc-person-name {
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.doc-person-id {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.doc-contact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.doc-contact-phone {
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.doc-contact-email {
+  color: #64748b;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.doc-contact-email.muted {
+  color: #94a3b8;
+  font-style: italic;
 }
 
 .doctor-directory-table .doc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
   flex-wrap: nowrap;
+}
+
+.doctor-directory-table .doc-action {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doctor-directory-table .doc-action:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.doc-table th[onClick],
+.doctor-directory-table th[onClick] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.doc-table th[onClick]:hover,
+.doctor-directory-table th[onClick]:hover {
+  background: #f1f5f9;
+  color: #1e293b;
 }
 
 /* ==========================================================================
