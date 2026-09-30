@@ -18,8 +18,8 @@ export class AdministrationDashboardService {
     return this.repository.refreshSnapshot();
   }
 
-  async getExecutiveOverview(userId: string, branchId?: string, financialAccess = true) {
-    return this.repository.getExecutiveOverview(userId, branchId, financialAccess);
+  async getExecutiveOverview(userId: string, branchId?: string, financialAccess = true, range?: 'week' | 'month' | 'year') {
+    return this.repository.getExecutiveOverview(userId, branchId, financialAccess, range);
   }
 
   async getPhaseTwoReports(query: PhaseTwoReportQuery, actor: string, financialAccess: boolean) {

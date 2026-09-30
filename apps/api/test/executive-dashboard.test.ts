@@ -156,4 +156,13 @@ describe('Executive Dashboard Aggregation Suite', () => {
     expect(overview.kpis.todayBilledRevenue).toBeNull();
     expect(overview.financialSummary).toBeNull();
   });
+
+  it('15. Supports range month (30 items) and year (12 items)', async () => {
+    const monthOverview = await repo.getExecutiveOverview(superAdminUserId.toString(), undefined, true, 'month');
+    expect(monthOverview.trend.length).toBe(30);
+
+    const yearOverview = await repo.getExecutiveOverview(superAdminUserId.toString(), undefined, true, 'year');
+    expect(yearOverview.trend.length).toBe(12);
+  });
 });
+

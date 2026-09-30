@@ -1,0 +1,1016 @@
+/* ==========================================================================
+   HMS DASHBOARD DESIGN SYSTEM
+   Professional, high-polish healthcare visual language aligned with HMS Blue
+   ========================================================================== */
+
+/* ── Dashboard Layout & Shell ────────────────────────────────────────── */
+.hms-dash-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem 1.75rem 2.5rem;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  background: #f8fafc;
+  min-height: calc(100vh - 100px);
+}
+
+/* ── Top Navigation Tabs (DashboardShell) ─────────────────────────────── */
+.dashboard-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.65rem 1.75rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dashboard-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.825rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.dashboard-tab-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.dashboard-tab-btn.active {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+
+.dashboard-tab-btn i {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* ── Header & Greeting Bar ───────────────────────────────────────────── */
+.hms-dash-greeting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.hms-greeting-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hms-greeting-title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hms-greeting-sub {
+  font-size: 0.825rem;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+.hms-greeting-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.hms-date-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #1e293b;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hms-date-pill:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.hms-date-pill i {
+  font-size: 1.1rem;
+  color: #2563eb;
+}
+
+/* ── Standard Page Header ────────────────────────────────────────────── */
+.hms-dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 0.25rem;
+}
+
+.hms-dash-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hms-dash-title h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.hms-dash-title p {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.hms-dash-scope-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 10px;
+  border-radius: 20px;
+  width: fit-content;
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+
+.hms-dash-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.hms-dash-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.hms-dash-btn.primary {
+  background: var(--brand, #2563eb);
+  color: #ffffff;
+}
+
+.hms-dash-btn.primary:hover {
+  background: #1d4ed8;
+}
+
+.hms-dash-btn.secondary {
+  background: #ffffff;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+.hms-dash-btn.secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.hms-dash-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hms-dash-select {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.hms-dash-select:focus {
+  border-color: #2563eb;
+}
+
+/* ── Primary KPI Cards Grid ──────────────────────────────────────────── */
+.hms-dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.15rem;
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .hms-dash-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .hms-dash-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hms-dash-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 125px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  position: relative;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+}
+
+.hms-dash-kpi-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 8px 24px -2px rgba(37, 99, 235, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Hero Accent Card (HMS Deep Navy / Royal Blue gradient) */
+.hms-dash-kpi-card.hero {
+  background: linear-gradient(135deg, #1d4ed8 0%, #172554 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 8px 24px -4px rgba(29, 78, 216, 0.3);
+}
+
+.hms-dash-kpi-card.hero:hover {
+  box-shadow: 0 10px 28px -2px rgba(29, 78, 216, 0.4);
+  transform: translateY(-2px);
+}
+
+.hms-kpi-top {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.hms-kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.hms-kpi-icon.hero-circle {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.hms-kpi-icon.blue,
+.hms-kpi-icon.phone-blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.hms-kpi-icon.cyan,
+.hms-kpi-icon.doctor-cyan {
+  background: #f0f9ff;
+  color: #0284c7;
+}
+
+.hms-kpi-icon.indigo,
+.hms-kpi-icon.patient-teal {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.hms-kpi-icon.green { background: #f0fdf4; color: #16a34a; }
+.hms-kpi-icon.orange { background: #fff7ed; color: #ea580c; }
+.hms-kpi-icon.purple { background: #faf5ff; color: #9333ea; }
+.hms-kpi-icon.red { background: #fef2f2; color: #dc2626; }
+.hms-kpi-icon.slate { background: #f8fafc; color: #64748b; }
+
+.hms-kpi-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hms-dash-kpi-card.hero .hms-kpi-label {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.hms-kpi-bottom {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.hms-kpi-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.hms-dash-kpi-card.hero .hms-kpi-value {
+  color: #ffffff;
+}
+
+.hms-kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hms-kpi-trend.up {
+  color: #16a34a;
+}
+
+.hms-dash-kpi-card.hero .hms-kpi-trend.up {
+  color: #93c5fd;
+}
+
+.hms-kpi-trend.down {
+  color: #ef4444;
+}
+
+.hms-kpi-sub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.hms-dash-kpi-card.hero .hms-kpi-sub {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Operational Stat Strip ──────────────────────────────────────────── */
+.hms-dash-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.hms-stat-strip-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 0.85rem 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hms-stat-strip-item:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+}
+
+.hms-stat-strip-icon {
+  font-size: 1.45rem;
+  flex-shrink: 0;
+}
+
+.hms-stat-strip-info {
+  min-width: 0;
+}
+
+.hms-stat-strip-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hms-stat-strip-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+/* ── Section Cards & Multi-Column Layouts ────────────────────────────── */
+.hms-dash-grid {
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.hms-dash-grid.two-col-7-5 {
+  grid-template-columns: 7.2fr 4.8fr;
+}
+
+.hms-dash-grid.two-col-8-4 {
+  grid-template-columns: 8fr 4fr;
+}
+
+.hms-dash-grid.two-col-equal {
+  grid-template-columns: 1fr 1fr;
+}
+
+.hms-dash-grid.three-col-equal {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .hms-dash-grid.two-col-7-5,
+  .hms-dash-grid.two-col-8-4,
+  .hms-dash-grid.two-col-equal,
+  .hms-dash-grid.three-col-equal {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hms-dash-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hms-card-header {
+  padding: 1.1rem 1.35rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.hms-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hms-card-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.hms-card-desc {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.hms-card-body {
+  padding: 1.25rem 1.35rem;
+  flex: 1;
+}
+
+/* ── Filter Pills for Chart ──────────────────────────────────────────── */
+.hms-chart-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hms-chart-pill-btn {
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.775rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  color: #64748b;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hms-chart-pill-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.hms-chart-pill-btn.active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+/* ── Polished SVG Spline Chart System ────────────────────────────────── */
+.hms-chart-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.hms-chart-svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.hms-chart-gridline {
+  stroke: #f1f5f9;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.hms-chart-axis-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.65rem 0.5rem 0;
+}
+
+.hms-chart-axis-item {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+
+.hms-chart-axis-sub {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.hms-chart-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding-top: 1rem;
+  font-size: 0.775rem;
+  font-weight: 600;
+}
+
+.hms-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+}
+
+.hms-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.hms-legend-dot.dark {
+  background: #1d4ed8;
+}
+
+.hms-legend-dot.mint {
+  background: #06b6d4;
+}
+
+/* ── Week Selector Strip (Right Column) ──────────────────────────────── */
+.hms-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 1.25rem;
+}
+
+.hms-day-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hms-day-pill:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.hms-day-pill.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.hms-day-pill .hms-day-num {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.hms-day-pill .hms-day-name {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+/* ── Time-Slotted Schedule Feed ──────────────────────────────────────── */
+.hms-schedule-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.hms-schedule-slot {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.hms-schedule-time {
+  width: 48px;
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: #94a3b8;
+  padding-top: 8px;
+  flex-shrink: 0;
+}
+
+.hms-schedule-event {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #2563eb;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hms-schedule-event:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.1);
+  transform: translateY(-1px);
+}
+
+.hms-schedule-event.teal,
+.hms-schedule-event.cyan {
+  border-left-color: #0284c7;
+}
+
+.hms-schedule-event.blue {
+  border-left-color: #2563eb;
+}
+
+.hms-event-info strong {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.hms-event-info span {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.hms-event-menu {
+  color: #94a3b8;
+  font-size: 1.1rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 4px;
+  transition: color 0.15s ease;
+}
+
+.hms-event-menu:hover {
+  color: #0f172a;
+}
+
+/* ── Bottom 3 Cards (Balance, Room Occupancy, Reports) ───────────────── */
+.hms-donut-card-content {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.hms-donut-wrap {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+}
+
+.hms-donut-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.hms-donut-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hms-spark-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.hms-spark-stat small {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.hms-spark-stat strong {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.hms-occupancy-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.hms-occupancy-item:last-child {
+  border-bottom: none;
+}
+
+.hms-occupancy-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hms-occupancy-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.hms-occupancy-label {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.hms-occupancy-val {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.hms-report-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 8px;
+}
+
+.hms-report-item:hover {
+  background: #f8fafc;
+}
+
+.hms-report-item:last-child {
+  border-bottom: none;
+}
+
+.hms-report-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.hms-report-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.hms-report-title {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hms-report-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.hms-report-link {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.hms-report-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Compact Empty State ─────────────────────────────────────────────── */
+.hms-dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.25rem 1rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.hms-dash-empty i {
+  font-size: 2.25rem;
+  color: #cbd5e1;
+  margin-bottom: 0.5rem;
+}
+
+.hms-dash-empty-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 2px 0;
+}
+
+.hms-dash-empty-desc {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin: 0 0 0.75rem 0;
+}
+
+/* ── Attention & Quick Actions Lists ─────────────────────────────────── */
+.hms-attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.hms-attention-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  gap: 0.75rem;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  color: inherit;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hms-attention-item:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.hms-attention-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.hms-attention-text strong {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.hms-attention-text small {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+}

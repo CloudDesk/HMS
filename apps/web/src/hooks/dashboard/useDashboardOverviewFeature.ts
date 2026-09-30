@@ -4,7 +4,7 @@ import { administrationDashboardApi } from '../../api/administration-dashboard';
 import { hasPermission } from '../../auth/access-control';
 import { useAuth } from '../../auth/useAuth';
 
-export function useDashboardOverviewFeature() {
+export function useDashboardOverviewFeature(range: 'week' | 'month' | 'year' = 'week') {
   const { user } = useAuth();
   const [selectedBranchId, setSelectedBranchId] = useState<string | undefined>(undefined);
 
@@ -14,8 +14,8 @@ export function useDashboardOverviewFeature() {
   );
 
   const query = useQuery({
-    queryKey: ['executive-dashboard-overview', selectedBranchId],
-    queryFn: () => administrationDashboardApi.getOverview(selectedBranchId),
+    queryKey: ['executive-dashboard-overview', selectedBranchId, range],
+    queryFn: () => administrationDashboardApi.getOverview(selectedBranchId, range),
     enabled: Boolean(user) && canViewDashboard,
     staleTime: 30_000,
   });

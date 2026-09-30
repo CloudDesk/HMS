@@ -143,14 +143,14 @@ export const sidebarModules: SidebarModule[] = [
   //     { href: '/inventory/reports', label: 'Inventory Reports' },
   //   ],
   // },
-  {
-    key: 'reports',
-    label: 'Reports',
-    icon: 'ph-chart-bar',
-    links: [
-      { href: '/reports/library', label: 'Reports' },
-    ],
-  },
+  // {
+  //   key: 'reports',
+  //   label: 'Reports',
+  //   icon: 'ph-chart-bar',
+  //   links: [
+  //     { href: '/reports/library', label: 'Reports' },
+  //   ],
+  // },
   {
     key: 'administration',
     label: 'Administration',

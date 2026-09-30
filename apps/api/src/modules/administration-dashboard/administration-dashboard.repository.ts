@@ -81,6 +81,7 @@ export class AdministrationDashboardRepository {
     userId: string,
     requestedBranchId?: string,
     financialAccess = true,
+    range: 'week' | 'month' | 'year' = 'week',
   ): Promise<ExecutiveDashboardOverview> {
     const branchScope = await this.authorizeBranch(userId, requestedBranchId);
     const branchOids = branchScope ? branchScope.map((id) => new Types.ObjectId(id)) : undefined;
@@ -88,7 +89,11 @@ export class AdministrationDashboardRepository {
     const now = new Date();
     const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     const endOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-    const startOf7DaysAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6, 0, 0, 0, 0));
+    const startOfTrend = range === 'year'
+      ? new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth() + 1, 1, 0, 0, 0, 0))
+      : range === 'month'
+        ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 29, 0, 0, 0, 0))
+        : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6, 0, 0, 0, 0));
 
     const patientFilter: Record<string, unknown> = { deletedAt: null };
     if (branchOids) patientFilter.registrationBranchId = { $in: branchOids };
@@ -122,18 +127,18 @@ export class AdministrationDashboardRepository {
     };
     if (branchOids) invoiceAllFilter.branchId = { $in: branchOids };
 
-    const visit7DaysFilter: Record<string, unknown> = {
-      visitDate: { $gte: startOf7DaysAgo, $lte: endOfDay },
+    const visitTrendFilter: Record<string, unknown> = {
+      visitDate: { $gte: startOfTrend, $lte: endOfDay },
       deletedAt: null,
     };
-    if (branchOids) visit7DaysFilter.branchId = { $in: branchOids };
+    if (branchOids) visitTrendFilter.branchId = { $in: branchOids };
 
-    const invoice7DaysFilter: Record<string, unknown> = {
-      invoiceDate: { $gte: startOf7DaysAgo, $lte: endOfDay },
+    const invoiceTrendFilter: Record<string, unknown> = {
+      invoiceDate: { $gte: startOfTrend, $lte: endOfDay },
       status: { $ne: 'CANCELLED' },
       deletedAt: null,
     };
-    if (branchOids) invoice7DaysFilter.branchId = { $in: branchOids };
+    if (branchOids) invoiceTrendFilter.branchId = { $in: branchOids };
 
     const waitingFilter: Record<string, unknown> = {
       status: { $in: ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION'] },
@@ -156,6 +161,8 @@ export class AdministrationDashboardRepository {
 
     const recentVisitsFilter: Record<string, unknown> = { deletedAt: null };
     if (branchOids) recentVisitsFilter.branchId = { $in: branchOids };
+
+    const dateFormat = range === 'year' ? '%Y-%m' : '%Y-%m-%d';
 
     const [
       registeredPatients,
@@ -188,39 +195,66 @@ export class AdministrationDashboardRepository {
           ])
         : Promise.resolve([]),
       OpdVisitModel.aggregate<{ _id: string; count: number }>([
-        { $match: visit7DaysFilter },
-        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$visitDate' } }, count: { $sum: 1 } } },
+        { $match: visitTrendFilter },
+        { $group: { _id: { $dateToString: { format: dateFormat, date: '$visitDate' } }, count: { $sum: 1 } } },
       ]),
       financialAccess
         ? BillingInvoiceModel.aggregate<{ _id: string; total: number }>([
-            { $match: invoice7DaysFilter },
-            { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$invoiceDate' } }, total: { $sum: '$totalAmount' } } },
+            { $match: invoiceTrendFilter },
+            { $group: { _id: { $dateToString: { format: dateFormat, date: '$invoiceDate' } }, total: { $sum: '$totalAmount' } } },
           ])
         : Promise.resolve([]),
       OpdVisitModel.find(recentVisitsFilter)
         .sort({ checkInTime: -1, _id: -1 })
-        .limit(6)
+        .limit(20)
         .lean(),
       OpdVisitModel.countDocuments(waitingFilter),
       OpdVisitModel.countDocuments(inConsultationFilter),
       OpdVisitModel.countDocuments(completedTodayFilter),
     ]);
 
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const encountersByDate = new Map(encounterTrendAggregate.map((row) => [row._id, row.count]));
     const revenueByDate = new Map(revenueTrendAggregate.map((row) => [row._id, row.total]));
 
     const trend = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
-      const dateStr = d.toISOString().slice(0, 10);
-      const dayName = `${dayNames[d.getUTCDay()]} ${d.getUTCDate()}`;
-      trend.push({
-        date: dateStr,
-        day: dayName,
-        revenue: Math.round((revenueByDate.get(dateStr) ?? 0) * 100) / 100,
-        encounters: encountersByDate.get(dateStr) ?? 0,
-      });
+    if (range === 'year') {
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+        const dateStr = d.toISOString().slice(0, 7);
+        const dayName = monthNames[d.getUTCMonth()] ?? '';
+        trend.push({
+          date: dateStr,
+          day: dayName,
+          revenue: Math.round((revenueByDate.get(dateStr) ?? 0) * 100) / 100,
+          encounters: encountersByDate.get(dateStr) ?? 0,
+        });
+      }
+    } else if (range === 'month') {
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+        const dateStr = d.toISOString().slice(0, 10);
+        const dayName = `${monthNames[d.getUTCMonth()] ?? ''} ${d.getUTCDate()}`;
+        trend.push({
+          date: dateStr,
+          day: dayName,
+          revenue: Math.round((revenueByDate.get(dateStr) ?? 0) * 100) / 100,
+          encounters: encountersByDate.get(dateStr) ?? 0,
+        });
+      }
+    } else {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+        const dateStr = d.toISOString().slice(0, 10);
+        const dayName = `${dayNames[d.getUTCDay()]} ${d.getUTCDate()}`;
+        trend.push({
+          date: dateStr,
+          day: dayName,
+          revenue: Math.round((revenueByDate.get(dateStr) ?? 0) * 100) / 100,
+          encounters: encountersByDate.get(dateStr) ?? 0,
+        });
+      }
     }
 
     const todayBilledRevenue = financialAccess ? (todayInvoiceAggregate[0]?.total ?? 0) : null;
