@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { fetch as xhrFetch } from 'whatwg-fetch';
 import type { PublicConfig } from '../config/config';
 import { ApiFailure, type ApiErrorCategory, type LegacyApiKind } from './errors';
 
@@ -8,7 +9,10 @@ export class MobileTransport {
   constructor(
     readonly config: PublicConfig,
     private readonly fetcher: typeof fetch = fetch,
-    private readonly timeoutMs = 45_000
+    private readonly timeoutMs = 45_000,
+    // Expo 57 global fetch rejects RN's { uri, name, type } multipart files.
+    // XHR passes these descriptors to React Native's native multipart encoder.
+    private readonly multipartFetcher: typeof fetch = xhrFetch,
   ) {}
 
   async request<T>(
@@ -128,7 +132,7 @@ export class MobileTransport {
     let response: Response;
     try {
       const url = `${this.config.apiBaseUrl}${path}`;
-      response = await this.fetcher(url, {
+      response = await this.multipartFetcher(url, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

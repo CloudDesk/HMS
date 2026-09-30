@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,9 @@ import { BrandLogo } from '../components/BrandLogo';
 import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 import { registrationFormSchema, type RegistrationFormValues } from '../../auth/contracts';
+import { latestSelfRegistrationDob } from '../../auth/registration-date';
+import { AppointmentDatePicker } from '../components/AppointmentDatePicker';
+import { useFocusedInputScroll } from '../useFocusedInputScroll';
 
 interface BranchOption {
   id: string;
@@ -32,6 +36,7 @@ const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export function RegisterScreen() {
   const { state, registerPatient, cancelRegistration, getPublicBranches, clearError } = useAuth();
+  const { scrollRef, onInputFocus, ensureVisible, onScroll } = useFocusedInputScroll();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -74,20 +79,15 @@ export function RegisterScreen() {
   }, [getPublicBranches]);
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    Keyboard.dismiss();
     setLocalError(null);
     clearError();
-
-    // Normalize DOB if entered with slashes or dots: DD/MM/YYYY or YYYY-MM-DD
-    let normalizedDob = dateOfBirth.trim();
-    if (/^\d{2}[-/.]\d{2}[-/.]\d{4}$/.test(normalizedDob)) {
-      const parts = normalizedDob.split(/[-/.]/);
-      normalizedDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
 
     const payload: RegistrationFormValues = {
       fullName: fullName.trim(),
       email: email.trim().toLowerCase(),
-      dateOfBirth: normalizedDob,
+      dateOfBirth,
       gender,
       preferredBranchId,
       bloodGroup: bloodGroup.trim() || undefined,
@@ -108,10 +108,12 @@ export function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.keyboardView}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} onLayout={ensureVisible} contentContainerStyle={styles.scrollContainer}
+        onScroll={onScroll} scrollEventThrottle={16}
+        keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.card}>
           <View style={styles.header}>
             <BrandLogo size="md" />
@@ -147,6 +149,7 @@ export function RegisterScreen() {
               Full Name <Text style={styles.requiredAsterisk}>*</Text>
             </Text>
             <TextInput
+              onFocus={onInputFocus}
               style={styles.input}
               placeholder="e.g. Rahul Sharma"
               placeholderTextColor={colors.text.muted}
@@ -168,6 +171,7 @@ export function RegisterScreen() {
               Email Address <Text style={styles.requiredAsterisk}>*</Text>
             </Text>
             <TextInput
+              onFocus={onInputFocus}
               style={styles.input}
               placeholder="e.g. rahul.sharma@example.com"
               placeholderTextColor={colors.text.muted}
@@ -190,22 +194,20 @@ export function RegisterScreen() {
               <Text style={styles.label}>
                 Date of Birth <Text style={styles.requiredAsterisk}>*</Text>
               </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.text.muted}
-                keyboardType="numbers-and-punctuation"
-                autoCapitalize="none"
-                autoCorrect={false}
+              <AppointmentDatePicker
+                minDate=""
+                maxDate={latestSelfRegistrationDob()}
+                showQuickOptions={false}
+                label="Choose DOB"
                 value={dateOfBirth}
-                onChangeText={(text) => {
+                onChange={(text) => {
                   setDateOfBirth(text);
                   if (localError) setLocalError(null);
                   if (state.message || state.errorDetails) clearError();
                 }}
-                editable={!isSubmitting}
+                disabled={isSubmitting}
               />
-              <Text style={styles.fieldHint}>Format: YYYY-MM-DD</Text>
+              <Text style={styles.fieldHint}>Patients under 15 must register through a parent or guardian.</Text>
             </View>
           </View>
 
@@ -304,6 +306,7 @@ export function RegisterScreen() {
               placeholder="e.g. 123 Health Ave, Apt 4B"
               placeholderTextColor={colors.text.muted}
               value={line1}
+              onFocus={onInputFocus}
               onChangeText={setLine1}
               editable={!isSubmitting}
             />
@@ -317,6 +320,7 @@ export function RegisterScreen() {
                 placeholder="e.g. Mumbai"
                 placeholderTextColor={colors.text.muted}
                 value={city}
+                onFocus={onInputFocus}
                 onChangeText={setCity}
                 editable={!isSubmitting}
               />
@@ -328,6 +332,7 @@ export function RegisterScreen() {
                 placeholder="e.g. Maharashtra"
                 placeholderTextColor={colors.text.muted}
                 value={stateName}
+                onFocus={onInputFocus}
                 onChangeText={setStateName}
                 editable={!isSubmitting}
               />
@@ -342,6 +347,7 @@ export function RegisterScreen() {
               placeholderTextColor={colors.text.muted}
               keyboardType="number-pad"
               value={postalCode}
+              onFocus={onInputFocus}
               onChangeText={setPostalCode}
               editable={!isSubmitting}
             />

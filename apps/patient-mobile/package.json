@@ -28,6 +28,7 @@
     "react-hook-form": "7.85.0",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "5.7.0",
+    "react-native-webview": "^13.16.1",
     "toqr": "^0.1.1",
     "unicode-match-property-ecmascript": "^2.0.0",
     "unicode-match-property-value-ecmascript": "^2.2.1",

@@ -113,6 +113,27 @@ describe('Patient Mobile Profile Photo Unit Tests', () => {
   });
 
   describe('4. PortalApi Profile Photo Methods', () => {
+    it('appends patient_id before the native image descriptor without changing its content URI', async () => {
+      // Node FormData stringifies RN file descriptors; inspect append inputs instead.
+      const append = vi.spyOn(FormData.prototype, 'append').mockImplementation(() => undefined);
+      try {
+        const authenticatedMultipartRequest = vi.fn().mockResolvedValue({ success: true });
+        const api = new PortalApi({ authenticatedMultipartRequest } as unknown as SessionManager);
+        await api.uploadProfilePhoto('p-101', {
+          uri: 'content://media/external/images/media/123', name: 'photo.jpg', type: 'image/jpeg',
+        });
+        expect(append.mock.calls).toEqual([
+          ['patient_id', 'p-101'],
+          ['file', { uri: 'content://media/external/images/media/123', name: 'photo.jpg', type: 'image/jpeg' }],
+        ]);
+        expect(authenticatedMultipartRequest).toHaveBeenCalledWith(
+          '/patient-portal/patients/p-101/profile-photo', expect.anything(), expect.any(FormData),
+        );
+      } finally {
+        append.mockRestore();
+      }
+    });
+
     it('calls authenticatedMultipartRequest when uploading photo', async () => {
       const mockSessionManager = {
         authenticatedMultipartRequest: vi.fn().mockResolvedValue({

@@ -291,6 +291,7 @@ export function ConsentsScreen({ onNavigateBack }: ConsentsScreenProps) {
 
       {/* Consent Details & Signature Modal */}
       <ConsentSignatureModal
+        key={`${selectedPatientId}:${selectedConsent?.id ?? 'closed'}`}
         visible={Boolean(selectedConsent)}
         onClose={() => setSelectedConsent(null)}
         consent={selectedConsent}

@@ -14,6 +14,12 @@ const duplicateKeyError = (
   });
 
 describe('duplicate conflict error mapping', () => {
+  it('identifies an MRN collision without claiming the contact details already exist', () => {
+    const error = toAppError(duplicateKeyError({ patientNumber: 1 }, { patientNumber: 'HMS-2026-000026' }, 'patients'));
+    expect(error.code).toBe('PATIENT_NUMBER_CONFLICT');
+    expect(error.statusCode).toBe(409);
+    expect(error.message).toContain('Patient number allocation');
+  });
   it('identifies reuse of a real confirmation idempotency key', () => {
     const error = toAppError(duplicateKeyError(
       { confirmIdempotencyKey: 1 },

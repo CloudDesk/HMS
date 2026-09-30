@@ -350,7 +350,7 @@ export class PatientRepository {
   async allocatePatientNumberCounter(key: string, existingMaximum: number): Promise<number> {
     const counter = await PatientNumberSequenceModel.findOneAndUpdate(
       { key },
-      [{ $set: { value: { $add: [{ $ifNull: ['$value', existingMaximum] }, 1] } } }],
+      [{ $set: { value: { $add: [{ $max: [{ $ifNull: ['$value', 0] }, existingMaximum] }, 1] } } }],
       { upsert: true, returnDocument: 'after', updatePipeline: true },
     ).lean();
     return counter!.value;

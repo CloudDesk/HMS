@@ -2,12 +2,97 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { ApiFailure } from './errors';
 import { MobileTransport } from './transport';
+import { fetch as xhrFetch } from 'whatwg-fetch';
+
+vi.mock('whatwg-fetch', () => ({ fetch: vi.fn() }));
 
 describe('MobileTransport', () => {
   const config = {
     environment: 'development' as const,
     apiBaseUrl: 'http://10.0.2.2:4000/api',
   };
+
+  it('posts multipart unchanged with bearer authentication and lets native fetch set the boundary', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      JSON.stringify({ data: { success: true } }), { status: 200 },
+    ));
+    const transport = new MobileTransport(config, fetcher, 45_000, fetcher);
+    const form = new FormData();
+    form.append('patient_id', 'p-101');
+    form.append('file', new Blob(['test image'], { type: 'image/jpeg' }), 'photo.jpg');
+    await expect(transport.uploadMultipart('/patient-portal/patients/p-101/profile-photo',
+      z.object({ success: z.boolean() }), form, { accessToken: 'test-token' },
+    )).resolves.toEqual({ success: true });
+    expect(fetcher).toHaveBeenCalledWith(
+      `${config.apiBaseUrl}/patient-portal/patients/p-101/profile-photo`,
+      expect.objectContaining({ method: 'POST', body: form, headers: {
+        Accept: 'application/json', Authorization: 'Bearer test-token',
+      } }),
+    );
+  });
+
+  it('distinguishes a native multipart network rejection from an HTTP upload rejection', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new TypeError('Network request failed'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'PHOTO_REQUIRED' } }), { status: 400 }));
+    const transport = new MobileTransport(config, fetcher, 45_000, fetcher);
+    const path = '/patient-portal/patients/p-101/profile-photo';
+    await expect(transport.uploadMultipart(path, z.unknown(), new FormData()))
+      .rejects.toMatchObject({ category: 'NETWORK_ERROR', code: 'NETWORK_ERROR' });
+    await expect(transport.uploadMultipart(path, z.unknown(), new FormData()))
+      .rejects.toMatchObject({ category: 'HTTP_400', status: 400, code: 'PHOTO_REQUIRED' });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses XHR fetch for uploads without changing the JSON fetcher', async () => {
+    const jsonFetcher = vi.fn<typeof fetch>();
+    vi.mocked(xhrFetch).mockResolvedValueOnce(new Response(JSON.stringify({ data: { success: true } })));
+    const transport = new MobileTransport(config, jsonFetcher);
+    await transport.uploadMultipart('/patient-portal/patients/p-101/profile-photo', z.unknown(), new FormData());
+    expect(xhrFetch).toHaveBeenCalledTimes(1);
+    expect(jsonFetcher).not.toHaveBeenCalled();
+  });
+
+  it('reproduces the installed Expo serializer rejecting RN URI file parts even with patient_id', async () => {
+    const { convertFormDataAsync } = await vi.importActual<{
+      convertFormDataAsync: (form: FormData) => Promise<unknown>;
+    }>('expo/src/winter/fetch/convertFormData');
+    const form = new FormData();
+    // Supply the entries produced by native FormData; Node would stringify the descriptor.
+    Object.defineProperty(form, 'entries', { value: function* () {
+      yield ['patient_id', 'p-101'];
+      yield ['file', { uri: 'file:///cache/photo.jpg', name: 'photo.jpg', type: 'image/jpeg' }];
+    } });
+    await expect(convertFormDataAsync(form)).rejects.toThrow('Unsupported FormDataPart implementation');
+  });
+
+  it('passes the upload body through the actual XHR fetch implementation without Expo serialization', async () => {
+    const { fetch: actualXhrFetch } = await vi.importActual<{ fetch: typeof fetch }>('whatwg-fetch');
+    const send = vi.fn();
+    const setRequestHeader = vi.fn();
+    class UploadXHR {
+      status = 200;
+      statusText = 'OK';
+      responseText = JSON.stringify({ data: { success: true } });
+      onload: (() => void) | null = null;
+      open = vi.fn();
+      setRequestHeader = setRequestHeader;
+      getAllResponseHeaders() { return 'content-type: application/json'; }
+      send(body: unknown) { send(body); this.onload?.(); }
+    }
+    vi.stubGlobal('XMLHttpRequest', UploadXHR);
+    try {
+      const form = new FormData();
+      const transport = new MobileTransport(config, vi.fn<typeof fetch>(), 45_000, actualXhrFetch);
+      await expect(transport.uploadMultipart('/patient-portal/patients/p-101/profile-photo',
+        z.object({ success: z.boolean() }), form, { accessToken: 'test-token' },
+      )).resolves.toEqual({ success: true });
+      expect(send).toHaveBeenCalledExactlyOnceWith(form);
+      expect(setRequestHeader).toHaveBeenCalledWith('Authorization', 'Bearer test-token');
+      expect(setRequestHeader.mock.calls.some(([name]) => String(name).toLowerCase() === 'content-type')).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it('rejects invalid URL paths that attempt to smuggle queries or traversal', async () => {
     const transport = new MobileTransport(config);

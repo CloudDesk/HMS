@@ -40,6 +40,9 @@ const isDuplicateFromCollection = (error: MongoDuplicateKeyError, collection: st
   error.message.includes(`.${collection}`);
 
 const duplicateKeyAppError = (error: MongoDuplicateKeyError) => {
+  if (hasDuplicateField(error, 'patientNumber')) {
+    return new AppError('Patient number allocation conflicted. Please retry registration.', 409, 'PATIENT_NUMBER_CONFLICT');
+  }
   if (
     hasDuplicateField(error, 'confirmIdempotencyKey') &&
     hasStringDuplicateValue(error, 'confirmIdempotencyKey')

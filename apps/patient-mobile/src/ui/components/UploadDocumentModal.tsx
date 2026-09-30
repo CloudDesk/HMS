@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { AppointmentDatePicker } from './AppointmentDatePicker';
 import { friendlyError } from '../../api/errors';
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
@@ -424,14 +425,14 @@ export function UploadDocumentModal({
                 {/* 5. Document Date */}
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>Document Date (Optional)</Text>
-                  <TextInput
-                    style={styles.textInput}
+                  <AppointmentDatePicker
                     value={documentDate}
-                    onChangeText={setDocumentDate}
-                    placeholder="YYYY-MM-DD (e.g. 2026-09-29)"
-                    placeholderTextColor={colors.text.muted}
-                    editable={!isSubmitting}
-                    testID="document-date-input"
+                    onChange={setDocumentDate}
+                    minDate=""
+                    showQuickOptions={false}
+                    allowClear
+                    label="Choose date"
+                    disabled={isSubmitting}
                   />
                 </View>
 

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
+  Keyboard,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -34,6 +35,10 @@ export interface AppointmentDatePickerProps {
   value: string; // YYYY-MM-DD
   onChange: (date: string) => void;
   minDate?: string; // YYYY-MM-DD (defaults to today)
+  maxDate?: string;
+  showQuickOptions?: boolean;
+  allowClear?: boolean;
+  label?: string;
   disabled?: boolean;
 }
 
@@ -41,12 +46,17 @@ export function AppointmentDatePicker({
   value,
   onChange,
   minDate,
+  maxDate,
+  showQuickOptions = true,
+  allowClear = false,
+  label = 'Change Date',
   disabled = false,
 }: AppointmentDatePickerProps) {
   const todayStr = useMemo(() => formatToDateString(new Date()), []);
   const effectiveMinDate = minDate ?? todayStr;
 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [selectingYear, setSelectingYear] = useState(false);
 
   // Month navigation in calendar modal
   const initialSelected = useMemo(
@@ -56,7 +66,9 @@ export function AppointmentDatePicker({
   const [viewYear, setViewYear] = useState<number>(initialSelected.getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(initialSelected.getMonth());
 
-  const quickOptions = useMemo(() => getQuickDateOptions(effectiveMinDate), [effectiveMinDate]);
+  const quickOptions = useMemo(() => showQuickOptions
+    ? getQuickDateOptions(effectiveMinDate).filter((option) => !maxDate || option.date <= maxDate)
+    : [], [effectiveMinDate, maxDate, showQuickOptions]);
 
   const monthNames = [
     'January',
@@ -74,6 +86,7 @@ export function AppointmentDatePicker({
   ];
 
   const handlePrevMonth = () => {
+    if (selectingYear) { setViewYear((year) => Math.max(1, year - 12)); return; }
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear((y) => y - 1);
@@ -83,6 +96,7 @@ export function AppointmentDatePicker({
   };
 
   const handleNextMonth = () => {
+    if (selectingYear) { setViewYear((year) => Math.min(9999, year + 12)); return; }
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear((y) => y + 1);
@@ -108,14 +122,15 @@ export function AppointmentDatePicker({
       const monthStr = String(viewMonth + 1).padStart(2, '0');
       const dayStr = String(day).padStart(2, '0');
       const dateStr = `${viewYear}-${monthStr}-${dayStr}`;
-      const isPast = dateStr < effectiveMinDate;
+      const isPast = dateStr < effectiveMinDate || Boolean(maxDate && dateStr > maxDate);
       days.push({ day, dateStr, isPast });
     }
 
     return days;
-  }, [viewYear, viewMonth, effectiveMinDate]);
+  }, [viewYear, viewMonth, effectiveMinDate, maxDate]);
 
   const handleSelectDay = (dateStr: string) => {
+    if (dateStr < effectiveMinDate || (maxDate && dateStr > maxDate)) return;
     onChange(dateStr);
     setIsCalendarOpen(false);
   };
@@ -123,7 +138,7 @@ export function AppointmentDatePicker({
   return (
     <View style={styles.container}>
       {/* Quick Select Buttons */}
-      <View style={styles.quickOptionsRow}>
+      {showQuickOptions ? <View style={styles.quickOptionsRow}>
         {quickOptions.map((opt) => {
           const isSelected = value === opt.date;
           return (
@@ -149,16 +164,18 @@ export function AppointmentDatePicker({
             </TouchableOpacity>
           );
         })}
-      </View>
+      </View> : null}
 
       {/* Selected Date Summary & Custom Date Button */}
       <TouchableOpacity
         style={[styles.dateDisplayBtn, disabled && styles.disabledBtn]}
         onPress={() => {
           if (!disabled) {
-            const current = value ? parseFromDateString(value) : new Date();
+            Keyboard.dismiss();
+            const current = value ? parseFromDateString(value) : maxDate ? parseFromDateString(maxDate) : new Date();
             setViewYear(current.getFullYear());
             setViewMonth(current.getMonth());
+            setSelectingYear(false);
             setIsCalendarOpen(true);
           }
         }}
@@ -168,11 +185,14 @@ export function AppointmentDatePicker({
         <View style={styles.dateDisplayLeft}>
           <Text style={styles.calendarIcon}>📅</Text>
           <Text style={styles.dateDisplayText}>
-            {formatHumanReadableDate(value)}
+            {value ? formatHumanReadableDate(value) : 'Select date'}
           </Text>
         </View>
-        <Text style={styles.changeDateAction}>Change Date ▾</Text>
+        <Text style={styles.changeDateAction}>{label} ▾</Text>
       </TouchableOpacity>
+      {allowClear && value ? <TouchableOpacity disabled={disabled} onPress={() => onChange('')}>
+        <Text style={styles.changeDateAction}>Clear date</Text>
+      </TouchableOpacity> : null}
 
       {/* Calendar Grid Modal */}
       <Modal
@@ -195,9 +215,9 @@ export function AppointmentDatePicker({
                     <Text style={styles.navBtnText}>‹</Text>
                   </TouchableOpacity>
 
-                  <Text style={styles.monthTitle}>
-                    {monthNames[viewMonth]} {viewYear}
-                  </Text>
+                  <TouchableOpacity accessibilityLabel="Choose year" onPress={() => setSelectingYear((current) => !current)}>
+                    <Text style={styles.monthTitle}>{monthNames[viewMonth]} {viewYear} ▾</Text>
+                  </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.navBtn}
@@ -208,6 +228,15 @@ export function AppointmentDatePicker({
                   </TouchableOpacity>
                 </View>
 
+                {selectingYear ? <View style={styles.daysGrid}>
+                  {Array.from({ length: 12 }, (_, index) => Math.floor(viewYear / 12) * 12 + index)
+                    .filter((year) => year >= 1 && year <= 9999).map((year) => (
+                      <TouchableOpacity key={year} style={[styles.dayCell, { width: '25%' }]}
+                        onPress={() => { setViewYear(year); setSelectingYear(false); }}>
+                        <Text style={styles.dayCellText}>{year}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </View> : <>
                 {/* Day of Week Labels */}
                 <View style={styles.weekRow}>
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => (
@@ -255,6 +284,7 @@ export function AppointmentDatePicker({
                   })}
                 </View>
 
+                </>}
                 {/* Close Button */}
                 <TouchableOpacity
                   style={styles.cancelModalBtn}

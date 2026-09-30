@@ -12,6 +12,9 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { WebView } from 'react-native-webview';
+import { useConsentPreview } from '../../consents/useConsentPreview';
+import { consentPreviewHtml } from '../../consents/consent-html';
 import { friendlyError } from '../../api/errors';
 import {
   formatConsentDate,
@@ -42,6 +45,8 @@ export function ConsentSignatureModal({
   const [selectedAsset, setSelectedAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { preview, retry, signatureLoaded, signatureFailed } = useConsentPreview(consent, visible);
+  const [formRenderError, setFormRenderError] = useState(false);
 
   const handleClose = () => {
     if (isSubmitting) return;
@@ -206,6 +211,59 @@ export function ConsentSignatureModal({
                     </View>
                   ) : null}
                 </View>
+
+                <Text style={styles.previewLabel}>Consent Form</Text>
+                {!preview || preview.formLoading ? <ActivityIndicator accessibilityLabel="Loading consent form" /> : null}
+                {preview?.html ? (
+                  <View style={{ height: 360, marginBottom: spacing.md }}>
+                    <WebView
+                      key={preview.key}
+                      source={{ html: consentPreviewHtml(preview.html), baseUrl: 'about:blank' }}
+                      style={{ flex: 1 }}
+                      javaScriptEnabled={false}
+                      domStorageEnabled={false}
+                      allowFileAccess={false}
+                      cacheEnabled={false}
+                      incognito
+                      nestedScrollEnabled
+                      originWhitelist={['*']}
+                      onShouldStartLoadWithRequest={(request) => request.url === 'about:blank'}
+                      onLoadStart={() => setFormRenderError(false)}
+                      onError={() => setFormRenderError(true)}
+                      accessibilityLabel="Consent form content"
+                    />
+                  </View>
+                ) : null}
+                {preview?.formError || formRenderError ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{preview?.formError ?? 'Unable to display the consent form.'}</Text>
+                    <TouchableOpacity onPress={() => { setFormRenderError(false); retry(); }}>
+                      <Text style={styles.cancelPreviewText}>Retry form preview</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                {consent.signature_document_id ? (
+                  <View style={styles.previewContainer}>
+                    <Text style={styles.previewLabel}>Recorded Signature</Text>
+                    {!preview || preview.signatureLoading ? <ActivityIndicator accessibilityLabel="Loading recorded signature" /> : null}
+                    {preview?.signature && !preview.signatureError ? (
+                      <View style={styles.previewImageWrapper}>
+                        <Image key={preview.key} source={preview.signature} style={styles.previewImage}
+                          accessibilityLabel="Recorded consent signature"
+                          onLoad={signatureLoaded} onError={signatureFailed} />
+                      </View>
+                    ) : null}
+                    {preview?.signatureError ? (
+                      <View style={styles.errorBox}>
+                        <Text style={styles.errorText}>{preview.signatureError}</Text>
+                        <TouchableOpacity onPress={retry}>
+                          <Text style={styles.cancelPreviewText}>Retry signature preview</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
 
                 {/* Important Patient Notice */}
                 <View style={styles.guidanceBox}>

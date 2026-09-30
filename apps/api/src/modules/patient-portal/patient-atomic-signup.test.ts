@@ -10,6 +10,7 @@ import { UserModel } from '../users/user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { OtpChallengeModel } from './otp-challenge.model.js';
 import { RegistrationTokenModel } from './registration-token.model.js';
+import { PatientNumberSequenceModel } from '../patients/patient-number.model.js';
 
 const phone = '+919876543210';
 const normalizedPhone = '919876543210';
@@ -63,7 +64,7 @@ describe('Patient Portal Atomic Signup Flow', () => {
     await createRoles();
   });
 
-  it('performs atomic registration when self_profile is supplied in signup', async () => {
+  it.each(['fresh', 'stale-counter'])('performs atomic registration with %s MRN state', async (scenario) => {
     const branch = await BranchModel.create({
       code: 'BR-MAIN',
       name: 'Main Hospital',
@@ -72,6 +73,18 @@ describe('Patient Portal Atomic Signup Flow', () => {
     });
 
     await createChallenge();
+
+    if (scenario === 'stale-counter') {
+      await PatientModel.createIndexes();
+      await PatientNumberSequenceModel.createIndexes();
+      const year = new Date().getFullYear();
+      await PatientNumberSequenceModel.create({ key: `PATIENT_MRN_${year}`, value: 25 });
+      await PatientModel.create([26, 30].map((number) => ({
+        patientNumber: `HMS-${year}-${String(number).padStart(6, '0')}`,
+        firstName: 'Existing', lastName: 'Patient', dateOfBirth: new Date('1980-01-01'),
+        gender: 'MALE', status: 'ACTIVE', registrationBranchId: branch._id,
+      })));
+    }
 
     const signupResponse = await app.inject({
       method: 'POST',
@@ -113,6 +126,10 @@ describe('Patient Portal Atomic Signup Flow', () => {
     expect(createdPatient?.firstName).toBe('Aarav');
     expect(createdPatient?.lastName).toBe('Patel');
     expect(createdPatient?.patientNumber).toMatch(/^HMS-\d{4}-\d{6}$/);
+    if (scenario === 'stale-counter') {
+      expect(createdPatient?.patientNumber).toBe(`HMS-${new Date().getFullYear()}-000031`);
+      expect(await PatientModel.countDocuments({})).toBe(3);
+    }
     expect(createdPatient?.bloodGroup).toBe('B+');
     expect(String(createdPatient?.registrationBranchId)).toBe(String(branch._id));
 
@@ -140,6 +157,30 @@ describe('Patient Portal Atomic Signup Flow', () => {
     expect(contextBody.data.patients).toHaveLength(1);
     expect(contextBody.data.patients[0]?.id).toBe(String(createdPatient?._id));
     expect(contextBody.data.patients[0]?.relationship).toBe('SELF');
+  });
+
+  it.each(['email', 'username', 'phone'] as const)('identifies an existing User %s without creating a patient or grant', async (field) => {
+    const branch = await BranchModel.create({ code: 'BR-MAIN', name: 'Main Hospital', city: 'Mumbai', status: 'ACTIVE' });
+    await UserModel.create({
+      username: field === 'username' ? 'new@example.test' : 'existing@example.test',
+      email: field === 'email' ? 'new@example.test' : 'existing@example.test',
+      phone: field === 'phone' ? phone : '+919999999999',
+      fullName: 'Existing User', passwordHash: 'test-only', status: 'active',
+    });
+    const registrationToken = 'test-registration-token-after-verification';
+    await RegistrationTokenModel.create({ phone: normalizedPhone,
+      tokenHash: createHash('sha256').update(registrationToken).digest('hex'),
+      expiresAt: new Date(Date.now() + 60000), consumedAt: null,
+    });
+    const response = await app.inject({ method: 'POST', url: '/api/patient-portal/signup', payload: {
+      account_type: 'PATIENT', full_name: 'New Patient', email: 'new@example.test', phone, registration_token: registrationToken,
+      self_profile: { first_name: 'New', last_name: 'Patient', date_of_birth: '1990-05-15', gender: 'MALE', preferred_branch_id: String(branch._id) },
+    } });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe(`DUPLICATE_${field.toUpperCase()}`);
+    expect(await UserModel.countDocuments({})).toBe(1);
+    expect(await PatientModel.countDocuments({})).toBe(0);
+    expect(await PatientAccessGrantModel.countDocuments({})).toBe(0);
   });
 
   it('rolls back completely if a duplicate patient exists when self_profile is supplied', async () => {
@@ -218,7 +259,7 @@ describe('Patient Portal Atomic Signup Flow', () => {
         self_profile: {
           first_name: 'Minor',
           last_name: 'Child',
-          dateOfBirth: '2020-01-01',
+          date_of_birth: '2020-01-01',
           gender: 'FEMALE',
           preferred_branch_id: String(branch._id),
         },
@@ -226,6 +267,7 @@ describe('Patient Portal Atomic Signup Flow', () => {
     });
 
     expect(signupResponse.statusCode).toBe(400);
+    expect(signupResponse.json().error.code).toBe('MINOR_GUARDIAN_REQUIRED');
 
     const userCount = await UserModel.countDocuments({ email: 'child@example.test' });
     expect(userCount).toBe(0);

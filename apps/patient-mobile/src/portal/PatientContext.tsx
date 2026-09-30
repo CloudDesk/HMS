@@ -14,6 +14,8 @@ import type {
   PortalPatient,
 } from './contracts';
 import { PortalApi } from './portal-api';
+import { DocumentsApi } from '../documents/documents-api';
+import { resolveProfilePhoto } from './resolve-profile-photo';
 
 interface PatientContextValue {
   context: PortalContext | null;
@@ -35,6 +37,7 @@ const PatientContext = createContext<PatientContextValue | null>(null);
 export function PatientProvider({ children }: { children: React.ReactNode }) {
   const { state: authState, manager } = useAuth();
   const portalApi = useMemo(() => new PortalApi(manager), [manager]);
+  const documentsApi = useMemo(() => new DocumentsApi(manager), [manager]);
 
   const [context, setContext] = useState<PortalContext | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -47,13 +50,13 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     async (patientId: string) => {
       try {
         const data = await portalApi.getOverview(patientId);
-        setOverview(data);
+        setOverview(await resolveProfilePhoto(data, documentsApi));
         setError(null);
       } catch (err) {
         setError(friendlyError(err));
       }
     },
-    [portalApi]
+    [portalApi, documentsApi]
   );
 
   const loadData = useCallback(
@@ -81,7 +84,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
 
           if (targetId) {
             const data = await portalApi.getOverview(targetId);
-            setOverview(data);
+            setOverview(await resolveProfilePhoto(data, documentsApi));
           }
         } else {
           setOverview(null);
@@ -93,7 +96,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         setIsRefreshing(false);
       }
     },
-    [authState.status, portalApi, selectedPatientId]
+    [authState.status, portalApi, documentsApi, selectedPatientId]
   );
 
   useEffect(() => {
