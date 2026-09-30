@@ -18,6 +18,7 @@ import {
 } from './appointment-utils';
 import { statusTone, toDisplayDate, visitTypeText } from './doctor-workflow-utils';
 import { useFirstDayOfWeek } from '../hooks/settings/useSettings';
+import { patientInitials } from './opd-utils';
 
 const scheduleTimes = Array.from({ length: 22 }).map((_, index) => {
   const totalMinutes = 8 * 60 + index * 30;
@@ -110,6 +111,50 @@ const buildMonthDays = (selectedDate: string) => {
   return days;
 };
 
+type CalendarMonthCell = {
+  date: string;
+  dayNum: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+};
+
+const buildFullMonthGrid = (selectedDate: string): CalendarMonthCell[] => {
+  const start = startOfMonth(selectedDate);
+  const end = endOfMonth(selectedDate);
+  const currentMonth = start.getMonth();
+  const todayStr = todayInputValue();
+
+  const gridStart = new Date(start);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+
+  const cells: CalendarMonthCell[] = [];
+  const cursor = new Date(gridStart);
+
+  while (cells.length < 35 || (cells.length < 42 && cursor <= end)) {
+    const dStr = toInputDate(cursor);
+    cells.push({
+      date: dStr,
+      dayNum: cursor.getDate(),
+      isCurrentMonth: cursor.getMonth() === currentMonth,
+      isToday: dStr === todayStr,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  while (cells.length % 7 !== 0) {
+    const dStr = toInputDate(cursor);
+    cells.push({
+      date: dStr,
+      dayNum: cursor.getDate(),
+      isCurrentMonth: cursor.getMonth() === currentMonth,
+      isToday: dStr === todayStr,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return cells;
+};
+
 const formatScheduleDay = (value: string) =>
   new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', weekday: 'short' }).format(parseScheduleDate(value));
 
@@ -177,6 +222,7 @@ export function DoctorSchedulePage() {
   const [viewMode, setViewMode] = useState<DoctorScheduleViewMode>(() =>
     parseViewMode(initialParams.get('view')),
   );
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 
   const { firstDayOfWeek } = useFirstDayOfWeek();
 
@@ -205,13 +251,44 @@ export function DoctorSchedulePage() {
     [schedule.appointments],
   );
 
+  const fullMonthCells = useMemo(() => buildFullMonthGrid(scheduleDate), [scheduleDate]);
+
+  const selectedAppointment = useMemo(
+    () => schedule.appointments.find((apt) => apt.id === selectedAppointmentId) ?? null,
+    [schedule.appointments, selectedAppointmentId],
+  );
+
+  const doctorTitle = selectedDoctor
+    ? `— ${selectedDoctor.display_name.startsWith('Dr.') ? selectedDoctor.display_name : `Dr. ${selectedDoctor.display_name}`}`
+    : '';
+
   const moveDate = (offset: number) => {
     const next = new Date(`${scheduleDate}T00:00:00`);
-    next.setDate(next.getDate() + (viewMode === 'month' ? offset * 30 : viewMode === 'week' ? offset * 7 : offset));
-    setScheduleDate(
-      `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`,
-    );
+    if (viewMode === 'month') {
+      next.setMonth(next.getMonth() + offset);
+    } else if (viewMode === 'week') {
+      next.setDate(next.getDate() + offset * 7);
+    } else {
+      next.setDate(next.getDate() + offset);
+    }
+    setScheduleDate(toInputDate(next));
   };
+
+  const bannerTitle = useMemo(() => {
+    const d = parseScheduleDate(scheduleDate);
+    if (viewMode === 'month') {
+      return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(d).toUpperCase();
+    }
+    if (viewMode === 'week') {
+      const start = startOfWeek(scheduleDate, 'Sunday');
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      const startStr = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(start).toUpperCase();
+      const endStr = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(end).toUpperCase();
+      return `WEEK OF ${startStr} - ${endStr}`;
+    }
+    return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(d).toUpperCase();
+  }, [scheduleDate, viewMode]);
 
   const appointmentsFor = (day: string, slot?: string) =>
     schedule.appointments.filter((appointment) => {
@@ -221,230 +298,454 @@ export function DoctorSchedulePage() {
 
   return (
     <>
-      <div className="doctor-page">
-        <section className="doctor-page-header">
-          <div className="doctor-page-title">
-            <h2>Doctor Schedule</h2>
-            <p>Review and manage daily and weekly clinician appointments.</p>
-          </div>
-          <div className="doctor-page-actions">
-            {schedule.canBookAppointments ? (
-              <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
-                <i className="ph ph-plus" aria-hidden="true" />
-                Book Appointment
-              </button>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="doc-toolbar">
-          <div className="doc-segmented">
-            {scheduleViewModes.map((mode) => (
+      <div className="doctor-page hms-cal-page-wrap">
+        <main className="hms-cal-main-area">
+          {/* Top Bar: Title + TODAY + DAY/WEEK/MONTH + Book Appointment */}
+          <div className="hms-cal-top-header">
+            <h2 className="hms-cal-page-heading">
+              Doctor Schedule {doctorTitle}
+            </h2>
+            <div className="hms-cal-controls-group">
               <button
-                className={viewMode === mode ? 'active' : ''}
-                key={mode}
-                onClick={() => setViewMode(mode)}
+                className="hms-cal-today-btn"
+                onClick={() => setScheduleDate(todayInputValue())}
                 type="button"
               >
-                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                Today
               </button>
-            ))}
-          </div>
-          <div className="doc-field grow">
-            <label htmlFor="schedule-doctor">Doctor</label>
-            <select disabled={schedule.isDoctor} id="schedule-doctor" onChange={(event) => schedule.setSelectedDoctorId(event.target.value)} value={schedule.selectedDoctorId}>
-              {schedule.doctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.display_name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="schedule-department">Department</label>
-            <select
-              disabled={!schedule.canViewDepartments}
-              id="schedule-department"
-              onChange={(event) => setDepartmentFilter(event.target.value)}
-              value={departmentFilter}
-            >
-              <option value="">All Departments</option>
-              {schedule.departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="schedule-type">Appointment Type</label>
-            <select
-              id="schedule-type"
-              onChange={(event) => setVisitTypeFilter(parseVisitType(event.target.value))}
-              value={visitTypeFilter}
-            >
-              <option value="">All Types</option>
-              {Object.entries(appointmentVisitTypeLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="schedule-status">Status</label>
-            <select
-              id="schedule-status"
-              onChange={(event) => setStatusFilter(parseAppointmentStatus(event.target.value))}
-              value={statusFilter}
-            >
-              <option value="">All Statuses</option>
-              {Object.entries(appointmentStatusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="schedule-date">Date</label>
-            <input id="schedule-date" onChange={(event) => setScheduleDate(event.target.value)} type="date" value={scheduleDate} />
-          </div>
-        </section>
-
-        <section className="doc-card">
-          <div className="doc-card-header">
-            <div>
-              <h3>
-                {selectedDoctor?.display_name ?? 'Doctor'} - {toDisplayDate(scheduleDate)}
-              </h3>
-              <p>Select an appointment slot to view patient consultation details.</p>
-            </div>
-            <div className="doc-inline-actions">
-              <button className="doc-btn icon-only" onClick={() => moveDate(-1)} type="button">
-                <i className="ph ph-caret-left" aria-hidden="true" />
-              </button>
-              <button className="doc-btn" onClick={() => setScheduleDate(todayInputValue())} type="button">
-                {getRelativeDateLabel(scheduleDate, viewMode, firstDayOfWeek)}
-              </button>
-              <button className="doc-btn icon-only" onClick={() => moveDate(1)} type="button">
-                <i className="ph ph-caret-right" aria-hidden="true" />
-              </button>
+              <div className="hms-cal-view-modes">
+                {scheduleViewModes.map((mode) => (
+                  <button
+                    className={`hms-cal-view-mode-btn${viewMode === mode ? ' active' : ''}`}
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    type="button"
+                  >
+                    {mode.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              {schedule.canBookAppointments ? (
+                <button
+                  className="doc-btn primary"
+                  onClick={() => navigate('/appointments/book')}
+                  type="button"
+                >
+                  <i className="ph ph-plus" aria-hidden="true" />
+                  Book Appointment
+                </button>
+              ) : null}
             </div>
           </div>
 
-          {schedule.isLoading ? (
-            <div className="um-state-cell">Loading doctor schedule...</div>
-          ) : schedule.error ? (
-            <div className="um-state-cell">{schedule.error}</div>
-          ) : schedule.doctors.length === 0 ? (
-            <div className="um-state-cell">No active doctors are available for schedule review.</div>
-          ) : viewMode === 'day' ? (
-            <div className="doctor-schedule-grid">
-              <div className="doctor-schedule-head">Time</div>
-              <div className="doctor-schedule-head">Appointments & Time Slots</div>
-              {scheduleTimes.map((time) => {
-                const appointment = appointmentByStart[time];
-                return (
-                  <div className="doctor-schedule-row" key={time}>
-                    <div className="doctor-schedule-time">{time}</div>
-                    <div className="doctor-schedule-slot">
-                      {appointment ? (
-                        <button
-                          className={`doctor-schedule-event ${statusTone(appointment.status)}`}
-                          onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
-                          type="button"
-                        >
-                          <span>
-                            <strong>
-                              {appointment.start_time} - {appointment.patient_name}
-                            </strong>
-                            <small>
-                              {formatDentalContext(appointment) ? (
-                                <span style={{ fontWeight: 600, color: '#0369a1', marginRight: 6 }}>
-                                  [{formatDentalContext(appointment)}]
-                                </span>
-                              ) : null}
-                              {visitTypeText(appointment.visit_type)} - {appointment.doctor_specialization}
-                            </small>
-                          </span>
-                          <span className={`doc-status ${statusTone(appointment.status)}`}>
-                            {appointmentStatusLabels[appointment.status]}
-                          </span>
-                        </button>
-                      ) : null}
-                    </div>
+          {/* Filter Toolbar */}
+          <section className="doc-toolbar" style={{ marginTop: 0 }}>
+            <div className="doc-field grow">
+              <label htmlFor="schedule-doctor">Doctor</label>
+              <select disabled={schedule.isDoctor} id="schedule-doctor" onChange={(event) => schedule.setSelectedDoctorId(event.target.value)} value={schedule.selectedDoctorId}>
+                {schedule.doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.display_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="schedule-department">Department</label>
+              <select
+                disabled={!schedule.canViewDepartments}
+                id="schedule-department"
+                onChange={(event) => setDepartmentFilter(event.target.value)}
+                value={departmentFilter}
+              >
+                <option value="">All Departments</option>
+                {schedule.departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="schedule-type">Appointment Type</label>
+              <select
+                id="schedule-type"
+                onChange={(event) => setVisitTypeFilter(parseVisitType(event.target.value))}
+                value={visitTypeFilter}
+              >
+                <option value="">All Types</option>
+                {Object.entries(appointmentVisitTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="schedule-status">Status</label>
+              <select
+                id="schedule-status"
+                onChange={(event) => setStatusFilter(parseAppointmentStatus(event.target.value))}
+                value={statusFilter}
+              >
+                <option value="">All Statuses</option>
+                {Object.entries(appointmentStatusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="schedule-date">Date</label>
+              <input id="schedule-date" onChange={(event) => setScheduleDate(event.target.value)} type="date" value={scheduleDate} />
+            </div>
+          </section>
+
+          {/* Visit Type Legend */}
+          <div className="appointment-calendar-legend">
+            <span>
+              <i /> Appointments / General
+            </span>
+            <span>
+              <i className="green" /> Follow-ups
+            </span>
+            <span>
+              <i className="purple" /> Procedures
+            </span>
+            <span>
+              <i className="cyan" /> Telemedicine / Referral
+            </span>
+            <span>
+              <i className="red" /> Emergency
+            </span>
+            <span>
+              <i className="muted" /> Cancelled / No show
+            </span>
+          </div>
+
+            {/* Calendar Container with Theme Blue Banner */}
+            <div className="hms-cal-container">
+              {/* Solid Theme Blue Header Banner */}
+              <div className="hms-cal-banner">
+                <button
+                  aria-label="Previous period"
+                  className="hms-cal-banner-nav-btn"
+                  onClick={() => moveDate(-1)}
+                  type="button"
+                >
+                  <i className="ph ph-caret-left-bold" />
+                </button>
+                <h3 className="hms-cal-banner-title">{bannerTitle}</h3>
+                <button
+                  aria-label="Next period"
+                  className="hms-cal-banner-nav-btn"
+                  onClick={() => moveDate(1)}
+                  type="button"
+                >
+                  <i className="ph ph-caret-right-bold" />
+                </button>
+              </div>
+
+              {schedule.isLoading ? (
+                <div className="um-state-cell" style={{ padding: '3rem 1rem' }}>Loading doctor schedule...</div>
+              ) : schedule.error ? (
+                <div className="um-state-cell" style={{ padding: '3rem 1rem' }}>{schedule.error}</div>
+              ) : schedule.doctors.length === 0 ? (
+                <div className="um-state-cell" style={{ padding: '3rem 1rem' }}>No active doctors are available for schedule review.</div>
+              ) : viewMode === 'month' ? (
+                <>
+                  {/* Weekday Columns Header */}
+                  <div className="hms-cal-weekdays-row">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                      <div className="hms-cal-weekday-header" key={d}>
+                        {d}
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          ) : viewMode === 'week' ? (
-            <div className="calendar-scroll">
-              <div className="appointment-calendar">
-                <div className="appointment-calendar-head">
-                  <span>Time</span>
-                  {weekDays.map((day) => (
-                    <span className={day === todayInputValue() ? 'today' : ''} key={day}>
-                      {formatScheduleDay(day)}
-                    </span>
-                  ))}
-                </div>
-                {calendarTimes.map((time) => (
-                  <div className="appointment-calendar-row" key={time}>
-                    <div className="appointment-calendar-time">{time}</div>
-                    {weekDays.map((day) => (
-                      <div className="appointment-calendar-cell" key={`${day}-${time}`}>
-                        {appointmentsFor(day, time).map((appointment) => (
-                          <button
-                            className={`appointment-calendar-event ${scheduleEventClass(appointment)}`}
-                            key={appointment.id}
-                            onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
-                            type="button"
-                          >
-                            <strong>
-                              {appointment.start_time} - {appointment.patient_name}
-                            </strong>
-                            <span>
-                              {formatDentalContext(appointment) ? `${formatDentalContext(appointment)} • ` : ''}
-                              {visitTypeText(appointment.visit_type)}
-                            </span>
-                          </button>
+
+                  {/* Month Grid Cells */}
+                  <div className="hms-cal-month-grid">
+                    {fullMonthCells.map((cell) => {
+                      const dayAppts = appointmentsFor(cell.date);
+                      return (
+                        <div
+                          className={`hms-cal-month-cell ${cell.isCurrentMonth ? '' : 'is-other-month'} ${cell.isToday ? 'is-today' : ''}`}
+                          key={cell.date}
+                        >
+                          <div className="hms-cal-cell-header">
+                            <span className="hms-cal-day-num">{cell.dayNum}</span>
+                          </div>
+                          <div className="hms-cal-events-wrap">
+                            {dayAppts.slice(0, 3).map((appointment, idx) => {
+                              const isCancelled = appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW';
+                              const isRef = Boolean(
+                                (appointment.notes && appointment.notes.toLowerCase().includes('referral')) ||
+                                (appointment.reason && appointment.reason.toLowerCase().includes('referral'))
+                              );
+                              const typeClass = isCancelled
+                                ? 'pill-muted'
+                                : appointment.visit_type === 'EMERGENCY'
+                                  ? 'pill-red'
+                                  : appointment.visit_type === 'PROCEDURE'
+                                    ? 'pill-purple'
+                                    : appointment.visit_type === 'FOLLOW_UP'
+                                      ? 'pill-green'
+                                      : isRef
+                                        ? 'pill-cyan'
+                                        : 'pill-blue';
+                              const lineClass = isCancelled
+                                ? 'line-muted'
+                                : appointment.visit_type === 'EMERGENCY'
+                                  ? 'line-red'
+                                  : appointment.visit_type === 'PROCEDURE'
+                                    ? 'line-purple'
+                                    : appointment.visit_type === 'FOLLOW_UP'
+                                      ? 'line-green'
+                                      : isRef
+                                        ? 'line-cyan'
+                                        : 'line-blue';
+                              const isSolid = !isCancelled && (appointment.visit_type === 'EMERGENCY' || appointment.visit_type === 'PROCEDURE' || idx === 0);
+
+                              return isSolid ? (
+                                <button
+                                  className={`hms-cal-event-pill ${typeClass}`}
+                                  key={appointment.id}
+                                  onClick={() => setSelectedAppointmentId(appointment.id)}
+                                  title={`${appointment.start_time} - ${appointment.patient_name}`}
+                                  type="button"
+                                >
+                                  {appointment.start_time} {appointment.patient_name}
+                                </button>
+                              ) : (
+                                <button
+                                  className={`hms-cal-event-line ${lineClass}`}
+                                  key={appointment.id}
+                                  onClick={() => setSelectedAppointmentId(appointment.id)}
+                                  title={`${appointment.start_time} - ${appointment.patient_name}`}
+                                  type="button"
+                                >
+                                  <strong>{appointment.start_time}</strong> {appointment.patient_name}
+                                </button>
+                              );
+                            })}
+                            {dayAppts.length > 3 ? (
+                              <button
+                                className="hms-cal-more-link"
+                                onClick={() => {
+                                  setScheduleDate(cell.date);
+                                  setViewMode('day');
+                                }}
+                                type="button"
+                              >
+                                +{dayAppts.length - 3} more
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : viewMode === 'week' ? (
+                <div className="calendar-scroll">
+                  <div className="appointment-calendar">
+                    <div className="appointment-calendar-head">
+                      <span>Time</span>
+                      {weekDays.map((day) => (
+                        <span className={day === todayInputValue() ? 'today' : ''} key={day}>
+                          {formatScheduleDay(day)}
+                        </span>
+                      ))}
+                    </div>
+                    {calendarTimes.map((time) => (
+                      <div className="appointment-calendar-row" key={time}>
+                        <div className="appointment-calendar-time">{time}</div>
+                        {weekDays.map((day) => (
+                          <div className="appointment-calendar-cell" key={`${day}-${time}`}>
+                            {appointmentsFor(day, time).map((appointment) => (
+                              <button
+                                className={`appointment-calendar-event ${scheduleEventClass(appointment)}`}
+                                key={appointment.id}
+                                onClick={() => setSelectedAppointmentId(appointment.id)}
+                                type="button"
+                              >
+                                <strong>
+                                  {appointment.start_time} - {appointment.patient_name}
+                                </strong>
+                                <span>
+                                  {formatDentalContext(appointment) ? `${formatDentalContext(appointment)} • ` : ''}
+                                  {visitTypeText(appointment.visit_type)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                         ))}
                       </div>
                     ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="doctor-schedule-grid">
+                  <div className="doctor-schedule-head">Time</div>
+                  <div className="doctor-schedule-head">Appointments & Time Slots</div>
+                  {scheduleTimes.map((time) => {
+                    const appointment = appointmentByStart[time];
+                    return (
+                      <div className="doctor-schedule-row" key={time}>
+                        <div className="doctor-schedule-time">{time}</div>
+                        <div className="doctor-schedule-slot">
+                          {appointment ? (
+                            <button
+                              className={`doctor-schedule-event ${statusTone(appointment.status)}`}
+                              onClick={() => setSelectedAppointmentId(appointment.id)}
+                              type="button"
+                            >
+                              <span>
+                                <strong>
+                                  {appointment.start_time} - {appointment.patient_name}
+                                </strong>
+                                <small>
+                                  {formatDentalContext(appointment) ? (
+                                    <span style={{ fontWeight: 600, color: '#0369a1', marginRight: 6 }}>
+                                      [{formatDentalContext(appointment)}]
+                                    </span>
+                                  ) : null}
+                                  {visitTypeText(appointment.visit_type)} - {appointment.doctor_specialization}
+                                </small>
+                              </span>
+                              <span className={`doc-status ${statusTone(appointment.status)}`}>
+                                {appointmentStatusLabels[appointment.status]}
+                              </span>
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Floating Action Button (FAB) from Reference Image */}
+              {/* {schedule.canBookAppointments ? (
+                <button
+                  className="hms-cal-fab-btn"
+                  onClick={() => navigate('/appointments/book')}
+                  title="Book New Appointment"
+                  type="button"
+                >
+                  <i className="ph ph-plus-bold" aria-hidden="true" />
+                </button>
+              ) : null} */}
             </div>
-          ) : (
-            <div className="calendar-scroll">
-              <div className="appointment-month">
-                {monthDays.map((day) => (
-                  <div className={`appointment-month-day ${day === todayInputValue() ? 'today' : ''}`} key={day}>
-                    <strong>{formatScheduleMonthDay(day)}</strong>
-                    {appointmentsFor(day).slice(0, 4).map((appointment) => (
-                      <button
-                        className={`appointment-calendar-event ${scheduleEventClass(appointment)}`}
-                        key={appointment.id}
-                        onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(appointment.patient_id)}`)}
-                        type="button"
-                      >
-                        <strong>
-                          {appointment.start_time} - {appointment.patient_name}
-                        </strong>
-                        <span>
-                          {formatDentalContext(appointment) ? `${formatDentalContext(appointment)} • ` : ''}
-                          {visitTypeText(appointment.visit_type)}
-                        </span>
-                      </button>
-                    ))}
+          </main>
+        </div>
+
+      {/* Appointment Details Modal */}
+      {selectedAppointment ? (
+        <div className="modal-backdrop" onClick={() => setSelectedAppointmentId(null)}>
+          <div className="modal-box apt-details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Appointment Details</h3>
+              <button className="modal-close" onClick={() => setSelectedAppointmentId(null)} type="button">
+                <i className="ph ph-x" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="apt-modal-patient-strip">
+                <div className="opd-patient-avatar-box">
+                  <span>{patientInitials(selectedAppointment.patient_name)}</span>
+                </div>
+                <div className="apt-modal-patient-info">
+                  <h4>{selectedAppointment.patient_name}</h4>
+                  <p>{selectedAppointment.patient_number || 'Patient number not recorded'}</p>
+                  <div className="apt-modal-patient-sub">
+                    <span>
+                      {selectedAppointment.appointment_date.slice(0, 10)} • {selectedAppointment.start_time}
+                    </span>
+                    <span>{appointmentVisitTypeLabels[selectedAppointment.visit_type]}</span>
+                    <span className="doc-status active">
+                      {appointmentStatusLabels[selectedAppointment.status]}
+                    </span>
                   </div>
-                ))}
+                </div>
+              </div>
+
+              <div className="apt-modal-details-grid">
+                <div className="apt-modal-detail-row">
+                  <span>Appointment ID</span>
+                  <strong>{selectedAppointment.appointment_number}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Doctor</span>
+                  <strong>{selectedAppointment.doctor_name}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Department</span>
+                  <strong>{selectedAppointment.doctor_specialization || 'Not recorded'}</strong>
+                </div>
+                {formatDentalContext(selectedAppointment) ? (
+                  <div className="apt-modal-detail-row">
+                    <span>Dental Context</span>
+                    <strong style={{ color: '#0369a1' }}>
+                      {formatDentalContext(selectedAppointment)}
+                    </strong>
+                  </div>
+                ) : null}
+                <div className="apt-modal-detail-row">
+                  <span>Visit Type</span>
+                  <strong>{appointmentVisitTypeLabels[selectedAppointment.visit_type]}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Priority</span>
+                  <strong>{selectedAppointment.priority}</strong>
+                </div>
+                <div className="apt-modal-detail-row">
+                  <span>Duration</span>
+                  <strong>{selectedAppointment.duration_minutes} Minutes</strong>
+                </div>
+                {selectedAppointment.reason ? (
+                  <div className="apt-modal-detail-row" style={{ gridColumn: 'span 2' }}>
+                    <span>Chief Complaint / Reason</span>
+                    <strong>{selectedAppointment.reason}</strong>
+                  </div>
+                ) : null}
+                {selectedAppointment.notes ? (
+                  <div className="apt-modal-detail-row" style={{ gridColumn: 'span 2' }}>
+                    <span>Notes</span>
+                    <strong>{selectedAppointment.notes}</strong>
+                  </div>
+                ) : null}
               </div>
             </div>
-          )}
-        </section>
-      </div>
+
+            <div className="modal-footer apt-modal-footer">
+              <button
+                className="doc-btn"
+                onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(selectedAppointment.patient_id)}`)}
+                type="button"
+              >
+                Open Patient Profile
+              </button>
+              <button
+                className="doc-btn"
+                onClick={() => navigate(`/appointments/calendar?date=${selectedAppointment.appointment_date.slice(0, 10)}`)}
+                type="button"
+              >
+                Manage in Calendar
+              </button>
+              <button
+                className="doc-btn primary"
+                onClick={() => setSelectedAppointmentId(null)}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
