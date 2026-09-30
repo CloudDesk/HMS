@@ -230,10 +230,6 @@ export function AppointmentCalendarPage() {
               <i className="ph ph-plus" aria-hidden="true" />
               Book Appointment
             </button> : null}
-            <button className="doc-btn" onClick={() => window.print()} type="button">
-              <i className="ph ph-printer" aria-hidden="true" />
-              Print Calendar
-            </button>
             <button className="doc-btn" onClick={handleExport} type="button">
               <i className="ph ph-download-simple" aria-hidden="true" />
               Export CSV

@@ -47,18 +47,17 @@ export function PharmacyQueueDashboardPage() {
   };
 
   return (
-    <div className="pharmacy-dashboard">
-      <section className="appointment-page-header">
-        <div className="appointment-page-title">
+    <div className="hms-dash-wrapper">
+      <div className="hms-dash-header">
+        <div className="hms-dash-title">
           <h2>Pharmacy Queue Dashboard</h2>
           <p>Live prescription workload and dispensing progress</p>
-          <small>Read-only operational summary</small>
         </div>
-        {queue.branches.length > 0 ? (
-          <label className="pharmacy-dashboard-branch">
-            <span>Branch</span>
+        <div className="hms-dash-actions">
+          {queue.branches.length > 0 ? (
             <select
               aria-label="Pharmacy dashboard branch"
+              className="hms-dash-select"
               onChange={(event) => setRequestedBranch(event.target.value)}
               value={queue.activeBranchId}
             >
@@ -66,11 +65,11 @@ export function PharmacyQueueDashboardPage() {
                 <option key={branch.id} value={branch.id}>{branch.code} — {branch.name}</option>
               ))}
             </select>
-          </label>
-        ) : null}
-      </section>
+          ) : null}
+        </div>
+      </div>
 
-      <section className="doc-kpi-grid pharmacy-dashboard-kpis">
+      <div className="hms-dash-kpi-grid">
         {([
           ['ph-hourglass', 'orange', 'Pending Prescriptions', queue.pendingCount, 'Awaiting dispensing', 'PENDING'],
           ['ph-check-circle', 'green', 'Dispensed Prescriptions', queue.confirmedCount, 'Successfully confirmed', 'CONFIRMED'],
@@ -78,70 +77,79 @@ export function PharmacyQueueDashboardPage() {
           ['ph-chart-donut', 'purple', 'Completion Rate', workload ? `${workload.completedPercent}%` : null, 'Of tracked workload', null],
         ] as const).map(([icon, tone, label, value, copy, targetStatus]) => (
           <button
-            className={`doc-kpi pharmacy-dashboard-kpi${targetStatus ? ' clickable' : ''}`}
+            className={`hms-dash-kpi-card${targetStatus ? ' clickable' : ''}`}
             disabled={!targetStatus}
             key={label}
             onClick={targetStatus ? () => openQueue(targetStatus) : undefined}
             type="button"
           >
-            <span className={`doc-kpi-icon ${tone}`}><i className={`ph ${icon}`} aria-hidden="true" /></span>
-            <div className="doc-kpi-copy">
-              <span>{label}</span>
-              <strong>{queue.summaryLoading ? '—' : (value ?? '—')}</strong>
-              <small>{queue.summaryError ? 'Summary unavailable' : targetStatus ? `${copy} · View queue` : copy}</small>
+            <div className="hms-kpi-top">
+              <span className={`hms-kpi-icon ${tone}`}><i className={`ph ${icon}`} aria-hidden="true" /></span>
+              {targetStatus ? <i className="ph ph-arrow-up-right" style={{ color: '#94a3b8', fontSize: '14px' }} /> : null}
+            </div>
+            <div>
+              <div className="hms-kpi-label">{label}</div>
+              <div className="hms-kpi-value">{queue.summaryLoading ? '—' : (value ?? '—')}</div>
+              <div className="hms-kpi-sub">{queue.summaryError ? 'Summary unavailable' : targetStatus ? `${copy} · View queue` : copy}</div>
             </div>
           </button>
         ))}
-      </section>
+      </div>
 
-      <section className="pharmacy-dashboard-grid">
-        <article className="doc-card">
-          <div className="doc-card-header">
-            <div>
-              <h3>Dispensing Progress</h3>
-              <p>Pending compared with successfully dispensed prescriptions</p>
+      <div className="hms-dash-grid two-col-7-5">
+        <div className="hms-dash-card">
+          <div className="hms-card-header">
+            <div className="hms-card-header-left">
+              <h3 className="hms-card-title">Dispensing Progress</h3>
+              <p className="hms-card-desc">Pending compared with successfully dispensed prescriptions</p>
             </div>
           </div>
-          {queue.summaryLoading ? (
-            <div className="um-state-cell">Loading dispensing summary...</div>
-          ) : queue.summaryError || !workload ? (
-            <div className="um-state-cell">Dispensing progress is currently unavailable.</div>
-          ) : (
-            <div className="pharmacy-progress-content">
-              <div className="pharmacy-progress-track" aria-label={`${workload.pendingPercent}% pending and ${workload.completedPercent}% dispensed`}>
-                <span className="pending" style={{ width: `${workload.pendingPercent}%` }} />
-                <span className="completed" style={{ width: `${workload.completedPercent}%` }} />
+          <div className="hms-card-body">
+            {queue.summaryLoading ? (
+              <div className="um-state-cell">Loading dispensing summary...</div>
+            ) : queue.summaryError || !workload ? (
+              <div className="um-state-cell">Dispensing progress is currently unavailable.</div>
+            ) : (
+              <div className="pharmacy-progress-content">
+                <div className="pharmacy-progress-track" aria-label={`${workload.pendingPercent}% pending and ${workload.completedPercent}% dispensed`}>
+                  <span className="pending" style={{ width: `${workload.pendingPercent}%` }} />
+                  <span className="completed" style={{ width: `${workload.completedPercent}%` }} />
+                </div>
+                <div className="pharmacy-progress-legend">
+                  <div><span className="legend-dot pending" /><strong>{queue.pendingCount}</strong><small>Pending ({workload.pendingPercent}%)</small></div>
+                  <div><span className="legend-dot completed" /><strong>{queue.confirmedCount}</strong><small>Dispensed ({workload.completedPercent}%)</small></div>
+                </div>
               </div>
-              <div className="pharmacy-progress-legend">
-                <div><span className="legend-dot pending" /><strong>{queue.pendingCount}</strong><small>Pending ({workload.pendingPercent}%)</small></div>
-                <div><span className="legend-dot completed" /><strong>{queue.confirmedCount}</strong><small>Dispensed ({workload.completedPercent}%)</small></div>
+            )}
+          </div>
+        </div>
+
+        <div className="hms-dash-card">
+          <div className="hms-card-header">
+            <div className="hms-card-header-left">
+              <h3 className="hms-card-title">Queue Attention</h3>
+              <p className="hms-card-desc">Current operational status</p>
+            </div>
+          </div>
+          <div className="hms-card-body">
+            <div className="hms-attention-item" style={{ borderLeft: '3px solid #f59e0b' }}>
+              <div className="hms-attention-left">
+                <span className="hms-kpi-icon orange"><i className="ph ph-clock-countdown" aria-hidden="true" /></span>
+                <div className="hms-attention-text">
+                  <strong>{queue.pendingCount ?? '—'} prescriptions waiting</strong>
+                  <small>{queue.pendingCount === 0 ? 'The dispensing queue is clear.' : 'Pending prescriptions require pharmacy review.'}</small>
+                </div>
               </div>
             </div>
-          )}
-        </article>
-
-        <article className="doc-card">
-          <div className="doc-card-header">
-            <div>
-              <h3>Queue Attention</h3>
-              <p>Current operational status</p>
-            </div>
           </div>
-          <div className="pharmacy-attention-card">
-            <span className="doc-kpi-icon orange"><i className="ph ph-clock-countdown" aria-hidden="true" /></span>
-            <div>
-              <strong>{queue.pendingCount ?? '—'} prescriptions waiting</strong>
-              <span>{queue.pendingCount === 0 ? 'The dispensing queue is clear.' : 'Pending prescriptions require pharmacy review.'}</span>
-            </div>
-          </div>
-        </article>
-      </section>
+        </div>
+      </div>
 
-      <section className="doc-card">
-        <div className="doc-card-header">
-          <div>
-            <h3>Recent Pending Prescriptions</h3>
-            <p>Latest queue details without dispensing actions</p>
+      <div className="hms-dash-card">
+        <div className="hms-card-header">
+          <div className="hms-card-header-left">
+            <h3 className="hms-card-title">Recent Pending Prescriptions</h3>
+            <p className="hms-card-desc">Latest queue details without dispensing actions</p>
           </div>
         </div>
         {queue.listLoading ? (
@@ -173,7 +181,7 @@ export function PharmacyQueueDashboardPage() {
             ))}
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

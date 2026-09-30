@@ -126,35 +126,46 @@ export function AppointmentDashboardPage() {
   );
 
   return (
-    <div className="appointment-page">
-      <section className="appointment-page-header">
-        <div className="appointment-page-title">
+    <div className="hms-dash-wrapper">
+      <div className="hms-dash-header">
+        <div className="hms-dash-title">
           <h2>Appointment Dashboard</h2>
-          <p>Daily consultation schedule, token status, and booking overview.</p>
-          <small>Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}</small>
+          <p>Schedule monitoring, booking capacity, and attendance flow</p>
+          <span className="hms-dash-scope-tag">
+            <i className="ph ph-buildings" aria-hidden="true" />
+            Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}
+          </span>
         </div>
-        <div className="appointment-page-actions">
-          {canCreateBooking ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
-            <i className="ph ph-calendar-plus" aria-hidden="true" />
-            Book Appointment
-          </button> : null}
+        <div className="hms-dash-actions">
+          <button className="hms-dash-btn secondary" onClick={() => navigate('/appointments/calendar')} type="button">
+            <i className="ph ph-calendar-blank" aria-hidden="true" />
+            Calendar View
+          </button>
+          {canCreateBooking ? (
+            <button className="hms-dash-btn primary" onClick={() => navigate('/appointments/book')} type="button">
+              <i className="ph ph-calendar-plus" aria-hidden="true" />
+              Book Appointment
+            </button>
+          ) : null}
         </div>
-      </section>
+      </div>
 
-      <section className="doc-kpi-grid appointment-kpi-grid">
+      <div className="hms-dash-kpi-grid">
         {kpis.map((kpi) => (
-          <article className="doc-kpi" key={kpi.label}>
-            <span className={`doc-kpi-icon ${kpi.tone}`}>
-              <i className={`ph ${kpi.icon}`} aria-hidden="true" />
-            </span>
-            <div className="doc-kpi-copy">
-              <span>{kpi.label}</span>
-              <strong>{loading || summaryLoading ? '-' : kpi.value}</strong>
-              <small>{kpi.copy}</small>
+          <div className="hms-dash-kpi-card" key={kpi.label}>
+            <div className="hms-kpi-top">
+              <span className={`hms-kpi-icon ${kpi.tone}`}>
+                <i className={`ph ${kpi.icon}`} aria-hidden="true" />
+              </span>
             </div>
-          </article>
+            <div>
+              <div className="hms-kpi-label">{kpi.label}</div>
+              <div className="hms-kpi-value">{loading || summaryLoading ? '—' : kpi.value}</div>
+              <div className="hms-kpi-sub">{kpi.copy}</div>
+            </div>
+          </div>
         ))}
-      </section>
+      </div>
 
       <section className="appointment-dashboard-grid">
         <article className="doc-card">
