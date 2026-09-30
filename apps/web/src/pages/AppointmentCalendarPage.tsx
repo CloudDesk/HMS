@@ -64,6 +64,51 @@ const buildMonthDays = (selectedDate: string) => {
   return days;
 };
 
+type CalendarMonthCell = {
+  date: string;
+  dayNum: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+};
+
+const buildFullMonthGrid = (selectedDate: string): CalendarMonthCell[] => {
+  const start = startOfMonth(selectedDate);
+  const end = endOfMonth(selectedDate);
+  const currentMonth = start.getMonth();
+  const todayStr = todayInputValue();
+
+  // Always start on Sunday to match standard calendar view in reference
+  const gridStart = new Date(start);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+
+  const cells: CalendarMonthCell[] = [];
+  const cursor = new Date(gridStart);
+
+  while (cells.length < 35 || (cells.length < 42 && cursor <= end)) {
+    const dStr = toInputDate(cursor);
+    cells.push({
+      date: dStr,
+      dayNum: cursor.getDate(),
+      isCurrentMonth: cursor.getMonth() === currentMonth,
+      isToday: dStr === todayStr,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  while (cells.length % 7 !== 0) {
+    const dStr = toInputDate(cursor);
+    cells.push({
+      date: dStr,
+      dayNum: cursor.getDate(),
+      isCurrentMonth: cursor.getMonth() === currentMonth,
+      isToday: dStr === todayStr,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return cells;
+};
+
 const downloadAppointments = (appointments: AppointmentResponse[]) => {
   const rows = [
     ['Appointment No', 'Date', 'Time', 'Patient', 'Doctor', 'Visit Type', 'Status'],
@@ -213,227 +258,427 @@ export function AppointmentCalendarPage() {
     setIsRescheduling(false);
   };
 
+  const fullMonthCells = useMemo(() => buildFullMonthGrid(calendarDate), [calendarDate]);
+
+  const moveCalendarDate = (offset: number) => {
+    const current = parseInputDate(calendarDate);
+    if (mode === 'month') {
+      current.setMonth(current.getMonth() + offset);
+    } else if (mode === 'week') {
+      current.setDate(current.getDate() + offset * 7);
+    } else {
+      current.setDate(current.getDate() + offset);
+    }
+    setCalendarDate(toInputDate(current));
+  };
+
+  const bannerTitle = useMemo(() => {
+    const d = parseInputDate(calendarDate);
+    if (mode === 'month') {
+      return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(d).toUpperCase();
+    }
+    if (mode === 'week') {
+      const start = startOfWeek(calendarDate, 'Sunday');
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      const startStr = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(start).toUpperCase();
+      const endStr = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(end).toUpperCase();
+      return `WEEK OF ${startStr} - ${endStr}`;
+    }
+    return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(d).toUpperCase();
+  }, [calendarDate, mode]);
+
   return (
     <>
-      <div className="appointment-page">
-        <section className="appointment-page-header">
-          <div className="appointment-page-title">
-            <h2>Calendar View</h2>
-            <p>Review and coordinate scheduled clinical consultations.</p>
-          </div>
-          <div className="appointment-page-actions">
-            <button className="doc-btn" onClick={() => setCalendarDate(todayInputValue())} type="button">
-              <i className="ph ph-calendar-dot" aria-hidden="true" />
-              Today
-            </button>
-            {canBook ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
-              <i className="ph ph-plus" aria-hidden="true" />
-              Book Appointment
-            </button> : null}
-            <button className="doc-btn" onClick={handleExport} type="button">
-              <i className="ph ph-download-simple" aria-hidden="true" />
-              Export CSV
-            </button>
-          </div>
-        </section>
-
-        <section className="doc-toolbar">
-          <div className="doc-segmented">
-            {(['day', 'week', 'month'] as const).map((item) => (
-              <button className={mode === item ? 'active' : ''} key={item} onClick={() => setMode(item)} type="button">
-                {item.charAt(0).toUpperCase() + item.slice(1)}
+      <div className="appointment-page hms-cal-page-wrap">
+        <main className="hms-cal-main-area">
+          {/* Top Bar: Title + TODAY + DAY/WEEK/MONTH + Book Appointment */}
+          <div className="hms-cal-top-header">
+            <h2 className="hms-cal-page-heading">Calendar View</h2>
+            <div className="hms-cal-controls-group">
+              <button
+                className="hms-cal-today-btn"
+                onClick={() => setCalendarDate(todayInputValue())}
+                type="button"
+              >
+                Today
               </button>
-            ))}
+              <div className="hms-cal-view-modes">
+                {(['day', 'week', 'month'] as const).map((item) => (
+                  <button
+                    className={`hms-cal-view-mode-btn${mode === item ? ' active' : ''}`}
+                    key={item}
+                    onClick={() => setMode(item)}
+                    type="button"
+                  >
+                    {item.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              {canBook ? (
+                <button
+                  className="doc-btn primary"
+                  onClick={() => navigate('/appointments/book')}
+                  type="button"
+                >
+                  <i className="ph ph-plus" aria-hidden="true" />
+                  Book Appointment
+                </button>
+              ) : null}
+              <button className="doc-btn" onClick={handleExport} style={{ marginLeft: '4px' }} title="Export CSV" type="button">
+                <i className="ph ph-download-simple" aria-hidden="true" />
+              </button>
+            </div>
           </div>
-          <div className="doc-field">
-            <label htmlFor="calendar-department">Department</label>
-            <select
-              id="calendar-department"
-              disabled={Boolean(loggedInDoctor)}
-              onChange={(event) => {
-                setDepartmentFilter(event.target.value);
-                setDoctorFilter('');
-              }}
-              value={departmentFilter}
-            >
-              <option value="">All Departments</option>
-              {departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="calendar-doctor">Doctor</label>
-            <select 
-              id="calendar-doctor" 
-              disabled={Boolean(loggedInDoctor)}
-              onChange={(event) => setDoctorFilter(event.target.value)} 
-              value={doctorFilter}
-            >
-              <option value="">All Doctors</option>
-              {visibleDoctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.display_name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="calendar-status">Appointment Status</label>
-            <select
-              id="calendar-status"
-              onChange={(event) => setStatusFilter(event.target.value as ApiAppointmentStatus | '')}
-              value={statusFilter}
-            >
-              <option value="">All Statuses</option>
-              {Object.entries(appointmentStatusLabels).map(([status, label]) => (
-                <option key={status} value={status}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="calendar-date">Date</label>
-            <input id="calendar-date" onChange={(event) => setCalendarDate(event.target.value)} type="date" value={calendarDate} />
-          </div>
-        </section>
 
-        {loadError ? <div className="form-error-banner">{loadError}</div> : null}
+          {/* Filter Toolbar */}
+          <section className="doc-toolbar" style={{ marginTop: 0 }}>
+            <div className="doc-field">
+              <label htmlFor="calendar-department">Department</label>
+              <select
+                id="calendar-department"
+                disabled={Boolean(loggedInDoctor)}
+                onChange={(event) => {
+                  setDepartmentFilter(event.target.value);
+                  setDoctorFilter('');
+                }}
+                value={departmentFilter}
+              >
+                <option value="">All Departments</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="calendar-doctor">Doctor</label>
+              <select 
+                id="calendar-doctor" 
+                disabled={Boolean(loggedInDoctor)}
+                onChange={(event) => setDoctorFilter(event.target.value)} 
+                value={doctorFilter}
+              >
+                <option value="">All Doctors</option>
+                {visibleDoctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.display_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="calendar-status">Appointment Status</label>
+              <select
+                id="calendar-status"
+                onChange={(event) => setStatusFilter(event.target.value as ApiAppointmentStatus | '')}
+                value={statusFilter}
+              >
+                <option value="">All Statuses</option>
+                {Object.entries(appointmentStatusLabels).map(([status, label]) => (
+                  <option key={status} value={status}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="doc-field">
+              <label htmlFor="calendar-date">Date</label>
+              <input id="calendar-date" onChange={(event) => setCalendarDate(event.target.value)} type="date" value={calendarDate} />
+            </div>
+          </section>
 
-        <div className="appointment-calendar-legend">
-          <span>
-            <i /> Appointments
-          </span>
-          <span>
-            <i className="cyan" style={{ background: '#06b6d4' }} /> Specialist Referrals
-          </span>
-          <span>
-            <i className="green" /> Follow-ups
-          </span>
-          <span>
-            <i className="purple" /> Procedures
-          </span>
-          <span>
-            <i className="red" /> Emergency
-          </span>
-          <span>
-            <i className="muted" /> Cancelled / No show
-          </span>
-        </div>
+          {/* Visit Type Legend */}
+          <div className="appointment-calendar-legend">
+            <span>
+              <i /> Appointments / General
+            </span>
+            <span>
+              <i className="green" /> Follow-ups
+            </span>
+            <span>
+              <i className="purple" /> Procedures
+            </span>
+            <span>
+              <i className="cyan" /> Telemedicine / Referral
+            </span>
+            <span>
+              <i className="red" /> Emergency
+            </span>
+            <span>
+              <i className="muted" /> Cancelled / No show
+            </span>
+          </div>
 
-        <section className="doc-card calendar-card">
-          {loading ? <div className="um-state-cell">Loading appointment calendar...</div> : null}
+            {loadError ? <div className="form-error-banner">{loadError}</div> : null}
 
-          {!loading && mode !== 'month' ? (
-            <div className="calendar-scroll">
-              <div className={`appointment-calendar ${mode === 'day' ? 'is-day' : ''}`}>
-                <div className="appointment-calendar-head">
-                  <span>Time</span>
-                  {(mode === 'day' ? [dateKey(calendarDate)] : weekDays).map((day) => (
-                    <span className={day === todayInputValue() ? 'today' : ''} key={day}>
-                      {getDayHeader(day)}
-                    </span>
-                  ))}
+            {/* Calendar Container with Theme Blue Banner */}
+            <div className="hms-cal-container">
+              {/* Solid Theme Blue Header Banner */}
+              <div className="hms-cal-banner">
+                <button
+                  aria-label="Previous period"
+                  className="hms-cal-banner-nav-btn"
+                  onClick={() => moveCalendarDate(-1)}
+                  type="button"
+                >
+                  <i className="ph ph-caret-left-bold" />
+                </button>
+                <h3 className="hms-cal-banner-title">{bannerTitle}</h3>
+                <button
+                  aria-label="Next period"
+                  className="hms-cal-banner-nav-btn"
+                  onClick={() => moveCalendarDate(1)}
+                  type="button"
+                >
+                  <i className="ph ph-caret-right-bold" />
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="um-state-cell" style={{ padding: '3rem 1rem' }}>
+                  Loading appointment calendar...
                 </div>
-                {timeSlots.map((slot) => (
-                  <div className="appointment-calendar-row" key={slot}>
-                    <div className="appointment-calendar-time">{slot}</div>
-                    {(mode === 'day' ? [dateKey(calendarDate)] : weekDays).map((day) => {
-                      const cellKey = `${day}-${slot}`;
-                      const isOver = dragOverCellKey === cellKey;
+              ) : mode === 'month' ? (
+                <>
+                  {/* Weekday Columns Header */}
+                  <div className="hms-cal-weekdays-row">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                      <div className="hms-cal-weekday-header" key={d}>
+                        {d}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Month Grid Cells */}
+                  <div className="hms-cal-month-grid">
+                    {fullMonthCells.map((cell) => {
+                      const dayAppts = appointmentsFor(cell.date);
+                      const isOver = dragOverCellKey === cell.date;
                       return (
                         <div
-                          className={`appointment-calendar-cell ${isOver ? 'is-drag-over' : ''}`}
-                          key={cellKey}
+                          className={`hms-cal-month-cell ${cell.isCurrentMonth ? '' : 'is-other-month'} ${cell.isToday ? 'is-today' : ''} ${isOver ? 'is-drag-over' : ''}`}
+                          key={cell.date}
                           onDragLeave={() => setDragOverCellKey(null)}
                           onDragOver={(e) => {
-                            const now = new Date();
-                            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                            if (day < todayInputValue() || (day === todayInputValue() && slot < currentTime)) return;
+                            if (cell.date < todayInputValue()) return;
                             if (!canEditBooking) return;
                             e.preventDefault();
-                            setDragOverCellKey(cellKey);
+                            setDragOverCellKey(cell.date);
                           }}
-                          onDrop={() => { if (canEditBooking) void handleDrop(day, slot); }}
+                          onDrop={() => { if (canEditBooking) void handleDrop(cell.date); }}
                         >
-                          {appointmentsFor(day, slot).map((appointment) => (
-                            <button
-                              className={`appointment-calendar-event ${eventClass(appointment)}`}
-                              draggable={canEditBooking}
-                              key={appointment.id}
-                              onClick={() => setSelectedAppointmentId(appointment.id)}
-                              onDragStart={(e) => {
-                                setDraggedAppointmentId(appointment.id);
-                                e.dataTransfer.setData('text/plain', appointment.id);
-                              }}
-                              type="button"
-                            >
-                              <strong>{formatAppointmentTime(appointment)}</strong>
-                              <div>
-                                <strong>{appointment.patient_name}</strong>
-                                <span>{appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}</span>
-                              </div>
-                            </button>
-                          ))}
+                          <div className="hms-cal-cell-header">
+                            <span className="hms-cal-day-num">{cell.dayNum}</span>
+                          </div>
+                          <div className="hms-cal-events-wrap">
+                            {dayAppts.slice(0, 3).map((appointment, idx) => {
+                              const isCancelled = appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW';
+                              const isRef = isReferral(appointment);
+                              const typeClass = isCancelled
+                                ? 'pill-muted'
+                                : appointment.visit_type === 'EMERGENCY'
+                                  ? 'pill-red'
+                                  : appointment.visit_type === 'PROCEDURE'
+                                    ? 'pill-purple'
+                                    : appointment.visit_type === 'FOLLOW_UP'
+                                      ? 'pill-green'
+                                      : isRef
+                                        ? 'pill-cyan'
+                                        : 'pill-blue';
+                              const lineClass = isCancelled
+                                ? 'line-muted'
+                                : appointment.visit_type === 'EMERGENCY'
+                                  ? 'line-red'
+                                  : appointment.visit_type === 'PROCEDURE'
+                                    ? 'line-purple'
+                                    : appointment.visit_type === 'FOLLOW_UP'
+                                      ? 'line-green'
+                                      : isRef
+                                        ? 'line-cyan'
+                                        : 'line-blue';
+                              const isSolid = !isCancelled && (appointment.visit_type === 'EMERGENCY' || appointment.visit_type === 'PROCEDURE' || idx === 0);
+
+                              return isSolid ? (
+                                <button
+                                  className={`hms-cal-event-pill ${typeClass}`}
+                                  draggable={canEditBooking}
+                                  key={appointment.id}
+                                  onClick={() => setSelectedAppointmentId(appointment.id)}
+                                  onDragStart={(e) => {
+                                    setDraggedAppointmentId(appointment.id);
+                                    e.dataTransfer.setData('text/plain', appointment.id);
+                                  }}
+                                  title={`${appointment.start_time} - ${appointment.patient_name} (${appointment.doctor_name})`}
+                                  type="button"
+                                >
+                                  {appointment.start_time} {appointment.patient_name}
+                                </button>
+                              ) : (
+                                <button
+                                  className={`hms-cal-event-line ${lineClass}`}
+                                  draggable={canEditBooking}
+                                  key={appointment.id}
+                                  onClick={() => setSelectedAppointmentId(appointment.id)}
+                                  onDragStart={(e) => {
+                                    setDraggedAppointmentId(appointment.id);
+                                    e.dataTransfer.setData('text/plain', appointment.id);
+                                  }}
+                                  title={`${appointment.start_time} - ${appointment.patient_name} (${appointment.doctor_name})`}
+                                  type="button"
+                                >
+                                  <strong>{appointment.start_time}</strong> {appointment.patient_name}
+                                </button>
+                              );
+                            })}
+                            {dayAppts.length > 3 ? (
+                              <button
+                                className="hms-cal-more-link"
+                                onClick={() => {
+                                  setCalendarDate(cell.date);
+                                  setMode('day');
+                                }}
+                                type="button"
+                              >
+                                +{dayAppts.length - 3} more
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {!loading && mode === 'month' ? (
-            <div className="calendar-scroll">
-              <div className="appointment-month">
-                {monthDays.map((day) => {
-                  const isOver = dragOverCellKey === day;
-                  return (
-                    <div
-                      className={`appointment-month-day ${day === todayInputValue() ? 'today' : ''} ${
-                        isOver ? 'is-drag-over' : ''
-                      }`}
-                      key={day}
-                      onDragLeave={() => setDragOverCellKey(null)}
-                      onDragOver={(e) => {
-                        if (day < todayInputValue()) return;
-                        if (!canEditBooking) return;
-                        e.preventDefault();
-                        setDragOverCellKey(day);
-                      }}
-                      onDrop={() => { if (canEditBooking) void handleDrop(day); }}
-                    >
-                      <strong>{getMobileDayHeader(day)}</strong>
-                      {appointmentsFor(day).slice(0, 4).map((appointment) => (
-                        <button
-                          className={`appointment-calendar-event ${eventClass(appointment)}`}
-                          draggable={canEditBooking}
-                          key={appointment.id}
-                          onClick={() => setSelectedAppointmentId(appointment.id)}
-                          onDragStart={(e) => {
-                            setDraggedAppointmentId(appointment.id);
-                            e.dataTransfer.setData('text/plain', appointment.id);
-                          }}
-                          type="button"
-                        >
-                          <strong>
-                            {appointment.start_time} - {appointment.patient_name}
-                          </strong>
-                          <span>{appointment.doctor_name}</span>
-                        </button>
+                </>
+              ) : mode === 'week' ? (
+                <div className="calendar-scroll">
+                  <div className="appointment-calendar">
+                    <div className="appointment-calendar-head">
+                      <span>Time</span>
+                      {weekDays.map((day) => (
+                        <span className={day === todayInputValue() ? 'today' : ''} key={day}>
+                          {getDayHeader(day)}
+                        </span>
                       ))}
                     </div>
-                  );
-                })}
-              </div>
+                    {timeSlots.map((slot) => (
+                      <div className="appointment-calendar-row" key={slot}>
+                        <div className="appointment-calendar-time">{slot}</div>
+                        {weekDays.map((day) => {
+                          const cellKey = `${day}-${slot}`;
+                          const isOver = dragOverCellKey === cellKey;
+                          return (
+                            <div
+                              className={`appointment-calendar-cell ${isOver ? 'is-drag-over' : ''}`}
+                              key={cellKey}
+                              onDragLeave={() => setDragOverCellKey(null)}
+                              onDragOver={(e) => {
+                                const now = new Date();
+                                const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                if (day < todayInputValue() || (day === todayInputValue() && slot < currentTime)) return;
+                                if (!canEditBooking) return;
+                                e.preventDefault();
+                                setDragOverCellKey(cellKey);
+                              }}
+                              onDrop={() => { if (canEditBooking) void handleDrop(day, slot); }}
+                            >
+                              {appointmentsFor(day, slot).map((appointment) => (
+                                <button
+                                  className={`appointment-calendar-event ${eventClass(appointment)}`}
+                                  draggable={canEditBooking}
+                                  key={appointment.id}
+                                  onClick={() => setSelectedAppointmentId(appointment.id)}
+                                  onDragStart={(e) => {
+                                    setDraggedAppointmentId(appointment.id);
+                                    e.dataTransfer.setData('text/plain', appointment.id);
+                                  }}
+                                  type="button"
+                                >
+                                  <strong>{formatAppointmentTime(appointment)}</strong>
+                                  <div>
+                                    <strong>{appointment.patient_name}</strong>
+                                    <span>{appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}</span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="calendar-scroll">
+                  <div className="appointment-calendar is-day">
+                    <div className="appointment-calendar-head">
+                      <span>Time</span>
+                      <span className={dateKey(calendarDate) === todayInputValue() ? 'today' : ''}>
+                        {getDayHeader(dateKey(calendarDate))}
+                      </span>
+                    </div>
+                    {timeSlots.map((slot) => {
+                      const day = dateKey(calendarDate);
+                      const cellKey = `${day}-${slot}`;
+                      const isOver = dragOverCellKey === cellKey;
+                      return (
+                        <div className="appointment-calendar-row" key={slot}>
+                          <div className="appointment-calendar-time">{slot}</div>
+                          <div
+                            className={`appointment-calendar-cell ${isOver ? 'is-drag-over' : ''}`}
+                            key={cellKey}
+                            onDragLeave={() => setDragOverCellKey(null)}
+                            onDragOver={(e) => {
+                              const now = new Date();
+                              const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                              if (day < todayInputValue() || (day === todayInputValue() && slot < currentTime)) return;
+                              if (!canEditBooking) return;
+                              e.preventDefault();
+                              setDragOverCellKey(cellKey);
+                            }}
+                            onDrop={() => { if (canEditBooking) void handleDrop(day, slot); }}
+                          >
+                            {appointmentsFor(day, slot).map((appointment) => (
+                              <button
+                                className={`appointment-calendar-event ${eventClass(appointment)}`}
+                                draggable={canEditBooking}
+                                key={appointment.id}
+                                onClick={() => setSelectedAppointmentId(appointment.id)}
+                                onDragStart={(e) => {
+                                  setDraggedAppointmentId(appointment.id);
+                                  e.dataTransfer.setData('text/plain', appointment.id);
+                                }}
+                                type="button"
+                              >
+                                <strong>{formatAppointmentTime(appointment)}</strong>
+                                <div>
+                                  <strong>{appointment.patient_name}</strong>
+                                  <span>{appointment.doctor_name} - {appointmentVisitTypeLabels[appointment.visit_type]}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Floating Action Button (FAB) from Reference Image */}
+              {/* {canBook ? (
+                <button
+                  className="hms-cal-fab-btn"
+                  onClick={() => navigate('/appointments/book')}
+                  title="Book New Appointment"
+                  type="button"
+                >
+                  <i className="ph ph-plus-bold" aria-hidden="true" />
+                </button>
+              ) : null} */}
             </div>
-          ) : null}
-        </section>
-      </div>
+          </main>
+        </div>
 
       {/* Appointment Details Modal */}
       {selectedAppointment ? (
